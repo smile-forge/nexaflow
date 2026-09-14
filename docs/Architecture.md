@@ -1,12 +1,5 @@
 # Nexaflow Architecture
 
-> **Freshness:** reviewed/refreshed 2026-07-08 — the saved/runtime rename is applied throughout
-> (saved config = `Workspace`, runtime = `WorkspaceRuntime`; the old `Profile`/`WorkContext` names
-> survive only as on-disk/IPC compat strings), the solution layout is tiered rather than enumerated
-> (the feature inventory lives in the product tree), and the elevation subsystem is documented.
-> Architectural findings + cleanup opportunities are tracked in
-> [arch_review_2026-07.md](arch_review_2026-07.md).
-
 ## Table of Contents
 
 1. [Solution Layout](#solution-layout)
@@ -16,7 +9,8 @@
 5. [Extensibility Points](#extensibility-points)
 6. [Elevation / Privilege Bridge](#elevation--privilege-bridge)
 7. [Core Flows](#core-flows)
-8. [Architectural Findings](#architectural-findings)
+8. [Large-file reading](#large-file-reading)
+9. [Architectural Findings](#architectural-findings)
 
 ---
 
@@ -37,9 +31,16 @@ the root `CLAUDE.md`. This section fixes the tiers and the rules between them.
 | Providers | `Nexaflow.Providers.Common` + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria) | Loaded by file name at runtime; never compile-time referenced |
 | Elevation | `Nexaflow.Elevation.Contracts` (pure DTO leaf) + `Nexaflow.PrivilegeBridge` (separate elevated exe) | The admin-action trust boundary — see [Elevation / Privilege Bridge](#elevation--privilege-bridge) |
 | Languages | `Nexaflow.Language.<code>` under `src/Nexaflow.Languages/` — one resource-only pack per language, gathered from every project's `Localization/<code>/` | Shipped to `Languages\` and loaded by path, never referenced — see [localization.md](localization.md) |
-| Tests | `Nexaflow.Tests.{Core,Features,Providers}` + `Nexaflow.Tests.Fixtures` | See [testing.md](testing.md) |
+| Initiatives | `Nexaflow.Services.Initiatives` + `Nexaflow.Services.Initiatives.Cli` (`nfi`) | WPF-free backend for the product tree, the knowledge graph, `SnaplinkValidator` and graph edit plans — never references WPF, Core or a feature. The CLI runs the same validator headlessly for the installer's build gate (exit 1 = broken links) — see [product-graph.md](product-graph.md) |
+| Tests | `Nexaflow.Tests.*` (one suite per subject) + `Nexaflow.Tests.Fixtures` | See [testing.md](testing.md) |
 
-**Dependency rules** (mechanically enforced since 2026-07 by `Nexaflow.Tests.Features/Architecture/*`
+`Nexaflow.Syntax` owns `TreeSitterLanguages` (extension → grammar), so a headless caller resolves a grammar without
+WPF. The tree-sitter runtime **and** every grammar compile from pinned submodules (`external/tree-sitter-dotnet-bindings`
++ `external/tree-sitter-xml`, one row per language in `tools/tree-sitter-grammars.props`) — not the `TreeSitter.DotNet`
+package, whose prebuilt natives went stale. `.xaml` parses with the xml grammar under its own id, so the extractor can
+read WPF meaning (`x:Class` / `x:Name` / `x:Key` / handlers). See [externals.md](externals.md).
+
+**Dependency rules** (mechanically enforced by `Nexaflow.Tests.Features.Architecture/Architecture/ArchitectureRulesTests`
 and `Nexaflow.Tests.Providers/ArchitectureRulesTests` — a violation is a red build):
 
 - Features depend on `Features.Common` + the shared leaves only — never on Core, never on each other.
@@ -61,10 +62,9 @@ There are nesting scopes. **Getting a thing's scope wrong is the easiest way to 
 
 The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved, shared configuration shown in the dropdown — name/colour/icon, default + last-session tabsets, AI ability grid, persona, ribbon layout, provider configs, conversations; a **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is a runtime grouping of one-or-more window frames all running ONE Workspace. App/IPC launch always creates a *new* WorkspaceRuntime (launch ×3 ⇒ 3 runtimes, possibly all on one Workspace); tear-off / "open in new window" reuse the *same* runtime; switching the dropdown reconfigures the current runtime in place (`WorkspaceManager.SwitchWorkspace`); closing a runtime's last window disposes it.
 
-> **Naming history:** before 2026-07 the saved half was named `Profile` (and earlier, `WorkContext`).
-> The old names survive **only** as frozen on-disk/IPC compat strings — the `workcontexts` config
-> name, the `Contexts\` data folder, the `--context` command-line/IPC flag. Never reintroduce them
-> as type or member names.
+> **Frozen names:** the on-disk and IPC strings `workcontexts` (config name), `Contexts\` (data folder) and
+> `--context` (command-line/IPC flag) are compat contracts and never change. `Profile` and `WorkContext` are never
+> type or member names.
 
 ### Central — one instance per process
 
@@ -77,7 +77,7 @@ The model has two halves: a **`Workspace`** (`Models/Workspace.cs`) is the saved
 | `BackgroundActivityManager` | The one activity/notification surface (passed to ProviderManager, every window, every ShellServices) | — |
 | `WorkspaceManager` | The `Workspaces` list (dropdown source) + the live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle | — |
 | `FeatureManager` | Consumes the cached discovery index (`FeatureCatalog`); builds feature instances **per (Type, WorkspaceRuntime)** on demand; `EvictWorkspace` drops them on reconfigure/dispose | File-system contracts (those go to `FileSystemFeatureRegistry`) |
-| `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan | — |
+| `FeatureCatalog` | The discovery engine: a **disk-cached** index of which feature type implements which contract, so a normal launch loads **no** feature DLLs; assemblies load + activate **lazily** (first use or post-paint background warm-up). Cache is stamped with the app version **and** the feature-DLL set, so any changed assembly forces a rescan. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted), so a full scan also eagerly activates every feature — never clear it by hand while developing | — |
 | `LanguageManager` | The UI language: installed packs listed by file name, the active pack + English loaded lazily by path, the merged string table behind `Str` / `{loc:Str}`, and the help pages the Help pane reads. A change restarts the window like a theme — see [localization.md](localization.md) | Theme resources (`ThemeManager`) |
 | `FileMapManager`, `ExternalAppRegistry`, `WhisperModelManager`, `HostCapabilityService`, `MessageCenter`, `JumpListService` | Misc app-wide services | — |
 
@@ -126,6 +126,9 @@ A `WorkspaceRuntime` (`Core/Models/WorkspaceRuntime.cs`) points at one `Workspac
 
 The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** instances (`FeatureManager` resolves them per `WorkspaceRuntime`). So "open a tab" and "ask the AI" always act within exactly one runtime.
 
+The Options and Manage-AI overlays are **modal** — they block switching. A live workspace can't be deleted, and there
+is always at least one workspace.
+
 ### Per-window / per-tab
 
 - A **window** (`IWindowHost`) registers into its runtime's `ShellServices`. Several windows can share one runtime (tear-off / "open in new window"); switching the dropdown reconfigures the runtime **in place** for all of its windows (`SwitchWorkspace` — tabs close, providers/AIService rebuilt against the target workspace).
@@ -148,7 +151,7 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `App.xaml.cs` | Startup (`InitializeApp`): global-config + provider-**assembly** load, `WorkspaceManager.Initialize` (saved workspaces only), feature discovery, first window (a fresh `WorkspaceRuntime`). Also the windowless `--prestart` daemon and single-instance / new-window IPC (each IPC launch = a new runtime) |
 | `Models/Workspace.cs` | The saved, shared workspace config (holds `AiConfig`/`Persona`/`ProviderConfigs`/`RibbonService`+`RibbonChanged`/conversations dir + default/last-session tabsets) — see [Ownership & Lifetime](#ownership--lifetime) |
 | `Models/WorkspaceRuntime.cs` | The runtime (points at a `Workspace`; holds `Providers`/`AiService`/`ShellServices`) |
-| `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue — moved here from `Features.Common` |
+| `Models/OpenPageRequest.cs` | `(PageKind, PageParams)` carrier for shell-level open commands (breadcrumb follow-links). Core-internal MVVM glue |
 | `Services/Agent/ClientBlockParser.cs`, `ParsedAssistantTurn.cs` | The assistant wire-protocol parser the agent loop reads fenced `client_tool` blocks with. Core-only, so it lives in Core — not a feature contract |
 | `Services/WorkspaceManager.cs` | Singleton: the `Workspaces` list + live `WorkspaceRuntime`s; `Initialize`/`CreateWorkspace`/`SwitchWorkspace`/`ReconfigureWorkspace`/`NotifyWindowClosed`, `Add`/`Clone`/`Rename`/`Remove`/`DeleteWorkspace`, orphaned-data quarantine |
 | `ProviderManager.cs` | Singleton: loads provider **assemblies** + records provider/config **types**; `LoadProviderConfigs(dir)` + the ref-counted pool `AcquireProviderSet`/`ReleaseProviderSet`. Instances are model-bound (capability per config + execution per config+model); execution instances warm/cool with their pool lifetime |
@@ -159,11 +162,11 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `ViewModels/ShellViewModel.cs` | Per-window VM: pane/split layout, overlays, AI input routing, toasts, workspace lifecycle commands; `SelectWorkspace` (in-place switch, blocked while a modal overlay is open) |
 | `Services/ShellServices.cs` | `IShellServices` impl — **per-`WorkspaceRuntime`** (not an app-level singleton). Owns that runtime's window + tab registry, tearoff/cross-window moves, file watching, session capture/restore, window positioning |
 | `FeatureManager.cs` | Singleton (`FeatureManager.Instance`). Delegates discovery to `FeatureCatalog` (a disk-cached index — **no** eager DLL loads on the common launch); resolves `IPageRegistration`/config/handler **types** lazily and builds instances per `WorkspaceRuntime` with scoped `IShellServices` + `IAIService` (`EvictWorkspace` drops them on reconfigure). File-system contracts are **not** here (see below) |
-| `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app version **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus Core). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (which made every page kind added since render as an empty tab). Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
+| `Services/FeatureCatalog.cs` | The discovery engine behind `FeatureManager`. Persists the per-assembly type index to `…\Smile\nexaflow\discovery\catalog.json`, stamped with the app version **and** the feature-DLL set it was built from (`FeatureCatalogStamp`: name + length + write time per `Nexaflow.Features.*.dll` plus Core). Both must still match for the index to be trusted, and validating costs one directory enumeration with no assembly loads — so a same-version rebuild forces a rescan instead of silently serving an index that no longer describes the DLLs on disk (a stale index would render every newer page kind as an empty tab). Resolving a type loads + **activates** its assembly on demand (registering that assembly's global configs / archive handlers / theme contributions). A post-paint background warm-up activates the rest |
 | `Services/StartupTimings.cs` | Opt-in startup profiler (`--timing` flag / `NEXAFLOW_STARTUP_TIMING=1`); writes a milestone breakdown + `FIRST_WINDOW_MS` / `WINDOW_ON_DEMAND_MS` to stderr. Zero cost when off |
 | `Services/FileSystemFeatureRegistry.cs` | Discovery + matching for `IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet` (deliberately split out of `FeatureManager`) |
 | `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
-| `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle moved to `ShellServices` |
+| `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle is `ShellServices` |
 | `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
 | `Controls/RibbonEditor.xaml.cs` | Interactive ribbon customization; local draft, commit on Done |
 | `Controls/TabStrip.xaml.cs` | Renders tabs; emits tearoff drag events |
@@ -190,7 +193,7 @@ The contract layer. Every feature depends on this; nothing else does.
 | `IBackgroundTask.cs` | Self-contained background work (`Description` + `RunAsync`) handed to `IShellServices.QueueBackgroundTask` |
 | `IFeatureConfig.cs` | Marks a POCO as a config section; discovered and instantiated by `FeatureManager` |
 | `IContext.cs` / `FileSystemContext.cs` | Typed context objects offered by ViewModels via `IPageViewModel.GetContextObject()` |
-| `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`ClientToolBase`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`, the shared `ToolArgs` argument reader. Contracts only — the Core-only wire-protocol parser (`ClientBlockParser`, `ParsedAssistantTurn`) moved to `Core/Services/Agent/` |
+| `ClientTools/*.cs` | Agent-loop contracts: `IClientTool`/`ClientToolBase`/`DelegateClientTool`, `ClientToolParameter`, `ToolSafety`, `ToolCall`, `ToolResult`, `ClientPlan`, `IToolApprovalCoordinator`, the shared `ToolArgs` argument reader. Contracts only — the Core-only wire-protocol parser (`ClientBlockParser`, `ParsedAssistantTurn`) lives in `Core/Services/Agent/` |
 | `ConfigAttributes.cs` | `[ConfigDisplayName]`, `[FolderPath]`, `[FilePath]`, `[ListSource]`, `[CustomControl]` / `ICustomConfigApply` / `IConfigChangeTracker` |
 | `AiResponse.cs` | `AiResponse` record returned by `IAIService.RunAgentAsync` |
 | `ConversationRecord.cs` | Chat conversation + message list + attachments |
@@ -221,7 +224,7 @@ Non-contract UI shared across features and Core. Features may reference these (t
 | `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view; and the UI-string seam, `Localization/` — `Str.Get` / `{loc:Str Key}`, whose source Core sets at startup ([localization.md](localization.md)); and `Locate/` — the `locate:` link scheme and the animated lasso it throws round a control on screen |
 | `Nexaflow.Visuals.Text` | Markdown rendering: `MarkdownView` / `SelectableMarkdownView` (copy-aware) over `MarkdownFlowDocument` + `BlockRenderer`, plus Mermaid `DiagramRenderer`. Used by Core's `AiResponseOverlay` and AIChat's `ConversationView` |
 
-**Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view (`arch_improvements.md` tracks the duplicated toolbar/list/grid styles that should move here).
+**Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view.
 
 ### Nexaflow.Providers.*
 
@@ -449,7 +452,7 @@ shellServices.ShowOverlay(new MyOverlayVm());   // feature-defined shell-modal o
 
 A feature can show its own **shell-modal overlay**: pass any view-model to `ShowOverlay`, and the single overlay host in `MainWindow` renders it via a `DataTemplate` matched on the VM's type — ship that template in a `ResourceDictionary` advertised through your `IThemeContribution`. Implement `IShellOverlay` on the VM to opt into backdrop-click dismissal. The built-in modals (Options, Manage-AI, confirmation, prompt) ride the same host.
 
-**Questions go to the shell; forms get a `ModalCard`.** A *question* — yes/no, or one line of text — is window-modal: ask it with `ConfirmAsync` / `ShowConfirmation` / `ShowPrompt`, and the shell renders the one dialog every feature shares (its models are `Visuals.Common`'s `ConfirmationRequest` / `PromptRequest`). A *form* — content the user works in — is tab-modal: wrap it in `Visuals.Common`'s `ModalCard` (scrim + centred card, a `Tone` for the border, Escape → `CancelCommand`), which shares the chrome and leaves the content, bindings and AutomationIds the feature's own. Not `ShowOverlay` for a form: the host holds one overlay and ranks a feature's above the confirmation, so a form that asked "are you sure?" would hide its own question, and a shell-modal wizard locks every tab. `HandRolledModalRatchetTests` fails on a scrim-wrapped card anywhere outside `Visuals.Common`. Its baseline, `hand-rolled-modals.txt`, held the ones that predated the rule and has been empty since they all moved onto `ModalCard` — a new one is refused, not listed.
+**Questions go to the shell; forms get a `ModalCard`.** A *question* — yes/no, or one line of text — is window-modal: ask it with `ConfirmAsync` / `ShowConfirmation` / `ShowPrompt`, and the shell renders the one dialog every feature shares (its models are `Visuals.Common`'s `ConfirmationRequest` / `PromptRequest`). A *form* — content the user works in — is tab-modal: wrap it in `Visuals.Common`'s `ModalCard` (scrim + centred card, a `Tone` for the border, Escape → `CancelCommand`), which shares the chrome and leaves the content, bindings and AutomationIds the feature's own. Not `ShowOverlay` for a form: the host holds one overlay and ranks a feature's above the confirmation, so a form that asked "are you sure?" would hide its own question, and a shell-modal wizard locks every tab. `HandRolledModalRatchetTests` fails on a scrim-wrapped card anywhere outside `Visuals.Common`. Its baseline, `hand-rolled-modals.txt`, is empty — a new one is refused, not listed.
 
 ---
 
@@ -661,12 +664,26 @@ Load:  workspace bound → RibbonViewModel.SetWorkspace → workspace.RibbonServ
 
 ---
 
+## Large-file reading
+
+There are four established strategies; pick the one whose access pattern matches your data shape before inventing a
+fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs), but the mechanical
+leaves live in `Nexaflow.IO.Common` — `EncodingDetector` (BOM/UTF-8 sniff; Tabular's detector, the canonical one) and
+`FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than
+re-rolling them.
+
+| Strategy | Canonical reader | When |
+|----------|------------------|------|
+| Tail-first + background head-load | `Logs/ViewModels/LogViewModel.cs` | append-only files where the recent end matters most |
+| Head-first window + placeholder padding for scrollbar | `Text/ViewModels/TextViewModel.cs` | top-of-file-first text; line index built up front |
+| Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
+| Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
+
+---
+
 ## Architectural Findings
 
-Point-in-time findings do **not** live in this document — an embedded findings list rots invisibly
-(the 2026-06 copy of this section was ~60% stale by 2026-07: three of its six items had already been
-fixed or had moved files). Current findings, each with status tracked inline:
-[arch_review_2026-07.md](arch_review_2026-07.md) (supersedes
-[arch_improvements.md](arch_improvements.md)). Per-component product status (what exists, what is
+Point-in-time findings do **not** live in this document — an embedded findings list rots invisibly. Current findings, each with status tracked inline:
+[arch_review_2026-07.md](arch_review_2026-07.md). Per-component product status (what exists, what is
 tested, what is AI-ready) lives in the product tree — `.product/tree.json`, queried via the
 product-folder skill.

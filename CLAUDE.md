@@ -1,8 +1,20 @@
 # Nexaflow — Claude Context
 
-## What This Is
+Nexaflow is a WPF shell replacement for Windows — file explorer, terminal, editors, viewers, project management and
+an AI assistant in one tabbed window. `.NET 10 / WPF / MVVM Community Toolkit`; solution `Nexaflow.slnx`, pinned x64.
 
-Nexaflow is a WPF shell replacement for Windows — file explorer, terminal, text editor, markdown editor, image viewer, project management, and AI assistant in one tabbed window. `.NET 10 / WPF / MVVM Community Toolkit`. The solution file is `Nexaflow.slnx`.
+This file is what every turn needs. Depth lives in the docs below — open one when the work enters its territory.
+
+| When the work involves… | Read |
+|---|---|
+| the product tree — its shape and granularity, concerns, snaplinks, `validate` / `remap` / `pending` / `promote`, what the graph can answer | [docs/product-graph.md](docs/product-graph.md) |
+| writing tests — usually once the change works: which suite, the journey + leaf-unit-test model, `[CoversNode]`, running them | [docs/testing.md](docs/testing.md) |
+| scope (global / `Workspace` / `WorkspaceRuntime`), config paths + migration, elevation, contracts, large-file reading | [docs/Architecture.md](docs/Architecture.md) |
+| a new feature or page kind | the `add-feature` skill · [docs/features.md](docs/features.md) |
+| colours, styles, themes | [docs/theming.md](docs/theming.md) |
+| anything under `external/` — **read first** | [docs/externals.md](docs/externals.md) |
+| menus, AutomationIds, `TextBox` in UIA, `RichTextBox` hit-testing | [docs/wpf-gotchas.md](docs/wpf-gotchas.md) |
+| strings, help pages, language packs | [docs/localization.md](docs/localization.md) |
 
 ## Build
 
@@ -11,89 +23,45 @@ dotnet build Nexaflow.slnx
 dotnet run --project src/Nexaflow.Core/Nexaflow.Core.csproj
 ```
 
-## Project Layout
+## Layout
 
 ```
 src/
-  Nexaflow.Core/                    shell chrome, main window, ribbon, AI input bar, FeatureManager
+  Nexaflow.Core/                      shell chrome, main window, ribbon, AI input bar, FeatureManager
   Nexaflow.Features/
-    Nexaflow.Features.Common/       ALL contracts (interfaces + small DTOs). NO FeatureManager — that's in Core.
-    Nexaflow.Features.<Feature>/    ONE assembly per feature (~30: viewers, editors, players, managers, viewlets)
-      Nexaflow.Features.Compressed.{Modern,SecureZip,SharpCompress}/  codec backends — implement IO.Common's
-                                    IArchiveHandler/IStreamCodec, reference IO.Common ONLY (not even Compressed)
-  Nexaflow.Visuals.Common/          shared WPF controls + converters + formatters (PieChart, ThemedRegion, SizeFormatter/DurationFormatter, …)
-  Nexaflow.Visuals.Text/            shared markdown rendering (MarkdownView / SelectableMarkdownView / MarkdownFlowDocument, Mermaid)
-  Nexaflow.Visuals.Terminal/        terminal input logic (command classifier, keys/history, environments model)
-  Nexaflow.IO.Common/               shared IO leaves (net10.0, no WPF): EncodingDetector/LineEnding, Glob, Hashing,
-                                    Base64Codec + stream-codec/archive contracts (IStreamCodec/IArchiveHandler/IArchiveEncryptor),
-                                    VirtualFileSystem (archive-as-folder), TextLineIndex/TextTransforms, FileChangeWatcher, FileSplitter
-  Nexaflow.IO.Terminal/             PTY host (pseudo-console service, terminal screen, job objects)
-  Nexaflow.Syntax/                  syntax engine (highlighting, outline, structure extraction) — used by Code,
-                                    Notebook, ProductManager, Visuals.Text. Owns TreeSitterLanguages
-                                    (extension→grammar), so headless callers resolve a grammar without WPF.
-                                    The tree-sitter runtime AND every grammar are compiled from pinned
-                                    submodules (external/tree-sitter-dotnet-bindings + tree-sitter-xml) —
-                                    NOT the TreeSitter.DotNet package, whose prebuilt natives go stale (its
-                                    C# grammar predated `= []` and `[.. var rest]`, which cost a whole file
-                                    its parse). One row per language in tools/tree-sitter-grammars.props;
-                                    `.xaml` parses with the xml grammar under its own id so the extractor
-                                    can read WPF meaning (x:Class/x:Name/x:Key/handlers)
-  Nexaflow.Services.Initiatives/    WPF-free backend for the "initiatives" domain — Product today, Projects later:
-                                    model, ProductStore, ProductAggregator/TreeOps, SnaplinkValidator. Never
-                                    reference WPF/Core/Features.* from here
-  Nexaflow.Services.Initiatives.Cli/ `nfi validate <root>` — the SAME SnaplinkValidator, headless.
-                                    Powers the installer build gate and PowerShell tooling (exit 1 = broken links)
-  Nexaflow.Elevation/               Elevation.Contracts (pure DTO leaf) + PrivilegeBridge (separate requireAdministrator
-                                    exe) — the RunElevatedAsync trust boundary; see docs/Architecture.md → Elevation
-  Nexaflow.Languages/               one resource-only pack per language (Nexaflow.Language.<code>), gathered from every
-                                    project's own Localization/<code>/ (help pages, strings.json); see docs/localization.md
-  Nexaflow.Providers/
-    Nexaflow.Providers.Common/      LlmProviderRegistry, shared message types, PromptComposer
-    Nexaflow.Providers.{Claude,Gemini,OpenAI,Ollama,Aria}/  one per LLM backend (Aria = named pipe, rest = vendor SDK)
+    Nexaflow.Features.Common/         ALL contracts (interfaces + small DTOs) — no FeatureManager, that's Core
+    Nexaflow.Features.<Feature>/      one assembly per feature (~30)
+      …Compressed.{Modern,SecureZip,SharpCompress}/   codec backends — reference IO.Common ONLY
+  Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters
+  Nexaflow.Visuals.Text/              markdown rendering — reuse SelectableMarkdownView, never hand-roll a RichTextBox
+  Nexaflow.Visuals.Terminal/          terminal input logic
+  Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
+  Nexaflow.IO.Terminal/               PTY host
+  Nexaflow.Syntax/                    tree-sitter engine + StructuralEdit; grammars built from submodules (externals.md)
+  Nexaflow.Services.Initiatives/      WPF-free product tree + graph backend — never references WPF/Core/Features
+  Nexaflow.Services.Initiatives.Cli/  nfi
+  Nexaflow.Elevation/                 Elevation.Contracts (DTOs) + PrivilegeBridge (the elevated exe)
+  Nexaflow.Languages/                 one resource-only pack per language
+  Nexaflow.Providers/                 Providers.Common + one project per LLM backend (Claude, Gemini, OpenAI, Ollama, Aria)
+  Nexaflow.Tests/                     one suite per subject — docs/testing.md
 ```
 
-**The feature inventory is NOT listed here on purpose** — a hand-copied list goes stale. The authoritative
-inventory and per-component status (incl. the `tests` / `AI Ready` / `theming` / `docs` concerns) is the
-**product tree**. **To locate a feature's code/tests/docs, query the tree first** (it beats grepping — every
-node carries snaplinks to its source):
+The feature inventory is deliberately not here — it is the product tree: `nfi find <term>`, `nfi tree <id> --full`.
 
-```powershell
-& $nfi find <term>                # nodes matching id/title/description
-& $nfi describe <node-id>         # path, concerns, code/test/doc snaplinks
-& $nfi describe <node-id> --code  # …plus every code snaplink resolved to its real source block (from YOUR working tree)
-& $nfi tree [<node-id>] [--full]  # the WHOLE subtree as an outline — "show me this entire feature"
-& $nfi lint --under <node-id>     # does this feature follow the modelling rules? (advisory; see docs/feature-tree-and-tests.md)
-& $nfi diff                       # what changed in the tree since the last release snapshot
-```
+## nfi — how this repository is read and changed
 
-**`nfi` is how this repository is read and changed.** Find with the graph, change with `graph edit`, prove with
-`nfi test`: each answer carries what the next step needs — the ids an edit takes, the errors an edit introduced and
-what uses what it changed, the tests that cover it. The Hard Rules make it mandatory; this section is what it does.
+Find with `ask`, change with `graph edit`, prove with `test`. Each answer carries what the next step needs: the ids an
+edit takes, the errors an edit introduced and what uses what it changed, the tests that cover it.
 
-### Setup
+`$nfi` is `tools/graph-cli/nfi.exe` in the main checkout, or your own build at
+`src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe`. It self-locates the tree (a worktree follows
+its pointer to the main checkout), so it takes **no root argument**, and a resident process holds the graph between
+calls — nothing to start or stop (`nfi daemon` says what it is doing). `nfi` alone lists every verb; `nfi graph help`
+the graph ones. **In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` first** — MSYS rewrites anything that looks like a
+path (a `// comment` passed as `--text` arrives as `/ comment`); payloads through `--file`/`--stdin` never touch the
+shell.
 
-`nfi.exe` self-locates the `.product` tree from wherever it is run — a worktree follows its pointer back to the
-main checkout — so it takes **no root argument**. A prebuilt copy sits at `tools/graph-cli/` in the main checkout
-(`tools/publish-graph-cli.ps1` refreshes it — run that from the main checkout, it refuses anywhere else); the
-installer ships it on PATH as the opt-in **Command-line tools** feature. `$nfi` below is that exe.
-
-```powershell
-dotnet build src/Nexaflow.Services.Initiatives.Cli    # once, for a build of your own
-$nfi = "src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe"   # or tools/graph-cli/nfi.exe
-```
-
-**There is nothing to manage.** The first call for a tree starts a resident process that holds the graph, and later
-calls answer from it (~0.2s a query); it stops after twenty minutes idle, serves each working tree independently, and
-is keyed to the binary's build — a rebuilt `nfi` starts its own and asks the older one to finish and stop. A call you
-kill takes its command with it, and one stuck past its caller restarts the process. `nfi daemon` says what it is
-doing; nothing else needs it.
-
-**In Git Bash, `export MSYS2_ARG_CONV_EXCL='*'` first.** MSYS rewrites anything that looks like a POSIX path — a
-`// comment` passed as `--text` arrives as `/ comment` — and nfi warns when it sees the shell without it. With it set,
-nfi converts `/c/…` paths in `--file` and friends itself; `/tmp/…` has no Windows answer and is refused with the
-`cygpath -w` to use. Payloads through `--file`, `--stdin` or a script never touch a shell at all.
-
-### Find
+### Find — `ask`
 
 | You want | Run |
 |---|---|
@@ -102,69 +70,54 @@ nfi converts `/c/…` paths in `--file` and friends itself; `/tmp/…` has no Wi
 | everything about one node | `graph context <id>` — its source, neighbours, owning feature, and the grep for that feature |
 | who uses it, and how | `ask 'node <id> \| callers \| source'` |
 | what a type or a file offers | `ask 'node <id> \| members'` — every declaration with its signature, so no body has to be read to learn one |
-| what the compiler or an analyzer reports | `ask 'diagnostics NXUI001 --project Features.Solver'` · for what you found: `ask 'node <id> \| diagnostics'` — each finding in its declaration, a XAML one with the `--at` path of its element |
+| what the compiler or an analyzer reports | `ask 'diagnostics NXUI001 --project Features.Solver'` · for what you found: `ask 'node <id> \| diagnostics'` — a XAML finding comes with the `--at` path of its element |
 | does anything still do X, and where | `ask 'grep <regex> \| files'` · just the number: `\| count` |
 | a pattern inside one feature | `ask 'node product:<slug> \| owned \| grep <regex>'` |
 | near this code | `ask 'node <id> \| near 2 \| grep <regex>'` |
 | to narrow what you just found | `ask '@ \| like <regex> \| files'` — every answer ends with its handle; `@3` is the third |
-| the rest of a long answer | `ask '@3 more'` — an answer past a page is cut where a block ends and says so; nothing is cut without the command that shows the rest |
-| a block's text | `graph code <id> [--lines A-B]` · a file: `graph cat file:<relpath>` (past 400 lines, its outline) |
-| a whole feature from the tree | `tree <node-id> --full` · one node: `describe <node-id> --code` |
+| the rest of a long answer | `ask '@3 more'` — nothing is cut without the command that shows the rest |
+| a block's text | `graph code <id> [--lines A-B]` · a file: `graph cat file:<relpath>` (past 400 lines, its outline; `--all` for the whole) |
+| a feature from the tree | `find <term>` · `describe <id> [--code]` · `tree <id> [--full]` |
 
-`ask` chains stages with `|`, the set of nodes flowing left to right, and **only the last stage prints**: start with
-`search` / `grep [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]` /
-`diagnostics [<id-regex>] --project <name>` / `@` / `@<n>`; narrow with `callers` / `callees` / `members` / `owned` /
-`near <n>` / `grep` / `diagnostics` / `like` / `limit <n>`; print with `ids [n]` / `source [n]` / `blocks [n]` / `files` /
-`count`. Several questions are several quoted arguments — `ask 'search A | source' 'grep B | files'` — and each gets its
-own answer in the one call. Quote a regex holding a `|`. Stages are strict — an unknown flag or an id the graph lacks is
-refused, and a zero names the stage that emptied the set. An `@` answer is reused while nothing it came from has
-changed, and asked again when something has.
+`ask` chains stages with `|`, the set of nodes flowing left to right, and **only the last stage prints**:
 
-**An answer is the size of its question**, because every turn re-reads everything already printed:
+- **start** — `search <term>` / `grep <regex> [--from <id>] [--scope owned|hops] [--hops <n>]` / `node <id>[,<id>…]` /
+  `diagnostics [<id-regex>] --project <name>` / `@` / `@<n>`
+- **narrow** — `callers` / `callees` / `members` / `owned` / `near <n>` / `grep` / `diagnostics` / `like <regex>` / `limit <n>`
+- **print** — `ids [n]` / `source [n]` / `blocks [n]` / `files` / `count`
 
-- `ids` lists declarations under the file they share (`code:src/…/GraphQuery.cs#` once, then each path), each with its
-  **signature** — what calling it takes, up to its body. `members` of a type or a file is the fastest way to learn what
-  it offers. `files` says a project's directory once.
-- `source` after a `grep` or `diagnostics` prints **the matched lines with two either side**, inside their declaration —
-  not every declaration that holds a match. `blocks` prints whole declarations; a file prints its outline.
-- Past a page (about 20,000 characters) an answer is cut where a block ends, with `ask '@3 more'` for the rest. A
-  `graph cat` or `graph grep` that stops short names the command that continues it.
+Several questions are several quoted arguments — `ask 'search A | source' 'grep B | files'` — each answered in the one
+call. Quote a regex holding a `|`. Stages are strict: an unknown flag or an id the graph lacks is refused, and a zero
+names the stage that emptied the set.
 
-A search for a code *pattern* is `grep` too, never `grep -rn`: every hit comes back with the member and feature that
-owns it. With nothing before it `grep` covers the whole repository in a few seconds, and grep reads documents as well
-as code. `graph grep --limit` trims the printed list, never the search — the total is the real total, and only an
-explicit `--scan-cap` cuts a search short, loudly.
+**An answer is the size of its question**, because every turn re-reads everything already printed. `ids` gives each
+declaration's signature under its shared file path; `source` after `grep`/`diagnostics` gives the matched lines with
+two either side, inside their declaration; `blocks` gives whole declarations; `files` and `count` are for sweeps.
+Past about 20,000 characters an answer is cut where a block ends, with the `@n more` that continues it. A pattern
+search is `grep` too, never `grep -rn` — every hit names its owning member and feature, it reads docs as well as code,
+and `--limit` trims the printout, never the search.
 
-**The graph keeps up with your tree on its own.** Files that changed since it was built are folded in before a query
-answers, from a stat of each rather than a re-read, and an answer says `graph: 2 changed…` only when it could not be —
-silence means current. Each worktree has its own graph, cloned from the main checkout's on first use and brought onto
-your branch before that first answer. `graph build` is for the cross-file passes — call resolution,
-communities — and never needed before an edit. Node ids: `product:<slug>` · `code:<relpath>#<astpath>` ·
-`file:<relpath>` · `external:<name>`. The **`nexaflow-explorer`** sub-agent drives the same exe.
+The graph keeps up with your tree on its own — changed files are folded in before a query answers, and silence means
+current. Each worktree has its own graph. Node ids: `product:<slug>` · `code:<relpath>#<astpath>` ·
+`file:<relpath>` · `external:<name>`.
 
-### Change
+### Change — `graph edit`
 
-What `nfi graph edit` guarantees, and why it is the only way files here are changed:
+What it guarantees, and why it is the only way files here are changed:
 
-- **Addressed by what it is, not where it was.** A declaration is found in the file as it is *now*; one that moved
-  is re-found by name, and an edit is refused rather than guessed when the name is gone or several share it.
+- **Addressed by what it is.** A declaration is found in the file as it is *now*; one that moved is re-found by name,
+  and an edit is refused rather than guessed when the name is gone or several share it.
 - **Nothing broken is written.** The result is re-parsed; `signature` proves the body unchanged and `body` the
-  signature; a raw control character, a whole file handed to a declaration op and a find that matches twice are
-  refused.
-- **Compiled before it is written.** A C# edit is compiled in memory against the project's own build command line,
-  and the answer lists the errors it **introduced and fixed** — in its project and in every project that compiles
-  against it. Errors already there cancel out. A project another references that is not built, or is older than its
-  sources, is compiled from those sources; one whose packages are not restored is named as not checked rather than
-  reported as errors. `--must-compile` refuses the write; `--no-check` skips it.
-- **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is
-  followed to what uses it, by the compiler's binding: `impact:` names each user, and XAML that names it as text.
-- **Several edits are one change.** `graph edit script` plans every command against what the ones before it left and
-  writes all the files or none.
+  signature; a raw control character, a whole file handed to a declaration op, and a find that matches twice are refused.
+- **Compiled before it is written.** A C# edit is compiled in memory against the project's own build, and the answer's
+  `compile:` lines list the errors it **introduced and fixed** — in its project and every project compiling against
+  it; errors already there cancel out. `--must-compile` refuses the write; `--no-check` skips it.
+- **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is followed
+  by the compiler's binding: `impact:` names each user, and XAML that names it as text.
+- **Several edits are one change** — `script` writes all the files or none.
 - **Whitespace, endings, encoding and escaping are the tool's problem.** Write flush-left with `\n`; it lands indented
   for its destination with the file's endings and BOM. A single line written *with* leading whitespace is placed as
   written — that is how an aligned continuation is done.
-- **The graph keeps up.** The files an edit touches are re-read into the graph as part of it; a file just created is
-  editable by `code:<relpath>#<astpath>` at once.
 
 | To | Run |
 |---|---|
@@ -175,14 +128,19 @@ What `nfi graph edit` guarantees, and why it is the only way files here are chan
 | move it | `move <id> --to code:<file>#<type>` · to its own file: `--to file:<path>` (imports and namespace come along) |
 | a new file | `create <relpath> --file …` |
 | a using | `import <file-or-id> --text 'using X;'` |
-| something in no declaration, or a text file | `substitute file:<relpath> --find …` |
+| something in no declaration, a doc, a text file | `substitute file:<relpath> --find …` |
 | a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element; `set-attribute` / `remove-attribute --name` |
-| several of the above | `graph edit script --file plan.edits` |
-| take it back | `graph edit undo` — the last edit, file for file; refused when anything changed since. An edit is planned, parsed and compiled before it is written either way, so write it, read what it printed, and undo if it is wrong: `--dry-run` only adds a call |
+| several of the above | `script --stdin` |
+| take it back | `undo` — the last edit, file for file; refused when anything changed since |
 | see the result | `--show` prints the declaration as it now stands |
 
-Text comes from `--text` (literal), `--text-escaped` (`\n`, `\t`, `\uXXXX`), `--file` or `--stdin`, and `--find` has the
-same four. A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath:
+Text comes from `--text` (literal), `--text-escaped` (`\n`, `\t`, `\uXXXX`), `--file` or `--stdin`, and `--find` has
+the same four. An edit is planned, parsed and compiled before it is written either way, so write it, read what it
+printed, and `undo` if it is wrong — `--dry-run` only adds a call.
+
+A script is one command per line, as it would follow `graph edit`, with multi-line text in blocks beneath — pass it on
+stdin so writing and running it are one call (`@' … '@ | & $nfi graph edit script --stdin` in PowerShell,
+`<<'EOF' … EOF` in bash):
 
 ```
 substitute code:src/A.cs#T:A/M:Run
@@ -196,335 +154,92 @@ move code:src/A.cs#T:Parser --to file:src/Parsing/Parser.cs
 rename code:src/A.cs#T:A/M:Helper --to Assist --references
 ```
 
-Pass a script on stdin, so writing it and running it are one call — `@' … '@ | & $nfi graph edit script --stdin` in
-PowerShell, `nfi graph edit script --stdin <<'EOF' … EOF` in bash. A file is only worth it for a script run twice.
-
 A find matches ignoring indentation and line endings, may start and end part-way along a line, and when it is not
 there the refusal names where it is. `$1` is a backreference only with `--regex`. The `#N` in `T:C/M:Add#1` is that
-overload's position, so an edit that adds or removes an overload says so and later edits should re-list or pin with
+overload's position, so an edit that adds or removes an overload says so — later edits re-list or pin with
 `--expect`. `--with-trivia` stops at a blank line, so a section comment above a deleted member stays.
 
-The engine is `StructuralEdit` in **`Nexaflow.Syntax`** (text in, text out); the compiler behind the check is
-**`Nexaflow.Syntax.Compiler`**. `GraphEdit`/`EditPlan` in `Services.Initiatives` turn ids into files and steps into
-one plan. Three surfaces drive them:
+### Prove — `test`
 
-| Surface | Addressed by |
-|---|---|
-| `nfi graph edit` / `graph edit script` | a graph node id — with the compiler check and impact |
-| `graph_edit` client tool (assistant) | a graph node id — `move`, `create`, and an `edits` array planned as one |
-| `list_declarations` + `edit_declaration` (any editor tab) | an `ast_path` in the open buffer, applied as one undo step |
-
-### Prove
-
-```powershell
-& $nfi test <node-id>          # build and run the tests that exercise it
-& $nfi test <node-id> --list   # which tests, and why, without building
-& $nfi test --failed           # exactly what failed last time
-```
-
-It chooses the tests that use the node, the tests of what uses it — three steps out, by the compiler's binding, so a
-helper's tests are found through the API that calls it — and the tests that declare `[CoversNode]` of its feature. The
-choosing is asked of the resident process; building and running happen in your own, so a long run holds no lock and
-Ctrl+C stops it. **UI journey suites are never run for you** — they take over the mouse and keyboard — and are named
-with the filter to run them yourself.
-
-The product-folder skill has fast-query recipes for deeper questions; the per-release export
-[docs/product/PRODUCT.md](docs/product/PRODUCT.md) is the human dashboard. Per-feature tab parameters are in
-[docs/features.md](docs/features.md). **How to model a feature as tree nodes and back each with the right test**
-— the UI/Functionality/AI backbone, concern-by-role rules, the one-journey-plus-per-leaf-unit-test model, and
-the roadmap of analyzers/validators to lock it down — is in
-[docs/feature-tree-and-tests.md](docs/feature-tree-and-tests.md) (the Text Viewer is the worked reference).
-**Every git-reading verb runs git where *you* stand, not where the tree lives.** `remap --from-git` resolves its repository from the caller's working tree — from a linked worktree the product root is the MAIN checkout, whose `HEAD` has never seen your commits, so a range ending at `HEAD` came back empty and the verb rewrote nothing while reporting success. Note the blind spot that hid it: `validate` falls back to the product root when your working tree lacks a file (deliberately — it is what stops a worktree flagging every not-yet-merged path), so a file you have **moved away** still resolves in the main checkout and the tree reads clean while its links are stale. After a rename or move, run `remap --from-git <base>..HEAD --dry-run` — do not infer from a clean `validate` that nothing needs remapping.
-
-Every verb's arguments are **strict** — an unknown option, a missing option value or a surplus positional is a
-hard error naming that verb's usage, never silently ignored (`batch` parses each line the same way and is
-all-or-nothing).
-
-**A snaplink you change on a branch stays with the branch.** Nodes and snaplinks are different kinds of
-claim: a node is a plan, and the tree is deliberately forward-looking about those, so `add-node` /
-`set-status` / `set-concern` write to the shared tree at once. A snaplink says *this file exists and contains
-this*, which from an unmerged branch is true nowhere else — so `add-snaplink` / `set-snaplink` /
-`remove-snaplink` record into `docs/product/pending/<branch>.json` instead, and the shared tree is left
-alone. Every read overlays your branch's set, so `describe`/`validate`/`tree` show your links normally; only
-the write is deferred.
-
-```powershell
-& $nfi pending                  # what this branch has changed and not merged — review before committing
-& $nfi promote [--dry-run]      # fold arrived sets into the shared tree, delete them, and commit that
-```
-
-**Commit that file with your change.** It is under the committed export dir on purpose: it rides along with
-the PR, so at merge the change set arrives in the main checkout together with the code it describes — no
-knowing which worktree, on whose machine, produced it. Its presence there *is* the merged signal. A branch
-that is abandoned never merges, so its set never arrives and there is nothing to clean up.
-
-**`promote` is the only verb that writes to git, and it is run deliberately, from the main checkout.**
-`validate` used to fold arrived sets in and commit the removal on the way past, which meant the verb
-*everything* runs — the installer's release gate, the Product page, every agent, several times a session —
-moved whatever branch its caller happened to be standing on. In the main checkout that is `main`. It now
-*reports* what is waiting (`note: N merged link set(s) … Fold them in with: nfi promote`) and writes
-nothing; `--no-promote` is gone with the behaviour it named. `promote` from a linked worktree is refused:
-a pending set there is that branch's own unmerged work, not something that has merged.
-
-**`validate` answers about the branch you are on, and a snaplink to a file that does not exist is an error.**
-From a linked worktree it resolves each snaplink against *that* tree — not the main checkout — because "does
-this file exist somewhere" is not the question a branch needs answered. **Every** missing file sets the exit
-code, including one that is in neither this tree nor main. (That case used to be exempt, on the theory that it
-was another branch's not-yet-merged work; it no longer holds — a snaplink written on a branch is deferred into
-`docs/product/pending/<branch>.json` and overlaid only for that branch, so the shared tree gains a link only
-once the file it names has merged. All the exemption bought was silence about a link naming a file that exists
-nowhere.) The split is still *printed* — files absent everywhere, then files main has and you do not — because
-it separates "I moved this" from "this was never here", but it no longer changes the verdict. `validate --main`
-gives the main checkout's view, which is what the installer's release gate runs (from the main checkout, where
-the two are the same anyway). The old fallback to the product root is what let a file you had *moved away* keep
-resolving through main, so a branch read clean while its links were stale.
-
-When a rename/move breaks snaplinks, don't hand-edit `tree.json` — `remap` rewrites them under validation:
-
-```powershell
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- remap <old-path> <new-path> [--class <n>] [--method <n>]
-```
-
-**A snaplink `doc` is the repo's own path — never a path through a linked worktree.**
-`.claude/worktrees/<name>/src/Foo.cs` resolves only while that branch is checked out, so `validate` reports it
-as a gating `WorktreePath` issue even though the file exists, and `doctor --fix` re-roots every one back onto
-`src/Foo.cs`. `scan-tests` normalises the same way, so a test DLL built inside a worktree still records repo
-paths in the coverage manifest (and therefore in the Integrity page's *Add link* suggestions).
-
-**Snaplinks are mechanically checked.** Every snaplink (on a node *and* on each concern link) must still point
-at a real target — the file exists, the markdown heading path resolves, the class/method is still declared, the
-URL is well formed. Run it from the Product tab (⋮ → **Validate snaplinks**, or the root's integrity tile) — both
-open the **Integrity page** (`ProductIntegrity`), which rescans on the shell's background queue (a full scan
-tree-sitter-parses every referenced file and takes seconds, so it never runs on the dispatcher) and lets you
-re-point or remove each broken link. Or run it headlessly:
-
-```powershell
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- validate .   # exit 1 = broken links
-```
-
-The **installer build runs the same check and fails on any broken link** (`nexaflowSetup.wixproj` →
-`ValidateSnaplinks`), so `NexaflowSetup.slnx` is the release gate; a plain `dotnet build Nexaflow.slnx` never runs
-it. Results persist to the gitignored `.product/integrity.json` (derived — safe to delete). A file whose extension
-has no tree-sitter grammar (`.txt`) is treated as **unverifiable, not broken** — never make the validator guess.
-**`.xaml` is verifiable now** (the `xml` grammar is built from `external/tree-sitter-xml`): a link may name an
-`x:Class`, an `x:Name`, an `x:Key`, an `AutomationProperties.AutomationId` or an event handler, and a rename
-breaks it loudly instead of rotting.
-
-A second, **non-gating** channel sits beside the issues: a link whose file and class are sound but whose finer
-`ast` target no longer resolves is an **advisory**, printed with the `nfi set-snaplink` command that fixes it.
-`ast` had never been validated by anything, so it holds prose as often as a path — failing a release build on
-that would punish links whose real target is fine. Advisories never affect the exit code.
-
-**The tree is forward-looking** — the plan of what *should* be in place for the **next release**, not a snapshot
-of what shipped (that's the label-aligned [docs/product](docs/product) export). So **update it as you build** — flip
-concerns, add snaplinks, fix descriptions — *right then, not after merge*. Because the snaplink check is
-setup-build-only (above), pointing a `done` snaplink at a not-yet-merged file never blocks a regular build; it's the
-intended forward-looking state.
-
-**Test coverage is declared on the test, not hand-linked in the tree.** Every concrete `[TestClass]` carries
-`[CoversNode("node-id")]` (from `Nexaflow.Tests.Fixtures`) naming the node(s) it backs — or `[NoCoverage("reason")]`
-for architecture/corpus/infra tests that map to no node. The tree stays authoritative; the attributes are a
-cross-check with a one-click reconcile:
-
-```powershell
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests .                     # → .product/test-coverage.json
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- scan-tests . --suggest-attributes # tree-derived [CoversNode] starter set
-```
-
-Put a `[CoversNode]` at **class level** only when the whole class covers that node (usually a container with
-children); a specific behaviour (a leaf node) goes on the individual `[TestMethod]`(s) — the manifest then carries
-precise class+method links. Grow the tree finer when a leaf needs sub-nodes:
-
-```powershell
-dotnet run --project src/Nexaflow.Services.Initiatives.Cli -- add-node <parent-id> "<title>"   # + default concerns, re-validates
-```
-
-`scan-tests` reflects the built test DLLs (metadata-only, via `MetadataLoadContext` + the portable PDB for the
-source path) into the derived **coverage manifest**. The Integrity page reconciles that manifest against the tree
-and shows each *declared-but-unlinked* test as a **non-gating advisory** with an **Add link** button (writes the
-`tests`-concern `code` snaplink for you). This is a separate channel from the gating `Issues` — advisories never
-fail the installer. Two enforcement layers keep it honest: the **Roslyn analyzer** `Nexaflow.Analyzers.Coverage`
-(NXCOV001 missing declaration / NXCOV002 stale id / NXCOV003 a class-level leaf that over-claims when the class
-covers other nodes too, author-time) and the **guard tests** `CoverageDeclarationGuardTests` (CI). Id validity is
-checked against the live `.product/tree.json` (gitignored → absent in CI, where it degrades to presence-only).
-Separately, a `ConcernDef` can set **`RequiresSnaplink`** (enabled for `tests`): a node whose `tests` concern is
-`done`/`faulted` with no snaplink is a *gating* `MissingSnaplink` integrity issue — so "tests done" can't ship unbacked.
-
-Shared, non-contract code lives in `Nexaflow.Visuals.*` (UI), `Nexaflow.IO.*` (IO), and `Nexaflow.Syntax` — mirror that pattern for any future shared-but-not-a-contract code rather than dumping it in `Features.Common`.
+`test <id>` builds and runs the tests that use the node, the tests of what uses it (three steps out, by the
+compiler's binding) and the tests declaring `[CoversNode]` of its feature. `--list` shows the choice and why without
+building; `test --failed` reruns exactly what failed. UI journey suites are named with their filter, never run for you.
 
 ## Hard Rules
 
-- **Discovery goes through `nfi.exe` — never Grep/Glob/Read-first.** "Where is X / what is X / who calls or instantiates X / what feature owns X / how does X relate to Y" is answered by `graph search`, `graph context`, `find` or `describe` (see above) **before any file is opened**; Read is for the specific block the graph names. Reach for it as reflexively as for Grep — it is cheaper and it surfaces call/ownership/dependency edges grep cannot. Sub-agents follow the same rule: point them at the exe, or spawn `nexaflow-explorer`.
-  - **This covers searching for a code *pattern*, not just a named thing.** "Which code looks like Y" feels like a different job from "where is X" and is the same verb: `graph grep <regex> --mode content` (scope it per the table above). That split is how the rule gets abandoned in practice — the entity lookup goes through the graph, then the pattern hunt falls back to `grep -rn`. It shouldn't: the graph answers it, faster, and names the owning member and feature of every hit instead of just a line.
-  - **Read a block with `graph code <id>`, a whole file with `graph cat file:<relpath>`** — never `sed -n A,Bp` on line numbers guessed from a search hit. Both take `--lines A-B` for a slice, and both are worktree-aware; hand-sliced ranges are neither. **Past 400 lines `cat file:` answers with the file's outline** — every declaration, with its id — because reading a whole file to reach one block is the habit the graph exists to replace; `graph code <id>` then takes one of them, and `--all` prints the file when that is genuinely what you want.
-  - **Chain the question instead of asking it in instalments.** "Find it and read it", "who calls this and what do their call sites look like", "does anything still do X and where" are one `nfi ask '<stage> | <stage>'` each (see above), not three calls. A sweep whose answer is a number or a file list is `| count` / `| files` — never a hit list you then have to read.
-- **Every change to a file in this repository goes through `nfi graph edit` — never Edit/Write, `sed -i`, a heredoc or a redirect.** Source, tests, docs, project files, this file: `replace`/`substitute`/`create`/`move`, or a `graph edit script` for several at once. A hand edit gets none of what the tool promises — no parse, no compile check, no impact, no all-or-nothing — and writing one is the habit this rule exists to break. Scratch files outside the repo (payloads, scripts) are the only thing written by other means.
-- **Before calling a change complete, ask the graph who else depends on what you touched.** Discovery-first finds the thing; this finds the *rest* of it. For code the edit answers it: its `impact:` lines name what uses what changed and its `compile:` lines what that broke, in every project that compiles against it — then `nfi test <id>` runs the tests that exercise it. A package bump is `graph node external:<Name>` (its `depends_on` edges list every consuming project). Do this before you say a fix is done — grep answers "where is this token", the graph answers "what else breaks", and only the second one closes a change.
-  > Worked example: the NAudio 3.0 bump renamed `WaveOutEvent`→`WaveOut` and `WaveInEvent`→`WaveIn`. Fixing the Audio feature's playback looked complete and wasn't — Core's `VoiceManager` captures audio and broke the same way. `graph node external:NAudio` names both `Nexaflow.Core.csproj` and `Nexaflow.Features.Audio.csproj` in one query; a grep of the feature you happen to be in names neither.
-- Features depend only on `Features.Common` (and the `Nexaflow.Visuals.*` UI libs) — never on Core, rarely on each other
-- Providers depend only on 'Providers.Common' - never on Core, never on each other.
-- Core never instantiates feature view or ViewModel types directly. All view (tabs) and viewlet creation goes through `FeatureManager`.
-- Features communicate back to the shell only via `IShellServices` (injected into `IPageRegistration` constructors by `FeatureManager`).
-- **Features never touch the UI dispatcher.** No `Application.Current.Dispatcher` / `Dispatcher.CurrentDispatcher` in a feature. Marshal background work to the UI thread with `IShellServices.RunOnUiAsync(...)`, and watch files with `IShellServices.WatchFile(path, onChanged)` (the shell owns the watcher, dedups by path, marshals the callback, and tears it down). UI-thread ownership lives in Core (ShellServices captures its own `_ui`).
-- A feature advertises a page via `IPageRegistration` (`PageKind` + `CreatePage`); `FeatureManager` discovers it by reflection at startup (each registration exposes a `static string StaticPageKind`).
-- **Features never hard-code colours.** Every colour — even one a feature "owns" (status pip, chart/pie series, selection/search wash, post-it paper) — resolves from a theme resource so a theme can retune it: reuse a palette/semantic token (`TextBrush`/`AccentBrush`/`SuccessBrush`/`WarningBrush`/`DangerBrush`/`OnAccentBrush`), the categorical `Swatch.*` bank (for N distinct colours), or a feature-owned token shipped via `IThemeContribution` (like the scratchpad's `PostIt.*`). Code-drawn surfaces read the resource at paint time with a literal only as a last-resort fallback. Full rule + patterns in [docs/theming.md](docs/theming.md) → *Rule: a feature never hard-codes a colour*.
-- **Features never elevate directly.** No `Process.Start` with `runas` in a feature — route admin actions through `IShellServices.RunElevatedAsync` (a DTO in `Elevation.Contracts` + an `IElevatedOperation` in the PrivilegeBridge). See [docs/Architecture.md → Elevation](docs/Architecture.md#elevation--privilege-bridge).
-- **Every button in a view carries an `AutomationProperties.AutomationId`, and every id is named by a journey.** Two halves of one rule, enforced at opposite ends. `NXUI001` (the **`Nexaflow.Analyzers.Ui`** analyzer, wired to every WPF C# project by `Directory.Build.targets`, which hands it the views as `AdditionalFiles`) warns on a button with no id — a button is the thing a journey clicks, and the id is the only handle that survives a copy change or an icon-only label. `nfi ask 'diagnostics NXUI001 --project <name>'` lists the buttons a project still has without one, each with the `--at` path `graph edit set-attribute` takes. `AutomationIdJourneyCoverageTests` then requires each declared id to appear somewhere in `Nexaflow.Tests.UIJourneys`, so an id can't be a decoration nobody uses. That one is a **ratchet**: the pre-existing gap is listed in `automation-ids-without-a-journey.txt`, a new unreferenced id fails until it is covered or listed, and a listed id fails once it *is* covered — so the file can only shrink. A button inside a `ControlTemplate` is exempt (it is another control's chrome, and UIA reports the templated control); a `{Binding …}` id is skipped, since there is no literal for a journey to name. Read the AutomationId gotcha under *Potential WPF Gotchas* before putting an id on a non-`Control`.
-- **Third-party source deps are git submodules under `external/`, consumed via `ProjectReference` from the smile-forge fork — never `PackageReference`, never vendored/copied.** The one exception is a **native grammar**: C has no `.csproj` to reference, so an MSBuild target compiles it instead — same fork/branch/pin convention, different wiring (see *Native grammar submodules* in the runbook). That covers `external/tree-sitter-xml` and the nested grammar/runtime submodules inside `external/tree-sitter-dotnet-bindings`, whose own `src/TreeSitter.csproj` **is** a normal `ProjectReference` (it replaced the `TreeSitter.DotNet` package — the package's frozen natives were silently wrong). `origin` = the org fork, `upstream` = the original; a per-repo `nexaflow` integration branch is what's pinned, and upstream PRs come only from atomic `feat/*` branches. **Before touching anything under `external/`, adding/bumping a submodule, or wiring one of these deps, read the runbook [docs/externals.md](docs/externals.md)** (also pointed to by `external/README.md`). Remember the cwd is pinned → use `git -C external/<name> …` for every submodule git op.
-  - **xaml-math is no longer one of them — it was ingested and is now our code**, beside the LaTeX builder under `src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/` (its TeX-rule tests are in `Nexaflow.Tests.Visuals` under `Markdown/Latex/Typesetting/`). **Not a precedent**: the test is whether the boundary protects anything, and it had stopped — we replaced its LaTeX reader with our own parse tree, then its atoms with a builder that sets each construct directly, and upstream was dormant. Reasoning in [docs/latex-parse-tree.md](docs/latex-parse-tree.md); licence in `src/Nexaflow.Core/Assets/ThirdPartyNotices.md`.
+**How work is done**
 
-The reference and dispatcher rules are **mechanically enforced**: `Nexaflow.Tests.Features.Architecture/Architecture/ArchitectureRulesTests` + `Nexaflow.Tests.Providers/ArchitectureRulesTests` fail on a violation, and `FeatureTouchPointTests` names any missed add-a-feature wiring step (Core/tests ProjectReference, filemap entry).
+- **Discovery goes through `nfi` — never Grep/Glob/Read first.** "Where / what is X, who calls it, what owns it" and
+  "which code looks like Y" are both `ask`; reading is `graph code` / `graph cat`, never hand-sliced line ranges.
+  Chain a question into one `ask` rather than instalments. Sub-agents follow the same rule: point them at the exe,
+  or spawn `nexaflow-explorer`.
+- **Every change to a repository file goes through `nfi graph edit`** — never Edit/Write, `sed -i`, a heredoc or a
+  redirect. Source, tests, docs, project files, this file. Only scratch files outside the repo are written otherwise.
+- **A change is not complete until you've asked who depends on it**: read the edit's `impact:` / `compile:` lines,
+  then `nfi test <id>`. A package bump: `graph node external:<Name>` names every consuming project. (NAudio is used by both
+  the Audio feature and Core's `VoiceManager` — a grep of the feature you're in names only one.)
+- **After touching `Nexaflow.Core`, run its unit tests before committing** (`Tests.Core`, `--filter
+  "FullyQualifiedName~Unit"` — [testing.md](docs/testing.md#fast-inner-loop)).
+- **Update the product tree as you build, not after merge** — concerns, snaplinks, descriptions. Snaplink edits on a
+  branch land in `docs/product/pending/<branch>.json`; **commit it with the change**.
+  [product-graph.md](docs/product-graph.md#snaplinks)
 
-## Key Files
+**Architecture** — the reference and dispatcher rules are enforced by `ArchitectureRulesTests` (in
+`Tests.Features.Architecture` and `Tests.Providers`); `FeatureTouchPointTests` names any missed add-a-feature step.
 
-| File | Why You'd Touch It |
-|------|--------------------|
-| `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | Tab lifecycle, ribbon, AI routing — god object, be careful |
-| `src/Nexaflow.Core/Services/ShellServices.cs` | `IShellServices` implementation |
-| `src/Nexaflow.Core/FeatureManager.cs` | Per-`WorkspaceRuntime` constructor injection for features (lives in **Core**, not Common); `EvictWorkspace` clears the cache on reconfigure. Discovery is delegated to `FeatureCatalog` |
-| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | Disk-cached feature discovery index (`discovery/catalog.json`) → a normal launch loads **no** feature DLLs; assemblies load + activate lazily (first use or post-paint warm-up). Stamped with the app version **and** the feature-DLL set (name/size/write-time — `FeatureCatalogStamp`, one directory enumeration, no assembly loads), so **any** rebuilt/added/removed DLL forces a rescan, not just a version bump. **Debug builds bypass the cache entirely** (always rescan, never write, stale file deleted) so a full scan also eagerly activates every feature — never clear it by hand while developing |
-| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | The `Workspaces` list (dropdown) + live `WorkspaceRuntime`s; create/switch/reconfigure/dispose lifecycle |
-| `src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileSystemFeatureRegistry.cs` | Discovery for the file-system contracts (`IFileAction`/`IFolderAction`/`IFileCreateAction`/`IFolderViewlet`/`IThisPcItemProvider`) — NOT FeatureManager. Lives in the **feature**, not Core. Also publishes each provider's local-path row as a VFS mount |
-| `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | Contracts — changes here affect everything |
-| `src/Nexaflow.Features/Nexaflow.Features.Common/IPageRegistration.cs`, `Page.cs` | The tab/page factory contract (`CreatePage`) and the `Page` model (`Title`/`Icon`/`Breadcrumbs`/`ContentFactory`) |
-| `src/Nexaflow.Core/Themes/Styles.xaml` | App-merged shared control styles. Feature XAML references theme keys by `{StaticResource …}` — no assembly ref needed. A theme is layered (palette → region tokens → per-theme overrides + scenes → styles); see [docs/theming.md](docs/theming.md) |
+- Features depend only on `Features.Common` and `Nexaflow.Visuals.*` — never Core, rarely each other. Providers depend
+  only on `Providers.Common` — never Core, never each other.
+- Core never instantiates feature views or view-models — all tab and viewlet creation goes through `FeatureManager`. A
+  feature advertises a page with an `IPageRegistration` (`PageKind` + `CreatePage`, plus `static string
+  StaticPageKind`), discovered by reflection.
+- Features reach the shell only through `IShellServices`: **never touch the dispatcher** (`RunOnUiAsync`, and
+  `WatchFile` for file watching) and **never elevate** (`RunElevatedAsync`, never `Process.Start` with `runas`).
+- **Features never hard-code colours** — palette/semantic tokens (`TextBrush`, `AccentBrush`, `SuccessBrush`, …), the
+  `Swatch.*` bank, or a feature-owned token shipped via `IThemeContribution`. → [theming.md](docs/theming.md)
+- **Every button carries an `AutomationProperties.AutomationId`** (`NXUI001`), **and every id is named by a journey**
+  (`AutomationIdJourneyCoverageTests`, a ratchet over `automation-ids-without-a-journey.txt` that can only shrink). Ids
+  only resolve reliably on `Control`s, not `Border`s or panels. → [testing.md](docs/testing.md#automation-ids-nxui001--automationidjourneycoveragetests)
+- **Third-party source deps are git submodules under `external/`** from the smile-forge fork, consumed by
+  `ProjectReference` — never `PackageReference`, never vendored (native grammars compile via an MSBuild target
+  instead). Read [externals.md](docs/externals.md) before touching one; use `git -C external/<name> …`.
+- Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, never
+  `Features.Common`.
 
-## Config & Data Paths
+## Scope
 
-Base: `%APPDATA%\Smile\nexaflow\`
+Feature settings = **global** (unless `[WorkspaceScopedConfig]`); persona, AI ability grid, provider configs,
+conversations, ribbon, tabsets = **per-`Workspace`** (saved, under `%APPDATA%\Smile\nexaflow\Contexts\<name>\`);
+`AIService`, provider instances, windows and tabs = **per-`WorkspaceRuntime`**. The `IShellServices` / `IAIService` a
+feature gets are the active runtime's. The on-disk/IPC strings `workcontexts`, `Contexts\`
+and `--context` are frozen compat names; `Profile` / `WorkContext` are never type or member names. Getting scope wrong is the easiest bug
+to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
 
-```
-{ConfigName}\                 GLOBAL app/feature config (IFeatureConfig.ConfigName) — shared by all workspaces
-Contexts\<name>\              PER-WORKSPACE data (folder named "Contexts" for on-disk compat):
-  ai-abilities\               AI ability grid (which provider/model per ability)
-  ai-persona\                 assistant persona (name + system prompt)
-  <provider configs>\         provider API keys / subscriptions for THIS workspace
-  Conversations\              AI chat history for THIS workspace
-  <ribbon layout>             ribbon items for THIS workspace
-  <scoped feature configs>    any IFeatureConfig marked [WorkspaceScopedConfig]
-```
+## Key files
 
-Ribbon, AI ability grid, persona, provider configs and conversations are **per-workspace** (not global). Feature `IFeatureConfig` is **global** (one instance per assembly) unless marked `[WorkspaceScopedConfig]`.
+| File | Why you'd touch it |
+|---|---|
+| `src/Nexaflow.Core/ViewModels/ShellViewModel.cs` | tab lifecycle, ribbon, AI routing — god object, be careful |
+| `src/Nexaflow.Core/Services/ShellServices.cs` | the `IShellServices` implementation |
+| `src/Nexaflow.Core/FeatureManager.cs` | per-`WorkspaceRuntime` constructor injection for features |
+| `src/Nexaflow.Core/Services/FeatureCatalog.cs` | cached feature discovery; Debug builds always rescan — never clear the cache by hand |
+| `src/Nexaflow.Core/Services/WorkspaceManager.cs` | the workspace list + live runtimes: create / switch / reconfigure / dispose |
+| `src/Nexaflow.Features/Nexaflow.Features.WindowsFileSystem/Services/FileSystemFeatureRegistry.cs` | discovery for `IFileAction` / `IFolderAction` / `IFileCreateAction` / `IFolderViewlet` / `IThisPcItemProvider` — not `FeatureManager` |
+| `src/Nexaflow.Features/Nexaflow.Features.Common/*.cs` | contracts (`IPageRegistration`, `Page`, …) — changes here affect everything |
+| `src/Nexaflow.Core/Themes/Styles.xaml` | app-merged shared styles and brushes, referenced from any feature by `{StaticResource …}` |
 
-**Versioned, self-migrating.** Each config persists as `…\{configName}\config_{AssemblyVersion}.json`. When an assembly version bumps, `ConfigManager` **migrates the newest older file forward** instead of discarding it — a lenient field-by-field carry-over (unknown fields dropped, missing ones keep defaults) plus an optional `IConfigMigration.MigrateFrom(previousJson, version)` hook for renames/restructures. So an update keeps the user's data, and the setup wizard re-asks only for genuinely new required info. File-type mappings merge changed bundled defaults while preserving user customizations. Options → About has a **Reset Config** button (confirmation-gated) that wipes `%APPDATA%\Smile\nexaflow` and relaunches into first-run. Full detail in [docs/Architecture.md → Config versioning & migration](docs/Architecture.md#config-versioning--migration).
-
-## Workspace / WorkspaceRuntime scoping
-
-A **`Workspace`** (`Models/Workspace.cs`) is the saved, shared config shown in the dropdown; a **`WorkspaceRuntime`** (`Models/WorkspaceRuntime.cs`) is a runtime grouping of one-or-more window frames running ONE workspace. Getting scope wrong is the easiest way to add a bug — full detail in [docs/Architecture.md → Ownership & Lifetime](docs/Architecture.md#ownership--lifetime).
-
-> **Naming history:** pre-2026-07 the saved half was called `Profile` (before that `WorkContext`). Those names survive ONLY as frozen on-disk/IPC compat strings — the `workcontexts` config name, the `Contexts\` folder, the `--context` flag. Never reintroduce them as type/member names.
-
-- **Central (one per process):** `ConfigManager`, `ProviderManager` (loads provider **assemblies/types**; owns the **ref-counted instance pool** — identical configs share one provider), `WorkspaceManager` (the `Workspaces` list + live `WorkspaceRuntime`s), `FeatureManager` (feature **types**; builds instances per runtime), `BackgroundActivityManager`. Global configs = every feature `IFeatureConfig` not marked `[WorkspaceScopedConfig]`.
-- **Per-`Workspace` (shared, saved):** ability→model assignments (`AiConfig`), the **AI persona** (`AiPersonaConfig`, under `ai-persona`), provider configs (API keys), ribbon layout (live-synced across its runtimes via `RibbonChanged`), conversations, default + last-session tabsets, `[WorkspaceScopedConfig]` feature configs. All under `Contexts\<name>\`.
-- **Per-`WorkspaceRuntime` (runtime):** `ShellServices` (windows/tabs), `AIService` (agent loop), the **acquired** provider instances. App/IPC launch = a new runtime; tear-off / "open in new window" = same runtime; dropdown switch reconfigures the current runtime in place (tabs close, providers/AIService rebuilt); closing the last window disposes it.
-- The `IShellServices` / `IAIService` injected into a feature are the **active runtime's** — opening a tab or asking the AI always acts within one runtime.
-- Options & Manage-AI overlays are **modal** (block switching); you can't delete a live workspace; there's always ≥1 workspace.
-
-Mnemonic: **feature settings = global (unless `[WorkspaceScopedConfig]`); persona, ability grid, provider configs, conversations, ribbon, tabsets = per-`Workspace` (saved); AIService, providers, windows/tabs = per-`WorkspaceRuntime`.**
-
-## Tests
-
-Test projects under `src/Nexaflow.Tests/`, plus a shared fixtures library. Full guide: [docs/testing.md](docs/testing.md).
-
-| Project | Covers |
-|---------|--------|
-| `Nexaflow.Tests.UIJourneys` | **Every test that launches the app** and drives the real mouse — `Core\` for the shell, `Features\<Feature>\` for the rest. References **only** `Tests.Fixtures`: a journey knows the app as a running process, never as an assembly. Fixtures it can't click into being are built by the suite that owns that format, into `test-samples/ui/`; a missing one is *inconclusive*, not a failure. **So run the other suites first.** |
-| `Nexaflow.Tests.Core` | The Core shell **only** — config/workspaces, feature catalog + DI, shell services, agent loop, the `?` search route, theming. References Core, and Core hard-references every feature and provider (they must land in its output for `FeatureCatalog`), so building this builds the solution. That is why everything not needing Core lives in the two suites below. |
-| `Nexaflow.Tests.Visuals` | `Nexaflow.Visuals.*` — markdown/LaTeX/music rendering, the inline editor, editor highlighting, shared controls + layout, the WebView surface. **Never Core.** Its `TestCategory("UI")` tests render WPF off-screen — an STA thread, no window; its `TestCategory("Desktop")` ones show a real window and so must also be `[DoNotParallelize]`. |
-| `Nexaflow.Tests.Components` | The shared leaves that are neither IO nor UI: `Nexaflow.Syntax`, `Nexaflow.Search`, `Elevation.Contracts`. Same shape as `Tests.IO` — references the subjects and `Tests.Fixtures`, nothing else, and no WPF. |
-| `Nexaflow.Tests.Features` | The shell-adjacent features — AI chat, console, network, OneDrive, Product/Projects, scratchpad, This PC, web — plus the **folder viewlets** (Git, Dotnet) and the feature-agnostic search plumbing. References the feature projects, **not** Core. |
-| `Nexaflow.Tests.Features.Viewers` | Every viewer/editor/player (Audio…Video) and the sample-file corpus. A feature that registers no page is not a viewer: Git and Dotnet are `IFolderViewlet`s and live in `.Features` beside the other three. |
-| `Nexaflow.Tests.Features.WindowsOS` | The Windows-integration features: file system, registry, search index, installed apps, processes, system info. |
-| `Nexaflow.Tests.Features.Architecture` | The whole-repo guards. References the other suites for their **output** — the rules reflect over every feature and test assembly. A new suite must be added to `FeatureTestSuites.Patterns` or it silently drops out of the `[CoversNode]` guard. |
-| `Nexaflow.Tests.Features.Common` | **Not a test project** — shared support for the suites above: `AsyncPump`, `RepoRoot`, `DicomTestFiles`, the `ISearchable` and viewer-`IFileAction` conformance contracts. No feature reference. (The FlaUI bases left with the journeys; `ViewerMap` moved to `Tests.Fixtures`, which both its consumers reference.) |
-| `Nexaflow.Tests.IO` | `Nexaflow.IO.*` — the WPF-free IO leaves. References the IO projects and **nothing else**: no Core, no Features, no Visuals, so it needs neither a desktop session nor a shell. |
-| `Nexaflow.Tests.Initiatives` | `Nexaflow.Services.Initiatives` + its CLI — the product tree, the graph, `SnaplinkValidator`, `ProductTreeOps`, the verb parser. Same shape as `Tests.IO`: plain `net10.0`, references the backend and `Tests.Fixtures` and nothing else, so it needs no desktop session. What stayed in `.Features` is the ProductManager *feature* (view-models, AI client tools, graph viewer). |
-| `Nexaflow.Tests.Providers` | Provider clients. |
-| `Nexaflow.Tests.Fixtures` | **Not a test project** — a dependency-free `net10.0` library that generates the shared sample-file dataset, plus `UiFixtures` (the material the journeys open) and `ViewerMap`. Referenced by every test project. |
-
-A test belongs in `Tests.IO` when its **subject** is an IO library. One that merely *uses* one — `Text`
-reading through `EncodingDetector`, `Compressed` through the VFS — stays with its feature: a test follows
-what it is about, not what it imports.
-The same rule owns `Tests.Initiatives`: its subject is the WPF-free backend, so the suite is WPF-free too.
-
-After any change touching `Nexaflow.Core`, run the unit tests before committing:
-
-```powershell
-dotnet build src/Nexaflow.Tests/Nexaflow.Tests.Core/Nexaflow.Tests.Core.csproj
-src/Nexaflow.Tests/Nexaflow.Tests.Core/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.Core.exe --filter "FullyQualifiedName~Unit"
-```
-
-UI journeys live in their own assembly and take over the mouse and keyboard, so they are never part of a
-feature's inner loop — editing a feature cannot launch the app any more, because nothing in its suite can.
-Run them last, on a machine you are not using, and after the other suites (which build the fixtures they
-open):
-
-```powershell
-src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/bin/x64/Debug/net10.0-windows10.0.19041.0/Nexaflow.Tests.UIJourneys.exe
-```
-
-They ask once before taking the machine (`NEXAFLOW_UITESTS_NOPROMPT=1` skips it), and `UiTestGate` holds a
-machine-wide semaphore so only one app instance runs at a time even if another test host is live.
-
-`Tests.Core`'s own WPF tests split by **what they need, not what they touch**, because the two behave
-completely differently under a parallel run:
-
-| Category | Needs | Parallel-safe |
-|---|---|---|
-| `TestCategory("UI")` | an STA thread; constructs and renders WPF off-screen, opens no window | yes |
-| `TestCategory("Desktop")` | an interactive session; **shows a real window and takes focus** | **no** — must carry `[DoNotParallelize]` |
-
-Focus is machine-wide, so two window-showing tests running at once take it from each other mid-assertion.
-That surfaces as a *different* test failing on each run, which reads like a real bug and is not one.
-`DesktopTestCategoryGuardTests` enforces both halves — anything whose source shows a window must declare
-`Desktop` and must not run in parallel — so the trap cannot be re-entered by forgetting an attribute.
-
-A feature's tests go in the suite matching its **subject** — a viewer in `.Viewers`, a Windows integration in `.WindowsOS`, anything shell-adjacent in `.Features`. Namespaces are the same in all of them (`Nexaflow.Tests.Features.<Folder>`), so only the project a file belongs to changed.
-
-**Fast inner loop for feature work:** build only the feature csproj you touched (features don't depend on Core), then build + run the one suite that owns it with `--filter "FullyQualifiedName~<Class>"` — that split is why editing a viewer test no longer rebuilds the Windows suite. Test output is under `bin/x64/<Config>/` (the solution is pinned x64 — a stray `bin/<Config>/` is a stale pre-pin leftover; delete it).
-
-**Sample files.** `TestSampleData` (in `Nexaflow.Tests.Fixtures`) lazily materialises a git-ignored, cached dataset under `<repoRoot>/test-samples/` — markdown, tabular (csv/tsv), text (varied BOMs + line endings), json, logs, and binary fixtures. Generation is idempotent: a file is rewritten only when missing or drifted, so deleting `test-samples/` forces a clean rebuild. Use these instead of hand-curated machine-local sample folders. Add a new family by implementing `ISampleSet` and registering it in `TestSampleData.Sets`. Every sample file has a per-file UI test (`SampleFileViewerTests`) asserting it opens in the expected viewer. Details + the file→viewer map in [docs/testing.md](docs/testing.md).
-
-## Potential WPF Gotchas
-
-The global MenuItem style in src/Nexaflow.Core/Themes/Styles.xaml overrides the default WPF template. If you need submenus, header arrows, or Role-dependent behavior, extend that template — adding child MenuItems in code isn't enough.
-
-ItemsControl.ItemsSource binding + Items.Add is illegal — pick one
-
-ObservableCollection.Clear() + N × Add() fires N+1 CollectionChanged events — the intermediate state of "empty" can render as a blank frame if anything in the view rebuilds on each event. Batch updates via Dispatcher.BeginInvoke
-
-A bare string assigned to ToolTip inherits the parent's TextAlignment when WPF wraps it in the default popup TextBlock. Assign an explicit TextBlock if you care about alignment
-
-**`AutomationProperties.AutomationId` is only reliable on elements that create an `AutomationPeer`** — `Control` subclasses (TextBox, TabItem, Button, ContentControl, TabControl…). Decorators (`Border`) and panels (`Grid`, `StackPanel`) create none by default, so an id set on one may never resolve: `FindFirstDescendant(ByAutomationId(…))` returns null forever. It is *unpredictable* rather than always-absent — `Pdf_Panel` on a Border never appears, while `TabItem_{PageKind}` (also a Border, set in `TabStrip.xaml.cs`) does — so treat an id on a non-control as unusable regardless of whether it happens to work today. The failure is nastier than a red test: the *inverse* assertion ("hidden → the id is null") passes for the wrong reason, so a toggle test reads green while testing nothing. To assert a container is shown/hidden, assert on a real control inside it — collapsing the container removes its children from the tree too. Don't reshape the visual tree just to host an id.
-
-**A WPF `TextBox` publishes its text through the UIA `Value` pattern, not its `Name`.** Anything rendered as a selectable/copyable TextBox (the PDF panel's property rows, for instance) is invisible to `ByName`/`element.Name` — read `element.Patterns.Value` (or `AsTextBox().Text`) instead. A test searching by name for a value it can see on screen is the usual symptom.
-
-A UIElement embedded in a RichTextBox (BlockUIContainer) does not reliably receive mouse events, and the routed event's OriginalSource over it is unreliable too — the text container attributes clicks to the container, the FlowDocument, or even a NEIGHBOURING Paragraph/Run depending on the region. To give an embedded element its own mouse interaction, hook the RichTextBox's Preview event, find the element with a geometric VisualTreeHelper.HitTest, and drive it directly (see IInteractiveBlock + InlineMarkdownEditor/SelectableMarkdownView)
-
-## Other design considerations
-
-**Large-file reading** — there are four established strategies; pick the one whose access pattern matches your data shape before inventing a fifth. Each reader's *strategy* is deliberately feature-specific (the data structure differs). The mechanical leaves now live in `Nexaflow.IO.Common`: `EncodingDetector` (BOM/UTF-8 sniff — Tabular's detector, the canonical one) and `FileChangeWatcher` (the debounced `FileSystemWatcher` wrapper used by Logs and Text). Reuse those rather than re-rolling them — current architectural findings live in [docs/arch_review_2026-07.md](docs/arch_review_2026-07.md).
-
-| Strategy | Canonical reader | When |
-|----------|------------------|------|
-| Tail-first + background head-load | `Logs/ViewModels/LogViewModel.cs` | append-only files where the recent end matters most |
-| Head-first window + placeholder padding for scrollbar | `Text/ViewModels/TextViewModel.cs` | top-of-file-first text; line index built up front |
-| Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
-| Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
-
-**Shared UI & theming** — shared controls live in `Nexaflow.Visuals.Common` (controls + converters) and `Nexaflow.Visuals.Text` (markdown). Theme brushes **and** shared control styles live in the app-merged `src/Nexaflow.Core/Themes/Styles.xaml`; feature XAML pulls them by `{StaticResource <key>}` with no assembly reference (the resource lookup walks up to `Application.Resources`). Put a new *shared* style there and reference it by key rather than copy-pasting per view. A theme is assembled in layers (palette → region tokens → per-theme overrides + scenes → styles) by `ThemeManager`; a region can carry an animated backdrop via `ThemedRegion` + a `Scene.{Region}` template, and a feature can extend theming without Core referencing it via `IThemeContribution` — full model in [docs/theming.md](docs/theming.md). Markdown rendering is centralised in `Nexaflow.Visuals.Text` (`SelectableMarkdownView`) — used by Core's AI overlay and AIChat; reuse it rather than hand-rolling `RichTextBox`.
-
-## Style Notes
+## Style
 
 - Terse commits. Say why it changed, not what.
-- Prefer clean architecture over simplicity for an action.
-- Design for good structure and then trust the structure to make life easy - if its hard or convoluted or the structure is wrong.
-- Trust the DI.
-- Primary MVVM Toolkit patterns: `[ObservableProperty]`, `[RelayCommand]`, constructor injection. No static singletons in feature ViewModels.
+- Docs describe the present. No "used to", "no longer", "was moved", before/after stories or dated counts — history
+  is git's. When something changes, rewrite the sentence as it now stands.
+- Prefer clean architecture over simplicity for an action. Design for good structure, then trust it — if something is
+  hard or convoluted, the structure is wrong.
+- Trust the DI. MVVM Toolkit patterns: `[ObservableProperty]`, `[RelayCommand]`, constructor injection. No static
+  singletons in feature ViewModels.
 
-## Working With the User
+## Working with the user
 
-- Direct, short questions and terse commit-style explanations preferred.
+- Direct, short questions; terse commit-style explanations.
 - One concrete recommendation over a list of options.
-- When something needs a worktree (feature branch), use one; merge via PR.
-- Session transcripts are not searchable — check [docs/Architecture.md](docs/Architecture.md) and if implementing a feature [docs/features.md](docs/features.md) for context before exploring the codebase.
+- Feature-branch work goes in a worktree and merges via PR.
+- Session transcripts are not searchable — the docs above are the memory.

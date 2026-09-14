@@ -117,7 +117,7 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         // The size toggle and the two Delete buttons live in panels that sit Visibility="Collapsed" until a
         // card is selected, and a card cannot be selected from here: cards are Borders built in code-behind,
         // which create no automation peer, so UIA cannot see them. Giving them an id was tried and does not
-        // resolve — the case CLAUDE.md describes as unpredictable, where TabStrip's happens to work and this
+        // resolve — the case docs/wpf-gotchas.md describes as unpredictable, where TabStrip's happens to work and this
         // does not — and reshaping the card into a Control purely to host an id is what that same note says
         // not to do. Listed in the ratchet, for a journey that can select a card by other means.
 

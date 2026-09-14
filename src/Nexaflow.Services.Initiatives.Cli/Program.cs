@@ -308,8 +308,8 @@ internal static class Program
                        --dry-run parses + applies in memory and reports, writing nothing. set-snaplink must carry
                        --expect <text> here: it addresses by --index, and an add/remove-snaplink on the same list
                        renumbers every later index, so each line pins itself to what you read.
-            lint       Checks a feature subtree against the modelling rules in docs/feature-tree-and-tests.md
-                       §1-§4: the UI/Functionality/AI backbone, 'AI Ready' only on a feature root, panels and
+            lint       Checks a feature subtree against the modelling rules in docs/product-graph.md and
+                       docs/testing.md: the UI/Functionality/AI backbone, 'AI Ready' only on a feature root, panels and
                        state nodes journey-covered (no 'tests' concern), every leaf unit-tested, and a done
                        'tests' concern naming its test. ADVISORY — roles are inferred from position, so a
                        finding is a prompt to look, not a verdict; nothing here fails a build.

@@ -3,7 +3,7 @@ using Nexaflow.Services.Initiatives.Product.Model;
 namespace Nexaflow.Services.Initiatives.Product.Services;
 
 /// <summary>
-/// Checks a feature subtree against the modelling rules in <c>docs/feature-tree-and-tests.md</c> §1–§4 — the
+/// Checks a feature subtree against the modelling rules in <c>docs/product-graph.md</c> and <c>docs/testing.md</c> — the
 /// conventions that were previously only enforced by reading the tree carefully. It answers "is this feature
 /// modelled the way the Text Viewer is?".
 /// </summary>
