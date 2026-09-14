@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Nexaflow.Syntax.Compiler;
 using Nexaflow.Tests.Fixtures;
 
@@ -37,6 +38,13 @@ public class CompileHostTests
             + "<Nullable>enable</Nullable></PropertyGroup></Project>");
         Write(Lib("Greeter.cs"), Greeter);
         Write(Lib("Calc.cs"), Calc);
+        Write(Lib("Warn.cs"), "namespace Lib;\n\npublic class Warn\n{\n    public void M() { int unused; }\n}\n");
+
+        // Never restored: what a fresh worktree's project is before its first build.
+        Write(Path.Combine(_root, "Unrestored", "Unrestored.csproj"),
+              "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>"
+            + "<ItemGroup><PackageReference Include=\"Newtonsoft.Json\" Version=\"13.0.3\" /></ItemGroup></Project>");
+        Write(Path.Combine(_root, "Unrestored", "Thing.cs"), "public class Thing { }\n");
 
         Write(App("App.csproj"),
               "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework>"
@@ -127,5 +135,45 @@ public class CompileHostTests
             report.Locations.Select(l => l.FullPath.ToUpperInvariant()).ToArray(),
             "the declaration and the call in the app - not Other.Greet, which only shares the name");
         Assert.AreEqual(declaration, report.Locations.Single(l => l.FullPath.EndsWith("Greeter.cs")).Start);
+    }
+
+    [TestMethod]
+    public void AProjectNeverRestored_IsNamedAsNotChecked_RatherThanEveryPackageUseBeingAnError()
+    {
+        var file   = Path.Combine(_root, "Unrestored", "Thing.cs");
+        var report = _host.Check([new SourceChange(file, "public class Thing { }\n",
+                                                   "public class Thing { Newtonsoft.Json.JsonConvert? x; }\n")], [], Budget);
+
+        Assert.AreEqual(0, report.Introduced.Count, string.Join("\n", report.Introduced.Select(p => $"{p.Id} {p.Message}")));
+        StringAssert.Contains(report.NotChecked.Single(), "not restored");
+    }
+
+    [TestMethod]
+    public void AUseOfWhatANeverBuiltDependencyDeclares_IsNotAnErrorTheEditIntroduced()
+    {
+        // Lib is restored and never built, so the app's reference to it names a file that is not there. Read from Lib's
+        // sources instead, the new use binds; read from disk, it was an error only on the after side.
+        const string before = "using Lib;\n\npublic static class Program\n{\n    public static string Run() => new Greeter().Greet(\"x\");\n}\n";
+        var after = before.Replace("}\n", "    public static int Also() => new Calc().Bad;\n}\n");
+
+        var report = _host.Check([new SourceChange(App("Program.cs"), before, after)], [], Budget);
+
+        Assert.AreEqual(0, report.Introduced.Count, string.Join("\n", report.Introduced.Select(p => $"{p.Id} {p.Message}")));
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_ReportAProjectsWarningsWhereTheyAre_AndOnlyTheIdsAskedFor()
+    {
+        var all    = _host.Diagnostics([], [Lib("Lib.csproj")], null, Budget);
+        var unused = all.Found.Single(d => d.Id == "CS0168");
+
+        Assert.AreEqual(Lib("Warn.cs"), unused.FullPath, true);
+        Assert.AreEqual(5, unused.Line);
+        Assert.AreEqual("warning", unused.Severity);
+        Assert.IsTrue(all.Found.Any(d => d.Id == "CS0103"), "an error is reported too");
+
+        var only = _host.Diagnostics([Lib("Warn.cs")], [], new Regex("CS0168"), Budget);
+        Assert.AreEqual("CS0168", only.Found.Single().Id, "one file, one id");
     }
 }

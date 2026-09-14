@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -27,9 +29,13 @@ internal sealed class CompiledProject
     /// counts as one this project compiles against, and a compilation of it can stand in for the missing file.</summary>
     private readonly HashSet<string> _declared = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>What was reported the last few times it was asked, by everything the answer was a function of.</summary>
+    private readonly Dictionary<string, IReadOnlyList<CompileDiagnostic>> _reported = new(StringComparer.Ordinal);
+
     private CSharpCommandLineArguments? _args;
     private CSharpCompilation? _compilation;
     private GeneratorDriver? _driver;
+    private ImmutableArray<DiagnosticAnalyzer>? _analyzers;
     private string _stamp = "";
 
     private CompiledProject(string projectPath)
@@ -46,6 +52,9 @@ internal sealed class CompiledProject
     public string AssemblyFileName { get; private set; } = "";
 
     public IEnumerable<string> SourcePaths => _trees.Keys;
+
+    /// <summary>Every reference its command line names, whether or not it is on disk.</summary>
+    public IReadOnlyCollection<string> Declared => _declared;
 
     public static (CompiledProject? Project, string? Error) Load(string csproj, AnalyzerLoader loader,
                                                                  CancellationToken cancellation)
@@ -69,6 +78,13 @@ internal sealed class CompiledProject
     /// </summary>
     public string? Refresh(AnalyzerLoader loader, CancellationToken cancellation)
     {
+        // Without a restore the design-time build still hands out a command line — one with no package in it. Compiled, every
+        // use of a package type is an error, and an edit adding one more use "introduces" it: a false alarm that reads exactly
+        // like a real one. Nothing about such a project can be said, so it says that instead.
+        if (!Restored())
+            return $"its packages are not restored, so nothing it uses from them can be read - `dotnet restore {Path.GetFileName(ProjectPath)}` "
+                 + "(or a build) and it is checked from then on";
+
         var (arguments, error) = DesignTimeBuild.For(ProjectPath, cancellation);
         if (arguments is null) return error;
 
@@ -83,12 +99,26 @@ internal sealed class CompiledProject
             _trees.Clear();
             _references.Clear();
             _declared.Clear();
+            _reported.Clear();
+            _analyzers   = null;
             _driver      = CreateDriver(parsed, loader);
             AssemblyFileName = parsed.OutputFileName ?? parsed.CompilationName + ".dll";
         }
 
         Sync(cancellation);
         return null;
+    }
+
+    /// <summary>Whether restore has written this project's assets file, which every SDK project has once restored.</summary>
+    private bool Restored()
+    {
+        var obj = Path.Combine(Directory, "obj");
+        try
+        {
+            return System.IO.Directory.Exists(obj)
+                && System.IO.Directory.EnumerateFiles(obj, "project.assets.json", SearchOption.AllDirectories).Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return true; }   // cannot tell: try it
     }
 
     /// <summary>
@@ -140,6 +170,100 @@ internal sealed class CompiledProject
                                                 diagnostic.GetMessage(CultureInfo.InvariantCulture)));
             }
         return problems;
+    }
+
+    /// <summary>
+    /// Everything this project's compilation is a function of on disk, as one value: its command line, and the write
+    /// time of every source, reference and additional file. Two askings with the same value get the same answer.
+    /// </summary>
+    public string Fingerprint()
+    {
+        long acc = _trees.Count * 31L + _references.Count;
+        foreach (var (path, (_, written)) in _trees) acc += HashCode.Combine(path.ToUpperInvariant(), written.Ticks);
+        foreach (var (path, (_, written)) in _references) acc += HashCode.Combine(path.ToUpperInvariant(), written.Ticks);
+        foreach (var file in _args?.AdditionalFiles ?? [])
+        {
+            var full = Path.GetFullPath(file.Path, Directory);
+            acc += HashCode.Combine(full.ToUpperInvariant(), File.Exists(full) ? File.GetLastWriteTimeUtc(full).Ticks : 0);
+        }
+        return $"{_stamp}:{acc:x}";
+    }
+
+    /// <summary>
+    /// What the compiler and this project's analyzers report about <paramref name="compilation"/> — this project's, with
+    /// whatever references it was given. Warnings and errors, or everything <paramref name="ids"/> names at any severity;
+    /// never what the project suppresses. <paramref name="key"/> is what the compilation is a function of, under which the
+    /// answer is kept.
+    /// <para>
+    /// The compiler's own diagnostics are left out when <paramref name="ids"/> could not name one (it does not mention
+    /// CS), because working them out means binding every method body in the project and an analyzer id does not need it.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<CompileDiagnostic> Diagnostics(CSharpCompilation compilation, string key, AnalyzerLoader loader,
+                                                        Regex? ids, CancellationToken cancellation)
+    {
+        var asked = $"{key}|{ids}";
+        if (_reported.TryGetValue(asked, out var kept)) return kept;
+
+        var diagnostics = new List<Diagnostic>();
+        if (ids is null || ids.ToString().Contains("CS", StringComparison.OrdinalIgnoreCase))
+            diagnostics.AddRange(compilation.GetDiagnostics(cancellation));
+
+        var analyzers = AnalyzersFor(loader, ids);
+        if (analyzers.Length > 0)
+        {
+            var args    = _args!;
+            var configs = args.AnalyzerConfigPaths.Where(File.Exists)
+                              .Select(p => AnalyzerConfig.Parse(File.ReadAllText(p), p)).ToList();
+            var options = new AnalyzerOptions(
+                [.. args.AdditionalFiles.Select(f => (AdditionalText)new FileText(Path.GetFullPath(f.Path, Directory)))],
+                new ConfigOptionsProvider(AnalyzerConfigSet.Create(configs)));
+
+            var withAnalyzers = compilation.WithAnalyzers(analyzers, new CompilationWithAnalyzersOptions(
+                options, onAnalyzerException: null, concurrentAnalysis: true, logAnalyzerExecutionTime: false));
+            diagnostics.AddRange(withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellation).GetAwaiter().GetResult());
+        }
+
+        var found = new List<CompileDiagnostic>();
+        foreach (var diagnostic in diagnostics.Distinct())
+        {
+            if (diagnostic.IsSuppressed) continue;
+            if (ids is not null ? !ids.IsMatch(diagnostic.Id) : diagnostic.Severity < DiagnosticSeverity.Warning) continue;
+
+            var span = diagnostic.Location.GetLineSpan();
+            var (path, line, column) = span.IsValid && span.Path is { Length: > 0 } p
+                ? (Path.GetFullPath(p, Directory), span.StartLinePosition.Line + 1, span.StartLinePosition.Character + 1)
+                : (ProjectPath, 1, 1);   // about the project rather than a place in it: a generator that would not load
+            found.Add(new CompileDiagnostic(path, line, column, diagnostic.Id, diagnostic.Severity.ToString().ToLowerInvariant(),
+                                            diagnostic.GetMessage(CultureInfo.InvariantCulture)));
+        }
+
+        if (_reported.Count >= 16) _reported.Clear();
+        return _reported[asked] = [.. found.Distinct().OrderBy(d => d.FullPath, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Line).ThenBy(d => d.Column)];
+    }
+
+    /// <summary>The project's analyzers that report an id <paramref name="ids"/> matches — all of them when it is null.</summary>
+    private ImmutableArray<DiagnosticAnalyzer> AnalyzersFor(AnalyzerLoader loader, Regex? ids)
+    {
+        _analyzers ??= [.. _args!.AnalyzerReferences.SelectMany(reference =>
+        {
+            try
+            {
+                return new AnalyzerFileReference(Path.GetFullPath(reference.FilePath, Directory), loader).GetAnalyzers(LanguageNames.CSharp);
+            }
+            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
+                                                          or TypeLoadException or ReflectionTypeLoadException)
+            {
+                return [];
+            }
+        })];
+
+        if (ids is null) return _analyzers.Value;
+        return [.. _analyzers.Value.Where(analyzer =>
+        {
+            try { return analyzer.SupportedDiagnostics.Any(d => ids.IsMatch(d.Id)); }
+            catch { return false; }   // an analyzer that cannot say what it reports is not one asked for
+        })];
     }
 
     private void Sync(CancellationToken cancellation)

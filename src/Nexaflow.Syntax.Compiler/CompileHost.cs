@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,6 +12,12 @@ public sealed record SourceChange(string FullPath, string? Before, string? After
 
 /// <summary>One compiler error, where it is.</summary>
 public sealed record CompileProblem(string FullPath, int Line, int Column, string Id, string Message);
+
+/// <summary>One thing the compiler or an analyzer reported, where it is — a project-wide one at its project file.</summary>
+public sealed record CompileDiagnostic(string FullPath, int Line, int Column, string Id, string Severity, string Message);
+
+/// <summary>What was reported, and what could not be asked and why.</summary>
+public sealed record DiagnosticReport(IReadOnlyList<CompileDiagnostic> Found, IReadOnlyList<string> NotChecked, TimeSpan Elapsed);
 
 /// <summary>What an edit did to the build.</summary>
 /// <param name="Checked">The projects compiled for the answer.</param>
@@ -92,12 +99,14 @@ public sealed class CompileHost
             foreach (var (csproj, list) in byProject)
                 if (Get(csproj, clock, budget, notChecked, cancellation) is { } project) loaded.Add((project, list));
 
+            var built  = new Dictionary<string, (CSharpCompilation Compilation, string Key)?>(StringComparer.OrdinalIgnoreCase);
             var edited = new List<(CompiledProject Project, CSharpCompilation Before, CSharpCompilation After)>();
             foreach (var (project, list) in DependenciesFirst(loaded))
             {
+                var behind = Behind(project, clock, budget, notChecked, cancellation, built, out _);
                 var (swapBefore, swapAfter) = Swaps(project, edited);
-                var before  = project.With(list.ToDictionary(c => c.FullPath, c => c.Before, StringComparer.OrdinalIgnoreCase), cancellation, swapBefore);
-                var after   = project.With(list.ToDictionary(c => c.FullPath, c => c.After, StringComparer.OrdinalIgnoreCase), cancellation, swapAfter);
+                var before  = project.With(list.ToDictionary(c => c.FullPath, c => c.Before, StringComparer.OrdinalIgnoreCase), cancellation, Over(behind, swapBefore));
+                var after   = project.With(list.ToDictionary(c => c.FullPath, c => c.After, StringComparer.OrdinalIgnoreCase), cancellation, Over(behind, swapAfter));
                 var targets = list.Select(c => c.FullPath)
                                   .Concat(consumerFiles.Where(f => string.Equals(ProjectOf(f), project.ProjectPath, StringComparison.OrdinalIgnoreCase)))
                                   .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -118,10 +127,10 @@ public sealed class CompileHost
                 var (before, after) = Swaps(consumer, edited);
                 if (before.Count == 0) continue;
 
-                var none    = new Dictionary<string, string?>();
+                var behind  = Behind(consumer, clock, budget, notChecked, cancellation, built, out _);
                 var targets = group.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Compare(CompiledProject.ErrorsIn(consumer.With(none, cancellation, before), targets, cancellation),
-                        CompiledProject.ErrorsIn(consumer.With(none, cancellation, after), targets, cancellation),
+                Compare(CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, before)), targets, cancellation),
+                        CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, after)), targets, cancellation),
                         introduced, fixedOnes);
                 checkedOn.Add(consumer.Name);
             }
@@ -179,6 +188,57 @@ public sealed class CompileHost
             }
 
             return new ReferenceReport(symbol.ToDisplayString(), [.. locations.Distinct()], Summarised(notChecked), null, unsearched);
+        }
+    }
+
+    /// <summary>
+    /// What the compiler and each project's analyzers report: for the whole of each of <paramref name="projects"/>, and for
+    /// <paramref name="files"/> in whichever projects compile them — a view included, which reaches its project's analyzers
+    /// as an additional file. Warnings and errors, or everything <paramref name="ids"/> names at any severity.
+    /// <para>
+    /// A project is compiled as its sources stand, with any project it references that is not built, or is older than its
+    /// sources, read from those sources too — the same answer <c>dotnet build</c> would give now, without building.
+    /// </para>
+    /// </summary>
+    public DiagnosticReport Diagnostics(IReadOnlyCollection<string> files, IReadOnlyCollection<string> projects, Regex? ids,
+                                        TimeSpan budget, CancellationToken cancellation = default)
+    {
+        lock (_gate)
+        {
+            var clock      = Stopwatch.StartNew();
+            var notChecked = new List<string>();
+            var found      = new List<CompileDiagnostic>();
+
+            // Each project, with the files of it that were asked about - null for all of it.
+            var wanted = new Dictionary<string, HashSet<string>?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var project in projects) wanted[Path.GetFullPath(project)] = null;
+            foreach (var file in files.Select(f => Path.GetFullPath(f)))
+            {
+                if (ProjectOf(file) is not { } csproj)
+                {
+                    notChecked.Add($"{Path.GetFileName(file)}: no project compiles it");
+                    continue;
+                }
+                if (!wanted.TryGetValue(csproj, out var only)) wanted[csproj] = [file];
+                else only?.Add(file);
+            }
+
+            var built = new Dictionary<string, (CSharpCompilation Compilation, string Key)?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (csproj, only) in wanted)
+            {
+                if (!File.Exists(csproj))
+                {
+                    notChecked.Add($"{Path.GetFileName(csproj)}: there is no such project");
+                    continue;
+                }
+                if (Get(csproj, clock, budget, notChecked, cancellation) is not { } project) continue;
+                if (Current(project, clock, budget, notChecked, cancellation, built) is not { } current) continue;
+
+                var reported = project.Diagnostics(current.Compilation, current.Key, _loader, ids, cancellation);
+                found.AddRange(only is null ? reported : reported.Where(d => only.Contains(d.FullPath)));
+            }
+
+            return new DiagnosticReport(found, Summarised(notChecked), clock.Elapsed);
         }
     }
 
@@ -288,6 +348,111 @@ public sealed class CompileHost
                 after[output]  = a.ToMetadataReference();
             }
         return (before, after);
+    }
+
+    /// <summary>
+    /// A project's compilation as its sources stand, and a key for everything that compilation is a function of — with each
+    /// reference to another project's build output that is missing, or older than that project's sources, swapped for a
+    /// compilation of that project in turn. Null only for a project in a reference cycle, which is met while it is being built.
+    /// <para>
+    /// Without it a dependency edited and not yet rebuilt reads as it was before the edit, and one never built does not read
+    /// at all — so every use of what it declares is an error on both sides of a check, and a line adding one more use
+    /// "introduces" it. That is how an edit to a project, made straight after one to the project it uses, used to report
+    /// errors that a build afterwards did not have.
+    /// </para>
+    /// </summary>
+    private (CSharpCompilation Compilation, string Key)? Current(CompiledProject project, Stopwatch clock, TimeSpan budget,
+                                                                 List<string> notChecked, CancellationToken cancellation,
+                                                                 Dictionary<string, (CSharpCompilation Compilation, string Key)?> built)
+    {
+        if (built.TryGetValue(project.ProjectPath, out var held)) return held;
+        built[project.ProjectPath] = null;   // being built: a cycle stops here rather than recursing for ever
+
+        var swaps = Behind(project, clock, budget, notChecked, cancellation, built, out var dependencies);
+        var current = (project.With(NoTexts, cancellation, swaps), $"{project.Fingerprint()}+{dependencies}");
+        built[project.ProjectPath] = current;
+        return current;
+    }
+
+    private static readonly IReadOnlyDictionary<string, string?> NoTexts = new Dictionary<string, string?>();
+
+    /// <summary>The out-of-date references of <paramref name="project"/>, each swapped for a compilation of the project that
+    /// builds it; <paramref name="key"/> is what those compilations are a function of.</summary>
+    private Dictionary<string, MetadataReference> Behind(CompiledProject project, Stopwatch clock, TimeSpan budget,
+                                                         List<string> notChecked, CancellationToken cancellation,
+                                                         Dictionary<string, (CSharpCompilation Compilation, string Key)?> built,
+                                                         out string key)
+    {
+        var swaps = new Dictionary<string, MetadataReference>(StringComparer.OrdinalIgnoreCase);
+        var keys  = new List<string>();
+        foreach (var output in project.Declared.Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (OwnerOfOutput(output) is not { } owner || !OutOfDate(output, owner)) continue;
+            if (Get(owner, clock, budget, notChecked, cancellation) is not { } dependency) continue;
+            if (Current(dependency, clock, budget, notChecked, cancellation, built) is not { } compiled) continue;
+
+            swaps[output] = compiled.Compilation.ToMetadataReference();
+            keys.Add(compiled.Key);
+        }
+        key = string.Join(',', keys);
+        return swaps;
+    }
+
+    /// <summary>The project whose build writes <paramref name="output"/>: the one project file beside the <c>bin</c> or
+    /// <c>obj</c> it is under. Null for anything else — a package, a framework reference.</summary>
+    private static string? OwnerOfOutput(string output)
+    {
+        for (var dir = Path.GetDirectoryName(output); dir is { Length: > 0 }; dir = Path.GetDirectoryName(dir))
+        {
+            var name = Path.GetFileName(dir);
+            if (!name.Equals("bin", StringComparison.OrdinalIgnoreCase) && !name.Equals("obj", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var parent = Path.GetDirectoryName(dir);
+            return parent is not null && System.IO.Directory.Exists(parent) && System.IO.Directory.GetFiles(parent, "*.csproj") is [var only]
+                ? only : null;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a project's build output is missing, or older than its project file or any of its sources. A reference assembly
+    /// is only rewritten when the project's public surface changes, so its age says nothing about a body edit — the
+    /// intermediate assembly beside it, which every compile writes, is what is compared instead.
+    /// </summary>
+    private static bool OutOfDate(string output, string csproj)
+    {
+        var dir = Path.GetDirectoryName(output)!;
+        var compiled = Path.GetFileName(dir) is "ref" or "refint" && Path.GetDirectoryName(dir) is { } above
+            ? Path.Combine(above, Path.GetFileName(output))
+            : output;
+        if (!File.Exists(compiled)) return !File.Exists(output) || compiled == output;
+
+        var written = File.GetLastWriteTimeUtc(compiled);
+        if (File.GetLastWriteTimeUtc(csproj) > written) return true;
+
+        var projectDir = Path.GetDirectoryName(csproj)!;
+        try
+        {
+            return System.IO.Directory.EnumerateFiles(projectDir, "*.cs", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true })
+                .Any(source => !IsBuildOutput(source, projectDir) && File.GetLastWriteTimeUtc(source) > written);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    private static bool IsBuildOutput(string path, string projectDir)
+    {
+        var relative = Path.GetRelativePath(projectDir, path);
+        return relative.StartsWith("bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("obj" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Out-of-date references first, then the edited projects' compilations over them.</summary>
+    private static Dictionary<string, MetadataReference> Over(Dictionary<string, MetadataReference> behind,
+                                                              Dictionary<string, MetadataReference> edited)
+    {
+        var merged = new Dictionary<string, MetadataReference>(behind, StringComparer.OrdinalIgnoreCase);
+        foreach (var (output, reference) in edited) merged[output] = reference;
+        return merged;
     }
 
     /// <summary>The edited projects in an order where each comes after the edited projects it references, so their
