@@ -1076,8 +1076,12 @@ internal static class Program
     private static int Ask(string[] args)
     {
         if (!TryRead(Specs.Ask, args, out var a, out var root, out var parseCode)) return parseCode;
-        if (a.Positionals.Count == 0)
-            return VerbUsage("ask needs a question, quoted - e.g. nfi ask 'search GraphGrep | source'");
+        // On stdin a question passes through no shell at all, one per line - the way to ask one holding both kinds of quote.
+        var questions = a.Has("--stdin") ? ReadStdin() : string.Join('\n', a.Positionals.Where(p => p.Length > 0));
+        if (a.Has("--stdin") && a.Positionals.Any(p => p.Length > 0))
+            return VerbUsage("ask takes its questions as arguments or on --stdin, not both");
+        if (string.IsNullOrWhiteSpace(questions))
+            return VerbUsage("ask needs a question, quoted - e.g. nfi ask 'search GraphGrep | source' - or questions on --stdin");
 
         if (!TryLoadGraph(root, out var g, out var code)) return code;
         BeginFreshness(root, a.Has("--main"), g);
@@ -1090,7 +1094,6 @@ internal static class Program
             ? Histories.GetOrAdd($"{CodeRootFor(root, main)}|{main}",
                                  _ => new AnswerHistory(rel => CodeFilePath(root, rel, main) is { } full ? File.GetLastWriteTimeUtc(full) : null))
             : null;
-        var questions = string.Join('\n', a.Positionals.Where(p => p.Length > 0));
         var answer = GraphAsk.Run(g, questions, rel => TryReadLines(root, rel, main), history,
                                   EditCheck.DiagnoseIn(g, CodeRootFor(root, main)));
         Console.WriteLine(answer.Text);
@@ -3254,8 +3257,8 @@ internal static class Program
         // Each positional is a whole question - a pipeline typed inline - so several are several answers in one call. No
         // <root>: nfi finds its tree from where it runs, and a trailing root would read the last question as a path. Nothing
         // here reads a file: a question you have to write to disk before you can ask it is one that gets asked with grep.
-        public static readonly VerbSpec Ask = new("ask", 32, None, ["--main", "--refresh"],
-            "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh]", TakesRoot: false, MinPositionals: 1);
+        public static readonly VerbSpec Ask = new("ask", 32, None, ["--main", "--refresh", "--stdin"],
+            "ask '<stage> | <stage> ...' ['<another question>' ...] [--main] [--refresh] | ask --stdin", TakesRoot: false, MinPositionals: 0);
         public static readonly VerbSpec GraphEdit = new("graph edit", 2,
             ["--text", "--text-escaped", "--file", "--to", "--expect", "--find", "--find-escaped", "--find-file",
              "--at", "--name"],
@@ -4135,8 +4138,13 @@ internal static class Program
         var sb = new System.Text.StringBuilder();
         var inQuote = false;
         var quoted = false;   // this token carried quotes — emit it even if it ends up empty
-        foreach (var ch in line)
+        for (var i = 0; i < line.Length; i++)
         {
+            var ch = line[i];
+
+            // `\"` is a quote that belongs to the value rather than ending it. The only escape: a Windows path's backslashes are
+            // left as they are, since none of them comes before a quote.
+            if (ch == '\\' && i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; continue; }
             if (ch == '"') { inQuote = !inQuote; quoted = true; continue; }
             if (char.IsWhiteSpace(ch) && !inQuote)
             {

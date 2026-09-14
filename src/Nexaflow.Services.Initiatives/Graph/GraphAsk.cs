@@ -292,8 +292,20 @@ public static class GraphAsk
             words = [];
         }
 
-        foreach (var ch in text)
+        for (var i = 0; i < text.Length; i++)
         {
+            var ch = text[i];
+
+            // A backslash keeps the character after it from being a quote or a stage break, and both stay in the word: `\"`
+            // and `\|` already mean a literal quote and a literal bar to a regex, so the pattern means what was typed. Without
+            // it a regex could not hold the quote it was quoted with, and a question with both kinds could not be asked at all.
+            if (ch == '\\' && i + 1 < text.Length)
+            {
+                word.Append(ch).Append(text[++i]);
+                started = true;
+                continue;
+            }
+
             if (open != '\0')
             {
                 if (ch == open) open = '\0';
@@ -310,7 +322,12 @@ public static class GraphAsk
         }
         EndStage();
 
-        if (open != '\0') { error = "a quote is left open."; return false; }
+        if (open != '\0')
+        {
+            error = "a quote is left open. A quote inside a quoted pattern is written \\\" or \\', and a question that is awkward "
+                  + "to quote can be asked on stdin: nfi ask --stdin.";
+            return false;
+        }
         if (found.Exists(s => s.Count == 0))
         {
             error = "an empty stage - two | with nothing between them, or a | at one end. "
@@ -347,6 +364,8 @@ public static class GraphAsk
 
                 // By name first; when nothing is called that, the source is searched instead — and the answer
                 // says so, because "named X" and "mentions X" are different claims.
+                // A term is literal, so an escape written to get a quote or a bar past the question is taken back out of it.
+                arg = Regex.Replace(arg, @"\\([""'|\\])", "$1");
                 var found = GraphQuery.Find(g, arg, read);
                 if (!found.BySource) return Seed(q, found.Nodes);
 
