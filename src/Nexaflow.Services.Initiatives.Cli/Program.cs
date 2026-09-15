@@ -8,6 +8,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Hosting;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -795,7 +796,12 @@ internal static class Program
 
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
+            // A graph another nfi built is not read — what it extracted is not what this one would — and "no graph" would send
+            // the reader looking for a file that is plainly there.
+            Console.Error.WriteLine(GraphArchive.SchemaOf(store.GraphFilePath) is { } schema && schema != GraphSchema.Version
+                ? $"error: the graph at {store.GraphFilePath} was built by another nfi (graph schema {schema}; this one reads "
+                + $"{GraphSchema.Version}) — rebuild it with: nfi graph"
+                : $"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
@@ -1864,11 +1870,8 @@ internal static class Program
         // as stale on the next query too, and every one after it. --refresh did not clear it either.
         var dirty = report.Stale.Count > 0;
 
-        foreach (var rel in report.Stale)
-        {
-            RequestScope.Cancellation.ThrowIfCancellationRequested();   // nobody is waiting for the answer
-            GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
-        }
+        // Stops unwritten when nobody is waiting for the answer.
+        GraphBuilder.RefreshFiles(graph, cache, root, report.Stale, CodeRootOrNull(root, main), RequestScope.Cancellation);
 
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's

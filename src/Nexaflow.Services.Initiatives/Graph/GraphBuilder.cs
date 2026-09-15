@@ -1,8 +1,11 @@
 using System;
+
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
+
 using System.Xml.Linq;
 using Nexaflow.IO.Common;
 using Nexaflow.Services.Initiatives.Graph.Communities;
@@ -34,6 +37,7 @@ public sealed class GraphBuilder
     private readonly Dictionary<string, GraphNode> _nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Source, string Target, string Rel), GraphEdge> _edges = new();
     private readonly Dictionary<string, GraphHyperEdge> _hyperEdges = new(StringComparer.Ordinal);
+    /// <summary>Each file's outline, once: shared by files extracted at the same time.</summary>
     private readonly Dictionary<string, CodeOutline?> _outlineCache = new(StringComparer.Ordinal);
     private readonly CodeRelationshipExtractor _relExtractor = new();
     private readonly List<(string RelPath, RawRef Ref)> _rawRefs = [];
@@ -52,6 +56,11 @@ public sealed class GraphBuilder
     private IReadOnlyDictionary<string, string>? _hashes;
 
     private readonly GraphCache _cache;   // reused across builds (in) + repopulated (out); never null internally
+
+    /// <summary>The files a relink is confined to — null in a build, which covers every file.</summary>
+    private IReadOnlySet<string>? _scope;
+
+    private bool InScope(string rel) => _scope is null || _scope.Contains(rel);
 
     private GraphBuilder(ProductState state, string root, GraphBuildOptions opts, GraphCache? cache)
     {
@@ -89,41 +98,135 @@ public sealed class GraphBuilder
     /// </summary>
     /// <returns>True when the file had changed and the graph was updated.</returns>
     public static bool RefreshFile(KnowledgeGraph graph, GraphCache cache, string productRoot,
-                                   string relPath, string? codeRoot = null)
+                                   string relPath, string? codeRoot = null) =>
+        RefreshFiles(graph, cache, productRoot, [relPath], codeRoot).Count > 0;
+
+    /// <summary>
+    /// <see cref="RefreshFile"/> for many files: each is read and extracted as that one is, and what they contributed is
+    /// pruned and the fresh contributions merged in one pass over the graph. File by file, every re-read walked every node
+    /// and edge, and an upgraded extractor re-reading a whole tree took longer than anyone waits for an answer. Returns the
+    /// files whose contribution changed; nothing is touched when <paramref name="cancellation"/> fires first.
+    /// </summary>
+    public static IReadOnlyList<string> RefreshFiles(KnowledgeGraph graph, GraphCache cache, string productRoot,
+                                                     IReadOnlyCollection<string> relPaths, string? codeRoot = null,
+                                                     CancellationToken cancellation = default)
     {
         var builder = new GraphBuilder(new ProductState(), productRoot,
                                        new GraphBuildOptions { CodeRoot = codeRoot, Incremental = true }, cache);
 
-        var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
-        var text = SnaplinkTargets.ReadText(full);
+        var described = graph.Nodes.Select(n => n.Source).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var fresh     = new Dictionary<string, FileContribution>(StringComparer.Ordinal);
 
-        // A file that is not here is NOT evidence that it should leave the graph. the graph is shared with
-        // every worktree, and a branch that runs `graph build` publishes its own files into it — so a file
-        // absent from this tree is just as likely to be another branch's work in progress as it is to be
-        // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is
-        // far worse than carrying a node that is one build out of date. A full `graph build` reconciles
-        // deletions properly, because it knows what the whole tree contains rather than one path.
-        if (text is null) return false;
+        foreach (var relPath in relPaths)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var full = Path.Combine(builder._codeRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
 
-        var hash    = Hashing.Md5(text);
-        var current = cache.Files.TryGetValue(relPath, out var cached) && cached.Hash == hash;
-        if (current && graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal)))
-            return false;                                    // already describes this exact content
+            // A file that is not here is NOT evidence that it should leave the graph. the graph is shared with
+            // every worktree, and a branch that runs `graph build` publishes its own files into it — so a file
+            // absent from this tree is just as likely to be another branch's work in progress as it is to be
+            // deleted. Pruning on that guess would quietly destroy a parallel session's contribution, which is
+            // far worse than carrying a node that is one build out of date. A full `graph build` reconciles
+            // deletions properly, because it knows what the whole tree contains rather than one path.
+            if (SnaplinkTargets.ReadText(full) is not { } text) continue;
 
-        var fresh = builder.ExtractContribution(relPath, full, text, hash);
+            var hash = Hashing.Md5(text);
+            if (cache.Files.TryGetValue(relPath, out var cached) && cached.Hash == hash && described.Contains(relPath))
+                continue;                                        // already describes this exact content
 
-        // Everything this file contributed, out first — Node.Source and Edge.ProvenanceFile exist for exactly
-        // this — and the fresh contribution in after, or the prune would drop the cache entry just written.
-        Prune(graph, cache, relPath);
-        cache.Files[relPath] = fresh;
+            fresh[relPath] = builder.ExtractContribution(relPath, full, text, hash);
+        }
+        if (fresh.Count == 0) return [];
+
+        // Everything these files declared, out, and what they declare now, in — Node.Source exists for exactly this — in
+        // path order, so the graph does not depend on the order it was asked in.
+        var changed = fresh.Keys.Order(StringComparer.Ordinal).ToList();
+        var before  = graph.Nodes.Where(n => n.Source is { } source && fresh.ContainsKey(source)).ToList();
+        var held    = before.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        graph.Nodes.RemoveAll(n => n.Source is { } source && fresh.ContainsKey(source));
 
         var known = new HashSet<string>(graph.Nodes.Select(n => n.Id), StringComparer.Ordinal);
-        foreach (var node in fresh.Nodes) if (known.Add(node.Id)) graph.Nodes.Add(node);
-        graph.Edges.AddRange(fresh.Edges);
+        foreach (var relPath in changed)
+        {
+            cache.Files[relPath] = fresh[relPath];
+            foreach (var node in fresh[relPath].Nodes) if (known.Add(node.Id)) graph.Nodes.Add(node);
+        }
 
-        graph.Metadata.NodeCount = graph.Nodes.Count;
-        graph.Metadata.EdgeCount = graph.Edges.Count;
-        return true;
+        // What to link again: the files that changed; every file with an edge into something they no longer declare, which
+        // every edge and hyperedge can say, since each names the file that asserted it; and every file that names something
+        // they began or stopped declaring - a use that found nothing, or found two, until now. Nothing else can have moved.
+        var gone   = before.Where(n => !known.Contains(n.Id)).ToList();
+        var goneId = gone.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        var relink = new HashSet<string>(changed, StringComparer.Ordinal);
+        if (goneId.Count > 0)
+        {
+            foreach (var edge in graph.Edges)
+                if (edge.ProvenanceFile is { } file && goneId.Contains(edge.Target)) relink.Add(file);
+            foreach (var hyper in graph.HyperEdges)
+                if (hyper.ProvenanceFile is { } file && hyper.Endpoints.Any(p => goneId.Contains(p.Node))) relink.Add(file);
+        }
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in gone.Concat(changed.SelectMany(rel => fresh[rel].Nodes).Where(n => !held.Contains(n.Id))))
+        {
+            names.Add(node.Label);
+            if (node.Label.EndsWith("Attribute", StringComparison.Ordinal)) names.Add(node.Label[..^"Attribute".Length]);
+        }
+        if (names.Count > 0)
+            foreach (var (relPath, contribution) in cache.Files)
+                if (!relink.Contains(relPath) && NamesUsed(contribution).Any(names.Contains)) relink.Add(relPath);
+
+        graph.Edges.RemoveAll(e => e.ProvenanceFile is { } file && relink.Contains(file));
+        graph.HyperEdges.RemoveAll(h => h.ProvenanceFile is { } file && relink.Contains(file));
+        foreach (var relPath in relink.Order(StringComparer.Ordinal))
+            if (cache.Files.TryGetValue(relPath, out var contribution)) graph.Edges.AddRange(contribution.Edges);
+
+        Relink(graph, cache, productRoot, codeRoot, relink);
+
+        graph.Metadata.NodeCount      = graph.Nodes.Count;
+        graph.Metadata.EdgeCount      = graph.Edges.Count;
+        graph.Metadata.HyperEdgeCount = graph.HyperEdges.Count;
+        return changed;
+    }
+
+    /// <summary>Every name a file uses to reach past itself — the names the linking passes look up.</summary>
+    private static IEnumerable<string> NamesUsed(FileContribution c) =>
+        c.Refs.Select(r => r.Name)
+         .Concat(c.Bases.Select(b => b.Name))
+         .Concat(c.Attributes.Select(a => a.AttrName))
+         .Concat(c.Calls.SelectMany(call => call.NewArgTypes.Prepend(call.Callee)))
+         .Concat(c.Signatures.SelectMany(s => s.ParamTypes.Prepend(s.ReturnType ?? "")))
+         .Concat(c.FileRefs.Select(f => f.Token[(f.Token.LastIndexOf('/') + 1)..]));
+
+    /// <summary>
+    /// The cross-file edges of <paramref name="files"/> — what they call, construct, mention, inherit, bind to and pair with —
+    /// worked out by the same passes a build runs, over every declaration the graph holds. A refresh without this kept a
+    /// file's own declarations and lost everything that linked them to the rest: `callers` stopped finding a file's calls
+    /// the moment it was edited, until the next full build.
+    /// </summary>
+    private static void Relink(KnowledgeGraph graph, GraphCache cache, string productRoot, string? codeRoot,
+                               IReadOnlySet<string> files)
+    {
+        var builder = new GraphBuilder(new ProductState(), productRoot,
+                                       new GraphBuildOptions { CodeRoot = codeRoot, Incremental = true }, cache) { _scope = files };
+
+        foreach (var node in graph.Nodes) builder._nodes.TryAdd(node.Id, node);
+        foreach (var relPath in files.Order(StringComparer.Ordinal))
+            if (cache.Files.TryGetValue(relPath, out var contribution)) builder.ApplyLinks(relPath, contribution);
+
+        foreach (var phase in new Action[]
+                 {
+                     builder.ResolveBases, builder.BuildStructuredLayer, builder.ResolveXamlPairing, builder.ResolveReferences,
+                     builder.ResolveXamlBindings, builder.ResolveFileMentions,
+                 })
+            phase();
+
+        // New nodes only - an external a file names may already be there, named by another. Every edge and hyperedge is new:
+        // each starts in the file that asserts it, and what these files asserted before was pruned.
+        var nodes = graph.Nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        graph.Nodes.AddRange(builder._nodes.Values.Where(n => nodes.Add(n.Id)));
+        graph.Edges.AddRange(builder._edges.Values);
+        graph.HyperEdges.AddRange(builder._hyperEdges.Values);
     }
 
     /// <summary>
@@ -290,7 +393,7 @@ public sealed class GraphBuilder
 
         foreach (var phase in new Action[]
                  {
-                     BuildProductLayer, BuildSnaplinkLayer, BuildCodeLayer, BuildStructuredLayer, BuildAssetLayer,
+                     BuildProductLayer, BuildSnaplinkLayer, BuildCodeLayer, ResolveBases, BuildStructuredLayer, BuildAssetLayer,
                      ResolveXamlPairing, ResolveReferences, ResolveXamlBindings, ResolveFileMentions,
                  })
         {
@@ -495,8 +598,11 @@ public sealed class GraphBuilder
         // Prune cache entries for files that no longer exist (deleted / renamed away).
         foreach (var stale in _cache.Files.Keys.Where(k => !seen.Contains(k)).ToList())
             _cache.Files.Remove(stale);
+    }
 
-        // Resolve inheritance against the global type-name index: a unique match is a real edge, else external.
+    /// <summary>Inheritance, resolved against the global type-name index: a unique match is a real edge, else external.</summary>
+    private void ResolveBases()
+    {
         var typesByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var n in _nodes.Values)
             if (n.Type == NodeType.Type)
@@ -659,6 +765,15 @@ public sealed class GraphBuilder
     {
         foreach (var n in c.Nodes) Merge(n);
         foreach (var e in c.Edges) Edge(e.Source, e.Target, e.Relationship, e.Confidence, e.ProvenanceFile);
+        ApplyLinks(rel, c);
+    }
+
+    /// <summary>
+    /// What a file says about the rest of the code — its bases, references, signatures, attributes, calls and file
+    /// mentions — handed to the passes that resolve them against every declaration.
+    /// </summary>
+    private void ApplyLinks(string rel, FileContribution c)
+    {
         foreach (var b in c.Bases) _bases.Add((b.TypeId, b.Name, b.IsInterface, rel));
         foreach (var r in c.Refs) _rawRefs.Add((rel, r));
         foreach (var s in c.Signatures) _signatures.Add((rel, s));
@@ -714,7 +829,13 @@ public sealed class GraphBuilder
     {
         if (_opts.Scope != GraphScope.WholeRepo) return;
 
-        foreach (var full in RepoFiles.EnumerateStructured(_codeRoot, _opts.MaxFiles))
+        var files = _scope is null
+            ? RepoFiles.EnumerateStructured(_codeRoot, _opts.MaxFiles)
+            : _scope.Where(rel => Path.GetExtension(rel).ToLowerInvariant() is ".csproj" or ".slnx" or ".sln")
+                    .Select(rel => Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar)))
+                    .Where(File.Exists);
+
+        foreach (var full in files)
         {
             _opts.Cancellation.ThrowIfCancellationRequested();
             var rel = Path.GetRelativePath(_codeRoot, full).Replace('\\', '/');
@@ -772,6 +893,7 @@ public sealed class GraphBuilder
                      .Where(n => n.Type == NodeType.File && n.FilePath is { } f
                                  && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
                      .Select(n => n.FilePath!)
+                     .Where(InScope)
                      .ToList())
         {
             var anchors = AnchorsOf(rel);
@@ -961,6 +1083,7 @@ public sealed class GraphBuilder
                      .Where(n => n.Type == NodeType.File && n.FilePath is { } f
                                  && f.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase))
                      .Select(n => n.FilePath!)
+                     .Where(InScope)
                      .ToList())
         {
             var full = Path.Combine(_codeRoot, rel.Replace('/', Path.DirectorySeparatorChar));
@@ -1563,6 +1686,10 @@ public sealed class GraphBuilder
         _hyperEdges[key] = h;
         return h;
     }
+
+    /// <summary>A hyperedge's identity: its relationship and every endpoint in order.</summary>
+    private static string HyperKey(string relationship, IEnumerable<HyperEndpoint> endpoints) =>
+        relationship + "|" + string.Join("|", endpoints.Select(p => p.Role + ":" + p.Node));
 
     /// <summary>An absolute path under the code root → repo-relative, or null when it escapes it. Uses the code
     /// root because the paths passed here (resolved imports, csproj/sln references) originate from the enumerated

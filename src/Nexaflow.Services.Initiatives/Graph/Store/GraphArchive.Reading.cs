@@ -44,6 +44,27 @@ public static partial class GraphArchive
         Open(fullPath, ReadCacheFrom);
 
     /// <summary>
+    /// The graph schema an archive was written with, whether or not this build reads it — null when the file is not one of
+    /// ours. What tells "no graph" apart from "a graph another nfi built".
+    /// </summary>
+    public static int? SchemaOf(string fullPath)
+    {
+        try
+        {
+            using var file   = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new BinaryReader(file, Encoding.UTF8);
+
+            var magic = reader.ReadBytes(Magic.Length);
+            if (magic.Length != Magic.Length || !magic.AsSpan().SequenceEqual(Magic)) return null;
+            return reader.ReadInt32() == FormatVersion ? reader.ReadInt32() : null;
+        }
+        catch (Exception e) when (e is IOException or EndOfStreamException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Opens the file, checks it is one of ours and current, reads the string pool, and hands the rest to
     /// <paramref name="read"/>. Any failure to read is the same answer as no file: this is a cache, and a
     /// caller that has to distinguish "absent" from "corrupt" in order to proceed does not exist.

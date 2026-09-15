@@ -238,6 +238,20 @@ public class GraphArchiveTests
         Assert.IsNull(GraphArchive.Read(Path_));
     }
 
+    [TestMethod]
+    public void AnArchiveAnotherExtractorWrote_IsNotRead_ButSaysWhichItWas()
+    {
+        GraphArchive.Write(Path_, Fixture());
+        var bytes = File.ReadAllBytes(Path_);
+
+        BitConverter.GetBytes(GraphSchema.Version - 1).CopyTo(bytes, 11);   // after the magic and the layout version
+        File.WriteAllBytes(Path_, bytes);
+
+        Assert.IsNull(GraphArchive.Read(Path_), "what another extractor made of the files is not this one's graph");
+        Assert.AreEqual(GraphSchema.Version - 1, GraphArchive.SchemaOf(Path_), "and it can say so, rather than that there is no graph");
+        Assert.IsNull(GraphArchive.SchemaOf(System.IO.Path.Combine(_dir, "absent.bin")));
+    }
+
     /// <summary>Interning is the whole reason the file is small: a node id repeated across every edge that
     /// touches it is stored once. Asserting on it directly keeps a future change from quietly undoing it.</summary>
     [TestMethod]

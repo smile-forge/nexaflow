@@ -297,8 +297,7 @@ private readonly Func<ProductState>? _tree;
         Drifted = stale.Count;
         if (stale.Count == 0 || stale.Count > RefreshLimit) return;
 
-        foreach (var rel in stale)
-            GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, ProductRoot, rel, CodeRoot);
+        GraphBuilder.RefreshFiles(snapshot.Graph, snapshot.Cache, ProductRoot, stale, CodeRoot);
 
         // Dirty because the STAMPS moved, not because the graph did. A file whose content is unchanged —
         // git restoring it, a checkout, a save with no edit — re-parses to exactly what was already there,
