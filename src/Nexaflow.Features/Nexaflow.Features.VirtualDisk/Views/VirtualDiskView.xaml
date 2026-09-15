@@ -179,6 +179,7 @@
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="{Binding Indent}">
                                 <!-- Chevron: single-click expands/collapses (lazily loads on first open). -->
                                 <Button Width="16"
+                                        AutomationProperties.AutomationId="VirtualDisk_RowExpand"
                                         Command="{Binding DataContext.ActivateRowCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                         CommandParameter="{Binding}"
                                         Background="Transparent" BorderThickness="0" Cursor="Hand"
@@ -257,8 +258,8 @@
         <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Width="64">
             <StackPanel Margin="4,6" VerticalAlignment="Top">
-                <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract" Command="{Binding ExtractCommand}"/>
-                <Button Style="{StaticResource ActionBtn}" Tag="&#xE958;" Content="Mount" Command="{Binding MountCommand}"
+                <Button Style="{StaticResource ActionBtn}" Tag="&#xE896;" Content="Extract" Command="{Binding ExtractCommand}" AutomationProperties.AutomationId="VirtualDisk_Extract"/>
+                <Button Style="{StaticResource ActionBtn}" Tag="&#xE958;" Content="Mount" Command="{Binding MountCommand}" AutomationProperties.AutomationId="VirtualDisk_Mount"
                         Visibility="{Binding CanMount, Converter={StaticResource BoolVis}}"/>
             </StackPanel>
         </Border>

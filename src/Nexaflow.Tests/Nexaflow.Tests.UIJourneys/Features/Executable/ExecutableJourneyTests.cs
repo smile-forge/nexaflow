@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
+using FlaUI.Core.Definitions;
 
 namespace Nexaflow.Tests.Features.Executable.UI;
 
@@ -16,9 +17,8 @@ namespace Nexaflow.Tests.Features.Executable.UI;
 /// first shown. Clicking through is therefore what actually exercises them.
 /// </para>
 /// <para>
-/// Two controls are deliberately not pressed: "Extract all…" and the resource "Extract…" open a
-/// modal file picker, which would block the journey until it timed out, so they are covered by unit
-/// tests instead. The antivirus scan <em>is</em> pressed — it is background work with no modal
+/// "Extract all…" is pressed and its folder picker cancelled, so nothing is written. Locate is only
+/// checked for, because it leaves this page for a file-system tab. The antivirus scan <em>is</em> pressed — it is background work with no modal
 /// surface, and it is the one control that reaches into another subsystem, so it is worth proving
 /// it cannot take the app down.
 /// </para>
@@ -86,10 +86,24 @@ public class ExecutableJourneyTests : UiJourneyTestBase
         CheckDoes("Tree/diagram toggle", "Executable_DependencyTreeToggle",
                   () => WaitForId("Executable_DependencyTree", 10) is not null);
         CheckInvoke("Collapse all", "Executable_CollapseDependencies");
+        // Selecting the root opens its detail, which offers Locate (Inspect is hidden for the file already open).
+        // Locate is only checked for: it opens a file-system tab, which would take the journey off this page.
+        Check("Selecting the root dependency opens its detail", () =>
+        {
+            var root = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Executable_DependencyTree"))
+                                 ?.FindFirstDescendant(cf => cf.ByControlType(ControlType.TreeItem));
+            root?.Patterns.SelectionItem.PatternOrDefault?.Select();
+            return root is not null && WaitForFs(() => Exists("Executable_LocateDependency"), 5);
+        });
+        CheckExists("Locate", "Executable_LocateDependency");
 
-        // ── Resources. Extract is not pressed: it opens a modal picker. ─────────
+        // ── Resources. Extract all opens the app's folder picker, which is cancelled. ──
         CheckInvoke("Resources tab", "Executable_Tab_Resources");
         CheckPresent("Resource tree", "Executable_ResourceTree");
+        Check("Extract all… opens the folder picker", () =>
+            PressNth("Executable_ExtractAllResources", 0)
+            && WaitFor(() => FindInAppWindows("FolderBrowser_Cancel"), 10) is not null);
+        Check("Cancel closes it without extracting", () => PressInDialog("FolderBrowser_Cancel"));
 
         // ── Manifest, decoded and raw ───────────────────────────────────────────
         CheckInvoke("Manifest tab", "Executable_Tab_Manifest");

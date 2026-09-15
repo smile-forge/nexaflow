@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:Nexaflow.Features.SystemInfo.Converters"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             AutomationProperties.AutomationId="ServicesView"
              Background="{StaticResource BgBrush}">
 
     <UserControl.Resources>
@@ -76,7 +77,7 @@
                      Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
                      ToolTip="Filter by name or display name"/>
 
-            <Button Grid.Column="3" Content="Refresh" Command="{Binding RefreshCommand}"
+            <Button Grid.Column="3" AutomationProperties.AutomationId="Services_Refresh" Content="Refresh" Command="{Binding RefreshCommand}"
                     Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     Padding="12,5" Cursor="Hand"/>
@@ -173,27 +174,27 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
-                                    <Button Content="Start" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Start" Content="Start" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStart}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.StartServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button Content="Stop" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Stop" Content="Stop" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStop}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.StopServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button Content="Restart" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Restart" Content="Restart" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStop}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.RestartServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button Content="Pause" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Pause" Content="Pause" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanPause}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.PauseServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button Content="Resume" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Resume" Content="Resume" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanResume}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.ResumeServiceCommand,

@@ -1,3 +1,6 @@
+using System;
+using FlaUI.Core.Input;
+using FlaUI.Core.Tools;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
 
@@ -11,7 +14,8 @@ namespace Nexaflow.Tests.Features.WindowsRegistry.UI;
 /// action, it <see cref="Assert.Inconclusive(string)"/>s when the tab can't be opened in a fresh-config run.
 /// <para>
 /// Only the <b>read-only navigation</b> controls are exercised: the hive/root selector, the key tree, and
-/// the value list. Every write path in this view — new-key/rename/delete on the tree, and modify/new/delete
+/// the value list — plus the toolbar's Export/Import, which are present-checked but never pressed, and the
+/// input prompt, which is opened from New Key and cancelled before anything is written. Every write path in this view — new-key/rename/delete on the tree, and modify/new/delete
 /// on the value list — is approval-gated and potentially mutating, so those controls carry no AutomationId
 /// and are never invoked here. The codec / writer / root logic is covered headlessly by the WindowsRegistry
 /// unit tests (RegistryValueCodecTests, RegistryWriterTests, RegistryRootTests, RegistryValueRowTests,
@@ -37,6 +41,36 @@ public class RegistryJourneyTests : UiJourneyTestBase
         CheckPresent("Key tree", "Registry_KeyTree");
         CheckPresent("Value list", "Registry_ValueList");
 
+        // Present, never pressed: both raise a modal file picker, and Import writes the .reg into the registry.
+        CheckPresent("Export toolbar button", "Registry_Export");
+        CheckPresent("Import toolbar button", "Registry_Import");
+
+        // The input prompt, opened and dismissed. New Key only raises the prompt — the key is created on
+        // Confirm — so Confirm is present-checked and Cancel is what closes it.
+        Check("The key tree's context menu offers New Key", OpenNewKeyPrompt);
+        CheckPresent("Prompt confirm", "Registry_PromptConfirm");
+        CheckDoes("Prompt cancel closes the prompt", "Registry_PromptCancel",
+                  () => WaitForGone("Registry_PromptConfirm"));
+
         AssertJourney();
+    }
+
+    /// <summary>
+    /// Right-clicks the key tree and picks "New Key…". The menu is a popup in its own window, so its item is
+    /// found from the desktop rather than the shell window.
+    /// </summary>
+    private bool OpenNewKeyPrompt()
+    {
+        var tree = WaitForId("Registry_KeyTree", 5);
+        if (tree is null) return false;
+        tree.RightClick();
+        Wait.UntilInputIsProcessed();
+
+        var item = Retry.WhileNull(() => Automation.GetDesktop().FindFirstDescendant(cf => cf.ByName("New Key…")),
+                                   TimeSpan.FromSeconds(5)).Result;
+        if (item is null) return false;
+        item.Click();
+        Wait.UntilInputIsProcessed();
+        return true;
     }
 }

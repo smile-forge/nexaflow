@@ -69,7 +69,8 @@
         <!-- Cell DataTemplate -->
         <DataTemplate x:Key="CellTemplate" DataType="{x:Type vm:AiAbilityCellViewModel}">
             <Button Style="{StaticResource CellButton}"
-                    Command="{Binding SelectCommand}">
+                    Command="{Binding SelectCommand}"
+                    AutomationProperties.AutomationId="AiGrid_Cell">
                 <!-- Selection indicator: outer ring + filled dot -->
                 <Grid Width="18" Height="18">
                     <Ellipse Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1.5" Fill="Transparent"/>
@@ -119,7 +120,8 @@
                     Foreground="{StaticResource TextBrush}"
                     Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1">
+                    BorderThickness="1"
+                    AutomationProperties.AutomationId="AiGrid_AddColumn">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="root"
@@ -187,7 +189,8 @@
                                 Background="{StaticResource AccentBrush}"
                                 Foreground="White"
                                 BorderThickness="0"
-                                Margin="0,0,6,0">
+                                Margin="0,0,6,0"
+                                AutomationProperties.AutomationId="AiGrid_ConfirmAdd">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="root" Background="{TemplateBinding Background}"
@@ -211,7 +214,8 @@
                                 Foreground="{StaticResource TextBrush}"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1">
+                                BorderThickness="1"
+                                AutomationProperties.AutomationId="AiGrid_CancelAdd">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="root"
@@ -275,7 +279,8 @@
                                                 Command="{Binding DataContext.RemoveColumnCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
-                                                ToolTip="Remove this column">
+                                                ToolTip="Remove this column"
+                                                AutomationProperties.AutomationId="AiGrid_RemoveColumn">
                                             <TextBlock Text="×" FontSize="10"
                                                        Foreground="{StaticResource TextMutedBrush}"/>
                                         </Button>

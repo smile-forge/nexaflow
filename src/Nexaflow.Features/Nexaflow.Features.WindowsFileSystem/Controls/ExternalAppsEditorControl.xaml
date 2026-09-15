@@ -71,7 +71,7 @@
                                          Style="{StaticResource DarkTextBox}" FontSize="11"/>
                             </Border>
                             <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="Remove rule"
-                                    Tag="{Binding}" Click="RemoveCriterion_Click">
+                                    Tag="{Binding}" Click="RemoveCriterion_Click" AutomationProperties.AutomationId="ExternalApps_RemoveRule">
                                 <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             </Button>
                         </Grid>
@@ -93,7 +93,8 @@
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                 <ToggleButton Style="{StaticResource ToggleSwitch}"
                               IsChecked="{Binding UseRegistryMapping, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                              Unchecked="RegistryToggle_Unchecked"/>
+                              Unchecked="RegistryToggle_Unchecked"
+                              AutomationProperties.AutomationId="ExternalApps_UseRegistry"/>
                 <TextBlock Text="Show Windows-registered handlers (Open with &amp; New menu)"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="12" VerticalAlignment="Center"
@@ -148,18 +149,21 @@
                     <Button Content="+ Add"
                             MinWidth="56" Margin="0,0,4,0"
                             Style="{StaticResource IconButton}"
-                            Click="AddApp_Click"/>
+                            Click="AddApp_Click"
+                            AutomationProperties.AutomationId="ExternalApps_Add"/>
                     <Button Content="✕ Remove"
                             MinWidth="72"
                             Style="{StaticResource IconButton}"
-                            Click="RemoveApp_Click"/>
+                            Click="RemoveApp_Click"
+                            AutomationProperties.AutomationId="ExternalApps_Remove"/>
                 </StackPanel>
 
                 <Border BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="4">
                     <ListBox x:Name="AppsList"
                              Background="Transparent" BorderThickness="0"
-                             SelectionChanged="AppsList_SelectionChanged">
+                             SelectionChanged="AppsList_SelectionChanged"
+                             AutomationProperties.AutomationId="ExternalApps_List">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
@@ -205,7 +209,7 @@
                         <TextBlock Text="Application path" Style="{StaticResource FieldLabel}"/>
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                    Style="{StaticResource IconButton}" Click="BrowseAppPath_Click"/>
+                                    Style="{StaticResource IconButton}" Click="BrowseAppPath_Click" AutomationProperties.AutomationId="ExternalApps_BrowseApp"/>
                             <TextBox Text="{Binding ApplicationPath, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource DarkTextBox}" FontSize="11"
                                      local:TokenAutocomplete.IsEnabled="True"/>
@@ -213,7 +217,8 @@
 
                         <!-- Advanced (collapsed by default) -->
                         <ToggleButton Style="{StaticResource SectionToggle}" Content="Advanced options"
-                                      IsChecked="{Binding AdvancedExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                      IsChecked="{Binding AdvancedExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      AutomationProperties.AutomationId="ExternalApps_AdvancedToggle"/>
                         <StackPanel Visibility="{Binding AdvancedExpanded, RelativeSource={RelativeSource AncestorType=UserControl},
                                                           Converter={StaticResource BoolVis}}">
                             <TextBlock Text="Arguments" Style="{StaticResource FieldLabel}"/>
@@ -224,7 +229,7 @@
                             <TextBlock Text="Working directory" Style="{StaticResource FieldLabel}"/>
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                        Style="{StaticResource IconButton}" Click="BrowseWorkingDir_Click"/>
+                                        Style="{StaticResource IconButton}" Click="BrowseWorkingDir_Click" AutomationProperties.AutomationId="ExternalApps_BrowseWorkingDir"/>
                                 <TextBox Text="{Binding WorkingDirectory, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource DarkTextBox}" FontSize="11"
                                          local:TokenAutocomplete.IsEnabled="True"/>
@@ -232,7 +237,7 @@
                             <TextBlock Text="Icon path" Style="{StaticResource FieldLabel}"/>
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                        Style="{StaticResource IconButton}" Click="BrowseIconPath_Click"/>
+                                        Style="{StaticResource IconButton}" Click="BrowseIconPath_Click" AutomationProperties.AutomationId="ExternalApps_BrowseIcon"/>
                                 <TextBox Text="{Binding IconPath, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource DarkTextBox}" FontSize="11"/>
                             </DockPanel>
@@ -244,7 +249,8 @@
 
                         <!-- File matching rules (expanded by default) -->
                         <ToggleButton Style="{StaticResource SectionToggle}" Content="File matching rules"
-                                      IsChecked="{Binding RulesExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                      IsChecked="{Binding RulesExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      AutomationProperties.AutomationId="ExternalApps_RulesToggle"/>
                         <StackPanel Visibility="{Binding RulesExpanded, RelativeSource={RelativeSource AncestorType=UserControl},
                                                           Converter={StaticResource BoolVis}}">
                             <TextBlock Text="Opens files matching any of these rules — extension glob (e.g. *.slnx) or full-path glob (e.g. C:\src\**\*.cs)."
@@ -270,7 +276,8 @@
                             <Button Content="+ Add rule"
                                     HorizontalAlignment="Left" MinWidth="100" Margin="0,6,0,0"
                                     Style="{StaticResource IconButton}"
-                                    Click="AddCriterion_Click"/>
+                                    Click="AddCriterion_Click"
+                                    AutomationProperties.AutomationId="ExternalApps_AddRule"/>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

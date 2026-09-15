@@ -21,7 +21,8 @@
         <Image Source="{Binding VideoFrame}" Stretch="Uniform"/>
 
         <!-- Click toggles play/pause -->
-        <Button Style="{StaticResource ClickCatcherStyle}" Command="{Binding TogglePlayPauseCommand}"/>
+        <Button Style="{StaticResource ClickCatcherStyle}" Command="{Binding TogglePlayPauseCommand}"
+                AutomationProperties.AutomationId="Video_FullscreenClickCatcher"/>
 
         <!-- Shared transport bar -->
         <ContentControl VerticalAlignment="Bottom" ContentTemplate="{StaticResource TransportBarTemplate}"

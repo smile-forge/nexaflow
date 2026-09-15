@@ -23,9 +23,32 @@ ShellPrestartToggle
 # src/Nexaflow.Core/Controls/WorkspaceIdentityControl.xaml
 identity_Color
 identity_Delete
-identity_Export
 identity_Icon
 identity_Name
+
+# src/Nexaflow.Core/Controls/ConfigEditorView.xaml
+# The property grid's folder browse button renders only for a [FolderPath] setting, and no config in the repo
+# declares one — the attribute is documented and supported, but nothing shipping uses it. Its [FilePath] twin is
+# reached through Git's manager path in OptionsJourneyTests.
+ConfigEditor_BrowseFolder
+
+# src/Nexaflow.Core/Controls/AiAbilityGridControl.xaml
+# A column's remove button is collapsed on the None column, and None is the only column until a provider is
+# configured with a real key — which a journey's throwaway config does not have.
+AiGrid_RemoveColumn
+
+# src/Nexaflow.Features/Nexaflow.Features.Console/Controls/ConsoleEnvironmentsEditorControl.xaml
+# A saved-location row exists only once the console's launch picker has remembered an environment for a folder,
+# which is a console journey's doing, not the configure panel's.
+ConsoleEnv_RemoveBinding
+
+# src/Nexaflow.Features/Nexaflow.Features.OneDrive/Controls/OneDriveOptionsControl.xaml
+# The ✕ is shown only on a folder the user added, and adding one goes through the system folder dialog.
+OneDriveOpt_RemoveFolder
+
+# src/Nexaflow.Features/Nexaflow.Features.Tabular/Controls/TabularTemplatesEditorControl.xaml
+# A template row exists only once a template has been saved from a Tabular tab; a fresh config has none.
+TabularTemplates_Remove
 
 # src/Nexaflow.Core/MainWindow.xaml
 Chrome_NotificationsPanel
@@ -84,17 +107,7 @@ FontContextPreview
 # src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageContextPreview.xaml
 ImageContextPreview
 
-# src/Nexaflow.Features/Nexaflow.Features.Images/Views/ImageView.xaml
-Image_AutoAdvance
-Image_AutoSpeed
-Image_DotsPageLeft
-Image_DotsPageRight
-Image_Next
-Image_Previous
-Image_ViewAlbum
-Image_ViewCarousel
-Image_ViewCollage
-Image_ViewExplore
+
 
 # src/Nexaflow.Features/Nexaflow.Features.Network/Views/DevicePanel.xaml
 Net_PanelTabs
@@ -121,7 +134,6 @@ Graph_ToggleHyperEdges
 GraphView
 
 # src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductIntegrityView.xaml
-Integrity_ClearAst
 Integrity_RepointAst
 
 # src/Nexaflow.Features/Nexaflow.Features.ProductManager/Views/ProductSearchView.xaml
@@ -158,12 +170,14 @@ Text_UseWildcards
 
 # src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoControls.xaml
 Video_Subtitles
+# A track row exists only inside the CC menu, and the CC button only when the file has text tracks; the
+# corpus clip is a 24-byte container that decodes nothing, so neither can be reached.
+Video_SubtitleTrack
 
 # src/Nexaflow.Features/Nexaflow.Features.Video/Views/VideoView.xaml
 Video_BigPlay
-
-# src/Nexaflow.Features/Nexaflow.Features.VirtualDisk/Views/VirtualDiskView.xaml
-VirtualDiskView
+# Scene-strip thumbnails are built from decoded keyframes, which the undecodable corpus clip never yields.
+Video_Keyframe
 
 # src/Nexaflow.Features/Nexaflow.Features.Web/Views/HtmlView.xaml
 Web_FallbackOpenExternal
@@ -223,6 +237,18 @@ Viewlet_ViewletView
 # writes, deletes, process spawns — so it wants a journey built around a stubbed agent, not a click here.
 Conversation_ApprovalAccept
 Conversation_ApprovalDeny
+
+# src/Nexaflow.Features/Nexaflow.Features.Processes/Views/ProcessDetailView.xaml
+# The Modules banner shows only when a process's modules are denied, and the journey inspects a process it
+# started itself, whose modules it can read. Reload shows only once handles have loaded, which takes an
+# elevation — a UAC prompt no journey can answer. The initial Load handles is checked for in ProcessesJourneyTests.
+ProcessDetail_LoadModulesAdmin
+ProcessDetail_ReloadHandles
+
+# src/Nexaflow.Features/Nexaflow.Features.WindowsApps/Views/AppAdvancedOptionsPane.xaml
+# An add-on row exists only for a Store app with add-ons installed, which a journey machine cannot be relied on
+# to have — and Remove uninstalls that add-on from the machine.
+WindowsApps_RemoveAddOn
 Conversation_ToolBatchExpand
 # The chip, its preview and the attachment remove are all ItemTemplate children of collections the seeded
 # conversation.json leaves empty. A context item is a pinned live page rather than anything JSON can

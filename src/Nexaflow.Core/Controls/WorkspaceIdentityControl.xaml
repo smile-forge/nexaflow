@@ -127,7 +127,8 @@
                                 Background="{Binding Brush}"
                                 Tag="{Binding Hex}"
                                 ToolTip="{Binding Hex}"
-                                Click="OnSwatchClick">
+                                Click="OnSwatchClick"
+                                AutomationProperties.AutomationId="identity_Swatch">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="{TemplateBinding Background}"

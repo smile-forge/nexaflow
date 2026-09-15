@@ -64,7 +64,8 @@
                                         Click="OnRemoveClick"
                                         Style="{StaticResource IconButton}"
                                         ToolTip="Remove this folder"
-                                        Visibility="{Binding IsCustom, Converter={StaticResource BoolVis}}"/>
+                                        Visibility="{Binding IsCustom, Converter={StaticResource BoolVis}}"
+                                        AutomationProperties.AutomationId="OneDriveOpt_RemoveFolder"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -73,7 +74,7 @@
         </ItemsControl>
 
         <Button Content="Add folder…" HorizontalAlignment="Left" Margin="0,4,0,0"
-                Click="OnAddClick" Style="{StaticResource IconButton}"/>
+                Click="OnAddClick" Style="{StaticResource IconButton}" AutomationProperties.AutomationId="OneDriveOpt_AddFolder"/>
 
     </StackPanel>
 </UserControl>

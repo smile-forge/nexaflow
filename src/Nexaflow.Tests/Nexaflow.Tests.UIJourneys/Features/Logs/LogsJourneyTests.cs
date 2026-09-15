@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
+using FlaUI.Core.AutomationElements;
 
 namespace Nexaflow.Tests.Features.Logs.UI;
 
@@ -9,7 +10,7 @@ namespace Nexaflow.Tests.Features.Logs.UI;
 /// One-pass UI journey for the Logs viewer: opens a log sample via the explicit <b>"As Log"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar — the level
 /// highlight toggles, the pause/follow monitoring toggles, the highlight-term box, the encoding
-/// selector and the filter-pattern box — soft-asserting each so a single gap doesn't hide the rest.
+/// selector, the filter-pattern box with its clear cross, and the time range — soft-asserting each so a single gap doesn't hide the rest.
 /// The buffer is read-only, so toggling these controls does not mutate the sample file.
 ///
 /// Interactive desktop only — run with --filter "TestCategory=UI".
@@ -47,6 +48,20 @@ public class LogsJourneyTests : UiJourneyTestBase
         // Encoding selector + filter pattern box — present in the toolbar / filter panel.
         CheckPresent("Encoding selector", "Log_Encoding");
         CheckPresent("Filter regex box",  "Log_FilterRegex");
+
+        // The filter's clear cross only exists while a filter is active, so set one first.
+        Check("A filter pattern activates the filter", () => TypeInto("Log_FilterRegex", "ERROR"));
+        CheckDoes("Clear filter empties the pattern", "Log_ClearFilter",
+                  () => WaitForFs(() => WaitForId("Log_FilterRegex", 1)?.AsTextBox().Text.Length == 0, 3));
+        Check("The clear cross goes with the filter", () => WaitForGone("Log_ClearFilter"));
+
+        // Time range — only shown for a timestamped log, which app_short.log is. Apply with no date narrows
+        // nothing, so it can only be asserted not to throw; Clear is proven by the time it wipes.
+        Check("The time range accepts a start time", () => TypeInto("Log_FilterStartTime", "09:00:05"));
+        CheckInvoke("Apply time range", "Log_ApplyTimeFilter");
+        Check("The app survives applying a time range", () => !App.HasExited);
+        CheckDoes("Clear time range empties the start time", "Log_ClearTimeFilter",
+                  () => WaitForFs(() => WaitForId("Log_FilterStartTime", 1)?.AsTextBox().Text.Length == 0, 3));
 
         AssertJourney();
     }

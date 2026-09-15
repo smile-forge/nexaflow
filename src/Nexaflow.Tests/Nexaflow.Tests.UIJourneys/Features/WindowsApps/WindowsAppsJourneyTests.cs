@@ -123,9 +123,7 @@ public class WindowsAppsJourneyTests : UiJourneyTestBase
     {
         try
         {
-            return list.FindAllDescendants(cf => cf.ByControlType(ControlType.Button))
-                       .Where(b => b.Name == "⋯")
-                       .ToArray();
+            return list.FindAllDescendants(cf => cf.ByAutomationId("WindowsApps_RowMenu"));
         }
         catch { return []; }   // the tree churns while the list virtualises — the caller retries
     }

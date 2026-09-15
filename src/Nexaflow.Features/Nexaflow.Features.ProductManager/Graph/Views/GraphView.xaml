@@ -281,7 +281,8 @@
                                 Style="{StaticResource TbBtn}"
                                 Visibility="{Binding HasFile, Converter={StaticResource BoolToVis}}"
                                 Command="{Binding DataContext.OpenInCodeCommand,
-                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                AutomationProperties.AutomationId="Graph_OpenInCode"/>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

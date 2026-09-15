@@ -2,6 +2,8 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
+using FlaUI.Core.Definitions;
+using FlaUI.Core.Input;
 
 namespace Nexaflow.Tests.Features.Hex.UI;
 
@@ -9,7 +11,7 @@ namespace Nexaflow.Tests.Features.Hex.UI;
 /// One-pass UI journey for the Hex (binary) viewer: opens a binary sample via the explicit <b>"As Hex"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar controls — edit-mode
 /// toggles, goto, undo/redo, save, and the evaluate-pane toggle — soft-asserting each so a single gap doesn't
-/// hide the rest. The buffer opens read-only, so invoking these controls does not mutate the sample file.
+/// hide the rest. The buffer opens read-only; the one edit made (to reach the save menu) is undone, and Save is never pressed, so the sample file is never written.
 ///
 /// Interactive desktop only — run with --filter "TestCategory=UI".
 /// </summary>
@@ -42,6 +44,19 @@ public class HexJourneyTests : UiJourneyTestBase
         // Save — present (disabled on a clean buffer; present-check only to avoid any write).
         CheckPresent("Save", "Hex_Save");
 
+        // Save options — the split button's drop half, bound to IsModified, so dead on a clean buffer. Reaching
+        // its menu takes one real edit; Undo takes it back, and neither menu entry is ever pressed, so the sample
+        // on disk is never written.
+        Check("Save options is disabled on a clean buffer", () => WaitForId("Hex_SaveOptions", 5) is { IsEnabled: false });
+        Check("An overwrite edit makes the buffer dirty", MakeOneEdit);
+        CheckDoes("Save options opens the save menu", "Hex_SaveOptions",
+                  () => WaitForFs(() => FindInAppWindows("Hex_SaveMenuSave") is not null, 3));
+        Check("The save menu offers Save As", () => FindInAppWindows("Hex_SaveMenuSaveAs") is not null);
+        Check("The save menu closes", CloseSaveMenu);
+        CheckDoes("Undo reverts the edit", "Hex_Undo",
+                  () => WaitForFs(() => WaitForId("Hex_SaveOptions", 1) is { IsEnabled: false }, 3));
+        CheckInvoke("Back to read-only", "Hex_ModeReadOnly");
+
         // Evaluate-pane toggle.
         CheckInvoke("Evaluate pane toggle", "Hex_EvalPane");
 
@@ -62,5 +77,42 @@ public class HexJourneyTests : UiJourneyTestBase
         CheckDoes("Zoom 100% restores the default", "Hex_Zoom100", () => ZoomLabelReads("Hex", "100%"));
 
         AssertJourney();
+    }
+
+    /// <summary>
+    /// Switches to overwrite, clicks into the byte grid and types one byte. The grid is a custom-drawn panel with
+    /// no automation peer, so it is clicked by position: a quarter of the way across the view, just under the
+    /// toolbar — any byte will do, since a click in the address column lands on its row's first byte.
+    /// </summary>
+    private bool MakeOneEdit()
+    {
+        var view = WaitForId("HexView", 5);
+        var gotoBox = WaitForId("Hex_Goto", 5);
+        var overwrite = WaitForId("Hex_ModeOverwrite", 5);
+        if (view is null || gotoBox is null || overwrite is null) return false;
+
+        overwrite.Click();
+        Wait.UntilInputIsProcessed();
+
+        var area = view.BoundingRectangle;
+        Mouse.Click(new System.Drawing.Point(area.Left + area.Width / 4, gotoBox.BoundingRectangle.Bottom + 40));
+        Wait.UntilInputIsProcessed();
+
+        Keyboard.Type("00");
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => WaitForId("Hex_SaveOptions", 1) is { IsEnabled: true }, 3);
+    }
+
+    /// <summary>
+    /// Closes the save menu by unchecking its toggle through the Toggle pattern. A mouse click would not do: the
+    /// popup is StaysOpen=False, so a click on the toggle closes it on the way down and re-opens it on the way up.
+    /// </summary>
+    private bool CloseSaveMenu()
+    {
+        var toggle = WaitForId("Hex_SaveOptions", 2);
+        var pattern = toggle?.Patterns.Toggle.PatternOrDefault;
+        if (pattern is not null && pattern.ToggleState.Value == ToggleState.On) pattern.Toggle();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => FindInAppWindows("Hex_SaveMenuSave") is null, 3);
     }
 }

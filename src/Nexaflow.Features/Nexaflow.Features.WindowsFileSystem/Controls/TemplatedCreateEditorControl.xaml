@@ -28,18 +28,21 @@
                     <Button x:Name="AddTemplateButton" Content="+ Add"
                             MinWidth="56" Margin="0,0,4,0"
                             Style="{StaticResource IconButton}"
-                            Click="AddTemplate_Click"/>
+                            Click="AddTemplate_Click"
+                            AutomationProperties.AutomationId="TemplatedCreate_Add"/>
                     <Button x:Name="RemoveTemplateButton" Content="✕ Remove"
                             MinWidth="72"
                             Style="{StaticResource IconButton}"
-                            Click="RemoveTemplate_Click"/>
+                            Click="RemoveTemplate_Click"
+                            AutomationProperties.AutomationId="TemplatedCreate_Remove"/>
                 </StackPanel>
 
                 <Border BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1" CornerRadius="4">
                     <ListBox x:Name="TemplatesList"
                              Background="Transparent" BorderThickness="0"
-                             SelectionChanged="TemplatesList_SelectionChanged">
+                             SelectionChanged="TemplatesList_SelectionChanged"
+                             AutomationProperties.AutomationId="TemplatedCreate_List">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -117,7 +120,8 @@
                     <Button   Grid.Row="3" Grid.Column="2" Content="…"
                               MinWidth="28" Margin="4,3,0,3"
                               Style="{StaticResource IconButton}"
-                              Click="BrowseTemplate_Click"/>
+                              Click="BrowseTemplate_Click"
+                              AutomationProperties.AutomationId="TemplatedCreate_BrowseSource"/>
 
                     <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="10"

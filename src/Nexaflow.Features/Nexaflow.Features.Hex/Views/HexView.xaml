@@ -130,6 +130,7 @@
                             </StackPanel>
                         </Button>
                         <ToggleButton x:Name="SaveDropToggle"
+                                      AutomationProperties.AutomationId="Hex_SaveOptions"
                                       Grid.Column="1"
                                       Style="{StaticResource TbToggle}"
                                       IsEnabled="{Binding IsModified}"
@@ -152,12 +153,14 @@
                                     Padding="2">
                                 <StackPanel>
                                     <Button Style="{StaticResource TbBtn}"
+                                            AutomationProperties.AutomationId="Hex_SaveMenuSave"
                                             Command="{Binding SaveCommand}"
                                             HorizontalContentAlignment="Left"
                                             Padding="10,6">
                                         <TextBlock Text="Save" FontSize="11"/>
                                     </Button>
                                     <Button Style="{StaticResource TbBtn}"
+                                            AutomationProperties.AutomationId="Hex_SaveMenuSaveAs"
                                             Command="{Binding SaveAsCommand}"
                                             HorizontalContentAlignment="Left"
                                             Padding="10,6">

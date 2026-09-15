@@ -483,7 +483,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ImageDotItem}">
-                            <Button Margin="4,0" Width="10" Height="10" Cursor="Hand" Focusable="False"
+                            <Button Margin="4,0" Width="10" Height="10" Cursor="Hand" Focusable="False" AutomationProperties.AutomationId="Image_DotJump"
                                     Command="{Binding DataContext.GoToIndexCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding Index}">
                                 <Button.Template>

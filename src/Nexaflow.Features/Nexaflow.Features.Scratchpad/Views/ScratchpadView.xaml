@@ -179,29 +179,29 @@
 
                     <!-- Color row 1: Yellow Blue Green Pink -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorYellow" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorBlue" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorGreen" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPink" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                     </StackPanel>
 
                     <!-- Color row 2: Orange Purple White -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorOrange" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPurple" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorWhite" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"
                                      Stroke="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource HeaderBrush}}" StrokeThickness="1"/>
                         </Button>
@@ -210,7 +210,7 @@
                     <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,0,0,6"/>
 
                     <!-- Shape row 1: Square -->
-                    <Button x:Name="RibbonShapeSquare" Tag="Square" Click="RibbonShapeBtn_Click"
+                    <Button x:Name="RibbonShapeSquare" AutomationProperties.AutomationId="Scratchpad_NoteShapeSquare" Tag="Square" Click="RibbonShapeBtn_Click"
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⬜" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -219,7 +219,7 @@
                     </Button>
 
                     <!-- Shape row 2: Rounded -->
-                    <Button x:Name="RibbonShapeRounded" Tag="Rounded" Click="RibbonShapeBtn_Click"
+                    <Button x:Name="RibbonShapeRounded" AutomationProperties.AutomationId="Scratchpad_NoteShapeRounded" Tag="Rounded" Click="RibbonShapeBtn_Click"
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="13" Height="13" CornerRadius="3"
@@ -230,7 +230,7 @@
                     </Button>
 
                     <!-- Shape row 3: Diagonals rounded (TL + BR corners) -->
-                    <Button x:Name="RibbonShapeDiagonals" Tag="DiagonalsRounded" Click="RibbonShapeBtn_Click"
+                    <Button x:Name="RibbonShapeDiagonals" AutomationProperties.AutomationId="Scratchpad_NoteShapeDiagonals" Tag="DiagonalsRounded" Click="RibbonShapeBtn_Click"
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="13" Height="13" CornerRadius="5,0,5,0"
@@ -241,7 +241,7 @@
                     </Button>
 
                     <!-- Shape row 4: Speech bubble -->
-                    <Button x:Name="RibbonShapeBubble" Tag="SpeechBubble" Click="RibbonShapeBtn_Click"
+                    <Button x:Name="RibbonShapeBubble" AutomationProperties.AutomationId="Scratchpad_NoteShapeBubble" Tag="SpeechBubble" Click="RibbonShapeBtn_Click"
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,8">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💬" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -253,13 +253,13 @@
 
                     <!-- Bring to Front / Send to Back -->
                     <StackPanel Orientation="Horizontal">
-                        <Button Click="RibbonBringToFront_Click" Style="{StaticResource RibbonBtn}" ToolTip="Bring to front" Padding="6,4">
+                        <Button AutomationProperties.AutomationId="Scratchpad_NoteFront" Click="RibbonBringToFront_Click" Style="{StaticResource RibbonBtn}" ToolTip="Bring to front" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⬆" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="Front" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                        <Button Click="RibbonSendToBack_Click" Style="{StaticResource RibbonBtn}" ToolTip="Send to back" Padding="6,4">
+                        <Button AutomationProperties.AutomationId="Scratchpad_NoteBack" Click="RibbonSendToBack_Click" Style="{StaticResource RibbonBtn}" ToolTip="Send to back" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⬇" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="Back" VerticalAlignment="Center"/>
@@ -481,12 +481,12 @@
                                             <StackPanel Grid.Row="1" Orientation="Horizontal"
                                                         HorizontalAlignment="Right" Margin="0,6,0,0">
                                                 <Button Content="↩ Restore"
-                                                        Style="{StaticResource BinRestoreBtn}"
+                                                        AutomationProperties.AutomationId="Scratchpad_BinRestore" Style="{StaticResource BinRestoreBtn}"
                                                         Command="{Binding DataContext.RestoreNoteCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Content="✕ Delete"
-                                                        Style="{StaticResource BinActionBtn}"
+                                                        AutomationProperties.AutomationId="Scratchpad_BinDelete" Style="{StaticResource BinActionBtn}"
                                                         Command="{Binding DataContext.DeleteFromBinCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"/>
@@ -584,11 +584,11 @@
                             </Style>
                         </Border.Resources>
                         <StackPanel>
-                            <Button Content="50%"  Tag="0.5"  Click="ZoomPreset_Click"/>
-                            <Button Content="75%"  Tag="0.75" Click="ZoomPreset_Click"/>
-                            <Button Content="100%" Tag="1.0"  Click="ZoomPreset_Click"/>
-                            <Button Content="125%" Tag="1.25" Click="ZoomPreset_Click"/>
-                            <Button Content="150%" Tag="1.5"  Click="ZoomPreset_Click"/>
+                            <Button AutomationProperties.AutomationId="Scratchpad_Zoom50" Content="50%"  Tag="0.5"  Click="ZoomPreset_Click"/>
+                            <Button AutomationProperties.AutomationId="Scratchpad_Zoom75" Content="75%"  Tag="0.75" Click="ZoomPreset_Click"/>
+                            <Button AutomationProperties.AutomationId="Scratchpad_Zoom100" Content="100%" Tag="1.0"  Click="ZoomPreset_Click"/>
+                            <Button AutomationProperties.AutomationId="Scratchpad_Zoom125" Content="125%" Tag="1.25" Click="ZoomPreset_Click"/>
+                            <Button AutomationProperties.AutomationId="Scratchpad_Zoom150" Content="150%" Tag="1.5"  Click="ZoomPreset_Click"/>
                         </StackPanel>
                     </Border>
                 </Popup>

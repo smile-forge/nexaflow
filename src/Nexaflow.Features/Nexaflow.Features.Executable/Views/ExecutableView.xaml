@@ -538,7 +538,7 @@
                                             Visibility="{Binding SelectedDependencyIsRoot, Converter={StaticResource InvBoolVis}}"
                                             Command="{Binding OpenSelectedDependencyCommand}"/>
                                     <Button Content="Locate" Style="{StaticResource TbBtn}" Margin="6,0,0,0"
-                                            Command="{Binding LocateSelectedDependencyCommand}"/>
+                                            AutomationProperties.AutomationId="Executable_LocateDependency" Command="{Binding LocateSelectedDependencyCommand}"/>
                                 </StackPanel>
 
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedDependencyFunctionsCaption}"
@@ -616,7 +616,7 @@
                         <TextBlock Text="{Binding ResourceSummary}" VerticalAlignment="Center" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                         <Button Content="Extract all…" Style="{StaticResource TbBtn}" Margin="16,0,0,0"
-                                Command="{Binding ExtractAllResourcesCommand}"/>
+                                AutomationProperties.AutomationId="Executable_ExtractAllResources" Command="{Binding ExtractAllResourcesCommand}"/>
                     </StackPanel>
                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"

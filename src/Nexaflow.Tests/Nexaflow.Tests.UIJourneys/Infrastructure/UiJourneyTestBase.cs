@@ -5,6 +5,7 @@ using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using System.Diagnostics;
+using System.Linq;
 
 namespace Nexaflow.Tests.UIJourneys.Infrastructure;
 
@@ -183,5 +184,120 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     {
         var label = WaitForId($"{pagePrefix}_ZoomLabel", 3);
         return label?.Name == expected;
+    }
+
+    /// <summary>
+    /// A control by id in the shell window or, failing that, in any other top-level window this app owns — a
+    /// Popup (a speed or save menu), a context menu, a fullscreen window. UIA reports each of those as its own
+    /// window rather than under the shell. Only the app's windows are searched: a miss is usually being polled
+    /// for, and a whole-desktop walk per poll costs seconds. Offscreen matches are returned too.
+    /// </summary>
+    protected AutomationElement? FindInAppWindows(string automationId) =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))
+        ?? Automation.GetDesktop()
+                     .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
+                     .Select(w => w.FindFirstDescendant(cf => cf.ByAutomationId(automationId)))
+                     .FirstOrDefault(e => e is not null);
+
+    /// <summary>
+    /// Sets a text box's text, soft: false rather than an assertion when the box never appears or will not take
+    /// it. Scrolls it into view first, because a box below the fold of a ScrollViewer reads as offscreen and
+    /// <see cref="FileSystemUiTestBase.WaitForId"/> skips offscreen elements.
+    /// </summary>
+    protected bool TypeInto(string automationId, string text)
+    {
+        var box = WaitFor(() =>
+        {
+            var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            try { el?.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView(); } catch { /* not scrollable — fine */ }
+            return el;
+        }, 8);
+        if (box is null) return false;
+
+        box.AsTextBox().Text = text;
+        return WaitForFs(() => box.AsTextBox().Text == text, 2);
+    }
+
+    /// <summary>How many controls carry <paramref name="automationId"/> — for an id stamped on every row of a list.</summary>
+    protected int CountOf(string automationId) =>
+        MainWindow.FindAllDescendants(cf => cf.ByAutomationId(automationId)).Length;
+
+    /// <summary>
+    /// Invokes the <paramref name="index"/>th control carrying an id stamped on every row of a list (-1 = the last).
+    /// Offscreen and transparent rows included: the pattern needs no mouse.
+    /// </summary>
+    protected bool PressNth(string automationId, int index)
+    {
+        var rows = MainWindow.FindAllDescendants(cf => cf.ByAutomationId(automationId));
+        var i = index < 0 ? rows.Length - 1 : index;
+        if (i < 0 || i >= rows.Length) return false;
+        rows[i].AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+        return true;
+    }
+
+    /// <summary>
+    /// True when a control carrying <paramref name="automationId"/> is in the tree at all — on screen or not. For the
+    /// editors inside a scrolling pane, where "offscreen" means "below the fold", not "absent".
+    /// </summary>
+    protected bool Exists(string automationId) =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) is not null;
+
+    /// <summary><see cref="CheckPresent"/> for a control that may sit below the fold of a scrolling pane.</summary>
+    protected void CheckExists(string label, string automationId, int seconds = 5) =>
+        Check($"{label} ('{automationId}' exists)", () => WaitForFs(() => Exists(automationId), Affordable(seconds)));
+
+    /// <summary>The rows of the list carrying <paramref name="automationId"/>, or 0 when it is not there.</summary>
+    protected int ListCount(string automationId) =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))
+                  ?.FindAllChildren(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ListItem)).Length ?? 0;
+
+    /// <summary>Sets a toggle (ToggleButton, CheckBox) to <paramref name="on"/> through its pattern. True once it reads so.</summary>
+    protected bool SetToggle(string automationId, bool on)
+    {
+        var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.Patterns.Toggle.PatternOrDefault;
+        if (toggle is null) return false;
+        var want = on ? FlaUI.Core.Definitions.ToggleState.On : FlaUI.Core.Definitions.ToggleState.Off;
+        if (toggle.ToggleState.Value != want) toggle.Toggle();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => toggle.ToggleState.Value == want, 2);
+    }
+
+    /// <summary>
+    /// Invokes the first open menu item whose label contains <paramref name="label"/>. A ContextMenu built in code
+    /// carries no ids and is its own top-level window, so every window this app owns is searched.
+    /// </summary>
+    protected bool PickMenuItem(string label)
+    {
+        var item = WaitFor(() => Automation.GetDesktop()
+            .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
+            .SelectMany(w => w.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.MenuItem)))
+            .FirstOrDefault(m => m.Name?.Contains(label, StringComparison.Ordinal) == true), 5);
+        if (item is null) return false;
+        item.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        return true;
+    }
+
+    /// <summary>
+    /// Presses a button in one of the app's own dialog windows (the file and folder pickers) and waits for the
+    /// window to go. The dialog is modal and top-level, so it is searched for outside the shell window.
+    /// </summary>
+    protected bool PressInDialog(string automationId)
+    {
+        var button = WaitFor(() => FindInAppWindows(automationId), 5);
+        if (button is null) return false;
+        button.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => FindInAppWindows(automationId) is null, 5);
+    }
+
+    /// <summary>Selects a radio button, in the main window or any of the app's popups.</summary>
+    protected bool SelectRadio(string automationId)
+    {
+        if (FindInAppWindows(automationId)?.Patterns.SelectionItem.PatternOrDefault is not { } radio) return false;
+        radio.Select();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => radio.IsSelected.Value, 3);
     }
 }

@@ -300,7 +300,7 @@
                                                        VerticalAlignment="Center" Margin="8,0"
                                                        Foreground="{StaticResource TextMutedBrush}"/>
 
-                                            <Button Grid.Column="2" Content="Remove" FontSize="11"
+                                            <Button Grid.Column="2" Content="Remove" FontSize="11" AutomationProperties.AutomationId="WindowsApps_RemoveAddOn"
                                                     Style="{StaticResource CardButton}" Padding="8,3"
                                                     Foreground="{StaticResource DangerBrush}"
                                                     Command="{Binding DataContext.RemoveAddOnCommand,

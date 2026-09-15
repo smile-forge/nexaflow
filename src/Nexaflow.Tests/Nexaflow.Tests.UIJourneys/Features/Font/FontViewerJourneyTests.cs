@@ -1,6 +1,5 @@
 using System.Threading;
 using FlaUI.Core.AutomationElements;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 using Nexaflow.Tests.Fixtures;
@@ -33,6 +32,13 @@ public class FontViewerJourneyTests : UiJourneyTestBase
         // Blank compare mode: the empty-state hint and the add tile, no fonts yet.
         Check("Empty-state hint shown", () => WaitForName("No fonts yet", 6) is not null);
         CheckPresent("Add-font button", "FontAddButton");
+
+        // The picker's footer, before anything is picked: Load from file raises a system file dialog, so it
+        // is present only; Cancel has to close the overlay without adding anything.
+        CheckDoes("Picker opens", "FontAddButton", () => WaitForId("FontPickerSearch", 10) is not null);
+        CheckPresent("Picker load-from-file", "FontPickerLoadFile");
+        CheckDoes("Picker cancel closes the overlay", "FontPickerCancel", () => WaitForGone("FontPickerSearch"));
+        Check("Cancelling added nothing", () => WaitForName("No fonts yet", 3) is not null);
 
         // Add an installed font through the picker overlay (Arial ships with Windows).
         Check("Add installed font via picker", () => AddInstalledFont("Arial"));
@@ -69,13 +75,18 @@ public class FontViewerJourneyTests : UiJourneyTestBase
         // Glyph map builds its (lazy) grid on expand.
         CheckInvoke("Glyph map expander", "FontGlyphMap");
 
-        // Copy actions (no AutomationId — by content; they only write the clipboard).
-        Check("Copy name button", () =>
-        {
-            var b = WaitForName("Copy name", 5);
-            b?.Click();
-            return b is not null;
-        });
+        // Paging: Arial has well over one 500-glyph page, so the pager is shown and starts on page one.
+        // Each press is proven by the other button's enablement — Prev only comes alive off the first page.
+        Check("Glyph map starts on its first page", () => WaitForId("FontGlyphPrevPage", 5) is { IsEnabled: false });
+        CheckDoes("Glyph map next page", "FontGlyphNextPage",
+                  () => WaitForFs(() => WaitForId("FontGlyphPrevPage", 1) is { IsEnabled: true }, 3));
+        CheckDoes("Glyph map previous page", "FontGlyphPrevPage",
+                  () => WaitForFs(() => WaitForId("FontGlyphPrevPage", 1) is { IsEnabled: false }, 3));
+
+        // Copy name only writes the clipboard. Copy path is hidden for an installed font, which has no file —
+        // FontFileOpenUiTests asserts it for a font opened from disk.
+        CheckInvoke("Copy name", "FontCopyName");
+        Check("Copy path is hidden for an installed font", () => WaitForId("FontCopyPath", 1) is null);
 
         AssertJourney();
     }
@@ -96,7 +107,8 @@ public class FontViewerJourneyTests : UiJourneyTestBase
         var list = WaitForId("FontPickerList", 8);
         if (list is null) return false;
 
-        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByControlType(ControlType.Button)), 8);
+        // One id on N rows (the row template); the first one after filtering is the match.
+        var row = WaitFor(() => list.FindFirstDescendant(cf => cf.ByAutomationId("FontPickerRow")), 8);
         if (row is null) return false;
 
         row.AsButton().Invoke();

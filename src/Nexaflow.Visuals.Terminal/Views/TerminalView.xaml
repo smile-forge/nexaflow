@@ -381,11 +381,11 @@
                                IsOpen="{Binding EnvPickerVisible}" CancelCommand="{Binding CancelEnvPickerCommand}">
                     <DockPanel>
                         <CheckBox DockPanel.Dock="Bottom"
-                                  Content="Always use this environment for this location"
+                                  Content="Always use this environment for this location" AutomationProperties.AutomationId="Console_EnvPickerAlwaysUse"
                                   IsChecked="{Binding AlwaysUseHere}"
                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                   Margin="0,12,0,0"/>
-                        <Button DockPanel.Dock="Bottom" Content="Cancel" HorizontalAlignment="Right"
+                        <Button DockPanel.Dock="Bottom" Content="Cancel" HorizontalAlignment="Right" AutomationProperties.AutomationId="Console_EnvPickerCancel"
                                 Style="{StaticResource SurfaceButton}" Margin="0,12,0,0"
                                 Command="{Binding CancelEnvPickerCommand}"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -394,7 +394,7 @@
                                     <DataTemplate DataType="{x:Type m:TerminalEnvironment}">
                                         <Button Margin="0,3" HorizontalContentAlignment="Stretch"
                                                 Style="{StaticResource SurfaceButton}"
-                                                Command="{Binding DataContext.PickEnvironmentCommand,
+                                                AutomationProperties.AutomationId="Console_EnvPickOption" Command="{Binding DataContext.PickEnvironmentCommand,
                                                                   RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}">
                                             <StackPanel>

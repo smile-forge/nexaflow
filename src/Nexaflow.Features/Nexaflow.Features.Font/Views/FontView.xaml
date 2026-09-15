@@ -214,9 +214,10 @@
 
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <Button Content="Copy name" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
-                                            Margin="0,0,6,0"
+                                            Margin="0,0,6,0" AutomationProperties.AutomationId="FontCopyName"
                                             Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                     <Button Content="Copy path" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
+                                            AutomationProperties.AutomationId="FontCopyPath"
                                             Command="{Binding DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             Visibility="{Binding SourcePath, Converter={StaticResource NullToVis}}"/>
                                 </StackPanel>
@@ -291,8 +292,10 @@
                                                 Visibility="{Binding HasGlyphPages, Converter={StaticResource BoolToVis}}">
                                         <Button Content="‹ Prev" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
                                                 Margin="0,0,6,0" Command="{Binding PrevGlyphPageCommand}"
+                                                AutomationProperties.AutomationId="FontGlyphPrevPage"
                                                 IsEnabled="{Binding CanPrevGlyphPage}"/>
                                         <Button Content="Next ›" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
+                                                AutomationProperties.AutomationId="FontGlyphNextPage"
                                                 Command="{Binding NextGlyphPageCommand}"
                                                 IsEnabled="{Binding CanNextGlyphPage}"/>
                                     </StackPanel>

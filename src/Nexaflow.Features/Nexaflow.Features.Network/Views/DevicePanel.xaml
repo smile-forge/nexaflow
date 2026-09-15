@@ -176,7 +176,7 @@
                                     BorderThickness="0"
                                     Foreground="{StaticResource TextMutedBrush}"
                                     Cursor="Hand"
-                                    Command="{Binding CloseCommand}"
+                                    AutomationProperties.AutomationId="Net_PanelTabClose" Command="{Binding CloseCommand}"
                                     Visibility="{Binding CanClose, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                     </DataTemplate>

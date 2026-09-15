@@ -138,12 +138,16 @@
                                     BorderThickness="1" CornerRadius="4" Margin="0,0,0,6">
                                 <StackPanel MinWidth="84">
                                     <Button Style="{StaticResource MenuEntryButton}" Content="1×"
+                                            AutomationProperties.AutomationId="Video_Speed_1x"
                                             Command="{Binding SetSpeedCommand}" CommandParameter="1"/>
                                     <Button Style="{StaticResource MenuEntryButton}" Content="1.25×"
+                                            AutomationProperties.AutomationId="Video_Speed_1_25x"
                                             Command="{Binding SetSpeedCommand}" CommandParameter="1.25"/>
                                     <Button Style="{StaticResource MenuEntryButton}" Content="1.5×"
+                                            AutomationProperties.AutomationId="Video_Speed_1_5x"
                                             Command="{Binding SetSpeedCommand}" CommandParameter="1.5"/>
                                     <Button Style="{StaticResource MenuEntryButton}" Content="2×"
+                                            AutomationProperties.AutomationId="Video_Speed_2x"
                                             Command="{Binding SetSpeedCommand}" CommandParameter="2"/>
                                 </StackPanel>
                             </Border>
@@ -165,6 +169,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Button Style="{StaticResource MenuEntryButton}" Content="{Binding Label}"
+                                                    AutomationProperties.AutomationId="Video_SubtitleTrack"
                                                     Command="{Binding DataContext.SetSubtitleCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"/>

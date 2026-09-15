@@ -86,6 +86,10 @@ public class NetworkJourneyTests : UiJourneyTestBase
                     ping.Click();
                     Thread.Sleep(3000);
                     Shoot("4-pinged");
+
+                    // A result opens as its own closable panel tab; Discovery is the one tab without a ✕.
+                    CheckDoes("✕ closes the Ping result tab", "Net_PanelTabClose",
+                              () => WaitForFs(() => CountOf("Net_PanelTabClose") == 0, 3));
                 }
             }
         }

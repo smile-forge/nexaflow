@@ -60,7 +60,8 @@
                 <Button Grid.Column="2" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="Browse for folder…"
-                        Command="{Binding BrowseFolderCommand}">
+                        Command="{Binding BrowseFolderCommand}"
+                        AutomationProperties.AutomationId="ConfigEditor_BrowseFolder">
                     <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                 </Button>
             </Grid>
@@ -88,7 +89,8 @@
                 <Button Grid.Column="2" Margin="6,0,0,0"
                         Style="{StaticResource IconButton}"
                         ToolTip="Browse for file…"
-                        Command="{Binding BrowseFileCommand}">
+                        Command="{Binding BrowseFileCommand}"
+                        AutomationProperties.AutomationId="ConfigEditor_BrowseFile">
                     <TextBlock Text="…" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
                 </Button>
             </Grid>

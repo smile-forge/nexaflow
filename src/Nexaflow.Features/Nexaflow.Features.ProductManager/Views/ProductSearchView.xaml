@@ -138,12 +138,14 @@
                                         ToolTip="Open this result where it lives"
                                         Command="{Binding DataContext.OpenCommand,
                                                   RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                        CommandParameter="{Binding}"/>
+                                        CommandParameter="{Binding}"
+                                        AutomationProperties.AutomationId="ProductSearch_OpenRow"/>
                                 <Button Style="{StaticResource RowBtn}" Content="In graph"
                                         ToolTip="Select this node in the graph viewer"
                                         Command="{Binding DataContext.ShowInGraphCommand,
                                                   RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                        CommandParameter="{Binding}"/>
+                                        CommandParameter="{Binding}"
+                                        AutomationProperties.AutomationId="ProductSearch_ShowInGraph"/>
                             </StackPanel>
                         </Grid>
                     </Border>

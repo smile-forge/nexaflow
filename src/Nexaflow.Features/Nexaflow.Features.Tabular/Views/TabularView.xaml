@@ -77,33 +77,39 @@
 
                     <TextBlock Text="Name" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                     <TextBox Text="{Binding TemplateName, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,12"/>
+                             Style="{StaticResource DarkTextBox}" Margin="0,2,0,12" AutomationProperties.AutomationId="Tabular_TemplateName"/>
 
                     <!-- Scope -->
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
                                  Content="Auto-apply to any file in this folder"
-                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Folder}"/>
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Folder}"
+                                 AutomationProperties.AutomationId="Tabular_ScopeFolder"/>
                     <TextBlock Text="{Binding TemplateFolderPath}" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                                Margin="20,1,0,8"/>
 
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}"
                                  Content="Auto-apply to any file matching name pattern"
-                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"/>
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"
+                                 AutomationProperties.AutomationId="Tabular_ScopeGlob"/>
                     <TextBox Text="{Binding GlobPattern, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource DarkTextBox}" Margin="20,2,0,8"
                              IsEnabled="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Glob}"
-                             ToolTip="e.g. *.csv or sales-*.csv"/>
+                             ToolTip="e.g. *.csv or sales-*.csv"
+                             AutomationProperties.AutomationId="Tabular_GlobPattern"/>
 
                     <RadioButton GroupName="TmplScope" Foreground="{StaticResource TextBrush}" Margin="0,0,0,12"
                                  Content="Selectable template only"
-                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Manual}"/>
+                                 IsChecked="{Binding SelectedScope, Converter={StaticResource EnumBool}, ConverterParameter=Manual}"
+                                 AutomationProperties.AutomationId="Tabular_ScopeManual"/>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel" Style="{StaticResource TbBtn}" MinWidth="64"
-                                Command="{Binding CancelTemplateThisCommand}"/>
+                                Command="{Binding CancelTemplateThisCommand}"
+                                AutomationProperties.AutomationId="Tabular_TemplateCancel"/>
                         <Button Content="Save" Style="{StaticResource TbBtn}" MinWidth="64" Margin="6,0,0,0"
-                                Command="{Binding SaveTemplateCommand}"/>
+                                Command="{Binding SaveTemplateCommand}"
+                                AutomationProperties.AutomationId="Tabular_TemplateSave"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -200,7 +206,8 @@
                                                     Command="{Binding DataContext.ApplyTemplateCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"
-                                                    ToolTip="Apply this template">
+                                                    ToolTip="Apply this template"
+                                                    AutomationProperties.AutomationId="Tabular_TemplateApply">
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Name}"
                                                                Foreground="{StaticResource TextBrush}" FontSize="12"/>
@@ -223,7 +230,8 @@
                                                     Command="{Binding DataContext.DeleteTemplateCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"
-                                                    ToolTip="Delete this template"/>
+                                                    ToolTip="Delete this template"
+                                                    AutomationProperties.AutomationId="Tabular_TemplateDelete"/>
                                         </Grid>
                                     </Border>
                                     <DataTemplate.Triggers>

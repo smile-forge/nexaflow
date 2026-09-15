@@ -257,6 +257,7 @@
                             <Button Grid.Column="1"
                                     Style="{StaticResource TbBtn}"
                                     Content="✕"
+                                    AutomationProperties.AutomationId="Log_ClearFilter"
                                     Command="{Binding ClearFilterCommand}"
                                     Visibility="{Binding IsFilterActive, Converter={StaticResource BoolVis}}"
                                     Padding="6,4"
@@ -280,7 +281,8 @@
                             <DatePicker SelectedDate="{Binding FilterStartDate}"
                                         Margin="0,0,0,4"
                                         FontSize="12"/>
-                            <TextBox Text="{Binding FilterStartTime, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox AutomationProperties.AutomationId="Log_FilterStartTime"
+                            Text="{Binding FilterStartTime, UpdateSourceTrigger=PropertyChanged}"
                                      MinWidth="0"
                                      Margin="0,0,0,10"
                                      ToolTip="Time (HH:mm:ss)">
@@ -338,12 +340,14 @@
                             </TextBox>
 
                             <Button Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="Log_ApplyTimeFilter"
                                     Command="{Binding ApplyTimeFilterCommand}"
                                     Content="Apply"
                                     HorizontalAlignment="Stretch"
                                     Margin="0,0,0,4"/>
 
                             <Button Style="{StaticResource TbBtn}"
+                                    AutomationProperties.AutomationId="Log_ClearTimeFilter"
                                     Command="{Binding ClearTimeFilterCommand}"
                                     Content="Clear"
                                     HorizontalAlignment="Stretch"/>
