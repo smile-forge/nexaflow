@@ -175,6 +175,40 @@ public class StructuralEditTests
     }
 
     [TestMethod]
+    public void AddImport_ThatOnlyAppearsInAStringOrAComment_IsStillAdded_AndOneReallyThereIsRefused()
+    {
+        const string holdsSource = "using System;\n\n// using System.Linq;\nclass C\n{\n    const string Code = \"\"\"\n        using System.Linq;\n        \"\"\";\n}\n";
+
+        var text = Applied(StructuralEdit.AddImport("c-sharp", holdsSource, "using System.Linq;"));
+        Assert.AreEqual(1, LineOf(text, "using System.Linq;"), "the directive goes in, under the using that is really there");
+
+        var again = StructuralEdit.AddImport("c-sharp", text, "using  System.Linq;");
+        Assert.IsFalse(again.Ok, "once it is there, it is there, however it is spaced");
+        StringAssert.Contains(again.Message, "already imported");
+    }
+
+    [TestMethod]
+    public void AnImportInsideANamespace_CountsAsImported()
+    {
+        const string inside = "namespace N\n{\n    using System.Linq;\n\n    class C { }\n}\n";
+
+        Assert.IsFalse(StructuralEdit.AddImport("c-sharp", inside, "using System.Linq;").Ok);
+    }
+
+    [TestMethod]
+    public void ADelegate_IsADeclarationEveryEditAddresses()
+    {
+        const string host = "class Host\n{\n    public delegate int Measure(string s);\n\n    public void Run() { }\n}\n";
+
+        AssertLine(Applied(StructuralEdit.Apply("c-sharp", host, "T:Host/T:Measure", StructuralEdit.Op.Replace,
+                                                "public delegate long Measure(string s, int n);")),
+                   "    public delegate long Measure(string s, int n);");
+
+        var renamed = Applied(StructuralEdit.Apply("c-sharp", host, "T:Host/T:Measure", StructuralEdit.Op.Rename, null, null, "Gauge"));
+        StringAssert.Contains(renamed, "public delegate int Gauge(string s);");
+    }
+
+    [TestMethod]
     public void AddImport_StaysBelowAHeaderComment_WhenThereAreNoImportsYet()
     {
         const string header = "// Copyright (c) Smile-Forge.\n// Licensed under MIT.\n\nnamespace N;\n\nclass W { }\n";

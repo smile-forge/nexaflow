@@ -171,8 +171,8 @@ public sealed class DeclarationAnchors
     }
 
     /// <summary>
-    /// The file's import statements as written, in order — what a declaration moved to another file needs to bring
-    /// with it.
+    /// The file's imports as the parse reads them, wherever they sit — at the top, or inside a namespace. Text that only looks
+    /// like an import, in a string or a comment, is not one.
     /// </summary>
     public IReadOnlyList<string> Imports(string grammarId, string text)
     {
@@ -184,8 +184,19 @@ public sealed class DeclarationAnchors
         try
         {
             return highlighter.WithParseTree(text, root =>
-                (IReadOnlyList<string>)[.. root.NamedChildren.Where(child => IsImport(child.Type))
-                                                            .Select(child => text[child.StartIndex..child.EndIndex].Trim())]);
+            {
+                var found = new List<string>();
+                void Walk(Node node)
+                {
+                    foreach (var child in node.NamedChildren)
+                    {
+                        if (IsImport(child.Type)) found.Add(text[child.StartIndex..child.EndIndex].Trim());
+                        else Walk(child);
+                    }
+                }
+                Walk(root);
+                return (IReadOnlyList<string>)found;
+            });
         }
         catch { return []; }
     }

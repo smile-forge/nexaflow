@@ -571,7 +571,7 @@ public sealed class CodeStructureExtractor
 
     private static string KindInitial(OutlineKind k) => k switch
     {
-        OutlineKind.Class or OutlineKind.Struct or OutlineKind.Interface or OutlineKind.Enum => "T",
+        OutlineKind.Class or OutlineKind.Struct or OutlineKind.Interface or OutlineKind.Enum or OutlineKind.Delegate => "T",
         OutlineKind.Method or OutlineKind.Constructor => "M",
         OutlineKind.Property => "P",
         _ => "F",
@@ -650,13 +650,14 @@ public sealed class CodeStructureExtractor
     // ── C# ───────────────────────────────────────────────────────────────────
 
     private static readonly HashSet<string> CsTypeDecls =
-        ["class_declaration", "struct_declaration", "interface_declaration", "enum_declaration", "record_declaration", "record_struct_declaration"];
+        ["class_declaration", "struct_declaration", "interface_declaration", "enum_declaration", "record_declaration", "record_struct_declaration", "delegate_declaration"];
 
     private static OutlineKind CsTypeKind(string t) => t switch
     {
         "struct_declaration" or "record_struct_declaration" => OutlineKind.Struct,
         "interface_declaration"                             => OutlineKind.Interface,
         "enum_declaration"                                  => OutlineKind.Enum,
+        "delegate_declaration"                              => OutlineKind.Delegate,
         _                                                   => OutlineKind.Class,
     };
 

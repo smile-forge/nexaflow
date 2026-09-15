@@ -51,6 +51,12 @@ public class DeclarationSignaturesTests
     public void AnArrowBody_IsLeftOut() => Assert.AreEqual("public int Twice(int n)", Named("Twice").Text);
 
     [TestMethod]
+    public void ADelegate_IsItsWholeDeclaration() =>
+        Assert.AreEqual("public delegate int Measure(string s, int n)",
+                        DeclarationSignatures.Of("c-sharp", "class Host\n{\n    public delegate int Measure(string s,\n                                int n);\n}\n")
+                                             .First(s => s.Name == "Measure").Text.TrimEnd(';'));
+
+    [TestMethod]
     public void AProperty_StopsAtItsAccessors() => Assert.AreEqual("public int Count", Named("Count").Text);
 
     [TestMethod]

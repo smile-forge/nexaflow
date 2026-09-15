@@ -70,6 +70,31 @@ public class CodeIntelligenceTests
     }
 
     [TestMethod]
+    [CoversNode("syntax-outline")]
+    public void Extract_CSharp_ListsADelegateAsATypeOfItsOwn_AtFileScopeAndNested()
+    {
+        const string source = """
+            namespace Demo;
+
+            public delegate void Done();
+
+            public class Host
+            {
+                public delegate int Measure(string s);
+
+                public void Run() { }
+            }
+            """;
+
+        var outline = new CodeStructureExtractor().Extract("c-sharp", source);
+
+        Assert.AreEqual(OutlineKind.Delegate, outline.Types.Single(t => t.AstPath == "T:Done").Kind);
+        Assert.AreEqual(OutlineKind.Delegate, outline.Types.Single(t => t.AstPath == "T:Host/T:Measure").Kind);
+        Assert.IsTrue(outline.Types.Single(t => t.AstPath == "T:Host").Members.Any(m => m.AstPath == "T:Host/M:Run"),
+                      "the type holding one keeps its members");
+    }
+
+    [TestMethod]
     [CoversNode("code-structure")]
     public void ResolveLine_IsStableAcrossInsertedLines()
     {
