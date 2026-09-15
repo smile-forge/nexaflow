@@ -1,0 +1,122 @@
+{
+  "branch": "claude/nfi-at-scale",
+  "nodes": {
+    "initiatives-scale": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "1. What has to stay true"
+          ]
+        }
+      ]
+    },
+    "nfi-config-providers": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "7. From Nexaflow\u0027s tool to a tool"
+          ]
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "5. Version control as a provider"
+          ]
+        }
+      ]
+    },
+    "nfi-change-journal": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "4. Knowing what changed, without version control"
+          ]
+        }
+      ]
+    },
+    "nfi-node-index": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "3. Links that write themselves \u2014 the node index"
+          ]
+        }
+      ]
+    },
+    "nfi-attributes-package": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "3. Links that write themselves \u2014 the node index"
+          ]
+        }
+      ]
+    },
+    "graph-indexed-queries": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "6. A paged graph",
+            "Queries touch only the pages they need"
+          ]
+        }
+      ]
+    },
+    "graph-paged-store": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "6. A paged graph"
+          ]
+        }
+      ]
+    },
+    "nfi-implements-declarations": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/nfi-at-scale.md",
+          "title_path": [
+            "nfi at scale \u2014 product evolution",
+            "3. Links that write themselves \u2014 the node index"
+          ]
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "graph-indexed-queries",
+    "graph-paged-store",
+    "initiatives-scale",
+    "nfi-attributes-package",
+    "nfi-change-journal",
+    "nfi-config-providers",
+    "nfi-implements-declarations",
+    "nfi-node-index"
+  ]
+}
