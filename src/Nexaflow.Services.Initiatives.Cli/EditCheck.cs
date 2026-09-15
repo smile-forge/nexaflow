@@ -29,6 +29,10 @@ internal static class EditCheck
     internal static CompileHost HostFor(string codeRoot) =>
         Hosts.GetOrAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)), root => new CompileHost(root));
 
+    /// <summary>Lets go of a tree's compiler, for a command stuck holding it: the next check on the tree loads afresh.</summary>
+    internal static void Forget(string codeRoot) =>
+        Hosts.TryRemove(Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)), out _);
+
     /// <summary>
     /// The compiler as <c>ask</c>'s <c>diagnostics</c> stage asks it: repo-relative files and projects in, findings by
     /// repo-relative file out. A project is named as its file is (<c>Nexaflow.Features.Solver</c>), by the end of that name

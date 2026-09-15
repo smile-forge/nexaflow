@@ -236,6 +236,7 @@ public sealed class CompileHost
 
                 var reported = project.Diagnostics(current.Compilation, current.Key, _loader, ids, cancellation);
                 found.AddRange(only is null ? reported : reported.Where(d => only.Contains(d.FullPath)));
+                notChecked.AddRange(project.LoadFailures.Select(failure => $"{project.Name}: {failure}"));
             }
 
             return new DiagnosticReport(found, Summarised(notChecked), clock.Elapsed);

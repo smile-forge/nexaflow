@@ -133,6 +133,15 @@ public sealed class InitiativesHost : IDisposable
         try { workspace?.Flush(); } catch (IOException) { /* the next flush, or shutdown's, tries again */ }
     }
 
+    /// <summary>
+    /// Lets go of a working tree's graph without writing it, for a command stuck holding it: that command keeps the
+    /// workspace it has, and the next one on the tree loads the graph from disk.
+    /// </summary>
+    public void Forget(string? codeRoot)
+    {
+        lock (_gate) _workspaces.Remove(WorkspaceKey(codeRoot));
+    }
+
     private static string WorkspaceKey(string? codeRoot) =>
         codeRoot is { Length: > 0 } ? Path.TrimEndingDirectorySeparator(Path.GetFullPath(codeRoot)) : "";
 

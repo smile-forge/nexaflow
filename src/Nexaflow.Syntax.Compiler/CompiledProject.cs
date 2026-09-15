@@ -36,6 +36,13 @@ internal sealed class CompiledProject
     private CSharpCompilation? _compilation;
     private GeneratorDriver? _driver;
     private ImmutableArray<DiagnosticAnalyzer>? _analyzers;
+
+    private string? _analyzerStamp;
+
+    /// <summary>The analyzer files that would not load when last asked for, generators and analyzers apart because they are
+    /// loaded at different times.</summary>
+    private readonly List<string> _generatorFailures = [];
+    private readonly List<string> _analyzerFailures = [];
     private string _stamp = "";
 
     private CompiledProject(string projectPath)
@@ -55,6 +62,10 @@ internal sealed class CompiledProject
 
     /// <summary>Every reference its command line names, whether or not it is on disk.</summary>
     public IReadOnlyCollection<string> Declared => _declared;
+
+    /// <summary>The analyzers and generators that would not load when last asked for: rules that did not run, which is not the
+    /// same answer as rules that found nothing.</summary>
+    public IEnumerable<string> LoadFailures => _generatorFailures.Concat(_analyzerFailures).Distinct();
 
     public static (CompiledProject? Project, string? Error) Load(string csproj, AnalyzerLoader loader,
                                                                  CancellationToken cancellation)
@@ -78,8 +89,6 @@ internal sealed class CompiledProject
     /// </summary>
     public string? Refresh(AnalyzerLoader loader, CancellationToken cancellation)
     {
-
-
         var (arguments, error) = DesignTimeBuild.For(ProjectPath, cancellation);
         if (arguments is null) return error;
 
@@ -88,16 +97,25 @@ internal sealed class CompiledProject
             var parsed = CSharpCommandLineParser.Default.Parse(arguments.Args, Directory, sdkDirectory: null);
             if (parsed.SourceFiles.IsEmpty) return "its compiler command line names no sources";
 
-            _args        = parsed;
-            _stamp       = arguments.Stamp;
-            _compilation = null;
+            _args          = parsed;
+            _stamp         = arguments.Stamp;
+            _compilation   = null;
+            _analyzerStamp = null;
             _trees.Clear();
             _references.Clear();
             _declared.Clear();
-            _reported.Clear();
-            _analyzers   = null;
-            _driver      = CreateDriver(parsed, loader);
             AssemblyFileName = parsed.OutputFileName ?? parsed.CompilationName + ".dll";
+        }
+
+        // A rebuilt analyzer or generator is loaded again although the command line naming it has not moved: its rules are
+        // likely the very thing being changed.
+        var analyzerStamp = AnalyzerStampOf(_args);
+        if (analyzerStamp != _analyzerStamp)
+        {
+            _analyzerStamp = analyzerStamp;
+            _analyzers     = null;
+            _reported.Clear();
+            _driver = CreateDriver(_args, loader);
         }
 
         Sync(cancellation);
@@ -242,28 +260,27 @@ internal sealed class CompiledProject
                                             diagnostic.GetMessage(CultureInfo.InvariantCulture)));
         }
 
+        IReadOnlyList<CompileDiagnostic> answer =
+            [.. found.Distinct().OrderBy(d => d.FullPath, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Line).ThenBy(d => d.Column)];
+
+        // Not remembered when something would not load: a build may have been writing it, and next time it may.
+        if (LoadFailures.Any()) return answer;
         if (_reported.Count >= 16) _reported.Clear();
-        return _reported[asked] = [.. found.Distinct().OrderBy(d => d.FullPath, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Line).ThenBy(d => d.Column)];
+        return _reported[asked] = answer;
     }
 
     /// <summary>The project's analyzers that report an id <paramref name="ids"/> matches — all of them when it is null.</summary>
     private ImmutableArray<DiagnosticAnalyzer> AnalyzersFor(AnalyzerLoader loader, Regex? ids)
     {
-        _analyzers ??= [.. _args!.AnalyzerReferences.SelectMany(reference =>
+        if (_analyzers is not { } all)
         {
-            try
-            {
-                return new AnalyzerFileReference(Path.GetFullPath(reference.FilePath, Directory), loader).GetAnalyzers(LanguageNames.CSharp);
-            }
-            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
-                                                          or TypeLoadException or ReflectionTypeLoadException)
-            {
-                return [];
-            }
-        })];
+            _analyzerFailures.Clear();
+            all = [.. LoadEach(_args!, loader, reference => reference.GetAnalyzers(LanguageNames.CSharp), _analyzerFailures)];
+            if (_analyzerFailures.Count == 0) _analyzers = all;
+        }
 
-        if (ids is null) return _analyzers.Value;
-        return [.. _analyzers.Value.Where(analyzer =>
+        if (ids is null) return all;
+        return [.. all.Where(analyzer =>
         {
             try { return analyzer.SupportedDiagnostics.Any(d => ids.IsMatch(d.Id)); }
             catch { return false; }   // an analyzer that cannot say what it reports is not one asked for
@@ -329,21 +346,10 @@ internal sealed class CompiledProject
 
     private GeneratorDriver? CreateDriver(CSharpCommandLineArguments args, AnalyzerLoader loader)
     {
-        var generators = new List<ISourceGenerator>();
-        foreach (var analyzer in args.AnalyzerReferences)
-        {
-            try
-            {
-                generators.AddRange(new AnalyzerFileReference(Path.GetFullPath(analyzer.FilePath, Directory), loader)
-                                        .GetGenerators(LanguageNames.CSharp));
-            }
-            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
-                                                          or TypeLoadException or ReflectionTypeLoadException)
-            {
-                // A generator that will not load is missing from both sides of every comparison, so what it would have
-                // emitted cannot show up as an error the edit introduced.
-            }
-        }
+        // A generator that will not load is missing from both sides of every comparison, so what it would have emitted cannot
+        // show up as an error an edit introduced; diagnostics name it as not checked.
+        _generatorFailures.Clear();
+        var generators = LoadEach(args, loader, reference => reference.GetGenerators(LanguageNames.CSharp), _generatorFailures);
         if (generators.Count == 0) return null;
 
         var configs = args.AnalyzerConfigPaths.Where(File.Exists)
@@ -353,5 +359,43 @@ internal sealed class CompiledProject
 
         return CSharpGeneratorDriver.Create(generators, additional, ParseOptionsOf(args),
                                             new ConfigOptionsProvider(AnalyzerConfigSet.Create(configs)));
+    }
+
+    /// <summary>
+    /// What each analyzer file the command line names holds. One that will not load is named in <paramref name="failures"/>:
+    /// Roslyn says so through an event rather than an exception, and unheard it is a rule that silently finds nothing.
+    /// </summary>
+    private List<T> LoadEach<T>(CSharpCommandLineArguments args, AnalyzerLoader loader,
+                                Func<AnalyzerFileReference, ImmutableArray<T>> take, List<string> failures)
+    {
+        var found = new List<T>();
+        foreach (var analyzer in args.AnalyzerReferences)
+        {
+            var path      = Path.GetFullPath(analyzer.FilePath, Directory);
+            var reference = new AnalyzerFileReference(path, loader);
+            void Failed(object? sender, AnalyzerLoadFailureEventArgs e) => failures.Add($"{Path.GetFileName(path)} would not load: {e.Message}");
+
+            reference.AnalyzerLoadFailed += Failed;
+            try { found.AddRange(take(reference)); }
+            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
+                                                          or TypeLoadException or ReflectionTypeLoadException)
+            {
+                failures.Add($"{Path.GetFileName(path)} would not load: {ex.Message}");
+            }
+            finally { reference.AnalyzerLoadFailed -= Failed; }
+        }
+        return found;
+    }
+
+    /// <summary>Each analyzer file the command line names, by when it was written: a rebuild moves that and not the command line.</summary>
+    private string AnalyzerStampOf(CSharpCommandLineArguments args)
+    {
+        var stamp = new StringBuilder();
+        foreach (var analyzer in args.AnalyzerReferences)
+        {
+            var path = Path.GetFullPath(analyzer.FilePath, Directory);
+            stamp.Append(path).Append('=').Append(File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0).Append(';');
+        }
+        return stamp.ToString();
     }
 }
