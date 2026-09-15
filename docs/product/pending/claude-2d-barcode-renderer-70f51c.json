@@ -1,0 +1,245 @@
+{
+  "branch": "claude/2d-barcode-renderer-70f51c",
+  "nodes": {
+    "qr-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/QrBuilder.cs",
+          "class": "QrBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs",
+            "class": "QrBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrPixelRoundTripTests.cs",
+            "class": "QrPixelRoundTripTests"
+          }
+        ]
+      }
+    },
+    "aztec-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecBuilder.cs",
+          "class": "AztecBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs",
+            "class": "AztecBuilderTests",
+            "method": "ThePictureReadsBack"
+          }
+        ]
+      }
+    },
+    "pdf417-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Builder.cs",
+          "class": "Pdf417Builder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417BuilderTests.cs",
+            "class": "Pdf417BuilderTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixBuilder.cs",
+          "class": "DataMatrixBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBuilderTests.cs",
+            "class": "DataMatrixBuilderTests"
+          }
+        ]
+      }
+    },
+    "matrix-renderer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs",
+          "class": "MatrixBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs",
+          "class": "MatrixBlockReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs",
+          "class": "ReedSolomon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs",
+          "class": "IModuleMatrix"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBuilderTests.cs",
+            "class": "DataMatrixBuilderTests"
+          }
+        ]
+      }
+    },
+    "qr-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockReader.cs",
+          "class": "QrBlockReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockReaderTests.cs",
+            "class": "QrBlockReaderTests"
+          }
+        ]
+      }
+    },
+    "aztec-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecBlockReader.cs",
+          "class": "AztecBlockReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs",
+            "class": "AztecBuilderTests",
+            "method": "ReadsItsOwnShapeSettings"
+          }
+        ]
+      }
+    },
+    "pdf417-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417BlockReader.cs",
+          "class": "Pdf417BlockReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417BuilderTests.cs",
+            "class": "Pdf417BuilderTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixBlockReader.cs",
+          "class": "DataMatrixBlockReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockReaderTests.cs",
+            "class": "DataMatrixBlockReaderTests"
+          }
+        ]
+      }
+    },
+    "qr-payloads": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockReaderTests.cs",
+            "class": "QrBlockReaderTests"
+          }
+        ]
+      }
+    },
+    "datamatrix-payloads": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockReaderTests.cs",
+            "class": "DataMatrixBlockReaderTests"
+          }
+        ]
+      }
+    },
+    "matrix-block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixParser.cs",
+          "class": "MatrixParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Matrix/MatrixParserTests.cs",
+            "class": "MatrixParserTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 22,
+  "touched_nodes": [
+    "aztec-block-syntax",
+    "aztec-render",
+    "datamatrix-block-syntax",
+    "datamatrix-payloads",
+    "datamatrix-render",
+    "matrix-block-ast",
+    "matrix-renderer",
+    "pdf417-block-syntax",
+    "pdf417-render",
+    "qr-block-syntax",
+    "qr-payloads",
+    "qr-render"
+  ]
+}

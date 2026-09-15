@@ -558,14 +558,15 @@ The body is a flat `key: value` list; the key is everything before the first col
 needs no quoting. **Unrecognised keys are refused, not ignored** — a mistyped `cellsize` that silently did
 nothing would render a plausible-looking code that is not the one the author asked for.
 
-**Four pieces**, none of which knows about the next:
+**Five pieces**, parser to builder:
 
 | Piece | Does |
 |---|---|
-| [`QrBlockParser`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockParser.cs) | lines → a `QrBlock` (payload + settings), or a message saying which line is wrong |
+| [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | lines → a lossless tree of fields, shared by every 2D code; a line that is not a field is held with the reason |
+| [`QrBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockReader.cs) | the tree → a `QrBlock` (payload + settings), or a message saying which line is wrong |
 | [`QrPayload`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrPayload.cs) | `type:` + fields → the one string that gets encoded, in the convention its scanners expect |
 | [`QrEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrEncoder.cs) | string → a `QrMatrix`. WPF-free, so a symbol can be asserted on without a UI thread |
-| [`WpfQrRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Qr/WpfQrRenderer.cs) | matrix → one `Path` on a quiet-zone `Border` |
+| [`QrBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBuilder.cs) | reads, encodes and lays the symbol out: its three finders, its timing lines and its modules, on a quiet-zone ground |
 
 **The encoder is ours** (ISO/IEC 18004 model 2), not a package: versions 1–40, all four error-correction
 levels, numeric / alphanumeric / byte modes with the narrowest one chosen for the payload, Reed–Solomon
@@ -699,14 +700,22 @@ symbol code, while ours decode correctly against the digits printed on those sam
 
 QR was the first matrix symbology and everything about its block that was not the QR encoder turned out
 to be the same for the next three: a rectangular grid of modules drawn as merged runs on a quiet-zone
-border, a flat `key: value` body, `cellSize` / `margin` / `dark` / `light`, and Reed–Solomon parity over
-some Galois field. Those live in [`Markdown/Matrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix):
+ground, a flat `key: value` body, `cellSize` / `margin` / `dark` / `light`, and Reed–Solomon parity over
+some Galois field. Those live in [`Markdown/Matrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix), and
+the parser in [`Nexaflow.Markdown/Matrix`](../src/Nexaflow.Markdown/Matrix).
+
+They render the way formulas and scores do — [docs/markdown-ast.md](markdown-ast.md). `MatrixParser`
+reads the fence into a tree, and the tree goes straight to that code's builder: there is nothing in a
+symbol to edit, so no pipeline stage sits between them. Each code is its own builder, because each reads
+its own fields, encodes its own way and is made of its own parts; what they share is `MatrixBuilder`. The
+layout is hosted read-only in the shared `ContentElement`, which the caret arrows over like a word.
 
 | Piece | Does |
 |---|---|
 | [`IModuleMatrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs) | any finished symbol: `Width`, `Height`, and whether a module is dark. Rectangular, because Data Matrix is |
-| [`MatrixSettings`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the line reader that produces them; a symbology's parser reads the fields these hand back and adds its own keys |
-| [`WpfMatrixRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/WpfMatrixRenderer.cs) | the one drawing: aliased module edges so no seam reads as a light line, the quiet-zone `Border`, the tooltip. Takes a row-height multiplier for stacked symbologies |
+| [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | any 2D block's body → a tree: a line per line, a field its key, colon and value. `Print(Parse(s)) == s` for anything |
+| [`MatrixSettings`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the fields the parser found; a symbology's reader takes the fields these hand back and adds its own keys |
+| [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) | what the four builders share: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode draws a valid symbol of its kind, faint and struck through, with the reason beneath. Takes a row-height multiplier for stacked symbologies |
 | [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
 
 The QR code is re-pointed at all of it; its suite is what proves the shared codec. `QrColor` folded into
@@ -761,7 +770,7 @@ digit pairing in one figure.
 A **`pdf417`** fence generates a PDF417 symbol (ISO/IEC 15438), registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/Pdf417DiagramHandler.cs)
 beside `qr` and `datamatrix`. It is the first stacked symbology here, and the first user of
-`WpfMatrixRenderer`'s row-height multiplier.
+`MatrixBuilder`'s row-height multiplier.
 
 **The encoder is ours** ([`Pdf417Encoder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Encoder.cs)):
 text compaction with all four sub-modes and their latches and shifts, numeric compaction in 44-digit
@@ -1141,21 +1150,22 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |
 | [`Markdown/Qr/QrEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs) | The QR encoder: round trips through every version and level via `QrTestDecoder`, non-ASCII, the capacity boundary, and the published capacity / alignment-centre / format-code-word tables. |
-| [`Markdown/Qr/QrBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockParserTests.cs) | The `qr` block body: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
-| [`Markdown/Qr/QrRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrRendererTests.cs) | QR dispatch through `DiagramRenderer`, geometry area = the dark modules, `cellSize`/`margin` measurement, palette vs. block colours, and both failure paths rendering their reason. (UI category.) |
+| [`Matrix/MatrixParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Matrix/MatrixParserTests.cs) | The 2D block tree: every block and every prefix of it prints back as written, every leaf is copied from the source, a field's key / colon / value, and a line that is not a field held with its reason. |
+| [`Markdown/Qr/QrBlockReaderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockReaderTests.cs) | The `qr` block's fields: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
+| [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | QR dispatch through `DiagramRenderer` to read-only content, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — drawing a struck-through code with its reason. (UI category.) |
 | [`Markdown/Barcode/BarcodeEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs) | Every one of the twenty-three formats down to the module: published symbol tables, computed and verified check digits, Code 128 subset switching, and each value a format refuses. |
 | [`Markdown/Barcode/BarcodeReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeReferenceImageTests.cs) | Reads externally generated PNGs back to modules and compares. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; inconclusive without it. |
 | [`Markdown/Barcode/BarcodeBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs) | The `barcode` block body: every setting and its bounds, the value offset, and each structural diagnostic — separately from a value the format cannot carry, which is not one. |
 | [`Markdown/Barcode/BarcodeElementTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeElementTests.cs) | The element itself: measurement, the error presentation, caret placement, selection and the typing verbs. (UI category.) |
 | [`Markdown/Barcode/BarcodeInEditorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeInEditorTests.cs) | The barcode driven through the editor's block seam — arrowing in and out, typing, space, Home/End, undo, cut, and editing a value whose printed form differs from it. (Desktop category.) |
 | [`Markdown/Matrix/DataMatrixEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixEncoderTests.cs) | The Data Matrix encoder: the standard's worked example as a golden vector, placement invariants over all thirty sizes, both encodations and every C40 ending, ECI, GS1, Macro 06, multi-block interleaving, shapes and forced sizes. |
-| [`Markdown/Matrix/DataMatrixBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockParserTests.cs) | The `datamatrix` block body: the shared types, the exact wire form `gs1`, `ppn`, `ntin` and `mailmark` write (check digits included), `shape:` / `size:`, and each diagnostic. |
-| [`Markdown/Matrix/DataMatrixRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixRendererTests.cs) | Dispatch, a rectangular symbol measuring to its own width and height through the shared renderer, and the picture rasterised and read back through the test decoder. (UI category.) |
+| [`Markdown/Matrix/DataMatrixBlockReaderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockReaderTests.cs) | The `datamatrix` block's fields: the shared types, the exact wire form `gs1`, `ppn`, `ntin` and `mailmark` write (check digits included), `shape:` / `size:`, and each diagnostic. |
+| [`Markdown/Matrix/DataMatrixBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBuilderTests.cs) | Dispatch, a rectangular symbol measuring to its own width and height, a finder and clock on every region, ink covering each dark module once across several regions, a bad block still drawing a code, and the picture rasterised and read back through the test decoder. (UI category.) |
 | [`Markdown/Matrix/Pdf417EncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417EncoderTests.cs) | The PDF417 encoder: all 2,787 table entries checked against the standard's structural rules, another generator's codewords as a golden vector, text/numeric/byte compaction round-trips, every error-correction level, shapes and truncation. |
-| [`Markdown/Matrix/Pdf417RendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417RendererTests.cs) | The `pdf417` block body and its drawing: dispatch, the shape settings, rows drawn taller than they are wide through the shared renderer's row-height multiplier, and the picture read back. (UI category.) |
+| [`Markdown/Matrix/Pdf417BuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417BuilderTests.cs) | The `pdf417` block's fields and its layout: dispatch, the shape settings, rows drawn taller than they are wide, the start / row indicator / codeword / stop columns of a full and a truncated symbol, a bad block still drawing a code, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/Pdf417ReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/Pdf417ReferenceImageTests.cs) | Decodes PDF417 symbols made by other generators. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is what proves the ingested table. |
 | [`Markdown/Matrix/AztecEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecEncoderTests.cs) | The Aztec encoder: both published size and codeword-count tables, the data cells of every one of the 36 symbol sizes covering their capacity exactly once, bit stuffing, the choice of family and layer count, forced sizes, error-correction levels, GS1 and ECI, and round trips through the test decoder. |
-| [`Markdown/Matrix/AztecRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecRendererTests.cs) | The `aztec` block body and its drawing: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, and the picture read back. (UI category.) |
+| [`Markdown/Matrix/AztecBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs) | The `aztec` block's fields and its layout: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, the bullseye, mode message and reference grid, a bad block still drawing a code, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/AztecReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs) | Decodes Aztec symbols made by other generators **and** asserts our encoder reproduces them module for module. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is the only check that can catch a self-consistent but unreadable layout. |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in

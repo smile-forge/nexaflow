@@ -1,4 +1,6 @@
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Visuals.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using System.Windows;
@@ -52,10 +54,10 @@ public class QrPixelRoundTripTests
 
         foreach (var (name, source) in blocks)
         {
-            Assert.IsTrue(QrBlockParser.TryParse(source, out var block, out string? error), error);
+            Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
 
             var matrix = QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
-            var read   = ReadBackFromPixels(block, matrix);
+            var read   = ReadBackFromPixels(source, block, matrix);
 
             Assert.AreEqual(block.Payload, QrTestDecoder.Decode(read),
                 $"the drawn {name} code does not read back as its payload");
@@ -67,54 +69,28 @@ public class QrPixelRoundTripTests
     {
         // One device-independent pixel per module is the floor the parser allows, and the place a
         // rounding error would first swallow a row.
-        Assert.IsTrue(QrBlockParser.TryParse("type: text\ntext: TIGHT PACKED 123\ncellSize: 1\nmargin: 0",
-                                             out var block, out string? error), error);
+        const string source = "type: text\ntext: TIGHT PACKED 123\ncellSize: 1\nmargin: 0";
+        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
 
         var matrix = QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
-        Assert.AreEqual(block.Payload, QrTestDecoder.Decode(ReadBackFromPixels(block, matrix)));
+        Assert.AreEqual(block.Payload, QrTestDecoder.Decode(ReadBackFromPixels(source, block, matrix)));
     });
 
     // ΓöÇΓöÇ Rasterise, then sample ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     /// <summary>
-    /// Renders the block to a bitmap and samples the centre of each module back into a matrix ΓÇö what a
-    /// scanner does, minus finding the code in a photograph.
+    /// Renders the block through the same dispatch the document uses, rasterises it, and samples the centre
+    /// of each module back into a matrix — what a scanner does, minus finding the code in a photograph.
     /// </summary>
-    private static QrMatrix ReadBackFromPixels(QrBlock block, QrMatrix matrix)
+    private static QrMatrix ReadBackFromPixels(string source, QrBlock block, QrMatrix matrix)
     {
-        var element = WpfQrRenderer.Render(matrix, block, MarkdownPalette.Dark);
-        element.Margin = default;   // the block spacing is layout, not part of the picture
+        var drawn = MatrixLayouts.ReadBack(DiagramRenderer.Render("qr", source, MarkdownPalette.Dark),
+                                           matrix.Size, matrix.Size, block.Settings);
 
-        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        element.Arrange(new Rect(element.DesiredSize));
-        element.UpdateLayout();
-
-        var bitmap = new RenderTargetBitmap(
-            (int)Math.Ceiling(element.DesiredSize.Width), (int)Math.Ceiling(element.DesiredSize.Height),
-            96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(element);
-
-        int stride = bitmap.PixelWidth * 4;
-        var pixels = new byte[stride * bitmap.PixelHeight];
-        bitmap.CopyPixels(pixels, stride, 0);
-
-        double cell = block.CellSize;
         var modules = new bool[matrix.Size * matrix.Size];
-
         for (int y = 0; y < matrix.Size; y++)
-        {
             for (int x = 0; x < matrix.Size; x++)
-            {
-                int px = (int)((block.Margin + x + 0.5) * cell);
-                int py = (int)((block.Margin + y + 0.5) * cell);
-                int i  = py * stride + px * 4;
-
-                // Pbgra32: B, G, R, A. A dark module is far from the near-white background, so the
-                // midpoint separates them without needing to know either colour.
-                int luminance = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-                modules[y * matrix.Size + x] = luminance < 128;
-            }
-        }
+                modules[y * matrix.Size + x] = drawn[x, y];
 
         return new QrMatrix(matrix.Version, matrix.ErrorCorrection, matrix.Mask, modules);
     }

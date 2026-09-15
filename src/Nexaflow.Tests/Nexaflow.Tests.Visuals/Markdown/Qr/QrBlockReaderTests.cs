@@ -1,6 +1,7 @@
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Matrix;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -17,17 +18,17 @@ namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 /// </summary>
 [TestClass]
 [CoversNode("qr-block-syntax")]
-public class QrBlockParserTests
+public class QrBlockReaderTests
 {
     private static QrBlock Parse(string source)
     {
-        Assert.IsTrue(QrBlockParser.TryParse(source, out var block, out string? error), error);
+        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
         return block!;
     }
 
     private static string Rejects(string source)
     {
-        Assert.IsFalse(QrBlockParser.TryParse(source, out _, out string? error), "expected a rejection");
+        Assert.IsFalse(QrBlockReader.TryRead(MatrixParser.Parse(source), out _, out string? error), "expected a rejection");
         Assert.IsFalse(string.IsNullOrWhiteSpace(error), "a rejection should say why");
         return error!;
     }

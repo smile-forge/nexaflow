@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 
 namespace Nexaflow.Visuals.Text.Markdown.Qr;
 
 /// <summary>
-/// Reads the body of a <c>qr</c> fenced block into a <see cref="QrBlock"/>.
+/// Reads what <see cref="MatrixParser"/> made of a <c>qr</c> fenced block into a <see cref="QrBlock"/>.
 ///
 /// <para>
-/// The line reader and the drawing settings are <see cref="MatrixBlockReader"/>'s — they are the same
+/// The fields and the drawing settings are <see cref="MatrixBlockReader"/>'s — they are the same
 /// for every 2D block. What is QR's own is the <c>type:</c> vocabulary, resolved through
 /// <see cref="QrPayload"/>, and the <c>ec:</c> level.
 /// </para>
@@ -19,17 +21,17 @@ namespace Nexaflow.Visuals.Text.Markdown.Qr;
 /// author would see a code that looks plausible and is not what they asked for.
 /// </para>
 /// </summary>
-public static class QrBlockParser
+public static class QrBlockReader
 {
     /// <summary>
-    /// Parses <paramref name="source"/>. Returns false with a message written for whoever is looking
+    /// Reads what the parser made of a block. Returns false with a message written for whoever is looking
     /// at the block, not for a log.
     /// </summary>
-    public static bool TryParse(string source, out QrBlock? block, out string? error)
+    public static bool TryRead(ContentNode tree, out QrBlock? block, out string? error)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(source, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
 
         if (fields.Count == 0)
         {

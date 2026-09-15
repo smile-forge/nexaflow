@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
@@ -11,7 +12,7 @@ using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
 /// <summary>
-/// Writes the Aztec figure for the user documentation, through the real renderer so the picture in the
+/// Writes the Aztec figure for the user documentation, through the real builder so the picture in the
 /// docs is the picture the app draws. Opt-in: set <c>NEXAFLOW_WRITE_FIGURES</c> to the output folder.
 /// </summary>
 [TestClass]
@@ -39,14 +40,14 @@ public class AztecFigureWriter
                          ("styled",      "type: text\ntext: An Aztec Code\ncellSize: 6\ndark: #1D4ED8\nlight: #EFF6FF"),
                      ])
             {
-                Assert.IsTrue(AztecBlockParser.TryParse(source, out var block, out string? error), error);
+                Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out string? error), error);
 
                 var column = new StackPanel
                 {
                     Margin            = new Thickness(14, 12, 14, 6),
                     VerticalAlignment = VerticalAlignment.Bottom,   // so the captions share a baseline
                 };
-                column.Children.Add(WpfAztecRenderer.Render(block!, MarkdownPalette.Light));
+                column.Children.Add(AztecBuilder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Light)));
                 column.Children.Add(new TextBlock
                 {
                     Text                = caption,

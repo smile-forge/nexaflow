@@ -1,27 +1,29 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
 
 /// <summary>
-/// Reads the body of a <c>datamatrix</c> fenced block into a <see cref="DataMatrixBlock"/>.
+/// Reads what <see cref="MatrixParser"/> made of a <c>datamatrix</c> fenced block into a <see cref="DataMatrixBlock"/>.
 ///
 /// <para>
-/// The line reader and the drawing settings are <see cref="MatrixBlockReader"/>'s. What is Data
+/// The fields and the drawing settings are <see cref="MatrixBlockReader"/>'s. What is Data
 /// Matrix's own: the <c>type:</c> vocabulary through <see cref="DataMatrixPayload"/>, and two settings
 /// — <c>shape:</c> to keep the symbol square or rectangular, and <c>size:</c> to fix it outright.
 /// </para>
 /// </summary>
-public static class DataMatrixBlockParser
+public static class DataMatrixBlockReader
 {
     private static readonly string[] OwnKeys = ["type", "shape", "size"];
 
-    public static bool TryParse(string source, out DataMatrixBlock? block, out string? error)
+    public static bool TryRead(ContentNode tree, out DataMatrixBlock? block, out string? error)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(source, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
 
         string types = string.Join(", ", DataMatrixPayload.FieldsByType.Keys);
 
