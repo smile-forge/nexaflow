@@ -102,6 +102,31 @@ public sealed class MarkdownPalette
         Frozen(0xFE, 0xCA, 0x57), // yellow
     ];
 
+    /// <summary>
+    /// The colours a chemical structure draws its elements in, by symbol — nitrogen blue, oxygen red, sulfur yellow,
+    /// the halogens green, the way every structure a chemist has read colours them. An element that is not here, carbon
+    /// among them, is drawn in <see cref="Text"/>. Mid-tones rather than either theme's own, because a structure is read
+    /// by its colours on a light page and a dark one alike; a theme pins any of them with <c>Element&lt;symbol&gt;Brush</c>
+    /// (<c>ElementNBrush</c>, <c>ElementClBrush</c>).
+    /// </summary>
+    public IReadOnlyDictionary<string, Brush> Elements { get; init; } = DefaultElements;
+
+    /// <summary>The element colours when nothing says otherwise.</summary>
+    public static readonly IReadOnlyDictionary<string, Brush> DefaultElements = new Dictionary<string, Brush>
+    {
+        ["N"]  = Frozen(0x3B, 0x82, 0xF6), // blue
+        ["O"]  = Frozen(0xEF, 0x44, 0x44), // red
+        ["S"]  = Frozen(0xCA, 0x8A, 0x04), // yellow
+        ["P"]  = Frozen(0xEA, 0x58, 0x0C), // orange
+        ["F"]  = Frozen(0x22, 0xA3, 0x4A), // green
+        ["Cl"] = Frozen(0x22, 0xA3, 0x4A), // green
+        ["Br"] = Frozen(0xB4, 0x53, 0x09), // brown
+        ["I"]  = Frozen(0x93, 0x33, 0xEA), // purple
+        ["B"]  = Frozen(0xDB, 0x27, 0x77), // pink
+        ["Si"] = Frozen(0xA1, 0x62, 0x07), // ochre
+        ["Se"] = Frozen(0xCA, 0x8A, 0x04), // yellow
+    };
+
     private static Brush Frozen(byte r, byte g, byte b)
     {
         var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
@@ -207,6 +232,7 @@ public sealed class MarkdownPalette
             QrLight       = R("QrLightBrush",     d.QrLight),
             BarcodeDark   = R("BarcodeDarkBrush",  d.BarcodeDark),
             BarcodeLight  = R("BarcodeLightBrush", d.BarcodeLight),
+            Elements      = d.Elements.ToDictionary(e => e.Key, e => R($"Element{e.Key}Brush", e.Value)),
 
             // Null unless the theme pins one — see the C4* members: absent means "derive the C4
             // grading from Accent/TextMuted", which is the wanted default, not a missing value.

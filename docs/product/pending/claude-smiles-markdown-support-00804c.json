@@ -1,0 +1,152 @@
+{
+  "branch": "claude/smiles-markdown-support-00804c",
+  "nodes": {
+    "chemical-structures": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/SmilesDiagramHandler.cs",
+          "class": "SmilesDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSampleRenderTests.cs",
+            "class": "MarkdownSampleRenderTests",
+            "method": "SmilesSampleRenders"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Chemical structures \u2014 sub-support"
+            ]
+          }
+        ]
+      }
+    },
+    "smiles-block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesParser.cs",
+          "class": "SmilesParser"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesParserTests.cs",
+            "class": "SmilesParserTests"
+          }
+        ]
+      }
+    },
+    "smiles-chemistry": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs",
+          "class": "SmilesPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Molecule.cs",
+          "class": "Molecule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Elements.cs",
+          "class": "Elements"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs",
+            "class": "SmilesPipelineTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs",
+            "class": "SmilesCorpusTests"
+          }
+        ]
+      }
+    },
+    "smiles-structure-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs",
+          "class": "StructureLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs",
+          "class": "MoleculeRings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs",
+          "class": "CageLayout"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs",
+            "class": "StructureLayoutTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs",
+            "class": "SmilesCorpusTests"
+          }
+        ]
+      }
+    },
+    "smiles-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs",
+          "class": "SmilesBuilder"
+        }
+      ],
+      "concerns": {
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPalette.cs",
+            "class": "MarkdownPalette"
+          }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs",
+            "class": "SmilesBuilderTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 12,
+  "touched_nodes": [
+    "chemical-structures",
+    "smiles-block-ast",
+    "smiles-chemistry",
+    "smiles-render",
+    "smiles-structure-layout"
+  ]
+}

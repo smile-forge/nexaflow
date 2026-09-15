@@ -131,6 +131,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `datamatrix` | ✅ | ✅ — see [Data Matrix](#data-matrix--sub-support) below |
 | `pdf417` | ✅ | ✅ — see [PDF417](#pdf417--sub-support) below |
 | `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
+| `smiles` | ✅ | ✅ — chemical structures on the shared syntax tree; see [Chemical structures](#chemical-structures--sub-support) below |
 | `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
@@ -866,6 +867,55 @@ the standard's.
 
 ---
 
+## Chemical structures — sub-support
+
+A **`smiles`** fence draws molecules from SMILES strings, in the format described at
+[markdown.org](https://markdown.org/tools/diagrams/chemistry/): a molecule per line, an optional caption in
+double quotes after it, `#` comments, and the `chemistry` keyword, which may open the block and may be
+left out. It is registered as an
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/SmilesDiagramHandler.cs), and is the
+fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smiles)).
+
+| Piece | What it does |
+|---|---|
+| [`SmilesParser`](../src/Nexaflow.Markdown/Chemistry/SmilesParser.cs) | the block and each molecule into a lossless tree, to the character: bracket atoms (isotope, symbol, chirality, hydrogens, charge, class), organic-subset and aromatic atoms, the seven bond symbols, branches, ring closures (`1`, `%12`) and dots. What will not read is held with the reason |
+| [`SmilesPipeline`](../src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs) | three stages: `ConnectAtoms` pairs ring closures; `CountHydrogens` fills unbracketed atoms up to their valence and flags atoms with too many bonds; `Kekulize` gives aromatic rings alternating double bonds by maximum matching |
+| [`Elements`](../src/Nexaflow.Markdown/Chemistry/Elements.cs) | the periodic table, RDKit's valence lists, and a charge moving an atom along its row (N⁺ bonds like carbon) |
+| [`Molecule`](../src/Nexaflow.Markdown/Chemistry/Molecule.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | the graph read off the stages' answers; ring bonds, and the smallest set of smallest rings |
+| [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
+| [`CageLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs) | a cage drawn as the solid it is: built in 3D from its bonds and angles (classical scaling, then stress majorization), seen from whichever of four hundred directions `Readability` scores clearest — its substituents included — and kept only where that reads better than the flat drawing |
+| [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `MarkdownPalette.Elements`, wedges, captions, and entries flowing to the column |
+
+**Read-only, but selectable.** Every atom and every written bond is a piece carrying the part it was
+typed as, so a selection across a structure copies its SMILES and trouble is waved under the atom that
+caused it — a carbon with five bonds, an aromatic ring that cannot alternate — with the reason in red
+beneath the caption. A string with no atom that reads is shown as itself, struck through.
+
+**Held to RDKit.** Hydrogen counts and what is refused follow RDKit, which is what most SMILES is written
+for. Nitrogen makes three bonds, except that a nitro group written `N(=O)=O` is accepted, as RDKit's
+clean-up accepts it; a neutral four-bonded nitrogen is flagged, with the charged form offered.
+[`SmilesCorpusTests`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs) runs
+the reader and the layout over SmilesDB's 5,481 molecules against a reference RDKit made: every one reads
+back exactly, the refusals and every atom's hydrogens agree, and fewer of our drawings overlap atoms than
+RDKit's own.
+
+**Cages are drawn as solids.** Adamantane, cubane, hexamine, the phosphorus oxides, quinuclidine, tropane
+— a ring system whose rings share three atoms or more, or an atom shared by three rings, is laid out in
+three dimensions and drawn as a picture of the solid, the way a textbook draws it, with each bond at the
+back broken where it passes behind one at the front. It is framed the way the textbook frames it, because
+that is what makes a picture of a solid read as one rather than inside out: a family of parallel bonds
+stands straight up the page, seen from above so their tops are nearer the reader, with the nearest of them
+left of the middle — the framing of Wikipedia's adamantane and hexamine. The flat drawing is scored by the same yardstick and
+wins whenever it reads as well, so norbornane and the bicycles that draw cleanly on a page stay flat. A system holding an aromatic ring, or a ring larger than eight, is never drawn as a solid: morphine
+and a cryptand are drawn flat by everyone. Where a cage's symbols crowd one another, the structure's bonds
+are drawn up to half as long again.
+
+**Known limits.** A `/` `\` inside a large ring cannot bend the ring it is part of, so its geometry follows the ring. A stereocentre in a cage gets its wedge from the page
+as drawn, not from the solid's depth. Only tetrahedral centres get wedges: `@AL`, `@SP`, `@TB`
+and `@OH` read, but draw no stereo. There is no option to draw hydrogens explicitly, and no settings line.
+
+---
+
 ## Musical Notation — sub-support
 
 ### One path
@@ -1167,6 +1217,11 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Matrix/AztecEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecEncoderTests.cs) | The Aztec encoder: both published size and codeword-count tables, the data cells of every one of the 36 symbol sizes covering their capacity exactly once, bit stuffing, the choice of family and layer count, forced sizes, error-correction levels, GS1 and ECI, and round trips through the test decoder. |
 | [`Markdown/Matrix/AztecBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs) | The `aztec` block's fields and its layout: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, the bullseye, mode message and reference grid, a bad block still drawing a code, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/AztecReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs) | Decodes Aztec symbols made by other generators **and** asserts our encoder reproduces them module for module. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is the only check that can catch a self-consistent but unreadable layout. |
+| [`Chemistry/SmilesParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesParserTests.cs) | The `smiles` tree: every construct and every prefix of it reads back, the parser only copies, a molecule to the character, bracket atoms as their parts, and what will not read held with its reason. |
+| [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
+| [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
+| [`Chemistry/SmilesCorpusTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs) | 5,481 real molecules against RDKit: round trip, refusals, hydrogens, and overlaps. Opt-in via `NEXAFLOW_SMILES_CORPUS` (default `D:\Datasets\smiles`, made by the `make_reference.py` beside it). |
+| [`Markdown/Chemistry/SmilesBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs) | The `smiles` drawing: dispatch, atoms and written bonds carrying their parts, captions, wrapping, element colours, a cage's rear bond broken where it passes behind, trouble on the offending atom, and the stand-in. (UI category.) |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):

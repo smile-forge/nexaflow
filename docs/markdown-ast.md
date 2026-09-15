@@ -5,8 +5,8 @@ geometry, and a layout tree that answers what a click meant. Four stages, and on
 of them know what language they are looking at.
 
 Everything markdown renders is the same four stages. Maths got there first
-([docs/latex-parse-tree.md](latex-parse-tree.md)); music is the second; barcodes and the 2D codes run on
-it; diagrams and markdown's own text blocks follow.
+([docs/latex-parse-tree.md](latex-parse-tree.md)); music is the second; barcodes, the 2D codes and
+chemical structures run on it; diagrams and markdown's own text blocks follow.
 
 ```
 source
@@ -29,6 +29,7 @@ Ast/         ContentNode, ContentPart, ContentReading, ISourcePart, Roles, Kinds
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
 Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
+Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles
 ```
 
 The layout tree is still in `src/Nexaflow.Visuals.Text/Editing/` because `ILayoutNode.Bounds` is a
@@ -136,6 +137,37 @@ finders and timing lines, an Aztec code's bullseye, mode message and reference g
 indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
 the module geometry, the quiet zone, and the struck-through stand-in drawn when a block will not read or
 encode — is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+
+## SMILES
+
+Three actors, each needing the one before:
+
+| Stage | What it works out |
+|---|---|
+| `ConnectAtoms` | which atom each ring-closure digit reaches |
+| `CountHydrogens` | the hydrogens each unbracketed atom carries, and the atoms with more bonds than their element makes |
+| `Kekulize` | where each aromatic ring's double bonds go, and the rings that cannot have them |
+
+A ring closure is a bond like any other to the atom it closes on, so hydrogens cannot be counted before
+the rings are closed; and an aromatic atom carrying a hydrogen has no bond to give its ring, so the double
+bonds cannot be placed before the hydrogens are known.
+
+**Facts name atoms by number.** A bond between two atoms written side by side has no characters, so there
+is nothing to hang "this bond is double" under. Atoms are numbered in the order written — the numbering
+every SMILES reader uses — and a fact under an atom names its partner by that number: the atom a ring
+closure reaches, the atom an aromatic atom shares its double bond with. `Molecule` reads the tree and its
+facts back into a graph, and each stage reads the graph the stages before it left.
+
+**Where the atoms go is not the builder's.** `StructureLayout` works out 2D coordinates in this assembly,
+with a geometry primitive of its own, so the layout is tested over the corpus without a desktop. A cage is
+worked out in three dimensions and seen from its clearest side (`CageLayout`), and the layout says how near
+the reader each of its atoms is, so the builder knows which of two crossing bonds to break. The
+builder decides how a chemist draws those coordinates, and every atom and written bond it draws carries its
+part.
+
+**The oracle is RDKit.** `SmilesCorpusTests` reads SmilesDB's 5,481 molecules beside a reference made by
+RDKit — whether it read each one, the hydrogens on every atom, how many atoms its own depiction overlaps —
+and holds the stages and the layout to it.
 
 ## The oracle
 

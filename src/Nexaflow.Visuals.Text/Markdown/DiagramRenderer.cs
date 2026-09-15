@@ -39,6 +39,7 @@ public static class DiagramRenderer
         new DataMatrixDiagramHandler(),                        // datamatrix
         new Pdf417DiagramHandler(),                            // pdf417
         new AztecDiagramHandler(),                             // aztec
+        new SmilesDiagramHandler(),                            // smiles (chemical structures)
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────

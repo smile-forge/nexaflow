@@ -417,13 +417,14 @@ bind, so a theme can retune it. A view that paints its own scrim around a card i
 
 Markdown diagrams resolve their colours from `MarkdownPalette` (built by `MarkdownPalette.FromTheme()`),
 not from `Application.Resources` directly — the renderers run against a palette so they also work on the
-light scratchpad surface. Three families there answer to the theme by string key:
+light scratchpad surface. Four families there answer to the theme by string key:
 
 | Keys | Default when the theme is silent |
 |---|---|
 | `QrDarkBrush` / `QrLightBrush`, `BarcodeDarkBrush` / `BarcodeLightBrush` | Fixed dark-on-light. **Not** theme-derived on purpose: a scannable mark stops scanning if a theme inverts it. |
 | `C4PersonBrush`, `C4SystemBrush`, `C4ContainerBrush`, `C4ComponentBrush`, `C4ExternalBrush`, `C4BoundaryBrush`, `C4DeploymentNodeBrush` | **Derived** — a grading of `AccentBrush` (deeper = higher abstraction) plus `TextMutedBrush` for external. |
 | `Swatch.*` → `MarkdownPalette.Series` | The shared ten-colour categorical bank. |
+| `Element<symbol>Brush` — `ElementNBrush`, `ElementOBrush`, `ElementClBrush`, … → `MarkdownPalette.Elements` | Fixed mid-tones in the colours chemists read elements by (nitrogen blue, oxygen red, sulfur yellow, halogens green), chosen to read on a light page and a dark one. An element with no entry — carbon among them — draws in `TextBrush`. |
 
 The C4 family is the one worth understanding, because "map the standard scheme onto the theme" is the
 rule and not a compromise. C4-PlantUML's canonical colours (person `#08427b`, system `#1168bd`,

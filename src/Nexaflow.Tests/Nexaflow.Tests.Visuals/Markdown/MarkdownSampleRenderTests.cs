@@ -271,4 +271,20 @@ public class MarkdownSampleRenderTests
         foreach (var fence in fences)
             Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for an aztec fence");
     });
+
+    [TestMethod]
+    public void SmilesSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "smiles.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "smiles".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 6, $"expected every section of the reference, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a smiles fence");
+    });
 }
