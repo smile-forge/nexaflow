@@ -309,7 +309,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
             Wait.UntilInputIsProcessed();
         }
 
-        var add = CheckPresent("Add-template button", "AddTemplateButton", 5);
+        var add = CheckPresent("Add-template button", "TemplatedCreate_Add", 5);
         if (add is not null)
         {
             add.AsButton().Invoke();

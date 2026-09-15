@@ -207,6 +207,22 @@ public class ScratchpadViewModelTests
     }
 
     [TestMethod]
+    [CoversNode("toolbar-recycle-toggle")]
+    public void RemoveNote_WhileBinIsOpen_ShowsInTheBin()
+    {
+        _store.Save(new PostItNote { Content = "gone" });
+
+        using var vm = NewVm();
+        vm.ToggleRecycleBinCommand.Execute(null);
+        Assert.AreEqual(0, vm.RecycleBinNotes.Count);
+
+        vm.Notes[0].RemoveCommand.Execute(null);
+
+        Assert.AreEqual(1, vm.RecycleBinNotes.Count, "the open bin shows what was just removed");
+        Assert.AreEqual("gone", vm.RecycleBinNotes[0].Content);
+    }
+
+    [TestMethod]
     [CoversNode("recycle-empty")]
     public void EmptyRecycleBin_Confirmed_ClearsBin()
     {

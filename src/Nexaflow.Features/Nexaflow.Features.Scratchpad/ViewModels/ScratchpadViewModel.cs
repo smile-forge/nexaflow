@@ -313,7 +313,9 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         foreach (var vm in Notes)
             vm.RefreshTimeDisplay();
 
-        if (expired.Count > 0) UpdateStatus();
+        if (expired.Count == 0) return;
+        if (ShowingRecycleBin) LoadRecycleBin();
+        UpdateStatus();
     }
 
     private void PurgeRecycleBinOnStartup()
@@ -325,6 +327,7 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     {
         _store.MoveToRecycleBin(vm.Note);
         Notes.Remove(vm);
+        if (ShowingRecycleBin) LoadRecycleBin();
         CancelSave(vm.Note.Id);
         UpdateStatus();
     }
