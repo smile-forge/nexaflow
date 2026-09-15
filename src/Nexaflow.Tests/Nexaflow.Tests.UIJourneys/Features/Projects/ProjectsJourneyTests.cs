@@ -2,12 +2,14 @@ using Nexaflow.Tests.UIJourneys.Infrastructure;
 
 using Nexaflow.Tests.Fixtures;
 using System.IO;
+using System;
+using System.Linq;
 
 namespace Nexaflow.Tests.Features.Projects.UI;
 
 /// <summary>
-/// The Projects UI journey — one launch covering both surfaces the feature presents: the backlog-status
-/// folder viewlet in the file explorer, and the Projects tab's list / bucket / detail flow.
+/// The Projects UI journey — one launch covering both surfaces the feature presents: the AI Summary and
+/// backlog-status folder viewlets in the file explorer, and the Projects tab's list / bucket / detail flow.
 /// <para>
 /// It runs against a seeded workspace (Projects enabled, a real project directory) and starts on the
 /// default file-browser tab, so the viewlet is reachable before anything navigates away; the Projects tab
@@ -44,6 +46,27 @@ public class ProjectsJourneyTests : UiJourneyTestBase
     [CoversNode("projects-backlog-viewlet")]
     public void Projects_ViewletListBucketsAndDetail_RespondInOnePass()
     {
+        // ── Explorer surface: a folder holding a .aisummary grows the AI Summary viewlet ──
+        // A temp folder of its own, so saving the summary never writes into the shared corpus. The seeded text is
+        // taller than the viewlet's two-bar height, which is what offers the ··· expander.
+        var summaryFolder = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "nexaflow-aisummary-" + Guid.NewGuid().ToString("N"))).FullName;
+        var summaryFile = Path.Combine(summaryFolder, ".aisummary");
+        File.WriteAllText(summaryFile, string.Join("\n", Enumerable.Range(1, 30).Select(i => $"Summary line {i}.")));
+        NavigateFileBrowserTo(summaryFolder);
+
+        CheckPresent("AI Summary viewlet", "Projects_AiSummaryViewlet", 10);
+        // ··· asks the host for the Large mode, where the whole text fits and the expander has nothing left to do.
+        CheckDoes("··· expands the clipped summary", "Projects_AiSummaryOverflow",
+                  () => WaitForGone("Projects_AiSummaryOverflow"));
+        Check("Edit swaps the summary for a text box", () =>
+            PressNth("Projects_AiSummaryEdit", 0) && WaitForFs(() => Exists("Projects_AiSummarySave"), 3));
+        const string summary = "Edited by the Projects journey.";
+        SetText("Projects_AiSummaryText", summary);
+        CheckDoes("Save writes the summary into the folder", "Projects_AiSummarySave",
+                  () => WaitForFs(() => ReadOrEmpty(summaryFile) == summary, 3));
+        Check("Saving returns to Edit", () => WaitForFs(() => Exists("Projects_AiSummaryEdit"), 3));
+
         // ── Explorer surface: a folder holding a .project file grows the backlog-status viewlet ──
         NavigateFileBrowserTo(RequiredFixture.Folder(Path.Combine("projects", "_projects", "Alpha"), "ProjectsUiFixtureTests in Nexaflow.Tests.Features"));
 
@@ -147,5 +170,12 @@ public class ProjectsJourneyTests : UiJourneyTestBase
         }
 
         AssertJourney();
+    }
+
+    /// <summary>The file's text, or empty while it is missing or mid-write — the caller polls.</summary>
+    private static string ReadOrEmpty(string path)
+    {
+        try { return File.Exists(path) ? File.ReadAllText(path) : string.Empty; }
+        catch (IOException) { return string.Empty; }
     }
 }

@@ -47,7 +47,8 @@
                     WindowChrome.IsHitTestVisibleInChrome="True"
                     Click="OnTriggerClick"
                     MouseRightButtonUp="OnTriggerRightClick"
-                    ToolTip="{Binding CurrentWorkspace.Name, ElementName=Root, Converter={StaticResource StringFormat}, ConverterParameter='{}{0} Workspace'}">
+                    ToolTip="{Binding CurrentWorkspace.Name, ElementName=Root, Converter={StaticResource StringFormat}, ConverterParameter='{}{0} Workspace'}"
+                    AutomationProperties.AutomationId="Workspace_Selector">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bg" Background="{TemplateBinding Background}">
@@ -88,7 +89,8 @@
                         <DataTemplate DataType="{x:Type m:Workspace}">
                             <Button Style="{StaticResource CtxItemButton}"
                                     Tag="{Binding}"
-                                    Click="OnContextItemClick">
+                                    Click="OnContextItemClick"
+                                    AutomationProperties.AutomationId="Workspace_SwitchItem">
                                 <StackPanel Orientation="Horizontal">
                                     <Border Width="12" Height="12" CornerRadius="2" Margin="0,0,8,0"
                                             Background="{Binding Color, Converter={StaticResource ColorBrush}}"/>

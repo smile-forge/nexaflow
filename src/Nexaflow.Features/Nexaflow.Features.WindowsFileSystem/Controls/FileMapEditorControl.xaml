@@ -111,7 +111,7 @@
                                          Style="{StaticResource DarkTextBox}" FontSize="11"/>
                             </Border>
                             <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="Remove criterion"
-                                    Tag="{Binding}" Click="RemoveCriterion_Click">
+                                    Tag="{Binding}" Click="RemoveCriterion_Click" AutomationProperties.AutomationId="FileMap_RemoveCriterion">
                                 <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             </Button>
                         </Grid>
@@ -139,7 +139,8 @@
                           Background="Transparent"
                           BorderThickness="0"
                           ItemContainerStyle="{StaticResource MapTreeItem}"
-                          SelectedItemChanged="ExperienceTree_SelectedItemChanged">
+                          SelectedItemChanged="ExperienceTree_SelectedItemChanged"
+                          AutomationProperties.AutomationId="FileMap_Tree">
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                             <TextBlock Text="{Binding Segment}"
@@ -187,7 +188,8 @@
                                     HorizontalAlignment="Left"
                                     MinWidth="120"
                                     Style="{StaticResource IconButton}"
-                                    Click="AddCriterion_Click"/>
+                                    Click="AddCriterion_Click"
+                                    AutomationProperties.AutomationId="FileMap_AddCriterion"/>
                             <Button Content="↺ Reset to Default"
                                     HorizontalAlignment="Right"
                                     MinWidth="120"
@@ -196,7 +198,8 @@
                                     ToolTip="Discard customizations and restore this experience's bundled default matching criteria"
                                     Visibility="{Binding CanResetToDefault,
                                         RelativeSource={RelativeSource AncestorType=UserControl},
-                                        Converter={StaticResource BoolVis}}"/>
+                                        Converter={StaticResource BoolVis}}"
+                                    AutomationProperties.AutomationId="FileMap_ResetToDefault"/>
                         </Grid>
                         <!-- Inline confirm -->
                         <DockPanel LastChildFill="True"
@@ -204,9 +207,9 @@
                                        RelativeSource={RelativeSource AncestorType=UserControl},
                                        Converter={StaticResource BoolVis}}">
                             <Button DockPanel.Dock="Right" Content="Cancel" MinWidth="72" Margin="4,0,0,0"
-                                    Style="{StaticResource IconButton}" Click="ResetCancel_Click"/>
+                                    Style="{StaticResource IconButton}" Click="ResetCancel_Click" AutomationProperties.AutomationId="FileMap_ResetCancel"/>
                             <Button DockPanel.Dock="Right" Content="Reset" MinWidth="72"
-                                    Style="{StaticResource IconButton}" Click="ResetConfirm_Click"/>
+                                    Style="{StaticResource IconButton}" Click="ResetConfirm_Click" AutomationProperties.AutomationId="FileMap_ResetConfirm"/>
                             <TextBlock Text="Discard your customizations and restore the default criteria?"
                                        VerticalAlignment="Center" TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>

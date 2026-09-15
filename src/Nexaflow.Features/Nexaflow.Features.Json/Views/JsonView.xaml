@@ -131,7 +131,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type m:JsonBreadcrumbItem}">
                             <StackPanel Orientation="Horizontal">
-                                <Button Command="{Binding NavigateCommand}"
+                                <Button Command="{Binding NavigateCommand}" AutomationProperties.AutomationId="Json_Breadcrumb"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Cursor="Hand"
@@ -205,7 +205,7 @@
 
                         <!-- Expand/collapse toggle -->
                         <Button Grid.Column="0"
-                                Style="{StaticResource ExpandBtn}"
+                                Style="{StaticResource ExpandBtn}" AutomationProperties.AutomationId="Json_RowExpand"
                                 Visibility="{Binding HasChildren, Converter={StaticResource BoolVis}}"
                                 Command="{Binding DataContext.ToggleExpandCommand,
                                     RelativeSource={RelativeSource AncestorType=ListBox}}"

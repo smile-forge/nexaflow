@@ -132,6 +132,17 @@ public static class UiFixtures
     /// <summary>Where the disk-image journey looks. Written by the suite that references DiscUtils.</summary>
     public static string DiskFolder => Path.Combine(Root, "disk");
 
+    // ── Product ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The seeded product the Product journey opens — a copy of it, since the journey edits the tree. Written by
+    /// ProductUiFixtureTests in Tests.Features, the suite that references ProductStore.
+    /// </summary>
+    public static string ProductRoot => Path.Combine(Root, "product");
+
+    /// <summary>A product with no nodes — the only state that offers "Add root node".</summary>
+    public static string ProductEmptyRoot => Path.Combine(Root, "product-empty");
+
     // ── Shared ────────────────────────────────────────────────────────────────
 
     /// <summary>Deletes a fixture folder, clearing the read-only bit git sets on objects under .git.</summary>

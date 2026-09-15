@@ -338,7 +338,8 @@
                                                              Converter={StaticResource BoolToVis}}"
                                                 Command="{Binding DataContext.ToggleExpandCommand,
                                                           RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                CommandParameter="{Binding}">
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="Proc_RowExpand">
                                             <TextBlock FontSize="9" Foreground="{StaticResource TextMutedBrush}"
                                                        VerticalAlignment="Center" HorizontalAlignment="Center"
                                                        Visibility="{Binding HasChildren, Converter={StaticResource BoolToVis}}">

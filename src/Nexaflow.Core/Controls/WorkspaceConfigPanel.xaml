@@ -18,7 +18,8 @@
             <Button HorizontalAlignment="Right"
                     Style="{StaticResource TopBarAction}"
                     Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
-                                      Path=DataContext.CloseWorkspaceConfigCommand}">
+                                      Path=DataContext.CloseWorkspaceConfigCommand}"
+                    AutomationProperties.AutomationId="WorkspacePanel_CloseX">
                 <TextBlock Text="✕" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
             </Button>
         </Grid>
@@ -37,7 +38,8 @@
                 <ListBox ItemsSource="{Binding Sections}"
                          SelectedItem="{Binding SelectedSection}"
                          Style="{StaticResource DarkListBox}"
-                         Padding="8,4">
+                         Padding="8,4"
+                         AutomationProperties.AutomationId="WorkspacePanel_SectionList">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem"
                                BasedOn="{StaticResource DarkListBoxItem}">
@@ -74,7 +76,8 @@
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand"
-                        Command="{Binding ApplyCommand}">
+                        Command="{Binding ApplyCommand}"
+                        AutomationProperties.AutomationId="WorkspacePanel_Apply">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="root"
@@ -103,7 +106,8 @@
                         BorderThickness="0"
                         Cursor="Hand"
                         Command="{Binding RelativeSource={RelativeSource AncestorType=Window},
-                                          Path=DataContext.CloseWorkspaceConfigCommand}">
+                                          Path=DataContext.CloseWorkspaceConfigCommand}"
+                        AutomationProperties.AutomationId="WorkspacePanel_Close">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="root"

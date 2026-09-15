@@ -191,7 +191,8 @@
                         Padding="14,6" Cursor="Hand" BorderThickness="0"
                         Background="{StaticResource DangerBrush}"
                         Foreground="{StaticResource OnAccentBrush}"
-                        Click="OnResetClick"/>
+                        Click="OnResetClick"
+                        AutomationProperties.AutomationId="About_ResetConfig"/>
             </StackPanel>
         </Border>
     </Grid>

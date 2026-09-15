@@ -16,7 +16,8 @@
                     Style="{StaticResource TopBarAction}"
                     HorizontalAlignment="Left"
                     Margin="0,0,0,10"
-                    Click="OnAddClick"/>
+                    Click="OnAddClick"
+                    AutomationProperties.AutomationId="Workspaces_Add"/>
 
             <!-- Workspace list -->
             <ItemsControl x:Name="WorkspaceItems">
@@ -95,7 +96,8 @@
                                                             Background="{Binding Brush}"
                                                             Tag="{Binding Hex}"
                                                             ToolTip="{Binding Hex}"
-                                                            Click="OnSwatchClick">
+                                                            Click="OnSwatchClick"
+                                                            AutomationProperties.AutomationId="Workspaces_Swatch">
                                                         <Button.Template>
                                                             <ControlTemplate TargetType="Button">
                                                                 <Border Background="{TemplateBinding Background}"
@@ -125,7 +127,7 @@
                                             Height="24" Margin="0,0,0,4"
                                             HorizontalContentAlignment="Left"
                                             ToolTip="Configure this workspace (AI, providers, per-workspace settings)"
-                                            Tag="{Binding}" Click="OnConfigureClick">
+                                            Tag="{Binding}" Click="OnConfigureClick" AutomationProperties.AutomationId="Workspaces_Configure">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="⚙" FontSize="13" Margin="0,0,8,0"/>
                                             <TextBlock Text="Configure" FontSize="12"/>
@@ -135,7 +137,7 @@
                                             Height="24" Margin="0,0,0,4"
                                             HorizontalContentAlignment="Left"
                                             ToolTip="Clone this workspace (new symbol &amp; colour, all other settings copied)"
-                                            Tag="{Binding}" Click="OnCloneClick">
+                                            Tag="{Binding}" Click="OnCloneClick" AutomationProperties.AutomationId="Workspaces_Clone">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="⧉" FontSize="13" Margin="0,0,8,0"/>
                                             <TextBlock Text="Clone" FontSize="12"/>
@@ -145,7 +147,7 @@
                                     <Button Height="24"
                                             HorizontalContentAlignment="Left"
                                             ToolTip="Remove this workspace"
-                                            Tag="{Binding}" Click="OnRemoveClick">
+                                            Tag="{Binding}" Click="OnRemoveClick" AutomationProperties.AutomationId="Workspaces_Remove">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource TopBarAction}">
                                                 <Style.Triggers>

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.Tools;
 using Nexaflow.Tests.Fixtures;
@@ -98,6 +99,23 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             // The notices section shares the page; expanding it proves the two collapsibles are independent.
             Expand("About_NoticesToggle");
 
+            // Reset Config wipes every setting and restarts, so it asks first — and the question is declined.
+            Check("Reset Config asks for confirmation", () =>
+                PressNth("About_ResetConfig", 0) && WaitForId("Chrome_ConfirmCancel", 5) is not null);
+            CheckDoes("Declining the reset keeps everything", "Chrome_ConfirmCancel", () => WaitForGone("Chrome_ConfirmCancel"));
+
+            // ── The editors behind the sections ──────────────────────────────────────
+            // Every section rendered above; these drive the controls inside the custom editors. They edit the throwaway
+            // config dir's copy, and Cancel at the end discards even that.
+            DriveVoice(list);
+            DriveWorkspaces(list);
+            DriveDefaultActions(list);
+            DriveExternalApps(list);
+            DriveFileTypeActions(list);
+            DriveTemplatedCreate(list);
+            DriveOneDrive(list);
+            DriveGitPathPicker(list);
+
             // ── The panel's own footer ──
             // Save commits the edited copy and closes; the X closes without committing. Neither is pressed,
             // and not because the app would come to harm — it runs against a throwaway config dir, so what
@@ -141,5 +159,197 @@ public class OptionsJourneyTests : OptionsOverlayJourney
                   .Select(e => e.Name ?? string.Empty)
                   .Where(n => n.Length > 0)
                   .ToArray();
+    }
+
+    /// <summary>Download fetches a speech model from the network, so it is only checked for.</summary>
+    private void DriveVoice(AutomationElement list)
+    {
+        SelectSection(list, "Voice", "Voice_Download");
+        CheckExists("Download the speech model", "Voice_Download");
+    }
+
+    /// <summary>
+    /// The workspace list. "+ Add Workspace" opens the setup wizard and Configure leaves Options for the workspace
+    /// panel (WorkspaceConfigJourneyTests drives that), so both are checked for. A clone is added and removed.
+    /// </summary>
+    private void DriveWorkspaces(AutomationElement list)
+    {
+        SelectSection(list, "Workspaces", "Workspaces_Add");
+        CheckExists("+ Add Workspace", "Workspaces_Add");
+        CheckExists("Configure", "Workspaces_Configure");
+        Check("A colour swatch recolours the workspace", () => PressNth("Workspaces_Swatch", 0));
+
+        // One Clone per row, and Remove is collapsed for the live workspace — so the last Remove is the clone's.
+        var rows = 0;
+        Check("Clone adds a copy of the workspace", () =>
+        {
+            rows = CountOf("Workspaces_Clone");
+            return PressNth("Workspaces_Clone", 0) && WaitForFs(() => CountOf("Workspaces_Clone") == rows + 1, 3);
+        });
+        Check("Remove on the copy asks first", () =>
+            PressNth("Workspaces_Remove", -1) && WaitForId("Chrome_ConfirmOk", 5) is not null);
+        CheckDoes("Confirming removes the copy", "Chrome_ConfirmOk",
+                  () => WaitForFs(() => CountOf("Workspaces_Clone") == rows, 3));
+    }
+
+    /// <summary>An override is added for .txt, reopened, and removed again.</summary>
+    private void DriveDefaultActions(AutomationElement list)
+    {
+        SelectSection(list, "Default Actions", "DefaultActions_Add");
+        Check("+ Add default opens the editor", () =>
+            PressNth("DefaultActions_Add", 0) && WaitForFs(() => Exists("DefaultActions_Cancel"), 3));
+        Check("Cancel returns to the list", () =>
+            PressNth("DefaultActions_Cancel", 0) && WaitForFs(() => Exists("DefaultActions_Add"), 3));
+
+        Check("+ Add default again", () =>
+            PressNth("DefaultActions_Add", 0) && WaitForFs(() => Exists("DefaultActions_Confirm"), 3));
+        Check("An extension lists what can open it", () =>
+            TypeInto("DefaultActions_Extension", ".txt") && WaitForFs(() => ListCount("DefaultActions_Candidates") > 1, 5));
+        // The first candidate is "Automatic", which confirms as no override at all — so the second is picked.
+        Check("A candidate can be picked", () =>
+        {
+            var candidates = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("DefaultActions_Candidates"))
+                                       ?.FindAllChildren(cf => cf.ByControlType(ControlType.ListItem));
+            if (candidates is not { Length: > 1 }) return false;
+            candidates[1].Patterns.SelectionItem.PatternOrDefault?.Select();
+            return true;
+        });
+        Check("Confirm adds the override", () =>
+            PressNth("DefaultActions_Confirm", 0) && WaitForFs(() => Exists("DefaultActions_Edit"), 3));
+        Check("Edit reopens it", () =>
+            PressNth("DefaultActions_Edit", 0) && WaitForFs(() => Exists("DefaultActions_Cancel"), 3));
+        Check("Cancel leaves it as it was", () =>
+            PressNth("DefaultActions_Cancel", 0) && WaitForFs(() => Exists("DefaultActions_Edit"), 3));
+        Check("✕ removes it", () =>
+            PressNth("DefaultActions_Remove", 0) && WaitForFs(() => !Exists("DefaultActions_Edit"), 3));
+    }
+
+    /// <summary>
+    /// An app is added, its advanced section and a rule exercised, and the app removed. The three "…" buttons open the
+    /// system file dialog, which is not the app's to drive, so they are checked for.
+    /// </summary>
+    private void DriveExternalApps(AutomationElement list)
+    {
+        SelectSection(list, "External Apps", "ExternalApps_Add");
+        Check("The registry switch toggles, and back", () => FlipAndBack("ExternalApps_UseRegistry"));
+
+        var apps = 0;
+        Check("+ Add adds an app and selects it", () =>
+        {
+            apps = ListCount("ExternalApps_List");
+            return PressNth("ExternalApps_Add", 0)
+                && WaitForFs(() => ListCount("ExternalApps_List") == apps + 1 && Exists("ExternalApps_BrowseApp"), 3);
+        });
+        CheckExists("Browse for the application", "ExternalApps_BrowseApp");
+        Check("Advanced options expands", () =>
+            SetToggle("ExternalApps_AdvancedToggle", true) && WaitForFs(() => Exists("ExternalApps_BrowseWorkingDir"), 3));
+        CheckExists("Browse for the working folder", "ExternalApps_BrowseWorkingDir");
+        CheckExists("Browse for the icon", "ExternalApps_BrowseIcon");
+
+        var rules = 0;
+        Check("+ Add rule adds a matching rule", () =>
+        {
+            rules = CountOf("ExternalApps_RemoveRule");
+            return PressNth("ExternalApps_AddRule", 0) && WaitForFs(() => CountOf("ExternalApps_RemoveRule") == rules + 1, 3);
+        });
+        Check("✕ removes the rule", () =>
+            PressNth("ExternalApps_RemoveRule", -1) && WaitForFs(() => CountOf("ExternalApps_RemoveRule") == rules, 3));
+        Check("The rules section collapses", () =>
+            SetToggle("ExternalApps_RulesToggle", false) && WaitForFs(() => !Exists("ExternalApps_AddRule"), 3));
+
+        Check("✕ Remove removes the app", () =>
+            PressNth("ExternalApps_Remove", 0) && WaitForFs(() => ListCount("ExternalApps_List") == apps, 3));
+    }
+
+    /// <summary>Flips a toggle and flips it back, requiring each flip to register — leaves it where it started.</summary>
+    private bool FlipAndBack(string automationId)
+    {
+        var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.Patterns.Toggle.PatternOrDefault;
+        if (toggle is null) return false;
+        var was = toggle.ToggleState.Value;
+        toggle.Toggle();
+        Wait.UntilInputIsProcessed();
+        var flipped = WaitForFs(() => toggle.ToggleState.Value != was, 2);
+        toggle.Toggle();
+        Wait.UntilInputIsProcessed();
+        return flipped && WaitForFs(() => toggle.ToggleState.Value == was, 2);
+    }
+
+    /// <summary>A criterion is added and removed, then added again so the mapping differs from its bundled default —
+    /// which is what offers Reset: declined once, then confirmed, restoring the original criteria.</summary>
+    private void DriveFileTypeActions(AutomationElement list)
+    {
+        SelectSection(list, "File Type Actions", "FileMap_Tree");
+        Check("Selecting an experience opens its criteria", SelectFirstMapping);
+
+        var criteria = 0;
+        Check("+ Add Criterion adds a row", () =>
+        {
+            criteria = CountOf("FileMap_RemoveCriterion");
+            return PressNth("FileMap_AddCriterion", 0) && WaitForFs(() => CountOf("FileMap_RemoveCriterion") == criteria + 1, 3);
+        });
+        Check("✕ removes it", () =>
+            PressNth("FileMap_RemoveCriterion", -1) && WaitForFs(() => CountOf("FileMap_RemoveCriterion") == criteria, 3));
+
+        Check("A second criterion makes the mapping differ from its default", () =>
+            PressNth("FileMap_AddCriterion", 0) && WaitForFs(() => Exists("FileMap_ResetToDefault"), 3));
+        Check("Reset to Default asks inline", () =>
+            PressNth("FileMap_ResetToDefault", 0) && WaitForFs(() => Exists("FileMap_ResetCancel"), 3));
+        Check("Cancel keeps the edit", () =>
+            PressNth("FileMap_ResetCancel", 0)
+            && WaitForFs(() => Exists("FileMap_ResetToDefault") && CountOf("FileMap_RemoveCriterion") == criteria + 1, 3));
+        Check("Reset asks again", () =>
+            PressNth("FileMap_ResetToDefault", 0) && WaitForFs(() => Exists("FileMap_ResetConfirm"), 3));
+        Check("Confirming restores the bundled criteria", () =>
+            PressNth("FileMap_ResetConfirm", 0) && WaitForFs(() => CountOf("FileMap_RemoveCriterion") == criteria, 3));
+    }
+
+    /// <summary>Selects tree rows in turn until one whose mapping opens the criteria editor.</summary>
+    private bool SelectFirstMapping()
+    {
+        var tree = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("FileMap_Tree"));
+        if (tree is null) return false;
+        foreach (var row in tree.FindAllDescendants(cf => cf.ByControlType(ControlType.TreeItem)))
+        {
+            row.Patterns.SelectionItem.PatternOrDefault?.Select();
+            Wait.UntilInputIsProcessed();
+            if (WaitForFs(() => Exists("FileMap_AddCriterion"), 1)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>A template is added and removed. Its "…" opens the system file dialog, so it is checked for.</summary>
+    private void DriveTemplatedCreate(AutomationElement list)
+    {
+        SelectSection(list, "Templated Create", "TemplatedCreate_Add");
+        var templates = 0;
+        Check("+ Add adds a template and selects it", () =>
+        {
+            templates = ListCount("TemplatedCreate_List");
+            return PressNth("TemplatedCreate_Add", 0) && WaitForFs(() => ListCount("TemplatedCreate_List") == templates + 1, 3);
+        });
+        CheckExists("Browse for the template's source", "TemplatedCreate_BrowseSource");
+        Check("✕ Remove removes it", () =>
+            PressNth("TemplatedCreate_Remove", 0) && WaitForFs(() => ListCount("TemplatedCreate_List") == templates, 3));
+    }
+
+    /// <summary>"Add folder…" opens the system folder dialog, so it is checked for.</summary>
+    private void DriveOneDrive(AutomationElement list)
+    {
+        SelectSection(list, "OneDrive", "OneDriveOpt_AddFolder");
+        CheckExists("Add folder…", "OneDriveOpt_AddFolder");
+    }
+
+    /// <summary>
+    /// Git's manager path is a [FilePath] setting, which the property grid renders with a browse button onto the
+    /// app's own file picker — the one path editor any section declares. Opened, checked, and cancelled.
+    /// </summary>
+    private void DriveGitPathPicker(AutomationElement list)
+    {
+        SelectSection(list, "Git", "ConfigEditor_BrowseFile");
+        Check("Browse opens the in-app file picker", () =>
+            PressNth("ConfigEditor_BrowseFile", 0) && WaitFor(() => FindInAppWindows("FileBrowser_Cancel"), 10) is not null);
+        Check("The file picker offers OK", () => FindInAppWindows("FileBrowser_Ok") is not null);
+        Check("Cancel closes the file picker", () => PressInDialog("FileBrowser_Cancel"));
     }
 }

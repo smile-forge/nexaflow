@@ -187,12 +187,14 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <vc:SearchStatusChip PagePrefix="ProcessDetail" Margin="0,0,12,0"/>
                 <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
-                              ToolTip="Auto-refresh once per second while this tab is active"/>
+                              ToolTip="Auto-refresh once per second while this tab is active"
+                              AutomationProperties.AutomationId="ProcessDetail_ToggleLive"/>
                 <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
-                        FontSize="14" ToolTip="Refresh now"/>
+                        FontSize="14" ToolTip="Refresh now" AutomationProperties.AutomationId="ProcessDetail_Refresh"/>
                 <Separator Style="{StaticResource TbSep}"/>
                 <Button Content="Kill" Command="{Binding KillCommand}" Style="{StaticResource TbBtn}"
-                        Foreground="{StaticResource DangerBrush}"/>
+                        Foreground="{StaticResource DangerBrush}"
+                        AutomationProperties.AutomationId="ProcessDetail_Kill"/>
             </StackPanel>
         </Grid>
 
@@ -239,12 +241,12 @@
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Path"        Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="4" Grid.Column="1" Text="{Binding Detail.Path}" Style="{StaticResource FieldValue}"/>
                             <Button    Grid.Row="4" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
-                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.Path}"/>
+                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.Path}" AutomationProperties.AutomationId="ProcessDetail_CopyPath"/>
 
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="Command line" Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="5" Grid.Column="1" Text="{Binding Detail.CommandLine}" Style="{StaticResource FieldValue}"/>
                             <Button    Grid.Row="5" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
-                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.CommandLine}"/>
+                                       Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.CommandLine}" AutomationProperties.AutomationId="ProcessDetail_CopyCommandLine"/>
 
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="User"        Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="6" Grid.Column="1" Text="{Binding Detail.User}" Style="{StaticResource FieldValue}"/>
@@ -388,7 +390,7 @@
                                 <TextBlock Text="Module details require administrator rights to read."
                                            Foreground="{StaticResource TextBrush}" FontSize="12" VerticalAlignment="Center"/>
                                 <Button Content="Load with admin" Command="{Binding LoadHandlesCommand}"
-                                        Style="{StaticResource TbBtn}" FontSize="11" Margin="12,0,0,0"/>
+                                        Style="{StaticResource TbBtn}" FontSize="11" Margin="12,0,0,0" AutomationProperties.AutomationId="ProcessDetail_LoadModulesAdmin"/>
                             </StackPanel>
                         </Border>
                         <ListView Grid.Row="1" x:Name="ModulesList" ItemsSource="{Binding ModulesView}"
@@ -449,7 +451,7 @@
                             <TextBlock Text="{Binding Handles.Count, StringFormat='{}{0} open handles'}"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
                             <Button Content="↻ Reload (admin)" Command="{Binding LoadHandlesCommand}"
-                                    Style="{StaticResource TbBtn}" FontSize="11" Margin="10,0,0,0"/>
+                                    Style="{StaticResource TbBtn}" FontSize="11" Margin="10,0,0,0" AutomationProperties.AutomationId="ProcessDetail_ReloadHandles"/>
                         </StackPanel>
                         <ListView Grid.Row="1" ItemsSource="{Binding HandlesView}" Style="{StaticResource GridListView}"
                                   Visibility="{Binding HandlesLoaded, Converter={StaticResource BoolToVis}}"
@@ -489,7 +491,8 @@
                                        HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,12"/>
                             <Button Content="Load handles (admin)" Command="{Binding LoadHandlesCommand}"
                                     Style="{StaticResource TbBtn}" HorizontalAlignment="Center"
-                                    Visibility="{Binding HandlesLoading, Converter={StaticResource InvBoolToVis}}"/>
+                                    Visibility="{Binding HandlesLoading, Converter={StaticResource InvBoolToVis}}"
+                                    AutomationProperties.AutomationId="ProcessDetail_LoadHandles"/>
                             <TextBlock Text="Enumerating handles…" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                        HorizontalAlignment="Center"
                                        Visibility="{Binding HandlesLoading, Converter={StaticResource BoolToVis}}"/>

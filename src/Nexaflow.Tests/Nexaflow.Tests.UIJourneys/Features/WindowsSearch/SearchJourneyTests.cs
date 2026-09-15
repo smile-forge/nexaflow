@@ -189,6 +189,11 @@ public class SearchJourneyTests : UiJourneyTestBase
         Check("Result list is on screen", () => results is { IsOffscreen: false });
         Check("The app survives loading a results page", () => !App.HasExited);
 
+        // The action strip. Present, never pressed: Open hands the file to its default application, which
+        // takes focus away from the journey, and Location opens a Files tab in front of the results page.
+        CheckPresent("Open result button", "OpenResult");
+        CheckPresent("Open result location button", "OpenResultLocation");
+
         // The banner is a cost signal. Offering to verify after a search that needed none would train the
         // user to ignore it — which is exactly when it matters. (The banner itself may still be visible
         // offering a folder scan, if this machine's index had nothing for the query; that is a different

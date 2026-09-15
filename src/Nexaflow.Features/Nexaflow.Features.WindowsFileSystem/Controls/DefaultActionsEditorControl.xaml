@@ -20,7 +20,7 @@
                        Text="Override which registered action opens a file type on double-click. Types with no override use Nexaflow's automatic choice. Add as many as you like — changes are committed when you click Save."/>
 
             <Button DockPanel.Dock="Top" HorizontalAlignment="Left" Content="+ Add default"
-                    MinWidth="110" Margin="0,0,0,8" Style="{StaticResource IconButton}" Click="Add_Click"/>
+                    MinWidth="110" Margin="0,0,0,8" Style="{StaticResource IconButton}" Click="Add_Click" AutomationProperties.AutomationId="DefaultActions_Add"/>
 
             <TextBlock DockPanel.Dock="Top" Text="No overrides yet — every type uses its automatic default."
                        Foreground="{StaticResource TextMutedBrush}" FontSize="11"
@@ -47,9 +47,9 @@
                                                Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                                TextTrimming="CharacterEllipsis"/>
                                     <Button Grid.Column="2" Content="Edit" Margin="4,0,0,0"
-                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Edit_Click"/>
+                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Edit_Click" AutomationProperties.AutomationId="DefaultActions_Edit"/>
                                     <Button Grid.Column="3" Margin="4,0,0,0" ToolTip="Remove"
-                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Remove_Click">
+                                            Style="{StaticResource IconButton}" Tag="{Binding}" Click="Remove_Click" AutomationProperties.AutomationId="DefaultActions_Remove">
                                         <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                     </Button>
                                 </Grid>
@@ -70,7 +70,7 @@
                 <TextBlock Text="Extension" VerticalAlignment="Center"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,8,0"/>
                 <TextBox x:Name="ExtBox" Width="160" Style="{StaticResource DarkTextBox}" FontSize="12"
-                         TextChanged="ExtBox_TextChanged" ToolTip="e.g. .pdf or pdf"/>
+                         TextChanged="ExtBox_TextChanged" ToolTip="e.g. .pdf or pdf" AutomationProperties.AutomationId="DefaultActions_Extension"/>
             </StackPanel>
 
             <TextBlock x:Name="CurrentExtLabel" DockPanel.Dock="Top" Text="Enter an extension above."
@@ -79,13 +79,14 @@
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                         HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="Cancel" MinWidth="80" Margin="0,0,8,0"
-                        Style="{StaticResource IconButton}" Click="Cancel_Click"/>
+                        Style="{StaticResource IconButton}" Click="Cancel_Click" AutomationProperties.AutomationId="DefaultActions_Cancel"/>
                 <Button Content="Confirm" MinWidth="90" Style="{StaticResource IconButton}" Click="Confirm_Click"
-                        IsEnabled="{Binding CanConfirm, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                        IsEnabled="{Binding CanConfirm, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        AutomationProperties.AutomationId="DefaultActions_Confirm"/>
             </StackPanel>
 
             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                <ListBox x:Name="CandidateList" Background="Transparent" BorderThickness="0">
+                <ListBox x:Name="CandidateList" Background="Transparent" BorderThickness="0" AutomationProperties.AutomationId="DefaultActions_Candidates">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="2">

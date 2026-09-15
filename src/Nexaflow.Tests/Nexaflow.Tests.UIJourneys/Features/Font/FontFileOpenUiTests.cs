@@ -32,6 +32,8 @@ public class FontFileOpenUiTests : FileSystemUiTestBase
         Assert.IsNotNull(WaitForId("FontView", 15), $"{fileName} did not open in FontView.");
         Assert.IsNotNull(WaitForName("Nexaflow Test", 8),
             $"The font's family name / details did not render for {fileName}.");
+        // Only a font that came from a file has a path to copy; the installed-font journey asserts it hidden.
+        Assert.IsNotNull(WaitForId("FontCopyPath", 5), $"Copy path is not offered for {fileName}, which has a file.");
         Assert.IsFalse(App.HasExited, $"App crashed opening {fileName}.");
     }
 }

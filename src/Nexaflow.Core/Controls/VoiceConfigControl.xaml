@@ -48,7 +48,8 @@
                         Background="{StaticResource AccentBrush}"
                         Foreground="White" BorderThickness="0"
                         Command="{Binding DownloadCommand}"
-                        Visibility="{Binding CanDownload, Converter={StaticResource BoolVis}}"/>
+                        Visibility="{Binding CanDownload, Converter={StaticResource BoolVis}}"
+                        AutomationProperties.AutomationId="Voice_Download"/>
             </StackPanel>
         </Border>
     </StackPanel>

@@ -112,6 +112,7 @@
 
                     <!-- Close button -->
                     <Button Grid.Column="3"
+                            AutomationProperties.AutomationId="Scratchpad_NoteRemove"
                             Command="{Binding RemoveCommand}"
                             Width="18" Height="18"
                             VerticalAlignment="Center"

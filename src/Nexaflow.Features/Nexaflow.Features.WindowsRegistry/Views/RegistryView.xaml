@@ -205,9 +205,11 @@
 
                 <Button Style="{StaticResource RegTbBtn}" Margin="16,0,0,0"
                         Command="{Binding ExportCommand}"
+                        AutomationProperties.AutomationId="Registry_Export"
                         Content="💾 Export" ToolTip="Export the selected key to a .reg file"/>
                 <Button Style="{StaticResource RegTbBtn}"
                         Command="{Binding ImportCommand}"
+                        AutomationProperties.AutomationId="Registry_Import"
                         Content="📂 Import" ToolTip="Import a .reg file"/>
 
                 <vcc:SearchStatusChip PagePrefix="Registry" Margin="16,0,0,0"
@@ -328,8 +330,10 @@
                          BorderThickness="0" Padding="8,6" AcceptsReturn="True" MaxLines="6"
                          TextWrapping="Wrap" KeyDown="InputPrompt_KeyDown"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                    <Button Style="{StaticResource RegTbBtn}" Content="Cancel" Command="{Binding CancelCommand}"/>
-                    <Button Style="{StaticResource RegTbBtn}" Content="OK" Command="{Binding ConfirmCommand}"/>
+                    <Button Style="{StaticResource RegTbBtn}" Content="Cancel" Command="{Binding CancelCommand}"
+                            AutomationProperties.AutomationId="Registry_PromptCancel"/>
+                    <Button Style="{StaticResource RegTbBtn}" Content="OK" Command="{Binding ConfirmCommand}"
+                            AutomationProperties.AutomationId="Registry_PromptConfirm"/>
                 </StackPanel>
             </StackPanel>
         </vcc:ModalCard>

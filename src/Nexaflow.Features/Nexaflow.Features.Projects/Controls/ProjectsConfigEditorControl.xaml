@@ -27,7 +27,8 @@
             <CheckBox x:Name="EnableProjectsCheck"
                       Content="Enable projects for this workspace"
                       Foreground="{StaticResource TextBrush}" FontSize="12"
-                      IsChecked="{Binding EnableProjects, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"/>
+                      IsChecked="{Binding EnableProjects, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="ProjectsConfig_Enable"/>
 
             <!-- Locations -->
             <TextBlock Text="Locations" Style="{StaticResource SectionHeader}"/>
@@ -46,7 +47,7 @@
                     <TextBlock Text="Project folder" Style="{StaticResource FieldLabel}"/>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                Style="{StaticResource IconButton}" Click="BrowseProject_Click"/>
+                                Style="{StaticResource IconButton}" Click="BrowseProject_Click" AutomationProperties.AutomationId="ProjectsConfig_BrowseProject"/>
                         <TextBox x:Name="ProjectDirectoryBox"
                                  Text="{Binding ProjectDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource DarkTextBox}" FontSize="11"/>
@@ -58,7 +59,7 @@
                     <TextBlock Text="Shelf folder" Style="{StaticResource FieldLabel}"/>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                Style="{StaticResource IconButton}" Click="BrowseShelf_Click"/>
+                                Style="{StaticResource IconButton}" Click="BrowseShelf_Click" AutomationProperties.AutomationId="ProjectsConfig_BrowseShelf"/>
                         <TextBox Text="{Binding ShelfDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource DarkTextBox}" FontSize="11"/>
                     </DockPanel>
@@ -69,7 +70,7 @@
                     <TextBlock Text="Archive folder" Style="{StaticResource FieldLabel}"/>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                Style="{StaticResource IconButton}" Click="BrowseArchive_Click"/>
+                                Style="{StaticResource IconButton}" Click="BrowseArchive_Click" AutomationProperties.AutomationId="ProjectsConfig_BrowseArchive"/>
                         <TextBox Text="{Binding ArchiveDirectory, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource DarkTextBox}" FontSize="11"/>
                     </DockPanel>
@@ -84,7 +85,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="Backlog statuses" Style="{StaticResource SectionHeader}" Margin="0,0,0,4"/>
                 <Button Grid.Column="1" Content="+ Add" MinWidth="56" VerticalAlignment="Center"
-                        Style="{StaticResource IconButton}" Click="AddStatus_Click"/>
+                        Style="{StaticResource IconButton}" Click="AddStatus_Click" AutomationProperties.AutomationId="ProjectsConfig_AddStatus"/>
             </Grid>
             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,6"
                        Text="Top-to-bottom is the order the “Progress” button steps through. Mark exactly one state as the terminal “cancelled” state — it is skipped by stepping and chosen from the status dropdown. Deleting a state leaves any item on it flagged invalid; it is never silently moved."/>
@@ -105,11 +106,11 @@
                                 <!-- Reorder -->
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,6,0">
                                     <Button Style="{StaticResource IconButton}" Width="24" ToolTip="Move up"
-                                            Tag="{Binding}" Click="MoveUp_Click">
+                                            Tag="{Binding}" Click="MoveUp_Click" AutomationProperties.AutomationId="ProjectsConfig_MoveUp">
                                         <TextBlock Text="▲" FontSize="9"/>
                                     </Button>
                                     <Button Style="{StaticResource IconButton}" Width="24" ToolTip="Move down"
-                                            Tag="{Binding}" Click="MoveDown_Click">
+                                            Tag="{Binding}" Click="MoveDown_Click" AutomationProperties.AutomationId="ProjectsConfig_MoveDown">
                                         <TextBlock Text="▼" FontSize="9"/>
                                     </Button>
                                 </StackPanel>
@@ -157,7 +158,7 @@
 
                                 <!-- Remove -->
                                 <Button Grid.Column="4" Style="{StaticResource IconButton}" Width="26"
-                                        ToolTip="Remove this status" Tag="{Binding}" Click="RemoveStatus_Click">
+                                        ToolTip="Remove this status" Tag="{Binding}" Click="RemoveStatus_Click" AutomationProperties.AutomationId="ProjectsConfig_RemoveStatus">
                                     <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                 </Button>
                             </Grid>

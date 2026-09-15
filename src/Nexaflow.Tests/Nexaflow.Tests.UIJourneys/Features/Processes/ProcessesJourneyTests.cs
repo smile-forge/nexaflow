@@ -2,6 +2,9 @@ using FlaUI.Core.AutomationElements;
 using Nexaflow.Tests.UIJourneys.Infrastructure;
 
 using Nexaflow.Tests.Fixtures;
+using System.Diagnostics;
+using FlaUI.Core.Definitions;
+using FlaUI.Core.Input;
 
 namespace Nexaflow.Tests.Features.Processes.UI;
 
@@ -36,6 +39,8 @@ public class ProcessesJourneyTests : UiJourneyTestBase
         //    buttons are only shown while tree mode is on, so exercise them before flipping it off. ──
         CheckInvoke("Expand all",   "Proc_ExpandAll");
         CheckInvoke("Collapse all", "Proc_CollapseAll");
+        // A row's ▶ toggles just its branch; pressed twice so the list is left as it was.
+        Check("A row's expander toggles, and back", () => PressNth("Proc_RowExpand", 0) && PressNth("Proc_RowExpand", 0));
         CheckInvoke("Tree toggle",  "Proc_ToggleTree");   // flips to flat list
 
         // ── Live auto-refresh toggle + manual refresh — both only re-sample the process list. ──
@@ -57,5 +62,80 @@ public class ProcessesJourneyTests : UiJourneyTestBase
         //    to present-check here without right-clicking a real process row. Left uninvoked by design. ──
 
         AssertJourney();
+    }
+
+    [TestMethod]
+    [CoversNode("details-view")]
+    public void ProcessDetail_Controls_RespondInOnePass()
+    {
+        Assert.IsNotNull(WaitForId("ProcList", 15), "ProcList did not open via --openTab Processes.");
+
+        // The detail tab is opened on a process this test starts itself, so Kill can be pressed for real without
+        // touching anything the machine was running.
+        using var target = Process.Start(new ProcessStartInfo("ping", "-n 600 127.0.0.1")
+        {
+            CreateNoWindow  = true,
+            UseShellExecute = false,
+        })!;
+        try
+        {
+            var pid = target.Id.ToString();
+            Check("Filtering by PID finds the started process", () =>
+                TypeInto("Proc_Filter", pid) && WaitForFs(() => RowFor(pid) is not null, 8));
+            Check("View details opens its detail tab", () =>
+            {
+                var row = RowFor(pid);
+                if (row is null) return false;
+                row.RightClick();
+                Wait.UntilInputIsProcessed();
+                return PickMenuItem("View details") && WaitForId("ProcessDetail_Kill", 10) is not null;
+            });
+
+            // ── Header: sampling ──────────────────────────────────────────────────
+            CheckInvoke("Live toggle", "ProcessDetail_ToggleLive");
+            CheckInvoke("Refresh now", "ProcessDetail_Refresh");
+
+            // ── General: the copy buttons only write the clipboard ────────────────
+            CheckInvoke("Copy path", "ProcessDetail_CopyPath");
+            CheckInvoke("Copy command line", "ProcessDetail_CopyCommandLine");
+
+            // ── Handles: loading them elevates, which raises UAC, so it is only checked for ──
+            Check("The Handles section opens", () => SelectDetailSection("Handles"));
+            CheckExists("Load handles (admin)", "ProcessDetail_LoadHandles");
+            Check("The General section opens again", () => SelectDetailSection("General"));
+
+            // ── Kill: declined once, then confirmed ───────────────────────────────
+            Check("Kill asks first", () =>
+                PressNth("ProcessDetail_Kill", 0) && WaitForId("Chrome_ConfirmCancel", 5) is not null);
+            CheckDoes("Declining leaves the process running", "Chrome_ConfirmCancel",
+                      () => WaitForGone("Chrome_ConfirmCancel") && !target.HasExited);
+            Check("Kill asks again", () =>
+                PressNth("ProcessDetail_Kill", 0) && WaitForId("Chrome_ConfirmOk", 5) is not null);
+            CheckDoes("Confirming terminates it", "Chrome_ConfirmOk", () => WaitForFs(() => target.HasExited, 5));
+        }
+        finally
+        {
+            if (!target.HasExited) target.Kill();
+        }
+
+        AssertJourney();
+    }
+
+    /// <summary>The list row whose cells include this PID — a PID filter is a substring match, so it can list more.</summary>
+    private AutomationElement? RowFor(string pid) =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ProcList"))
+                  ?.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem).Or(cf.ByControlType(ControlType.DataItem)))
+                  .FirstOrDefault(r => r.FindFirstDescendant(cf => cf.ByName(pid)) is not null);
+
+    /// <summary>Selects one of the detail view's vertical tabs by its header.</summary>
+    private bool SelectDetailSection(string header)
+    {
+        var item = MainWindow.FindAllDescendants(cf => cf.ByName(header))
+                             .Select(e => e.Patterns.SelectionItem.PatternOrDefault)
+                             .FirstOrDefault(p => p is not null);
+        if (item is null) return false;
+        item.Select();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => item.IsSelected.Value, 3);
     }
 }

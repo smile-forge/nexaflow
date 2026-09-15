@@ -48,7 +48,8 @@
                                             Style="{StaticResource IconButton}"
                                             Foreground="{StaticResource DangerBrush}"
                                             Click="Remove_Click"
-                                            Tag="{Binding}"/>
+                                            Tag="{Binding}"
+                                            AutomationProperties.AutomationId="TabularTemplates_Remove"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>

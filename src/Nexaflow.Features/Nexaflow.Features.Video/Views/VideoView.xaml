@@ -30,6 +30,7 @@
 
             <!-- Click anywhere on the picture toggles play/pause. -->
             <Button x:Name="ClickCatcher" Style="{StaticResource ClickCatcherStyle}"
+                    AutomationProperties.AutomationId="Video_ClickCatcher"
                     Command="{Binding TogglePlayPauseCommand}"/>
 
             <!-- First-frame poster (until the user first presses play). Non-interactive. -->
@@ -118,6 +119,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Style="{StaticResource KeyframeButton}"
+                                    AutomationProperties.AutomationId="Video_Keyframe"
                                     Command="{Binding DataContext.SeekToKeyframeCommand,
                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}" ToolTip="{Binding TimeLabel}">

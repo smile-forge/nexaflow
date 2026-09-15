@@ -24,7 +24,7 @@
         <Button x:Name="OpenButton" Grid.Column="2" VerticalAlignment="Center" Cursor="Hand"
                 Click="OpenButton_Click"
                 Background="Transparent" Foreground="{StaticResource AccentBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,5">
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10,5" AutomationProperties.AutomationId="Product_ViewletOpen">
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" Background="{TemplateBinding Background}"

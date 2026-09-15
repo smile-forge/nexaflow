@@ -83,7 +83,8 @@
                 </Grid.ColumnDefinitions>
 
                 <ToggleButton Grid.Column="0" Style="{StaticResource SectionToggle}"
-                              IsChecked="{Binding LocationsExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                              IsChecked="{Binding LocationsExpanded, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              AutomationProperties.AutomationId="ConsoleEnv_LocationsToggle">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Default environment by location"
                                    Foreground="{StaticResource AccentBrush}" FontSize="12" FontWeight="SemiBold"/>
@@ -151,7 +152,7 @@
                                         </Border>
                                         <Button Grid.Column="2" Style="{StaticResource IconButton}"
                                                 ToolTip="Remove this location default (the location will ask again next time)"
-                                                Tag="{Binding}" Click="RemoveBinding_Click">
+                                                Tag="{Binding}" Click="RemoveBinding_Click" AutomationProperties.AutomationId="ConsoleEnv_RemoveBinding">
                                             <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                         </Button>
                                     </Grid>
@@ -175,15 +176,16 @@
             <DockPanel Grid.Column="0">
                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
                     <Button Content="+ Add" MinWidth="56" Margin="0,0,4,0"
-                            Style="{StaticResource IconButton}" Click="AddEnv_Click"/>
+                            Style="{StaticResource IconButton}" Click="AddEnv_Click" AutomationProperties.AutomationId="ConsoleEnv_Add"/>
                     <Button x:Name="RemoveButton" Content="✕ Remove" MinWidth="72"
-                            Style="{StaticResource IconButton}" Click="RemoveEnv_Click"/>
+                            Style="{StaticResource IconButton}" Click="RemoveEnv_Click" AutomationProperties.AutomationId="ConsoleEnv_Remove"/>
                 </StackPanel>
 
                 <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                     <ListBox x:Name="EnvList"
                              Background="Transparent" BorderThickness="0"
-                             SelectionChanged="EnvList_SelectionChanged">
+                             SelectionChanged="EnvList_SelectionChanged"
+                             AutomationProperties.AutomationId="ConsoleEnv_List">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
@@ -262,7 +264,7 @@
                         </TextBlock>
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="…" MinWidth="28" Margin="4,0,0,0"
-                                    Style="{StaticResource IconButton}" Click="InitialCmdBrowse_Click"/>
+                                    Style="{StaticResource IconButton}" Click="InitialCmdBrowse_Click" AutomationProperties.AutomationId="ConsoleEnv_BrowseInitialCommand"/>
                             <TextBox Text="{Binding InitialCommand, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource DarkTextBox}" FontSize="11"
                                      FontFamily="Consolas, Courier New"/>

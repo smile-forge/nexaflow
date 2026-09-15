@@ -126,7 +126,8 @@
                         Cursor="Hand"
                         Padding="8,4"
                         Template="{StaticResource RoundedButtonTemplate}"
-                        Click="Cancel_Click"/>
+                        Click="Cancel_Click"
+                        AutomationProperties.AutomationId="FolderBrowser_Cancel"/>
                 <Button x:Name="OkBtn"
                         Content="OK"
                         Width="80" Height="30"
@@ -139,7 +140,8 @@
                         Cursor="Hand"
                         Padding="8,4"
                         Template="{StaticResource RoundedButtonTemplate}"
-                        Click="Ok_Click"/>
+                        Click="Ok_Click"
+                        AutomationProperties.AutomationId="FolderBrowser_Ok"/>
             </StackPanel>
         </Border>
     </Grid>

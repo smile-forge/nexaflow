@@ -40,7 +40,8 @@
                                         Width="26" Height="26" FontSize="12"
                                         ToolTip="Remove this startup tab"
                                         Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
-                                        BorderThickness="0">
+                                        BorderThickness="0"
+                                        AutomationProperties.AutomationId="DefaultTabs_Remove">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border x:Name="root" Background="{TemplateBinding Background}"
