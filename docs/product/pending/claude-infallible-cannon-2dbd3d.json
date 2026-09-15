@@ -1,0 +1,19 @@
+{
+  "branch": "claude/infallible-cannon-2dbd3d",
+  "nodes": {
+    "smiles-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Chemistry/MoleculePiece.cs",
+          "class": "MoleculePiece"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "smiles-render"
+  ]
+}

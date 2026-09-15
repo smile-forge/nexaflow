@@ -93,8 +93,9 @@ jobs:
       # moved into their own assembly, UI in the remaining suites means "constructs and renders WPF on an
       # STA thread, opens no window" — fast, parallel-safe, and previously never run here at all.
       #
-      # Nexaflow.Tests.Features.Architecture is deliberately absent: its subjects are the product tree and
-      # the graph, which are gitignored and so are not in a CI checkout.
+      # Nexaflow.Tests.Features.Architecture reads tracked source, project files and baselines, so it gates
+      # here like any other suite. The product tree it also checks is the gitignored .product/tree.json:
+      # absent from a CI checkout, those guards return early and stay dev-time checks.
       #
       # The MSTest/MTP test exes take --filter directly. The TFM map is per-project because they genuinely
       # differ — Initiatives and Maths are plain net10.0 (WPF-free subjects), IO/Providers/Visuals/Components
@@ -107,6 +108,7 @@ jobs:
             'Nexaflow.Tests.Features'          = 'net10.0-windows10.0.19041.0'
             'Nexaflow.Tests.Features.Viewers'  = 'net10.0-windows10.0.19041.0'
             'Nexaflow.Tests.Features.WindowsOS' = 'net10.0-windows10.0.19041.0'
+            'Nexaflow.Tests.Features.Architecture' = 'net10.0-windows10.0.19041.0'
             'Nexaflow.Tests.Visuals'           = 'net10.0-windows'
             'Nexaflow.Tests.Components'        = 'net10.0-windows'
             'Nexaflow.Tests.Initiatives'       = 'net10.0'
