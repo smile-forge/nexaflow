@@ -37,27 +37,47 @@ public static partial class StructuralEdit
             return Result.Fail("An element path (--at) addresses an element of an XML file, and this file parses as "
                              + (string.IsNullOrEmpty(grammarId) ? "no language at all." : $"{grammarId}."));
         if (op == Op.Import) return Result.Fail(XmlHasNoImports);
-        if (!XmlPath.TryParse(o.At ?? "", out var path, out var syntax)) return Result.Fail(syntax!);
-
-        var (elements, error) = XmlAnchors.ByPath(grammarId, source, path!);
-        if (error is not null) return Result.Fail(error);
 
         var notes = new List<string>();
-        var bulk  = op is Op.Delete or Op.SetAttribute or Op.RemoveAttribute;
+        IReadOnlyList<XmlElement> elements;
+        string subject;
+        if (PlaceIn(o.At) is { } place)
+        {
+            var (atPlace, missing) = XmlAnchors.ByPlace(grammarId, source, place.Line, place.Column);
+            if (missing is not null) return Result.Fail(missing);
+            (elements, subject) = (atPlace, o.At!.Trim());
+            if (atPlace.Count == 1) notes.Add($"{subject} is {atPlace[0].CanonicalPath}");
+        }
+        else
+        {
+            if (!XmlPath.TryParse(o.At ?? "", out var path, out var syntax)) return Result.Fail(syntax!);
+
+            var (matched, error) = XmlAnchors.ByPath(grammarId, source, path!);
+            if (error is not null) return Result.Fail(error);
+            (elements, subject) = (matched, path!.Text);
+
+            if (op is Op.Delete or Op.InsertBefore or Op.InsertAfter
+                && path.Steps.Any(s => s.Predicates.Any(p => p is XmlPath.Position)))
+                notes.Add("the path picks by position ([n]), and this edit moves the positions after it - work out the "
+                        + "path again before reusing it.");
+        }
+
+        var bulk = op is Op.Delete or Op.SetAttribute or Op.RemoveAttribute;
         if (elements.Count > 1)
         {
-            if (!(o.AllOccurrences && bulk)) return Result.Fail(XmlAnchors.Ambiguous(elements, path!.Text, bulk));
+            if (!(o.AllOccurrences && bulk)) return Result.Fail(XmlAnchors.Ambiguous(elements, subject, bulk));
             notes.Add($"applied to {elements.Count} elements");
         }
 
-        if (op is Op.Delete or Op.InsertBefore or Op.InsertAfter
-            && path!.Steps.Any(s => s.Predicates.Any(p => p is XmlPath.Position)))
-            notes.Add("the path picks by position ([n]), and this edit moves the positions after it - work out the "
-                    + "path again before reusing it.");
-
-        return EditElements(grammarId, source, elements, identity: null, idKind: null, op, text, o, renameTo,
-                            notes, path!.Text);
+        return EditElements(grammarId, source, elements, identity: null, idKind: null, op, text, o, renameTo, notes, subject);
     }
+
+    /// <summary>A place as a compiler gives one — <c>20:10</c>, <c>20,10</c>, <c>(20,10)</c> — or a bare line; null for a path.</summary>
+    private static (int Line, int? Column)? PlaceIn(string? at) =>
+        at is not null && Regex.Match(at.Trim(), @"^\(?(?<line>\d+)(?:[:,](?<column>\d+))?\)?$") is { Success: true } m
+            ? (int.Parse(m.Groups["line"].Value, System.Globalization.CultureInfo.InvariantCulture),
+               m.Groups["column"].Success ? int.Parse(m.Groups["column"].Value, System.Globalization.CultureInfo.InvariantCulture) : null)
+            : null;
 
     /// <summary>The edit at a XAML id (or plain XML's root id), from <see cref="Apply(string,string,string,string,Op,string?,Options?,string?)"/>.</summary>
     private static Result ApplyXml(string grammarId, string source, string astPath, string expectedName, Op op,

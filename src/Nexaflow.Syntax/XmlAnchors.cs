@@ -117,6 +117,52 @@ internal static class XmlAnchors
         return result.Item1 is null ? ([], "The file could not be parsed.") : result;
     }
 
+    /// <summary>
+    /// The element at a place in the text, as a compiler or an analyzer gives one. With a column it is the innermost element
+    /// spanning that place — a build warning's position lands in the element it is about; a bare line is the element whose
+    /// tag opens on it, every one of them when several do.
+    /// </summary>
+    public static (IReadOnlyList<XmlElement> Elements, string? Error) ByPlace(string grammarId, string text, int line, int? column)
+    {
+        var result = Parse(grammarId, text, root =>
+        {
+            if (root.Type == "ERROR" || CodeStructureExtractor.FirstChild(root, "element") is null)
+                return ((IReadOnlyList<XmlElement>)[], (string?)Unparsed);
+
+            if (OffsetOf(text, line, column ?? 1) is not { } offset)
+                return ([], $"line {line}{(column is null ? "" : $", column {column}")} is not in the file.");
+
+            if (column is not null)
+                return AllElements(root).LastOrDefault(e => e.StartIndex <= offset && offset < e.EndIndex) is { } innermost
+                    ? ([Describe(innermost, text)], null)
+                    : ([], $"no element is at line {line}, column {column}.");
+
+            var lineEnd = text.IndexOf('\n', offset) is var n and >= 0 ? n : text.Length;
+            IReadOnlyList<XmlElement> opening = [.. AllElements(root).Where(e => e.StartIndex >= offset && e.StartIndex < lineEnd)
+                                                                     .Select(e => Describe(e, text))];
+            return opening.Count > 0
+                ? (opening, null)
+                : ([], $"no element opens on line {line} - line:column takes the element around a place instead.");
+        });
+        return result.Item1 is null ? ([], "The file could not be parsed.") : result;
+    }
+
+    /// <summary>The offset of a 1-based line and column, the column held to its line; null when the line is not there.</summary>
+    private static int? OffsetOf(string text, int line, int column)
+    {
+        if (line < 1 || column < 1) return null;
+
+        var at = 0;
+        for (var l = 1; l < line; l++)
+        {
+            at = text.IndexOf('\n', at);
+            if (at < 0) return null;
+            at++;
+        }
+        var end = text.IndexOf('\n', at) is var n and >= 0 ? n : text.Length;
+        return Math.Min(at + column - 1, end);
+    }
+
     /// <summary>The element that starts at <paramref name="start"/>, for re-finding one after an edit that did not
     /// move its start.</summary>
     public static XmlElement? ElementAt(string grammarId, string text, int start) =>

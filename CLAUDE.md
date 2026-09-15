@@ -51,7 +51,12 @@ The feature inventory is deliberately not here — it is the product tree: `nfi 
 ## nfi — how this repository is read and changed
 
 Find with `ask`, change with `graph edit`, prove with `test`. Each answer carries what the next step needs: the ids an
-edit takes, the errors an edit introduced and what uses what it changed, the tests that cover it.
+edit takes, the errors an edit introduced and what uses what it changed, the tests that cover it. A check ends on one
+verdict, clean or not, that names what it covered, with anything wrong listed beneath it —
+`compile: no new errors in 2 file(s) — Nexaflow.Core (0.04s, all warm)`,
+`0 node(s) - checked Nexaflow.Features.Json (41 C# file(s), 6 additional) by XamlAutomationIdAnalyzer`. That line is the
+build's answer and needs no build behind it; `not checked` lines are what it could not give, and `nothing was checked`
+is not a zero.
 
 `$nfi` is `tools/graph-cli/nfi.exe` in the main checkout, or your own build at
 `src/Nexaflow.Services.Initiatives.Cli/bin/x64/Debug/net10.0/nfi.exe`. It self-locates the tree (a worktree follows
@@ -87,7 +92,7 @@ shell.
 - **print** — `ids [n]` / `source [n]` / `blocks [n]` / `files` / `count`
 
 Several questions are several quoted arguments — `ask 'search A | source' 'grep B | files'` — each answered in the one
-call. Quote a regex holding a `|`; inside it a backslash keeps a quote or a bar literal (`grep "say \"hi\""`), and a
+call, sharing one page. Quote a regex holding a `|`; inside it a backslash keeps a quote or a bar literal (`grep "say \"hi\""`), and a
 question awkward to quote goes on stdin (`@' … '@ | & $nfi ask --stdin`, one per line). Stages are strict: an unknown flag or an id the graph lacks is refused, and a zero
 names the stage that emptied the set.
 
@@ -112,7 +117,9 @@ What it guarantees, and why it is the only way files here are changed:
   signature; a raw control character, a whole file handed to a declaration op, and a find that matches twice are refused.
 - **Compiled before it is written.** A C# edit is compiled in memory against the project's own build, and the answer's
   `compile:` lines list the errors it **introduced and fixed** — in its project and every project compiling against
-  it; errors already there cancel out. `--must-compile` refuses the write; `--no-check` skips it.
+  it; errors already there cancel out. A XAML edit is put to the analyzers its project hands the view, before and after
+  (`views:` — an NXUI001 fix shows as `fixed`); the markup itself is compiled only by a build. `--must-compile` refuses
+  the write; `--no-check` skips it.
 - **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is followed
   by the compiler's binding: `impact:` names each user, and XAML that names it as text.
 - **Several edits are one change** — `script` writes all the files or none.
@@ -130,7 +137,7 @@ What it guarantees, and why it is the only way files here are changed:
 | a new file | `create <relpath> --file …` |
 | a using | `import <file-or-id> --text 'using X;'` |
 | something in no declaration, a doc, a text file | `substitute file:<relpath> --find …` |
-| a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element; `set-attribute` / `remove-attribute --name` |
+| a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element, or `--at <line>:<column>` straight from a build warning; `set-attribute` / `remove-attribute --name` |
 | several of the above | `script --stdin` |
 | take it back | `undo` — the last edit, file for file; refused when anything changed since |
 | see the result | `--show` prints the declaration as it now stands |

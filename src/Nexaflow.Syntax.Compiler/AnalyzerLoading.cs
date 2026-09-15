@@ -27,6 +27,14 @@ internal sealed class AnalyzerLoader : IAnalyzerAssemblyLoader
 {
     private readonly Dictionary<string, DirectoryContext> _contexts = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The assemblies the host loads for itself, by simple name.</summary>
+    private static readonly HashSet<string> HostAssemblies =
+        new(((AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string) ?? "")
+                .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(Path.GetFileNameWithoutExtension)
+                .OfType<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
     public void AddDependencyLocation(string fullPath) { }
 
     public Assembly LoadFromPath(string fullPath)
@@ -84,10 +92,10 @@ internal sealed class AnalyzerLoader : IAnalyzerAssemblyLoader
 
         protected override Assembly? Load(AssemblyName name)
         {
-            if (name.Name is not { } simple
-                || simple.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
-                || simple.StartsWith("System.", StringComparison.Ordinal))
-                return null;
+            // The host's own copy wherever it has one — the compiler an analyzer talks to, and the runtime — and the one beside
+            // the analyzer otherwise. Not by name: the SDK's analyzers depend on Microsoft.CodeAnalysis.NetAnalyzers, which the
+            // host does not have, and sending that to the host left every CA rule unloaded.
+            if (name.Name is not { } simple || HostAssemblies.Contains(simple)) return null;
 
             var beside = Path.Combine(directory, simple + ".dll");
             return File.Exists(beside) ? Take(AnalyzerImage.Read(beside)) : null;
@@ -125,4 +133,14 @@ internal sealed class FileText(string path) : AdditionalText
 
     public override SourceText? GetText(CancellationToken cancellationToken = default) =>
         File.Exists(Path) ? SourceText.From(File.ReadAllText(Path)) : null;
+}
+
+/// <summary>A file as an edit would leave it, handed to analyzers before it is written.</summary>
+internal sealed class MemoryText(string path, string text) : AdditionalText
+{
+    private readonly SourceText _text = SourceText.From(text);
+
+    public override string Path { get; } = path;
+
+    public override SourceText GetText(CancellationToken cancellationToken = default) => _text;
 }

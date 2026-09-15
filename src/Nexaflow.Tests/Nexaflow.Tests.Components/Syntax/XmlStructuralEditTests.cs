@@ -579,6 +579,31 @@ public class XmlPathTests
                                               new StructuralEdit.Options(At: "//C")).Ok);
 
     [TestMethod]
+    public void At_TheLineAndColumnOfABuildWarning_IsTheElementThere()
+    {
+        // Where NXUI001 puts it: the second button's name.
+        var result = StructuralEdit.ApplyAt("xaml", XmlStructuralEditTests.View, StructuralEdit.Op.SetAttribute, "Main_Other",
+            new StructuralEdit.Options(At: "(20,10)", Attribute: "AutomationProperties.AutomationId"));
+
+        StringAssert.Contains(Applied(result), "<Button AutomationProperties.AutomationId=\"Main_Other\" Click=\"OnCancel\">Cancel</Button>");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("/UserControl/Grid/Button[2]", StringComparison.Ordinal)),
+                      "the answer names the path, for whatever comes next");
+    }
+
+    [TestMethod]
+    public void At_ABareLine_IsTheElementOpeningOnIt_AndSeveralAreNamedRatherThanGuessed()
+    {
+        StringAssert.Contains(Applied(StructuralEdit.ApplyAt("xaml", XmlStructuralEditTests.View, StructuralEdit.Op.RemoveAttribute, null,
+                                  new StructuralEdit.Options(At: "22", Attribute: "Text"))),
+                              "<TextBlock x:Name=\"Status\"/>");
+
+        var both = StructuralEdit.ApplyAt("xml", "<Grid><Button/></Grid>\n", StructuralEdit.Op.Delete, null,
+                                          new StructuralEdit.Options(At: "1"));
+        Assert.IsFalse(both.Ok);
+        StringAssert.Contains(both.Message, "/Grid/Button");
+    }
+
+    [TestMethod]
     public void At_WorksOnProjectFileEditedAsXml()
     {
         Assert.AreEqual("xml", TreeSitterLanguages.ForEdit("src/App/App.csproj"));

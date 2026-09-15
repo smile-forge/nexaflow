@@ -968,12 +968,13 @@ internal static class Program
 
         // A code:<file>#<ast> id fetches that AST node's block; a file:<path> id (or a bare path) fetches the file.
         string rel; string? ast = null;
-        if (id.StartsWith("code:", StringComparison.Ordinal) && id.Contains('#'))
+        // A code: id naming no declaration - `code:<file>`, or the `code:<file>#` a listing heads its members with - is the file.
+        if (id.StartsWith("code:", StringComparison.Ordinal) && id.IndexOf('#') is var hash and >= 0 && hash < id.Length - 1)
         {
-            var hash = id.IndexOf('#');
             rel = id["code:".Length..hash];
             ast = id[(hash + 1)..];
         }
+        else if (id.StartsWith("code:", StringComparison.Ordinal)) rel = id["code:".Length..].TrimEnd('#');
         else rel = id.StartsWith("file:", StringComparison.Ordinal) ? id["file:".Length..] : id;
 
         var full = CodeFilePath(root, rel, a.Has("--main"));
@@ -1536,7 +1537,9 @@ internal static class Program
             foreach (var step in outcome.Steps)
                 foreach (var change in step.Changes)
                     PrintHunk(change, brief: step.Step is EditPlan.Move or EditPlan.Rewrite);
-        foreach (var note in outcome.Steps.SelectMany(s => s.Notes).Concat(notes)) Console.WriteLine($"note: {note}");
+        // Said once however many steps say it: a script setting eighteen ids is told one thing about ids, not eighteen.
+        foreach (var said in outcome.Steps.SelectMany(s => s.Notes).Concat(notes).GroupBy(n => n, StringComparer.Ordinal))
+            Console.WriteLine($"note: {said.Key}" + (said.Count() > 1 ? $" ({said.Count()} times)" : ""));
 
         // What the change does beyond its own lines, worked out on the planned text: the same answer for a dry run as for
         // the edit, and in time for --must-compile to refuse before anything is written.

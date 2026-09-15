@@ -66,8 +66,9 @@ public class CompileHostTests
         // Names an analyzer by path, as a project does once the analyzer project it references is built.
         Write(Linted("Linted.csproj"),
               "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>"
-            + "<ItemGroup><Analyzer Include=\"..\\rules\\Rules.dll\" /></ItemGroup></Project>");
+        + "<ItemGroup><Analyzer Include=\"..\\rules\\Rules.dll\" /><AdditionalFiles Include=\"View.xaml\" /></ItemGroup></Project>");
         Write(Linted("Linted.cs"), "public class Linted { }\n");
+        Write(Linted("View.xaml"), "<Grid>\n  TODO\n</Grid>\n");
         BuildRule("NXT001");
 
         foreach (var project in new[] { App("App.csproj"), Linted("Linted.csproj") })
@@ -98,7 +99,8 @@ public class CompileHostTests
 
     /// <summary>
     /// Builds the analyzer the Linted project names, as a build of an analyzer project would: the same assembly name every
-    /// time, and another build of it whenever what it reports changes. It reports each type, under <paramref name="id"/>.
+    /// time, and another build of it whenever what it reports changes. It reports each type under <paramref name="id"/>, and
+    /// each line of a view saying TODO under that id and a V.
     /// </summary>
     private static void BuildRule(string id)
     {
@@ -111,9 +113,12 @@ public class CompileHostTests
             public sealed class Rule : DiagnosticAnalyzer
             {
                 private static readonly DiagnosticDescriptor Descriptor =
-                    new DiagnosticDescriptor("{{id}}", "a type", "a type named {0}", "Test", DiagnosticSeverity.Warning, true);
+                    new DiagnosticDescriptor("{{id}}", Microsoft.CodeAnalysis.RulesHelper.Wording.Title(), "a type named {0}", "Test", DiagnosticSeverity.Warning, true);
 
-                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Descriptor);
+                private static readonly DiagnosticDescriptor ViewDescriptor =
+                    new DiagnosticDescriptor("{{id}}V", "a todo", "a TODO in a view", "Test", DiagnosticSeverity.Warning, true);
+
+                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Descriptor, ViewDescriptor);
 
                 public override void Initialize(AnalysisContext context)
                 {
@@ -121,6 +126,15 @@ public class CompileHostTests
                     context.EnableConcurrentExecution();
                     context.RegisterSymbolAction(
                         c => c.ReportDiagnostic(Diagnostic.Create(Descriptor, c.Symbol.Locations[0], c.Symbol.Name)), SymbolKind.NamedType);
+                    context.RegisterAdditionalFileAction(c =>
+                    {
+                        var text = c.AdditionalFile.GetText(c.CancellationToken);
+                        if (text == null) return;
+                        foreach (var line in text.Lines)
+                            if (line.ToString().Contains("TODO"))
+                                c.ReportDiagnostic(Diagnostic.Create(ViewDescriptor,
+                                    Location.Create(c.AdditionalFile.Path, line.Span, text.Lines.GetLinePositionSpan(line.Span))));
+                    });
                 }
             }
             """;
@@ -131,11 +145,20 @@ public class CompileHostTests
                                               && (name.StartsWith("System.", StringComparison.Ordinal) || name is "netstandard.dll" or "mscorlib.dll")
                                               && !name.Contains(".Native", StringComparison.Ordinal))
                                   .Append(typeof(DiagnosticAnalyzer).Assembly.Location)
-                                  .Select(p => MetadataReference.CreateFromFile(p));
+                                  .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
 
-        var compilation = CSharpCompilation.Create("Rules", [CSharpSyntaxTree.ParseText(source)], references,
-                                                   new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        // A dependency beside it named as the SDK's own analyzers' is — Microsoft.CodeAnalysis.*, and not the host's.
         Directory.CreateDirectory(Path.GetDirectoryName(RulesDll)!);
+        var helperDll = Path.Combine(Path.GetDirectoryName(RulesDll)!, "Microsoft.CodeAnalysis.RulesHelper.dll");
+        var helper    = CSharpCompilation.Create("Microsoft.CodeAnalysis.RulesHelper",
+                            [CSharpSyntaxTree.ParseText("namespace Microsoft.CodeAnalysis.RulesHelper { public static class Wording { public static string Title() => \"a type\"; } }")],
+                            references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var helped    = helper.Emit(helperDll);
+        Assert.IsTrue(helped.Success, string.Join("\n", helped.Diagnostics));
+
+        var compilation = CSharpCompilation.Create("Rules", [CSharpSyntaxTree.ParseText(source)],
+                                                   references.Append(MetadataReference.CreateFromFile(helperDll)),
+                                                   new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         var emitted = compilation.Emit(RulesDll);
         Assert.IsTrue(emitted.Success, string.Join("\n", emitted.Diagnostics));
     }
@@ -282,5 +305,53 @@ public class CompileHostTests
                           string.Join("\n", report.NotChecked));
         }
         finally { BuildRule("NXT001"); }
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_NameWhatAnsweredForEachProject()
+    {
+        var report = _host.Diagnostics([], [Linted("Linted.csproj")], new Regex(@"^NXT\d+$"), Budget);
+
+        StringAssert.Matches(report.Checked.Single(), new Regex(@"^Linted \(\d+ C# file\(s\), 1 additional\) by Rule$"));
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_ForAnIdNothingReports_AreNotChecked_RatherThanClean()
+    {
+        var report = _host.Diagnostics([], [Linted("Linted.csproj")], new Regex("^NXUI001$"), Budget);
+
+        Assert.AreEqual(0, report.Checked.Count);
+        Assert.IsTrue(report.NotChecked.Any(n => n.Contains("nothing it runs reports", StringComparison.Ordinal)), string.Join("\n", report.NotChecked));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
+    public void AnEditToAView_IsCheckedByTheAnalyzersItIsHandedTo_BeforeAndAfter()
+    {
+        var view = Linted("View.xaml");
+
+        var fixing = _host.Check([new SourceChange(view, "<Grid>\n  TODO\n  TODO\n</Grid>\n", "<Grid>\n  TODO\n</Grid>\n")], [], Budget);
+        Assert.IsNotNull(fixing.Views, string.Join("\n", fixing.NotChecked));
+        Assert.AreEqual(1, fixing.Views.Fixed.Count, "the TODO taken out");
+        Assert.AreEqual(0, fixing.Views.Introduced.Count);
+        Assert.AreEqual(1, fixing.Views.Standing, "and the one left is said to be there already");
+
+        var breaking = _host.Check([new SourceChange(view, "<Grid>\n</Grid>\n", "<Grid>\n  TODO\n</Grid>\n")], [], Budget);
+        var added    = breaking.Views!.Introduced.Single();
+        StringAssert.EndsWith(added.Id, "V");
+        Assert.AreEqual(2, added.Line, "where it is");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
+    public void ACleanCheck_SaysWhatItCovered()
+    {
+        var report = _host.Check([new SourceChange(Lib("Greeter.cs"), Greeter, Greeter.Replace("hi ", "hello "))], [], Budget);
+
+        Assert.AreEqual(0, report.Introduced.Count, string.Join("\n", report.NotChecked));
+        Assert.AreEqual(1, report.Files, "the file compared");
+        Assert.IsNotNull(report.Loaded, "and whether it had to load its project to say so");
     }
 }

@@ -228,7 +228,7 @@ internal sealed class CompiledProject
         if (_reported.TryGetValue(asked, out var kept)) return kept;
 
         var diagnostics = new List<Diagnostic>();
-        if (ids is null || ids.ToString().Contains("CS", StringComparison.OrdinalIgnoreCase))
+        if (ids is null || AsksCompiler(ids))
             diagnostics.AddRange(compilation.GetDiagnostics(cancellation));
 
         var analyzers = AnalyzersFor(loader, ids);
@@ -268,6 +268,70 @@ internal sealed class CompiledProject
         if (_reported.Count >= 16) _reported.Clear();
         return _reported[asked] = answer;
     }
+
+    /// <summary>
+    /// What the analyzers report in one of the files they are handed, as it would read with <paramref name="text"/> — null when
+    /// this project hands them no such file. Only the analyzers' actions on that one file run, so it costs the file, not the
+    /// project.
+    /// </summary>
+    public IReadOnlyList<CompileProblem>? ViewFindings(string path, string? text, AnalyzerLoader loader, CancellationToken cancellation)
+    {
+        var args       = _args!;
+        var additional = args.AdditionalFiles.Select(f => Path.GetFullPath(f.Path, Directory)).ToList();
+        if (!additional.Contains(path, StringComparer.OrdinalIgnoreCase)) return null;
+
+        var analyzers = AnalyzersFor(loader, ids: null);
+        if (analyzers.Length == 0 || text is null) return [];
+
+        AdditionalText subject = new MemoryText(path, text);
+        var configs = args.AnalyzerConfigPaths.Where(File.Exists)
+                          .Select(p => AnalyzerConfig.Parse(File.ReadAllText(p), p)).ToList();
+        var options = new AnalyzerOptions(
+            [.. additional.Select(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase) ? subject : new FileText(p))],
+            new ConfigOptionsProvider(AnalyzerConfigSet.Create(configs)));
+
+        var found = _compilation!
+            .WithAnalyzers(analyzers, new CompilationWithAnalyzersOptions(options, onAnalyzerException: null, concurrentAnalysis: true,
+                                                                          logAnalyzerExecutionTime: false))
+            .GetAnalysisResultAsync(subject, cancellation).GetAwaiter().GetResult().GetAllDiagnostics();
+
+        // Only what is about this file, once: the answer is the view's, and nothing else analysed alongside it belongs in it.
+        return [.. found.Where(d => !d.IsSuppressed && d.Severity >= DiagnosticSeverity.Warning
+                                    && string.Equals(d.Location.GetLineSpan().Path, path, StringComparison.OrdinalIgnoreCase))
+                        .Distinct()
+                        .Select(d => (Diagnostic: d, At: d.Location.GetLineSpan().StartLinePosition))
+                        .Select(x => new CompileProblem(path, x.At.Line + 1, x.At.Character + 1, x.Diagnostic.Id,
+                                                        x.Diagnostic.GetMessage(CultureInfo.InvariantCulture)))];
+    }
+
+    /// <summary>
+    /// What here could report <paramref name="ids"/> — the compiler, and the analyzers declaring one of them — named, so a clean
+    /// answer says what it is clean by. Empty when nothing could, and a zero from that is not an answer.
+    /// </summary>
+    public string ReportersOf(AnalyzerLoader loader, Regex? ids)
+    {
+        var analyzers = AnalyzersFor(loader, ids);
+        if (ids is null) return $"the compiler and {analyzers.Length} analyzer(s)";
+
+        var names = analyzers.Select(a => a.GetType().Name).Distinct().ToList();
+        var by    = new List<string>();
+        if (AsksCompiler(ids)) by.Add("the compiler");
+        if (names.Count > 0) by.Add(names.Count <= 3 ? string.Join(", ", names) : $"{names.Count} analyzers");
+        return string.Join(" and ", by);
+    }
+
+    /// <summary>How much of it an answer covered: its C# files, and the other files its analyzers are handed.</summary>
+    public string Coverage
+    {
+        get
+        {
+            var additional = _args?.AdditionalFiles.Length ?? 0;
+            return $"{_trees.Count} C# file(s)" + (additional > 0 ? $", {additional} additional" : "");
+        }
+    }
+
+    /// <summary>Compiler ids are CS-numbered; a pattern naming none asks only the analyzers.</summary>
+    private static bool AsksCompiler(Regex ids) => ids.ToString().Contains("CS", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The project's analyzers that report an id <paramref name="ids"/> matches — all of them when it is null.</summary>
     private ImmutableArray<DiagnosticAnalyzer> AnalyzersFor(AnalyzerLoader loader, Regex? ids)

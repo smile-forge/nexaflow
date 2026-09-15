@@ -16,8 +16,12 @@ public sealed record CompileProblem(string FullPath, int Line, int Column, strin
 /// <summary>One thing the compiler or an analyzer reported, where it is — a project-wide one at its project file.</summary>
 public sealed record CompileDiagnostic(string FullPath, int Line, int Column, string Id, string Severity, string Message);
 
-/// <summary>What was reported, and what could not be asked and why.</summary>
-public sealed record DiagnosticReport(IReadOnlyList<CompileDiagnostic> Found, IReadOnlyList<string> NotChecked, TimeSpan Elapsed);
+/// <summary>
+/// What a project's compiler and analyzers report. <c>Checked</c> names each project answered for and what answered — so a
+/// clean report says what it is clean by — and <c>NotChecked</c> each that could not be, and why.
+/// </summary>
+public sealed record DiagnosticReport(IReadOnlyList<CompileDiagnostic> Found, IReadOnlyList<string> Checked,
+                                      IReadOnlyList<string> NotChecked, TimeSpan Elapsed);
 
 /// <summary>What an edit did to the build.</summary>
 /// <param name="Checked">The projects compiled for the answer.</param>
@@ -25,8 +29,24 @@ public sealed record DiagnosticReport(IReadOnlyList<CompileDiagnostic> Found, IR
 /// <param name="Fixed">Errors before the edit that are gone after it.</param>
 /// <param name="NotChecked">What could not be checked, and why — so a clean answer is never mistaken for a
 /// complete one.</param>
+/// <param name="Files">The files whose errors were compared: what a clean answer covered.</param>
+/// <param name="Standing">Errors in those files both before and after — there already, so a clean answer does not read as
+/// clean code.</param>
+/// <param name="Loaded">The projects this check had to load rather than found warm — what a slow one was slow on.</param>
+/// <param name="Views">What the analyzers said of the views the edit changed, when it changed any.</param>
 public sealed record CompileReport(IReadOnlyList<string> Checked, IReadOnlyList<CompileProblem> Introduced,
-                                   IReadOnlyList<CompileProblem> Fixed, IReadOnlyList<string> NotChecked, TimeSpan Elapsed);
+                                   IReadOnlyList<CompileProblem> Fixed, IReadOnlyList<string> NotChecked, TimeSpan Elapsed,
+                                   int Files = 0, int Standing = 0, IReadOnlyList<string>? Loaded = null,
+                                   ViewReport? Views = null);
+
+/// <summary>
+/// A view's check: its markup is compiled only by a build, but the analyzers handed it can be asked about it before and after
+/// an edit, the way C# is compiled before and after.
+/// </summary>
+/// <param name="Checked">The views asked about, by full path.</param>
+/// <param name="Standing">Findings there both before and after.</param>
+public sealed record ViewReport(IReadOnlyList<string> Checked, IReadOnlyList<CompileProblem> Introduced,
+                                IReadOnlyList<CompileProblem> Fixed, int Standing);
 
 /// <summary>Where a symbol is declared and used, by file and character span.</summary>
 public sealed record SymbolLocation(string FullPath, int Start, int Length);
@@ -56,6 +76,9 @@ public sealed class CompileHost
     private readonly object _gate = new();
     private readonly string? _boundary;
 
+    /// <summary>The projects the check in progress had to load rather than found warm.</summary>
+    private readonly List<string> _loadedNow = [];
+
     /// <param name="boundary">The directory a search for a file's project stops at — the repository, so a temp file is
     /// never claimed by a project somewhere above it.</param>
     public CompileHost(string? boundary = null) =>
@@ -80,9 +103,35 @@ public sealed class CompileHost
             var fixedOnes  = new List<CompileProblem>();
             var notChecked = new List<string>();
 
-            if (changes.Any(c => c.FullPath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)))
-                notChecked.Add("XAML: its generated code is produced by the build, so a view is checked only through the "
-                             + "C# that names it");
+            var files    = 0;
+            var standing = 0;
+            _loadedNow.Clear();
+
+            // A view is not compiled here - its generated code comes from the build - but the analyzers it is handed can be asked,
+            // before and after, as C# is compiled before and after.
+            var viewsChecked    = new List<string>();
+            var viewsIntroduced = new List<CompileProblem>();
+            var viewsFixed      = new List<CompileProblem>();
+            var viewsStanding   = 0;
+            foreach (var change in changes.Where(c => c.FullPath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (ProjectOf(change.FullPath) is not { } owner)
+                {
+                    notChecked.Add($"{Path.GetFileName(change.FullPath)}: no project compiles it");
+                    continue;
+                }
+                if (!Checkable(owner, notChecked) || Get(owner, clock, budget, notChecked, cancellation) is not { } project) continue;
+
+                if (project.ViewFindings(change.FullPath, change.Before, _loader, cancellation) is not { } was)
+                {
+                    notChecked.Add($"{Path.GetFileName(change.FullPath)}: {project.Name} hands it to no analyzer");
+                    continue;
+                }
+                var now = project.ViewFindings(change.FullPath, change.After, _loader, cancellation) ?? [];
+                viewsStanding += Compare(was, now, viewsIntroduced, viewsFixed);
+                notChecked.AddRange(project.LoadFailures.Select(failure => $"{project.Name}: {failure}"));
+                viewsChecked.Add(change.FullPath);
+            }
 
             var byProject = new Dictionary<string, List<SourceChange>>(StringComparer.OrdinalIgnoreCase);
             foreach (var change in changes.Where(c => c.FullPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
@@ -111,8 +160,9 @@ public sealed class CompileHost
                                   .Concat(consumerFiles.Where(f => string.Equals(ProjectOf(f), project.ProjectPath, StringComparison.OrdinalIgnoreCase)))
                                   .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                Compare(CompiledProject.ErrorsIn(before, targets, cancellation),
-                        CompiledProject.ErrorsIn(after, targets, cancellation), introduced, fixedOnes);
+                standing += Compare(CompiledProject.ErrorsIn(before, targets, cancellation),
+                                    CompiledProject.ErrorsIn(after, targets, cancellation), introduced, fixedOnes);
+                files    += targets.Count;
                 edited.Add((project, before, after));
                 checkedOn.Add(project.Name);
             }
@@ -129,13 +179,15 @@ public sealed class CompileHost
 
                 var behind  = Behind(consumer, clock, budget, notChecked, cancellation, built, out _);
                 var targets = group.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                Compare(CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, before)), targets, cancellation),
-                        CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, after)), targets, cancellation),
-                        introduced, fixedOnes);
+                standing += Compare(CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, before)), targets, cancellation),
+                                    CompiledProject.ErrorsIn(consumer.With(NoTexts, cancellation, Over(behind, after)), targets, cancellation),
+                                    introduced, fixedOnes);
+                files    += targets.Count;
                 checkedOn.Add(consumer.Name);
             }
 
-            return new CompileReport(checkedOn, introduced, fixedOnes, Summarised(notChecked), clock.Elapsed);
+            return new CompileReport(checkedOn, introduced, fixedOnes, Summarised(notChecked), clock.Elapsed, files, standing, [.. _loadedNow],
+                                     viewsChecked.Count == 0 ? null : new ViewReport(viewsChecked, viewsIntroduced, viewsFixed, viewsStanding));
         }
     }
 
@@ -207,6 +259,7 @@ public sealed class CompileHost
         {
             var clock      = Stopwatch.StartNew();
             var notChecked = new List<string>();
+            var checkedBy  = new List<string>();
             var found      = new List<CompileDiagnostic>();
 
             // Each project, with the files of it that were asked about - null for all of it.
@@ -237,9 +290,15 @@ public sealed class CompileHost
                 var reported = project.Diagnostics(current.Compilation, current.Key, _loader, ids, cancellation);
                 found.AddRange(only is null ? reported : reported.Where(d => only.Contains(d.FullPath)));
                 notChecked.AddRange(project.LoadFailures.Select(failure => $"{project.Name}: {failure}"));
+
+                // A clean answer is only as good as what could have reported: name that, and when nothing could, it is no answer.
+                if (project.ReportersOf(_loader, ids) is not { Length: > 0 } reporters)
+                    notChecked.Add($"{project.Name}: nothing it runs reports /{ids}/ - neither the compiler nor any analyzer it loads declares that id");
+                else
+                    checkedBy.Add($"{project.Name} ({(only is null ? project.Coverage : $"{only.Count} of its files")}) by {reporters}");
             }
 
-            return new DiagnosticReport(found, Summarised(notChecked), clock.Elapsed);
+            return new DiagnosticReport(found, checkedBy, Summarised(notChecked), clock.Elapsed);
         }
     }
 
@@ -302,6 +361,7 @@ public sealed class CompileHost
             notChecked.Add($"{name}: {error}");
             return null;
         }
+        _loadedNow.Add(name);
         return _projects[csproj] = project;
     }
 
@@ -486,13 +546,16 @@ public sealed class CompileHost
         }
     }
 
-    /// <summary>After minus before and before minus after, matched by file, id and message — not by line, which every
-    /// edit above an error moves.</summary>
-    private static void Compare(IReadOnlyList<CompileProblem> before, IReadOnlyList<CompileProblem> after,
-                                List<CompileProblem> introduced, List<CompileProblem> fixedOnes)
+    /// <summary>
+    /// Pairs the problems before an edit with those after it, by file, id and message, into what the edit introduced and what
+    /// it fixed. Returns how many were there both times.
+    /// </summary>
+    private static int Compare(IReadOnlyList<CompileProblem> before, IReadOnlyList<CompileProblem> after,
+                               List<CompileProblem> introduced, List<CompileProblem> fixedOnes)
     {
         static (string, string, string) Key(CompileProblem p) => (p.FullPath.ToUpperInvariant(), p.Id, p.Message);
 
+        var was       = introduced.Count;
         var unmatched = before.GroupBy(Key).ToDictionary(g => g.Key, g => g.Count());
         foreach (var problem in after)
         {
@@ -506,6 +569,8 @@ public sealed class CompileHost
             if (remaining.TryGetValue(Key(problem), out var n) && n > 0) remaining[Key(problem)] = n - 1;
             else fixedOnes.Add(problem);
         }
+
+        return after.Count - (introduced.Count - was);
     }
 
     private static ISymbol? DeclaredAt(SemanticModel model, SyntaxTree tree, int position, CancellationToken cancellation)

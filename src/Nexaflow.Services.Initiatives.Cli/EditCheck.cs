@@ -52,7 +52,7 @@ internal static class EditCheck
         var report = HostFor(codeRoot).Diagnostics([.. files.Select(f => Full(codeRoot, f))], paths, ids, LoadBudget,
                                                    RequestScope.Cancellation);
         return ([.. report.Found.Select(d => new GraphAsk.Finding(Relative(codeRoot, d.FullPath), d.Line, d.Id, d.Severity, d.Message))],
-                [.. notChecked, .. report.NotChecked]);
+                report.Checked, [.. notChecked, .. report.NotChecked]);
     };
 
     /// <summary>The project file a name or path means, or why there is not exactly one.</summary>
@@ -183,19 +183,36 @@ internal static class EditCheck
 
         if (findings.Compile is not { } report) return;
 
-        var took = $"{report.Elapsed.TotalSeconds:F1}s";
-        var on   = report.Checked.Count == 0 ? "" : $" — {string.Join(", ", report.Checked)}";
-        if (report.Checked.Count > 0 || report.NotChecked.Count == 0)
-            Console.WriteLine(report.Introduced.Count == 0
-                ? $"compile: no new errors{on} ({took})"
-                : $"compile: {report.Introduced.Count} new error(s){on} ({took})");
+        // One verdict per check whatever it found, carrying what it covered — how many files, which projects, and whether they
+        // were already loaded — so a clean one can be taken at its word without a build. What is wrong is listed beneath it.
+        var took = report.Elapsed.TotalSeconds < 1 ? $"{report.Elapsed.TotalSeconds:F2}s" : $"{report.Elapsed.TotalSeconds:F1}s";
+        var how_ = report.Loaded is { Count: > 0 } loaded ? $"{took}, loaded {string.Join(", ", loaded)}" : $"{took}, all warm";
 
-        foreach (var problem in report.Introduced.Take(ShownErrors))
-            Console.WriteLine($"  {Relative(codeRoot, problem.FullPath)}:{problem.Line}:{problem.Column}  {problem.Id}  {problem.Message}");
-        if (report.Introduced.Count > ShownErrors) Console.WriteLine($"  … and {report.Introduced.Count - ShownErrors} more");
+        if (report.Checked.Count > 0)
+        {
+            Console.WriteLine((report.Introduced.Count == 0 ? "compile: no new errors" : $"compile: {report.Introduced.Count} new error(s)")
+                            + $" in {report.Files} file(s) — {string.Join(", ", report.Checked)} ({how_})"
+                            + (report.Standing > 0 ? $"; {report.Standing} error(s) were there already" : ""));
+            foreach (var problem in report.Introduced.Take(ShownErrors))
+                Console.WriteLine($"  {Relative(codeRoot, problem.FullPath)}:{problem.Line}:{problem.Column}  {problem.Id}  {problem.Message}");
+            if (report.Introduced.Count > ShownErrors) Console.WriteLine($"  … and {report.Introduced.Count - ShownErrors} more");
+            if (report.Fixed.Count > 0)
+                Console.WriteLine($"compile: fixed {report.Fixed.Count} error(s) — {string.Join(", ", report.Fixed.Select(p => p.Id).Distinct())}");
+        }
 
-        if (report.Fixed.Count > 0)
-            Console.WriteLine($"compile: fixed {report.Fixed.Count} error(s) — {string.Join(", ", report.Fixed.Select(p => p.Id).Distinct())}");
+        if (report.Views is { } views)
+        {
+            Console.WriteLine((views.Introduced.Count == 0 ? "views: no new analyzer findings" : $"views: {views.Introduced.Count} new analyzer finding(s)")
+                            + $" in {string.Join(", ", views.Checked.Select(v => Relative(codeRoot, v)))} ({how_})"
+                            + (views.Standing > 0 ? $"; {views.Standing} were there already" : "")
+                            + " — the markup itself is compiled only by a build");
+            foreach (var problem in views.Introduced.Take(ShownErrors))
+                Console.WriteLine($"  {Relative(codeRoot, problem.FullPath)}:{problem.Line}:{problem.Column}  {problem.Id}  {problem.Message}"
+                                + $"   --at {problem.Line}:{problem.Column}");
+            if (views.Fixed.Count > 0)
+                Console.WriteLine($"views: fixed {views.Fixed.Count} — {string.Join(", ", views.Fixed.Select(p => p.Id).Distinct())}");
+        }
+
         foreach (var reason in report.NotChecked) Console.WriteLine($"compile: not checked — {reason}");
     }
 
