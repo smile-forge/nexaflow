@@ -2,18 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix;
 
 /// <summary>
-/// The part of reading a 2D-code block that is the same whichever symbology it is for: the flat
-/// <c>key: value</c> body, and the drawing settings every one of them takes.
+/// The part of understanding a 2D-code block that is the same whichever symbology it is for: the fields
+/// <see cref="MatrixParser"/> found in it, and the drawing settings every one of them takes.
 ///
 /// <para>
-/// The grammar is deliberately tiny — one field per line, the key before the first colon, everything
-/// after it the value — which is what lets a URL sit on the right of a <c>url:</c> without quoting.
-/// A symbology's own parser reads the fields this hands back, checks the keys it knows, and builds its
-/// block; none of them re-implements the line reader or the colour syntax.
+/// A symbology's own reader takes the fields this hands back, checks the keys it knows, and builds its
+/// block; none of them walks the tree or re-implements the colour syntax.
 /// </para>
 /// </summary>
 public static class MatrixBlockReader
@@ -25,27 +25,24 @@ public static class MatrixBlockReader
     public const string SettingNames = "cellSize, margin, dark, light";
 
     /// <summary>
-    /// Reads the body into its fields. False, with a message written for whoever is looking at the block,
-    /// when a line is not a <c>key: value</c> pair.
+    /// The fields the parser found in a block. False, with the reason the parser gave, when a line of it is not a
+    /// <c>key: value</c> pair. A key written twice keeps the last value it was given.
     /// </summary>
-    public static bool TryReadFields(string? source, out Dictionary<string, string> fields, out string? error)
+    public static bool TryReadFields(ContentNode tree, out Dictionary<string, string> fields, out string? error)
     {
         fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         error  = null;
 
-        foreach (string raw in (source ?? string.Empty).Split('\n'))
+        foreach (var piece in tree.SelfAndDescendants())
         {
-            string line = raw.Trim();
-            if (line.Length == 0 || line[0] == '#') continue;   // blank, or a comment
-
-            int colon = line.IndexOf(':');
-            if (colon <= 0)
+            if (piece.Trouble is { } trouble)
             {
-                error = $"'{line}' is not a `key: value` line.";
+                error = trouble;
                 return false;
             }
 
-            fields[line[..colon].Trim()] = line[(colon + 1)..].Trim();
+            if (piece.Kind == MatrixKinds.Field)
+                fields[piece.Part(Roles.Name)!.Text] = piece.Part(MatrixRoles.Value)?.Text ?? string.Empty;
         }
 
         return true;

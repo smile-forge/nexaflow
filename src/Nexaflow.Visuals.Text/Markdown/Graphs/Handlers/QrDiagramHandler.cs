@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using System.Windows;
 
@@ -15,8 +16,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 /// </para>
 ///
 /// <para>
-/// The handler itself is a seam and nothing more: <see cref="QrBlockParser"/> reads the block,
-/// <see cref="QrEncoder"/> encodes the payload and <see cref="WpfQrRenderer"/> draws it.
+/// The handler itself is a seam and nothing more: <see cref="MatrixParser"/> reads the block into a
+/// tree, and <see cref="QrBuilder"/> lays it out.
 /// </para>
 /// </summary>
 public sealed class QrDiagramHandler : IDiagramHandler
@@ -27,8 +28,5 @@ public sealed class QrDiagramHandler : IDiagramHandler
     public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
-    public FrameworkElement Render(string source, DiagramRenderOptions options)
-        => QrBlockParser.TryParse(source, out var block, out string? error)
-            ? WpfQrRenderer.Render(block!, options.Palette)
-            : DiagramRenderer.ErrorElement(error!, source);
+    public FrameworkElement Render(string source, DiagramRenderOptions options) => QrBuilder.Element(source, options);
 }

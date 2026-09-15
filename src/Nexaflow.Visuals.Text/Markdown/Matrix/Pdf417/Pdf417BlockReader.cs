@@ -2,28 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
 
 /// <summary>
-/// Reads the body of a <c>pdf417</c> fenced block into a <see cref="Pdf417Block"/>.
+/// Reads what <see cref="MatrixParser"/> made of a <c>pdf417</c> fenced block into a <see cref="Pdf417Block"/>.
 ///
 /// <para>
-/// The line reader and the drawing settings are <see cref="MatrixBlockReader"/>'s; the <c>type:</c>
+/// The fields and the drawing settings are <see cref="MatrixBlockReader"/>'s; the <c>type:</c>
 /// vocabulary is the <c>qr</c> one, because a URL or a vCard reads the same out of any symbol. What is
 /// PDF417's own is its shape: <c>columns:</c>, <c>ec:</c>, <c>rowHeight:</c> and <c>truncated:</c>.
 /// </para>
 /// </summary>
-public static class Pdf417BlockParser
+public static class Pdf417BlockReader
 {
     private static readonly string[] OwnKeys = ["type", "columns", "ec", "rowheight", "truncated"];
 
-    public static bool TryParse(string source, out Pdf417Block? block, out string? error)
+    public static bool TryRead(ContentNode tree, out Pdf417Block? block, out string? error)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(source, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
 
         string types = string.Join(", ", QrPayload.FieldsByType.Keys);
 

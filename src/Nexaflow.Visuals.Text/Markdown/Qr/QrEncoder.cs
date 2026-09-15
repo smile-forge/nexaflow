@@ -12,8 +12,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Qr;
 /// <para>
 /// Written here rather than taken from a package because the whole job is arithmetic over a byte
 /// array: no IO, no platform, nothing to keep current. It is deliberately free of WPF so a matrix can
-/// be produced and asserted on without a UI thread ΓÇö <c>WpfQrRenderer</c> is the only thing that
-/// knows how to paint one.
+/// be produced and asserted on without a UI thread ΓÇö <see cref="QrBuilder"/> is the only thing that
+/// knows how to lay one out.
 /// </para>
 ///
 /// <para>

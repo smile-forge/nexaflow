@@ -1,28 +1,30 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
 
 /// <summary>
-/// Reads the body of an <c>aztec</c> fenced block into an <see cref="AztecBlock"/>.
+/// Reads what <see cref="MatrixParser"/> made of an <c>aztec</c> fenced block into an <see cref="AztecBlock"/>.
 ///
 /// <para>
-/// The line reader and the drawing settings are <see cref="MatrixBlockReader"/>'s. What is Aztec's own
+/// The fields and the drawing settings are <see cref="MatrixBlockReader"/>'s. What is Aztec's own
 /// is the shape of the symbol: <c>format:</c> to choose compact or full range, <c>layers:</c> to fix
 /// the size outright, <c>ecc:</c> for how much of it is error correction, and <c>eci:</c> to declare
 /// the character set.
 /// </para>
 /// </summary>
-public static class AztecBlockParser
+public static class AztecBlockReader
 {
     private static readonly string[] OwnKeys = ["type", "format", "layers", "ecc", "eci"];
 
-    public static bool TryParse(string source, out AztecBlock? block, out string? error)
+    public static bool TryRead(ContentNode tree, out AztecBlock? block, out string? error)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(source, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
 
         string types = string.Join(", ", AztecPayload.FieldsByType.Keys);
 

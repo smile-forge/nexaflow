@@ -5,8 +5,8 @@ geometry, and a layout tree that answers what a click meant. Four stages, and on
 of them know what language they are looking at.
 
 Everything markdown renders is the same four stages. Maths got there first
-([docs/latex-parse-tree.md](latex-parse-tree.md)); music is the second; barcodes, diagrams and
-markdown's own text blocks follow.
+([docs/latex-parse-tree.md](latex-parse-tree.md)); music is the second; barcodes and the 2D codes run on
+it; diagrams and markdown's own text blocks follow.
 
 ```
 source
@@ -28,6 +28,7 @@ LAYOUT      ILayoutNode + marks                     painting, hit-testing, the c
 Ast/         ContentNode, ContentPart, ContentReading, ISourcePart, Roles, Kinds, AstWrite
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
+Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
 ```
 
 The layout tree is still in `src/Nexaflow.Visuals.Text/Editing/` because `ILayoutNode.Bounds` is a
@@ -122,6 +123,19 @@ middle of itself and would still draw as two.
 length — and that is what makes the note gestures cheap. Sharpening replaces the accidental; moving an
 octave replaces the marks and the letter's case; lengthening replaces the length. Each is an edit to one
 leaf and nothing else, so a tune somebody lined up by hand still reads that way afterwards.
+
+## 2D codes
+
+A parser and four builders, with nothing between them. `MatrixParser` reads a `qr`, `aztec`, `pdf417` or
+`datamatrix` body into lines of fields — one parser, because the four share one grammar — and the tree goes
+straight to that code's builder. The pipeline is where a tree is changed to say what the text means, and a
+symbol has nothing in it anybody edits, so there is nothing for a stage to do.
+
+Each builder reads the fields, encodes, and lays the symbol out as the parts it is made of: a QR code's
+finders and timing lines, an Aztec code's bullseye, mode message and reference grid, PDF417's start, row
+indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
+the module geometry, the quiet zone, and the struck-through stand-in drawn when a block will not read or
+encode — is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
 
 ## The oracle
 

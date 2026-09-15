@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
 
@@ -10,7 +11,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 [TestClass]
 [CoversNode("datamatrix-block-syntax")]
 [CoversNode("datamatrix-payloads")]
-public class DataMatrixBlockParserTests
+public class DataMatrixBlockReaderTests
 {
     [TestMethod]
     public void SharedTypes_ProduceTheSamePayloadAsAQrBlock()
@@ -35,7 +36,7 @@ public class DataMatrixBlockParserTests
     [TestMethod]
     public void Ppn_RefusesAPznThatFailsItsCheck()
     {
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: ppn\npzn: 01234563", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: ppn\npzn: 01234563"), out _, out var error));
         StringAssert.Contains(error, "check digit");
     }
 
@@ -55,7 +56,7 @@ public class DataMatrixBlockParserTests
         Assert.AreEqual("0104150012345623", Parse("type: ntin\ngtin: 04150012345623").Payload);
         Assert.AreEqual("0104150012345623", Parse("type: ntin\ngtin: 4150012345623").Payload, "thirteen digits are padded");
 
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: ntin\ngtin: 04150012345620", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: ntin\ngtin: 04150012345620"), out _, out var error));
         StringAssert.Contains(error, "check digit");
     }
 
@@ -73,7 +74,7 @@ public class DataMatrixBlockParserTests
     [TestMethod]
     public void Gs1_RefusesAFixedLengthElementOfTheWrongLength()
     {
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: gs1\ndata: (01)123", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: gs1\ndata: (01)123"), out _, out var error));
         StringAssert.Contains(error, "14");
     }
 
@@ -93,10 +94,10 @@ public class DataMatrixBlockParserTests
     [TestMethod]
     public void Mailmark_RefusesTheWrongLengthOrCharacters()
     {
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: mailmark\nformat: 9\nmessage: SHORT", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: mailmark\nformat: 9\nmessage: SHORT"), out _, out var error));
         StringAssert.Contains(error, "90");
 
-        Assert.IsFalse(DataMatrixBlockParser.TryParse($"type: mailmark\nformat: 7\nmessage: {new string('a', 51)}", out _, out error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse($"type: mailmark\nformat: 7\nmessage: {new string('a', 51)}"), out _, out error));
         StringAssert.Contains(error, "upper-case");
     }
 
@@ -107,7 +108,7 @@ public class DataMatrixBlockParserTests
         Assert.AreEqual((26, 26), Parse("type: text\ntext: x\nsize: 26x26").Options.Size);
         Assert.AreEqual((16, 48), Parse("type: text\ntext: x\nsize: 16×48").Options.Size);
 
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: text\ntext: x\nsize: 15x15", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\nsize: 15x15"), out _, out var error));
         StringAssert.Contains(error, "not a Data Matrix size");
     }
 
@@ -119,21 +120,21 @@ public class DataMatrixBlockParserTests
         Assert.AreEqual(1, block.Settings.Margin);
         Assert.AreEqual(0x12, block.Settings.Dark!.Value.R);
 
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: text\ntext: x\ncellsizes: 6", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncellsizes: 6"), out _, out var error));
         StringAssert.Contains(error, "cellsizes");
     }
 
     [TestMethod]
     public void AnUnknownType_ListsTheOnesThatExist()
     {
-        Assert.IsFalse(DataMatrixBlockParser.TryParse("type: aztec\ntext: x", out _, out var error));
+        Assert.IsFalse(DataMatrixBlockReader.TryRead(MatrixParser.Parse("type: aztec\ntext: x"), out _, out var error));
         StringAssert.Contains(error, "ppn");
         StringAssert.Contains(error, "wifi");
     }
 
     private static DataMatrixBlock Parse(string source)
     {
-        Assert.IsTrue(DataMatrixBlockParser.TryParse(source, out var block, out var error), error);
+        Assert.IsTrue(DataMatrixBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var error), error);
         return block!;
     }
 }
