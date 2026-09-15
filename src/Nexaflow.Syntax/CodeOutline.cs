@@ -1,8 +1,8 @@
 namespace Nexaflow.Syntax;
 
-/// <summary>What an outline element is. Type-like kinds (Class…Enum) describe a box in a class diagram;
-/// member kinds (Method…Variable) describe a row inside one.</summary>
-public enum OutlineKind { Class, Struct, Interface, Enum, Method, Constructor, Property, Field, Variable }
+/// <summary>What an outline element is. Type-like kinds (Class…Enum, and Delegate) describe a box in a class diagram;
+/// member kinds (Method…Variable) describe a row inside one. Delegate comes last so the others keep their values.</summary>
+public enum OutlineKind { Class, Struct, Interface, Enum, Method, Constructor, Property, Field, Variable, Delegate }
 
 /// <summary>A member's access level, mapped to the UML class-diagram visibility markers
 /// (<c>+</c> public, <c>-</c> private, <c>#</c> protected, <c>~</c> internal/package).</summary>

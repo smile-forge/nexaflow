@@ -109,9 +109,9 @@ public class DaemonServingTests
     {
         var (serving, pipe, host) = Serve();
         var tree = Path.Combine(_root, "a-tree-somebody-is-busy-in");
-        var gate = DaemonServer.Locks.GetOrAdd(tree, _ => new SemaphoreSlim(1, 1));
+        var turn = DaemonServer.Turns.GetOrAdd(tree, _ => new DaemonServer.Turn());
 
-        gate.Wait();                               // another command holds the tree
+        turn.Semaphore.Wait();                               // another command holds the tree
         try
         {
             var ticket = DaemonRequest.NewTicket();
@@ -128,9 +128,79 @@ public class DaemonServingTests
         }
         finally
         {
-            gate.Release();
+            turn.Semaphore.Release();
             Stop(pipe);
             serving.Wait(TimeSpan.FromSeconds(45));
+            host.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public void AStuckCommand_IsLeftBehind_AndWhatWaitsOnItsTreeRuns()
+    {
+        var (serving, pipe, host) = Serve();
+        var tree  = Path.Combine(_root, "a-tree-with-a-stuck-command");
+        var stuck = DaemonServer.Turns.GetOrAdd(tree, _ => new DaemonServer.Turn());
+
+        stuck.Semaphore.Wait();                        // a command that will never let go
+        try
+        {
+            var before = host.Workspace(tree);
+            var ticket = DaemonRequest.NewTicket();
+            using var client = Connect(pipe);
+            DaemonProtocol.Write(client, DaemonRequest.Command(ticket, ["validate", _root], tree, _root, null));
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonAck>(client), "taken, and said so");
+            Until(() => DaemonServer.Ledger.StatusOf(ticket).State == WorkState.Queued, "the command to queue behind it");
+
+            DaemonServer.Abandon(tree, host);
+
+            var answer = Task.Run(() => DaemonProtocol.Read<DaemonResponse>(client));
+            Assert.IsTrue(answer.Wait(TimeSpan.FromSeconds(30)), "the waiting command takes the tree's new turn and answers");
+            Assert.IsNotNull(answer.Result);
+            Assert.AreNotSame(before, host.Workspace(tree), "the graph is loaded afresh rather than shared with the stuck command");
+        }
+        finally
+        {
+            stuck.Semaphore.Release();
+            Stop(pipe);
+            serving.Wait(TimeSpan.FromSeconds(45));
+            host.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public void Stop_GivesUpThePipeAtOnce_AndStillAnswersWhatItTook()
+    {
+        var pipe    = "nfi-test-" + Guid.NewGuid().ToString("N")[..12];
+        var host    = new InitiativesHost(_root);
+        var givenUp = new ManualResetEventSlim();
+        var serving = Task.Run(() => DaemonServer.Serve(pipe, host, givenUp.Set));
+
+        var tree = Path.Combine(_root, "a-tree-somebody-is-busy-in");
+        var turn = DaemonServer.Turns.GetOrAdd(tree, _ => new DaemonServer.Turn());
+        var held = true;
+
+        turn.Semaphore.Wait();                         // the command ahead, still running when the stop comes
+        try
+        {
+            var ticket = DaemonRequest.NewTicket();
+            using var client = Connect(pipe);
+            DaemonProtocol.Write(client, DaemonRequest.Command(ticket, ["validate", _root], tree, _root, null));
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonAck>(client), "taken, and said so");
+            Until(() => DaemonServer.Ledger.StatusOf(ticket).State == WorkState.Queued, "the command to queue");
+
+            Stop(pipe);
+            Assert.IsTrue(givenUp.Wait(TimeSpan.FromSeconds(15)), "the pipe is given up while work is still in hand");
+            Assert.IsFalse(serving.IsCompleted, "and the process stays to finish that work");
+
+            turn.Semaphore.Release();
+            held = false;
+            Assert.IsNotNull(DaemonProtocol.Read<DaemonResponse>(client), "what was taken before the stop is answered");
+            Assert.IsTrue(serving.Wait(TimeSpan.FromSeconds(45)), "and then the process goes");
+        }
+        finally
+        {
+            if (held) turn.Semaphore.Release();
             host.Dispose();
         }
     }

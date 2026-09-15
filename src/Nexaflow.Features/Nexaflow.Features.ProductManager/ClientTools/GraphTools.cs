@@ -537,10 +537,7 @@ public static class GraphTools
 
         var folded = workspace.Mutate(snapshot =>
         {
-            var any = false;
-            foreach (var file in files)
-                any |= GraphBuilder.RefreshFile(snapshot.Graph, snapshot.Cache, root, file, null);
-            return any;
+            return GraphBuilder.RefreshFiles(snapshot.Graph, snapshot.Cache, root, [.. files], null).Count > 0;
         });
 
         return folded ? "The graph has been brought up to date with the change." : "";

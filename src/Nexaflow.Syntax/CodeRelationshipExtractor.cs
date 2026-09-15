@@ -89,7 +89,7 @@ public sealed class CodeRelationshipExtractor
     }
 
     private static readonly HashSet<string> CsTypeDecls =
-        ["class_declaration", "struct_declaration", "interface_declaration", "enum_declaration", "record_declaration", "record_struct_declaration"];
+        ["class_declaration", "struct_declaration", "interface_declaration", "enum_declaration", "record_declaration", "record_struct_declaration", "delegate_declaration"];
 
     private static void ScanTypes(Node container, string parentPath, Acc acc)
     {

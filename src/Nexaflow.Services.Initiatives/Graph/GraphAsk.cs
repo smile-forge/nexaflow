@@ -59,9 +59,10 @@ public static class GraphAsk
     /// <summary>
     /// What the compiler and each project's analyzers report for <paramref name="files"/>, or for the whole of each of
     /// <paramref name="projects"/> (by name or repo-relative <c>.csproj</c> path), keeping the ids <paramref name="ids"/>
-    /// matches — every warning and error when it is null. <c>NotChecked</c> says what could not be asked, and why.
+    /// matches — every warning and error when it is null. <c>Checked</c> names each project answered for and what answered, so
+    /// a clean result says what it is clean by; <c>NotChecked</c> says what could not be asked, and why.
     /// </summary>
-    public delegate (IReadOnlyList<Finding> Found, IReadOnlyList<string> NotChecked) Diagnose(
+    public delegate (IReadOnlyList<Finding> Found, IReadOnlyList<string> Checked, IReadOnlyList<string> NotChecked) Diagnose(
         IReadOnlyCollection<string> files, IReadOnlyCollection<string> projects, Regex? ids);
 
     /// <summary>Printed with every refusal, because the whole vocabulary is shorter than an explanation of
@@ -103,6 +104,10 @@ public static class GraphAsk
 
         /// <summary>The stage that left nothing, so a zero names where the question went empty.</summary>
         public string? EmptiedBy;
+
+        /// <summary>What a check covered, said on the last line whatever it found: a zero that names what it looked at can be
+        /// trusted, and one that looked at nothing says so.</summary>
+        public string? Scope;
     }
 
     /// <summary>One word of a stage, and whether it was quoted — a quoted word is never a flag.</summary>
@@ -127,16 +132,17 @@ public static class GraphAsk
             .ToList();
         if (questions.Count == 0) return new Answer($"ask: no question.\n{Vocabulary}", false);
 
-        // Shared out, so several questions in one call still fit in what one call can show.
-        var budget = Math.Max(4_000, PageChars / questions.Count);
-
-        var sb = new StringBuilder();
-        var ok = true;
-        foreach (var question in questions)
+        // One call is one page however many questions it holds: each question gets an even share of what is left, so a small
+        // answer leaves room for the rest, and the call as a whole stays inside what its caller is shown.
+        var left = PageChars;
+        var sb   = new StringBuilder();
+        var ok   = true;
+        for (var i = 0; i < questions.Count; i++)
         {
-            if (questions.Count > 1) sb.AppendLine($"-- {question}");
-            var answer = One(graph, question, read, history, diagnose, budget);
+            if (questions.Count > 1) sb.AppendLine($"-- {questions[i]}");
+            var answer = One(graph, questions[i], read, history, diagnose, Math.Max(1_000, left / (questions.Count - i)));
             sb.AppendLine(answer.Text);
+            left = Math.Max(0, left - answer.Text.Length);
             ok &= answer.Ok;
         }
         return new Answer(sb.ToString().TrimEnd(), ok);
@@ -170,7 +176,8 @@ public static class GraphAsk
             if (Stage(g, read, q, stages[i], last: i == stages.Count - 1, diagnose) is { } error)
                 return new Answer($"ask: {error}\n{Vocabulary}", false);
 
-            if (q.Seeded && q.Hits.Count == 0 && q.EmptiedBy is null && !IsPrint(stages[i]))
+            // A check that found nothing did not empty the question: its zero is the answer, and its scope says what it covered.
+            if (q.Seeded && q.Hits.Count == 0 && q.EmptiedBy is null && !IsPrint(stages[i]) && stages[i][0].Text != "diagnostics")
                 q.EmptiedBy = string.Join(' ', stages[i].Select(w => w.Quoted ? $"\"{w.Text}\"" : w.Text));
         }
 
@@ -591,6 +598,7 @@ public static class GraphAsk
 
         var files    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var skipped  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (project is not null)
         {
             if (q.Seeded) return "diagnostics --project starts a question, so it cannot follow a | - the stage before it is already where it looks.";
@@ -604,20 +612,30 @@ public static class GraphAsk
         else
         {
             foreach (var path in q.Hits.Select(h => h.Node.FilePath).OfType<string>().Where(p => p.Length > 0))
-                (path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ? projects : files).Add(path);
+            {
+                if (path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)) projects.Add(path);
+                else if (Compiled(path)) files.Add(path);
+                else skipped.Add(path);
+            }
 
             if (q.Hits.Count > 0 && files.Count == 0 && projects.Count == 0)
             {
                 var first = q.Hits[0].Node.Id;
-                return $"diagnostics reads files, and nothing the stage before it found has one ({first} is not code). "
-                     + $"`node {first} | owned | diagnostics` looks in the files it owns.";
+                return skipped.Count > 0
+                    ? $"diagnostics reads C# and XAML, and none of the {skipped.Count} file(s) the stage before it found is either."
+                    : $"diagnostics reads files, and nothing the stage before it found has one ({first} is not code). "
+                    + $"`node {first} | owned | diagnostics` looks in the files it owns.";
             }
         }
 
         if (files.Count == 0 && projects.Count == 0) return Seed(q, []);
 
-        var (found, notChecked) = diagnose(files, projects, ids);
+        var (found, checkedBy, notChecked) = diagnose(files, projects, ids);
         foreach (var why in notChecked) q.Notes.Add($"note: not checked - {why}");
+
+        q.Scope = (checkedBy.Count == 0 ? "nothing was checked, see the notes above" : "checked " + string.Join("; ", checkedBy))
+                + (checkedBy.Count > 0 && notChecked.Count > 0 ? $"; {notChecked.Count} not checked, see above" : "")
+                + (skipped.Count > 0 ? $"; {skipped.Count} file(s) neither C# nor XAML left out" : "");
 
         var inFile = g.Nodes.Where(n => n.FilePath is { Length: > 0 })
                             .GroupBy(n => n.FilePath!, StringComparer.OrdinalIgnoreCase)
@@ -650,6 +668,11 @@ public static class GraphAsk
         q.Seeded = true;
         return null;
     }
+
+    /// <summary>Whether a compiler or an analyzer reads the file: C#, and the views analyzers are handed. A document in an owned
+    /// set is not code that went unchecked.</summary>
+    private static bool Compiled(string path) =>
+        path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The innermost declaration of a file whose lines hold <paramref name="line"/>, else the file itself.</summary>
     private static GraphNode? Holding(List<GraphNode>? nodes, int line)
@@ -1043,7 +1066,8 @@ public static class GraphAsk
 
         var what = $"{q.Hits.Count} node(s)"
                  + (lines > 0 ? $", {lines} matching line(s)" : "")
-                 + (files > 0 ? $", {files} file(s)" : "");
+                 + (files > 0 ? $", {files} file(s)" : "")
+                 + (q.Scope is { } scope ? $" - {scope}" : "");
         var more = shown > 0 && shown < q.Hits.Count
             ? $" - showing {shown}; `{q.Sink} {q.Hits.Count}` prints the rest"
             : "";

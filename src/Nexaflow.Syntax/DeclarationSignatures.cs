@@ -113,7 +113,9 @@ public static class DeclarationSignatures
             end = body.StartIndex;
         else if (declaration.NamedChildren.FirstOrDefault(c => c.Type == "arrow_expression_clause") is { } arrow)
             end = arrow.StartIndex;
-        else if (text.IndexOf('\n', start, end - start) is var lineEnd and >= 0)
+        // With nothing to stop at, a declaration is cut at its first line - unless it has a parameter list, which is what a
+        // delegate or a bodiless method is read for, however many lines it takes.
+        else if (declaration.GetChildForField("parameters") is null && text.IndexOf('\n', start, end - start) is var lineEnd and >= 0)
         {
             end = lineEnd;
             cut = true;

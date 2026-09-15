@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Nexaflow.Syntax.Compiler;
 using Nexaflow.Tests.Fixtures;
 
@@ -27,6 +30,9 @@ public class CompileHostTests
 
     private static string Lib(string file) => Path.Combine(_root, "Lib", file);
     private static string App(string file) => Path.Combine(_root, "App", file);
+
+    private static string Linted(string file) => Path.Combine(_root, "Linted", file);
+    private static string RulesDll => Path.Combine(_root, "rules", "Rules.dll");
 
     [ClassInitialize]
     public static void Build(TestContext _)
@@ -57,13 +63,24 @@ public class CompileHostTests
         Write(App("Other.cs"),
               "public class Other\n{\n    public string Greet() => \"\";\n    public string Use() => Greet();\n}\n");
 
-        using var restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", App("App.csproj"), "-nologo", "-v:q"])
+        // Names an analyzer by path, as a project does once the analyzer project it references is built.
+        Write(Linted("Linted.csproj"),
+              "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>"
+        + "<ItemGroup><Analyzer Include=\"..\\rules\\Rules.dll\" /><AdditionalFiles Include=\"View.xaml\" /></ItemGroup></Project>");
+        Write(Linted("Linted.cs"), "public class Linted { }\n");
+        Write(Linted("View.xaml"), "<Grid>\n  TODO\n</Grid>\n");
+        BuildRule("NXT001");
+
+        foreach (var project in new[] { App("App.csproj"), Linted("Linted.csproj") })
         {
-            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
-        })!;
-        restore.StandardOutput.ReadToEnd();
-        restore.WaitForExit();
-        Assert.AreEqual(0, restore.ExitCode, "the sample projects need restoring before anything can read them");
+            using var restore = Process.Start(new ProcessStartInfo("dotnet", ["restore", project, "-nologo", "-v:q"])
+            {
+                RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
+            })!;
+            restore.StandardOutput.ReadToEnd();
+            restore.WaitForExit();
+            Assert.AreEqual(0, restore.ExitCode, "the sample projects need restoring before anything can read them");
+        }
 
         _host = new CompileHost(_root);
     }
@@ -78,6 +95,72 @@ public class CompileHostTests
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, text);
+    }
+
+    /// <summary>
+    /// Builds the analyzer the Linted project names, as a build of an analyzer project would: the same assembly name every
+    /// time, and another build of it whenever what it reports changes. It reports each type under <paramref name="id"/>, and
+    /// each line of a view saying TODO under that id and a V.
+    /// </summary>
+    private static void BuildRule(string id)
+    {
+        var source = $$"""
+            using System.Collections.Immutable;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.Diagnostics;
+
+            [DiagnosticAnalyzer(LanguageNames.CSharp)]
+            public sealed class Rule : DiagnosticAnalyzer
+            {
+                private static readonly DiagnosticDescriptor Descriptor =
+                    new DiagnosticDescriptor("{{id}}", Microsoft.CodeAnalysis.RulesHelper.Wording.Title(), "a type named {0}", "Test", DiagnosticSeverity.Warning, true);
+
+                private static readonly DiagnosticDescriptor ViewDescriptor =
+                    new DiagnosticDescriptor("{{id}}V", "a todo", "a TODO in a view", "Test", DiagnosticSeverity.Warning, true);
+
+                public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Descriptor, ViewDescriptor);
+
+                public override void Initialize(AnalysisContext context)
+                {
+                    context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+                    context.EnableConcurrentExecution();
+                    context.RegisterSymbolAction(
+                        c => c.ReportDiagnostic(Diagnostic.Create(Descriptor, c.Symbol.Locations[0], c.Symbol.Name)), SymbolKind.NamedType);
+                    context.RegisterAdditionalFileAction(c =>
+                    {
+                        var text = c.AdditionalFile.GetText(c.CancellationToken);
+                        if (text == null) return;
+                        foreach (var line in text.Lines)
+                            if (line.ToString().Contains("TODO"))
+                                c.ReportDiagnostic(Diagnostic.Create(ViewDescriptor,
+                                    Location.Create(c.AdditionalFile.Path, line.Span, text.Lines.GetLinePositionSpan(line.Span))));
+                    });
+                }
+            }
+            """;
+
+        var runtime    = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        var references = Directory.EnumerateFiles(runtime, "*.dll")
+                                  .Where(p => Path.GetFileName(p) is var name
+                                              && (name.StartsWith("System.", StringComparison.Ordinal) || name is "netstandard.dll" or "mscorlib.dll")
+                                              && !name.Contains(".Native", StringComparison.Ordinal))
+                                  .Append(typeof(DiagnosticAnalyzer).Assembly.Location)
+                                  .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
+
+        // A dependency beside it named as the SDK's own analyzers' is — Microsoft.CodeAnalysis.*, and not the host's.
+        Directory.CreateDirectory(Path.GetDirectoryName(RulesDll)!);
+        var helperDll = Path.Combine(Path.GetDirectoryName(RulesDll)!, "Microsoft.CodeAnalysis.RulesHelper.dll");
+        var helper    = CSharpCompilation.Create("Microsoft.CodeAnalysis.RulesHelper",
+                            [CSharpSyntaxTree.ParseText("namespace Microsoft.CodeAnalysis.RulesHelper { public static class Wording { public static string Title() => \"a type\"; } }")],
+                            references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var helped    = helper.Emit(helperDll);
+        Assert.IsTrue(helped.Success, string.Join("\n", helped.Diagnostics));
+
+        var compilation = CSharpCompilation.Create("Rules", [CSharpSyntaxTree.ParseText(source)],
+                                                   references.Append(MetadataReference.CreateFromFile(helperDll)),
+                                                   new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var emitted = compilation.Emit(RulesDll);
+        Assert.IsTrue(emitted.Success, string.Join("\n", emitted.Diagnostics));
     }
 
     [TestMethod]
@@ -190,5 +273,85 @@ public class CompileHostTests
         Assert.IsNull(report.Error, report.Error);
         Assert.IsTrue(report.Locations.Any(l => string.Equals(l.FullPath, use, StringComparison.OrdinalIgnoreCase)),
                       "found by binding, not left to a search by spelling: " + string.Join("; ", report.NotChecked));
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void ARebuiltAnalyzer_IsTheBuildThatRuns_RatherThanNoneAtAll()
+    {
+        var rules = new Regex(@"^NXT\d+$");
+
+        BuildRule("NXT001");
+        var before = _host.Diagnostics([], [Linted("Linted.csproj")], rules, Budget);
+        Assert.AreEqual("NXT001", before.Found.Single().Id, string.Join("\n", before.NotChecked));
+
+        // The same assembly name, another build of it: a process that kept the first build could load neither.
+        BuildRule("NXT002");
+        var after = _host.Diagnostics([], [Linted("Linted.csproj")], rules, Budget);
+        Assert.AreEqual("NXT002", after.Found.Single().Id, string.Join("\n", after.NotChecked));
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void AnAnalyzerThatWillNotLoad_IsNamedAsNotChecked_RatherThanFindingNothing()
+    {
+        File.WriteAllText(RulesDll, "not an assembly");
+        try
+        {
+            var report = _host.Diagnostics([], [Linted("Linted.csproj")], new Regex(@"^NXT\d+$"), Budget);
+
+            Assert.AreEqual(0, report.Found.Count);
+            Assert.IsTrue(report.NotChecked.Any(n => n.Contains("Rules.dll would not load", StringComparison.Ordinal)),
+                          string.Join("\n", report.NotChecked));
+        }
+        finally { BuildRule("NXT001"); }
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_NameWhatAnsweredForEachProject()
+    {
+        var report = _host.Diagnostics([], [Linted("Linted.csproj")], new Regex(@"^NXT\d+$"), Budget);
+
+        StringAssert.Matches(report.Checked.Single(), new Regex(@"^Linted \(\d+ C# file\(s\), 1 additional\) by Rule$"));
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void Diagnostics_ForAnIdNothingReports_AreNotChecked_RatherThanClean()
+    {
+        var report = _host.Diagnostics([], [Linted("Linted.csproj")], new Regex("^NXUI001$"), Budget);
+
+        Assert.AreEqual(0, report.Checked.Count);
+        Assert.IsTrue(report.NotChecked.Any(n => n.Contains("nothing it runs reports", StringComparison.Ordinal)), string.Join("\n", report.NotChecked));
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
+    public void AnEditToAView_IsCheckedByTheAnalyzersItIsHandedTo_BeforeAndAfter()
+    {
+        var view = Linted("View.xaml");
+
+        var fixing = _host.Check([new SourceChange(view, "<Grid>\n  TODO\n  TODO\n</Grid>\n", "<Grid>\n  TODO\n</Grid>\n")], [], Budget);
+        Assert.IsNotNull(fixing.Views, string.Join("\n", fixing.NotChecked));
+        Assert.AreEqual(1, fixing.Views.Fixed.Count, "the TODO taken out");
+        Assert.AreEqual(0, fixing.Views.Introduced.Count);
+        Assert.AreEqual(1, fixing.Views.Standing, "and the one left is said to be there already");
+
+        var breaking = _host.Check([new SourceChange(view, "<Grid>\n</Grid>\n", "<Grid>\n  TODO\n</Grid>\n")], [], Budget);
+        var added    = breaking.Views!.Introduced.Single();
+        StringAssert.EndsWith(added.Id, "V");
+        Assert.AreEqual(2, added.Line, "where it is");
+    }
+
+    [TestMethod]
+    [CoversNode("syntax-compile-check")]
+    public void ACleanCheck_SaysWhatItCovered()
+    {
+        var report = _host.Check([new SourceChange(Lib("Greeter.cs"), Greeter, Greeter.Replace("hi ", "hello "))], [], Budget);
+
+        Assert.AreEqual(0, report.Introduced.Count, string.Join("\n", report.NotChecked));
+        Assert.AreEqual(1, report.Files, "the file compared");
+        Assert.IsNotNull(report.Loaded, "and whether it had to load its project to say so");
     }
 }

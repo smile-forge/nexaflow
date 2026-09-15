@@ -8,6 +8,7 @@ using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Hosting;
+using Nexaflow.Services.Initiatives.Graph.Store;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -795,7 +796,12 @@ internal static class Program
 
         if (loaded is null)
         {
-            Console.Error.WriteLine($"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
+            // A graph another nfi built is not read — what it extracted is not what this one would — and "no graph" would send
+            // the reader looking for a file that is plainly there.
+            Console.Error.WriteLine(GraphArchive.SchemaOf(store.GraphFilePath) is { } schema && schema != GraphSchema.Version
+                ? $"error: the graph at {store.GraphFilePath} was built by another nfi (graph schema {schema}; this one reads "
+                + $"{GraphSchema.Version}) — rebuild it with: nfi graph"
+                : $"error: no graph at {store.GraphFilePath} — build it first with: graph {root}");
             code = Error; return false;
         }
         graph = loaded; code = Clean; return true;
@@ -968,12 +974,13 @@ internal static class Program
 
         // A code:<file>#<ast> id fetches that AST node's block; a file:<path> id (or a bare path) fetches the file.
         string rel; string? ast = null;
-        if (id.StartsWith("code:", StringComparison.Ordinal) && id.Contains('#'))
+        // A code: id naming no declaration - `code:<file>`, or the `code:<file>#` a listing heads its members with - is the file.
+        if (id.StartsWith("code:", StringComparison.Ordinal) && id.IndexOf('#') is var hash and >= 0 && hash < id.Length - 1)
         {
-            var hash = id.IndexOf('#');
             rel = id["code:".Length..hash];
             ast = id[(hash + 1)..];
         }
+        else if (id.StartsWith("code:", StringComparison.Ordinal)) rel = id["code:".Length..].TrimEnd('#');
         else rel = id.StartsWith("file:", StringComparison.Ordinal) ? id["file:".Length..] : id;
 
         var full = CodeFilePath(root, rel, a.Has("--main"));
@@ -1536,7 +1543,9 @@ internal static class Program
             foreach (var step in outcome.Steps)
                 foreach (var change in step.Changes)
                     PrintHunk(change, brief: step.Step is EditPlan.Move or EditPlan.Rewrite);
-        foreach (var note in outcome.Steps.SelectMany(s => s.Notes).Concat(notes)) Console.WriteLine($"note: {note}");
+        // Said once however many steps say it: a script setting eighteen ids is told one thing about ids, not eighteen.
+        foreach (var said in outcome.Steps.SelectMany(s => s.Notes).Concat(notes).GroupBy(n => n, StringComparer.Ordinal))
+            Console.WriteLine($"note: {said.Key}" + (said.Count() > 1 ? $" ({said.Count()} times)" : ""));
 
         // What the change does beyond its own lines, worked out on the planned text: the same answer for a dry run as for
         // the edit, and in time for --must-compile to refuse before anything is written.
@@ -1861,11 +1870,8 @@ internal static class Program
         // as stale on the next query too, and every one after it. --refresh did not clear it either.
         var dirty = report.Stale.Count > 0;
 
-        foreach (var rel in report.Stale)
-        {
-            RequestScope.Cancellation.ThrowIfCancellationRequested();   // nobody is waiting for the answer
-            GraphBuilder.RefreshFile(graph, cache, root, rel, CodeRootOrNull(root, main));
-        }
+        // Stops unwritten when nobody is waiting for the answer.
+        GraphBuilder.RefreshFiles(graph, cache, root, report.Stale, CodeRootOrNull(root, main), RequestScope.Cancellation);
 
         // Files the graph names that this tree does not have. Dropping them is only safe because the graph
         // being updated is this tree's own — from a shared one they could as easily be a parallel branch's

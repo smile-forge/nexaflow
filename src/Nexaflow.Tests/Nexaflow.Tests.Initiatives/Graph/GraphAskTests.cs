@@ -564,7 +564,7 @@ public class GraphAskTests
                 new("src/Reader.cs", 5, "CS0168", "warning", "declared but never used"),
                 new("src/Reader.cs", 7, "NX0002", "warning", "something else"),
             ];
-            return ([.. all.Where(f => ids is null || ids.IsMatch(f.Id))], ["Other: not restored"]);
+            return ([.. all.Where(f => ids is null || ids.IsMatch(f.Id))], ["Lib (2 C# file(s)) by the compiler"], ["Other: not restored"]);
         };
 
         var answer = GraphAsk.Run(Repo(), "node file:src/Reader.cs | diagnostics CS0168 | ids", Read, diagnose: compiler);
@@ -587,7 +587,7 @@ public class GraphAskTests
             Edges = [E("file:src/View.xaml", "code:src/View.xaml#T:View", EdgeRelationship.Contains)],
         };
         string[]? ReadView(string rel) => rel == "src/View.xaml" ? view.Split('\n') : null;
-        GraphAsk.Diagnose compiler = (_, _, _) => ([new("src/View.xaml", 4, "NXUI001", "warning", "no automation id")], []);
+        GraphAsk.Diagnose compiler = (_, _, _) => ([new("src/View.xaml", 4, "NXUI001", "warning", "no automation id")], ["App (1 C# file(s)) by the compiler"], []);
 
         var answer = GraphAsk.Run(repo, "diagnostics --project App", ReadView, diagnose: compiler);
 
@@ -602,6 +602,49 @@ public class GraphAskTests
 
         Assert.IsFalse(answer.Ok);
         StringAssert.Contains(answer.Text, "compiler");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void ACleanDiagnosticsAnswer_SaysWhatItWasCleanBy()
+    {
+        GraphAsk.Diagnose compiler = (_, _, _) => ([], ["App (3 C# file(s), 2 additional) by XamlAutomationIdAnalyzer"], []);
+
+        var answer = GraphAsk.Run(Repo(), "diagnostics NXUI001 --project App | count", Read, diagnose: compiler);
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        StringAssert.Contains(answer.Text, "0 node(s) - checked App (3 C# file(s), 2 additional) by XamlAutomationIdAnalyzer",
+                              "a zero that names what looked is one to trust");
+                              Assert.IsFalse(answer.Text.Contains("left nothing", StringComparison.Ordinal), "a check finding nothing is its answer, not an emptied question");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void ADiagnosticsAnswerThatCheckedNothing_SaysSo_OnTheLineWithItsZero()
+    {
+        GraphAsk.Diagnose compiler = (_, _, _) => ([], [], ["App: nothing it runs reports /NX9/"]);
+
+        var answer = GraphAsk.Run(Repo(), "diagnostics NX9 --project App | count", Read, diagnose: compiler);
+
+        StringAssert.Contains(answer.Text, "not checked - App: nothing it runs reports /NX9/");
+        StringAssert.Contains(answer.Text, "0 node(s) - nothing was checked", "the zero is not left to read as clean");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-ask-diagnostics")]
+    public void ADocumentAmongTheFiles_IsLeftOutOfDiagnostics_RatherThanNamedAsUnchecked()
+    {
+        GraphAsk.Diagnose compiler = (files, _, _) =>
+        {
+            CollectionAssert.AreEqual(new[] { "src/Reader.cs" }, files.ToArray(), "only what a compiler reads is asked about");
+            return ([], ["Lib (1 of its files) by the compiler"], []);
+        };
+
+        var answer = GraphAsk.Run(WithFeature(), "node file:src/Reader.cs,file:docs/notes.md | diagnostics | count", Read, diagnose: compiler);
+
+        Assert.IsTrue(answer.Ok, answer.Text);
+        Assert.IsFalse(answer.Text.Contains("not checked", StringComparison.Ordinal), answer.Text);
+        StringAssert.Contains(answer.Text, "1 file(s) neither C# nor XAML left out");
     }
 
     [TestMethod]

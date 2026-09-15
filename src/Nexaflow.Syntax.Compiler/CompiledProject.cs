@@ -36,6 +36,13 @@ internal sealed class CompiledProject
     private CSharpCompilation? _compilation;
     private GeneratorDriver? _driver;
     private ImmutableArray<DiagnosticAnalyzer>? _analyzers;
+
+    private string? _analyzerStamp;
+
+    /// <summary>The analyzer files that would not load when last asked for, generators and analyzers apart because they are
+    /// loaded at different times.</summary>
+    private readonly List<string> _generatorFailures = [];
+    private readonly List<string> _analyzerFailures = [];
     private string _stamp = "";
 
     private CompiledProject(string projectPath)
@@ -55,6 +62,10 @@ internal sealed class CompiledProject
 
     /// <summary>Every reference its command line names, whether or not it is on disk.</summary>
     public IReadOnlyCollection<string> Declared => _declared;
+
+    /// <summary>The analyzers and generators that would not load when last asked for: rules that did not run, which is not the
+    /// same answer as rules that found nothing.</summary>
+    public IEnumerable<string> LoadFailures => _generatorFailures.Concat(_analyzerFailures).Distinct();
 
     public static (CompiledProject? Project, string? Error) Load(string csproj, AnalyzerLoader loader,
                                                                  CancellationToken cancellation)
@@ -78,8 +89,6 @@ internal sealed class CompiledProject
     /// </summary>
     public string? Refresh(AnalyzerLoader loader, CancellationToken cancellation)
     {
-
-
         var (arguments, error) = DesignTimeBuild.For(ProjectPath, cancellation);
         if (arguments is null) return error;
 
@@ -88,16 +97,25 @@ internal sealed class CompiledProject
             var parsed = CSharpCommandLineParser.Default.Parse(arguments.Args, Directory, sdkDirectory: null);
             if (parsed.SourceFiles.IsEmpty) return "its compiler command line names no sources";
 
-            _args        = parsed;
-            _stamp       = arguments.Stamp;
-            _compilation = null;
+            _args          = parsed;
+            _stamp         = arguments.Stamp;
+            _compilation   = null;
+            _analyzerStamp = null;
             _trees.Clear();
             _references.Clear();
             _declared.Clear();
-            _reported.Clear();
-            _analyzers   = null;
-            _driver      = CreateDriver(parsed, loader);
             AssemblyFileName = parsed.OutputFileName ?? parsed.CompilationName + ".dll";
+        }
+
+        // A rebuilt analyzer or generator is loaded again although the command line naming it has not moved: its rules are
+        // likely the very thing being changed.
+        var analyzerStamp = AnalyzerStampOf(_args);
+        if (analyzerStamp != _analyzerStamp)
+        {
+            _analyzerStamp = analyzerStamp;
+            _analyzers     = null;
+            _reported.Clear();
+            _driver = CreateDriver(_args, loader);
         }
 
         Sync(cancellation);
@@ -210,7 +228,7 @@ internal sealed class CompiledProject
         if (_reported.TryGetValue(asked, out var kept)) return kept;
 
         var diagnostics = new List<Diagnostic>();
-        if (ids is null || ids.ToString().Contains("CS", StringComparison.OrdinalIgnoreCase))
+        if (ids is null || AsksCompiler(ids))
             diagnostics.AddRange(compilation.GetDiagnostics(cancellation));
 
         var analyzers = AnalyzersFor(loader, ids);
@@ -242,28 +260,91 @@ internal sealed class CompiledProject
                                             diagnostic.GetMessage(CultureInfo.InvariantCulture)));
         }
 
+        IReadOnlyList<CompileDiagnostic> answer =
+            [.. found.Distinct().OrderBy(d => d.FullPath, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Line).ThenBy(d => d.Column)];
+
+        // Not remembered when something would not load: a build may have been writing it, and next time it may.
+        if (LoadFailures.Any()) return answer;
         if (_reported.Count >= 16) _reported.Clear();
-        return _reported[asked] = [.. found.Distinct().OrderBy(d => d.FullPath, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Line).ThenBy(d => d.Column)];
+        return _reported[asked] = answer;
     }
+
+    /// <summary>
+    /// What the analyzers report in one of the files they are handed, as it would read with <paramref name="text"/> — null when
+    /// this project hands them no such file. Only the analyzers' actions on that one file run, so it costs the file, not the
+    /// project.
+    /// </summary>
+    public IReadOnlyList<CompileProblem>? ViewFindings(string path, string? text, AnalyzerLoader loader, CancellationToken cancellation)
+    {
+        var args       = _args!;
+        var additional = args.AdditionalFiles.Select(f => Path.GetFullPath(f.Path, Directory)).ToList();
+        if (!additional.Contains(path, StringComparer.OrdinalIgnoreCase)) return null;
+
+        var analyzers = AnalyzersFor(loader, ids: null);
+        if (analyzers.Length == 0 || text is null) return [];
+
+        AdditionalText subject = new MemoryText(path, text);
+        var configs = args.AnalyzerConfigPaths.Where(File.Exists)
+                          .Select(p => AnalyzerConfig.Parse(File.ReadAllText(p), p)).ToList();
+        var options = new AnalyzerOptions(
+            [.. additional.Select(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase) ? subject : new FileText(p))],
+            new ConfigOptionsProvider(AnalyzerConfigSet.Create(configs)));
+
+        var found = _compilation!
+            .WithAnalyzers(analyzers, new CompilationWithAnalyzersOptions(options, onAnalyzerException: null, concurrentAnalysis: true,
+                                                                          logAnalyzerExecutionTime: false))
+            .GetAnalysisResultAsync(subject, cancellation).GetAwaiter().GetResult().GetAllDiagnostics();
+
+        // Only what is about this file, once: the answer is the view's, and nothing else analysed alongside it belongs in it.
+        return [.. found.Where(d => !d.IsSuppressed && d.Severity >= DiagnosticSeverity.Warning
+                                    && string.Equals(d.Location.GetLineSpan().Path, path, StringComparison.OrdinalIgnoreCase))
+                        .Distinct()
+                        .Select(d => (Diagnostic: d, At: d.Location.GetLineSpan().StartLinePosition))
+                        .Select(x => new CompileProblem(path, x.At.Line + 1, x.At.Character + 1, x.Diagnostic.Id,
+                                                        x.Diagnostic.GetMessage(CultureInfo.InvariantCulture)))];
+    }
+
+    /// <summary>
+    /// What here could report <paramref name="ids"/> — the compiler, and the analyzers declaring one of them — named, so a clean
+    /// answer says what it is clean by. Empty when nothing could, and a zero from that is not an answer.
+    /// </summary>
+    public string ReportersOf(AnalyzerLoader loader, Regex? ids)
+    {
+        var analyzers = AnalyzersFor(loader, ids);
+        if (ids is null) return $"the compiler and {analyzers.Length} analyzer(s)";
+
+        var names = analyzers.Select(a => a.GetType().Name).Distinct().ToList();
+        var by    = new List<string>();
+        if (AsksCompiler(ids)) by.Add("the compiler");
+        if (names.Count > 0) by.Add(names.Count <= 3 ? string.Join(", ", names) : $"{names.Count} analyzers");
+        return string.Join(" and ", by);
+    }
+
+    /// <summary>How much of it an answer covered: its C# files, and the other files its analyzers are handed.</summary>
+    public string Coverage
+    {
+        get
+        {
+            var additional = _args?.AdditionalFiles.Length ?? 0;
+            return $"{_trees.Count} C# file(s)" + (additional > 0 ? $", {additional} additional" : "");
+        }
+    }
+
+    /// <summary>Compiler ids are CS-numbered; a pattern naming none asks only the analyzers.</summary>
+    private static bool AsksCompiler(Regex ids) => ids.ToString().Contains("CS", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The project's analyzers that report an id <paramref name="ids"/> matches — all of them when it is null.</summary>
     private ImmutableArray<DiagnosticAnalyzer> AnalyzersFor(AnalyzerLoader loader, Regex? ids)
     {
-        _analyzers ??= [.. _args!.AnalyzerReferences.SelectMany(reference =>
+        if (_analyzers is not { } all)
         {
-            try
-            {
-                return new AnalyzerFileReference(Path.GetFullPath(reference.FilePath, Directory), loader).GetAnalyzers(LanguageNames.CSharp);
-            }
-            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
-                                                          or TypeLoadException or ReflectionTypeLoadException)
-            {
-                return [];
-            }
-        })];
+            _analyzerFailures.Clear();
+            all = [.. LoadEach(_args!, loader, reference => reference.GetAnalyzers(LanguageNames.CSharp), _analyzerFailures)];
+            if (_analyzerFailures.Count == 0) _analyzers = all;
+        }
 
-        if (ids is null) return _analyzers.Value;
-        return [.. _analyzers.Value.Where(analyzer =>
+        if (ids is null) return all;
+        return [.. all.Where(analyzer =>
         {
             try { return analyzer.SupportedDiagnostics.Any(d => ids.IsMatch(d.Id)); }
             catch { return false; }   // an analyzer that cannot say what it reports is not one asked for
@@ -329,21 +410,10 @@ internal sealed class CompiledProject
 
     private GeneratorDriver? CreateDriver(CSharpCommandLineArguments args, AnalyzerLoader loader)
     {
-        var generators = new List<ISourceGenerator>();
-        foreach (var analyzer in args.AnalyzerReferences)
-        {
-            try
-            {
-                generators.AddRange(new AnalyzerFileReference(Path.GetFullPath(analyzer.FilePath, Directory), loader)
-                                        .GetGenerators(LanguageNames.CSharp));
-            }
-            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
-                                                          or TypeLoadException or ReflectionTypeLoadException)
-            {
-                // A generator that will not load is missing from both sides of every comparison, so what it would have
-                // emitted cannot show up as an error the edit introduced.
-            }
-        }
+        // A generator that will not load is missing from both sides of every comparison, so what it would have emitted cannot
+        // show up as an error an edit introduced; diagnostics name it as not checked.
+        _generatorFailures.Clear();
+        var generators = LoadEach(args, loader, reference => reference.GetGenerators(LanguageNames.CSharp), _generatorFailures);
         if (generators.Count == 0) return null;
 
         var configs = args.AnalyzerConfigPaths.Where(File.Exists)
@@ -353,5 +423,43 @@ internal sealed class CompiledProject
 
         return CSharpGeneratorDriver.Create(generators, additional, ParseOptionsOf(args),
                                             new ConfigOptionsProvider(AnalyzerConfigSet.Create(configs)));
+    }
+
+    /// <summary>
+    /// What each analyzer file the command line names holds. One that will not load is named in <paramref name="failures"/>:
+    /// Roslyn says so through an event rather than an exception, and unheard it is a rule that silently finds nothing.
+    /// </summary>
+    private List<T> LoadEach<T>(CSharpCommandLineArguments args, AnalyzerLoader loader,
+                                Func<AnalyzerFileReference, ImmutableArray<T>> take, List<string> failures)
+    {
+        var found = new List<T>();
+        foreach (var analyzer in args.AnalyzerReferences)
+        {
+            var path      = Path.GetFullPath(analyzer.FilePath, Directory);
+            var reference = new AnalyzerFileReference(path, loader);
+            void Failed(object? sender, AnalyzerLoadFailureEventArgs e) => failures.Add($"{Path.GetFileName(path)} would not load: {e.Message}");
+
+            reference.AnalyzerLoadFailed += Failed;
+            try { found.AddRange(take(reference)); }
+            catch (Exception ex) when (ex is IOException or BadImageFormatException or FileLoadException
+                                                          or TypeLoadException or ReflectionTypeLoadException)
+            {
+                failures.Add($"{Path.GetFileName(path)} would not load: {ex.Message}");
+            }
+            finally { reference.AnalyzerLoadFailed -= Failed; }
+        }
+        return found;
+    }
+
+    /// <summary>Each analyzer file the command line names, by when it was written: a rebuild moves that and not the command line.</summary>
+    private string AnalyzerStampOf(CSharpCommandLineArguments args)
+    {
+        var stamp = new StringBuilder();
+        foreach (var analyzer in args.AnalyzerReferences)
+        {
+            var path = Path.GetFullPath(analyzer.FilePath, Directory);
+            stamp.Append(path).Append('=').Append(File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0).Append(';');
+        }
+        return stamp.ToString();
     }
 }

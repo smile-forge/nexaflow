@@ -199,7 +199,8 @@ public static partial class StructuralEdit
             return Result.Fail("The import to add is required.");
 
         var wanted = importText.Trim();
-        if (SourceText.Of(source).Lines.Any(l => l.Trim() == wanted))
+        // Against the imports the parse finds, not the lines of the file: C# held in a string, a using in a comment, are not.
+        if (new DeclarationAnchors().Imports(grammarId, source).Any(held => SameImport(held, wanted)))
             return Result.Fail($"{Quote(wanted)} is already imported.");
 
         var (lastImportEnd, firstDeclaration) = new DeclarationAnchors().ImportRegion(grammarId, source);
@@ -239,6 +240,10 @@ public static partial class StructuralEdit
         return new Result(true, $"import {wanted}", updated, HunkOf(source, updated), [],
                           ChangeOf(source, updated));
     }
+
+    /// <summary>Two imports that differ only in spacing are the same import.</summary>
+    private static bool SameImport(string a, string b) =>
+        string.Equals(Regex.Replace(a, @"\s+", " "), Regex.Replace(b, @"\s+", " "), StringComparison.Ordinal);
 
     /// <summary>
     /// Where <paramref name="wanted"/> goes to keep a block of imports in the order it is already in — alphabetical, or

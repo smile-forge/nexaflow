@@ -55,39 +55,37 @@ public sealed class XamlAutomationIdAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        // Compilation-level, because the subject is a file the compilation carries rather than anything in a
-        // syntax tree. Reported against the .xaml path itself, so the squiggle lands where the fix goes.
-        context.RegisterCompilationAction(Analyze);
+        // Per additional file, because the subject is a file the compilation carries rather than anything in a syntax tree:
+        // reported against the .xaml path itself, so the squiggle lands where the fix goes, and a host can ask about one
+        // view without analysing the whole project.
+        context.RegisterAdditionalFileAction(Analyze);
     }
 
-    private static void Analyze(CompilationAnalysisContext ctx)
+    private static void Analyze(AdditionalFileAnalysisContext ctx)
     {
-        foreach (var file in ctx.Options.AdditionalFiles)
+        var file = ctx.AdditionalFile;
+        if (!IsView(file.Path)) return;
+
+        var text = file.GetText(ctx.CancellationToken);
+        if (text is null) return;
+
+        XDocument doc;
+        try
         {
-            if (!IsView(file.Path)) continue;
-            ctx.CancellationToken.ThrowIfCancellationRequested();
+            doc = XDocument.Parse(text.ToString(), LoadOptions.SetLineInfo);
+        }
+        catch (XmlException)
+        {
+            // A view that does not parse is the XAML compiler's complaint to make, not ours. Reporting it
+            // twice, in a rule about automation ids, would only bury the real message.
+            return;
+        }
 
-            var text = file.GetText(ctx.CancellationToken);
-            if (text is null) continue;
-
-            XDocument doc;
-            try
-            {
-                doc = XDocument.Parse(text.ToString(), LoadOptions.SetLineInfo);
-            }
-            catch (XmlException)
-            {
-                // A view that does not parse is the XAML compiler's complaint to make, not ours. Reporting it
-                // twice, in a rule about automation ids, would only bury the real message.
-                continue;
-            }
-
-            foreach (var element in doc.Descendants())
-            {
-                if (!IsButton(element) || HasAutomationId(element) || IsControlChrome(element)) continue;
-                ctx.ReportDiagnostic(Diagnostic.Create(
-                    MissingAutomationId, LocationOf(file.Path, text, element), element.Name.LocalName));
-            }
+        foreach (var element in doc.Descendants())
+        {
+            if (!IsButton(element) || HasAutomationId(element) || IsControlChrome(element)) continue;
+            ctx.ReportDiagnostic(Diagnostic.Create(
+                MissingAutomationId, LocationOf(file.Path, text, element), element.Name.LocalName));
         }
     }
 
