@@ -44,6 +44,7 @@
                         <Style TargetType="ListBoxItem"
                                BasedOn="{StaticResource DarkListBoxItem}">
                             <Setter Property="Padding" Value="10,8"/>
+                            <Setter Property="AutomationProperties.Name" Value="{Binding FriendlyName}"/>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>

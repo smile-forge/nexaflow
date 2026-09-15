@@ -34,6 +34,8 @@ public class ProcessesJourneyTests : UiJourneyTestBase
     {
         var view = WaitForId("ProcList", 15);
         Assert.IsNotNull(view, "ProcList did not open via --openTab Processes.");
+        // Rows land after the first sample; until then expand/collapse have nothing to act on.
+        Assert.IsTrue(WaitForFs(() => CountOf("Proc_RowExpand") > 0, 15), "The process list never filled.");
 
         // ── Tree grouping (default on) — safe, view-only regrouping. Toggle off then the expand/collapse
         //    buttons are only shown while tree mode is on, so exercise them before flipping it off. ──
