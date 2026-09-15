@@ -11,6 +11,8 @@ and cannot answer.
   [testing.md](testing.md).
 - The product-folder skill has fast-query recipes; the per-release export [product/PRODUCT.md](product/PRODUCT.md)
   is the human dashboard; per-feature tab parameters are in [features.md](features.md).
+- Where nfi is going — a node index that writes itself, change tracking without version control, a paged graph,
+  and the providers that take it beyond this repository — is in [nfi-at-scale.md](nfi-at-scale.md).
 
 > The `.product/` tree is gitignored working state (the app live-reloads it). Edit it **only through the `nfi`
 > CLI**, never by hand — see [The CLI](#the-cli).
