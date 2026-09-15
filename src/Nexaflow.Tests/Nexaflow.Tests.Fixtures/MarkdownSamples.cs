@@ -56,6 +56,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("datamatrix.md",            DataMatrix),
         SampleFile.Text("pdf417.md",                Pdf417),
         SampleFile.Text("aztec.md",                 Aztec),
+        SampleFile.Text("smiles.md",                Smiles),
     ];
 
     private const string LatexMathSymbols =
@@ -4282,6 +4283,69 @@ internal sealed class MarkdownSamples : ISampleSet
         text: This message is far longer than a single-layer compact symbol can hold, and the block asks for one anyway.
         format: compact
         layers: 1
+        ```
+        """";
+
+    private const string Smiles =
+        """"
+        # Chemical structures
+
+        A `smiles` fence draws molecules from SMILES strings — one per line, with an optional caption in
+        double quotes. The `chemistry` keyword may open the block, and `#` starts a comment.
+
+        ## The format's own example
+
+        ```smiles
+        chemistry
+        c1ccccc1 "Benzene"
+        CC(=O)O "Acetic acid"
+        CCO "Ethanol"
+        ```
+
+        ## Common molecules
+
+        ```smiles
+        O "Water"
+        Oc1ccccc1 "Phenol"
+        CC(=O)Oc1ccccc1C(=O)O "Aspirin"
+        Cn1cnc2c1c(=O)n(C)c(=O)n2C "Caffeine"
+        OCC1OC(O)C(O)C(O)C1O "Glucose"
+        ```
+
+        ## Rings
+
+        ```smiles
+        # fused, bridged and spiro
+        c1ccc2ccccc2c1 "Naphthalene"
+        C1CC2CCC1C2 "Norbornane"
+        C1CCC2(CC1)CCCC2 "Spiro[4.5]decane"
+        C1CCCCCCCCCCC1 "Cyclododecane"
+        ```
+
+        ## Stereo
+
+        ```smiles
+        N[C@@H](C)C(=O)O "L-alanine"
+        N[C@H](C)C(=O)O "D-alanine"
+        C/C=C\C "cis-2-butene"
+        C/C=C/C "trans-2-butene"
+        ```
+
+        ## Charges, isotopes and salts
+
+        ```smiles
+        [NH4+].[Cl-] "Ammonium chloride"
+        C[N+](=O)[O-] "Nitromethane"
+        [13CH4] "Carbon-13 methane"
+        [O-]S(=O)(=O)[O-].[Na+].[Na+] "Sodium sulfate"
+        ```
+
+        ## When it will not draw
+
+        ```smiles
+        C(C)(C)(C)(C)C "Five bonds to one carbon"
+        c1ccnc1 "Pyrrole without its hydrogen"
+        C1CCC "A ring never closed"
         ```
         """";
 }

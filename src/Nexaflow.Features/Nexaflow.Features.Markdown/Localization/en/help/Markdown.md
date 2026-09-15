@@ -900,6 +900,66 @@ Not supported: Aztec Runes, reader-initialisation symbols, and structured append
 
 ---
 
+## Chemical structures
+
+A fenced `smiles` block draws molecules from their SMILES strings — one per line, with an optional
+caption in double quotes. The word `chemistry` may open the block, and a line starting with `#` is a
+comment:
+
+````markdown
+```smiles
+chemistry
+c1ccccc1 "Benzene"
+CC(=O)O "Acetic acid"
+CCO "Ethanol"
+```
+````
+
+![Structures drawn from SMILES: benzene, acetic acid, ethanol, aspirin, caffeine and glucose](images/markdown/smiles.png)
+
+Structures are drawn the way a chemistry textbook draws them: carbon as the corner where bonds meet,
+every other element as its symbol in its usual colour, with its hydrogens written beside it. Aromatic
+rings get alternating double bonds, and several molecules in a block flow across the page.
+
+| You write | You get |
+|---|---|
+| `CCO` | atoms side by side are bonded; hydrogens are filled in for you |
+| `=` `#` | a double or triple bond |
+| `CC(C)CO` | a branch in round brackets |
+| `c1ccccc1` | matching digits close a ring; lowercase letters make it aromatic |
+| `[NH4+]` `[13CH4]` `[Fe+2]` | an atom in square brackets with its hydrogens, charge or mass number |
+| `N[C@@H](C)C(=O)O` | a stereocentre, drawn with a wedge |
+| `C/C=C\C` | which side of a double bond each end goes on (here, cis) |
+| `[Na+].[Cl-]` | a dot separates molecules drawn side by side |
+
+### Cages
+
+Some molecules are closed cages whose rings share several atoms — adamantane, cubane, hexamine,
+phosphorus pentoxide. No flat drawing shows these, so they are drawn the way a textbook draws them: as a
+picture of the solid seen from a slight angle, with a bond at the back broken where it passes behind one
+at the front. A bicycle that reads clearly flat, like norbornane, stays flat.
+
+````markdown
+```smiles
+C1C2CC3CC1CC(C2)C3 "Adamantane"
+C12C3C4C1C5C2C3C45 "Cubane"
+O=P12OP3(=O)OP(=O)(O1)OP(=O)(O2)O3 "Phosphorus pentoxide"
+```
+````
+
+![Cages drawn as solids: adamantane, cubane, hexamine, phosphorus pentoxide and memantine, beside a flat norbornane](images/markdown/smiles-cages.png)
+
+### When it can't be drawn
+
+A string that cannot be a molecule still draws as much as it can, with the reason in red beneath and a
+wavy line under the atom at fault — a carbon with five bonds, a ring number that never closes, or an
+aromatic ring that cannot alternate. The most common one is a five-membered ring's nitrogen written `n`
+when it carries a hydrogen: write it `[nH]`, as in pyrrole, `c1cc[nH]c1`.
+
+A structure is read-only on the page, but you can select across it and copy the SMILES it was drawn from.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the
