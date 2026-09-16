@@ -1,0 +1,27 @@
+{
+  "branch": "claude/config-load-tolerant",
+  "nodes": {
+    "opt-config-migration": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ConfigMigrationTests.cs",
+            "class": "ConfigMigrationTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/ConfigUnreadableValueTests.cs",
+            "class": "ConfigUnreadableValueTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "opt-config-migration"
+  ]
+}
