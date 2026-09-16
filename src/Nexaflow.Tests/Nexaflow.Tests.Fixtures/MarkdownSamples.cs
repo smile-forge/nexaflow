@@ -640,9 +640,11 @@ internal sealed class MarkdownSamples : ISampleSet
         # Mermaid — Venn diagram
 
         A `venn-beta` diagram shows overlapping `set` circles. Comma is the only intersection operator —
-        `union A,B` is the A∩B region. A `["Label"]` renames a region and `:N` weights its circle area;
-        indented `text` lines list items inside the most recent set/union. Front-matter `config: venn:`
-        (`width`/`height`/`padding`) and the `venn1…venn8` theme-variable palette are honoured.
+        `union A,B` is the A∩B region. A `["Label"]` renames a region; a set's `:N` is its circle's area and
+        a union's how much its sets overlap. Indented `text` lines list items inside the set or union above
+        them, and a `text` line at the start of a line names its region first. Front-matter `config: venn:`
+        (`width`/`height`/`padding`/`useMaxWidth`/`useDebugLayout`) and the `venn1…venn8`,
+        `vennTitleTextColor` and `vennSetTextColor` theme variables are honoured.
 
         ## Team overlap
 
@@ -693,6 +695,30 @@ internal sealed class MarkdownSamples : ISampleSet
           union A,B["AB"]:3
           style A fill:#ff6b6b
           style A,B color:#cccccc
+        ```
+
+        ## Sizes, an item naming its region, and every style
+
+        ```mermaid
+        ---
+        config:
+          themeVariables:
+            vennTitleTextColor: "#e15759"
+            vennSetTextColor: "#f2f2f2"
+        ---
+        venn-beta
+          title "What makes a good feature"
+          set Desirable:12
+          set Feasible:10
+          set Viable:8
+          union Desirable,Feasible["Buildable"]:3
+          union Feasible,Viable["Sustainable"]
+          union Desirable,Viable["Marketable"]
+          union Desirable,Feasible,Viable["Ship it"]
+        text Desirable,Feasible,Viable "a spike"
+          style Viable stroke:#59a14f, stroke-width:4, fill-opacity:0.4
+          style Desirable,Feasible fill:#f28e2b, fill-opacity:0.5
+          style "a spike" color:#ffd166
         ```
         """;
 
@@ -2221,6 +2247,29 @@ internal sealed class MarkdownSamples : ISampleSet
             "Potassium" : 50.05
             "Magnesium" : 10.01
             "Iron" :  5
+        ```
+
+        A `donutHole` cuts the middle out, `legendPosition` moves the legend, and
+        `highlightSlice` pulls one slice out of the chart.
+
+        ```mermaid
+        ---
+        config:
+          pie:
+            donutHole: 0.45
+            legendPosition: bottom
+            highlightSlice: Rent
+            textPosition: 0.65
+          themeVariables:
+            pie1: "#7c9cff"
+            pieOpacity: 0.9
+        ---
+        pie showData
+            title Where the money goes
+            "Rent" : 1200
+            "Food" : 480
+            "Travel" : 260
+            "Saving" : 300
         ```
 
 

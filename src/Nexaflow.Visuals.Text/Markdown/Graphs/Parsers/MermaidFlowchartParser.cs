@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 ///   • classDef / class styling (fill and stroke colours)
 ///   • %% line comments, trailing semicolons
 /// </summary>
-public sealed class MermaidParser : IGraphParser
+public sealed class MermaidFlowchartParser : IGraphParser
 {
     public bool CanParse(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);

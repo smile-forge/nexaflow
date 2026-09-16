@@ -40,6 +40,12 @@ public partial class InlineMarkdownEditor
     private int _caretRun;
 
     /// <summary>
+    /// Where the caret stood in the focused block before the key now being handled — where an undo of what the key does
+    /// puts it back.
+    /// </summary>
+    private int _caretBefore;
+
+    /// <summary>
     /// The block the caret is inside, if any — what keys, pastes and palette insertions are going to.
     /// </summary>
     internal IEditableBlock? FocusedBlock => _caretBlock;
@@ -178,6 +184,28 @@ public partial class InlineMarkdownEditor
     }
 
     /// <summary>
+    /// The editable content in block <paramref name="index"/> that starts at <paramref name="start"/>, or the block's first
+    /// where none does — a paragraph can hold several formulas, and only one of them was being written in.
+    /// </summary>
+    private IEditableBlock? ContentIn(int index, int start)
+    {
+        var held = new List<IEditableBlock>();
+
+        foreach (var block in _rtb.Document.Blocks)
+        {
+            if (block.Tag is not int tagged || tagged != index) continue;
+
+            if (block is BlockUIContainer { Child: { } child } && EditableWithin(child) is { } whole) held.Add(whole);
+
+            if (block is Paragraph paragraph)
+                foreach (var inline in paragraph.Inlines)
+                    if (inline is InlineUIContainer { Child: { } inner } && EditableWithin(inner) is { } found) held.Add(found);
+        }
+
+        return held.FirstOrDefault(content => content.SourceStart == start) ?? held.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Steps the caret out of the text and into the block on the other side of it, when an arrow key
     /// would otherwise skip straight over that block.
     /// <para>
@@ -302,6 +330,7 @@ public partial class InlineMarkdownEditor
     private bool BlockHandlesKey(KeyEventArgs e)
     {
         if (_caretBlock is not { } block) return false;
+        _caretBefore = block.Caret;
 
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
@@ -365,7 +394,9 @@ public partial class InlineMarkdownEditor
                 return true;
 
             case Key.Enter:
-                if (block.Commit(" ")) return true;
+                // The key's own character, so content made of lines can start another one — a diagram's next slice,
+                // a tune's next line. What it settles and whether it writes anything is the content's own rule.
+                if (block.Commit("\n")) return true;
                 // Never a block split: the caret is inside one piece of content, not between two
                 // paragraphs — and content that is one line has no second line to start, so this does
                 // nothing at all rather than tearing the document in half behind it.
@@ -389,6 +420,7 @@ public partial class InlineMarkdownEditor
     private bool BlockHandlesText(string text)
     {
         if (_caretBlock is not { } block || string.IsNullOrEmpty(text)) return false;
+        _caretBefore = block.Caret;
 
         foreach (var character in text)
         {
@@ -420,7 +452,7 @@ public partial class InlineMarkdownEditor
         // recorded one — the source-mode and Word-style paths both snapshot, and this third path was
         // added beside them without it, so an edit made inside a formula or a barcode was the one kind
         // of edit undo could not see. Coalesced by block, so a value typed in one go is one step.
-        SnapshotAt(index, 0);
+        SnapshotAt(index, _caretBefore, content: block.SourceStart);
 
         if (block.SourceStart < 0)
         {

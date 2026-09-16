@@ -53,6 +53,45 @@ public class MarkdownViewModelTests
                        "The toolbar label shows the file name only.");
     }
 
+    // ── A rendered block's picture ────────────────────────────────────────────
+
+    [TestMethod]
+    [CoversNode("markdown-block-picture")]
+    public async Task SavePicture_WritesThePngWhereTheReaderPicks_NamedForTheDocumentAndTheBlock()
+    {
+        var path = Path.GetTempFileName();
+        _tempFiles.Add(path);
+        File.WriteAllText(path, "# Pets\n");
+
+        var shell = Substitute.For<IShellServices>();
+        var chosen = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        _tempFiles.Add(chosen + ".png");
+        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns(chosen);
+
+        var vm = new MarkdownViewModel(path, shell);
+        byte[] png = [0x89, 0x50, 0x4E, 0x47];
+
+        Assert.IsTrue(await vm.SavePictureAsync(png, "mermaid"));
+
+        await shell.Received(1).PickSaveFileAsync($"{Path.GetFileNameWithoutExtension(path)}-mermaid.png",
+                                                  Arg.Is<IReadOnlyList<string>?>(extensions => extensions!.SequenceEqual(new[] { ".png" })),
+                                                  Path.GetDirectoryName(path));
+        CollectionAssert.AreEqual(png, File.ReadAllBytes(chosen + ".png"), "written as a .png, whatever the name picked ended with");
+    }
+
+    [TestMethod]
+    [CoversNode("markdown-block-picture")]
+    public async Task SavePicture_WritesNothingWhenThePickIsCancelled()
+    {
+        var shell = Substitute.For<IShellServices>();
+        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns((string?)null);
+
+        var path = Path.GetTempFileName();
+        _tempFiles.Add(path);
+
+        Assert.IsFalse(await new MarkdownViewModel(path, shell).SavePictureAsync([1, 2, 3], null));
+    }
+
     // ── Source / preview toggle (pure state) ──────────────────────────────────
 
     [TestMethod]

@@ -139,7 +139,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | Sub-type | Status | Tests |
 |---|---|---|
 | `graph` / `flowchart` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests` — shapes, arrows, edge ids, chains `A-->B-->C`, fan-out `A-->B & C`, nested subgraphs) + sample render |
-| `pie` | ✅ | ✅ render + routing (`DiagramRendererTests`) + sample render |
+| `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample |
 | `sequenceDiagram` | ✅ | ✅ parser (`DiagramParsersTests`, extensive) + render (`DiagramRendererTests`) + sample |
 | `gantt` | ✅ | ✅ parser (`DiagramParsersTests`) + sample render |
@@ -154,7 +154,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `ishikawa` / `ishikawa-beta` | ✅ (fishbone) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `venn-beta` | ✅ (overlapping circles) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
 | `architecture-beta` | ✅ (grid layout, icon glyphs) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (five-domain grid) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
@@ -163,6 +163,31 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
 | `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+
+**Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
+[`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
+[`PieBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/PieBuilder.cs)).
+A pie is the first diagram drawn on the **shared layout tree** rather than by a renderer of its own, so it is selectable
+and its values are the numbers themselves. Supported: `pie`, `showData`, a `title` after the keyword or on a line of its
+own, `"label" : value` slices in clockwise order, `%%` comments and `accTitle`/`accDescr`. A value that is not a number
+greater than nought keeps its slice and carries the reason on the number; a line that is no slice is held as written
+with the reason, and a pie with nothing worth drawing is shown as its own source — unless it is being written in.
+**Written in place:** a label or value deleted to nothing leaves a hole rather than an error, Enter anywhere on a slice
+starts a new slice under it with holes for its label and value (Tab moves between them), Backspace in a slice nothing
+has been written on takes it back, Backspace and Delete stop at the edges of a label, value or title rather than
+taking the quote, colon or line end past them, Up and Down move between legend rows and between the title and the
+legend, Ctrl+Z takes an edit back with the pie still drawn, and the pointer is a bar only over labels, values, the
+title and holes. A quote typed into a label is written `#quot;` and drawn as a quote, and Shift+click and Ctrl+click
+choose as they do in any diagram on the layout tree.
+**The front matter is applied** — `config: pie:` `textPosition` (0.75), `donutHole` (0, to 0.9), `legendPosition`
+(`right`/`left`/`top`/`bottom`/`center`) and `highlightSlice` (a label, or `hover`), and the `themeVariables`
+`pie1`…`pie12`, `pieStrokeWidth` (the gap between slices), `pieOuterStrokeColor`/`pieOuterStrokeWidth`, `pieOpacity`,
+the section/legend text sizes and colours, and `pieTitleTextColor`. A size or colour nobody wrote is the theme's.
+Each wedge **stands in its own shape**, so a press means the slice it lands in rather than whichever bounding box was
+asked first, and the gaps between slices are real gaps of even width. A wedge, the share written on it and its legend
+row all point at the same slice, so choosing one highlights all three. **Limitations:** `hover` highlighting needs a
+pointer the layout does not yet report, so it picks out nothing; and a value is typed into only where the host makes
+the block editable.
 
 **State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
 State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (pseudostate
@@ -315,19 +340,38 @@ the body has no `direction`) and explicit `fill`/`stroke` colours; the remaining
 `nodeSpacing`, `fontSize`, …) are parsed but the shared layout uses its own metrics. **Limitations:** `subgraph … end`
 grouping is flattened (entities still render, ungrouped), and entity-name markdown isn't rendered (shown as plain text).
 
-**Venn sub-features** ([`MermaidVennParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidVennParser.cs)
-+ [`WpfVennRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfVennRenderer.cs)).
-A Venn diagram has its own [`VennDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/VennDiagram.cs) model —
-`set` circles and the `union` (intersection) regions between them — drawn as overlapping circles in a canonical layout
-(one / two side-by-side / three in a triangle, a ring for four+). Supported: `venn-beta`; `title`; `set id["Label"]:size`
-(comma is the only intersection operator, so `union A,B["AB"]:size` is the A∩B region — `:size` weights the circle area,
-`["Label"]` renames it); `text` items (indented under the most recent set/union, or an explicit `text A,B id["label"]`);
-and `style id` / `style A,B` (fill / color / stroke / fill-opacity, the comma target being the intersection region).
-**The front-matter `config:` block is applied** ([`VennConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/VennConfigParser.cs)
-→ [`VennConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/VennConfig.cs)): `config: venn` `width`/`height`/
-`padding`, and the `themeVariables` `venn1…venn8` circle palette (else the palette's series bank). **Limitations:** the
-layout is canonical (radii scale with `size`), not the area-proportional solver Mermaid uses, so overlap areas are
-indicative rather than exact; `useDebugLayout` is ignored.
+**Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
+[`VennPipeline`](../src/Nexaflow.Markdown/Mermaid/Venn/VennPipeline.cs) →
+[`VennDiagram`](../src/Nexaflow.Markdown/Mermaid/Venn/VennDiagram.cs) →
+[`VennBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/VennBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
+Supported, as Mermaid documents it: `venn-beta`; a `title`, quoted or not; `set id["Label"]:size`, a name bare or in
+quotes and a label as `["Label"]` or `[Label]`; `union A,B["Label"]:size` over two sets or more, each written above it;
+`text` items indented under a set or a union, or written at the start of a line naming their region first
+(`text A,B AB1["OpenAPI"]`), called by a word, a number or words in quotes; `style` of a set, a union (`style A,B`) or
+an item, setting `fill`, `color`, `stroke`, `stroke-width` and `fill-opacity`; and `%%` comments on a line of their own
+or closing one. **Areas mean sizes:** a circle's area is its set's size — ten where none is written — and two circles
+overlap by their union's — ten over the square of the count where none is — placed as Mermaid's venn.js places them; a
+union of three sets or more implies an overlap of a quarter of the smaller set for each pair it covers, so it has a
+region to sit in, while a size written for what three sets or more share is fitted along with every pair's, as venn.js
+fits it; sets nothing says overlap stand apart. A region's words sit where it has most room: a set with no
+label shows its name, a union with none the names of its sets, and items stack under the label, spreading into columns
+only where a column would run out of the region. What Mermaid would refuse is drawn where it plainly belongs with the
+reason beneath — a union naming a set not written above it, an item with no region or indented against the rule, a style
+naming nothing or setting something no style sets, a size that is no number.
+**The front matter is applied** ([`VennConfig`](../src/Nexaflow.Markdown/Mermaid/Venn/VennConfig.cs)): `config: venn:`
+`width`, `height`, `padding` (15), `useMaxWidth` and `useDebugLayout` (a cross at each circle's centre and a box round
+each region's words), and the `themeVariables` `venn1`…`venn8`, `vennTitleTextColor` and `vennSetTextColor`. A width
+or height nobody wrote is the app's own, and a colour the theme's.
+**Written in place:** a label is typed into where it is drawn; Enter on a set or a union starts an item in it and on an
+item another in the same region, with a hole for its name — a new set anywhere else; a label deleted to nothing leaves
+a hole; and Backspace in an item nothing has been written in takes it back. A character a place cannot hold is escaped as it is
+typed: a bare name or a bracketed label is put in quotes, and a quote in quotes is written `#quot;`, which is drawn as a
+quote. A set or an item renamed where it is declared is renamed wherever it is used — in the unions, the items naming
+their region and the styles — unless another set or item already has the name. Shift+click chooses from the caret to the
+press, and Ctrl+click adds a region, a label or an item to what is chosen. Pressing a circle chooses its set and the items
+in it, and pressing where a union's circles overlap chooses the union. **Limitations:** a diagram is drawn in the app's
+theme, so Mermaid's `redux-color` theme, `neo` look and hand-drawn look are not.
 
 **Architecture sub-features** ([`MermaidArchitectureParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidArchitectureParser.cs)
 + [`WpfArchitectureRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfArchitectureRenderer.cs)).
@@ -348,7 +392,7 @@ so complex graphs may lay out differently; edges route as straight side-to-side 
 **Swimlane sub-features** ([`MermaidSwimlaneParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs)
 + [`WpfSwimlaneRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs)).
 Swimlane syntax is flowchart syntax where every **top-level `subgraph` is a lane**, so the parser rewrites the
-`swimlane-beta [DIR]` header to a `flowchart [DIR]` header and reuses `MermaidParser` for the full grammar; the
+`swimlane-beta [DIR]` header to a `flowchart [DIR]` header and reuses `MermaidFlowchartParser` for the full grammar; the
 dedicated renderer draws each lane as a band (horizontal bands for `TB`/`BT`, vertical columns for `LR`/`RL`) with
 its nodes flowing along the lane and edges (including cross-lane ones) drawn between node centres. Supported:
 direction (`TB`/`TD`/`BT`/`LR`/`RL`); lanes via top-level `subgraph id[Label] … end`; flowchart node shapes
@@ -536,12 +580,19 @@ at all, and the chrome of a surface inside a text container would otherwise need
 corkboard and the image collage each hand-rolled the same WPF half — transforms, drag, minimap redraw, zoom
 buttons — around that shared arithmetic. It is the half that was missing.
 
-Mermaid `--- … ---` front-matter (title/config) is stripped and a title applied
-(`MermaidFrontmatter`); this is tested directly (`DiagramParsersTests` →
-`Frontmatter_*`, and `DiagramRendererTests.Frontmatter_PieRoutesToChartNotSourceText`). The `config:` block is
-discarded for every diagram **except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram`, `venn-beta`,
-`architecture-beta` and `cynefin-beta`** (which re-read it via `MermaidFrontmatter.RawBlock` and apply the
-`config:` options described above) **and the `config: nexaflow:` block**, which every graph-family diagram reads.
+A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
+of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives
+(read as written; none is obeyed), the header naming the diagram, and `accTitle`/`accDescr` — and
+[`MermaidBlock`](../src/Nexaflow.Markdown/Mermaid/MermaidBlock.cs) hands each diagram the body past the front matter,
+the front-matter title (applied to a chart that has none of its own) and the config between the fences
+([docs/markdown-ast.md](markdown-ast.md#mermaid)). Tested by `MermaidParserTests`, `MermaidBlockTests` and
+`DiagramRendererTests.Frontmatter_PieRoutesToChartNotSourceText`. The `config:` block is discarded for every diagram
+**except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram`, `venn-beta`, `architecture-beta` and
+`cynefin-beta`** (which read `MermaidBlock.Config` and apply the `config:` options described above) **and the
+`config: nexaflow:` block**, which every graph-family diagram reads. A header naming no diagram type shows the block
+as written, with a wave under the header's word and the reason beneath
+([`UnknownDiagramBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/UnknownDiagramBuilder.cs), tested by
+`MermaidBuilderTests`).
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.
@@ -1194,8 +1245,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; XY chart (vertical/horizontal, per-point labels, front-matter config); radar (circle/polygon graticule, keyed curve, front-matter config); ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); venn (circle routing, three-set + custom palette + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); cynefin (domain routing not raw text, confusion overflow + front-matter config); timeline (spine routing not raw text, sections + `disableMulticolor` + front-matter title, `direction TD`); journey (face routing not raw text, all five scores + actor/section colours from config); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, XY chart + `XyChartConfig` (layout/axis/theme keys, `plotColorPalette`), radar + `RadarConfig` (axes, positional/keyed curves, options, geometry/styling/`cScale`), ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), venn + `VennConfig` (sets/unions/sizes, indented + explicit text, styling, `venn1…8` palette); architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); cynefin + `CynefinConfig` (domain items, all five domains, confusion overflow, transitions, theme colours); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); timeline + `TimelineConfig` (periods/events, `:` continuation lines, sections, `<br>`/`#colon;`, `direction`, indexed `cScale`/`cScaleLabel` slots); journey + `JourneyConfig` (sections/tasks/scores/actors, distinct actor order, score defaults + clamping, actor-less tasks, colour lists + `fillType`); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; XY chart (vertical/horizontal, per-point labels, front-matter config); radar (circle/polygon graticule, keyed curve, front-matter config); ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); cynefin (domain routing not raw text, confusion overflow + front-matter config); timeline (spine routing not raw text, sections + `disableMulticolor` + front-matter title, `direction TD`); journey (face routing not raw text, all five scores + actor/section colours from config); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, XY chart + `XyChartConfig` (layout/axis/theme keys, `plotColorPalette`), radar + `RadarConfig` (axes, positional/keyed curves, options, geometry/styling/`cScale`), ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); cynefin + `CynefinConfig` (domain items, all five domains, confusion overflow, transitions, theme colours); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); timeline + `TimelineConfig` (periods/events, `:` continuation lines, sections, `<br>`/`#colon;`, `direction`, indexed `cScale`/`cScaleLabel` slots); journey + `JourneyConfig` (sections/tasks/scores/actors, distinct actor order, score defaults + clamping, actor-less tasks, colour lists + `fillType`); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |

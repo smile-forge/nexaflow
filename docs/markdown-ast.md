@@ -30,11 +30,73 @@ Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/Wi
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
 Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
 Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles
+Mermaid/     MermaidParser, MermaidBlock, MermaidDiagram, MermaidKinds, MermaidConfig — what every mermaid diagram shares
+Mermaid/Pie/ PieGrammar, PieChart, PieConfig, Stages/ResolveSlices — what a pie says for itself
 ```
 
 The layout tree is still in `src/Nexaflow.Visuals.Text/Editing/` because `ILayoutNode.Bounds` is a
 `System.Windows.Rect` and a `LayoutMark` paints onto a `DrawingContext`. It moves here once it has
 geometry primitives of its own.
+
+A piece stands in its box: a press means the piece whose box it lands in, and a selection washes boxes. Where
+a box badly overstates the drawing — a pie's wedges share one square — the builder says which shape the piece
+stands in (`LayoutBuilder.Occupies`), and pressing, marquee selection and the wash follow that shape. It is the
+builder's to say rather than read off the marks, because a shape drawn is not always the shape meant: a note
+head is drawn as an outline and is still pressed as its box.
+
+**A run of text is one piece with a position between any two of its letters** (`LayoutWords`), rather than a piece
+per character: the run answers which letter a press landed on, where the caret stands, what part of it a selection
+covers and where a word ends, from the text it was set with. The caret keeper steps through a run a character at a
+time, the way it steps through a stretch shown as its own characters, and a drag through one picks out characters
+rather than being promoted to the whole piece — a run *is* the text, so there is nothing to promote it to.
+
+A run says two things about itself. Whether what is drawn is what was written, which is what makes a caret possible
+inside it; and whether pressing it shows what was written, which is what a formatted view of its own source does — a
+number set to two decimal places, a title without the quotes it was written in. A run that says something *about* a
+piece of source without showing it — the share of a pie a slice takes — is neither: it is nowhere to put a caret, so
+stepping never stops in one, and a press on it means the slice it was worked out from.
+
+**What a key means where the caret is, is the content's** (`IContent.Typing`, `IContent.Settle` and
+`IContent.Erasing`). Space and Enter both arrive at `Settle` carrying the character that was pressed, so content made
+of lines starts another one on Enter while a formula, which is one expression, settles whatever is half-written and
+puts a space after it. A diagram starts its next line under the one the caret is on — never through the middle of a
+label — written as its grammar starts one after that line (`IMermaidGrammar.Blank`, told what the line says: a pie's
+is always `"" : `, and a Venn diagram's an item under a set, a union or an item, and a set anywhere else) with the
+caret in its first hole. Backspace and delete (`IContent.Erasing`, told which side) take the characters of what a diagram's reader
+wrote and never what holds it together: at the edge of a label, a value or a title, and in a hole, the key does
+nothing — except in a line nothing has been written on, which is taken back whole.
+
+**What a place cannot hold is escaped as it is typed** (`IContent.Typing`, asking `IMermaidGrammar.Escaping`), so a
+character never stops a line reading. A quote typed inside quotes is written as Mermaid's entity code, `#quot;`
+(`MermaidText`); a bare Venn name given anything but a word, or a bare bracketed label given a quote, a bracket or a
+comment, is put in quotes to hold it. Text written with an entity code is drawn as what it reads, and shown as written
+for as long as the caret is in it, the stretch shown growing as it is typed at the end of — so the caret always has the
+characters it stands between.
+
+**A name renamed where it is declared is renamed where it is used** (`IContent.Edited`, which every edit passes
+through however it was made, asking `IMermaidGrammar.Names`). A Venn set is used by the unions overlapping it, the items
+naming it as their region and the styles styling it, and an item by a style naming it alone; each use is written as the
+grammar writes a name there, bare or in quotes. Only a name declared once is carried, and only onto one nothing else is
+declared as — two sets of one name, or a rename onto another's, are left alone rather than guessed at.
+
+**Shift and Ctrl choose as they do anywhere else.** The host hands a press the modifier keys held
+(`IInteractiveBlock.BeginPointerSelect(point, modifiers)`). Shift chooses from where the choosing started — the caret,
+where nothing is chosen yet — to the press, as a drag there would; Ctrl adds what is pressed to what is chosen, or takes
+it back out. A selection of several stretches is what `EditState` already holds for a matrix's column.
+
+**Up and down go to the line above or below** (`LayoutQuery.StepVertical`): out through what the caret stands in to
+the nearest row with somewhere to stand, then the line of that row nearest the one left, at the place nearest the
+column — between two letters where that is a run. A fraction's numerator goes to its denominator past the bar; a
+legend's row goes to the row under it; a title goes into a legend beside the chart, and the legend's top row back up.
+
+**Undo takes an edit back where it was made.** An edit inside rendered content records where that content starts in
+its block and where the caret was before the key, and undoing it builds the document again with the caret back in
+the content — rather than opening the block's source, which is where an edit made in markdown goes back to.
+
+**The pointer is a bar only over what can be written in** (`LayoutQuery.Writable`): on a piece that takes a caret, or
+within half a letter's height of one, or inside a construct that is itself somewhere to write, such as a fraction. A
+wedge, a swatch, a worked-out share and the card a diagram is drawn on show an arrow. A block inside a text box never
+sees the pointer, so the host asks it (`IInteractiveBlock.PointerCursor`) after the text box has set its own.
 
 ## The tree owns its text
 
@@ -137,6 +199,72 @@ finders and timing lines, an Aztec code's bullseye, mode message and reference g
 indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
 the module geometry, the quiet zone, and the struck-through stand-in drawn when a block will not read or
 encode — is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+
+## Mermaid
+
+One parser for every diagram type, because they all open the same way. `MermaidParser` reads what they share: the
+front matter between two `---` fences (a `key: value` line as its key, colon and value, anything else held as
+written), `%%` comments, `%%{ … }%%` directives over however many lines they take, the header — its keyword and
+whatever follows — and the `accTitle` / `accDescr` lines any diagram may carry. Every other line is a statement,
+held whole: what its characters mean is its diagram's grammar.
+
+**The header is the first line that says anything.** Front matter, blank lines, comments and directives come
+before it; whatever is next names the diagram, and a line there that names nothing is still the header, held with
+the reason. Which keyword names which type is `MermaidDiagrams` — most by prefix (`stateDiagram-v2`,
+`xychart-beta`), the rest by the whole word, so `flowchart-elk` is not a flowchart.
+
+`MermaidBlock` reads the tree back into what a diagram is handed: its type, the front matter's top-level title as a
+part, the YAML between the fences, and where the body starts. `MermaidConfig` reads that YAML as what it is — keys
+with values, and sections of more of the same — and each type reads its own options out of it with its own defaults.
+
+**What a type says for itself is its grammar** (`IMermaidGrammar`), which the parser hands the header's arguments and
+each line once the keyword is known. A type without one keeps its lines whole. A line is handed over to the end of
+its row, space and all, and what the grammar reads is as much as its node prints — the rest is the line's own. Pie has
+one: `showData` and a title after the keyword, a `title` line, and a slice per line as its label in quotes, its colon
+and its value — a value that is not a number greater than nought keeps its slice and carries the reason on the number,
+because the label is what the reader is looking at. A value is written in its own place (`PieKinds.Worth`) and one
+not yet written is empty and no complaint: it stands after the space left for it, which is where typing it puts it.
+
+**Where somebody is writing, a pie has holes** (`PiePipeline.Read(…, holes: true)`, the shared `WithHoles` stage): a
+label with nothing between its quotes and a value with nothing after its colon each get one, drawn by
+`LayoutText.Hole` as a formula draws its own. A chart being written also keeps a legend row for every slice written,
+drawn or not — the row with a hole in it is where the reader is typing — and shows the value of any row whose value
+is still to come or is wrong, however `showData` is set.
+
+**A pie's colours are written nowhere near its slices**, as `pie1`…`pie12` in the front matter, by position. So which
+colour a slice takes is a fact about the order and the front matter rather than about the line, and `ResolveSlices`
+works it out and hangs it underneath the slice — naming the key it came from as well as the colour, which is what
+lets a restyle know where to write. A slice the config does not colour says nothing, leaving the theme to decide.
+`PieChart` reads it all back: the title, the slices in order with their shares, and what the front matter asks for, and
+`PieBuilder` draws that on the layout tree: three layers — the wedges, the shares written on them, the legend — each a
+subtree of its own, with what belongs together said by the source they all point at rather than by the shape of the
+layout. The room the block is given is what the chart is fitted into; where it sits on the page is the document's. On the builder side, `MermaidBuilder` is what every diagram's builder shares: the block read
+once, the title set over a diagram drawn at the origin in the ink its front matter asks for (`TitleInk`), trouble anywhere in the block set beneath, and
+the read-only element it is shown in. A header naming no type is `UnknownDiagramBuilder` — the block as written, a
+wave under the word in the header's place, and the reason.
+
+**Venn has a grammar and two stages.** `VennGrammar` reads a `title`, `set` and `union` lines with their names — bare,
+or in quotes — labels in brackets and sizes after a colon, `text` items, and `style` lines setting `fill`, `color`,
+`stroke`, `stroke-width` and `fill-opacity`; a `%%` comment may close any line. What a line cannot say for itself is the
+pipeline's. `GroupRegions` gathers each set or union with the items indented under it into one `VennKinds.Region`, so
+the tree holds what the diagram is made of — regions holding their items — rather than only the lines it was written
+on: a comment between items goes with them, and an item written anywhere else stays where it is, because a stage only
+re-nests what is already side by side. `ResolveRegions` then hangs a key under each region — a set's name, or a union's
+names sorted, so `B,A` and `A,B` are one overlap — under each item standing on its own the region it names or else the
+one written last, and under each style what it styles; and says so where a union names a set not written above it, an
+item has no region or breaks Mermaid's indentation rule, or a style names nothing. `VennDiagram` reads it back, with
+Mermaid's sizes where none is written, and `VennConfig` the front matter.
+
+**The syntax tree and the layout tree are shaped by different things.** A region is one node of the syntax tree and
+several pieces of the layout: `VennBuilder` draws three layers — the circles, the overlaps the unions name, and the
+words — so a set is a circle in one and a label and its items in another, every one of them pointing at the region it
+was written in. The circles are placed by area (`VennLayout`): each circle's area is its set's size and each pair
+overlaps by what the two share, the distance for that found by halving and the whole settled greedily, as Mermaid's
+venn.js does — a union of three sets or more implying an overlap for each pair it covers, so it has a region to sit in.
+Where a size is written for what three sets or more share, the circles are then moved together until every overlap,
+pairs and those regions alike, covers as near its size as the rest allow (`VennLayout.Shared`, venn.js's loss).
+Words go at the point of their region furthest from any edge. A union's overlap is a piece standing only where its
+circles meet and no other covers, and each circle stands in what is left of it, so a press in a lens means the union.
 
 ## SMILES
 
@@ -288,6 +416,14 @@ declining. A formula claims Space, Enter and Tab; a score claims Page Up, Page D
 sharpen/lengthen keys; a barcode claims none, and says nothing. These used to be `is FormulaElement` tests
 in the host, which was honest while a formula was the only block with keys of its own and stopped being so
 at the second.
+
+**What a host does with a block is the host's** (`InlineMarkdownEditor.BlockActions`). The editor shows a toolbar over
+a whole rendered block the pointer is on — the block's edge tinted, the buttons at its top right, faint until the
+pointer comes near (`BlockToolbar`, an adorner, because nothing inside a text box sees the pointer) — but the buttons
+are the host's: a label, an id and a callback (`BlockAction`), handed the block pressed (`RenderedBlock`). What a
+callback can ask of a block is its fence's language, its source and its `Picture`: what the content draws, laid out as
+it reads with nobody writing in it — no caret, selection, hole, underline or stretch shown as written. The renderer
+knows nothing of clipboards or files; the Markdown viewer's Copy and Save are its own.
 
 ## What a new language has to bring
 

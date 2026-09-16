@@ -101,6 +101,15 @@ public interface IEditableBlock : IInteractiveBlock
     /// </summary>
     int SourceStart { get; }
 
+    /// <summary>Where the caret stands in <see cref="Source"/>.</summary>
+    int Caret { get; }
+
+    /// <summary>
+    /// Puts the caret at an offset into <see cref="Source"/> — how a host hands it back to where it was once the content
+    /// has been built again.
+    /// </summary>
+    void TakeCaret(int offset);
+
     /// <summary>Types a character at the caret, replacing whatever is selected.</summary>
     void Type(char character);
 

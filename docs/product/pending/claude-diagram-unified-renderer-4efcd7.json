@@ -1,0 +1,340 @@
+{
+  "branch": "claude/diagram-unified-renderer-4efcd7",
+  "nodes": {
+    "mermaid-builder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/UnknownDiagramBuilder.cs",
+          "class": "UnknownDiagramBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderTests.cs",
+            "class": "MermaidBuilderTests"
+          }
+        ]
+      }
+    },
+    "mermaid-block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidBlock.cs",
+          "class": "MermaidBlock"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidParserTests.cs",
+            "class": "MermaidParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidBlockTests.cs",
+            "class": "MermaidBlockTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTextTests.cs",
+            "class": "MermaidTextTests"
+          }
+        ]
+      }
+    },
+    "layout-regions": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
+          "class": "LayoutBuilder",
+          "method": "Occupies"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutQuery.cs",
+          "class": "LayoutQuery",
+          "method": "RangeRegions"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/LayoutRegionTests.cs",
+            "class": "LayoutRegionTests"
+          }
+        ]
+      }
+    },
+    "layout-words": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutWords.cs",
+          "class": "LayoutWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutText.cs",
+          "class": "LayoutText",
+          "method": "Words"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/LayoutWordsTests.cs",
+            "class": "LayoutWordsTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentWordsTests.cs",
+            "class": "ContentWordsTests"
+          }
+        ]
+      }
+    },
+    "pie-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs",
+          "class": "PieGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs",
+          "class": "PieChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieConfig.cs",
+          "class": "PieConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieGrammarTests.cs",
+            "class": "PieGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieChartTests.cs",
+            "class": "PieChartTests"
+          }
+        ]
+      }
+    },
+    "pie": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/PieBuilder.cs",
+          "class": "PieBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/PieBuilderTests.cs",
+            "class": "PieBuilderTests"
+          }
+        ]
+      }
+    },
+    "pie-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidContent.cs",
+          "class": "MermaidContent"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/PieEditingTests.cs",
+            "class": "PieEditingTests"
+          }
+        ]
+      }
+    },
+    "venn": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/VennBuilder.cs",
+          "class": "VennBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/VennLayout.cs",
+          "class": "VennLayout"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/VennBuilderTests.cs",
+            "class": "VennBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/VennLayoutTests.cs",
+            "class": "VennLayoutTests"
+          }
+        ]
+      }
+    },
+    "venn-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs",
+          "class": "VennGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennPipeline.cs",
+          "class": "VennPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs",
+          "class": "GroupRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs",
+          "class": "ResolveRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennDiagram.cs",
+          "class": "VennDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennConfig.cs",
+          "class": "VennConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennGrammarTests.cs",
+            "class": "VennGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennDiagramTests.cs",
+            "class": "VennDiagramTests"
+          }
+        ]
+      }
+    },
+    "venn-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/IMermaidGrammar.cs",
+          "class": "IMermaidGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/VennEditingTests.cs",
+            "class": "VennEditingTests"
+          }
+        ]
+      }
+    },
+    "markdown-block-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/BlockAction.cs",
+          "class": "BlockAction"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/BlockToolbar.cs",
+          "class": "BlockToolbar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/BlockToolbarTests.cs",
+            "class": "BlockToolbarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 22,
+  "touched_nodes": [
+    "layout-regions",
+    "layout-words",
+    "markdown-block-picture",
+    "mermaid-block-ast",
+    "mermaid-builder",
+    "pie",
+    "pie-ast",
+    "pie-writing",
+    "venn",
+    "venn-ast",
+    "venn-writing"
+  ]
+}

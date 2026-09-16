@@ -49,6 +49,7 @@ public class SelectableMarkdownView : UserControl
         _rtb.PreviewMouseLeftButtonDown += OnPreviewMouseLeftButtonDown;
         _rtb.PreviewMouseLeftButtonUp   += OnPreviewMouseLeftButtonUp;
         _rtb.PreviewMouseMove           += OnPreviewMouseMove;
+        _rtb.AddHandler(Mouse.QueryCursorEvent, new QueryCursorEventHandler(OnQueryCursor), handledEventsToo: true);
 
         Background = Brushes.Transparent;
         Content    = _rtb;
@@ -74,7 +75,7 @@ public class SelectableMarkdownView : UserControl
         }
 
         _pointerBlock = block;
-        block.BeginPointerSelect(e.GetPosition(element!));
+        block.BeginPointerSelect(e.GetPosition(element!), Keyboard.Modifiers);
         Mouse.Capture(_rtb);   // keep the drag flowing to our move/up handlers
         e.Handled = true;
     }
@@ -90,6 +91,16 @@ public class SelectableMarkdownView : UserControl
             if (ReferenceEquals(d, _rtb)) break;   // stop at the host
         }
         return (null, null);
+    }
+
+    /// <summary>The pointer over an interactive block is the block's to choose, as it is in the editor.</summary>
+    private void OnQueryCursor(object sender, QueryCursorEventArgs e)
+    {
+        var (block, element) = BlockAt(e.GetPosition(_rtb));
+        if (block is null || element is null || block.PointerCursor(e.GetPosition(element)) is not { } cursor) return;
+
+        e.Cursor = cursor;
+        e.Handled = true;
     }
 
     private void OnPreviewMouseMove(object sender, MouseEventArgs e)

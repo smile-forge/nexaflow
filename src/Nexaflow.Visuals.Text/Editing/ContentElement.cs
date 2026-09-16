@@ -5,7 +5,9 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown;
+using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -187,6 +189,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         var at = _laid.Root.StopAt(state.Caret);
         if (at < 0 || _laid.Places[at] is not { Trailing: true } place) return null;
+
+        // A run of text is characters, so backspace takes one of them. Taking the whole run would delete a slice's
+        // value because the reader wanted its last digit gone.
+        if (place.Against.Words is { Maps: true }) return null;
 
         // One character has nothing hidden behind it — the ordinary backspace is already right.
         var sits = place.Against.Sits();
@@ -514,10 +520,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // Stepping by layout stops cannot reach into it — every position inside maps to the one point
         // where it sits in the laid-out content — so the caret jumped clean over the thing the reader had
         // just asked to see, which is the only place they wanted to edit.
-        if (_state.Raw is { } zone && zone.Holds(_state.Caret))
+        if (Typed(_state.Caret) is { } typed)
         {
             var step = _state.Caret + (forward ? 1 : -1);
-            if (step >= zone.Start && step <= zone.End) { MoveTo(step, -1, extend); return true; }
+            if (step >= typed.Start && step <= typed.End) { MoveTo(step, -1, extend); return true; }
         }
 
         // One step along the places, or — for a caret standing where none of them is, which is what a
@@ -561,7 +567,24 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         // Inside the stretch being written every character is its own stop, so the caret goes exactly
         // where it was put; the settled content snaps to the places a caret may rest.
-        return _state.Raw is { } zone && zone.Holds(clamped) ? clamped : _laid.NearestStop(clamped);
+        return Typed(clamped) is not null ? clamped : _laid.NearestStop(clamped);
+    }
+
+    /// <summary>
+    /// The stretch of source a caret at this offset steps through a character at a time, or nothing where it stands
+    /// among the places the content declared.
+    ///
+    /// <para>
+    /// Two things read alike here and are meant to: the stretch being shown as its own characters while somebody types
+    /// it, and a run of text — a label, a value — which is one piece with a position between any two of its letters.
+    /// Neither has a layout stop per character, and in both the caret goes exactly where it was put.
+    /// </para>
+    /// </summary>
+    private (int Start, int End)? Typed(int offset)
+    {
+        if (_state.Raw is { } zone && zone.Holds(offset)) return (zone.Start, zone.End);
+
+        return _laid.Root.WordsAt(offset) is { Part: { } part } ? (part.Start, part.End()) : null;
     }
 
     // ── Typing ──────────────────────────────────────────────────────────────
@@ -638,6 +661,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     public bool Backspace()
     {
         if (IsReadOnly) return false;
+        if (_content.Erasing(Landing, forward: false) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
         Apply(Backspacing(_state) ?? _state.Backspace(), notify: true);
@@ -648,6 +672,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
     public bool Delete()
     {
         if (IsReadOnly) return false;
+
+        // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed
+        // back to the document from there takes whatever the document has next.
+        if (_content.Erasing(Landing, forward: true) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
 
         Apply(_state.Delete(), notify: true);
@@ -747,14 +775,42 @@ public class ContentElement : FrameworkElement, IEditableBlock
     // ── Pointer, driven by the host ─────────────────────────────────────────
 
     /// <inheritdoc />
-    public void BeginPointerSelect(Point pointInElement)
+    public void BeginPointerSelect(Point pointInElement) => BeginPointerSelect(pointInElement, ModifierKeys.None);
+
+    /// <inheritdoc />
+    public void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
     {
         InteractiveSelection.Own(this);
 
         var at = Unscaled(pointInElement);
+        _pressedAt = pointInElement;
+        _moving = false;
+
+        // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
+        if (modifiers.HasFlag(ModifierKeys.Control))
+        {
+            _dragging = false;
+            Toggle(at);
+            return;
+        }
+
+        // From where the choosing started to the press, as a drag from there would choose — from the caret, where nothing is
+        // chosen yet — and a drag after it goes on choosing from the same place.
+        if (modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            if (!_state.HasSelection)
+            {
+                _anchor = _state.Caret;
+                _anchorNode = _laid.Root.WordsAt(_anchor);
+            }
+
+            _dragging = true;
+            ChooseTo(at);
+            return;
+        }
+
         _anchor = _laid.OffsetAt(at);
         _anchorNode = _laid.PieceAt(at);
-        _pressedAt = pointInElement;
         _dragging = true;
 
         // Pressing on what is already selected is how a move begins — the reader is picking the term up,
@@ -767,10 +823,92 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // A press squarely on something means that thing; a press at a stop — between two things, or at the
         // edge of one — means the place. One rule for every kind of content: a note pressed is a note
         // picked, and a letter pressed at its edge is a caret put down beside it.
+        // A run of text is written in rather than picked up, so a press inside one is a caret between two of its
+        // letters — including the press that has to show it as written before there is anywhere to put one.
+        if (Writing(_anchorNode, at)) return;
+
         if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); return; }
 
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
     }
+
+    /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
+    private void Toggle(Point at)
+    {
+        var piece = Pointing(_laid.PieceAt(at));
+        if (!piece.Exists || piece.Sits() is not { Length: > 0 } sits) return;
+
+        _anchor = sits.Start;
+        _anchorNode = piece;
+
+        var pressed = new EditRange(sits.Start, sits.Length);
+        var chosen = _state.Selection;
+
+        IReadOnlyList<EditRange> next = chosen.Any(range => range.Start <= pressed.Start && range.End >= pressed.End)
+            ? [.. chosen.SelectMany(range => Outside(range, pressed))]
+            : [.. chosen, pressed];
+
+        if (next.Count == 0) { ClearSelection(); return; }
+
+        var state = _state.Select(next);
+        if (state.Selection.SequenceEqual(_state.Selection)) return;
+
+        Apply(state, notify: false);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>What of <paramref name="range"/> lies outside <paramref name="taken"/>.</summary>
+    private static IEnumerable<EditRange> Outside(EditRange range, EditRange taken)
+    {
+        if (taken.End <= range.Start || taken.Start >= range.End)
+        {
+            yield return range;
+            yield break;
+        }
+
+        if (taken.Start > range.Start) yield return new EditRange(range.Start, taken.Start - range.Start);
+        if (taken.End < range.End) yield return new EditRange(taken.End, range.End - taken.End);
+    }
+
+    /// <summary>
+    /// Puts the caret inside a run of text that was pressed, and says whether it did.
+    ///
+    /// <para>
+    /// A run showing something worked out — a value set to two decimal places, a percentage — has nowhere to put a
+    /// caret, because what is drawn is not what was written. Pressing it shows the source instead, and the press is
+    /// then answered against what that put on the page, so the caret lands where the reader pointed rather than at
+    /// the near end of the run.
+    /// </para>
+    /// </summary>
+    private bool Writing(Piece piece, Point at)
+    {
+        if (piece.Words is not { } words || piece.Part is not { } part) return false;
+
+        if (!words.Maps)
+        {
+            // A run that only says something about its part — the share of a pie a slice takes — is not written in: the
+            // press means the slice, which is what the ordinary rules already do with it.
+            if (IsReadOnly || !words.Writes) return false;
+
+            Apply(_state.MoveCaretTo(part.Start) with { Raw = new RawZone(part.Start, part.End()) }, notify: false);
+        }
+
+        TakeCaret(_laid.Root.OffsetAt(Unscaled(_pressedAt)), -1);
+        return true;
+    }
+
+    /// <summary>
+    /// How far round something written the pointer still says it can be written in: a little over half the widest gap set
+    /// between two things on a formula's line, so moving along one never flickers to an arrow between them.
+    /// </summary>
+    private const double PointerReach = 4.0;
+
+    /// <summary>What the pointer should be at a point: see <see cref="OnMouseMove"/>.</summary>
+    private Cursor Pointing(Point at) =>
+        !IsReadOnly && _laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+
+    /// <inheritdoc/>
+    Cursor? IInteractiveBlock.PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
     /// <summary>
     /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops: inside what it
@@ -827,13 +965,26 @@ public class ContentElement : FrameworkElement, IEditableBlock
             return;
         }
 
-        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what
-        // makes a drag down a column select the column rather than everything written between its top
-        // cell and its bottom one.
+        ChooseTo(at);
+    }
+
+    /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>
+    private void ChooseTo(Point at)
+    {
+        // Inside one run of text it picks out characters, because that is what dragging through text means. Everywhere else
+        // it is whole pieces — see below.
+        if (_anchorNode.Words is { Maps: true } && _laid.PieceAt(at) == _anchorNode)
+        {
+            ExtendSelectionTo(_laid.OffsetAt(at));
+            return;
+        }
+
+        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what makes a drag down a
+        // column select the column rather than everything written between its top cell and its bottom one.
         if (Pointing(_anchorNode) is { Exists: true } from && Pointing(_laid.PieceAt(at)) is { Exists: true } focus)
-            {
-            // Through whatever owns each end. Landing on a bracket means the group it opens or closes:
-            // half a pair is not a smaller selection, it is one that cannot be read.
+        {
+            // Through whatever owns each end. Landing on a bracket means the group it opens or closes: half a pair is not a
+            // smaller selection, it is one that cannot be read.
             SelectNodes(ContentSelection.Between(_laid.Root, from, focus));
             return;
         }
@@ -898,7 +1049,14 @@ public class ContentElement : FrameworkElement, IEditableBlock
         var here = _laid.OffsetAt(at);
 
         var under = Pointing(_laid.PieceAt(at));
-        if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
+
+        // In a run of text, the word you pressed is a word of it rather than the whole run.
+        if (under is { Words: { Maps: true } words, Part: { } part })
+        {
+            var (from, to) = words.WordAt(here - part.Start);
+            Select(part.Start + from, to - from);
+        }
+        else if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
         else Select(Math.Max(0, here - 1), 1);
 
         return true;
@@ -917,6 +1075,12 @@ public class ContentElement : FrameworkElement, IEditableBlock
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+
+        // The pointer says what can be done where it is: a bar over what can be written in, an arrow over a wedge of a
+        // pie, a barcode, a staff line — drawing nobody types into.
+        Cursor = Pointing(Unscaled(e.GetPosition(this)));
+        ForceCursor = true;
+
         if (_dragging) ExtendPointerSelect(e.GetPosition(this));
     }
 
@@ -935,6 +1099,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// </param>
     protected void Apply(EditState next, bool notify, int at = -1)
     {
+        if (notify && next.Source != _state.Source) next = _content.Edited(_state, next);
+        next = Left(next);
+
         var resized = next.Source != _state.Source || next.Raw != _state.Raw;
         var was = (_state.Caret, _at);
         var changed = next.Source != _state.Source;
@@ -957,6 +1124,25 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (notify && changed) SourceChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Stops showing a run of text as written once the caret has left it — what a value set to two decimal places goes
+    /// back to saying.
+    ///
+    /// <para>
+    /// Only a stretch that is exactly a run of text. A stretch the content itself opened — a command half typed — is
+    /// the content's own business, and it decides when that stops being shown.
+    /// </para>
+    /// </summary>
+    private EditState Left(EditState next)
+    {
+        if (next.Raw is not { } zone || zone.Holds(next.Caret)) return next;
+
+        var run = _laid.Root.SelfAndDescendants().Any(piece =>
+            piece.Words is not null && piece.Part is { } part && part.Start == zone.Start && part.End() == zone.End);
+
+        return run ? next with { Raw = null } : next;
+    }
+
     /// <summary>Lays the content out again, because something outside it changed.</summary>
     public void Refresh()
     {
@@ -970,6 +1156,36 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     /// <summary>Lays it out again from the state as it now stands.</summary>
     protected void Rebuild() => _laid = Lay(_state, Room(), _ppd);
+
+    /// <summary>
+    /// What the content looks like, as a picture: everything it draws, at the size and pixel density it is shown at — and
+    /// nothing drawn only for whoever is writing in it: no caret, no selection, no hole standing for what is still to be
+    /// written, no line under what could not be read, nothing shown as the characters it was written as.
+    /// </summary>
+    /// <param name="ground">What it is drawn on, or null for nothing behind what the content draws.</param>
+    public BitmapSource Picture(Brush? ground = null)
+    {
+        var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), pixelsPerDip, readOnly: true);
+        var size = new Size(Math.Max(1, Math.Ceiling(laid.Size.Width * Scale)), Math.Max(1, Math.Ceiling(laid.Size.Height * Scale)));
+
+        var drawing = new DrawingVisual();
+        using (var dc = drawing.RenderOpen())
+        {
+            if (ground is not null) dc.DrawRectangle(ground, null, new Rect(size));
+
+            var scaled = Math.Abs(Scale - 1.0) > 0.001;
+            if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
+            LayoutPainter.Paint(dc, laid.Root, Palette.Text);
+            if (scaled) dc.Pop();
+        }
+
+        var picture = new RenderTargetBitmap((int)Math.Ceiling(size.Width * pixelsPerDip), (int)Math.Ceiling(size.Height * pixelsPerDip),
+                                             96 * pixelsPerDip, 96 * pixelsPerDip, PixelFormats.Pbgra32);
+        picture.Render(drawing);
+        picture.Freeze();
+        return picture;
+    }
 
     // ── Layout and painting ─────────────────────────────────────────────────
 

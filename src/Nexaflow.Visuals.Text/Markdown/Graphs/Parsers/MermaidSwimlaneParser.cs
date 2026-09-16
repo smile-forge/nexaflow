@@ -6,12 +6,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 /// Swimlane syntax is flowchart syntax where every top-level <c>subgraph … end</c> is a lane, so this
 /// parser rewrites the <c>swimlane-beta [DIR]</c> header to an equivalent <c>flowchart [DIR]</c> header
 /// (dropping <c>accTitle</c>/<c>accDescr</c> accessibility lines) and delegates the heavy lifting —
-/// node shapes, edge styles, subgraph nesting — to <see cref="MermaidParser"/>.  The resulting graph's
+/// node shapes, edge styles, subgraph nesting — to <see cref="MermaidFlowchartParser"/>.  The resulting graph's
 /// top-level subgraphs (<see cref="Subgraph.ParentId"/> is null) are the lanes.  Never throws.
 /// </summary>
 public sealed class MermaidSwimlaneParser
 {
-    private static readonly MermaidParser Flow = new();
+    private static readonly MermaidFlowchartParser Flow = new();
 
     public bool CanParse(string language) =>
         language.StartsWith("swimlane", StringComparison.OrdinalIgnoreCase);

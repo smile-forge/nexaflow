@@ -72,6 +72,81 @@ public static class LayoutText
     }
 
     /// <summary>
+    /// Places a run of text as one piece with a caret position between any two of its letters, and hands back where the
+    /// piece went — see <see cref="LayoutWords"/>.
+    ///
+    /// <para>
+    /// What <see cref="Place"/> does with a letter per character, for content whose text is a string rather than a
+    /// sequence of separately placed glyphs: a label, a value, a caption. The run answers where inside it a position
+    /// is, so nothing is stored per character.
+    /// </para>
+    /// </summary>
+    /// <param name="maps">
+    /// Whether what is drawn is what was written, character for character. False for text worked out rather than typed
+    /// — a percentage, a number set to two decimal places — which a caret cannot go inside.
+    /// </param>
+    /// <param name="ink">
+    /// What the run is painted in, or null for the foreground of whatever it is drawn on. A text run's own brush is only
+    /// how it was measured: painting sets the ink, so a colour asked for has to be asked for here.
+    /// </param>
+    public static int Words(LayoutBuilder into, FormattedText text, Point at, double room,
+                            TextAlignment align, ISourcePart? part, string kind, bool maps = true, bool writes = false,
+                            Brush? ink = null)
+    {
+        text.MaxTextWidth = System.Math.Max(1, room);
+        text.TextAlignment = align;
+
+        // A run that says something about a piece of source rather than showing it is nowhere to put a caret: the share a
+        // slice takes is worked out, and a reader pressing it means the slice.
+        var piece = into.Open(kind, part, at, maps || writes ? Stops.Both : Stops.None);
+
+        into.Draw(new TextMark(text, default, ink));
+        into.Words(new LayoutWords(text, default, maps, writes));
+
+        into.Close();
+        return piece;
+    }
+
+    /// <summary>The kind of piece a hole is drawn as — see <see cref="Hole"/>.</summary>
+    public const string HoleKind = "Hole";
+
+    /// <summary>How far a hole runs across for how far up it runs: squat enough to read as a slot, as a formula's does.</summary>
+    private const double HoleAspect = 0.55 / 0.62;
+
+    /// <summary>How wide a hole standing among letters like <paramref name="letter"/> is drawn.</summary>
+    public static double HoleWidth(FormattedText letter) => letter.Extent * HoleAspect;
+
+    /// <summary>
+    /// Places a hole: the hollow box standing where something is still to be written, which a formula draws in an argument
+    /// left empty.
+    ///
+    /// <para>
+    /// It stands for no characters — its part is empty, and sits where they will go — so it is somewhere to put the caret,
+    /// and what is typed at it lands where it stands. As tall as a small letter and resting on the line, so it reads as a
+    /// letter still to come rather than a box drawn over the words, and as tall as the line to anything asking where a caret
+    /// in it goes.
+    /// </para>
+    /// </summary>
+    /// <param name="hole">The place in the source it stands at.</param>
+    /// <param name="letter">A small letter in the type it stands among: its ink is how tall the box is, and its baseline where it sits.</param>
+    public static int Hole(LayoutBuilder into, ISourcePart hole, Point at, FormattedText letter, Brush ink)
+    {
+        var height = letter.Extent;
+        var width = HoleWidth(letter);
+        var hairline = System.Math.Max(height * 0.07, 0.75);
+
+        var box = new RectangleGeometry(new Rect(hairline / 2, letter.Baseline - height + (hairline / 2),
+                                                 System.Math.Max(width - hairline, 0), System.Math.Max(height - hairline, 0)));
+        box.Freeze();
+
+        var piece = into.Open(HoleKind, hole, at);
+        into.Draw(new GeometryMark(box, null, ink, hairline));
+        into.Covers(new Rect(0, 0, width, letter.Height));
+        into.Close();
+        return piece;
+    }
+
+    /// <summary>
     /// One piece per character, so the run can be selected through rather than only as a whole.
     ///
     /// <para>

@@ -128,6 +128,32 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         return true;
     }
 
+    /// <summary>
+    /// Saves the picture of a rendered block where the reader picks, as a PNG: named after the document and the language the
+    /// block is written in, and offered beside the document to start with. Whether it was saved.
+    /// </summary>
+    /// <param name="png">The picture, encoded.</param>
+    /// <param name="language">The language of the block's fence, or null where it is in none.</param>
+    public async Task<bool> SavePictureAsync(byte[] png, string? language)
+    {
+        var name = $"{Path.GetFileNameWithoutExtension(FilePath)}-{language ?? "block"}.png";
+        var path = await _shell.PickSaveFileAsync(name, [".png"], Path.GetDirectoryName(FilePath));
+        if (string.IsNullOrEmpty(path)) return false;
+
+        if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
+
+        try
+        {
+            await File.WriteAllBytesAsync(path, png);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _shell.ShowError($"Could not save the picture to {path}: {e.Message}");
+            return false;
+        }
+    }
+
     // ── IPageViewModel ────────────────────────────────────────────────────
 
     public string GetContext()

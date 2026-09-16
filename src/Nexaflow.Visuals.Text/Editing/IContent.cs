@@ -92,6 +92,30 @@ public interface IContent
     /// </para>
     /// </summary>
     EditState Settle(Landing landing, string separator) => landing.State.Write(separator);
+
+    /// <summary>
+    /// What taking back the character on one side of the caret means here — the one before it for backspace, the one after
+    /// it for delete. Null leaves it to the element, which takes one character, or the whole of a thing several characters
+    /// drew.
+    ///
+    /// <para>
+    /// Where there is nothing on that side to take — a hole, standing for what is still to be written, or the end of a word
+    /// whose next character is the quote that closes it — the ordinary answer takes whatever holds the writing together
+    /// instead, and a construct comes apart under the reader. Content that knows what its words are written inside says
+    /// what the key means there.
+    /// </para>
+    /// </summary>
+    /// <param name="forward">Delete rather than backspace: the character after the caret rather than the one before.</param>
+    EditState? Erasing(Landing landing, bool forward) => null;
+
+    /// <summary>
+    /// What an edit comes to once the content has said what else it changes — a name renamed where it is declared renamed
+    /// wherever it is used. Asked of every edit a reader makes, however it was made: typed, erased, pasted or dragged. The
+    /// edit as it is, where it changes nothing else.
+    /// </summary>
+    /// <param name="before">The state the edit was made to.</param>
+    /// <param name="after">The state it made.</param>
+    EditState Edited(EditState before, EditState after) => after;
 }
 
 /// <summary>Content that is a builder and nothing else, which is most of it.</summary>

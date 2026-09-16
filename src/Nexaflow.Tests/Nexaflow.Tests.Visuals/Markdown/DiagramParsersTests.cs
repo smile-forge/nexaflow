@@ -2,6 +2,7 @@ using Nexaflow.Visuals.Text.Markdown.Graphs;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -481,7 +482,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_ShapeMetadata_SetsLabelAndShape()
     {
-        var g = new MermaidParser().Parse(
+        var g = new MermaidFlowchartParser().Parse(
             "flowchart RL\n    A@{ shape: manual-file, label: \"File Handling\" }\n");
         var a = g.FindNode("A")!;
         Assert.AreEqual("File Handling", a.Label);
@@ -491,14 +492,14 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_ShapeAliases_MapToDocument()
     {
-        var g = new MermaidParser().Parse("flowchart TD\n    A@{ shape: docs, label: \"Docs\" }\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TD\n    A@{ shape: docs, label: \"Docs\" }\n");
         Assert.AreEqual(NodeShape.Document, g.FindNode("A")!.Shape);
     }
 
     [TestMethod]
     public void Flowchart_EdgeMetadata_IsNotANode()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    e1@{ curve: linear }\n    A-->B\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    e1@{ curve: linear }\n    A-->B\n");
         Assert.IsNull(g.FindNode("e1"));
         Assert.AreEqual(2, g.Nodes.Count);
     }
@@ -506,7 +507,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_MultidirectionArrows()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    A o--o B\n    B <--> C\n    C x--x D\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    A o--o B\n    B <--> C\n    C x--x D\n");
         var e = g.Edges;
         Assert.AreEqual(EdgeArrow.Circle, e[0].StartArrow); Assert.AreEqual(EdgeArrow.Circle, e[0].Arrow);
         Assert.AreEqual(EdgeArrow.Normal, e[1].StartArrow); Assert.AreEqual(EdgeArrow.Normal, e[1].Arrow);
@@ -516,7 +517,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_ExtraDashes_ParseAsArrows()
     {
-        var g = new MermaidParser().Parse("flowchart TD\n    A ----> B\n    C -- lbl ----> D\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TD\n    A ----> B\n    C -- lbl ----> D\n");
         Assert.AreEqual(1, g.Edges.Count(e => e.SourceId == "A" && e.TargetId == "B"));
         var labelled = g.Edges.Single(e => e.SourceId == "C");
         Assert.AreEqual("D", labelled.TargetId);
@@ -526,7 +527,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_InlineEdgeId_IsStripped()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    A e1@==> B\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    A e1@==> B\n");
         Assert.IsNull(g.FindNode("e1"));
         var e = g.Edges.Single();
         Assert.AreEqual("A", e.SourceId);
@@ -537,7 +538,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_HyphenIsArrowNotNodeId()
     {
-        var g = new MermaidParser().Parse("flowchart TB\n    c1-->a2\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TB\n    c1-->a2\n");
         Assert.IsNotNull(g.FindNode("c1"));
         Assert.IsNotNull(g.FindNode("a2"));
         Assert.IsNull(g.FindNode("c1--"));
@@ -547,14 +548,14 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_DirectionKeyword_IsNotANode()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    subgraph S\n    direction TB\n    a-->b\n    end\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    subgraph S\n    direction TB\n    a-->b\n    end\n");
         Assert.IsNull(g.FindNode("direction"));
     }
 
     [TestMethod]
     public void Flowchart_StadiumAndCylinderShapes()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    A([Done]) --> B[(Store)]\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    A([Done]) --> B[(Store)]\n");
         var a = g.FindNode("A")!;
         Assert.AreEqual(NodeShape.Stadium, a.Shape);
         Assert.AreEqual("Done", a.Label);
@@ -566,7 +567,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_CardShapeMetadata()
     {
-        var g = new MermaidParser().Parse("flowchart TD\n    A@{ shape: card, label: \"Note\" }\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TD\n    A@{ shape: card, label: \"Note\" }\n");
         var a = g.FindNode("A")!;
         Assert.AreEqual(NodeShape.Card, a.Shape);
         Assert.AreEqual("Note", a.Label);
@@ -575,7 +576,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_Subgraph_TracksBothEndpointsAcrossArrow()
     {
-        var g = new MermaidParser().Parse("flowchart TB\n    subgraph one\n    a1-->a2\n    end\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TB\n    subgraph one\n    a1-->a2\n    end\n");
         var sg = g.Subgraphs.Single();
         CollectionAssert.Contains(sg.NodeIds, "a1");   // source was previously missed (followed by '-')
         CollectionAssert.Contains(sg.NodeIds, "a2");
@@ -584,7 +585,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_ChainedEdges_BecomeSeparateHops()
     {
-        var g = new MermaidParser().Parse("flowchart LR\n    A --> TOP --> B\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart LR\n    A --> TOP --> B\n");
         Assert.AreEqual(2, g.Edges.Count);
         Assert.IsTrue(g.Edges.Any(e => e is { SourceId: "A",   TargetId: "TOP" }));
         Assert.IsTrue(g.Edges.Any(e => e is { SourceId: "TOP", TargetId: "B" }));
@@ -594,7 +595,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_ChainCarriesArrowStyleAndLabel()
     {
-        var g = new MermaidParser().Parse("flowchart TD\n    A -- yes --> B -.-> C\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TD\n    A -- yes --> B -.-> C\n");
         var ab = g.Edges.Single(e => e.SourceId == "A");
         Assert.AreEqual("yes", ab.Label);
         Assert.AreEqual(EdgeStyle.Solid, ab.Style);
@@ -604,7 +605,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_FanOut_AndChainCompose()
     {
-        var g = new MermaidParser().Parse("flowchart TD\n    A --> B & C --> D\n");
+        var g = new MermaidFlowchartParser().Parse("flowchart TD\n    A --> B & C --> D\n");
         foreach (var (s, t) in new[] { ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D") })
             Assert.IsTrue(g.Edges.Any(e => e.SourceId == s && e.TargetId == t), $"missing {s}->{t}");
         Assert.AreEqual(4, g.Edges.Count);
@@ -613,7 +614,7 @@ public class DiagramParsersTests
     [TestMethod]
     public void Flowchart_NestedSubgraphs_CarryParentLinks()
     {
-        var g = new MermaidParser().Parse(
+        var g = new MermaidFlowchartParser().Parse(
             """
             flowchart LR
               subgraph TOP
@@ -773,48 +774,6 @@ public class DiagramParsersTests
         Assert.AreEqual(0, g.FindBranch("main")!.Lane);
         Assert.AreEqual(1, g.FindBranch("z")!.Lane);
         Assert.AreEqual(2, g.FindBranch("a")!.Lane);
-    }
-
-    // ── Front-matter ──────────────────────────────────────────────────────
-
-    [TestMethod]
-    public void Frontmatter_StripsBlockAndKeepsBody()
-    {
-        var (body, title) = MermaidFrontmatter.Strip("---\nconfig:\n  theme: forest\n---\npie\n  \"A\" : 1\n");
-        StringAssert.StartsWith(body.TrimStart(), "pie");
-        Assert.IsNull(title);
-    }
-
-    [TestMethod]
-    public void Frontmatter_LiftsTopLevelTitle()
-    {
-        var (body, title) = MermaidFrontmatter.Strip("---\ntitle: My Chart\nconfig:\n  theme: dark\n---\npie\n");
-        Assert.AreEqual("My Chart", title);
-        StringAssert.StartsWith(body.TrimStart(), "pie");
-    }
-
-    [TestMethod]
-    public void Frontmatter_IgnoresNestedTitle()
-    {
-        var (_, title) = MermaidFrontmatter.Strip("---\nconfig:\n  title: nested\n---\npie\n");
-        Assert.IsNull(title);
-    }
-
-    [TestMethod]
-    public void Frontmatter_NoBlock_PassesThrough()
-    {
-        var (body, title) = MermaidFrontmatter.Strip("pie\n  \"A\" : 1\n");
-        Assert.AreEqual("pie\n  \"A\" : 1\n", body);
-        Assert.IsNull(title);
-    }
-
-    [TestMethod]
-    public void Frontmatter_Unterminated_PassesThrough()
-    {
-        const string src = "---\nconfig:\npie\n";
-        var (body, title) = MermaidFrontmatter.Strip(src);
-        Assert.AreEqual(src, body);
-        Assert.IsNull(title);
     }
 
     // ── Mindmap ───────────────────────────────────────────────────────────
@@ -2220,76 +2179,6 @@ public class DiagramParsersTests
         Assert.AreEqual(120, cfg.MinEntityWidth);
     }
 
-    // ── Venn diagram — parser ─────────────────────────────────────────────
-
-    [TestMethod]
-    public void Venn_SetsUnionTitleAndSizes()
-    {
-        var d = new MermaidVennParser().Parse(
-            "venn-beta\n  title \"Team overlap\"\n  set A[\"Alpha\"]:20\n  set B[\"Beta\"]:12\n  union A,B[\"AB\"]:3\n");
-
-        Assert.AreEqual("Team overlap", d.Title);
-        Assert.AreEqual(2, d.Sets.Count);
-        Assert.AreEqual("Alpha", d.Sets[0].Label);
-        Assert.AreEqual(20, d.Sets[0].Size);
-        Assert.AreEqual(12, d.Sets[1].Size);
-
-        var u = d.Unions.Single();
-        CollectionAssert.AreEqual(new[] { "A", "B" }, u.SetIds.ToArray());   // sorted
-        Assert.AreEqual("AB", u.Label);
-        Assert.AreEqual(3, u.Size);
-    }
-
-    [TestMethod]
-    public void Venn_UnionIsOrderIndependent_AndImpliesSets()
-    {
-        var d = new MermaidVennParser().Parse("venn-beta\n  union B,A[\"AB\"]\n");
-        CollectionAssert.AreEqual(new[] { "A", "B" }, d.Unions.Single().SetIds.ToArray());   // alphabetised
-        CollectionAssert.AreEquivalent(new[] { "A", "B" }, d.Sets.Select(s => s.Id).ToArray());   // auto-created
-    }
-
-    [TestMethod]
-    public void Venn_IndentedAndExplicitTextItems()
-    {
-        var d = new MermaidVennParser().Parse(
-            "venn-beta\n  set A[\"Frontend\"]\n    text A1[\"React\"]\n    text A2[\"Design Systems\"]\n  set B[\"Backend\"]\n  union A,B[\"Shared\"]\n  text A,B AB1[\"OpenAPI\"]\n");
-
-        var a = d.FindSet("A")!;
-        CollectionAssert.AreEqual(new[] { "React", "Design Systems" }, a.Items.Select(i => i.Display).ToArray());
-        var shared = d.Unions.Single();
-        Assert.AreEqual("OpenAPI", shared.Items.Single().Display);
-    }
-
-    [TestMethod]
-    public void Venn_Styling()
-    {
-        var d = new MermaidVennParser().Parse(
-            "venn-beta\n  set A[\"Alpha\"]\n  set B[\"Beta\"]\n  union A,B[\"AB\"]\n  style A fill:#ff6b6b\n  style A,B color:#333\n");
-
-        Assert.AreEqual("#ff6b6b", d.FindSet("A")!.Fill);
-        Assert.AreEqual("#333", d.Unions.Single().TextColor);   // comma target = the union region
-    }
-
-    [TestMethod]
-    public void VennConfig_ParsesBlockAndPalette()
-    {
-        var cfg = VennConfigParser.Parse(
-            """
-            config:
-              venn:
-                width: 600
-                height: 400
-                padding: 12
-              themeVariables:
-                venn1: "#FF0000"
-                venn2: "#00FF00"
-            """);
-        Assert.AreEqual(600, cfg.Width, 1e-9);
-        Assert.AreEqual(400, cfg.Height, 1e-9);
-        Assert.AreEqual(12, cfg.Padding, 1e-9);
-        Assert.AreEqual(2, cfg.SetPalette.Count);
-    }
-
     // ── Architecture diagram — parser ─────────────────────────────────────
 
     [TestMethod]
@@ -2706,7 +2595,7 @@ public class DiagramParsersTests
     // ── config: nexaflow: (expansion) ─────────────────────────────────────
 
     private static string FrontMatter(string body) =>
-        MermaidFrontmatter.RawBlock("---\n" + body + "\n---\ngraph LR\n  a --> b\n")!;
+        MermaidBlock.Read("---\n" + body + "\n---\ngraph LR\n  a --> b\n").Config!;
 
     [TestMethod]
     [CoversNode("graph-expandable-nodes")]

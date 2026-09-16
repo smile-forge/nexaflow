@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
@@ -115,6 +116,21 @@ public readonly record struct Piece
     /// always. See <see cref="LayoutPaint"/>.
     /// </summary>
     public LayoutPaint? Painting => _tree?.PaintOf(_at);
+
+    /// <summary>
+    /// The shape it stands in, in its own frame, where its builder said its box overstates it — or nothing, which is nearly
+    /// always. See <see cref="LayoutBuilder.Occupies"/>.
+    /// </summary>
+    public Geometry? Region => _tree?.RegionOf(_at);
+
+    /// <summary>
+    /// The run of text it is, with a caret position between any two of its letters — or nothing, which is nearly always.
+    /// See <see cref="LayoutWords"/>.
+    /// </summary>
+    public LayoutWords? Words => _tree?.WordsOf(_at);
+
+    /// <summary>Where its own frame begins on the page — what its marks and its region are measured from.</summary>
+    internal Vector Anchor => _tree is null ? default : _tree.AnchorOf(_at);
 
     /// <summary>What holds it, or nothing at the root.</summary>
     public Piece Parent => _tree is null ? default : _tree.At(_tree.Piece(_at).Parent);

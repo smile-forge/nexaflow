@@ -966,6 +966,10 @@ A structure is read-only on the page, but you can select across it and copy the 
   renderer works offline.
 - **Local images only.** `![](…)` loads local image files; remote `http(s)` and `data:` images are
   not fetched (you'll see the alt text instead).
+- **Copy or save a picture of a diagram.** Rest the pointer on a pie chart, a Venn diagram, a formula or a
+  chemical structure and a small toolbar appears at its top right: **Copy** puts a picture of it on the
+  clipboard, and **Save** saves it as a PNG wherever you choose. The picture is the diagram as it reads —
+  no caret, selection or placeholder boxes.
 - **Front-matter config.** Several diagrams accept a `--- config: … ---` front-matter block to tune
   their look (colours, sizes, orientation) — see the XY, radar, Sankey and Venn examples above.
 - **What a QR code *does* is the scanner's business, not the code's.** The same Wi-Fi code joins the

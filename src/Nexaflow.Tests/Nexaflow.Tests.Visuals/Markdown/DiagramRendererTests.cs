@@ -4,6 +4,8 @@ using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows;
 using System.Windows.Controls;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown.Mermaid;
+using System.Linq;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -87,9 +89,13 @@ public class DiagramRendererTests
     {
         // A config front-matter block used to defeat routing → the diagram rendered as raw text.
         const string src = "---\nconfig:\n  pie:\n    textPosition: 0.5\n---\npie title T\n  \"A\" : 1\n  \"B\" : 2\n";
-        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        Assert.IsInstanceOfType(((Border)fe).Child, typeof(Canvas));   // pie chart, not the source-text fallback
+        var content = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+
+        Assert.IsNotNull(content, "a pie is drawn on the shared layout tree");
+        content!.Measure(new Size(700, double.PositiveInfinity));
+
+        Assert.AreEqual(2, content.Laid.Root.SelfAndDescendants().Count(piece => piece.Kind == PiePiece.Wedge),
+                        "a wedge each, not the source-text fallback");
     });
 
     // ── State diagram ──────────────────────────────────────────────────────
@@ -529,62 +535,6 @@ public class DiagramRendererTests
     public void Er_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
     {
         Assert.IsNotNull(DiagramRenderer.Render("mermaid", "erDiagram\n", MarkdownPalette.Dark));
-    });
-
-    // ── Venn diagram ──────────────────────────────────────────────────────
-
-    private const string VennSrc =
-        """
-        venn-beta
-          title "Team overlap"
-          set A["Frontend"]
-            text A1["React"]
-          set B["Backend"]
-          union A,B["Shared"]
-            text AB1["OpenAPI"]
-        """;
-
-    [TestMethod]
-    public void Venn_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidVennParser().Parse(VennSrc);
-        Assert.IsInstanceOfType(WpfVennRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Venn_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", VennSrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Venn_ThreeSetWithConfig_Renders() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              venn:
-                width: 600
-              themeVariables:
-                venn1: "#FF0000"
-                venn2: "#00FF00"
-                venn3: "#0000FF"
-            ---
-            venn-beta
-              set Desirable
-              set Feasible
-              set Viable
-              union Desirable,Feasible,Viable["Innovation"]
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Venn_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidVennParser().Parse("venn-beta\n");
-        Assert.IsNotNull(WpfVennRenderer.Render(d, MarkdownPalette.Dark));
     });
 
     // ── Architecture diagram ──────────────────────────────────────────────

@@ -46,6 +46,60 @@ public static class LayoutQuery
     }
 
     /// <summary>
+    /// Whether a press at <paramref name="point"/> would be writing — on something a caret stands in, or in the gap between
+    /// two letters of a line — rather than on drawing nobody types into, or on empty space.
+    ///
+    /// <para>
+    /// What the pointer shows, so it answers for what is under it rather than for what a press would reach for: a press on
+    /// empty space still finds the nearest thing, but a bar there would say the space itself can be written in. The gap is
+    /// allowed for because the letters of a formula are set a hair apart, and a pointer flickering to an arrow between every
+    /// two of them would say nothing true.
+    /// </para>
+    /// </summary>
+    /// <param name="reach">The least distance round something written that still counts as writing.</param>
+    public static bool Writable(this Piece root, Point point, double reach)
+    {
+        var on = false;
+        var near = false;
+
+        foreach (var (piece, where) in root.Placed())
+        {
+            if (where.Width <= 0 || where.Height <= 0) continue;
+
+            // Inside a construct that is itself somewhere to write — a formula, a fraction between its bar and what is over it —
+            // is inside the writing. A diagram is not one: its lines are, and the card they are drawn on takes no caret.
+            if (!piece.IsLeaf)
+            {
+                near |= piece.Part is { Length: > 0 } && piece.Stops != Stops.None
+                        && point.X >= where.Left - reach && point.X <= where.Right + reach
+                        && point.Y >= where.Top && point.Y <= where.Bottom;
+                continue;
+            }
+
+            // Written in when it takes a caret itself and so does what it stands for: a slice's swatch stands for its row, which
+            // takes none, and a hole stands for nothing and is exactly where the caret goes.
+            var resolved = piece.Stands() ? piece : piece.Selectable();
+            var writes = piece.Stops != Stops.None && resolved is { Exists: true, Stops: not Stops.None };
+
+            if (Contains(where, point) && Inside(piece, point))
+            {
+                if (writes) return true;
+                on = true;
+            }
+            else if (writes)
+            {
+                // Half a letter's height round it, which is the line it stands on: the letters of a formula are boxes of
+                // different heights set a hair apart, and the space over a short one is still the line.
+                var around = Math.Max(reach, where.Height / 2);
+                near |= point.X >= where.Left - around && point.X <= where.Right + around
+                        && point.Y >= where.Top - around && point.Y <= where.Bottom + around;
+            }
+        }
+
+        return near && !on;
+    }
+
+    /// <summary>
     /// The source offset a press at <paramref name="point"/> means: the near end of whatever it landed on,
     /// so pressing the left half of a note puts the caret before it and the right half after it.
     /// </summary>
@@ -57,6 +111,10 @@ public static class LayoutQuery
     public static int OffsetAt(this Piece root, Point point)
     {
         if (root.PieceAt(point) is not { Exists: true } piece) return root.Sits().Start;
+
+        // Inside a run of text the press means the letter it landed on rather than the nearer end of the whole run.
+        if (piece is { Words: { Maps: true } words, Part: { } inside })
+            return inside.Start + words.IndexAt(point.X - piece.Anchor.X);
 
         var at = piece.Sits();
         if (at.Length <= 0) return at.Start;
@@ -85,7 +143,7 @@ public static class LayoutQuery
         {
             if (piece.Children.Count > 0) continue;              // draws nothing itself
             if (where.Width <= 0 || where.Height <= 0) continue; // spacing
-            if (!Contains(where, point)) continue;
+            if (!Contains(where, point) || !Inside(piece, point)) continue;
 
             // Named by the source, or else part of the drawing of whatever encloses it — a fraction's bar,
             // a radical's sign, the letters a macro expands to — in which case the press means that. A
@@ -120,6 +178,24 @@ public static class LayoutQuery
     /// </summary>
     public static Piece Selectable(this Piece piece) =>
         piece.Part is { Length: > 0 } ? piece : NamedAncestor(piece);
+
+    /// <summary>
+    /// The run of text a source offset falls in, or nothing — what makes a caret between two letters of a label
+    /// possible without a piece per letter. See <see cref="LayoutWords"/>.
+    /// </summary>
+    public static Piece WordsAt(this Piece root, int offset)
+    {
+        foreach (var piece in root.SelfAndDescendants())
+            if (piece is { Words.Maps: true } && piece.Part is { Length: > 0 } part
+                && offset >= part.Start && offset <= part.End())
+                return piece;
+
+        return default;
+    }
+
+    /// <summary>A rectangle in a piece's own frame, moved to where that piece sits on the page.</summary>
+    private static Rect Shift(Rect rect, Vector by) =>
+        rect.IsEmpty ? rect : new Rect(rect.X + by.X, rect.Y + by.Y, rect.Width, rect.Height);
 
     /// <summary>
     /// One step from here along an axis — the next thing to select when a selection grows that way, or
@@ -273,7 +349,7 @@ public static class LayoutQuery
             var resolved = piece.Selectable();
             if (!resolved.Exists) continue;
 
-            var distance = DistanceTo(where, point);
+            var distance = piece.Region is null ? DistanceTo(where, point) : DistanceTo(piece, point);
             if (distance > bestDistance) continue;
 
             var depth = piece.Depth;
@@ -300,9 +376,9 @@ public static class LayoutQuery
         return false;
     }
 
-    /// <summary>Every piece of ink the rectangle touches.</summary>
+    /// <summary>Every piece of ink the rectangle touches — the shape it stands in, for a piece that stands in one.</summary>
     public static IReadOnlyList<Piece> PiecesIn(this Piece root, Rect area) =>
-        [.. root.Placed().Where(p => p.Piece.IsLeaf && p.Where.IntersectsWith(area)).Select(p => p.Piece)];
+        [.. root.Placed().Where(p => p.Piece.IsLeaf && p.Where.IntersectsWith(area) && Touches(p.Piece, area)).Select(p => p.Piece)];
 
     // ── Selection ───────────────────────────────────────────────────────────
 
@@ -522,11 +598,19 @@ public static class LayoutQuery
     /// </summary>
     public static Rect CaretRect(this Piece root, int offset)
     {
+        // A caret inside a run of text stands between two of its letters, which only the run can say.
+        if (root.WordsAt(offset) is { Words: { } words, Part: { } written } run)
+            return Shift(words.Caret(offset - written.Start), run.Anchor);
+
         if (root.StopAt(offset) is >= 0 and var stop) return Index(root)[stop].CaretRect();
 
+        // Only what a caret may rest against. A wedge of a pie is drawn from a whole line of source and takes no
+        // caret, so a bar drawn against one would be as tall as the chart.
         Piece before = default, after = default;
         foreach (var piece in root.Leaves())
         {
+            if (piece.Stops == Stops.None) continue;
+
             var at = piece.Sits();
             if (at.End <= offset && (!before.Exists || at.End > before.Sits().End)) before = piece;
             if (at.Start >= offset && (!after.Exists || at.Start < after.Sits().Start)) after = piece;
@@ -535,10 +619,8 @@ public static class LayoutQuery
         if (before.Exists) return Bar(before, trailing: true);
         if (after.Exists) return Bar(after, trailing: false);
 
-        var whole = root.Bounds;
-        return whole.IsEmpty
-            ? new Rect(0, 0, 0, 1)
-            : new Rect(whole.X, whole.Y, 0, Math.Max(whole.Height, 1));
+        // Nothing in it can be written in, so there is no caret to draw rather than one as tall as whatever is there.
+        return Rect.Empty;
     }
 
     private static Rect Bar(Piece against, bool trailing)
@@ -603,10 +685,10 @@ public static class LayoutQuery
     /// </summary>
     public static int? StepVertical(this Piece root, int offset, bool up)
     {
-        // Whatever the caret is actually standing against here, innermost — which is the first place at the
-        // offset, the order the index is already in.
+        // Whatever the caret is actually standing against here, innermost — which is the first place at the offset, the
+        // order the index is already in. Between two letters of a run there is no place, and the run is what it stands in.
         var stop = root.StopAt(offset);
-                var from = stop < 0 ? default : Index(root)[stop].Against;
+        var from = stop < 0 ? root.WordsAt(offset) : Index(root)[stop].Against;
         if (!from.Exists) return null;
         var fromX = root.CaretRect(offset).X;
 
@@ -618,33 +700,51 @@ public static class LayoutQuery
             var mine = rows.FindIndex(r => r.Any(p => p.SelfAndDescendants().Contains(from)));
             if (mine < 0) continue;
 
-            // Walk outwards past any row that is only decoration. A fraction lays out as numerator, bar,
-            // denominator — three rows — and the bar is not somewhere a caret can stand, so down from the
-            // numerator has to mean the denominator.
+            // Walk outwards past any row with nowhere in it to stand. A fraction lays out as numerator, bar, denominator —
+            // three rows — and the bar is not somewhere a caret can stand, so down from the numerator has to mean the
+            // denominator; a pie's wedges are a row between its title and a legend set under them.
             var step = up ? -1 : 1;
             for (var target = mine + step; target >= 0 && target < rows.Count; target += step)
-            {
-                // Both ends of each landing candidate are on offer, and the nearest to where the caret
-                // already stands wins — moving down a line keeps your place across it, so a caret after
-                // the numerator arrives after the denominator rather than jumping in front of it.
-                var landing = rows[target]
-                    .SelectMany(p => p.Leaves())
-                    .Where(p => p.Sits().Length < ancestor.Sits().Length)
-                    .SelectMany(p => new[]
-                    {
-                        (Offset: p.Sits().Start, X: p.Bounds.X),
-                        (Offset: p.Sits().End, X: p.Bounds.Right),
-                    })
-                    .OrderBy(stop => Math.Abs(stop.X - fromX))
-                    .ThenBy(stop => stop.Offset)
-                    .Select(stop => (int?)stop.Offset)
-                    .FirstOrDefault();
-
-                if (landing is not null) return landing;
-            }
+                if (Landing(rows[target], ancestor, fromX, up) is { } landing) return landing;
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Where a caret moving up or down into <paramref name="row"/> lands: on the line of it nearest the one it left, at the
+    /// place on that line nearest the column it was in — between two letters, where that is inside a run of text. Null
+    /// where the row has nowhere to stand.
+    /// </summary>
+    /// <param name="within">What the row is a row of. Something standing for the whole of it is no place inside it.</param>
+    private static int? Landing(List<Piece> row, Piece within, double column, bool up)
+    {
+        var standing = row
+            .SelectMany(piece => piece.Leaves())
+            .Where(piece => piece.Stands() && piece.Stops != Stops.None)
+            .Where(piece => within.Sits().Length == 0 || piece.Sits().Length < within.Sits().Length)
+            .ToList();
+
+        if (standing.Count == 0) return null;
+
+        // A row can hold several lines — a legend beside a chart is one row of the diagram — and moving down means the
+        // first of them, not whichever comes nearest the column.
+        var nearest = up ? standing.MaxBy(piece => piece.Bounds.Bottom) : standing.MinBy(piece => piece.Bounds.Top);
+        var line = standing.Where(piece => piece.Bounds.Top < nearest.Bounds.Bottom - Hair
+                                           && nearest.Bounds.Top < piece.Bounds.Bottom - Hair);
+
+        // Both ends of each landing candidate are on offer, and the nearest to where the caret already stands wins — moving
+        // down a line keeps your place across it, so a caret after the numerator arrives after the denominator rather than
+        // jumping in front of it. A run offers the place between its letters under the column.
+        return line
+            .SelectMany(piece => piece is { Words: { Maps: true } words, Part: { } part }
+                ? new[] { (Offset: part.Start + words.IndexAt(column - piece.Anchor.X),
+                           X: Math.Clamp(column, piece.Bounds.Left, piece.Bounds.Right)) }
+                : new[] { (Offset: piece.Sits().Start, X: piece.Bounds.X), (Offset: piece.Sits().End, X: piece.Bounds.Right) })
+            .OrderBy(place => Math.Abs(place.X - column))
+            .ThenBy(place => place.Offset)
+            .Select(place => (int?)place.Offset)
+            .FirstOrDefault();
     }
 
     // ── Structure ───────────────────────────────────────────────────────────
@@ -692,6 +792,77 @@ public static class LayoutQuery
         point.X >= bounds.X - Hair && point.X <= bounds.Right + Hair
         && point.Y >= bounds.Y - Hair && point.Y <= bounds.Bottom + Hair;
 
+    /// <summary>
+    /// Whether a press lands in what a piece stands in, once its box has said it might: the shape it occupies, for a piece
+    /// that occupies one, and otherwise the box that already said yes.
+    /// </summary>
+    private static bool Inside(Piece piece, Point point) =>
+        piece.Region is not { } region || region.FillContains(point - piece.Anchor);
+
+    /// <summary>Whether a rectangle reaches what a piece stands in — see <see cref="Inside"/>.</summary>
+    private static bool Touches(Piece piece, Rect area) =>
+        OnPage(piece) is not { } region || region.FillContainsWithDetail(new RectangleGeometry(area)) != IntersectionDetail.Empty;
+
+    /// <summary>The shape a piece stands in, where it sits on the page, or null for a piece that stands in its box.</summary>
+    private static Geometry? OnPage(Piece piece)
+    {
+        if (piece.Region is not { } region) return null;
+
+        var anchor = piece.Anchor;
+        if (anchor.X == 0 && anchor.Y == 0) return region;
+
+        // Grouped rather than given a transform of its own, so a transform the shape already carries still applies.
+        var placed = new GeometryGroup { Transform = new TranslateTransform(anchor.X, anchor.Y) };
+        placed.Children.Add(region);
+        placed.Freeze();
+        return placed;
+    }
+
+    /// <summary>
+    /// How far a point is from the shape a piece stands in, squared like the distance to a box: nought inside it, and
+    /// otherwise the way to the nearest edge of its outline.
+    /// </summary>
+    private static double DistanceTo(Piece piece, Point point)
+    {
+        var region = piece.Region!;
+        var local = point - piece.Anchor;
+        if (region.FillContains(local)) return 0;
+
+        var nearest = double.MaxValue;
+        foreach (var figure in region.GetFlattenedPathGeometry().Figures)
+        {
+            var from = figure.StartPoint;
+            foreach (var segment in figure.Segments)
+            {
+                IEnumerable<Point> corners = segment switch
+                {
+                    LineSegment line => [line.Point],
+                    PolyLineSegment poly => poly.Points,
+                    _ => [],
+                };
+
+                foreach (var to in corners)
+                {
+                    nearest = Math.Min(nearest, ToSegment(from, to, local));
+                    from = to;
+                }
+            }
+
+            if (figure.IsClosed) nearest = Math.Min(nearest, ToSegment(from, figure.StartPoint, local));
+        }
+
+        return nearest;
+    }
+
+    /// <summary>How far <paramref name="point"/> is from the segment between two points, squared.</summary>
+    private static double ToSegment(Point from, Point to, Point point)
+    {
+        var along = to - from;
+        var length = along.LengthSquared;
+        var t = length == 0 ? 0 : Math.Clamp(Vector.Multiply(point - from, along) / length, 0, 1);
+        return (point - (from + (t * along))).LengthSquared;
+    }
+
     private static double DistanceTo(Rect rect, Point point)
     {
         var dx = Math.Max(Math.Max(rect.X - point.X, point.X - rect.Right), 0);
@@ -727,15 +898,46 @@ public static class LayoutQuery
     public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length)
     {
         if (length <= 0 || !root.Exists) return [];
-        var end = start + length;
+        var covered = Covered(root, start, length);
 
-        var covered = root.SelfAndDescendants()
+        var whole = covered.Where(piece => !piece.Ancestors().Any(covered.Contains))
+                           .Select(piece => InkFor(piece, covered))
+                           .Where(ink => !ink.IsEmpty);
+
+        // A run of text is one piece, so a stretch that takes only part of one is measured inside it.
+        var part = root.SelfAndDescendants()
+            .Where(piece => piece is { Words.Maps: true } && piece.Part is { Length: > 0 } written
+                            && written.Start < start + length && written.End() > start
+                            && (written.Start < start || written.End() > start + length))
+            .Select(piece => Shift(piece.Words!.Covers(start - piece.Part!.Start, start + length - piece.Part!.Start), piece.Anchor))
+            .Where(rect => !rect.IsEmpty);
+
+        return [.. whole.Concat(part)];
+    }
+
+    /// <summary>
+    /// The shapes a stretch of source washes: every leaf standing in a shape of its own (see
+    /// <see cref="LayoutBuilder.Occupies"/>) that belongs to something inside the stretch, where it sits on the page. What
+    /// <see cref="RangeRects"/> leaves out, so the two together are the whole of it.
+    /// </summary>
+    public static IReadOnlyList<Geometry> RangeRegions(this Piece root, int start, int length)
+    {
+        if (length <= 0 || !root.Exists) return [];
+
+        var covered = Covered(root, start, length);
+
+        return [.. root.Leaves()
+                       .Where(leaf => leaf.Region is not null && covered.Contains(leaf.Selectable()))
+                       .Select(leaf => OnPage(leaf)!)];
+    }
+
+    /// <summary>Every piece standing for a place wholly inside a stretch of source.</summary>
+    private static HashSet<Piece> Covered(Piece root, int start, int length)
+    {
+        var end = start + length;
+        return root.SelfAndDescendants()
             .Where(piece => piece.Stands() && piece.Sits().Start >= start && piece.Sits().End <= end)
             .ToHashSet();
-
-        return [.. covered.Where(piece => !piece.Ancestors().Any(covered.Contains))
-                          .Select(piece => InkFor(piece, covered))
-                          .Where(ink => !ink.IsEmpty)];
     }
 
     /// <summary>
@@ -753,6 +955,9 @@ public static class LayoutQuery
             if (where.IsEmpty || where.Width <= 0 || where.Height <= 0) continue;
 
             drew = true;
+
+            // A shape is washed as itself — see RangeRegions — so its box stays out of the rectangle.
+            if (leaf.Region is not null) continue;
             if (chosen.Contains(leaf.Selectable())) ink.Union(where);
         }
 
@@ -880,7 +1085,21 @@ public static class LayoutQuery
             }
 
         shape.Freeze();
-        return shape;
+
+        // What stands in a shape of its own is washed as that shape, grown by the pad the way a rectangle is.
+        var regions = selection.SelectMany(range => root.RangeRegions(range.Start, range.Length)).ToList();
+        if (regions.Count == 0) return shape;
+
+        var grow = new Pen(Brushes.Black, 2 * pad);
+        Geometry washed = shape;
+        foreach (var region in regions)
+        {
+            var grown = Geometry.Combine(region, region.GetWidenedPathGeometry(grow), GeometryCombineMode.Union, null);
+            washed = Geometry.Combine(washed, grown, GeometryCombineMode.Union, null);
+        }
+
+        washed.Freeze();
+        return washed;
     }
 
     /// <summary>
@@ -969,6 +1188,11 @@ public static class LayoutQuery
         var from = Math.Clamp(Math.Min(start, start + length), whole.Start, whole.End);
         var to = Math.Clamp(Math.Max(start, start + length), whole.Start, whole.End);
         if (from == to) return (from, 0);
+
+        // A stretch inside one run of text is characters, and characters are what a run is made of: promoting it to
+        // whole pieces would make every drag through a label pick out the whole label.
+        if (root.WordsAt(from) is { Part: { } written } && from >= written.Start && to <= written.End())
+            return (from, to - from);
 
         // Whatever lies wholly inside the range was dragged over — every piece, not only the ink, so a drag
         // from before a root's sign to past its contents takes the root itself and not merely what is under
