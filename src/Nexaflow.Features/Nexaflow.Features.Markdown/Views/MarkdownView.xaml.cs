@@ -1,10 +1,16 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
+using Nexaflow.Visuals.Text.Markdown;
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Nexaflow.Features.Markdown.Views;
 
@@ -22,6 +28,13 @@ public partial class MarkdownView : UserControl, IPageView
 
         // Resolve relative ![](img.png) images against the file's own folder.
         Editor.BaseDirectory = Path.GetDirectoryName(viewModel.FilePath);
+
+        // A rendered block's own toolbar: its picture, as it is shown on the page, copied or saved.
+        Editor.BlockActions =
+        [
+            new BlockAction("Copy", "Markdown_BlockCopyPicture", CopyPicture) { ToolTip = "Copy as a picture" },
+            new BlockAction("Save", "Markdown_BlockSavePicture", block => _ = SavePictureAsync(block)) { ToolTip = "Save as a PNG picture" },
+        ];
 
         // Move focus to whichever surface the toggle just revealed, so typing works immediately.
         viewModel.PropertyChanged += OnViewModelChanged;
@@ -62,6 +75,34 @@ public partial class MarkdownView : UserControl, IPageView
             Loaded += (_, _) => Dispatcher.BeginInvoke(
                 () => Editor.ScrollToHeading(heading),
                 System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>What a block's picture is drawn on: the page it is shown on, so it reads the same wherever it is pasted.</summary>
+    private Brush Ground => (Brush)FindResource("BgBrush");
+
+    /// <summary>A block's picture onto the clipboard — as a picture, and as a PNG for whatever reads one.</summary>
+    private void CopyPicture(RenderedBlock block)
+    {
+        var picture = block.Picture(Ground);
+
+        var data = new DataObject();
+        data.SetImage(picture);
+        data.SetData("PNG", new MemoryStream(Png(picture)));
+
+        try { Clipboard.SetDataObject(data, copy: true); }
+        catch (COMException) { /* the clipboard is held by something else for the moment; pressing again will do */ }
+    }
+
+    private Task SavePictureAsync(RenderedBlock block) => ViewModel.SavePictureAsync(Png(block.Picture(Ground)), block.Language);
+
+    private static byte[] Png(BitmapSource picture)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(picture));
+
+        using var png = new MemoryStream();
+        encoder.Save(png);
+        return png.ToArray();
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)

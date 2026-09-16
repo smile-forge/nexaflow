@@ -69,7 +69,9 @@ public partial class InlineMarkdownEditor : UserControl
 
     // Block-model undo: a snapshot of (blocks, active block, caret-in-block) taken at the start of each
     // editing session. Edits within one block coalesce into a single undo step (block-level, not per key).
-    private readonly List<(List<string> Blocks, int Active, int Caret)> _undo = [];
+    // An edit made inside rendered content records where that content starts in its block, and its caret
+    // is then an offset into the content rather than into the block.
+    private readonly List<(List<string> Blocks, int Active, int Caret, int? Content)> _undo = [];
     private int       _undoGroupBlock = -2;   // block the current coalesced undo group covers (-2 = none)
     private const int UndoLimit = 200;
 
@@ -110,6 +112,13 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.PreviewMouseMove            += OnPreviewMouseMove;   // pre-empt the native (move) drag-out with a copy
         _rtb.PreviewMouseRightButtonDown += OnPreviewMouseRightButtonDown;
         _rtb.PreviewMouseRightButtonUp   += OnPreviewMouseRightButtonUp;
+        _rtb.AddHandler(Mouse.QueryCursorEvent, new QueryCursorEventHandler(OnQueryCursor), handledEventsToo: true);
+
+        // The toolbar over a rendered block follows the pointer — every move, handled or not, since a block's own gesture
+        // handles its moves — and moves with the block when it scrolls or is laid out again.
+        _rtb.AddHandler(MouseMoveEvent, new MouseEventHandler((_, e) => HoverAt(e.GetPosition(_rtb))), handledEventsToo: true);
+        _rtb.MouseLeave += (_, _) => LeftPointer();
+        _rtb.LayoutUpdated += (_, _) => _toolbar?.Follow();
         _rtb.PreviewDragEnter  += OnPreviewDrag;   // override the RichTextBox's native drag-drop, which
         _rtb.PreviewDragOver   += OnPreviewDrag;   // otherwise shows "no drop" for files/images and would
         _rtb.PreviewDrop       += OnPreviewDrop;   // insert dragged text itself
@@ -206,6 +215,85 @@ public partial class InlineMarkdownEditor : UserControl
     {
         get => (MarkdownPalette?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
+    }
+
+    /// <summary>
+    /// The buttons on the toolbar shown over a rendered block the pointer is on, each handed the block it was pressed on.
+    /// None, and there is no toolbar: what the buttons do — copy the block's picture, save it — is the host's, not the
+    /// editor's.
+    /// </summary>
+    public IReadOnlyList<BlockAction> BlockActions
+    {
+        get => _blockActions;
+        set
+        {
+            _blockActions = value ?? [];
+            _toolbar?.Offer(_blockActions);
+        }
+    }
+
+    private IReadOnlyList<BlockAction> _blockActions = [];
+
+    private BlockToolbar? _toolbar;
+
+    /// <summary>
+    /// Shows the block toolbar over the rendered block at <paramref name="pointInRtb"/> — only a whole block drawn on the shared
+    /// layout tree, not a formula in a line of text — or hides it where there is none.
+    /// </summary>
+    internal void HoverAt(Point pointInRtb)
+    {
+        if (_blockActions.Count == 0)
+        {
+            _toolbar?.Hide();
+            return;
+        }
+
+        var block = InteractiveBlockAtPoint(pointInRtb) as Editing.ContentElement;
+        if (block is not null && ContainerOf(block) is not BlockUIContainer) block = null;
+
+        // Over the buttons themselves, the block under them is still the one they are for.
+        if (block is null && _toolbar is { IsMouseOver: true, Block: { } shown }) block = shown;
+
+        Toolbar()?.Hover(block, pointInRtb);
+    }
+
+    /// <summary>The toolbar over the text box, put there the first time it is wanted.</summary>
+    internal BlockToolbar? Toolbar()
+    {
+        if (_toolbar is not null) return _toolbar;
+        if (AdornerLayer.GetAdornerLayer(_rtb) is not { } layer) return null;
+
+        var toolbar = _toolbar = new BlockToolbar(_rtb, block => new RenderedBlock(block, FenceLanguage(BlockIndexOf(block))));
+        toolbar.Offer(_blockActions);
+        toolbar.MouseMove += (_, e) => HoverAt(e.GetPosition(_rtb));
+        toolbar.MouseLeave += (_, _) => LeftPointer();
+        layer.Add(toolbar);
+        return toolbar;
+    }
+
+    /// <summary>
+    /// Hides the block toolbar once the pointer is on neither the text box nor the toolbar — asked after the move has
+    /// settled, since leaving one for the other says it has left before it says where it went.
+    /// </summary>
+    private void LeftPointer() =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_toolbar is { IsMouseOver: false } toolbar && !_rtb.IsMouseOver) toolbar.Hide();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+
+    /// <summary>The language of the fence block <paramref name="index"/> is written in, or null where it is no fence.</summary>
+    private string? FenceLanguage(int index)
+    {
+        if (index < 0 || index >= _blocks.Count) return null;
+
+        var first = _blocks[index].TrimStart();
+        var fence = first.StartsWith("```", StringComparison.Ordinal) ? '`' : first.StartsWith("~~~", StringComparison.Ordinal) ? '~' : '\0';
+        if (fence == '\0') return null;
+
+        var info = first.TrimStart(fence);
+        var end = info.IndexOfAny([' ', '\t', '\r', '\n', '{']);
+        var language = end < 0 ? info : info[..end];
+        return language.Length > 0 ? language : null;
     }
 
     /// <summary>Palette in effect — an explicit <see cref="Palette"/>, else the active theme.</summary>
@@ -731,7 +819,7 @@ public partial class InlineMarkdownEditor : UserControl
             }
             else BlurBlock();
 
-            ib.BeginPointerSelect(e.GetPosition(uie));
+            ib.BeginPointerSelect(e.GetPosition(uie), Keyboard.Modifiers);
             // Capture to the RTB so the drag keeps flowing to our move/up handlers even when the pointer
             // leaves the element or the control (the embedded element itself can't hold capture reliably).
             Mouse.Capture(_rtb);
@@ -1096,6 +1184,20 @@ public partial class InlineMarkdownEditor : UserControl
         return null;
     }
 
+    /// <summary>
+    /// The pointer over an embedded block is the block's to choose. The text box sets a bar over everything inside it, a
+    /// pie's wedges included, and the block never sees the pointer to say otherwise — see <see cref="IInteractiveBlock"/> —
+    /// so it is asked here, once the text box has had its say.
+    /// </summary>
+    private void OnQueryCursor(object sender, QueryCursorEventArgs e)
+    {
+        if (InteractiveBlockAtPoint(e.GetPosition(_rtb)) is not { } block || block is not UIElement element) return;
+        if (block.PointerCursor(e.GetPosition(element)) is not { } cursor) return;
+
+        e.Cursor = cursor;
+        e.Handled = true;
+    }
+
     // ── Right-click menu (Cut / Copy / Paste / Select All) ────────────────
     // The RichTextBox's built-in editing menu is unstyled and a right-click would clear the
     // selection and steal focus (rebuilding the doc into render mode). We supply our own themed
@@ -1316,10 +1418,14 @@ public partial class InlineMarkdownEditor : UserControl
 
     /// <summary>Block-level undo shared by source-mode and Word-style sessions: edits within the same
     /// block coalesce into one undo step.</summary>
-    private void SnapshotAt(int block, int caret)
+    /// <param name="content">
+    /// Where the rendered content the edit was made in starts in its block — a pie, a formula — or null for an edit to the
+    /// block's own text.
+    /// </param>
+    private void SnapshotAt(int block, int caret, int? content = null)
     {
         if (block == _undoGroupBlock) return;     // already snapshotted this block's session
-        _undo.Add(([.. _blocks], block, caret));
+        _undo.Add(([.. _blocks], block, caret, content));
         if (_undo.Count > UndoLimit) _undo.RemoveAt(0);
         _undoGroupBlock = block;
     }
@@ -1333,12 +1439,37 @@ public partial class InlineMarkdownEditor : UserControl
     {
         if (_undo.Count == 0) return;
         ClearNativeSession();                     // undo discards the in-flight Word-style edit
-        var (blocks, active, caret) = _undo[^1];
+        var (blocks, active, caret, content) = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
         _blocks = blocks;
         _undoGroupBlock = -2;                       // next edit starts a fresh undo group
-        Activate(Math.Clamp(active, 0, _blocks.Count - 1), caret);
+
+        // Taken back where it was made. An edit inside rendered content — a slice's value, a formula's exponent — puts the
+        // content back as it was and the caret back in it; opening the block's source instead turned an edit to a pie into
+        // an edit of its markdown.
+        var index = Math.Clamp(active, 0, _blocks.Count - 1);
+        if (content is { } start) ReturnToContent(index, start, caret);
+        else Activate(index, caret);
+
         PushMarkdown();
+    }
+
+    /// <summary>
+    /// Renders the document again and hands the caret back to the content in block <paramref name="index"/> starting at
+    /// <paramref name="start"/>, <paramref name="caret"/> characters into it.
+    /// </summary>
+    private void ReturnToContent(int index, int start, int caret)
+    {
+        RenderAll();
+
+        if (ContentIn(index, start) is not { } content) return;
+
+        // Laid out before the caret goes in, which is what says where a caret can stand in it.
+        _rtb.UpdateLayout();
+        _rtb.Focus();
+        Keyboard.Focus(_rtb);
+        FocusBlock(content);
+        content.TakeCaret(Math.Clamp(caret, 0, content.Source.Length));
     }
 
     private void OnPreviewTextInput(object? sender, TextCompositionEventArgs e)

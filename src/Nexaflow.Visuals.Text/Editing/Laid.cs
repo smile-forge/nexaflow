@@ -102,6 +102,10 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
         var hit = Root.PieceAt(point);
         if (!hit.Exists) return 0;
 
+        // Inside a run of text the press means the letter it landed on, and the places between letters are the run's
+        // own rather than stops of the layout — so snapping would put the caret back at one end of the run.
+        if (hit.Words is { Maps: true }) return Root.OffsetAt(point);
+
         var offset = point.X < hit.Bounds.X + (hit.Bounds.Width / 2) ? hit.Sits().Start : hit.Sits().End;
         return NearestStop(offset);
     }

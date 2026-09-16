@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
@@ -28,6 +29,12 @@ public sealed class LayoutBuilder
     private readonly List<ISourcePart?> _parts = [];
     private readonly List<string> _kinds = [];
     private readonly List<LayoutPaint?> _paints = [];
+
+    /// <summary>The shape each piece stands in, where it said — see <see cref="Occupies"/>. Null for nearly everything.</summary>
+    private readonly List<Geometry?> _regions = [];
+
+    /// <summary>The run of text each piece is, where it is one — see <see cref="Words"/>. Null for nearly everything.</summary>
+    private readonly List<LayoutWords?> _words = [];
 
     private readonly List<LayoutMark> _marks = [];
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
@@ -136,6 +143,8 @@ public sealed class LayoutBuilder
         _parts.Add(part);
         _kinds.Add(kind);
         _paints.Add(frame.Paints);
+        _regions.Add(null);
+        _words.Add(null);
 
         _open.Push(frame);
         return frame.At;
@@ -198,6 +207,38 @@ public sealed class LayoutBuilder
     public void Covers(Rect what) => _open.Peek().Covers(what);
 
     /// <summary>
+    /// Says the piece being built stands in exactly this shape, in its own frame, rather than in its box: what a press
+    /// has to land inside to mean it, what a marquee has to reach, and what a selection washes.
+    ///
+    /// <para>
+    /// For drawing whose box badly overstates it. A wedge of a pie is a sliver of the square that holds it, and its
+    /// neighbours' squares overlap it, so its box would hand a press on one slice to the next and wash the slices either
+    /// side of the one chosen.
+    /// </para>
+    /// <para>
+    /// <strong>Said by the builder, not read off the marks</strong>, because the shape drawn is not always the shape meant:
+    /// a note head is drawn as an outline, and a press between its strokes still means the note.
+    /// </para>
+    /// <para>
+    /// Asked of the piece that draws — a leaf. Its box is still what it drew, so anything that only wants to know
+    /// roughly where a piece is goes on asking that.
+    /// </para>
+    /// </summary>
+    public void Occupies(Geometry region) =>
+        _regions[_open.Peek().At] = region.IsFrozen ? region : (Geometry)region.GetAsFrozen();
+
+    /// <summary>
+    /// Says the piece being built is a run of text, with a caret position between any two of its letters — see
+    /// <see cref="LayoutWords"/>.
+    ///
+    /// <para>
+    /// One piece for the run, rather than one per letter: the type engine shapes and kerns the whole string at once,
+    /// and where each letter landed is a question it can answer whenever it is asked.
+    /// </para>
+    /// </summary>
+    public void Words(LayoutWords words) => _words[_open.Peek().At] = words;
+
+    /// <summary>
     /// Says the piece being built reserves exactly this much of its line, vertically, whatever it draws above
     /// or below — the staff a note stands on, the height of a word's letters on its line. Its width is still
     /// whatever it drew.
@@ -243,16 +284,24 @@ public sealed class LayoutBuilder
             var marks = _marks.Count;
             foreach (var mark in tree.MarksOf(piece)) _marks.Add(mark);
 
+            // Every piece the tree holds at its top level is anchored here, not only the first of them: a tree with
+            // several — a diagram built as its layers — would otherwise have one layer put where it was asked for and
+            // the rest left claiming a parent they are nowhere inside, which paints them in one place and measures them
+            // in another.
+            var root = stored.Parent < 0;
+
             _pieces.Add(stored with
             {
-                Offset = piece == 0 ? stored.Offset + new Vector(at.X, at.Y) : stored.Offset,
-                Parent = piece == 0 ? parent : stored.Parent + first,
+                Offset = root ? stored.Offset + new Vector(at.X, at.Y) : stored.Offset,
+                Parent = root ? parent : stored.Parent + first,
                 Marks = marks,
             });
 
             _parts.Add(tree.PartOf(piece));
             _kinds.Add(tree.KindOf(piece));
             _paints.Add(tree.PaintOf(piece));
+            _regions.Add(tree.RegionOf(piece));
+            _words.Add(tree.WordsOf(piece));
         }
 
         for (var run = 0; run < tree.RunCount; run++)
@@ -265,9 +314,16 @@ public sealed class LayoutBuilder
             _runs.Add((moved, tree.RunOf(members[0], vertical: true) == run));
         }
 
-        // What it covers, whatever holds it holds too — as for any piece closed inside it.
-        var root = _pieces[first];
-        if (_open.Count > 0 && !root.Box.IsEmpty) _open.Peek().Gathered(Rect.Offset(root.Box, root.Offset));
+        // What it covers, whatever holds it holds too — as for any piece closed inside it, and for every one of its
+        // tops rather than the first.
+        if (_open.Count > 0)
+            for (var piece = first; piece < _pieces.Count; piece++)
+            {
+                var top = _pieces[piece];
+                if (top.Parent != parent || top.Box.IsEmpty) continue;
+
+                _open.Peek().Gathered(Rect.Offset(top.Box, top.Offset));
+            }
 
         if (against is { } side) _sides.Add((first, side, clear));
         return first;
@@ -365,7 +421,7 @@ public sealed class LayoutBuilder
             }
         }
 
-        return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints],
+        return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
                               across, acrossAt, down, downAt, runs);
     }
 

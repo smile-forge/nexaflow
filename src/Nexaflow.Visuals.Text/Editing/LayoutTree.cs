@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
@@ -87,6 +88,10 @@ public sealed class LayoutTree
     private readonly string[] _kinds;
     private readonly LayoutPaint?[] _paints;
 
+    private readonly Geometry?[] _regions;
+
+    private readonly LayoutWords?[] _words;
+
     /// <summary>Which run a piece reads along and where in it, and the same downward. -1 for neither.</summary>
     private readonly int[] _across;
     private readonly int[] _acrossAt;
@@ -99,7 +104,7 @@ public sealed class LayoutTree
     private IReadOnlyList<CaretPlace>? _places;
 
     internal LayoutTree(Stored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
-                        LayoutPaint?[] paints,
+                        LayoutPaint?[] paints, Geometry?[] regions, LayoutWords?[] words,
                         int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
     {
         _pieces = pieces;
@@ -107,6 +112,8 @@ public sealed class LayoutTree
         _parts = parts;
         _kinds = kinds;
         _paints = paints;
+        _regions = regions;
+        _words = words;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
@@ -150,6 +157,12 @@ public sealed class LayoutTree
 
     /// <summary>How it is painted beyond its marks, or nothing — which is nearly always.</summary>
     internal LayoutPaint? PaintOf(int at) => _paints[at];
+
+    /// <summary>The shape it stands in, in its own frame, or nothing — which is nearly always. See <see cref="LayoutBuilder.Occupies"/>.</summary>
+    internal Geometry? RegionOf(int at) => _regions[at];
+
+    /// <summary>The run of text it is, or nothing — which is nearly always. See <see cref="LayoutBuilder.Words"/>.</summary>
+    internal LayoutWords? WordsOf(int at) => _words[at];
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) =>
         _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);

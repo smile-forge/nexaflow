@@ -81,7 +81,7 @@ public class MermaidInteractionTests
     [TestMethod, TestCategory("Unit")]
     public void A_flowchart_node_picks_up_its_click_target()
     {
-        var graph = new MermaidParser().Parse("""
+        var graph = new MermaidFlowchartParser().Parse("""
             graph LR
               app["app.exe"] --> lib["lib.dll"]
               click app href "C:\app\app.exe" "Inspect app.exe"
@@ -100,7 +100,7 @@ public class MermaidInteractionTests
     [TestMethod, TestCategory("Unit")]
     public void A_click_naming_an_unknown_node_is_ignored_without_disturbing_the_graph()
     {
-        var graph = new MermaidParser().Parse("""
+        var graph = new MermaidFlowchartParser().Parse("""
             graph TD
               a --> b
               click ghost "nowhere"
@@ -113,7 +113,7 @@ public class MermaidInteractionTests
     [TestMethod, TestCategory("Unit")]
     public void A_flowchart_without_click_directives_has_no_links()
     {
-        var graph = new MermaidParser().Parse("""
+        var graph = new MermaidFlowchartParser().Parse("""
             graph LR
               a["A"] --> b["B"]
             """);
@@ -126,7 +126,7 @@ public class MermaidInteractionTests
     public void Other_directives_are_still_skipped()
     {
         // click parsing replaced one arm of the skip list; the rest must keep being ignored.
-        var graph = new MermaidParser().Parse("""
+        var graph = new MermaidFlowchartParser().Parse("""
             graph LR
               a --> b
               style a fill:#f9f

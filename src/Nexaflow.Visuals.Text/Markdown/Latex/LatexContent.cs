@@ -67,5 +67,10 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     /// Ends a stretch being shown as written, keeping the space that says where a control word stopped —
     /// see <see cref="LatexWriting.Settle"/>.
     /// </summary>
-    public EditState Settle(Landing landing, string separator) => landing.State.Settle(separator);
+    /// <summary>
+    /// A command is settled by whichever key ended it, and what follows it is a space either way: a formula is one
+    /// expression, so the line the reader pressed Enter on is the only line there is.
+    /// </summary>
+    public EditState Settle(Landing landing, string separator) =>
+        landing.State.Settle(separator == "\n" ? " " : separator);
 }

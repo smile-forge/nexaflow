@@ -37,7 +37,7 @@ public class GraphExpansionTests
     [TestMethod, TestCategory("Unit")]
     public void An_ordinary_graph_keeps_every_node_and_grows_no_chips()
     {
-        var source = new MermaidParser().Parse("graph TD\n  a --> b\n  b --> c\n");
+        var source = new MermaidFlowchartParser().Parse("graph TD\n  a --> b\n  b --> c\n");
         var view   = GraphExpansion.Apply(source, new NexaflowGraphConfig());
 
         Assert.AreEqual(3, view.Nodes.Count);

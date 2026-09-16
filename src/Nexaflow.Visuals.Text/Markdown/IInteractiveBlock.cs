@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -18,6 +19,13 @@ public interface IInteractiveBlock
 {
     /// <summary>Starts a click/drag selection at <paramref name="pointInElement"/> (element coordinates).</summary>
     void BeginPointerSelect(Point pointInElement);
+
+    /// <summary>
+    /// Starts a click/drag selection with the modifier keys that were held for the press: Shift chooses from where the
+    /// choosing started to the press, and Ctrl adds what was pressed to what is already chosen. A block that chooses only
+    /// one way takes it as a plain press.
+    /// </summary>
+    void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers) => BeginPointerSelect(pointInElement);
 
     /// <summary>Continues the drag at <paramref name="pointInElement"/>. No-op before a begin.</summary>
     void ExtendPointerSelect(Point pointInElement);
@@ -43,6 +51,13 @@ public interface IInteractiveBlock
     /// the wheel would otherwise never see one.
     /// </summary>
     bool WantsPointerWheel(Point pointInElement) => false;
+
+    /// <summary>
+    /// What the pointer looks like over this point — a bar over what can be written in, an arrow over drawing — or null to
+    /// leave it to the host. Asked by the host for the same reason as the wheel: the pointer over an embedded element is the
+    /// text container's to set, and it sets a bar over all of it.
+    /// </summary>
+    Cursor? PointerCursor(Point pointInElement) => null;
 }
 
 /// <summary>
