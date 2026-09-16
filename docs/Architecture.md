@@ -96,6 +96,8 @@ Every config (global or per-workspace) persists as `…\{configName}\config_{Ass
 2. A shape change the carry-over can't express (a rename or restructure) opts into **`IConfigMigration`** — a tiny one-method interface mirrored in `Features.Common` and `Providers.Common` (kept parallel so the layering rule holds; Core checks both). Its `MigrateFrom(previousJson, previousVersion)` runs right after the carry-over, with the raw old JSON in hand.
 3. The result is rewritten under the current version and the stale files are deleted (**write-then-delete**, so a failed write never loses the prior data).
 
+Every load is lenient per value, not only a migration's. A stored value that no longer reads as its property's type — written by a build where that property had another shape, such as an enum that became a string — is skipped, so the property keeps its default, and is recorded in the crash log (`ConfigManager.FaultLog`). A dev build and the installed release share one `config_{AssemblyVersion}.json` while their versions match, so without this either could stop the other from starting. A config implementing `IConfigMigration` is handed the raw old JSON, so recovering such a value during a migration is the hook's job and nothing is recorded; a file that is not JSON at all throws.
+
 Migrated configs are tracked apart from brand-new ones (`GetMigratedConfigs` vs `GetDefaultedConfigs`). The first-run/update **setup wizard** (`SetupWizardViewModel.Build`) therefore re-asks for a global mandatory config only when it is genuinely new **or** its migrated data still fails the required-field check (`AreRequiredPropertiesSatisfied`) — never for information already on disk; the workspace/provider/model flow is skipped because the migrated per-workspace configs keep `IsWorkspaceConfigured` true. File-type mappings (`FileMapManager.SyncBundledDefaults`) follow the same spirit through a `_defaults.json` hash manifest: a changed bundled default refreshes mappings the user hasn't touched and leaves customized ones alone, fast-pathing when the bundle is unchanged.
 
 **Reset.** Options → About offers a danger-styled **Reset Config** that, after a window-modal confirmation, wipes the entire `%APPDATA%\Smile\nexaflow` tree and relaunches (`App.ResetAndRestart` arms a write-suppressor, drops the single-instance mutex, then starts a `--reset` process that deletes the directory **before** init — lock-safe because the fresh process holds no handle) straight into first-run.
@@ -581,6 +583,9 @@ App.OnStartup
           → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
           → OpenDefaultTabs()
   → win.Show()
+  → a throw from InitializeApp or the first window ends the launch (StartupFailure): recorded in the crash log,
+        single-instance guard released, a message naming the log unless the launch is unattended (--prestart,
+        --uiTest, --timing), exit code 1 — never a windowless process that swallows every later launch
 
   (Each subsequent app/IPC launch = a NEW WorkspaceRuntime. Tear-off / "open in new window" reuse the
    SAME runtime. --prestart launches the windowless resident daemon: InitializeApp runs, NO runtime is

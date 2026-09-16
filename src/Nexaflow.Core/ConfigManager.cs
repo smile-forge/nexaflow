@@ -2,13 +2,15 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Nexaflow.Core.Services;
 
 namespace Nexaflow.Core;
 
 /// <summary>
 /// Singleton registry that loads and persists config POCOs to
 /// %AppData%\Smile\nexaflow\{configName}\config_{version}.json.
-/// Errors are thrown rather than swallowed so the shell can surface them as toasts.
+/// A file that cannot be read or is not JSON throws; a single stored value that no longer reads as its property's
+/// type keeps the property's default and is recorded in the crash log, so one stale setting never stops startup.
 /// </summary>
 public sealed class ConfigManager
 {
@@ -107,6 +109,13 @@ public sealed class ConfigManager
     /// </summary>
     public void SuppressWrites() => _suppressWrites = true;
 
+    /// <summary>
+    /// Where a stored value that could not be read is put on record: the crash log, so a setting that fell back to its
+    /// default is traceable rather than silently gone. Recording needs no dispatcher, so it is safe under the config
+    /// lock on any thread. The Core test suite points it at a log of its own.
+    /// </summary>
+    internal CrashLog FaultLog { get; set; } = CrashLog.Instance;
+
     private string GetConfigDir(string configName) => Path.Combine(BaseDir, configName);
 
     private string GetPath(string configName, Version version) =>
@@ -120,8 +129,9 @@ public sealed class ConfigManager
     /// config already wired by startup (e.g. <see cref="FeatureManager"/> vs App.xaml.cs) must use
     /// the returned value, not the instance they passed in.
     /// When only an older assembly version's file exists, its data is migrated forward (see
-    /// <see cref="LoadOrMigrate"/>) rather than discarded. Throws <see cref="IOException"/> or
-    /// <see cref="JsonException"/> if a present file is unreadable.
+    /// <see cref="LoadOrMigrate"/>) rather than discarded. Throws <see cref="IOException"/> when a
+    /// present file cannot be read and <see cref="JsonException"/> when it is not JSON; a single stored value that no
+    /// longer reads as its property's type keeps the default instead (see <see cref="Load"/>).
     /// </summary>
     public object Register(object config, string configName)
     {
@@ -244,7 +254,7 @@ public sealed class ConfigManager
 
         if (File.Exists(exact))
         {
-            Load(config, exact);
+            Record(Load(config, exact));
             return LoadOutcome.Loaded;
         }
 
@@ -258,16 +268,19 @@ public sealed class ConfigManager
             .FirstOrDefault();
         if (prior.path is null) return LoadOutcome.None;
 
-        var rawText = File.ReadAllText(prior.path);
-        Load(config, prior.path);   // lenient carry-over of all name-matching fields
+        var rawText    = File.ReadAllText(prior.path);
+        var unreadable = Load(config, prior.path);   // lenient carry-over of all name-matching fields
 
-        // Optional custom upgrade path for shape changes the field copy can't express (renames etc.).
+        // Optional custom upgrade path for shape changes the field copy can't express (renames etc.). The hook has the
+        // raw old JSON in hand, so a value the carry-over could not read is the hook's to recover rather than a fault.
         if (JsonNode.Parse(rawText) is JsonObject previous)
         {
             if (config is Nexaflow.Features.Common.IConfigMigration fm)
                 fm.MigrateFrom(previous, prior.ver!);
             else if (config is Nexaflow.Providers.Common.IConfigMigration pm)
                 pm.MigrateFrom(previous, prior.ver!);
+            else
+                Record(unreadable);
         }
 
         if (!_suppressWrites)
@@ -289,12 +302,20 @@ public sealed class ConfigManager
             && Version.TryParse(name[prefix.Length..], out var v) ? v : null;
     }
 
-    private static void Load(object config, string path)
+    /// <summary>
+    /// Copies every stored value whose name matches a writable property onto <paramref name="config"/>. A value that no
+    /// longer reads as its property's type — written by a build where that property had another shape, such as an enum
+    /// that became a string — is skipped, so the property keeps its default, and is returned as a fault rather than
+    /// thrown: one stale setting must not keep a whole config, and with it the app, from loading. A file that is not
+    /// JSON throws.
+    /// </summary>
+    private static List<InvalidDataException> Load(object config, string path)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         var props = config.GetType().GetProperties()
                           .Where(p => p.CanWrite)
                           .ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
+        var unreadable = new List<InvalidDataException>();
         foreach (var el in doc.RootElement.EnumerateObject())
         {
             if (!props.TryGetValue(el.Name, out var pi)) continue;
@@ -306,8 +327,24 @@ public sealed class ConfigManager
                 continue;
             }
 
-            var value = JsonSerializer.Deserialize(el.Value.GetRawText(), pi.PropertyType, _opts);
-            pi.SetValue(config, value);
+            try
+            {
+                pi.SetValue(config, JsonSerializer.Deserialize(el.Value.GetRawText(), pi.PropertyType, _opts));
+            }
+            catch (JsonException ex)
+            {
+                // The stored value stays out of the message: a crash log is what a user sends with a fault report.
+                unreadable.Add(new InvalidDataException(
+                    $"\"{el.Name}\" in {path} does not read as {config.GetType().Name}.{pi.Name}, which keeps its default.",
+                    ex));
+            }
         }
+        return unreadable;
+    }
+
+    /// <summary>Puts each value <see cref="Load"/> could not read on record in <see cref="FaultLog"/>.</summary>
+    private void Record(List<InvalidDataException> unreadable)
+    {
+        foreach (var fault in unreadable) FaultLog.Record(fault);
     }
 }
