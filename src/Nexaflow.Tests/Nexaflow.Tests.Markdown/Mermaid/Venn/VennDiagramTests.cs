@@ -22,7 +22,7 @@ public class VennDiagramTests
     {
         var diagram = Read(VennGrammarTests.Features);
 
-        Assert.AreEqual("What makes a good feature", diagram.TitleText);
+        Assert.AreEqual("What makes a good feature", diagram.Block.TitleText);
         CollectionAssert.AreEqual(new[] { "Desirable", "Feasible", "Viable" }, diagram.Sets.Select(set => set.Id).ToArray());
         CollectionAssert.AreEqual(new[] { "Desirable,Feasible", "Feasible,Viable", "Desirable,Viable", "Desirable,Feasible,Viable" },
                                   diagram.Unions.Select(union => union.Key).ToArray());
@@ -52,7 +52,7 @@ public class VennDiagramTests
     [TestMethod]
     public void ASetAndTheItemsIndentedUnderItAreOneRegionOfTheTree()
     {
-        var tree = VennPipeline.Read(VennGrammarTests.Styled);
+        var tree = MermaidParser.Read(VennGrammarTests.Styled);
         var regions = tree.Children.Where(child => child.Kind == VennKinds.Region).ToList();
 
         Assert.AreEqual(3, regions.Count, "set A with its items, set B, and the union");
@@ -68,7 +68,7 @@ public class VennDiagramTests
     public void ACommentBetweenItemsGoesWithThem_AndOneAfterTheLastDoesNot()
     {
         const string source = "venn-beta\n  set A\n    text A1\n    %% more\n    text A2\n  %% the styles\n  style A fill:red";
-        var region = VennPipeline.Read(source).Children.Single(child => child.Kind == VennKinds.Region);
+        var region = MermaidParser.Read(source).Children.Single(child => child.Kind == VennKinds.Region);
 
         Assert.AreEqual(4, Lines(region).Count(), "the set, both items and the comment between them");
         StringAssert.EndsWith(region.Print(), "text A2\n");
@@ -92,7 +92,7 @@ public class VennDiagramTests
 
         Assert.AreEqual("OpenAPI", diagram.Unions.Single().Items.Single().Label!.Text, "named in another order, the same overlap");
         Assert.AreEqual("A1", diagram.Sets[0].Items.Single().Id);
-        Assert.IsFalse(VennPipeline.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null));
+        Assert.IsFalse(MermaidParser.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null));
     }
 
     [TestMethod]
@@ -104,7 +104,7 @@ public class VennDiagramTests
                      ("venn-beta\n  set A\n  set B\n    text A A1", "Indented under a set", "A"),
                  })
         {
-            var trouble = VennPipeline.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+            var trouble = MermaidParser.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
             StringAssert.Contains(trouble.Trouble, reason, source);
 
             var diagram = Read(source);
@@ -117,7 +117,7 @@ public class VennDiagramTests
     {
         foreach (var source in new[] { "venn-beta\n  text A1", "venn-beta\nset A\ntext A,C X" })
         {
-            var trouble = VennPipeline.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+            var trouble = MermaidParser.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
             StringAssert.Matches(trouble.Trouble, new System.Text.RegularExpressions.Regex("sits in|No set or union"), source);
         }
     }
@@ -126,7 +126,7 @@ public class VennDiagramTests
     public void AUnionOfASetNotWrittenAboveItSaysSoOnTheName_AndIsNoOverlap()
     {
         const string source = "venn-beta\n  set A\n  union A,B\n  set B";
-        var trouble = VennPipeline.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = MermaidParser.Read(source).SelfAndDescendants().Single(node => node.Trouble is not null);
 
         Assert.AreEqual("B", trouble.Text);
         StringAssert.Contains(trouble.Trouble, "not a set written above");
@@ -136,7 +136,7 @@ public class VennDiagramTests
     [TestMethod]
     public void AUnionOfOneSetSaysSo()
     {
-        var trouble = VennPipeline.Read("venn-beta\n  set A\n  union A,A").SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = MermaidParser.Read("venn-beta\n  set A\n  union A,A").SelfAndDescendants().Single(node => node.Trouble is not null);
         StringAssert.Contains(trouble.Trouble, "two sets or more");
     }
 
@@ -166,13 +166,13 @@ public class VennDiagramTests
 
         Assert.AreEqual("#333", diagram.Unions.Single().Style.Colour, "the overlap, whichever order its sets are named in");
         Assert.AreEqual("red", diagram.Sets[0].Items.Single().Style.Colour);
-        Assert.AreEqual(VennStyle.None, diagram.Sets[1].Style);
+        Assert.AreEqual(MermaidStyle.None, diagram.Sets[1].Style);
     }
 
     [TestMethod]
     public void AStyleOfSomethingNotWrittenSaysSo()
     {
-        var trouble = VennPipeline.Read("venn-beta\n  set A\n  style Z fill:red").SelfAndDescendants().Single(node => node.Trouble is not null);
+        var trouble = MermaidParser.Read("venn-beta\n  set A\n  style Z fill:red").SelfAndDescendants().Single(node => node.Trouble is not null);
         StringAssert.Contains(trouble.Trouble, "Nothing called Z");
     }
 
@@ -246,22 +246,22 @@ public class VennDiagramTests
     {
         const string source = "venn-beta\n  set A[\"\"]\n    text \"\"";
 
-        var writing = VennDiagram.Of(VennPipeline.Read(source, holes: true));
+        var writing = VennDiagram.Of(MermaidParser.Read(source, holes: true));
         var reading = Read(source);
 
         Assert.AreEqual(source.IndexOf("[\"", StringComparison.Ordinal) + 2, writing.Sets[0].LabelHole!.Start, "between the label's quotes");
         Assert.AreEqual(source.LastIndexOf('"'), writing.Sets[0].Items.Single().NameHole!.Start, "and the item's name's");
 
         Assert.IsNull(reading.Sets[0].LabelHole, "a diagram only being read has none");
-        Assert.AreEqual(source, VennPipeline.Read(source, holes: true).Print(), "and a hole is no part of the source");
+        Assert.AreEqual(source, MermaidParser.Read(source, holes: true).Print(), "and a hole is no part of the source");
     }
 
     [TestMethod]
     public void TheDiagramsOwnTitleIsTheOneItUses()
     {
-        Assert.AreEqual("Pets", Read("---\ntitle: Elements\n---\nvenn-beta\n  title \"Pets\"\n  set A").TitleText);
-        Assert.AreEqual("Elements", Read("---\ntitle: Elements\n---\nvenn-beta\n  set A").TitleText, "and the front matter's where it has none");
-        Assert.IsNull(Read("venn-beta\n  set A").TitleText);
+        Assert.AreEqual("Pets", Read("---\ntitle: Elements\n---\nvenn-beta\n  title \"Pets\"\n  set A").Block.TitleText);
+        Assert.AreEqual("Elements", Read("---\ntitle: Elements\n---\nvenn-beta\n  set A").Block.TitleText, "and the front matter's where it has none");
+        Assert.IsNull(Read("venn-beta\n  set A").Block.TitleText);
     }
 
     [TestMethod]

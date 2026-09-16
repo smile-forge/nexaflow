@@ -1,0 +1,347 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Editing;
+
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
+
+/// <summary>The shapes a diagram draws a node as — Mermaid's, named for what they look like, with the brackets a flowchart writes each with.</summary>
+internal enum DiagramShape
+{
+    /// <summary><c>[text]</c></summary>
+    Rectangle,
+
+    /// <summary><c>(text)</c></summary>
+    Rounded,
+
+    /// <summary><c>([text])</c> — a pill.</summary>
+    Stadium,
+
+    /// <summary><c>[[text]]</c> — a rectangle with a second line down each side.</summary>
+    Subroutine,
+
+    /// <summary><c>[(text)]</c> — a drum, as a database is drawn.</summary>
+    Cylinder,
+
+    /// <summary><c>((text))</c></summary>
+    Circle,
+
+    /// <summary><c>(((text)))</c></summary>
+    DoubleCircle,
+
+    /// <summary><c>&gt;text]</c> — a flag, notched on its left.</summary>
+    Asymmetric,
+
+    /// <summary><c>{text}</c> — a rhombus, as a decision is drawn.</summary>
+    Diamond,
+
+    /// <summary><c>{{text}}</c></summary>
+    Hexagon,
+
+    /// <summary><c>[/text/]</c> — leaning right.</summary>
+    Parallelogram,
+
+    /// <summary><c>[\text\]</c> — leaning left.</summary>
+    ParallelogramAlt,
+
+    /// <summary><c>[/text\]</c> — wider at the bottom.</summary>
+    Trapezoid,
+
+    /// <summary><c>[\text/]</c> — wider at the top.</summary>
+    TrapezoidAlt,
+
+    /// <summary>A page with a wavy foot.</summary>
+    Document,
+
+    /// <summary>A rectangle with its top left corner folded down.</summary>
+    Card,
+}
+
+/// <summary>
+/// The shapes nodes are drawn as, as geometry: each shape's outline and the lines inside it, where words fit in it, how big it
+/// has to be to hold words, and where a line from its middle leaves it — which is where a connector meets it.
+///
+/// <para>
+/// <strong>A shape is the same in every diagram.</strong> A flowchart's decision, a block diagram's block and a mind map's node
+/// are drawn here, once, so a rhombus holds its words the same way wherever one is drawn and a connector meets it at its edge
+/// rather than at its bounding box. <see cref="Draw"/> puts one on the layout tree, standing in its own outline.
+/// </para>
+/// </summary>
+internal static class DiagramShapes
+{
+    /// <summary>How round a <see cref="DiagramShape.Rounded"/> corner is.</summary>
+    private const double Corner = 6;
+
+    /// <summary>How far in a <see cref="DiagramShape.Subroutine"/>'s inner lines and a <see cref="DiagramShape.DoubleCircle"/>'s inner ring are.</summary>
+    private const double Inner = 5;
+
+    /// <summary>The outline of a shape filling <paramref name="bounds"/> — what is filled, stroked, and stood in. Frozen.</summary>
+    public static Geometry Outline(DiagramShape shape, Rect bounds)
+    {
+        Geometry outline = shape switch
+        {
+            DiagramShape.Rounded => new RectangleGeometry(bounds, Corner, Corner),
+            DiagramShape.Stadium => new RectangleGeometry(bounds, bounds.Height / 2, bounds.Height / 2),
+            DiagramShape.Circle or DiagramShape.DoubleCircle => new EllipseGeometry(bounds),
+            DiagramShape.Cylinder => Cylinder(bounds),
+            DiagramShape.Document => Document(bounds),
+            _ when Corners(shape, bounds) is { } points => Polygon(points),
+            _ => new RectangleGeometry(bounds),
+        };
+
+        outline.Freeze();
+        return outline;
+    }
+
+    /// <summary>The lines a shape draws inside its outline — a subroutine's inner sides, a cylinder's rim, the inner ring of a double circle — or null.</summary>
+    public static Geometry? Details(DiagramShape shape, Rect bounds)
+    {
+        Geometry? details = shape switch
+        {
+            DiagramShape.Subroutine => new GeometryGroup
+            {
+                Children =
+                {
+                    new LineGeometry(new Point(bounds.Left + Inner, bounds.Top), new Point(bounds.Left + Inner, bounds.Bottom)),
+                    new LineGeometry(new Point(bounds.Right - Inner, bounds.Top), new Point(bounds.Right - Inner, bounds.Bottom)),
+                },
+            },
+            DiagramShape.DoubleCircle when bounds.Width > Inner * 2 && bounds.Height > Inner * 2 =>
+                new EllipseGeometry(new Rect(bounds.X + Inner, bounds.Y + Inner, bounds.Width - (Inner * 2), bounds.Height - (Inner * 2))),
+            DiagramShape.Cylinder => Rim(bounds),
+            DiagramShape.Card => new LineGeometry(new Point(bounds.Left, bounds.Top + Fold(bounds)), new Point(bounds.Left + Fold(bounds), bounds.Top)),
+            _ => null,
+        };
+
+        details?.Freeze();
+        return details;
+    }
+
+    /// <summary>Where words fit inside a shape filling <paramref name="bounds"/>.</summary>
+    public static Rect Inside(DiagramShape shape, Rect bounds)
+    {
+        var (x, y, w, h) = (bounds.X, bounds.Y, bounds.Width, bounds.Height);
+
+        return shape switch
+        {
+            DiagramShape.Stadium => Inset(bounds, h / 2, 0),
+            DiagramShape.Subroutine => Inset(bounds, Inner * 2, 0),
+            DiagramShape.Circle => Inset(bounds, w * (1 - Math.Sqrt(0.5)) / 2, h * (1 - Math.Sqrt(0.5)) / 2),
+            DiagramShape.DoubleCircle => Inset(bounds, Inner + ((w - (Inner * 2)) * (1 - Math.Sqrt(0.5)) / 2), Inner + ((h - (Inner * 2)) * (1 - Math.Sqrt(0.5)) / 2)),
+            DiagramShape.Diamond => Inset(bounds, w / 4, h / 4),
+            DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
+                or DiagramShape.Trapezoid or DiagramShape.TrapezoidAlt => Inset(bounds, Slant(bounds), 0),
+            DiagramShape.Asymmetric => new Rect(x + Notch(bounds), y, Math.Max(0, w - Notch(bounds)), h),
+            DiagramShape.Cylinder => new Rect(x, y + (Lid(bounds) * 2), w, Math.Max(0, h - (Lid(bounds) * 3))),
+            DiagramShape.Document => new Rect(x, y, w, Math.Max(0, h - (Wave(bounds) * 2))),
+            DiagramShape.Card => new Rect(x + (Fold(bounds) / 2), y, Math.Max(0, w - (Fold(bounds) / 2)), h),
+            _ => bounds,
+        };
+    }
+
+    /// <summary>
+    /// How big a shape has to be for <paramref name="words"/> to fit inside it with <paramref name="pad"/> of clear air round
+    /// them — the size <see cref="Inside"/> gives that room back for.
+    /// </summary>
+    public static Size Around(DiagramShape shape, Size words, double pad)
+    {
+        var (w, h) = (words.Width + (pad * 2), words.Height + (pad * 2));
+
+        switch (shape)
+        {
+            case DiagramShape.Stadium: return new Size(w + h, h);
+            case DiagramShape.Subroutine: return new Size(w + (Inner * 4), h);
+            case DiagramShape.Circle: return Square(Math.Max(w, h) * Math.Sqrt(2));
+            case DiagramShape.DoubleCircle: return Square((Math.Max(w, h) * Math.Sqrt(2)) + (Inner * 2));
+            case DiagramShape.Diamond: return new Size(w * 2, h * 2);
+            case DiagramShape.Asymmetric: return new Size(Math.Max(w + 12, w * 4 / 3), h);
+            case DiagramShape.Cylinder: return new Size(w, h / 0.55 * 0.15 < 10 ? h / 0.55 : h + 30);
+            case DiagramShape.Document: return new Size(w, h / 0.85);
+            case DiagramShape.Card: return new Size(w + (Math.Min(12, h / 3) / 2), h);
+            case DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
+                or DiagramShape.Trapezoid or DiagramShape.TrapezoidAlt:
+                return new Size(w + (h / 3 * 2), h);
+            default: return new Size(w, h);
+        }
+
+        static Size Square(double side) => new(side, side);
+    }
+
+    /// <summary>
+    /// Where a line from the middle of a shape filling <paramref name="bounds"/> towards <paramref name="toward"/> leaves its
+    /// outline — where a connector to the shape stops.
+    /// </summary>
+    public static Point Edge(DiagramShape shape, Rect bounds, Point toward)
+    {
+        var centre = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+        var along = toward - centre;
+        if (along.Length < 1e-9) return centre;
+
+        if (shape is DiagramShape.Circle or DiagramShape.DoubleCircle)
+        {
+            var (a, b) = (bounds.Width / 2, bounds.Height / 2);
+            var scale = 1 / Math.Sqrt(((along.X * along.X) / (a * a)) + ((along.Y * along.Y) / (b * b)));
+            return centre + (along * scale);
+        }
+
+        var points = Corners(shape, bounds) ?? [bounds.TopLeft, bounds.TopRight, bounds.BottomRight, bounds.BottomLeft];
+        var nearest = double.PositiveInfinity;
+
+        for (var at = 0; at < points.Count; at++)
+        {
+            var (from, to) = (points[at], points[(at + 1) % points.Count]);
+            if (Crossing(centre, along, from, to) is { } distance && distance < nearest) nearest = distance;
+        }
+
+        return double.IsInfinity(nearest) ? centre : centre + (along * nearest);
+    }
+
+    /// <summary>
+    /// Draws a shape filling <paramref name="bounds"/> as a piece of <paramref name="kind"/> standing for <paramref name="part"/>:
+    /// filled, outlined, and standing in its own outline (<see cref="MermaidPiece.Shape"/>), so a press anywhere inside it means
+    /// what it stands for — with <paramref name="words"/>, where it has any, in the middle of the room inside it as a piece of
+    /// <paramref name="wordsKind"/>.
+    /// </summary>
+    public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds,
+                            Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words)
+    {
+        var outline = Outline(shape, bounds);
+
+        build.Open(kind, part, stops: Stops.None);
+
+        // The drawing is a piece of its own, and a leaf: only what draws is pressed, so a shape with words in it stands in its
+        // outline through this, and the words in it stand in front.
+        build.Open(MermaidPiece.Shape, part, stops: Stops.None);
+        build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        if (Details(shape, bounds) is { } details && stroke is not null)
+            build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
+        build.Occupies(outline);
+        build.Close();
+
+        if (words is not null)
+        {
+            var room = Inside(shape, bounds);
+            words.Set(build, new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2)), wordsKind);
+        }
+
+        build.Close();
+    }
+
+    // ── Outlines ────────────────────────────────────────────────────────────
+
+    /// <summary>The corners of a shape whose outline is straight lines, or null for one that is not.</summary>
+    private static IReadOnlyList<Point>? Corners(DiagramShape shape, Rect r)
+    {
+        var (x, y, w, h) = (r.X, r.Y, r.Width, r.Height);
+        var (cx, cy, k) = (x + (w / 2), y + (h / 2), Slant(r));
+
+        return shape switch
+        {
+            DiagramShape.Diamond => [new(cx, y), new(x + w, cy), new(cx, y + h), new(x, cy)],
+            DiagramShape.Hexagon => [new(x + k, y), new(x + w - k, y), new(x + w, cy), new(x + w - k, y + h), new(x + k, y + h), new(x, cy)],
+            DiagramShape.Asymmetric => [new(x, y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x + Notch(r), cy)],
+            DiagramShape.Parallelogram => [new(x + k, y), new(x + w, y), new(x + w - k, y + h), new(x, y + h)],
+            DiagramShape.ParallelogramAlt => [new(x, y), new(x + w - k, y), new(x + w, y + h), new(x + k, y + h)],
+            DiagramShape.Trapezoid => [new(x + k, y), new(x + w - k, y), new(x + w, y + h), new(x, y + h)],
+            DiagramShape.TrapezoidAlt => [new(x, y), new(x + w, y), new(x + w - k, y + h), new(x + k, y + h)],
+            DiagramShape.Card => [new(x + Fold(r), y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x, y + Fold(r))],
+            _ => null,
+        };
+    }
+
+    private static Geometry Polygon(IReadOnlyList<Point> points)
+    {
+        var shape = new StreamGeometry();
+        using (var pen = shape.Open())
+        {
+            pen.BeginFigure(points[0], isFilled: true, isClosed: true);
+            pen.PolyLineTo([.. points.Skip(1)], isStroked: true, isSmoothJoin: false);
+        }
+
+        return shape;
+    }
+
+    private static Geometry Cylinder(Rect r)
+    {
+        var lid = Lid(r);
+        var shape = new StreamGeometry();
+        using (var pen = shape.Open())
+        {
+            pen.BeginFigure(new Point(r.Left, r.Top + lid), isFilled: true, isClosed: true);
+            pen.ArcTo(new Point(r.Right, r.Top + lid), new Size(r.Width / 2, lid), 0, false, SweepDirection.Clockwise, true, true);
+            pen.LineTo(new Point(r.Right, r.Bottom - lid), true, true);
+            pen.ArcTo(new Point(r.Left, r.Bottom - lid), new Size(r.Width / 2, lid), 0, false, SweepDirection.Clockwise, true, true);
+        }
+
+        return shape;
+    }
+
+    /// <summary>The near edge of a cylinder's lid, which its outline does not draw.</summary>
+    private static Geometry Rim(Rect r)
+    {
+        var lid = Lid(r);
+        var shape = new StreamGeometry();
+        using (var pen = shape.Open())
+        {
+            pen.BeginFigure(new Point(r.Right, r.Top + lid), isFilled: false, isClosed: false);
+            pen.ArcTo(new Point(r.Left, r.Top + lid), new Size(r.Width / 2, lid), 0, false, SweepDirection.Clockwise, true, true);
+        }
+
+        return shape;
+    }
+
+    private static Geometry Document(Rect r)
+    {
+        // A cubic through its ends with its handles a height k either side of them bows out 0.2887 k at most: the foot waves
+        // down to the bottom of the bounds and up as far again.
+        var wave = Wave(r);
+        var foot = r.Bottom - wave;
+        var handle = wave / 0.2887;
+
+        var shape = new StreamGeometry();
+        using (var pen = shape.Open())
+        {
+            pen.BeginFigure(r.TopLeft, isFilled: true, isClosed: true);
+            pen.LineTo(r.TopRight, true, false);
+            pen.LineTo(new Point(r.Right, foot), true, false);
+            pen.BezierTo(new Point(r.Right - (r.Width / 3), foot - handle), new Point(r.Left + (r.Width / 3), foot + handle),
+                         new Point(r.Left, foot), true, true);
+        }
+
+        return shape;
+    }
+
+    // ── Proportions ─────────────────────────────────────────────────────────
+
+    /// <summary>How far a slanted side leans in.</summary>
+    private static double Slant(Rect r) => Math.Min(r.Height / 3, r.Width / 4);
+
+    private static double Notch(Rect r) => Math.Min(12, r.Width / 4);
+
+    private static double Lid(Rect r) => Math.Min(10, r.Height * 0.15);
+
+    /// <summary>How far a document's foot waves either side of where it runs.</summary>
+    private static double Wave(Rect r) => r.Height * 0.075;
+
+    private static double Fold(Rect r) => Math.Min(12, r.Height / 3);
+
+    private static Rect Inset(Rect r, double across, double down) =>
+        new(r.X + across, r.Y + down, Math.Max(0, r.Width - (across * 2)), Math.Max(0, r.Height - (down * 2)));
+
+    /// <summary>How far along <paramref name="along"/> from <paramref name="origin"/> the side from <paramref name="from"/> to <paramref name="to"/> is crossed, or null where it is not.</summary>
+    private static double? Crossing(Point origin, Vector along, Point from, Point to)
+    {
+        var side = to - from;
+        var denominator = Vector.CrossProduct(along, side);
+        if (Math.Abs(denominator) < 1e-12) return null;
+
+        var offset = from - origin;
+        var t = Vector.CrossProduct(offset, side) / denominator;
+        var u = Vector.CrossProduct(offset, along) / denominator;
+
+        return t >= 0 && u is >= -1e-9 and <= 1 + 1e-9 ? t : null;
+    }
+}

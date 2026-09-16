@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Pie;
 /// </summary>
 [TestClass]
 [CoversNode("pie-ast")]
-public class PieGrammarTests
+public class PieGrammarTests : MermaidGrammarContract
 {
     /// <summary>The block the Mermaid documentation shows, front matter and all.</summary>
     public const string Documented =
@@ -33,7 +33,11 @@ public class PieGrammarTests
             "Iron" :  5
         """;
 
-    private static readonly (string What, string Source)[] Blocks =
+    public override MermaidDiagram Diagram => MermaidDiagram.Pie;
+
+    protected override IEnumerable<string> DocumentedBlocks => [Documented];
+
+    protected override IEnumerable<(string What, string Source)> Blocks { get; } =
     [
         ("the documented block", Documented),
         ("a title on the header", "pie title Pets\n  \"Dogs\" : 386"),
@@ -61,41 +65,11 @@ public class PieGrammarTests
     ];
 
     [TestMethod]
-    public void EveryBlockReadsBackAsItWasWritten()
-    {
-        foreach (var (what, source) in Blocks)
-            Assert.AreEqual(source, MermaidParser.Parse(source).Print(), what);
-    }
-
-    [TestMethod]
-    public void EveryPrefixOfEveryBlockReadsBackToo()
-    {
-        foreach (var (what, source) in Blocks)
-            for (var length = 0; length <= source.Length; length++)
-            {
-                var typed = source[..length];
-                Assert.AreEqual(typed, MermaidParser.Parse(typed).Print(), $"{what}: after {length} character(s)");
-            }
-    }
-
-    [TestMethod]
-    public void TheGrammarOnlyEverCopies()
-    {
-        foreach (var (what, source) in Blocks)
-            foreach (var place in MermaidParser.Parse(source).Placed())
-            {
-                if (!place.Node.IsLeaf) continue;
-                Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
-                                $"{what}: {place.Node.Kind} at {place.Start}");
-            }
-    }
-
-    [TestMethod]
     public void ASliceIsItsLabelItsColonAndItsValue()
     {
         var slice = Slices("pie\n  \"Calcium\" : 42.96").Single();
 
-        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == PieKinds.Name).Text);
+        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text);
         Assert.AreEqual("42.96", Value(slice).Text);
         Assert.IsNull(slice.SelfAndDescendants().FirstOrDefault(node => node.Trouble is not null));
     }
@@ -107,7 +81,7 @@ public class PieGrammarTests
 
         CollectionAssert.AreEqual(
             new[] { "Calcium", "Potassium", "Magnesium", "Iron" },
-            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == PieKinds.Name).Text).ToArray(),
+            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text).ToArray(),
             "clockwise, in the order they were written");
 
         CollectionAssert.AreEqual(
@@ -124,18 +98,18 @@ public class PieGrammarTests
         var options = Nodes(Documented, PieKinds.Options).Single();
         Assert.AreEqual(PieGrammar.ShowData, options.SelfAndDescendants().Single(node => node.Kind == PieKinds.ShowData).Text);
 
-        var title = Nodes(Documented, PieKinds.Title).Single();
-        Assert.AreEqual("Key elements in Product X", title.Part(PieRoles.Label)?.Text);
+        var title = Nodes(Documented, MermaidKinds.Title).Single();
+        Assert.AreEqual("Key elements in Product X", title.Part(MermaidRoles.Title)?.Text);
     }
 
     [TestMethod]
     public void ATitleOnTheHeaderReadsTheSameAsOneOnItsOwnLine()
     {
-        var header = Nodes("pie title Pets\n  \"Dogs\" : 386", PieKinds.Title).Single();
-        var line = Nodes("pie\n  title Pets\n  \"Dogs\" : 386", PieKinds.Title).Single();
+        var header = Nodes("pie title Pets\n  \"Dogs\" : 386", MermaidKinds.Title).Single();
+        var line = Nodes("pie\n  title Pets\n  \"Dogs\" : 386", MermaidKinds.Title).Single();
 
-        Assert.AreEqual("Pets", header.Part(PieRoles.Label)?.Text);
-        Assert.AreEqual("Pets", line.Part(PieRoles.Label)?.Text);
+        Assert.AreEqual("Pets", header.Part(MermaidRoles.Title)?.Text);
+        Assert.AreEqual("Pets", line.Part(MermaidRoles.Title)?.Text);
     }
 
     [TestMethod]
@@ -188,7 +162,7 @@ public class PieGrammarTests
         // Where the value is read as standing is where typing it puts it: past the space, not hard against the colon.
         foreach (var source in new[] { "pie\n  \"Dogs\" : ", "pie\n  \"Dogs\" : \n  \"Cats\" : 1" })
         {
-            var value = MermaidParser.Parse(source).Placed().First(place => place.Node.Kind == PieKinds.Value);
+            var value = MermaidParser.Parse(source).Placed().First(place => place.Node.Kind == MermaidKinds.Number);
             Assert.AreEqual(source.IndexOf(": ", StringComparison.Ordinal) + 2, value.Start, source);
         }
     }
@@ -199,7 +173,7 @@ public class PieGrammarTests
         const string source = "pie\n  \"Dogs\" : 386  \n  title Pets  ";
 
         Assert.AreEqual("\"Dogs\" : 386", Slices(source).Single().Print());
-        Assert.AreEqual("title Pets", Nodes(source, PieKinds.Title).Single().Print());
+        Assert.AreEqual("title Pets", Nodes(source, MermaidKinds.Title).Single().Print());
     }
 
     [TestMethod]
@@ -208,7 +182,7 @@ public class PieGrammarTests
         var (text, caret) = new PieGrammar().Blank(above: null)!.Value;
         var slice = Slices("pie\n  " + text).Single();
 
-        Assert.AreEqual(string.Empty, slice.SelfAndDescendants().Single(node => node.Kind == PieKinds.Name).Text);
+        Assert.AreEqual(string.Empty, slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text);
         Assert.AreEqual(string.Empty, Value(slice).Text);
         Assert.AreEqual('"', text[caret - 1], "the caret starts inside the label's quotes");
     }
@@ -217,7 +191,7 @@ public class PieGrammarTests
     public void AQuoteTypedIntoALabelIsWrittenAsItsEntityCode()
     {
         const string source = "pie\n  \"Dogs\" : 3";
-        var label = ContentReading.Of(PiePipeline.Read(source)).Root.SelfAndDescendants().Single(part => part.Kind == PieKinds.Name);
+        var label = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants().Single(part => part.Kind == MermaidKinds.Words);
 
         var writing = new PieGrammar().Escaping(label, label.End, "\"")!.Value;
         var written = source[..writing.Start] + writing.Text + source[writing.End..];
@@ -243,5 +217,5 @@ public class PieGrammarTests
         [.. MermaidParser.Parse(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static ContentNode Value(ContentNode slice) =>
-        slice.SelfAndDescendants().Single(node => node.Kind == PieKinds.Value);
+        slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Number);
 }

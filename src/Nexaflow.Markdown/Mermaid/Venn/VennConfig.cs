@@ -49,28 +49,20 @@ public sealed record VennConfig
     /// <summary>Reads a block's front matter, already read as config.</summary>
     public static VennConfig From(MermaidConfig config)
     {
-        var venn = config.Section("config")?.Section("venn") ?? MermaidConfig.None;
-        var theme = config.Section("config")?.Section("themeVariables") ?? MermaidConfig.None;
-
-        var swatches = new Dictionary<int, string>();
-        for (var number = 1; number <= PaletteSize; number++)
-            if (theme.Value($"venn{number}") is { Length: > 0 } colour)
-                swatches[number] = colour;
+        var venn = config.Diagram("venn");
+        var theme = config.Theme;
 
         return new VennConfig
         {
-            Width = Size(venn.Number("width")),
-            Height = Size(venn.Number("height")),
+            Width = venn.Size("width"),
+            Height = venn.Size("height"),
             Padding = Math.Max(0, venn.Number("padding") ?? Default.Padding),
             UseMaxWidth = venn.Flag("useMaxWidth") ?? Default.UseMaxWidth,
             UseDebugLayout = venn.Flag("useDebugLayout") ?? Default.UseDebugLayout,
 
-            Swatches = swatches,
+            Swatches = theme.Swatches("venn", PaletteSize),
             TitleTextColour = theme.Value("vennTitleTextColor"),
             SetTextColour = theme.Value("vennSetTextColor"),
         };
     }
-
-    /// <summary>A size, or nothing where none was written or what was written would draw nothing.</summary>
-    private static double? Size(double? asked) => asked is > 0 ? asked : null;
 }

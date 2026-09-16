@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid;
 
@@ -62,6 +63,19 @@ public interface IMermaidGrammar
 
     /// <summary>How a name is written where it is used.</summary>
     string Naming(string name) => name;
+
+    /// <summary>
+    /// The stages this type runs over a block once it is parsed, in order: what its lines mean together rather than each on its
+    /// own — which region an item sits in, what colour a slice takes — worked out and hung underneath (<see cref="IAstStage"/>).
+    /// None, for a diagram whose lines say everything they mean.
+    /// </summary>
+    IEnumerable<IAstStage> Stages(MermaidBlock block) => [];
+
+    /// <summary>
+    /// Whether a hole stands in <paramref name="node"/>, held by <paramref name="holder"/>, where nothing is written in it yet
+    /// and somebody is writing in the block — a label between its quotes, a value after its colon. See <see cref="Pipeline.Stages.WithHoles"/>.
+    /// </summary>
+    bool Holds(ContentNode? holder, ContentNode node) => false;
 }
 
 /// <summary>What is written in place of a stretch of a block, and where the caret goes after it.</summary>
@@ -91,6 +105,47 @@ public readonly record struct MermaidWriting(int Start, int End, string Text, in
     {
         var head = "\"" + MermaidText.Quoted(before);
         return new MermaidWriting(start, end, head + MermaidText.Quoted(after) + "\"", start + head.Length);
+    }
+
+    /// <summary>
+    /// What writing <paramref name="text"/> at <paramref name="caret"/> in <paramref name="part"/> is written as, for a part
+    /// <see cref="MermaidLine"/> read — the escaping every grammar's <see cref="IMermaidGrammar.Escaping"/> starts from. Null
+    /// where the text goes in as it is.
+    ///
+    /// <para>
+    /// In quotes, anything but a quote goes in as it is, and a quote is written as its entity code. A bare name holds what
+    /// <paramref name="bare"/> says a name written without quotes can, and is put in quotes to hold anything else. A label in
+    /// brackets holds anything but a quote, a bracket that closes it or a comment, and is put in quotes to hold those.
+    /// </para>
+    /// </summary>
+    /// <param name="bare">Whether a name can go without quotes, given the name it is in and what it would say — or null where any can.</param>
+    public static MermaidWriting? Escape(ContentPart part, int caret, string text, Func<ContentPart, string, bool>? bare = null)
+    {
+        if (part.Parent is not { } holder || part.Kind is not (MermaidKinds.Words or Kinds.Hole)) return null;
+
+        if (holder.Children.Any(child => child.Role == Roles.Open && child.Text == "\"")) return InQuotes(caret, text);
+
+        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
+        var at = Math.Clamp(caret - part.Start, 0, said.Length);
+        var (before, after) = (said[..at] + text, said[at..]);
+
+        switch (holder.Kind)
+        {
+            case MermaidKinds.Name when bare is not null && !bare(holder, before + after):
+                return Quoting(part.Start, part.Start + said.Length, before, after);
+
+            // Inside the brackets, space and all: a label in quotes is written hard against them.
+            case MermaidKinds.Label:
+                var open = holder.Children.First(child => child.Role == Roles.Open);
+                var close = holder.Children.LastOrDefault(child => child.Role == Roles.Close);
+                var closing = close?.Text ?? string.Empty;
+
+                return (before + after).Any(character => character is '"' or '%' || closing.Contains(character))
+                    ? Quoting(open.End, close?.Start ?? holder.End, before, after)
+                    : null;
+        }
+
+        return null;
     }
 }
 

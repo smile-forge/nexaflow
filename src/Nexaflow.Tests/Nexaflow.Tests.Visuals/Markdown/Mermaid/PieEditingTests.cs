@@ -10,6 +10,7 @@ using System;
 using System.Windows.Input;
 using System.Windows.Controls;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -403,7 +404,7 @@ public class PieEditingTests
             Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Label).Bounds)), "a label is written in");
             Assert.AreEqual(Cursors.IBeam, block.PointerCursor(Middle(First(PiePiece.Value).Bounds)), "and so is a value");
             Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(PiePiece.Share).Bounds)), "a share is worked out");
-            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(PiePiece.Swatch).Bounds)), "a swatch is drawing");
+            Assert.AreEqual(Cursors.Arrow, block.PointerCursor(Middle(First(MermaidPiece.Swatch).Bounds)), "a swatch is drawing");
             Assert.AreEqual(Cursors.Arrow, block.PointerCursor(InsideAWedge(pie)), "and so is a wedge");
             Assert.AreEqual(Cursors.Arrow, block.PointerCursor(new Point(1, 1)), "and the card round it all is nothing");
         }));

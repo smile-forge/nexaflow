@@ -1,5 +1,4 @@
 ﻿using Nexaflow.Markdown.Mermaid;
-using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Layout;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
@@ -14,7 +13,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • <c>pie</c>              → <see cref="PieGrammar"/> + <see cref="PieBuilder"/>, on the shared layout tree
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c> → its grammar, its stages and its
+///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
@@ -26,7 +26,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>ishikawa-beta</c>    → <see cref="MermaidIshikawaParser"/> + <see cref="WpfIshikawaRenderer"/>
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>venn-beta</c>        → <see cref="Nexaflow.Markdown.Mermaid.Venn.VennGrammar"/> + <see cref="VennBuilder"/>, on the shared layout tree
 ///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
 ///   • <c>journey</c>          → <see cref="MermaidJourneyParser"/>  + <see cref="WpfJourneyRenderer"/>
 ///   • <c>block-beta</c>       → <see cref="MermaidBlockParser"/>    + <see cref="WpfBlockRenderer"/>
@@ -76,9 +75,11 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var block = MermaidBlock.Read(source);
         var palette = options.Palette;
 
+        // A diagram drawn on the shared layout tree is shown in an element it can be written in, and never drawn any other way.
+        if (MermaidBuilders.Element(source, block.Diagram, options) is { } shared) return shared;
+
         return block.Diagram switch
         {
-            MermaidDiagram.Pie          => PieBuilder.Element(source, options),
             MermaidDiagram.Quadrant     => RenderQuadrant(block, palette),
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
             MermaidDiagram.Gantt        => RenderGantt(block, palette),
@@ -93,7 +94,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Ishikawa     => RenderIshikawa(block, palette),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
-            MermaidDiagram.Venn         => VennBuilder.Element(source, options),
             MermaidDiagram.Cynefin      => RenderCynefin(block, palette),
             MermaidDiagram.Architecture => RenderArchitecture(block, palette),
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
@@ -109,7 +109,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
     /// <summary>Applies a front-matter title to a chart that doesn't already carry one.</summary>
     private static string Titled(string? existing, MermaidBlock block) =>
-        string.IsNullOrWhiteSpace(existing) && block.TitleText is { } frontmatter ? frontmatter : existing ?? string.Empty;
+        string.IsNullOrWhiteSpace(existing) && block.FrontMatterTitleText is { } frontmatter ? frontmatter : existing ?? string.Empty;
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
 

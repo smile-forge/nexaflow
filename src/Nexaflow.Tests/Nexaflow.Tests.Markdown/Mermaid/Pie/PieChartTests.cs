@@ -21,7 +21,7 @@ public class PieChartTests
         var chart = Read(PieGrammarTests.Documented);
 
         Assert.IsTrue(chart.ShowsData);
-        Assert.AreEqual("Key elements in Product X", chart.TitleText);
+        Assert.AreEqual("Key elements in Product X", chart.Block.TitleText);
         CollectionAssert.AreEqual(new[] { "Calcium", "Potassium", "Magnesium", "Iron" },
                                   chart.Slices.Select(slice => slice.Name).ToArray());
 
@@ -143,8 +143,8 @@ public class PieChartTests
     public void WhereALabelOrAValueIsStillToBeWrittenAHoleStandsInIt()
     {
         const string source = "pie\n  \"\" : ";
-        var writing = PieChart.Of(PiePipeline.Read(source, holes: true)).Slices.Single();
-        var reading = PieChart.Of(PiePipeline.Read(source)).Slices.Single();
+        var writing = PieChart.Of(MermaidParser.Read(source, holes: true)).Slices.Single();
+        var reading = PieChart.Of(MermaidParser.Read(source)).Slices.Single();
 
         Assert.AreEqual(source.IndexOf('"') + 1, writing.LabelHole!.Start, "between the quotes");
         Assert.AreEqual(source.Length, writing.ValueHole!.Start, "after the space left for it");
@@ -158,23 +158,23 @@ public class PieChartTests
     public void AndAHoleIsNoPartOfTheSource()
     {
         const string source = "pie\n  \"Dogs\" : 3\n  \"\" : \n  \"Cats\" : 1";
-        Assert.AreEqual(source, PiePipeline.Read(source, holes: true).Print());
+        Assert.AreEqual(source, MermaidParser.Read(source, holes: true).Print());
     }
 
     [TestMethod]
     public void TheChartsOwnTitleIsTheOneItUses()
     {
-        Assert.AreEqual("Pets", Read("---\ntitle: Elements\n---\npie title Pets\n  \"Dogs\" : 1").TitleText);
-        Assert.AreEqual("Elements", Read("---\ntitle: Elements\n---\npie\n  \"Dogs\" : 1").TitleText,
+        Assert.AreEqual("Pets", Read("---\ntitle: Elements\n---\npie title Pets\n  \"Dogs\" : 1").Block.TitleText);
+        Assert.AreEqual("Elements", Read("---\ntitle: Elements\n---\npie\n  \"Dogs\" : 1").Block.TitleText,
                         "and the front matter's where it has none");
-        Assert.IsNull(Read("pie\n  \"Dogs\" : 1").TitleText);
+        Assert.IsNull(Read("pie\n  \"Dogs\" : 1").Block.TitleText);
     }
 
     [TestMethod]
     public void WhatTheStagesHangUnderneathIsNoPartOfTheSource()
     {
         foreach (var source in new[] { PieGrammarTests.Documented, "pie\n  \"Dogs\" : 1" })
-            Assert.AreEqual(source, PiePipeline.Read(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, MermaidParser.Read(source).Print(), "a stage leaves the characters alone");
     }
 
     [TestMethod]
