@@ -9,7 +9,7 @@ the source it was drawn from — which is what makes a diagram selectable, press
 The diagrams still on the legacy renderers (`src/Nexaflow.Visuals.Text/Markdown/Graphs/`) move across one at a time, and
 each is built from **the Mermaid kit**: the pieces every diagram shares, decided once. Pie, Venn and radar are the
 references — pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own, radar one whose
-lines list items with values and whose options share a line.
+lines list items with values and whose options share a line, xychart one with axes, ranges and series in brackets.
 
 ## What a diagram is made of
 
@@ -38,9 +38,9 @@ diagram's own code sits in a folder of its own under each.
 |---|---|
 | read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
-| read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says | `Name`, `Names` |
+| read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` |
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
-| read a number after a separator, still to come or written — to the end, or `until` a character ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
+| read a number after a separator, still to come or written — to the end, `until` a character or a `stop` token ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
 | read what an option is set to — a word from a few, `true` or `false` | `Setting` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
 | read a style's properties | `Properties`, and `MermaidStyle.With` in the model |
@@ -62,7 +62,7 @@ diagram's own code sits in a folder of its own under each.
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node: a shape with words in it | `DiagramShapes.Draw`; `Around` sizes a shape for its words, `Edge` is where a line meets it |
 | draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
-| draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s; `DiagramScale` for round-number ticks |
+| draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks |
 | show a block with nothing to draw | `AsWritten` |
 
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed

@@ -80,8 +80,9 @@ internal static class DiagramAxis
 
     /// <summary>How far past the line an axis's ticks and words reach — the room to leave for them beside a chart.</summary>
     /// <param name="upright">Whether the axis runs up the page, which is what makes its words' width the room they take.</param>
-    public static double Room(IReadOnlyList<DiagramTick> ticks, bool upright) =>
-        TickLength + Gap + ticks.Select(tick => tick.Words is null ? 0 : upright ? tick.Words.Width : tick.Words.Height).DefaultIfEmpty(0).Max();
+    /// <param name="tick">How long its ticks are drawn — nought for none.</param>
+    public static double Room(IReadOnlyList<DiagramTick> ticks, bool upright, double tick = TickLength) =>
+        tick + Gap + ticks.Select(mark => mark.Words is null ? 0 : upright ? mark.Words.Width : mark.Words.Height).DefaultIfEmpty(0).Max();
 
     /// <summary>
     /// Draws an axis from <paramref name="from"/> to <paramref name="to"/> as a piece of <paramref name="kind"/> standing for
@@ -89,8 +90,10 @@ internal static class DiagramAxis
     /// <paramref name="tickKind"/> — beside the tick on the side <paramref name="after"/> says: under or right of the line
     /// where it is true, over or left of it where it is false.
     /// </summary>
+    /// <param name="line">Whether the line itself is drawn, or only its ticks and words.</param>
+    /// <param name="tick">How long the ticks are drawn — nought for none, the words then sitting against the line.</param>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, Point from, Point to, IReadOnlyList<DiagramTick> ticks,
-                            DiagramStroke stroke, string tickKind, bool after = true)
+                            DiagramStroke stroke, string tickKind, bool after = true, bool line = true, double tick = TickLength)
     {
         var along = to - from;
         var upright = Math.Abs(along.Y) > Math.Abs(along.X);
@@ -98,28 +101,34 @@ internal static class DiagramAxis
         // The side the ticks and words go, square to the line.
         var outward = upright ? new Vector(after ? 1 : -1, 0) : new Vector(0, after ? 1 : -1);
 
-        var lines = new GeometryGroup { Children = { new LineGeometry(from, to) } };
-        foreach (var tick in ticks)
-        {
-            var at = from + (along * tick.At);
-            lines.Children.Add(new LineGeometry(at, at + (outward * TickLength)));
-        }
+        var lines = new GeometryGroup();
+        if (line) lines.Children.Add(new LineGeometry(from, to));
+
+        if (tick > 0)
+            foreach (var mark in ticks)
+            {
+                var at = from + (along * mark.At);
+                lines.Children.Add(new LineGeometry(at, at + (outward * tick)));
+            }
 
         lines.Freeze();
 
         build.Open(kind, part, stops: Stops.None);
 
         // The line and its ticks are a leaf of their own, which is what a press near them lands on — only what draws is pressed.
-        build.Open(MermaidPiece.Line, part, stops: Stops.None);
-        build.Draw(new GeometryMark(lines, null, stroke.Ink, stroke.Thickness) { Dashes = stroke.Dashes });
-        build.Occupies(lines.GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(DiagramConnector.Reach, stroke.Thickness))));
-        build.Close();
-
-        foreach (var tick in ticks)
+        if (lines.Children.Count > 0)
         {
-            if (tick.Words is not { } words) continue;
+            build.Open(MermaidPiece.Line, part, stops: Stops.None);
+            build.Draw(new GeometryMark(lines, null, stroke.Ink, stroke.Thickness) { Dashes = stroke.Dashes });
+            build.Occupies(lines.GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(DiagramConnector.Reach, stroke.Thickness))));
+            build.Close();
+        }
 
-            var at = from + (along * tick.At) + (outward * (TickLength + Gap));
+        foreach (var mark in ticks)
+        {
+            if (mark.Words is not { } words) continue;
+
+            var at = from + (along * mark.At) + (outward * (tick + Gap));
             var place = upright
                 ? new Point(after ? at.X : at.X - words.Width, at.Y - (words.Height / 2))
                 : new Point(at.X - (words.Width / 2), after ? at.Y : at.Y - words.Height);

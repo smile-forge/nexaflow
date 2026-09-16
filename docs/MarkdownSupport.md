@@ -149,7 +149,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `classDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (column/card layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `xychart` / `xychart-beta` | ✅ (bar + line, both orientations) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (fishbone) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
@@ -251,30 +251,32 @@ categorical `Swatch.*`/`Series` colour; a card shows its text, ticket/assignee c
 coloured by priority (Very High → `Danger`, High → `Warning`, Low → `Accent`, Very Low → `TextMuted`).
 Comments (`%%`) and `<br>` line breaks are handled. **Limitation:** the `ticketBaseUrl` config (which would turn
 a `ticket` into a hyperlink) is parsed away with the rest of the front-matter `config:` block — like every Mermaid
-diagram **except `xychart`**, `config:` is recognised but not applied, so the ticket renders as a plain chip.
+diagram that does not read it, `config:` is recognised but not applied, so the ticket renders as a plain chip.
 
-**XY-chart sub-features** ([`MermaidXyChartParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidXyChartParser.cs)
-+ [`WpfXyChartRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfXyChartRenderer.cs)).
-An XY chart has its own [`XyChart`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/XyChart.cs) model (title,
-a category x-axis, a numeric y-axis, and any number of `bar`/`line` series) drawn on a measured canvas. Supported:
-`xychart` / `xychart-beta`, **vertical** (default) and **`horizontal`** orientation; a categorical x-axis
-(`x-axis [a, "b c", d]`) or a numeric range (`x-axis "t" 0 --> 100`); a numeric y-axis with an explicit range
-(`y-axis "t" min --> max`) or auto-ranged from the data with "nice" ticks; `bar` and `line` series (a named series
-joins the legend), grouped bars when several share the axes; per-point labels on line points (`line [540 "PaLM", 7]`,
-mixable with unlabeled values); signed/decimal/leading-dot values (`+1.3`, `.6`, `-.34`); and `%%` comments.
-**The front-matter `config:` block is applied** (`xychart` and `radar` are the only diagrams that read it)
-([`XyChartConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/XyChartConfigParser.cs) →
-[`XyChartConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/XyChartConfig.cs)): the `config: xyChart`
-layout/flag keys (`width`, `height`, `showTitle`, `titleFontSize`/`titlePadding`, `showLegend`/`legend*`,
-`chartOrientation`, `plotReservedSpacePercent`, `showDataLabel`/`showDataLabelOutsideBar`, and the per-axis
-`xAxis`/`yAxis` `AxisConfig` — `showLabel`/`showTick`/`showAxisLine`/`tickLength`/`tickWidth`/`axisLineWidth`/
-`labelRotation`/`labelFontSize`/`titleFontSize`/…) and the `config: themeVariables: xyChart` colours
-(`backgroundColor`, `titleColor`, `dataLabelColor`, `legendTextColor`, the eight `x`/`yAxis…Color` keys, and the
-comma-separated `plotColorPalette`). Colours fall back to the active `MarkdownPalette` (series colours from its
-`Series` bank) when a key is unset. **Limitation:** the legacy inline `%%{init: …}%%` config-directive form isn't
-read — front-matter only.
-
-**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →
+**XY-chart sub-features** ([`XyGrammar`](../src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs) →
+[`XyChart`](../src/Nexaflow.Markdown/Mermaid/Xy/XyChart.cs) →
+[`XyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Xy/XyBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and each category, title and name is the characters it
+was written as. Supported, as Mermaid documents it: `xychart` / `xychart-beta`, **vertical** (default) or **`horizontal`**;
+a `title`; a categorical x-axis (`x-axis "Month" [jan, "feb 2"]`) or a numeric range (`x-axis title 0 --> 100`); a y-axis
+with a title and a range (`y-axis "Revenue" 4000 --> 11000`), either left out — the range then the values' own, from
+nought where there are bars, widened to round numbers; `bar` and `line` series, named or not (a named series has a
+legend row), bars side by side where several share a slot and lines over them; labels on line points
+(`line [540 "PaLM", 7]`); signed and leading-point values (`+1.3`, `.6`, `-.34`); and `%%` comments. A bar stands for its
+value and a line for its series; over a numeric x-axis the values are spread from the range's start to its end. What
+Mermaid would refuse is held with the reason beneath — categories on a y-axis, a value that is no number, a list never closed.
+**The front matter is applied** ([`XyConfig`](../src/Nexaflow.Markdown/Mermaid/Xy/XyConfig.cs)): `config: xyChart:`
+`width`, `height`, `showTitle`, `titleFontSize`, `showLegend`, `legendFontSize`, `legendPadding`, `chartOrientation`,
+`showDataLabel`, `showDataLabelOutsideBar`, `useMaxWidth`, and each axis's `xAxis:`/`yAxis:` `showLabel`,
+`labelFontSize`, `showTitle`, `titleFontSize`, `showTick`, `tickLength`, `showAxisLine` and `axisLineWidth`; and
+`themeVariables: xyChart:` `backgroundColor`, `titleColor`, `dataLabelColor`, `legendTextColor`, the eight
+`xAxis…Color`/`yAxis…Color` keys and `plotColorPalette`. A size nobody wrote is the app's own, and a colour the theme's.
+**Not applied:** `labelRotation` and axis titles turned upright (words on the layout tree are set level — an upright
+axis's title sits over it), and `plotReservedSpacePercent`, `titlePadding`, `labelPadding` and
+`tickWidth`, which size Mermaid's own layout.
+**Written in place:** a category is typed into under its tick, an axis's title where it is drawn, and a series' name in
+its legend row; a word given a space or a bracket is put in quotes; a category deleted to nothing leaves a hole; Enter
+on a series starts another of its kind with its values still to write.**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →
 its stage [`ResolveCurves`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs) →
 [`RadarChart`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarChart.cs) →
 [`RadarBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Radar/RadarBuilder.cs)).
@@ -1251,8 +1253,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; XY chart (vertical/horizontal, per-point labels, front-matter config); radar (circle/polygon graticule, keyed curve, front-matter config); ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); cynefin (domain routing not raw text, confusion overflow + front-matter config); timeline (spine routing not raw text, sections + `disableMulticolor` + front-matter title, `direction TD`); journey (face routing not raw text, all five scores + actor/section colours from config); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, XY chart + `XyChartConfig` (layout/axis/theme keys, `plotColorPalette`), radar + `RadarConfig` (axes, positional/keyed curves, options, geometry/styling/`cScale`), ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); cynefin + `CynefinConfig` (domain items, all five domains, confusion overflow, transitions, theme colours); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); timeline + `TimelineConfig` (periods/events, `:` continuation lines, sections, `<br>`/`#colon;`, `direction`, indexed `cScale`/`cScaleLabel` slots); journey + `JourneyConfig` (sections/tasks/scores/actors, distinct actor order, score defaults + clamping, actor-less tasks, colour lists + `fillType`); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for quadrant + sequence; state/class/requirement + kanban routing; ishikawa (fishbone routing, front-matter config); sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); cynefin (domain routing not raw text, confusion overflow + front-matter config); timeline (spine routing not raw text, sections + `disableMulticolor` + front-matter title, `direction TD`); journey (face routing not raw text, all five scores + actor/section colours from config); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: quadrant, sequence (extensive), flowchart, gantt, git graph, mindmap, state, class, requirement, kanban, ishikawa + `IshikawaConfig` (head/category/nested-cause indentation, `diagramPadding`), sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); cynefin + `CynefinConfig` (domain items, all five domains, confusion overflow, transitions, theme colours); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); timeline + `TimelineConfig` (periods/events, `:` continuation lines, sections, `<br>`/`#colon;`, `direction`, indexed `cScale`/`cScaleLabel` slots); journey + `JourneyConfig` (sections/tasks/scores/actors, distinct actor order, score defaults + clamping, actor-less tasks, colour lists + `fillType`); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |

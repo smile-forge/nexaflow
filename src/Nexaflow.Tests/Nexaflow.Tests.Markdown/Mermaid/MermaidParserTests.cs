@@ -111,7 +111,7 @@ public class MermaidParserTests
         var header = Nodes(MermaidParser.Parse("%% note\n\nxychart-beta horizontal\n  bar [1, 2]"), MermaidKinds.Header).Single();
 
         Assert.AreEqual("xychart-beta", header.Part(Roles.Name)?.Text);
-        Assert.AreEqual("horizontal", header.Part(MermaidRoles.Arguments)?.Text);
+        Assert.AreEqual("horizontal", header.Part(MermaidRoles.Arguments)?.Print());
         Assert.IsNull(header.Part(Roles.Name)!.Trouble);
     }
 

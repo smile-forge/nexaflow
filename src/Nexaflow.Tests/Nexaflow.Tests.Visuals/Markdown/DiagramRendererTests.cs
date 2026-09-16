@@ -251,69 +251,6 @@ public class DiagramRendererTests
         Assert.IsNotNull(WpfKanbanRenderer.Render(board, MarkdownPalette.Dark));
     });
 
-    // ── XY chart ──────────────────────────────────────────────────────────
-
-    private const string XySrc =
-        """
-        xychart-beta
-            title "Sales Revenue"
-            x-axis [jan, feb, mar, apr]
-            y-axis "Revenue (in $)" 4000 --> 11000
-            bar  "actual" [5000, 6000, 7500, 8200]
-            line "trend"  [5200, 6100, 7400, 8000]
-        """;
-
-    [TestMethod]
-    public void XyChart_RendersBorder() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(XySrc);
-        var fe    = WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-    });
-
-    [TestMethod]
-    public void XyChart_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", XySrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void XyChart_HorizontalRenders() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(
-            "xychart horizontal\n  x-axis [a, b, c]\n  y-axis 0 --> 10\n  bar [3, 7, 5]\n  line [2, 6, 4]\n");
-        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void XyChart_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              xyChart:
-                showDataLabel: true
-              themeVariables:
-                xyChart:
-                  plotColorPalette: '#000000, #0000FF'
-            ---
-            xychart
-              x-axis [comedy, romance, mystery]
-              y-axis "Number of Books" 0 --> 30
-              bar [12, 2, 20]
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void XyChart_PerPointLabels_RenderWithoutThrowing() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(
-            "xychart\n  line [540 \"PaLM\", 65 \"LLaMA-65B\", 7 \"Mistral 7B\"]\n");
-        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
     // ── Ishikawa (fishbone) ───────────────────────────────────────────────
 
     private const string IshikawaSrc =

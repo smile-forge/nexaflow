@@ -209,14 +209,96 @@
           }
         ]
       }
+    },
+    "xy-chart": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Xy/XyBuilder.cs",
+          "class": "XyBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/XyBuilderTests.cs",
+            "class": "XyBuilderTests"
+          }
+        ]
+      }
+    },
+    "xy-chart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs",
+          "class": "XyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyChart.cs",
+          "class": "XyChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyConfig.cs",
+          "class": "XyConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyGrammarTests.cs",
+            "class": "XyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyChartTests.cs",
+            "class": "XyChartTests"
+          }
+        ]
+      }
+    },
+    "xy-chart-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs",
+          "class": "XyGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/XyEditingTests.cs",
+            "class": "XyEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 14,
   "touched_nodes": [
     "mermaid-diagram-kit",
     "radar",
     "radar-ast",
-    "radar-writing"
+    "radar-writing",
+    "xy-chart",
+    "xy-chart-ast",
+    "xy-chart-writing"
   ]
 }

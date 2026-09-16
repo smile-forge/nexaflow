@@ -256,14 +256,15 @@ public sealed class MermaidLine
     /// The kind each of the list's items is where an item is more than its name — an axis and its label, a curve and its
     /// values — so each is a piece of its own, a name still to write too; or null where each is only a name.
     /// </param>
-    public bool Names(Func<MermaidLine, bool> name, string role, string named, string separator = ",", string? item = null)
+    /// <param name="ends">The character closing the list — <c>]</c> — before which a name is still to write too, where the list is in brackets.</param>
+    public bool Names(Func<MermaidLine, bool> name, string role, string named, string separator = ",", string? item = null, char? ends = null)
     {
         var mark = Save();
         Open();
 
         while (true)
         {
-            if (Done)
+            if (Done || Next == ends)
             {
                 Add(Unwritten(named, item));
                 break;
@@ -346,14 +347,15 @@ public sealed class MermaidLine
 
     /// <summary>
     /// A number, in the place it is written, as a <see cref="MermaidKinds.Amount"/> holding the
-    /// <see cref="MermaidKinds.Number"/>: everything up to the first of <paramref name="until"/> — or left on the line, where
-    /// that is null — with what <paramref name="trouble"/> finds wrong with it; or nothing, where nothing is written yet, which
-    /// is no complaint: it is still to come, and a hole stands there.
+    /// <see cref="MermaidKinds.Number"/>: everything up to the first of <paramref name="until"/> or <paramref name="stop"/> — or left
+    /// on the line, where neither is given or written — with what <paramref name="trouble"/> finds wrong with it; or nothing, where
+    /// nothing is written yet, which is no complaint: it is still to come, and a hole stands there.
     /// </summary>
     /// <param name="until">The characters that end a number written among others — <c>,}</c> in <c>{1, 2}</c>. The space before one is not the number's.</param>
-    public void Amount(string role, Func<string, string?> trouble, string? until = null)
+    /// <param name="stop">The token that ends it — <c>--&gt;</c> in <c>0 --&gt; 100</c> — where one is written.</param>
+    public void Amount(string role, Func<string, string?> trouble, string? until = null, string? stop = null)
     {
-        var number = Upto(until);
+        var number = Upto(until, stop);
 
         Open();
         Add(ContentNode.Leaf(MermaidKinds.Number, number, role, number.Length == 0 ? null : trouble(number)));
@@ -371,10 +373,13 @@ public sealed class MermaidLine
         Add(ContentNode.Leaf(MermaidKinds.Setting, value, role, value.Length == 0 ? null : trouble(value)));
     }
 
-    /// <summary>What is written from here to the first of <paramref name="until"/>, or to the end, less the space before it.</summary>
-    private string Upto(string? until)
+    /// <summary>What is written from here to the first of <paramref name="until"/> or <paramref name="stop"/>, or to the end, less the space before it.</summary>
+    private string Upto(string? until, string? stop = null)
     {
         var end = until is null || Done ? -1 : Written.IndexOfAny(until.ToCharArray(), At);
+        var token = stop is null || Done ? -1 : Written.IndexOf(stop, At, StringComparison.Ordinal);
+        if (token >= 0 && (end < 0 || token < end)) end = token;
+
         return (end < 0 ? Rest : Written[At..end]).TrimEnd();
     }
 
