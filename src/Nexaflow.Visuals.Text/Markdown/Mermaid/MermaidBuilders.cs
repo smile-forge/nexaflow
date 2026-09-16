@@ -2,6 +2,7 @@ using System;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Radar;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
@@ -25,6 +26,7 @@ internal static class MermaidBuilders
     {
         MermaidDiagram.Pie => PieBuilder.Build,
         MermaidDiagram.Venn => VennBuilder.Build,
+        MermaidDiagram.Radar => RadarBuilder.Build,
         _ => null,
     };
 

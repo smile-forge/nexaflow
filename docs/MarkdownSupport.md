@@ -150,7 +150,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (column/card layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (bar + line, both orientations) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `radar-beta` | ✅ (polar plot) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (fishbone) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
@@ -274,25 +274,31 @@ comma-separated `plotColorPalette`). Colours fall back to the active `MarkdownPa
 `Series` bank) when a key is unset. **Limitation:** the legacy inline `%%{init: …}%%` config-directive form isn't
 read — front-matter only.
 
-**Radar-chart sub-features** ([`MermaidRadarParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRadarParser.cs)
-+ [`WpfRadarRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfRadarRenderer.cs)).
-A radar / spider / Kiviat chart has its own [`RadarChart`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/RadarChart.cs)
-model — a set of `axis` spokes and any number of `curve` datasets — drawn on a polar plot (first axis at the top,
-clockwise). Supported: `radar-beta`; `title` (inline or front-matter); `axis` spokes as bare ids (`axis A, B, C`)
-or `id["Label"]`, several per line; `curve` datasets in **positional** form (`curve c["Label"]{1, 2, 3}`, mapped to
-the axes in order) or **keyed** form (`curve c{ axisId: value, … }`, mapped by axis id), several per line; and the
-body options `min` / `max` (auto from the data when omitted) / `ticks` (concentric rings) / `graticule circle|polygon`
-/ `showLegend`. Each curve is a closed cardinal spline rounded by `curveTension`, filled at `curveOpacity`; the
-legend wraps to multiple rows when it would overflow. **The front-matter `config:` block is applied**
-([`RadarConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/RadarConfigParser.cs) →
-[`RadarConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/RadarConfig.cs)): the `config: radar` geometry
-(`width`, `height`, `margin*`, `axisScaleFactor`, `axisLabelFactor`, `curveTension`), the `config: themeVariables: radar`
-styling (`axisColor`/`axisStrokeWidth`, `axisLabelFontSize`, `curveOpacity`/`curveStrokeWidth`, `graticuleColor`/
-`graticuleOpacity`/`graticuleStrokeWidth`, `legendBoxSize`/`legendFontSize`), and the global `themeVariables`
-`titleColor`, `fontSize`, and the `cScale0…N` curve palette. Colours fall back to the active `MarkdownPalette` (curve
-colours from its `Series` bank) when unset. **Limitation:** as with xychart, the legacy `%%{init: …}%%` directive form
-isn't read.
-
+**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →
+its stage [`ResolveCurves`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs) →
+[`RadarChart`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarChart.cs) →
+[`RadarBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Radar/RadarBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
+Supported, as Mermaid documents it: `radar-beta` (with or without a colon); a `title`, on its own line or in the front
+matter; `axis` lines naming axes as bare ids (`axis A, B, C`) or `id["Label"]`, several to a line; `curve` lines naming
+curves with their values in braces, several to a line — **positional** (`curve c["Label"]{1, 2, 3}`, one per axis in the
+order the axes are written, wherever they are written) or **keyed** (`curve c{ axisId: value, … }`); the options `min`
+(0), `max` (the greatest value where none is written), `ticks` (5 rings), `graticule circle|polygon` and `showLegend`,
+several to a line with a comma between; and `%%` comments. The first axis points up and the rest follow clockwise; a curve
+reaches along each axis as far as its value is from `min` to `max`, rounded by `curveTension` over circles and straight
+over a polygon, and the legend sits right of the chart, or under it where the room is too narrow. Beyond Mermaid, a name
+may be written in quotes and a label without them. What Mermaid would refuse is drawn as far as it goes with the reason
+beneath — a curve not giving each axis one value, a value naming no axis or mixing the two kinds, an axis written twice,
+values never closed, an option set to something it cannot be. A curve's values written across several lines are not read.
+**The front matter is applied** ([`RadarConfig`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarConfig.cs)): `config: radar:`
+`width`, `height` (the radius is half the smaller), `margin*`, `axisScaleFactor`, `axisLabelFactor`, `curveTension` and
+`useMaxWidth`; `config: themeVariables: radar:` `axisColor`, `axisStrokeWidth`, `axisLabelFontSize`, `curveOpacity`,
+`curveStrokeWidth`, `graticuleColor`, `graticuleOpacity`, `graticuleStrokeWidth`, `legendBoxSize` and `legendFontSize`;
+and `themeVariables` `titleColor`, `fontSize` and `cScale0`…`cScale11`. A size nobody wrote is the app's own, and a colour
+the theme's.
+**Written in place:** an axis's label (or its name) is typed into at the end of its spoke, and a curve's in its legend
+row; an axis renamed is renamed in every value naming it, bare or in quotes; Enter on a curve starts another curve with a
+hole for its name, on an axis another axis, and on an option nothing; a label deleted to nothing leaves a hole.
 **Ishikawa-chart sub-features** ([`MermaidIshikawaParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidIshikawaParser.cs)
 + [`WpfIshikawaRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfIshikawaRenderer.cs)).
 A fishbone / cause-and-effect chart has its own [`IshikawaDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/IshikawaDiagram.cs)

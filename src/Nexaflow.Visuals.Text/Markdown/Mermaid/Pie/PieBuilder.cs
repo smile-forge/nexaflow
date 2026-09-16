@@ -92,6 +92,9 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     /// <summary>The front matter's <c>pieTitleTextColor</c>, where it writes one.</summary>
     protected override string? TitleColour => Diagram?.Config.TitleTextColour;
 
+    /// <summary>The front matter's <c>pieTitleTextSize</c>, where it writes one.</summary>
+    protected override double? TitleTextSize => Diagram?.Config.TitleTextSize;
+
     protected override Size Draw(PieChart chart, LayoutBuilder build)
     {
         var slices = chart.Slices.Where(slice => slice.Drawn).ToList();

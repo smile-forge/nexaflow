@@ -7,19 +7,20 @@ renderer draws ([markdown-ast.md](markdown-ast.md)):
 the source it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
 
 The diagrams still on the legacy renderers (`src/Nexaflow.Visuals.Text/Markdown/Graphs/`) move across one at a time, and
-each is built from **the Mermaid kit**: the pieces every diagram shares, decided once. Pie and Venn are the references —
-pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own.
+each is built from **the Mermaid kit**: the pieces every diagram shares, decided once. Pie, Venn and radar are the
+references — pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own, radar one whose
+lines list items with values and whose options share a line.
 
 ## What a diagram is made of
 
 | File | What it is | Pie / Venn |
 |---|---|---|
-| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar` |
-| `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds` |
-| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions` |
-| `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)` and `MermaidConfig.Theme` | `PieConfig`, `VennConfig` |
-| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | The model: the tree read back into what it describes, every part kept. `Of(MermaidBlock)`. The title is `MermaidBlock.Title` | `PieChart`, `VennDiagram` |
-| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder` |
+| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
+| `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
+| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
+| `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme` and `DiagramTheme(name)` | `PieConfig`, `VennConfig`, `RadarConfig` |
+| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | The model: the tree read back into what it describes, every part kept. `Of(MermaidBlock)`. The title is `MermaidBlock.Title` | `PieChart`, `VennDiagram`, `RadarChart` |
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
@@ -37,15 +38,17 @@ diagram's own code sits in a folder of its own under each.
 |---|---|
 | read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
-| read a name, bare or in quotes, or names with a separator between | `Name`, `Names` |
+| read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says | `Name`, `Names` |
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
-| read a number after a separator, still to come or written | `Room`, then `Amount` with `MermaidNumber.Positive` |
+| read a number after a separator, still to come or written — to the end, or `until` a character ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
+| read what an option is set to — a word from a few, `true` or `false` | `Setting` |
+| say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
 | read a style's properties | `Properties`, and `MermaidStyle.With` in the model |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since` |
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
-| read the front matter | `MermaidConfig.Diagram`, `Theme`, `Swatches`, `Size`, `Number`, `Flag` |
+| read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag` |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets |
 
 ### Drawing
@@ -54,7 +57,9 @@ diagram's own code sits in a folder of its own under each.
 |---|---|
 | set words: written (typed into), worked out (pressed), or a hole | `Written` / `Worked` on the builder → `DiagramWords`, placed with `Set` |
 | colour anything | `Ink` (`DiagramInk`): `Written`, `Series`, `Over`, `Faded` — a colour nobody wrote is the theme's |
-| draw a legend | `DiagramLegend` of `DiagramKey` rows |
+| draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
+| draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
+| set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node: a shape with words in it | `DiagramShapes.Draw`; `Around` sizes a shape for its words, `Edge` is where a line meets it |
 | draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s; `DiagramScale` for round-number ticks |
@@ -62,7 +67,9 @@ diagram's own code sits in a folder of its own under each.
 
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed
 through the leaves it draws. That is why `DiagramShapes.Draw` draws its outline as a `Shape` leaf beside its words, and
-why a region's circles and its words are layers of their own.
+why a region's circles and its words are layers of their own. Where shapes overlap, a press means the one seen: a shape
+stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
+the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 
 ## Converting a diagram
 

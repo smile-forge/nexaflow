@@ -41,13 +41,21 @@ public static class MermaidParts
     public static IReadOnlyList<string> SaidNames(this ContentNode? names) =>
         names is null ? []
         : names.Kind == MermaidKinds.Name ? [names.Inner(MermaidKinds.Words)?.Text ?? string.Empty]
-        : [.. names.Children.Where(child => child.Kind == MermaidKinds.Name).Select(name => name.Inner(MermaidKinds.Words)?.Text ?? string.Empty)];
+        : [.. names.Children
+              .Select(child => child.Kind == MermaidKinds.Name ? child : child.Children.FirstOrDefault(inner => inner.Kind == MermaidKinds.Name))
+              .OfType<ContentNode>()
+              .Select(name => name.Inner(MermaidKinds.Words)?.Text ?? string.Empty)];
 
-    /// <summary>The names a <see cref="MermaidKinds.Names"/> lists — or the one name, where it is one — in the order written.</summary>
+    /// <summary>
+    /// The names a <see cref="MermaidKinds.Names"/> lists — the name of each item, where its items are more than their names —
+    /// or the one name, where it is one, in the order written.
+    /// </summary>
     public static IReadOnlyList<ContentPart> Named(this ContentPart? names) =>
         names is null ? []
         : names.Kind == MermaidKinds.Name ? [names]
-        : [.. names.Children.Where(child => child.Kind == MermaidKinds.Name)];
+        : [.. names.Children
+              .Select(child => child.Kind == MermaidKinds.Name ? child : child.Children.FirstOrDefault(inner => inner.Kind == MermaidKinds.Name))
+              .OfType<ContentPart>()];
 
     /// <summary>The number written in a part — its <see cref="MermaidKinds.Number"/> — or null where none is written or it is wrong.</summary>
     public static double? Number(this ContentPart? part) =>

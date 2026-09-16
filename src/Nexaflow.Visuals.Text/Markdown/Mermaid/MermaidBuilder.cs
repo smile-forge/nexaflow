@@ -172,6 +172,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>The colour the diagram's front matter asks its title to be written in, or null for the theme's heading.</summary>
     protected virtual string? TitleColour => null;
 
+    /// <summary>How big the diagram's front matter asks its title to be set, or null for the size every diagram's title is.</summary>
+    protected virtual double? TitleTextSize => null;
+
     protected sealed override Laid Read()
     {
         var block = MermaidBlock.Of(Reading(Source));
@@ -201,7 +204,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             var says = written ? titlePart.Text : MermaidText.Decode(titleText!);
 
             var ink = Ink.Written(TitleColour) ?? Palette.Heading;
-            var title = Text(says, TitleSize, ink, FontWeights.SemiBold);
+            var title = Text(says, TitleTextSize ?? TitleSize, ink, FontWeights.SemiBold);
             // The title is set no wider than the room there is; a diagram asked to be wider than that keeps its width.
             width = Math.Max(width, Math.Min(title.WidthIncludingTrailingWhitespace, Space));
 

@@ -13,7 +13,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
@@ -22,7 +22,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
 ///   • <c>xychart[-beta]</c>   → <see cref="MermaidXyChartParser"/> + <see cref="WpfXyChartRenderer"/>
-///   • <c>radar-beta</c>       → <see cref="MermaidRadarParser"/>   + <see cref="WpfRadarRenderer"/>
 ///   • <c>ishikawa-beta</c>    → <see cref="MermaidIshikawaParser"/> + <see cref="WpfIshikawaRenderer"/>
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -50,7 +49,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidKanbanParser   KanbanParser   = new();
     private static readonly MermaidXyChartParser  XyParser       = new();
-    private static readonly MermaidRadarParser    RadarParser    = new();
     private static readonly MermaidIshikawaParser IshikawaParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
@@ -90,7 +88,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
             MermaidDiagram.Kanban       => RenderKanban(block, palette),
             MermaidDiagram.XyChart      => RenderXyChart(block, palette),
-            MermaidDiagram.Radar        => RenderRadar(block, palette),
             MermaidDiagram.Ishikawa     => RenderIshikawa(block, palette),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
@@ -163,15 +160,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         chart.Config = XyChartConfigParser.Parse(block.Config);
         if (chart.Config.Orientation is XyOrientation o) chart.Orientation = o;
         return WpfXyChartRenderer.Render(chart, palette);
-    }
-
-    private static FrameworkElement RenderRadar(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = RadarParser.Parse(block.Body);
-        chart.Title  = Titled(chart.Title, block);
-        // Like xychart, radar applies its front-matter config: block (geometry, themeVariables, cScale palette).
-        chart.Config = RadarConfigParser.Parse(block.Config);
-        return WpfRadarRenderer.Render(chart, palette);
     }
 
     private static FrameworkElement RenderIshikawa(MermaidBlock block, MarkdownPalette palette)

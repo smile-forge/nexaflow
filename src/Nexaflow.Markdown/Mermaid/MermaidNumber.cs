@@ -17,6 +17,12 @@ public static class MermaidNumber
     /// What is wrong with a number that has to be greater than nought — for <see cref="MermaidLine.Amount"/> — where anything
     /// is: that it is not a number, or <paramref name="nought"/>, the diagram's words for what one of nought or less is.
     /// </summary>
-    public static Func<string, string?> Positive(string nought) =>
-        text => Read(text) is not { } number ? $"'{text}' is not a number." : number > 0 ? null : nought;
+    public static Func<string, string?> Positive(string nought) => Where(number => number > 0, nought);
+
+    /// <summary>
+    /// What is wrong with a number that has to be one <paramref name="allowed"/> allows — for <see cref="MermaidLine.Amount"/> —
+    /// where anything is: that it is not a number, or <paramref name="otherwise"/>, the diagram's words for one it does not allow.
+    /// </summary>
+    public static Func<string, string?> Where(Func<double, bool> allowed, string otherwise) =>
+        text => Read(text) is not { } number ? $"'{text}' is not a number." : allowed(number) ? null : otherwise;
 }
