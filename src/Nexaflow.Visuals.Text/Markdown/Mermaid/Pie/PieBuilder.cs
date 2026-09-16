@@ -4,15 +4,13 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
-namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
-/// <summary>The pieces a pie chart's layout is made of — its layers, and what is in them.</summary>
+/// <summary>The pieces a pie chart's layout is made of — its layers, and what is in them. Its legend is <see cref="DiagramLegend"/>'s.</summary>
 public static class PiePiece
 {
     /// <summary>The wedges, which is the chart itself.</summary>
@@ -27,20 +25,11 @@ public static class PiePiece
     /// <inheritdoc cref="Shares"/>
     public const string Share = "Share";
 
-    /// <summary>The legend, which says what the wedges are.</summary>
-    public const string Legend = "Legend";
-
-    /// <summary>One row of it: a swatch, a label, and the value where the chart shows its values.</summary>
-    public const string Row = "Row";
-
-    public const string Swatch = "Swatch";
-
+    /// <summary>A slice's label, in its legend row.</summary>
     public const string Label = "Label";
 
     /// <summary>A slice's value, as it was written — which is what typing in the legend changes.</summary>
     public const string Value = "Value";
-
-
 }
 
 /// <summary>
@@ -61,23 +50,19 @@ public static class PiePiece
 /// what it occupies: it breaks the moment anything is drawn behind it, and hands a press on one slice to another.
 /// </para>
 /// </summary>
-internal sealed class PieBuilder : MermaidBuilder
+internal sealed class PieBuilder : MermaidBuilder<PieChart>
 {
     /// <summary>How big the chart is drawn before anything asks it to be smaller.</summary>
     private const double Radius = 130;
 
     private const double Smallest = 60;
 
-    /// <summary>Clear air round the whole thing, and between the chart and its legend.</summary>
+    /// <summary>Clear air round the chart, and between the chart and its legend.</summary>
     private const double Margin = 12;
 
     private const double Apart = 24;
 
-    private const double SwatchSize = 14;
-    private const double SwatchGap = 8;
-    private const double RowGap = 6;
-
-    /// <summary>How wide a legend column may be before its text is set narrower.</summary>
+    /// <summary>How wide a legend column may be before it is said to be narrower.</summary>
     private const double LegendRoom = 240;
 
     private const double ShareSize = 10.5;
@@ -89,7 +74,8 @@ internal sealed class PieBuilder : MermaidBuilder
     /// <summary>How far a slice the config picks out is pulled out of the chart.</summary>
     private const double PulledOut = 8;
 
-    private PieChart? _chart;
+    /// <summary>What each of the legend's columns is: a slice's label, its value, and its share.</summary>
+    private static readonly string[] Columns = [PiePiece.Label, PiePiece.Value, PiePiece.Share];
 
     private PieBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
         : base(state, palette, pixelsPerDip, room, writing) { }
@@ -100,27 +86,14 @@ internal sealed class PieBuilder : MermaidBuilder
                              bool writing = false) =>
         new PieBuilder(state, palette, pixelsPerDip, room, writing).Lay();
 
-    /// <summary>The same, for a block that has no caret in it.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        Build(EditState.For(source), palette, pixelsPerDip, room, writing);
-
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build, readOnly: false);
-
     /// <inheritdoc/>
-    protected override ContentNode Reading(string source) => PiePipeline.Read(source, holes: Writing);
-
-    /// <summary>The chart's own title where it has one, and the front matter's otherwise.</summary>
-    protected override (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) =>
-        _chart is null ? base.TitleOf(block) : (_chart.Title, _chart.TitleText);
+    protected override PieChart Of(MermaidBlock block) => PieChart.Of(block);
 
     /// <summary>The front matter's <c>pieTitleTextColor</c>, where it writes one.</summary>
-    protected override Brush TitleInk => Colour(_chart?.Config.TitleTextColour) ?? base.TitleInk;
+    protected override string? TitleColour => Diagram?.Config.TitleTextColour;
 
-    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    protected override Size Draw(PieChart chart, LayoutBuilder build)
     {
-        var chart = _chart = PieChart.Of(block);
         var slices = chart.Slices.Where(slice => slice.Drawn).ToList();
 
         // While the chart is being written every slice written has a row, drawn or not: one still waiting for its value, or
@@ -132,22 +105,22 @@ internal sealed class PieBuilder : MermaidBuilder
         // back with whatever is wrong with them said underneath.
         if (listed.Count == 0) return AsWritten(build);
 
-        var rows = listed.Select(slice => Row(chart, slice, slices.IndexOf(slice))).ToList();
+        var rows = listed.Select(slice => Key(chart, slice, slices.IndexOf(slice))).ToList();
 
         // The room the block is given is what the chart is fitted into: it shrinks, and where it cannot shrink enough
         // beside its legend, the legend goes under it. What is done with the block after that — where it sits on the
         // line, whether it is centred — is the document's, not the chart's.
-        var where = Fitted(rows, chart.Config.Legend);
-        var legend = Shape(rows, where);
+        var where = Fitted(Legend(rows, chart.Config.Legend), chart.Config.Legend);
+        var legend = Legend(rows, where);
 
-        var radius = Fitting(legend, where);
+        var radius = Fitting(legend.Size, where);
         var chartSize = new Size((radius * 2) + (Margin * 2), (radius * 2) + (Margin * 2));
-        var (at, legendAt, size) = Places(chartSize, legend, where, radius);
+        var (at, legendAt, size) = Places(chartSize, legend.Size, where, radius);
 
         var centre = new Point(at.X + Margin + radius, at.Y + Margin + radius);
         Wedges(build, chart, slices, centre, radius);
         Shares(build, chart, slices, centre, radius);
-        Legend(build, chart, rows, legendAt, where);
+        legend.Draw(build, legendAt);
 
         return size;
     }
@@ -162,7 +135,7 @@ internal sealed class PieBuilder : MermaidBuilder
         // A line round each wedge rather than one round the chart: a slice the config pulls out has to carry its own,
         // or it stands outside the very ring that was meant to hold it.
         var edge = chart.Config.OuterStrokeWidth ?? 0;
-        var rim = edge > 0 ? Colour(chart.Config.OuterStroke) ?? Palette.CodeBorder : null;
+        var rim = edge > 0 ? Ink.Written(chart.Config.OuterStroke) ?? Palette.CodeBorder : null;
 
         build.Open(PiePiece.Slices, part: null, stops: Stops.None);
 
@@ -183,7 +156,7 @@ internal sealed class PieBuilder : MermaidBuilder
             if (slice.Highlighted) shape = Moved(shape, Out(from + (sweep / 2), PulledOut));
 
             build.Open(PiePiece.Wedge, slice.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, Ink(chart, slice, at), rim, edge));
+            build.Draw(new GeometryMark(shape, Fill(chart, slice, at), rim, edge));
             build.Occupies(shape);
             build.Close();
 
@@ -284,15 +257,12 @@ internal sealed class PieBuilder : MermaidBuilder
 
             if (share < Labelled) continue;
 
-            var ink = Over(chart, slice, order);
-            var text = Text(Percent(share), chart.Config.SectionTextSize ?? ShareSize, ink, FontWeights.SemiBold);
-            var pulled = slice.Highlighted ? Out(middle, PulledOut) : default;
-            var where = On(centre, reach, middle) + pulled;
-
             // What a share says is worked out rather than written, so there is nowhere in it to put a caret — but it
             // still stands for the slice, so pressing it means that slice like everything else drawn for it.
-            LayoutText.Words(build, text, new Point(where.X - (text.Width / 2), where.Y - (text.Height / 2)),
-                             text.Width, TextAlignment.Left, slice.Part, PiePiece.Share, maps: false, ink: ink);
+            var words = Worked(Percent(share), slice.Part, chart.Config.SectionTextSize ?? ShareSize, Over(chart, slice, order), FontWeights.SemiBold);
+            var where = On(centre, reach, middle) + (slice.Highlighted ? Out(middle, PulledOut) : default);
+
+            words.Set(build, new Point(where.X - (words.Width / 2), where.Y - (words.Height / 2)), PiePiece.Share);
         }
 
         build.Close();
@@ -303,123 +273,28 @@ internal sealed class PieBuilder : MermaidBuilder
 
     // ── The legend ──────────────────────────────────────────────────────────
 
-    /// <summary>One row of the legend, measured but not yet placed.</summary>
-    /// <param name="Ink">What the slice is drawn in, or null for one with no wedge to match.</param>
-    /// <param name="Value">The value, where the row shows one.</param>
-    /// <param name="Share">Its share of the chart, where it has a wedge to have one.</param>
-    /// <param name="Letter">A small letter in the legend's type, which is what a hole in the row is sized by.</param>
-    private sealed record Entry(PieSlice Slice, Brush? Ink, FormattedText Label, FormattedText? Value, FormattedText? Share,
-                                FormattedText Letter)
-    {
-        public double Height => Math.Max(SwatchSize, Math.Max(Letter.Height, Share?.Height ?? 0));
-
-        /// <summary>How wide the label is set: its words, or the hole standing where they go.</summary>
-        public double LabelWidth => Slice.LabelHole is null ? Label.Width : LayoutText.HoleWidth(Letter);
-
-        /// <summary>How wide the value is set: nothing where the row shows none, its number, or the hole standing where it goes.</summary>
-        public double ValueWidth => Value is null ? 0 : Slice.ValueHole is null ? Value.Width : LayoutText.HoleWidth(Letter);
-
-        public double Width => SwatchSize + SwatchGap + LabelWidth + SwatchGap + (Value is null ? 0 : ValueWidth + SwatchGap)
-                               + (Share?.Width ?? 0);
-
-        /// <summary>Where each part of the row goes when the rows are set as a table — see <see cref="PieBuilder.Legend"/>.</summary>
-        public double Left(IReadOnlyList<Entry> rows, int column) => column switch
-        {
-            0 => SwatchSize + SwatchGap,
-            1 => SwatchSize + SwatchGap + rows.Max(row => row.LabelWidth) + SwatchGap,
-            _ => SwatchSize + SwatchGap + rows.Max(row => row.LabelWidth) + SwatchGap
-                 + (rows.Any(row => row.Value is not null) ? rows.Max(row => row.ValueWidth) + SwatchGap : 0),
-        };
-    }
-
+    /// <summary>A slice's row: its colour, its label, its value where the row shows one, and its share where it has a wedge to have one.</summary>
     /// <param name="order">Where the slice comes among those drawn, which is the colour it takes — or -1 for one not drawn.</param>
-    private Entry Row(PieChart chart, PieSlice slice, int order)
+    private DiagramKey Key(PieChart chart, PieSlice slice, int order)
     {
         var size = chart.Config.LegendTextSize ?? LegendSize;
-        var ink = Colour(chart.Config.LegendTextColour) ?? Palette.Text;
+        var ink = Ink.Written(chart.Config.LegendTextColour) ?? Palette.Text;
 
         // The value where the chart shows its values — and, however it is set, wherever one is still to be written or is
         // wrong, since the row is then the only place to write it.
         var shown = chart.ShowsData || slice.ValueHole is not null || slice.Trouble is not null;
 
-        return new Entry(
-            slice,
-            slice.Drawn ? Ink(chart, slice, order) : null,
-            Text(Shown(slice.Label), size, ink),
-            shown && slice.Value is not null ? Text(slice.Value.Text, size, ink) : null,
-            slice.Drawn ? Text(Percent(chart.Share(slice)), size, Palette.TextMuted) : null,
-            Text("x", size, ink));
+        return new DiagramKey(slice.Part, slice.Drawn ? Fill(chart, slice, order) : null,
+        [
+            Written(slice.Label, slice.LabelHole, size, ink),
+            shown && slice.Value is not null ? Written(slice.Value, slice.ValueHole, size, ink) : null,
+            slice.Drawn ? Worked(Percent(chart.Share(slice)), slice.Part, size, Palette.TextMuted) : null,
+        ]);
     }
 
-    private static Size Shape(IReadOnlyList<Entry> rows, PieLegend where) =>
-        where is PieLegend.Top or PieLegend.Bottom
-            ? new Size(rows.Sum(row => row.Width + Apart) - Apart, rows.Max(row => row.Height))
-            : new Size(Math.Min(LegendRoom, rows.Max(row => row.Left(rows, 2) + (row.Share?.Width ?? 0))),
-                       rows.Sum(row => row.Height + RowGap) - RowGap);
-
-    private void Legend(LayoutBuilder build, PieChart chart, IReadOnlyList<Entry> rows, Point at, PieLegend where)
-    {
-        build.Open(PiePiece.Legend, part: null, stops: Stops.None);
-
-        var across = where is PieLegend.Top or PieLegend.Bottom;
-        var ink = Colour(chart.Config.LegendTextColour) ?? Palette.Text;
-        var x = at.X;
-        var y = at.Y;
-
-        foreach (var row in rows)
-        {
-            build.Open(PiePiece.Row, row.Slice.Part, new Point(x, y), stops: Stops.None);
-
-            var middle = (row.Height - SwatchSize) / 2;
-            build.Open(PiePiece.Swatch, part: null, new Point(0, middle), stops: Stops.None);
-            build.Draw(Swatch(row.Ink));
-            build.Close();
-
-            // Down a column the rows are a table, so the values line up under each other; along a row they are set one
-            // after another, because a table of one row is a row.
-            Cell(build, row.Label, row.Slice.Label, row.Slice.LabelHole, new Point(row.Left(rows, 0), 0), PiePiece.Label,
-                 row.Letter, ink);
-
-            var value = across ? row.Left(rows, 0) + row.LabelWidth + SwatchGap : row.Left(rows, 1);
-
-            // The value is the number itself, so this is where it is typed into.
-            if (row.Value is { } worth)
-                Cell(build, worth, row.Slice.Value, row.Slice.ValueHole, new Point(value, 0), PiePiece.Value, row.Letter, ink);
-
-            if (row.Share is { } share)
-            {
-                var left = across ? value + (row.Value is null ? 0 : row.ValueWidth + SwatchGap) : row.Left(rows, 2);
-                LayoutText.Words(build, share, new Point(left, 0), share.Width, TextAlignment.Left,
-                                 row.Slice.Part, PiePiece.Share, maps: false, ink: Palette.TextMuted);
-            }
-
-            build.Close();
-
-            if (across) x += row.Width + Apart;
-            else y += row.Height + RowGap;
-        }
-
-        build.Close();
-    }
-
-    /// <summary>A row's swatch: the colour its wedge is drawn in, or only the square one goes in for a slice with no wedge yet.</summary>
-    private LayoutMark Swatch(Brush? ink)
-    {
-        if (ink is not null) return new RuleMark(new Rect(0, 0, SwatchSize, SwatchSize), ink);
-
-        var square = new RectangleGeometry(new Rect(0.5, 0.5, SwatchSize - 1, SwatchSize - 1));
-        square.Freeze();
-        return new GeometryMark(square, null, Palette.TextMuted, 1);
-    }
-
-    /// <summary>What a row says in one of its columns: the words written there, or the hole standing where they are still to go.</summary>
-    private static void Cell(LayoutBuilder build, FormattedText text, ContentPart? part, ContentPart? hole, Point at, string kind,
-                             FormattedText letter, Brush ink)
-    {
-        if (hole is not null) LayoutText.Hole(build, hole, at, letter, ink);
-        else LayoutText.Words(build, text, at, text.Width, TextAlignment.Left, part, kind,
-                              maps: text.Text == part?.Text, writes: part is not null, ink: ink);
-    }
+    /// <summary>The legend, down a column beside the chart or along a line over or under it.</summary>
+    private DiagramLegend Legend(IReadOnlyList<DiagramKey> rows, PieLegend where) =>
+        new(rows, Columns, across: where is PieLegend.Top or PieLegend.Bottom, Palette.TextMuted) { Room = LegendRoom };
 
     // ── Where it all goes ───────────────────────────────────────────────────
 
@@ -438,12 +313,11 @@ internal sealed class PieBuilder : MermaidBuilder
     /// Where the legend can go in the room there is. Beside the chart it takes its width away from the chart's, so in a
     /// column too narrow for both the legend goes under instead — which is room the chart never had to give up.
     /// </summary>
-    private PieLegend Fitted(IReadOnlyList<Entry> rows, PieLegend asked)
+    private PieLegend Fitted(DiagramLegend beside, PieLegend asked)
     {
         if (double.IsInfinity(Space) || asked is not (PieLegend.Left or PieLegend.Right)) return asked;
 
-        var beside = Shape(rows, asked).Width + Apart + (Smallest * 2) + (Margin * 2);
-        return beside <= Space ? asked : PieLegend.Bottom;
+        return beside.Size.Width + Apart + (Smallest * 2) + (Margin * 2) <= Space ? asked : PieLegend.Bottom;
     }
 
     /// <summary>Where the chart goes, where the legend goes, and how much room the two of them take together.</summary>
@@ -481,21 +355,13 @@ internal sealed class PieBuilder : MermaidBuilder
     /// What a slice is drawn in: the colour its front matter asks for, and otherwise the theme's next series colour.
     /// A slice the config picks out is drawn at full strength, whatever the rest are drawn at.
     /// </summary>
-    private Brush Ink(PieChart chart, PieSlice slice, int order)
+    private Brush Fill(PieChart chart, PieSlice slice, int order)
     {
-        var colour = Colour(slice.Colour) ?? Palette.Series[Math.Max(0, order) % Palette.Series.Count];
-
-        if (chart.Config.Opacity is not { } opacity || slice.Highlighted || opacity >= 1) return colour;
-
-        var faded = colour.Clone();
-        faded.Opacity = Math.Max(0, opacity);
-        faded.Freeze();
-        return faded;
+        var colour = Ink.Series(Math.Max(0, order), slice.Colour);
+        return chart.Config.Opacity is { } opacity && !slice.Highlighted ? DiagramInk.Faded(colour, opacity) : colour;
     }
 
-    /// <summary>What is written on a slice, in ink that reads against it.</summary>
+    /// <summary>What is written on a slice: the front matter's ink, or whichever of the theme's reads against the slice.</summary>
     private Brush Over(PieChart chart, PieSlice slice, int order) =>
-        Colour(chart.Config.SectionTextColour)
-        // The theme's ink and its ground: which of the two reads on a slice depends on how bright the slice is.
-        ?? DiagramBrushes.OnColor(DiagramBrushes.ColorOf(Ink(chart, slice, order), Colors.Gray), Palette.QrDark, Palette.QrLight);
+        Ink.Written(chart.Config.SectionTextColour) ?? Ink.Over(Fill(chart, slice, order));
 }

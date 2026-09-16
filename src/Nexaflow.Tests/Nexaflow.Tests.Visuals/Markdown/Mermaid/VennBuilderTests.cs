@@ -7,6 +7,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -17,7 +19,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("venn")]
-public class VennBuilderTests
+public class VennBuilderTests : MermaidBuilderContract
 {
     /// <summary>The first block Mermaid's documentation shows: three sets and every overlap between them.</summary>
     private const string Features =
@@ -26,8 +28,21 @@ public class VennBuilderTests
 
     private const string Sized = "venn-beta\n  title Teams\n  set A[\"Alpha\"]:20\n    text A1[\"React\"]\n  set B[\"Beta\"]:12\n  union A,B[\"AB\"]:3";
 
+    public override MermaidDiagram Diagram => MermaidDiagram.Venn;
+
+    protected override IEnumerable<(string What, string Source)> Drawn =>
+    [
+        ("the documented features", Features),
+        ("sizes, items and a union", Sized),
+        ("styles and the front matter",
+            "---\nconfig:\n  venn:\n    width: 500\n    height: 320\n    useDebugLayout: true\n  themeVariables:\n    venn1: \"#ff0000\"\n---\nvenn-beta\n  set A[\"Alpha\"]\n    text A1\n    text A2\n  set B\n  union A,B\n  style A fill:#00ff00, fill-opacity:0.5\n  style A,B stroke:#000, stroke-width:3\n  style A1 color:red"),
+        ("names and labels still being written", "venn-beta\n  set \"\"\n  set A[\"\"]\n    text \"\"\n  union A, "),
+        ("sets that do not overlap", "venn-beta\n  set A\n  set B\n  set C"),
+        ("no sets at all", "venn-beta\n  title Nothing"),
+    ];
+
     private static Laid Build(string source, double room = 700) =>
-        VennBuilder.Build(source, MarkdownPalette.Dark, 1.0, room);
+        VennBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Linq;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 

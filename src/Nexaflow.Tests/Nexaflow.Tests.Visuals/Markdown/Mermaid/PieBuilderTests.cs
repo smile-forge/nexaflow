@@ -7,6 +7,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -17,12 +19,24 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestClass]
 [TestCategory("UI")]
 [CoversNode("pie")]
-public class PieBuilderTests
+public class PieBuilderTests : MermaidBuilderContract
 {
     private const string Pets = "pie showData\n  title Pets\n  \"Dogs\" : 30\n  \"Cats\" : 10";
 
+    public override MermaidDiagram Diagram => MermaidDiagram.Pie;
+
+    protected override IEnumerable<(string What, string Source)> Drawn =>
+    [
+        ("pets", Pets),
+        ("a donut with its legend on top, a slice picked out and colours of its own",
+            "---\nconfig:\n  pie:\n    donutHole: 0.4\n    legendPosition: top\n    highlightSlice: Cats\n  themeVariables:\n    pie1: \"#ff0000\"\n    pieOuterStrokeWidth: 3\n---\npie\n  \"Dogs\" : 30\n  \"Cats\" : 10\n  \"Birds\" : 5"),
+        ("slices still being written, and one worth nothing", "pie showData\n  \"Dogs\" : \n  \"\" : 3\n  \"Cats\" : -1\n  \"#quot;Quoted#quot;\" : 2"),
+        ("one slice", "pie\n  \"All\" : 1"),
+        ("nothing to draw", "pie\n  \"None\" : 0"),
+    ];
+
     private static Laid Build(string source, double room = 700) =>
-        PieBuilder.Build(source, MarkdownPalette.Dark, 1.0, room);
+        PieBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
@@ -99,7 +113,7 @@ public class PieBuilderTests
 
         Assert.IsTrue(washed >= 3, $"the wedge, its share and its legend row, but {washed} were washed");
 
-        foreach (var kind in new[] { PiePiece.Wedge, PiePiece.Share, PiePiece.Row })
+        foreach (var kind in new[] { PiePiece.Wedge, PiePiece.Share, MermaidPiece.Key })
             Assert.IsTrue(Pieces(laid, kind).Any(piece => piece.Sits().Start == dogs), $"no {kind} stands for the slice");
     });
 
@@ -169,8 +183,8 @@ public class PieBuilderTests
         var right = Build(Pets);
         var left = Build("---\nconfig:\n  pie:\n    legendPosition: left\n---\n" + Pets);
 
-        Assert.IsTrue(Pieces(right, PiePiece.Legend).Single().Bounds.X > Pieces(right, PiePiece.Wedge).First().Bounds.X);
-        Assert.IsTrue(Pieces(left, PiePiece.Legend).Single().Bounds.X < Pieces(left, PiePiece.Wedge).First().Bounds.X);
+        Assert.IsTrue(Pieces(right, MermaidPiece.Legend).Single().Bounds.X > Pieces(right, PiePiece.Wedge).First().Bounds.X);
+        Assert.IsTrue(Pieces(left, MermaidPiece.Legend).Single().Bounds.X < Pieces(left, PiePiece.Wedge).First().Bounds.X);
     });
 
     [TestMethod]
@@ -179,10 +193,10 @@ public class PieBuilderTests
         var wide = Build(Pets, room: 700);
         var narrow = Build(Pets, room: 260);
 
-        Assert.IsTrue(Pieces(wide, PiePiece.Legend).Single().Bounds.Left > Pieces(wide, PiePiece.Wedge).First().Bounds.Right,
+        Assert.IsTrue(Pieces(wide, MermaidPiece.Legend).Single().Bounds.Left > Pieces(wide, PiePiece.Wedge).First().Bounds.Right,
                       "beside the chart, where there is room for it");
 
-        Assert.IsTrue(Pieces(narrow, PiePiece.Legend).Single().Bounds.Top >= Pieces(narrow, PiePiece.Wedge).First().Bounds.Bottom - 1,
+        Assert.IsTrue(Pieces(narrow, MermaidPiece.Legend).Single().Bounds.Top >= Pieces(narrow, PiePiece.Wedge).First().Bounds.Bottom - 1,
                       "and under it where there is not");
 
         Assert.IsTrue(narrow.Size.Width <= 260, $"the chart is fitted into the room it was given, and took {narrow.Size.Width}");

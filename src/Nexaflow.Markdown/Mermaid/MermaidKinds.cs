@@ -56,6 +56,47 @@ public static class MermaidKinds
 
     /// <summary>A line of the diagram itself, as written. Which of its characters mean what is its diagram's grammar.</summary>
     public const string Statement = "mermaid-statement";
+
+    // ── What diagrams' own lines are made of ────────────────────────────────
+    //
+    // The shapes every grammar reads through MermaidLine, so escaping, holes, renames and the builders find them alike in
+    // every diagram. What a line as a whole is — a slice, a set, an edge — is its diagram's own kind.
+
+    /// <summary>A <c>title …</c>: its word, and what it says as <see cref="MermaidRoles.Title"/> — on a line of its own, or after a header's keyword.</summary>
+    public const string Title = "mermaid-title";
+
+    /// <summary>A name, bare or in quotes — quotes included, so a name with nothing between its quotes yet is somewhere a hole stands.</summary>
+    public const string Name = "mermaid-name";
+
+    /// <summary>Several names with a separator between each.</summary>
+    public const string Names = "mermaid-names";
+
+    /// <summary>A label in its brackets, with the quotes inside them where it has any.</summary>
+    public const string Label = "mermaid-label";
+
+    /// <summary>Text in quotes, quotes included.</summary>
+    public const string Quoted = "mermaid-quoted";
+
+    /// <summary>What a name, a label or a title says, without its quotes or brackets.</summary>
+    public const string Words = "mermaid-words";
+
+    /// <summary>
+    /// Where a number is written: the <see cref="Number"/> — or, while none has been, the place after its separator where it
+    /// goes, which is where a hole stands for it.
+    /// </summary>
+    public const string Amount = "mermaid-amount";
+
+    /// <summary>A number, as it was written.</summary>
+    public const string Number = "mermaid-number";
+
+    /// <summary>A style's properties, with a comma between each.</summary>
+    public const string Properties = "mermaid-properties";
+
+    /// <summary>One <c>name:value</c> of a style: its name as a <see cref="Key"/>, and what it is set to.</summary>
+    public const string Property = "mermaid-property";
+
+    /// <summary>What a property is set to, as it was written.</summary>
+    public const string Setting = "mermaid-setting";
 }
 
 /// <summary>What a piece of a <c>mermaid</c> block is <em>to</em> the piece holding it.</summary>
@@ -66,4 +107,7 @@ public static class MermaidRoles
 
     /// <summary>What follows the keyword on the header line: <c>TD</c>, <c>title Pets</c>, <c>horizontal</c>.</summary>
     public const string Arguments = "arguments";
+
+    /// <summary>What a <see cref="MermaidKinds.Title"/> says: the title a builder sets over its diagram.</summary>
+    public const string Title = "title";
 }

@@ -166,7 +166,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 
 **Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
 [`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
-[`PieBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/PieBuilder.cs)).
+[`PieBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieBuilder.cs)).
 A pie is the first diagram drawn on the **shared layout tree** rather than by a renderer of its own, so it is selectable
 and its values are the numbers themselves. Supported: `pie`, `showData`, a `title` after the keyword or on a line of its
 own, `"label" : value` slices in clockwise order, `%%` comments and `accTitle`/`accDescr`. A value that is not a number
@@ -341,9 +341,9 @@ the body has no `direction`) and explicit `fill`/`stroke` colours; the remaining
 grouping is flattened (entities still render, ungrouped), and entity-name markdown isn't rendered (shown as plain text).
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
-[`VennPipeline`](../src/Nexaflow.Markdown/Mermaid/Venn/VennPipeline.cs) →
+its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs) and [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) →
 [`VennDiagram`](../src/Nexaflow.Markdown/Mermaid/Venn/VennDiagram.cs) →
-[`VennBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/VennBuilder.cs)).
+[`VennBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Venn/VennBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
 Supported, as Mermaid documents it: `venn-beta`; a `title`, quoted or not; `set id["Label"]:size`, a name bare or in
 quotes and a label as `["Label"]` or `[Label]`; `union A,B["Label"]:size` over two sets or more, each written above it;

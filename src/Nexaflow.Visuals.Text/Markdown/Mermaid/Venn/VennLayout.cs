@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 
-namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 /// <summary>
 /// Where a Venn diagram's circles go, and where inside each region its words go.

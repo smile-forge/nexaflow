@@ -74,13 +74,7 @@ public sealed class MermaidConfig
     /// What a key says as a number, or null. A size is written as a number of pixels either way —
     /// <c>pieOuterStrokeWidth: "5px"</c> and <c>: 5</c> mean the same thing — so the unit comes off first.
     /// </summary>
-    public double? Number(string key)
-    {
-        if (Value(key) is not { Length: > 0 } text) return null;
-
-        var digits = text.EndsWith("px", StringComparison.OrdinalIgnoreCase) ? text[..^2].Trim() : text;
-        return double.TryParse(digits, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
-    }
+    public double? Number(string key) => MermaidNumber.Pixels(Value(key));
 
     /// <summary>What a key says as true or false, or null.</summary>
     public bool? Flag(string key) =>
@@ -91,4 +85,27 @@ public sealed class MermaidConfig
         value.Length >= 2 && ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\''))
             ? value[1..^1]
             : value;
+
+    /// <summary>What <c>config:</c> says under a diagram's own section — <c>config: pie:</c> — or nothing.</summary>
+    public MermaidConfig Diagram(string name) => Section("config")?.Section(name) ?? None;
+
+    /// <summary>What <c>config: themeVariables:</c> says, or nothing.</summary>
+    public MermaidConfig Theme => Section("config")?.Section("themeVariables") ?? None;
+
+    /// <summary>
+    /// The colours written for <paramref name="prefix"/>1 to <paramref name="prefix"/><paramref name="count"/> — <c>pie1</c>…<c>pie12</c> —
+    /// by their number. What is not written is the theme's.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> Swatches(string prefix, int count)
+    {
+        var swatches = new Dictionary<int, string>();
+        for (var number = 1; number <= count; number++)
+            if (Value($"{prefix}{number}") is { Length: > 0 } colour)
+                swatches[number] = colour;
+
+        return swatches;
+    }
+
+    /// <summary>What a key says as a size: a number greater than nought, or null where none is written or what is would draw nothing.</summary>
+    public double? Size(string key) => Number(key) is { } size and > 0 ? size : null;
 }

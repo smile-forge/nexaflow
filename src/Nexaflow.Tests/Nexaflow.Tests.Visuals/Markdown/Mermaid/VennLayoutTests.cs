@@ -4,7 +4,8 @@ using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using Circle = Nexaflow.Visuals.Text.Markdown.Mermaid.VennLayout.Circle;
+using Circle = Nexaflow.Visuals.Text.Markdown.Mermaid.Venn.VennLayout.Circle;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 

@@ -222,10 +222,15 @@ each line once the keyword is known. A type without one keeps its lines whole. A
 its row, space and all, and what the grammar reads is as much as its node prints — the rest is the line's own. Pie has
 one: `showData` and a title after the keyword, a `title` line, and a slice per line as its label in quotes, its colon
 and its value — a value that is not a number greater than nought keeps its slice and carries the reason on the number,
-because the label is what the reader is looking at. A value is written in its own place (`PieKinds.Worth`) and one
+because the label is what the reader is looking at. A value is written in its own place (`MermaidKinds.Amount`) and one
 not yet written is empty and no complaint: it stands after the space left for it, which is where typing it puts it.
 
-**Where somebody is writing, a pie has holes** (`PiePipeline.Read(…, holes: true)`, the shared `WithHoles` stage): a
+**Every diagram on the shared tree is built from the Mermaid kit.** Its grammar reads each line through `MermaidLine`
+into the shapes every diagram shares (`MermaidKinds.Name`, `Label`, `Amount`, `Properties`), names the stages it runs
+(`IMermaidGrammar.Stages`), and its builder sets words, colours, shapes, connectors, axes and legends through the kit's
+own. How a diagram is converted, and what the kit holds, is [mermaid-diagrams.md](mermaid-diagrams.md).
+
+**Where somebody is writing, a pie has holes** (`MermaidParser.Read(…, holes: true)`, the shared `WithHoles` stage where the grammar's `Holds` says): a
 label with nothing between its quotes and a value with nothing after its colon each get one, drawn by
 `LayoutText.Hole` as a formula draws its own. A chart being written also keeps a legend row for every slice written,
 drawn or not — the row with a hole in it is where the reader is typing — and shows the value of any row whose value
@@ -239,8 +244,8 @@ lets a restyle know where to write. A slice the config does not colour says noth
 `PieBuilder` draws that on the layout tree: three layers — the wedges, the shares written on them, the legend — each a
 subtree of its own, with what belongs together said by the source they all point at rather than by the shape of the
 layout. The room the block is given is what the chart is fitted into; where it sits on the page is the document's. On the builder side, `MermaidBuilder` is what every diagram's builder shares: the block read
-once, the title set over a diagram drawn at the origin in the ink its front matter asks for (`TitleInk`), trouble anywhere in the block set beneath, and
-the read-only element it is shown in. A header naming no type is `UnknownDiagramBuilder` — the block as written, a
+once, the title — the diagram's own or the front matter's (`MermaidBlock.Title`) — set over a diagram drawn at the origin in the ink its front matter asks for (`TitleColour`), trouble anywhere in the block set beneath, and
+the element it is shown in; `MermaidBuilder<TDiagram>` reads the block into its model and draws that. A header naming no type is `UnknownDiagramBuilder` — the block as written, a
 wave under the word in the header's place, and the reason.
 
 **Venn has a grammar and two stages.** `VennGrammar` reads a `title`, `set` and `union` lines with their names — bare,

@@ -58,9 +58,9 @@ public sealed class ResolveRegions : IAstStage
                 read = Region(part);
                 indenting = true;
             }
-            else if (GroupRegions.Said(part) is { Kind: not (Kinds.Comment or MermaidKinds.Directive) } said)
+            else if (part.Stated() is { Kind: not (Kinds.Comment or MermaidKinds.Directive) } said)
             {
-                var indented = GroupRegions.Indented(part);
+                var indented = part.Indented();
                 if (!indented) indenting = false;
 
                 var resolved = said.Kind switch
@@ -82,7 +82,7 @@ public sealed class ResolveRegions : IAstStage
         ContentNode Region(ContentNode region)
         {
             var first = region.Children[0];
-            var said = GroupRegions.Said(first)!;
+            var said = first.Stated()!;
 
             string key;
             ContentNode resolved;
@@ -102,13 +102,13 @@ public sealed class ResolveRegions : IAstStage
                 var unknown = names.Where(name => name.Length > 0 && !known.Contains(name)).ToHashSet(StringComparer.Ordinal);
                 if (unknown.Count > 0)
                     resolved = AstRewrite.Each(resolved, node =>
-                        node is { Kind: VennKinds.Name, Role: VennRoles.Id } && unknown.Contains(node.Text)
+                        node is { Kind: MermaidKinds.Words, Role: VennRoles.Id } && unknown.Contains(node.Text)
                             ? node.Saying($"'{node.Text}' is not a set written above this union.")
                             : node);
 
                 // One still being written is not yet a union of too few.
                 if (names.All(name => name.Length > 0) && names.Distinct(StringComparer.Ordinal).Count() < 2)
-                    resolved = Within(resolved, VennKinds.Sets, list => list.Saying("A union is where two sets or more overlap: union A,B."));
+                    resolved = Within(resolved, MermaidKinds.Names, list => list.Saying("A union is where two sets or more overlap: union A,B."));
             }
 
             current = key;
@@ -127,7 +127,7 @@ public sealed class ResolveRegions : IAstStage
                 if (indenting && indented)
                     item = item.Saying("Indented under a set or a union, a text item is its name and its label: it sits in the region above it.");
                 else if (!sets.Contains(key) && !unions.Contains(key))
-                    item = Within(item, VennKinds.Sets, names => names.Saying($"No set or union {key} is written for this item to sit in."));
+                    item = Within(item, MermaidKinds.Names, names => names.Saying($"No set or union {key} is written for this item to sit in."));
 
                 return item.Saying(VennKinds.Fact, VennRoles.Key, key);
             }
@@ -150,7 +150,7 @@ public sealed class ResolveRegions : IAstStage
             var there = names.Count(name => name.Length > 0) > 1 ? unions.Contains(key) : sets.Contains(key) || items.Contains(key);
 
             if (!there && names.All(name => name.Length > 0))
-                style = Within(style, VennKinds.Sets, list => list.Saying($"Nothing called {key} is written to style."));
+                style = Within(style, MermaidKinds.Names, list => list.Saying($"Nothing called {key} is written to style."));
 
             return style.Saying(VennKinds.Fact, VennRoles.Key, key);
         }
@@ -160,24 +160,16 @@ public sealed class ResolveRegions : IAstStage
     private static IEnumerable<ContentNode> Statements(ContentNode tree) =>
         tree.Children
             .SelectMany(part => part.Kind == VennKinds.Region ? part.Children : [part])
-            .Select(GroupRegions.Said)
+            .Select(line => line.Stated())
             .OfType<ContentNode>();
 
     /// <summary>The name a set or an item is written with, without its quotes.</summary>
     private static string Named(ContentNode said) =>
-        said.Children.FirstOrDefault(child => child.Kind == VennKinds.Id)?.Children
-            .FirstOrDefault(child => child.Kind == VennKinds.Name)?.Text ?? string.Empty;
+        said.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)?.Text ?? string.Empty;
 
     /// <summary>Every name a line or a list of names lists, in the order written — an empty one where a name is still to be written.</summary>
-    private static List<string> Names(ContentNode node)
-    {
-        var list = node.Kind == VennKinds.Sets ? node : node.Children.FirstOrDefault(child => child.Kind == VennKinds.Sets);
-        if (list is null) return [];
-
-        return [.. list.Children
-            .Where(child => child.Kind == VennKinds.Id)
-            .Select(id => id.Children.FirstOrDefault(child => child.Kind == VennKinds.Name)?.Text ?? string.Empty)];
-    }
+    private static IReadOnlyList<string> Names(ContentNode node) =>
+        (node.Kind == MermaidKinds.Names ? node : node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Names)).SaidNames();
 
     /// <summary>
     /// The key a region is known by: its names, sorted, with a comma between each — as Mermaid knows it, so the same overlap
