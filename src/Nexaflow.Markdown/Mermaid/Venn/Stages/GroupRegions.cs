@@ -31,7 +31,7 @@ public sealed class GroupRegions : IAstStage
 
         for (var at = 0; at < lines.Count;)
         {
-            if (Said(lines[at])?.Kind is not (VennKinds.Set or VennKinds.Union))
+            if (lines[at].Stated()?.Kind is not (VennKinds.Set or VennKinds.Union))
             {
                 grouped.Add(lines[at++]);
                 continue;
@@ -41,9 +41,9 @@ public sealed class GroupRegions : IAstStage
             var end = at + 1;
             for (var next = at + 1; next < lines.Count; next++)
             {
-                var said = Said(lines[next]);
+                var said = lines[next].Stated();
                 if (said is null || said.Kind is Kinds.Comment or MermaidKinds.Directive) continue;
-                if (said.Kind != VennKinds.Text || !Indented(lines[next]) || said.Part(VennRoles.Region) is not null) break;
+                if (said.Kind != VennKinds.Text || !lines[next].Indented() || said.Part(VennRoles.Region) is not null) break;
 
                 end = next + 1;
             }
@@ -55,11 +55,4 @@ public sealed class GroupRegions : IAstStage
 
         return moved ? grouped : null;
     }
-
-    /// <summary>What a line says — the first thing on it that is not the space before it — or null for one that says nothing.</summary>
-    internal static ContentNode? Said(ContentNode line) =>
-        line.Kind == MermaidKinds.Line ? line.Children.FirstOrDefault(child => child.Kind != Kinds.Space) : null;
-
-    /// <summary>Whether a line starts with space rather than at the start of its row.</summary>
-    internal static bool Indented(ContentNode line) => line.Children is [{ Kind: Kinds.Space }, _, ..];
 }

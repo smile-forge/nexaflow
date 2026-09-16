@@ -27,6 +27,9 @@ public sealed class MermaidBlock
                 case MermaidKinds.Header when Header is null:
                     Header = part;
                     break;
+                case MermaidKinds.Title when OwnTitle is null:
+                    OwnTitle = part.Part(MermaidRoles.Title);
+                    break;
                 case MermaidKinds.Accessibility:
                     if (part.Part(Roles.Name)?.Text == MermaidParser.AccessibleTitle) AccessibleTitle ??= part.Part(MermaidRoles.Value);
                     else AccessibleDescription ??= part.Part(MermaidRoles.Value);
@@ -35,7 +38,7 @@ public sealed class MermaidBlock
         }
 
         // A field at the top level is the first thing on its line; one nested under another starts with its indent.
-        Title = FrontMatter?.Children
+        FrontMatterTitle = FrontMatter?.Children
             .Where(line => line.Children.Count > 0 && line.Children[0].Kind == MermaidKinds.Field)
             .Select(line => line.Children[0])
             .FirstOrDefault(field => string.Equals(field.Part(Roles.Name)?.Text, "title", StringComparison.OrdinalIgnoreCase))
@@ -73,19 +76,31 @@ public sealed class MermaidBlock
 
     /// <summary>
     /// The value of the front matter's <c>title:</c> — the one at the top level, not one nested under <c>config:</c> —
-    /// or null. Quotes and all, as written: <see cref="TitleText"/> is what it says.
+    /// or null. Quotes and all, as written: <see cref="FrontMatterTitleText"/> is what it says.
     /// </summary>
-    public ContentPart? Title { get; }
+    public ContentPart? FrontMatterTitle { get; }
 
     /// <summary>The front-matter title as it reads, without the quotes round it, or null where there is none or it is blank.</summary>
-    public string? TitleText
+    public string? FrontMatterTitleText
     {
         get
         {
-            var text = Title?.Text.Trim().Trim('"', '\'');
+            var text = FrontMatterTitle?.Text.Trim().Trim('"', '\'');
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
     }
+
+    /// <summary>
+    /// The title the diagram is drawn under, as written: its own — on a <c>title</c> line, or after its header's keyword
+    /// (<see cref="MermaidKinds.Title"/>) — and otherwise the front matter's; or null.
+    /// </summary>
+    public ContentPart? Title => OwnTitle ?? FrontMatterTitle;
+
+    /// <summary>What <see cref="Title"/> says, without the quotes a front-matter one may carry — or null where there is none, or it is blank.</summary>
+    public string? TitleText => OwnTitle is { } own ? string.IsNullOrWhiteSpace(own.Text) ? null : own.Text : FrontMatterTitleText;
+
+    /// <summary>What the diagram's own first title says, or null where it writes none.</summary>
+    private ContentPart? OwnTitle { get; }
 
     /// <summary>
     /// What is between the front matter's fences — the YAML the diagrams that take a <c>config:</c> read — or null where

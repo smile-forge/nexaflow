@@ -1,0 +1,49 @@
+using System;
+using System.Windows.Media;
+using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
+
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
+
+/// <summary>
+/// What a diagram is drawn in: a colour as its source or front matter wrote it, the theme's colour for one of a series, a
+/// colour faded, and ink that reads over a fill.
+///
+/// <para>
+/// <strong>A builder asks for its colours here rather than making brushes.</strong> A colour nobody wrote is always the
+/// theme's, so every diagram follows the theme without knowing what it is, and every brush it is handed is frozen. What
+/// <c>#ff6b6b</c>, <c>red</c> or <c>rgb(1, 2, 3)</c> comes to is decided once, for all of them.
+/// </para>
+/// </summary>
+internal sealed class DiagramInk(MarkdownPalette palette)
+{
+    /// <summary>A colour as a style or the front matter wrote it, or null where it wrote none this understands.</summary>
+    public Brush? Written(string? colour)
+    {
+        if (DiagramBrushes.ParseCss(colour) is not { } parsed) return null;
+
+        var brush = new SolidColorBrush(parsed);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>The theme's colour for the <paramref name="order"/>th of a series — a slice, a set, a line — round again past the last.</summary>
+    public Brush Series(int order) => palette.Series[((order % palette.Series.Count) + palette.Series.Count) % palette.Series.Count];
+
+    /// <summary>The colour written for one of a series, and the theme's for its place where none is.</summary>
+    public Brush Series(int order, string? written) => Written(written) ?? Series(order);
+
+    /// <summary>Ink that reads over <paramref name="fill"/>: the theme's dark ink over a light fill, and its light ink over a dark one.</summary>
+    public Brush Over(Brush fill) =>
+        DiagramBrushes.OnColor(DiagramBrushes.ColorOf(fill, Colors.Gray), palette.QrDark, palette.QrLight);
+
+    /// <summary>A brush at <paramref name="opacity"/> — itself, where that is whole.</summary>
+    public static Brush Faded(Brush brush, double opacity)
+    {
+        if (opacity >= 1) return brush;
+
+        var faded = brush.Clone();
+        faded.Opacity = Math.Max(0, opacity);
+        faded.Freeze();
+        return faded;
+    }
+}

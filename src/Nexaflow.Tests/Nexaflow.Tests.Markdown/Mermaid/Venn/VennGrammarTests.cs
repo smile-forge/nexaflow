@@ -11,7 +11,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Venn;
 /// </summary>
 [TestClass]
 [CoversNode("venn-ast")]
-public class VennGrammarTests
+public class VennGrammarTests : MermaidGrammarContract
 {
     /// <summary>The first block Mermaid's documentation shows: three sets and every overlap between them.</summary>
     public const string Features =
@@ -41,7 +41,11 @@ public class VennGrammarTests
           style A1 color:red
         """;
 
-    private static readonly (string What, string Source)[] Blocks =
+    public override MermaidDiagram Diagram => MermaidDiagram.Venn;
+
+    protected override IEnumerable<string> DocumentedBlocks => [Features, Styled];
+
+    protected override IEnumerable<(string What, string Source)> Blocks { get; } =
     [
         ("the documented features", Features),
         ("the documented styles", Styled),
@@ -78,54 +82,13 @@ public class VennGrammarTests
     ];
 
     [TestMethod]
-    public void EveryBlockReadsBackAsItWasWritten()
-    {
-        foreach (var (what, source) in Blocks)
-        {
-            Assert.AreEqual(source, MermaidParser.Parse(source).Print(), what);
-            Assert.AreEqual(source, VennPipeline.Read(source, holes: true).Print(), $"{what}, after the stages");
-        }
-    }
-
-    [TestMethod]
-    public void EveryPrefixOfEveryBlockReadsBackToo()
-    {
-        foreach (var (what, source) in Blocks)
-            for (var length = 0; length <= source.Length; length++)
-            {
-                var typed = source[..length];
-                Assert.AreEqual(typed, VennPipeline.Read(typed, holes: true).Print(), $"{what}: after {length} character(s)");
-            }
-    }
-
-    [TestMethod]
-    public void TheGrammarOnlyEverCopies()
-    {
-        foreach (var (what, source) in Blocks)
-            foreach (var place in MermaidParser.Parse(source).Placed())
-            {
-                if (!place.Node.IsLeaf) continue;
-                Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
-                                $"{what}: {place.Node.Kind} at {place.Start}");
-            }
-    }
-
-    [TestMethod]
-    public void TheDocumentedBlocksHaveNothingWrongWithThem()
-    {
-        foreach (var source in new[] { Features, Styled })
-            Assert.IsFalse(VennPipeline.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null),
-                           $"{source}: {string.Join(" | ", VennPipeline.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>())}");
-    }
-
-    [TestMethod]
     public void ASetIsItsNameItsLabelAndItsSize()
     {
         var set = Nodes("venn-beta\n  set A[\"Alpha\"]:20", VennKinds.Set).Single();
 
-        Assert.AreEqual("A", Name(set.Children.Single(child => child.Kind == VennKinds.Id)));
-        Assert.AreEqual("Alpha", Name(set.Children.Single(child => child.Kind == VennKinds.Label)));
-        Assert.AreEqual("20", set.SelfAndDescendants().Single(node => node.Kind == VennKinds.Size).Text);
+        Assert.AreEqual("A", Name(set.Children.Single(child => child.Kind == MermaidKinds.Name)));
+        Assert.AreEqual("Alpha", Name(set.Children.Single(child => child.Kind == MermaidKinds.Label)));
+        Assert.AreEqual("20", set.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Number).Text);
     }
 
     [TestMethod]
@@ -133,8 +96,8 @@ public class VennGrammarTests
     {
         var quoted = Nodes("venn-beta\n  set \"Foo Bar\"[ Foo ]", VennKinds.Set).Single();
 
-        Assert.AreEqual("Foo Bar", Name(quoted.Children.Single(child => child.Kind == VennKinds.Id)));
-        Assert.AreEqual("Foo", Name(quoted.Children.Single(child => child.Kind == VennKinds.Label)));
+        Assert.AreEqual("Foo Bar", Name(quoted.Children.Single(child => child.Kind == MermaidKinds.Name)));
+        Assert.AreEqual("Foo", Name(quoted.Children.Single(child => child.Kind == MermaidKinds.Label)));
     }
 
     [TestMethod]
@@ -143,9 +106,9 @@ public class VennGrammarTests
         var union = Nodes(Features, VennKinds.Union).Last();
 
         CollectionAssert.AreEqual(new[] { "Desirable", "Feasible", "Viable" },
-                                  union.SelfAndDescendants().Where(node => node is { Kind: VennKinds.Name, Role: VennRoles.Id })
+                                  union.SelfAndDescendants().Where(node => node is { Kind: MermaidKinds.Words, Role: VennRoles.Id })
                                       .Select(node => node.Text).ToArray());
-        Assert.AreEqual("Ship it", Name(union.Children.Single(child => child.Kind == VennKinds.Label)));
+        Assert.AreEqual("Ship it", Name(union.Children.Single(child => child.Kind == MermaidKinds.Label)));
     }
 
     [TestMethod]
@@ -154,8 +117,8 @@ public class VennGrammarTests
         var item = Nodes("venn-beta\nset A\nset B\nunion A,B\ntext A,B AB1[\"OpenAPI\"]", VennKinds.Text).Single();
 
         Assert.AreEqual("A,B", item.Part(VennRoles.Region)!.Print());
-        Assert.AreEqual("AB1", Name(item.Children.Single(child => child.Kind == VennKinds.Id)));
-        Assert.AreEqual("OpenAPI", Name(item.Children.Single(child => child.Kind == VennKinds.Label)));
+        Assert.AreEqual("AB1", Name(item.Children.Single(child => child.Kind == MermaidKinds.Name)));
+        Assert.AreEqual("OpenAPI", Name(item.Children.Single(child => child.Kind == MermaidKinds.Label)));
     }
 
     [TestMethod]
@@ -165,9 +128,9 @@ public class VennGrammarTests
 
         CollectionAssert.AreEqual(
             new[] { ("fill", "rgb(1, 2, 3)"), ("stroke-width", "4px"), ("fill-opacity", "0.5") },
-            style.SelfAndDescendants().Where(node => node.Kind == VennKinds.Property)
+            style.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Property)
                 .Select(property => (property.Children.First().Text,
-                                     property.Children.Single(child => child.Kind == VennKinds.Setting).Text))
+                                     property.Children.Single(child => child.Kind == MermaidKinds.Setting).Text))
                 .ToArray());
     }
 
@@ -177,7 +140,7 @@ public class VennGrammarTests
         var set = Nodes("venn-beta\n  set A[\"Alpha\"] %% the first", VennKinds.Set).Single();
 
         Assert.AreEqual("%% the first", set.Children.Single(child => child.Kind == Kinds.Comment).Text);
-        Assert.AreEqual("Alpha", Name(set.Children.Single(child => child.Kind == VennKinds.Label)));
+        Assert.AreEqual("Alpha", Name(set.Children.Single(child => child.Kind == MermaidKinds.Label)));
     }
 
     [TestMethod]
@@ -204,13 +167,13 @@ public class VennGrammarTests
     {
         foreach (var (source, kind, reason) in new[]
                  {
-                     ("venn-beta\n  set A:lots", VennKinds.Size, "not a number"),
-                     ("venn-beta\n  set A:0", VennKinds.Size, "greater than nought"),
-                     ("venn-beta\n  set 1A", VennKinds.Name, "starts with a letter"),
-                     ("venn-beta\n  set A[]", VennKinds.Name, "has something in it"),
+                     ("venn-beta\n  set A:lots", MermaidKinds.Number, "not a number"),
+                     ("venn-beta\n  set A:0", MermaidKinds.Number, "greater than nought"),
+                     ("venn-beta\n  set 1A", MermaidKinds.Words, "starts with a letter"),
+                     ("venn-beta\n  set A[]", MermaidKinds.Words, "has something in it"),
                      ("venn-beta\n  set A\n  style A glow:yes", MermaidKinds.Key, "not 'glow'"),
-                     ("venn-beta\n  set A\n  style A fill-opacity:2", VennKinds.Setting, "from 0 to 1"),
-                     ("venn-beta\n  set A\n  style A stroke-width:thick", VennKinds.Setting, "pixels"),
+                     ("venn-beta\n  set A\n  style A fill-opacity:2", MermaidKinds.Setting, "from 0 to 1"),
+                     ("venn-beta\n  set A\n  style A stroke-width:thick", MermaidKinds.Setting, "pixels"),
                      ("venn-beta please", Kinds.Verbatim, "Nothing follows venn-beta"),
                  })
         {
@@ -224,7 +187,7 @@ public class VennGrammarTests
     public void ASizeOrAUnionStillBeingWrittenIsNoComplaint()
     {
         foreach (var source in new[] { "venn-beta\n  set A: ", "venn-beta\n  set A\n  union A, " })
-            Assert.IsFalse(VennPipeline.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null), source);
+            Assert.IsFalse(MermaidParser.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null), source);
     }
 
     [TestMethod]
@@ -265,7 +228,7 @@ public class VennGrammarTests
                      ("venn-beta\n  set A\n    text A1", "A1", "!", "venn-beta\n  set A\n    text \"A1!\""),
                  })
         {
-            var part = Reading(source).SelfAndDescendants().First(node => node.Kind == VennKinds.Name && node.Text == typedAfter);
+            var part = Reading(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
             var writing = new VennGrammar().Escaping(part, part.End, typed);
 
             Assert.IsNotNull(writing, $"{source}: typing {typed}");
@@ -274,7 +237,7 @@ public class VennGrammarTests
             Assert.AreEqual(becomes, written, $"{source}: typing {typed}");
             Assert.AreEqual(typed, MermaidText.Decode(written[(written.IndexOf(typedAfter, StringComparison.Ordinal) + typedAfter.Length)..writing.Value.Caret]),
                             $"{source}: the caret goes after what was typed");
-            Assert.IsFalse(VennPipeline.Read(written).SelfAndDescendants().Any(node => node.Trouble is not null), $"{written} still reads");
+            Assert.IsFalse(MermaidParser.Read(written).SelfAndDescendants().Any(node => node.Trouble is not null), $"{written} still reads");
         }
     }
 
@@ -288,7 +251,7 @@ public class VennGrammarTests
                      ("venn-beta\n  set A[Alpha]", "Alpha", " beta\\"),
                  })
         {
-            var part = Reading(source).SelfAndDescendants().First(node => node.Kind == VennKinds.Name && node.Text == typedAfter);
+            var part = Reading(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
             Assert.IsNull(new VennGrammar().Escaping(part, part.End, typed), $"{source}: typing {typed}");
         }
     }
@@ -331,12 +294,12 @@ public class VennGrammarTests
     }
 
     /// <summary>A block read through the pipeline, with where each part sits.</summary>
-    private static ContentPart Reading(string source, bool holes = false) => ContentReading.Of(VennPipeline.Read(source, holes)).Root;
+    private static ContentPart Reading(string source, bool holes = false) => ContentReading.Of(MermaidParser.Read(source, holes)).Root;
 
     private static List<ContentNode> Nodes(string source, string kind) =>
         [.. MermaidParser.Parse(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 
     /// <summary>What a name or a label says, without its quotes or brackets.</summary>
     private static string Name(ContentNode node) =>
-        node.SelfAndDescendants().First(child => child.Kind == VennKinds.Name).Text;
+        node.SelfAndDescendants().First(child => child.Kind == MermaidKinds.Words).Text;
 }

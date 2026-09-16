@@ -103,20 +103,20 @@ public class MermaidBlockTests
     [TestMethod]
     public void TheTitleIsTheTopLevelOne_WithoutItsQuotes()
     {
-        Assert.AreEqual("My Chart", MermaidBlock.Read("---\ntitle: My Chart\nconfig:\n  theme: dark\n---\npie\n").TitleText);
-        Assert.AreEqual("Quoted", MermaidBlock.Read("\n---\ntitle: \"Quoted\"\n---\npie").TitleText);
-        Assert.AreEqual("Single", MermaidBlock.Read("---\nTitle: 'Single'\n---\npie").TitleText);
-        Assert.IsNull(MermaidBlock.Read("---\nconfig:\n  title: nested\n---\npie\n").TitleText);
-        Assert.IsNull(MermaidBlock.Read("---\ntitle: \"\"\n---\npie").TitleText);
-        Assert.IsNull(MermaidBlock.Read("---\ntitle:\n---\npie").TitleText);
-        Assert.IsNull(MermaidBlock.Read("pie title Inline").TitleText, "a title on the header is the diagram's own");
+        Assert.AreEqual("My Chart", MermaidBlock.Read("---\ntitle: My Chart\nconfig:\n  theme: dark\n---\npie\n").FrontMatterTitleText);
+        Assert.AreEqual("Quoted", MermaidBlock.Read("\n---\ntitle: \"Quoted\"\n---\npie").FrontMatterTitleText);
+        Assert.AreEqual("Single", MermaidBlock.Read("---\nTitle: 'Single'\n---\npie").FrontMatterTitleText);
+        Assert.IsNull(MermaidBlock.Read("---\nconfig:\n  title: nested\n---\npie\n").FrontMatterTitleText);
+        Assert.IsNull(MermaidBlock.Read("---\ntitle: \"\"\n---\npie").FrontMatterTitleText);
+        Assert.IsNull(MermaidBlock.Read("---\ntitle:\n---\npie").FrontMatterTitleText);
+        Assert.IsNull(MermaidBlock.Read("pie title Inline").FrontMatterTitleText, "a title on the header is the diagram's own");
     }
 
     [TestMethod]
     public void TheTitleIsAPartOfTheSource()
     {
         const string source = "---\ntitle: \"My Chart\"\n---\npie";
-        var title = MermaidBlock.Read(source).Title!;
+        var title = MermaidBlock.Read(source).FrontMatterTitle!;
 
         Assert.AreEqual("\"My Chart\"", source.Substring(title.Start, title.Length));
     }

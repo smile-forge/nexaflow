@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
-using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
-namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 /// <summary>The pieces a Venn diagram's layout is made of — its layers, and what is in them.</summary>
 public static class VennPiece
@@ -65,7 +63,7 @@ public static class VennPiece
 /// The words are a layer above both.
 /// </para>
 /// </summary>
-internal sealed class VennBuilder : MermaidBuilder
+internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
 {
     /// <summary>How wide the drawing is before anything asks for another width.</summary>
     private const double Wide = 460;
@@ -87,8 +85,6 @@ internal sealed class VennBuilder : MermaidBuilder
     private const double ItemGap = 2;
     private const double ItemApart = 10;
 
-    private VennDiagram? _diagram;
-
     private VennBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
         : base(state, palette, pixelsPerDip, room, writing) { }
 
@@ -98,28 +94,14 @@ internal sealed class VennBuilder : MermaidBuilder
                              bool writing = false) =>
         new VennBuilder(state, palette, pixelsPerDip, room, writing).Lay();
 
-    /// <summary>The same, for a block that has no caret in it.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        Build(EditState.For(source), palette, pixelsPerDip, room, writing);
-
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build, readOnly: false);
-
     /// <inheritdoc/>
-    protected override ContentNode Reading(string source) => VennPipeline.Read(source, holes: Writing);
-
-    /// <summary>The diagram's own title where it has one, and the front matter's otherwise.</summary>
-    protected override (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) =>
-        _diagram is null ? base.TitleOf(block) : (_diagram.Title, _diagram.TitleText);
+    protected override VennDiagram Of(MermaidBlock block) => VennDiagram.Of(block);
 
     /// <summary>The front matter's <c>vennTitleTextColor</c>, where it writes one.</summary>
-    protected override Brush TitleInk => Colour(_diagram?.Config.TitleTextColour) ?? base.TitleInk;
+    protected override string? TitleColour => Diagram?.Config.TitleTextColour;
 
-    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    protected override Size Draw(VennDiagram diagram, LayoutBuilder build)
     {
-        var diagram = _diagram = VennDiagram.Of(block);
-
         // A diagram of no sets is the source: there is nothing to look at, and what the reader wants is their own lines
         // back with whatever is wrong with them said underneath.
         if (diagram.Sets.Count == 0) return AsWritten(build);
@@ -210,11 +192,11 @@ internal sealed class VennBuilder : MermaidBuilder
                 stands = new CombinedGeometry(GeometryCombineMode.Exclude, stands, overlap.Own);
             stands.Freeze();
 
-            var ink = Ink(set);
+            var fill = Fill(set);
 
             build.Open(VennPiece.Circle, set.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, Faded(ink, set.Style.FillOpacity ?? FillOpacity),
-                                        Colour(set.Style.Stroke) ?? ink, set.Style.StrokeWidth ?? StrokeWidth));
+            build.Draw(new GeometryMark(shape, DiagramInk.Faded(fill, set.Style.FillOpacity ?? FillOpacity),
+                                        Ink.Written(set.Style.Stroke) ?? fill, set.Style.StrokeWidth ?? StrokeWidth));
             build.Occupies(stands);
             build.Close();
         }
@@ -223,8 +205,7 @@ internal sealed class VennBuilder : MermaidBuilder
     }
 
     /// <summary>What a set is drawn in: its style's fill, the front matter's colour for its place, or the theme's next series colour.</summary>
-    private Brush Ink(VennSet set) =>
-        Colour(set.Style.Fill) ?? Colour(set.Colour) ?? Palette.Series[set.Order % Palette.Series.Count];
+    private Brush Fill(VennSet set) => Ink.Written(set.Style.Fill) ?? Ink.Series(set.Order, set.Colour);
 
     // ── The overlaps ────────────────────────────────────────────────────────
 
@@ -259,10 +240,10 @@ internal sealed class VennBuilder : MermaidBuilder
         {
             build.Open(VennPiece.Overlap, union.Part, stops: Stops.None);
 
-            var fill = Colour(union.Style.Fill);
-            var stroke = Colour(union.Style.Stroke);
+            var fill = Ink.Written(union.Style.Fill);
+            var stroke = Ink.Written(union.Style.Stroke);
             if (fill is not null || stroke is not null)
-                build.Draw(new GeometryMark(whole, fill is null ? null : Faded(fill, union.Style.FillOpacity ?? FillOpacity), stroke,
+                build.Draw(new GeometryMark(whole, fill is null ? null : DiagramInk.Faded(fill, union.Style.FillOpacity ?? FillOpacity), stroke,
                                             stroke is null ? 0 : union.Style.StrokeWidth ?? StrokeWidth));
 
             build.Covers(whole.Bounds);
@@ -278,27 +259,14 @@ internal sealed class VennBuilder : MermaidBuilder
 
     // ── What is written on them ─────────────────────────────────────────────
 
-    /// <summary>One thing set in a region: its words, or the hole standing where they go.</summary>
-    /// <param name="Part">What was written, where the words are what was written — null for words worked out.</param>
-    private sealed record Written(FormattedText Text, ContentPart? Part, ContentPart? Hole, FormattedText Letter, Brush Ink)
-    {
-        public double Width => Hole is null ? Text.Width : LayoutText.HoleWidth(Letter);
-
-        /// <summary>Whether the words are the characters written, one for one — not an entity code shown as what it stands for.</summary>
-        public bool Maps => Part is not null && Text.Text == Part.Text;
-
-        public double Height => Math.Max(Text.Height, Letter.Height);
-    }
-
     /// <summary>One item, measured.</summary>
-    private sealed record Entry(VennItem Item, Written Says);
+    private sealed record Entry(VennItem Item, DiagramWords Says);
 
     /// <summary>A region's words, measured and placed: its label on top, and its items in a grid under it.</summary>
     /// <param name="Room">How far the point they are centred on is from the region's nearest edge, or nought where the region has no room.</param>
     /// <param name="Columns">How many columns the items are set in.</param>
-    private sealed record Words(VennRegion Region, Written? Label, IReadOnlyList<Entry> Items, Point Centre, double Room, int Columns = 1)
+    private sealed record Words(VennRegion Region, DiagramWords? Label, IReadOnlyList<Entry> Items, Point Centre, double Room, int Columns = 1)
     {
-
         public int Rows => Items.Count == 0 ? 0 : (int)Math.Ceiling(Items.Count / (double)Columns);
 
         public double Cell => Items.Count == 0 ? 0 : Items.Max(entry => entry.Says.Width);
@@ -318,32 +286,24 @@ internal sealed class VennBuilder : MermaidBuilder
         var (centre, room) = VennLayout.Inside(circles, members)
                              ?? (new Point(members.Average(at => circles[at].Centre.X), members.Average(at => circles[at].Centre.Y)), 0);
 
-        var ink = Colour(region.Style.Colour) ?? Colour(_diagram!.Config.SetTextColour) ?? Palette.Text;
+        var ink = Ink.Written(region.Style.Colour) ?? Ink.Written(Diagram!.Config.SetTextColour) ?? Palette.Text;
         var size = region is VennSet ? SetSize : UnionSize;
-        var letter = Text("x", size, ink);
 
-        Written? label = region switch
+        // Its label; a set with none, its name; a union with none, the names of the sets it overlaps, which nobody wrote there.
+        var label = region switch
         {
-            { LabelHole: { } hole } => new Written(letter, null, hole, letter, ink),
-            { Label: { Length: > 0 } written } => new Written(Text(Shown(written), size, ink, FontWeights.SemiBold), written, null, letter, ink),
-            VennSet { NameHole: { } hole } => new Written(letter, null, hole, letter, ink),
-            VennSet { Name: { Length: > 0 } name } => new Written(Text(Shown(name), size, ink, FontWeights.SemiBold), name, null, letter, ink),
-            VennUnion union => new Written(Text(string.Join(" ∩ ", union.Sets), size, ink, FontWeights.SemiBold), null, null, letter, ink),
+            { LabelHole: not null } or { Label.Length: > 0 } => Written(region.Label, region.LabelHole, size, ink, FontWeights.SemiBold),
+            VennSet set when set.NameHole is not null || set.Name.Length > 0 => Written(set.Name, set.NameHole, size, ink, FontWeights.SemiBold),
+            VennUnion union => Worked(string.Join(" ∩ ", union.Sets), null, size, ink, FontWeights.SemiBold),
             _ => null,
         };
 
         var items = region.Items.Select(item =>
         {
-            var itemInk = Colour(item.Style.Colour) ?? Palette.TextMuted;
-            var itemLetter = Text("x", ItemSize, itemInk);
-
-            return new Entry(item, item switch
-            {
-                { LabelHole: { } hole } => new Written(itemLetter, null, hole, itemLetter, itemInk),
-                { Label: { Length: > 0 } written } => new Written(Text(Shown(written), ItemSize, itemInk), written, null, itemLetter, itemInk),
-                { NameHole: { } hole } => new Written(itemLetter, null, hole, itemLetter, itemInk),
-                _ => new Written(Text(Shown(item.Name), ItemSize, itemInk), item.Name, null, itemLetter, itemInk),
-            });
+            var said = Ink.Written(item.Style.Colour) ?? Palette.TextMuted;
+            return new Entry(item, item.LabelHole is not null || item.Label is { Length: > 0 }
+                                       ? Written(item.Label, item.LabelHole, ItemSize, said)
+                                       : Written(item.Name, item.NameHole, ItemSize, said));
         }).ToList();
 
         // A column of items reads down the region; only where a column would run out of it do they spread into more, as
@@ -368,7 +328,7 @@ internal sealed class VennBuilder : MermaidBuilder
 
             if (words.Label is { } label)
             {
-                Set(build, label, new Point(middle - (label.Width / 2), top), VennPiece.Label);
+                label.Set(build, new Point(middle - (label.Width / 2), top), VennPiece.Label);
                 top += label.Height + (words.Items.Count > 0 ? LabelGap : 0);
             }
 
@@ -383,7 +343,7 @@ internal sealed class VennBuilder : MermaidBuilder
                 var place = new Point(cell + ((words.Cell - entry.Says.Width) / 2), top + (row * (words.Line + ItemGap)));
 
                 build.Open(VennPiece.Item, entry.Item.Part, stops: Stops.None);
-                Set(build, entry.Says, place, VennPiece.Text);
+                entry.Says.Set(build, place, VennPiece.Text);
                 build.Close();
             }
 
@@ -391,22 +351,6 @@ internal sealed class VennBuilder : MermaidBuilder
         }
 
         build.Close();
-    }
-
-    /// <summary>
-    /// Words where something was written — typed into where they are the characters written, and shown as written when pressed
-    /// where they are not — a hole where nothing yet is, and words worked out where neither.
-    /// </summary>
-    private static void Set(LayoutBuilder build, Written written, Point at, string kind)
-    {
-        if (written.Hole is { } hole)
-        {
-            LayoutText.Hole(build, hole, at, written.Letter, written.Ink);
-            return;
-        }
-
-        LayoutText.Words(build, written.Text, at, written.Text.Width, TextAlignment.Left, written.Part, kind,
-                         maps: written.Maps, writes: written.Part is not null, ink: written.Ink);
     }
 
     // ── The workings ────────────────────────────────────────────────────────
@@ -434,18 +378,5 @@ internal sealed class VennBuilder : MermaidBuilder
         marks.Freeze();
         build.Draw(new GeometryMark(marks, null, Palette.Accent, 1));
         build.Close();
-    }
-
-    // ── Colour ──────────────────────────────────────────────────────────────
-
-    /// <summary>A brush at <paramref name="opacity"/>.</summary>
-    private static Brush Faded(Brush brush, double opacity)
-    {
-        if (opacity >= 1) return brush;
-
-        var faded = brush.Clone();
-        faded.Opacity = Math.Max(0, opacity);
-        faded.Freeze();
-        return faded;
     }
 }

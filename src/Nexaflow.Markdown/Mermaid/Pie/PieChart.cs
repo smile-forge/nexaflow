@@ -39,8 +39,8 @@ public sealed record PieSlice(
 }
 
 /// <summary>
-/// A <c>pie</c> block, read: its title, whether it shows its values, its slices in the order they are written, and
-/// what its front matter asks for.
+/// A <c>pie</c> block, read: whether it shows its values, its slices in the order they are written, and what its front
+/// matter asks for. Its title is the block's (<see cref="MermaidBlock.Title"/>).
 ///
 /// <para>
 /// What <see cref="Chemistry.Molecule"/> is to a SMILES string — the tree read back into the thing it describes, with
@@ -49,28 +49,24 @@ public sealed record PieSlice(
 /// </summary>
 public sealed class PieChart
 {
-    private PieChart(MermaidBlock block, PieConfig config, IReadOnlyList<PieSlice> slices,
-                     ContentPart? title, bool showsData)
+    private PieChart(MermaidBlock block, PieConfig config, IReadOnlyList<PieSlice> slices, bool showsData)
     {
         Block = block;
         Config = config;
         Slices = slices;
-        Title = title;
         ShowsData = showsData;
     }
 
-    /// <summary>Reads a block: parsed, then worked over by <see cref="PiePipeline"/>.</summary>
-    public static PieChart Read(string? block) => Of(PiePipeline.Read(block));
+    /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
+    public static PieChart Read(string? block) => Of(MermaidParser.Read(block));
 
-    /// <summary>Reads a tree the pipeline has already been over.</summary>
+    /// <summary>Reads a tree the stages have already been over.</summary>
     public static PieChart Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 
     /// <summary>Reads a block that has already been read — the shared parse, worked over by the pie's own stages.</summary>
     public static PieChart Of(MermaidBlock block)
     {
-
         var slices = new List<PieSlice>();
-        ContentPart? title = null;
         var showsData = false;
 
         foreach (var part in block.Reading.Root.SelfAndDescendants())
@@ -81,20 +77,16 @@ public sealed class PieChart
                     showsData = true;
                     break;
 
-                case PieKinds.Title when title is null:
-                    title = part.Part(PieRoles.Label);
-                    break;
-
                 case PieKinds.Slice when Slice(part) is { } slice:
                     slices.Add(slice);
                     break;
             }
         }
 
-        return new PieChart(block, PieConfig.Read(block.Config), slices, title ?? block.Title, showsData);
+        return new PieChart(block, PieConfig.Read(block.Config), slices, showsData);
     }
 
-    /// <summary>The block this was read from — its front matter, its header, everything written in it.</summary>
+    /// <summary>The block this was read from — its front matter, its header, its title, everything written in it.</summary>
     public MermaidBlock Block { get; }
 
     /// <summary>What the front matter asks for.</summary>
@@ -102,14 +94,6 @@ public sealed class PieChart
 
     /// <summary>The slices, in the order they were written, which is the order they are drawn clockwise.</summary>
     public IReadOnlyList<PieSlice> Slices { get; }
-
-    /// <summary>
-    /// The title as it was written — the chart's own where it has one, and the front matter's otherwise — or null.
-    /// </summary>
-    public ContentPart? Title { get; }
-
-    /// <summary>What the title says, without the quotes a front-matter one may carry.</summary>
-    public string? TitleText => Title is null ? null : Title == Block.Title ? Block.TitleText : Title.Text;
 
     /// <summary>Whether each slice's value is shown in the legend beside its share.</summary>
     public bool ShowsData { get; }
@@ -122,38 +106,14 @@ public sealed class PieChart
 
     private static PieSlice? Slice(ContentPart part)
     {
-        if (part.SelfAndDescendants().FirstOrDefault(node => node.Kind == PieKinds.Name) is not { } label) return null;
+        if (part.Words() is not { } label) return null;
 
-        var value = part.SelfAndDescendants().FirstOrDefault(node => node.Kind == PieKinds.Value);
-        var worth = value is { Trouble: null, Length: > 0 }
-                    && double.TryParse(value.Text, System.Globalization.NumberStyles.Float,
-                                       System.Globalization.CultureInfo.InvariantCulture, out var read)
-            ? read
-            : 0;
-
-        return new PieSlice(part, label, value, worth,
-                            Said(part, PieRoles.Colour), Said(part, PieRoles.Swatch), Said(part, PieRoles.Highlighted) is not null)
+        var value = part.Inner(MermaidKinds.Number);
+        return new PieSlice(part, label, value, value.Number() ?? 0,
+                            part.Fact(PieRoles.Colour), part.Fact(PieRoles.Swatch), part.Fact(PieRoles.Highlighted) is not null)
         {
-            LabelHole = Hole(label),
-            ValueHole = Hole(value),
+            LabelHole = label.Parent.Hole(),
+            ValueHole = value?.Parent.Hole(),
         };
-    }
-
-    /// <summary>The hole a stage put beside a part with nothing written in it, or null where there is none.</summary>
-    private static ContentPart? Hole(ContentPart? part) =>
-        part?.Parent?.Children.FirstOrDefault(child => child.Kind == Kinds.Hole);
-
-    /// <summary>What a stage worked out about a piece and hung underneath it — see <see cref="AstRewrite.Fact"/>.</summary>
-    private static string? Said(ContentPart part, string role)
-    {
-        foreach (var child in part.Children)
-        {
-            if (!child.Derived) continue;
-
-            foreach (var inner in child.Children)
-                if (inner.Role == role) return inner.Text;
-        }
-
-        return null;
     }
 }

@@ -50,6 +50,5 @@ public sealed class ResolveSlices(PieConfig config) : IAstStage
     }
 
     /// <summary>What a slice is called, or null for one whose label could not be read.</summary>
-    private static string? Named(ContentNode slice) =>
-        slice.SelfAndDescendants().FirstOrDefault(node => node.Kind == PieKinds.Name)?.Text;
+    private static string? Named(ContentNode slice) => slice.Inner(MermaidKinds.Words)?.Text;
 }

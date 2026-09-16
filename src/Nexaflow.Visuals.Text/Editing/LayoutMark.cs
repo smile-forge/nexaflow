@@ -113,6 +113,13 @@ public sealed record LineMark(Point From, Point To, Brush? Foreground) : LayoutM
 public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, double Thickness) : LayoutMark
 {
     public override Rect Covers => Shape.Bounds;
+
+    /// <summary>
+    /// The dashes the outline is broken into, as a pen takes them — lengths in multiples of the thickness, a dash then a gap —
+    /// or null for a solid line: a dotted edge, a reply in a sequence diagram.
+    /// </summary>
+    public DoubleCollection? Dashes { get; init; }
+
     /// <summary>A filled shape in whatever colour the content did not ask for.</summary>
     public static GeometryMark Filled(Geometry shape, Brush? fill = null) => new(shape, fill, null, 0);
 
@@ -122,6 +129,7 @@ public sealed record GeometryMark(Geometry Shape, Brush? Fill, Brush? Stroke, do
         if (Stroke is not null || Thickness > 0)
         {
             pen = new Pen(Stroke ?? fallback, Thickness);
+            if (Dashes is { Count: > 0 }) pen.DashStyle = new DashStyle(Dashes, 0);
             pen.Freeze();
         }
 

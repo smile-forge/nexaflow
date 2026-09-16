@@ -1,3 +1,6 @@
+// LEGACY — frozen. Diagrams move off this code onto the shared layout tree one at a time, built from the Mermaid kit
+// (docs/mermaid-diagrams.md); this file goes when the last diagram using it has moved. Read it for what a diagram draws —
+// never copy from it, add to it, or use it from code on the shared tree (MermaidDiagramRulesTests).
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Charts;
 
 /// <summary>The side of a service/group box an edge attaches to.</summary>

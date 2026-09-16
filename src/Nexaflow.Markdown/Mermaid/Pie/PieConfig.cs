@@ -93,34 +93,29 @@ public sealed record PieConfig
     /// <summary>Reads a block's front matter, already read as config.</summary>
     public static PieConfig From(MermaidConfig config)
     {
-        var pie = config.Section("config")?.Section("pie") ?? MermaidConfig.None;
-        var theme = config.Section("config")?.Section("themeVariables") ?? MermaidConfig.None;
-
-        var swatches = new Dictionary<int, string>();
-        for (var number = 1; number <= 12; number++)
-            if (theme.Value($"pie{number}") is { Length: > 0 } colour)
-                swatches[number] = colour;
+        var pie = config.Diagram("pie");
+        var theme = config.Theme;
 
         return new PieConfig
         {
-            TextPosition = Between(pie.Number("textPosition") ?? Default.TextPosition, 0, 1),
-            DonutHole = Between(pie.Number("donutHole") ?? Default.DonutHole, 0, 0.9),
+            TextPosition = Math.Clamp(pie.Number("textPosition") ?? Default.TextPosition, 0, 1),
+            DonutHole = Math.Clamp(pie.Number("donutHole") ?? Default.DonutHole, 0, 0.9),
             Legend = Placed(pie.Value("legendPosition")),
             Highlight = pie.Value("highlightSlice"),
             UseMaxWidth = pie.Flag("useMaxWidth") ?? Default.UseMaxWidth,
 
-            Swatches = swatches,
+            Swatches = theme.Swatches("pie", 12),
             Stroke = theme.Value("pieStrokeColor"),
             StrokeWidth = Math.Max(0, theme.Number("pieStrokeWidth") ?? Default.StrokeWidth),
             OuterStroke = theme.Value("pieOuterStrokeColor"),
-            OuterStrokeWidth = Size(theme.Number("pieOuterStrokeWidth")),
-            Opacity = theme.Number("pieOpacity") is { } opacity ? Between(opacity, 0, 1) : null,
+            OuterStrokeWidth = theme.Size("pieOuterStrokeWidth"),
+            Opacity = theme.Number("pieOpacity") is { } opacity ? Math.Clamp(opacity, 0, 1) : null,
 
-            TitleTextSize = Size(theme.Number("pieTitleTextSize")),
+            TitleTextSize = theme.Size("pieTitleTextSize"),
             TitleTextColour = theme.Value("pieTitleTextColor"),
-            SectionTextSize = Size(theme.Number("pieSectionTextSize")),
+            SectionTextSize = theme.Size("pieSectionTextSize"),
             SectionTextColour = theme.Value("pieSectionTextColor"),
-            LegendTextSize = Size(theme.Number("pieLegendTextSize")),
+            LegendTextSize = theme.Size("pieLegendTextSize"),
             LegendTextColour = theme.Value("pieLegendTextColor"),
         };
     }
@@ -133,9 +128,4 @@ public sealed record PieConfig
         "center" or "centre" => PieLegend.Centre,
         _ => PieLegend.Right,
     };
-
-    private static double Between(double value, double least, double most) => Math.Clamp(value, least, most);
-
-    /// <summary>A size, or nothing where none was written or what was written would draw nothing.</summary>
-    private static double? Size(double? asked) => asked is > 0 ? asked : null;
 }

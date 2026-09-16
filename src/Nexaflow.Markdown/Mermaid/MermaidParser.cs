@@ -1,4 +1,6 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 
 namespace Nexaflow.Markdown.Mermaid;
 
@@ -404,5 +406,23 @@ public static class MermaidParser
             var (from, to) = Text(source);
             return to - from == Fence.Length && string.CompareOrdinal(source, from, Fence, 0, Fence.Length) == 0;
         }
+    }
+
+    /// <summary>
+    /// The tree a diagram is drawn from: the block parsed, then run through its type's stages (<see cref="IMermaidGrammar.Stages"/>)
+    /// — with a hole wherever the type holds one (<see cref="IMermaidGrammar.Holds"/>), where <paramref name="holes"/> asks for
+    /// them. A type with no grammar is only parsed.
+    /// </summary>
+    /// <param name="holes">
+    /// Whether something not yet written gets a hole standing in it: asked for by a surface being written on, where the hole is
+    /// how a reader sees there is something still to write, and how they aim at it.
+    /// </param>
+    public static ContentNode Read(string? source, bool holes = false)
+    {
+        var tree = Parse(source);
+        var block = MermaidBlock.Of(tree);
+        if (MermaidDiagrams.Grammar(block.Diagram) is not { } grammar) return tree;
+
+        return new AstPipeline(grammar.Stages(block)).Then(holes ? new WithHoles(grammar.Holds) : null).Run(tree);
     }
 }

@@ -23,6 +23,24 @@ public static class MermaidPiece
 
     /// <summary>Why part of the block did not draw as itself.</summary>
     public const string Trouble = "Trouble";
+
+    /// <summary>A legend: a row per colour a diagram draws in, saying what it is — see <see cref="DiagramLegend"/>.</summary>
+    public const string Legend = "Legend";
+
+    /// <summary>One row of a legend: its swatch, and what it says.</summary>
+    public const string Key = "Key";
+
+    /// <summary>The square of colour a legend row explains.</summary>
+    public const string Swatch = "Swatch";
+
+    /// <summary>Words set inside a shape — see <see cref="DiagramShapes.Draw"/>.</summary>
+    public const string Words = "Words";
+
+    /// <summary>What a shape draws — its outline, filled — which is what a press inside it lands on. See <see cref="DiagramShapes.Draw"/>.</summary>
+    public const string Shape = "Shape";
+
+    /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
+    public const string Line = "Line";
 }
 
 /// <summary>
@@ -72,9 +90,13 @@ internal abstract class MermaidBuilder : ContentBuilder
         PixelsPerDip = pixelsPerDip;
         Room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
         Writing = writing;
+        Ink = new DiagramInk(palette);
     }
 
     protected MarkdownPalette Palette { get; }
+
+    /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
+    protected DiagramInk Ink { get; }
 
     /// <summary>
     /// What is being written, and where: the source, the caret, and the stretch being shown as its own characters rather
@@ -110,7 +132,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// as its own source — is; one whose values are the numbers the reader wrote is not, and the host decides whether
     /// any keys reach it.
     /// </param>
-    protected static Editing.ContentElement Host(string source, DiagramRenderOptions options,
+    internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
                                                  Func<EditState, MarkdownPalette, double, double, bool, Laid> build,
                                                  bool readOnly = true) =>
         new(source, options.Palette,
@@ -136,19 +158,19 @@ internal abstract class MermaidBuilder : ContentBuilder
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);
 
     /// <summary>
-    /// Reads the block. The parse every diagram shares by default; a type with stages of its own — a pie, whose slices
-    /// are given their colours by one — runs its own pipeline instead.
+    /// Reads the block: parsed, and run through its type's stages with a hole wherever something is still to be written, where
+    /// somebody is writing in it (<see cref="MermaidParser.Read"/>).
     /// </summary>
-    protected virtual ContentNode Reading(string source) => MermaidParser.Parse(source);
+    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing);
 
     /// <summary>
-    /// The title to set over the diagram: the part it was written in, and what it says. The front matter's by default;
-    /// a diagram that names its own title on its header or in a statement says which wins.
+    /// The title to set over the diagram: the part it was written in, and what it says — the diagram's own where it writes
+    /// one, and the front matter's otherwise (<see cref="MermaidBlock.Title"/>).
     /// </summary>
     protected virtual (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) => (block.Title, block.TitleText);
 
-    /// <summary>The ink the title is set in: the theme's heading, unless the diagram's front matter asks for another.</summary>
-    protected virtual Brush TitleInk => Palette.Heading;
+    /// <summary>The colour the diagram's front matter asks its title to be written in, or null for the theme's heading.</summary>
+    protected virtual string? TitleColour => null;
 
     protected sealed override Laid Read()
     {
@@ -178,7 +200,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
             var says = written ? titlePart.Text : MermaidText.Decode(titleText!);
 
-            var ink = TitleInk;
+            var ink = Ink.Written(TitleColour) ?? Palette.Heading;
             var title = Text(says, TitleSize, ink, FontWeights.SemiBold);
             // The title is set no wider than the room there is; a diagram asked to be wider than that keeps its width.
             width = Math.Max(width, Math.Min(title.WidthIncludingTrailingWhitespace, Space));
@@ -248,18 +270,8 @@ internal abstract class MermaidBuilder : ContentBuilder
     protected string Shown(ContentPart part) =>
         State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End ? part.Text : MermaidText.Decode(part.Text);
 
-    /// <summary>A colour as the front matter or a style wrote it, or null where it wrote none this understands.</summary>
-    protected static Brush? Colour(string? written)
-    {
-        if (DiagramBrushes.ParseCss(written) is not { } colour) return null;
-
-        var brush = new SolidColorBrush(colour);
-        brush.Freeze();
-        return brush;
-    }
-
     /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
-    protected FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null) =>
+    private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
@@ -267,6 +279,27 @@ internal abstract class MermaidBuilder : ContentBuilder
             size,
             ink,
             PixelsPerDip);
+
+    /// <summary>
+    /// What somebody wrote, as the diagram sets it: <paramref name="part"/>'s words — shown as what they say (<see cref="Shown"/>),
+    /// and typed into where that is the characters written — or <paramref name="hole"/>, where one stands because nothing is
+    /// written there yet. See <see cref="DiagramWords"/>.
+    /// </summary>
+    protected DiagramWords Written(ContentPart? part, ContentPart? hole, double size, Brush ink, FontWeight? weight = null)
+    {
+        var letter = Text("x", size, ink);
+        if (hole is not null || part is null) return new DiagramWords(letter, part, hole, letter, ink, maps: false, writes: false);
+
+        var says = Shown(part);
+        return new DiagramWords(Text(says, size, ink, weight), part, null, letter, ink, maps: says == part.Text, writes: true);
+    }
+
+    /// <summary>
+    /// Words the diagram works out rather than anybody writing them — a share, a total, the names a union overlaps — pressed as
+    /// the <paramref name="part"/> they stand for, where they stand for one, and nowhere to put a caret. See <see cref="DiagramWords"/>.
+    /// </summary>
+    protected DiagramWords Worked(string says, ContentPart? part, double size, Brush ink, FontWeight? weight = null) =>
+        new(Text(says, size, ink, weight), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
     protected override FormattedText Characters(string text) =>
@@ -277,4 +310,30 @@ internal abstract class MermaidBuilder : ContentBuilder
             SourceSize,
             Palette.Text,
             PixelsPerDip);
+}
+
+/// <summary>
+/// The shape every diagram's builder has: the block read into the diagram it describes, once (<see cref="Of"/>), and that
+/// drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>) — <c>PieChart</c> by <c>PieBuilder</c>, <c>VennDiagram</c> by
+/// <c>VennBuilder</c>. Everything round the drawing — the title, what could not be read, the card — is
+/// <see cref="MermaidBuilder"/>'s.
+/// </summary>
+/// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
+internal abstract class MermaidBuilder<TDiagram>(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
+    : MermaidBuilder(state, palette, pixelsPerDip, room, writing)
+    where TDiagram : class
+{
+    /// <summary>The diagram as it was read — null until it has been.</summary>
+    protected TDiagram? Diagram { get; private set; }
+
+    /// <summary>Reads the block into the diagram it describes: <c>PieChart.Of</c>, <c>VennDiagram.Of</c>.</summary>
+    protected abstract TDiagram Of(MermaidBlock block);
+
+    /// <summary>
+    /// Draws the diagram into <paramref name="build"/> with its top left at the origin, and hands back how much room it took.
+    /// May throw: whatever it was reading is shown as written, with the reason.
+    /// </summary>
+    protected abstract Size Draw(TDiagram diagram, LayoutBuilder build);
+
+    protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build) => Draw(Diagram = Of(block), build);
 }

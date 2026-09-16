@@ -15,6 +15,7 @@ This file is what every turn needs. Depth lives in the docs below — open one w
 | anything under `external/` — **read first** | [docs/externals.md](docs/externals.md) |
 | menus, AutomationIds, `TextBox` in UIA, `RichTextBox` hit-testing | [docs/wpf-gotchas.md](docs/wpf-gotchas.md) |
 | strings, help pages, language packs | [docs/localization.md](docs/localization.md) |
+| a Mermaid diagram — converting one onto the shared layout tree, or anything under `Markdown/Mermaid` or `Markdown/Graphs` | [docs/mermaid-diagrams.md](docs/mermaid-diagrams.md) · the `mermaid-diagram` skill |
 
 ## Build
 

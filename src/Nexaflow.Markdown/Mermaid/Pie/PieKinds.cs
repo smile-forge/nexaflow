@@ -9,26 +9,8 @@ public static class PieKinds
     /// <summary>The <c>showData</c> word, which puts each slice's value in the legend beside its share.</summary>
     public const string ShowData = "pie-show-data";
 
-    /// <summary>A <c>title …</c>, on the header line or on one of its own.</summary>
-    public const string Title = "pie-title";
-
     /// <summary>One slice: its label, its colon and its value.</summary>
     public const string Slice = "pie-slice";
-
-    /// <summary>A slice's label, quotes included.</summary>
-    public const string Label = "pie-label";
-
-    /// <summary>What a label says, without its quotes — or what a title says.</summary>
-    public const string Name = "pie-name";
-
-    /// <summary>What a slice is worth — a number greater than nought.</summary>
-    public const string Value = "pie-value";
-
-    /// <summary>
-    /// Where a slice's value is written: the number, or — while none has been — the place after the colon it goes, which is
-    /// where a hole stands for it.
-    /// </summary>
-    public const string Worth = "pie-worth";
 
     /// <summary>What a stage worked out about a slice: the colour it takes, which key that came from, whether it is picked out.</summary>
     public const string Fact = "pie-fact";
