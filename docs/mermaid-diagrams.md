@@ -44,6 +44,7 @@ diagram's own code sits in a folder of its own under each.
 | read what an option is set to — a word from a few, `true` or `false` | `Setting` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
 | read a style's properties | `Properties`, and `MermaidStyle.With` in the model |
+| read words to where they end — the rest of the line, `until` a character or a `stop` token | `Words` |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since` |
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |

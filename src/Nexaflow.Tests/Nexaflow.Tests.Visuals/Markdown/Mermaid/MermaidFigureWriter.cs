@@ -28,6 +28,7 @@ public class MermaidFigureWriter
         ("Venn diagram", "mermaid-venn.png"),
         ("Radar chart", "mermaid-radar.png"),
         ("XY chart", "mermaid-xychart.png"),
+        ("Quadrant chart", "mermaid-quadrant.png"),
     ];
 
     [TestMethod]

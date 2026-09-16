@@ -429,9 +429,12 @@ public sealed class MermaidLine
         return true;
     }
 
-    /// <summary>Everything left on the line, as what it says.</summary>
-    public void Words(string role, string? trouble = null) =>
-        Add(ContentNode.Leaf(MermaidKinds.Words, Rest, role, trouble));
+    /// <summary>
+    /// What is written, as what it says: everything left on the line — or up to the first of <paramref name="until"/> or
+    /// <paramref name="stop"/>, less the space before it, where either is given and written.
+    /// </summary>
+    public void Words(string role, string? trouble = null, string? until = null, string? stop = null) =>
+        Add(ContentNode.Leaf(MermaidKinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
 
     /// <summary>Everything left on the line, held as written with the reason — the rest of a line whose start could be read.</summary>
     public void Held(string reason) => Add(ContentNode.Shown(Rest, reason));

@@ -18,7 +18,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/JourneyDiagram.cs 48
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/KanbanBoard.cs 37
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/Mindmap.cs 46
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs 57
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/QuadrantChart.cs 63
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyConfig.cs 48
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyDiagram.cs 35
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SequenceDiagram.cs 167
@@ -55,7 +54,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidIshikawaParser.cs 81
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidJourneyParser.cs 88
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidKanbanParser.cs 149
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidMindmapParser.cs 134
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidQuadrantParser.cs 202
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs 299
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs 91
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs 390
@@ -86,7 +84,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfIshikawaRenderer.cs 223
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfJourneyRenderer.cs 217
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfKanbanRenderer.cs 181
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfMindmapRenderer.cs 292
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfQuadrantChartRenderer.cs 247
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs 301
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs 661
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs 314

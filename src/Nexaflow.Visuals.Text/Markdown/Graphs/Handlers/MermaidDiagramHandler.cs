@@ -13,9 +13,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
-///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -38,7 +37,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
-    private static readonly MermaidQuadrantParser QuadrantParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
     private static readonly MermaidGanttParser    GanttParser    = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
@@ -76,7 +74,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
         return block.Diagram switch
         {
-            MermaidDiagram.Quadrant     => RenderQuadrant(block, palette),
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
             MermaidDiagram.Gantt        => RenderGantt(block, palette),
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
@@ -106,13 +103,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         string.IsNullOrWhiteSpace(existing) && block.FrontMatterTitleText is { } frontmatter ? frontmatter : existing ?? string.Empty;
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
-
-    private static FrameworkElement RenderQuadrant(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = QuadrantParser.Parse(block.Body);
-        chart.Title = Titled(chart.Title, block);
-        return WpfQuadrantChartRenderer.Render(chart, palette);
-    }
 
     private static FrameworkElement RenderSequence(MermaidBlock block, MarkdownPalette palette)
     {

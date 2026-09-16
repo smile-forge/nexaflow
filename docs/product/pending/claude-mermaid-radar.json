@@ -288,12 +288,90 @@
           }
         ]
       }
+    },
+    "quadrant-graph": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Quadrant/QuadrantBuilder.cs",
+          "class": "QuadrantBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/QuadrantBuilderTests.cs",
+            "class": "QuadrantBuilderTests"
+          }
+        ]
+      }
+    },
+    "quadrant-graph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs",
+          "class": "QuadrantGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolveClasses.cs",
+          "class": "ResolveClasses"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantChart.cs",
+          "class": "QuadrantChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantConfig.cs",
+          "class": "QuadrantConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantGrammarTests.cs",
+            "class": "QuadrantGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantChartTests.cs",
+            "class": "QuadrantChartTests"
+          }
+        ]
+      }
+    },
+    "quadrant-graph-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs",
+          "class": "QuadrantGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/QuadrantEditingTests.cs",
+            "class": "QuadrantEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 14,
+  "changed_sets": 20,
   "touched_nodes": [
     "mermaid-diagram-kit",
+    "quadrant-graph",
+    "quadrant-graph-ast",
+    "quadrant-graph-writing",
     "radar",
     "radar-ast",
     "radar-writing",
