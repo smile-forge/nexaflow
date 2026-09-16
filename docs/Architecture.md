@@ -583,6 +583,9 @@ App.OnStartup
           → ribbon binds runtime.Workspace → RibbonViewModel.SetWorkspace → Load() (shared layout)
           → OpenDefaultTabs()
   → win.Show()
+  → a throw from InitializeApp or the first window ends the launch (StartupFailure): recorded in the crash log,
+        single-instance guard released, a message naming the log unless the launch is unattended (--prestart,
+        --uiTest, --timing), exit code 1 — never a windowless process that swallows every later launch
 
   (Each subsequent app/IPC launch = a NEW WorkspaceRuntime. Tear-off / "open in new window" reuse the
    SAME runtime. --prestart launches the windowless resident daemon: InitializeApp runs, NO runtime is

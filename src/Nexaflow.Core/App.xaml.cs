@@ -137,18 +137,37 @@ public partial class App : Application
         IsResident = prestart;
 
         var activityManager = new BackgroundActivityManager();
-        var voiceConfig = InitializeApp(activityManager);
-        StartupTimings.Mark("InitializeApp");
+        VoiceConfig voiceConfig;
 
-        // ── Main window — skipped in --prestart mode (windowless login daemon) ──
-        // A --prestart daemon shows nothing now; the wizard runs the first time a window is actually
-        // due (OpenNewWindow), so EnsureConfiguredThenCreateWindow gates both paths.
-        if (!prestart)
+        // ── Initialisation + first window — a throw from this sequence ends the launch ──
+        // Left to OnDispatcherUnhandledException it would be handled, and the launch would carry on with no window while
+        // holding the single-instance guard. A fault raised inside the setup wizard's own message loop still goes there
+        // and stays survivable; only what this sequence itself throws is terminal.
+        try
         {
-            // Honour --context "Name" from a taskbar JumpList.
-            var startupWorkspace = ResolveWorkspace(ParseContextArg(e.Args))
-                                 ?? WorkspaceManager.Instance.Workspaces[0];
-            EnsureConfiguredThenCreateWindow(activityManager, startupWorkspace, activate: false);
+            voiceConfig = InitializeApp(activityManager);
+            StartupTimings.Mark("InitializeApp");
+
+            // ── Main window — skipped in --prestart mode (windowless login daemon) ──
+            // A --prestart daemon shows nothing now; the wizard runs the first time a window is actually
+            // due (OpenNewWindow), so EnsureConfiguredThenCreateWindow gates both paths.
+            if (!prestart)
+            {
+                // Honour --context "Name" from a taskbar JumpList.
+                var startupWorkspace = ResolveWorkspace(ParseContextArg(e.Args))
+                                     ?? WorkspaceManager.Instance.Workspaces[0];
+                EnsureConfiguredThenCreateWindow(activityManager, startupWorkspace, activate: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            new StartupFailure(
+                    CrashLog.Instance,
+                    _singleInstance.Dispose,
+                    message => MessageBox.Show(message, "Nexaflow", MessageBoxButton.OK, MessageBoxImage.Error),
+                    Shutdown)
+                .Handle(ex, attended: !prestart && !UiTest && !StartupTimings.Enabled);
+            return;
         }
 
         // Feature warm-up — load + activate the remaining feature assemblies off the UI thread now that the
@@ -361,7 +380,8 @@ public partial class App : Application
     /// <summary>
     /// Last-resort handler for an unhandled exception on the UI thread: log it, tell the user, and mark it
     /// handled so the shell stays open instead of terminating. A genuinely fatal fault will recur and leave
-    /// a trail in the crash log rather than vanishing with the process.
+    /// a trail in the crash log rather than vanishing with the process. What the startup sequence itself throws is
+    /// not handled here: with no shell yet to keep open, <see cref="OnStartup"/> ends that launch (<see cref="StartupFailure"/>).
     /// <para>
     /// Handling is not unconditional. An exception thrown from the WPF render pass cannot be recovered by
     /// handling it: the layout stays dirty, WPF re-measures on the next frame and it throws again. When
