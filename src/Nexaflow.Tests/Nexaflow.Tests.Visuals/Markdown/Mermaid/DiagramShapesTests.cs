@@ -118,4 +118,31 @@ public class DiagramShapesTests
         var letter = new FormattedText("x", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 12, Brushes.Black, 1.0);
         return new DiagramWords(set, part, hole: null, letter, Brushes.Black, maps: part is not null, writes: part is not null);
     }
+
+    [TestMethod]
+    public void AShapeWithWordsPlacedInItStandsLessThoseWordsAndWhatIsDrawnOverIt() => UiThread.Run(() =>
+    {
+        var bounds = new Rect(0, 0, 200, 120);
+        var title = Words("Title", new TestPart(0, 5));
+        var covered = new RectangleGeometry(new Rect(20, 60, 160, 40));
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        DiagramShapes.Draw(build, "Column", new TestPart(10, 3), DiagramShape.Rectangle, bounds, Brushes.White, new DiagramStroke(Brushes.Black),
+                           [(title, new Point(10, 10), "Title")], covered);
+
+        // A card drawn after the column, where the column was told something is drawn over it: a press there is the card's,
+        // though the column came first.
+        build.Open("Card", new TestPart(20, 2), stops: Stops.None);
+        build.Draw(new GeometryMark(covered, Brushes.Gray, null, 0));
+        build.Occupies(covered);
+        build.Close();
+        build.Close();
+
+        var root = build.Seal().Root;
+
+        Assert.AreEqual("Title", root.PieceAt(new Point(12, 10 + (title.Height / 2))).Kind, "a press on the words means them");
+        Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new Point(100, 45)).Kind, "one elsewhere in the shape means the shape");
+        Assert.AreEqual("Card", root.PieceAt(new Point(100, 80)).Kind, "and one where something else is drawn over it means that");
+    });
 }

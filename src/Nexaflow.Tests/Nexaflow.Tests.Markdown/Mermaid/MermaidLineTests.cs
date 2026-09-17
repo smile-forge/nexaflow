@@ -116,4 +116,36 @@ public class MermaidLineTests
         Assert.AreEqual("0.5", config.Shared.Section("pie")!.Value("textPosition"));
         Assert.AreSame(MermaidConfig.None, MermaidConfig.Read("title: x").Shared, "and front matter with no config has none");
     }
+
+    [TestMethod]
+    public void PropertiesInBracesEndAtTheBrace_AndAQuotedCommaIsPartOfTheValue()
+    {
+        var line = MermaidLine.Of("@{ assigned: 'Smith, J', priority: High }");
+        line.Token("@{");
+        line.Space();
+
+        Assert.IsTrue(line.Properties(["assigned", "priority"], ends: '}', what: "Metadata"));
+        line.Space();
+        Assert.AreEqual('}', line.Next, "the brace is left for the line to close");
+
+        var values = line.Read("line").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Setting).Select(node => node.Text).ToArray();
+        CollectionAssert.AreEqual(new[] { "'Smith, J'", "High" }, values);
+    }
+
+    [TestMethod]
+    public void APropertyNobodySetsIsSaidAsWhatThePropertiesAre()
+    {
+        var line = MermaidLine.Of("colour: red");
+        line.Properties(["assigned"], what: "Metadata");
+
+        StringAssert.StartsWith(line.Read("line").SelfAndDescendants().Single(node => node.Trouble is not null).Trouble, "Metadata sets");
+    }
+
+    [TestMethod]
+    public void ALinesIndentIsTheSpaceBeforeWhatItStates()
+    {
+        var lines = MermaidParser.Parse("kanban\n  Todo\n\t\ta[Card]").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line).ToList();
+
+        CollectionAssert.AreEqual(new[] { 0, 2, 2 }, lines.Select(line => line.Indent()).ToArray(), "a tab counts as one");
+    }
 }

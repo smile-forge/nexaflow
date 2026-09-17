@@ -174,16 +174,100 @@
           }
         ]
       }
+    },
+    "kanban": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Kanban/KanbanBuilder.cs",
+          "class": "KanbanBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/KanbanBuilderTests.cs",
+            "class": "KanbanBuilderTests"
+          }
+        ]
+      }
+    },
+    "kanban-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanGrammar.cs",
+          "class": "KanbanGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanBoard.cs",
+          "class": "KanbanBoard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs",
+          "class": "KanbanConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanGrammarTests.cs",
+            "class": "KanbanGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanBoardTests.cs",
+            "class": "KanbanBoardTests"
+          }
+        ]
+      }
+    },
+    "kanban-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanGrammar.cs",
+          "class": "KanbanGrammar",
+          "method": "Escaping"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "Wrapped"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/KanbanEditingTests.cs",
+            "class": "KanbanEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 18,
   "touched_nodes": [
     "gantt",
     "gantt-ast",
     "gantt-writing",
     "ishikawa",
     "ishikawa-ast",
-    "ishikawa-writing"
+    "ishikawa-writing",
+    "kanban",
+    "kanban-ast",
+    "kanban-writing"
   ]
 }

@@ -57,7 +57,7 @@ public sealed class IshikawaChart
                 continue;
             }
 
-            var indent = Indent(part);
+            var indent = part.Indent();
             start ??= indent;
             var level = Math.Max(1, indent - start.Value + 1);
 
@@ -75,8 +75,4 @@ public sealed class IshikawaChart
 
     /// <summary>The event the diagram is about — the fish's head — or null where nothing is written.</summary>
     public IshikawaCause? Effect { get; private set; }
-
-    /// <summary>How far a cause's line is indented: the space before it, a tab counting as one.</summary>
-    private static int Indent(ContentPart cause) =>
-        cause.Parent is { Kind: MermaidKinds.Line } line && line.Children.FirstOrDefault() is { Kind: Kinds.Space } space ? space.Length : 0;
 }

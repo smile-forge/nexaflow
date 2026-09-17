@@ -298,6 +298,41 @@ internal abstract class MermaidBuilder : ContentBuilder
     }
 
     /// <summary>
+    /// What somebody wrote, as <see cref="Written"/> sets it, wrapped to <paramref name="width"/>: broken after a space where a line
+    /// would run past it, or inside a word too long for a line of its own — each line typed into as the characters it holds.
+    /// Words that read as something other than their characters are wrapped as they read, and only pressed.
+    /// </summary>
+    protected IReadOnlyList<DiagramWords> Wrapped(ContentPart? part, ContentPart? hole, double size, Brush ink, double width, FontWeight? weight = null)
+    {
+        var whole = Written(part, hole, size, ink, weight);
+        if (part is null || hole is not null || whole.Width <= width) return [whole];
+
+        var says = Shown(part);
+        var maps = says == part.Text;
+        var letter = Text("x", size, ink);
+        var lines = new List<DiagramWords>();
+
+        for (var start = 0; start < says.Length;)
+        {
+            var end = start + 1;
+            var broken = -1;
+            while (end < says.Length && Text(says[start..(end + 1)], size, ink, weight).Width <= width)
+            {
+                end++;
+                if (says[end - 1] == ' ') broken = end;
+            }
+
+            if (end < says.Length && broken > start) end = broken;
+
+            var line = says[start..end];
+            lines.Add(new DiagramWords(Text(line, size, ink, weight), maps ? new SourceSpan(part.Start + start, end - start) : part, null, letter, ink, maps, writes: maps));
+            start = end;
+        }
+
+        return lines;
+    }
+
+    /// <summary>
     /// Words the diagram works out rather than anybody writing them — a share, a total, the names a union overlaps — pressed as
     /// the <paramref name="part"/> they stand for, where they stand for one, and nowhere to put a caret. See <see cref="DiagramWords"/>.
     /// </summary>

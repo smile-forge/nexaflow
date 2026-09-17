@@ -228,6 +228,36 @@ internal static class DiagramShapes
         build.Close();
     }
 
+    /// <summary>
+    /// Draws a shape with words set wherever the diagram puts them — a card's title at its top left and its assignee at its foot —
+    /// as <see cref="Draw(LayoutBuilder, string, ISourcePart?, DiagramShape, Rect, Brush?, DiagramStroke?, DiagramWords?, string)"/>
+    /// draws one with its words in the middle: the shape standing in its outline less where each of its words is, and less what else
+    /// is drawn over it — <paramref name="covered"/>, a column's cards — which a press there means instead.
+    /// </summary>
+    public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds, Brush? fill, DiagramStroke? stroke,
+                            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null)
+    {
+        var outline = Outline(shape, bounds);
+        var over = new GeometryGroup();
+        if (covered is not null) over.Children.Add(covered);
+        foreach (var (said, at, _) in words) over.Children.Add(new RectangleGeometry(new Rect(at, new Size(said.Width, said.Height))));
+
+        build.Open(kind, part, stops: Stops.None);
+
+        build.Open(MermaidPiece.Shape, part, stops: Stops.None);
+        build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        if (Details(shape, bounds) is { } details && stroke is not null)
+            build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
+        var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, over);
+        stands.Freeze();
+        build.Occupies(stands);
+        build.Close();
+
+        foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind);
+
+        build.Close();
+    }
+
     /// <summary>Where a shape stands with words drawn over it: its outline, less where the words are, so a press on them means them.</summary>
     public static Geometry Clear(Geometry outline, Rect words)
     {

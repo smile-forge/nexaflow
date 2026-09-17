@@ -31,6 +31,7 @@ public class MermaidFigureWriter
         ("Quadrant chart", "mermaid-quadrant.png"),
         ("Ishikawa (fishbone) diagram", "mermaid-ishikawa.png"),
         ("Gantt chart", "mermaid-gantt.png"),
+        ("Kanban board", "mermaid-kanban.png"),
     ];
 
     [TestMethod]

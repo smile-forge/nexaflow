@@ -60,4 +60,12 @@ public static class MermaidParts
     /// <summary>The number written in a part — its <see cref="MermaidKinds.Number"/> — or null where none is written or it is wrong.</summary>
     public static double? Number(this ContentPart? part) =>
         part.Inner(MermaidKinds.Number) is { Trouble: null, Length: > 0 } number ? MermaidNumber.Read(number.Text) : null;
+
+    /// <summary>How far the line <paramref name="stated"/> is stated on is indented: the space before it, a tab counting as one.</summary>
+    public static int Indent(this ContentPart stated) =>
+        stated.Parent is { Kind: MermaidKinds.Line } line && line.Children.FirstOrDefault() is { Kind: Kinds.Space } space ? space.Length : 0;
+
+    /// <summary>How far a line is indented: the space before what it states, a tab counting as one.</summary>
+    public static int Indent(this ContentNode line) =>
+        line.Kind == MermaidKinds.Line && line.Children is [{ Kind: Kinds.Space } space, _, ..] ? space.Text.Length : 0;
 }

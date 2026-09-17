@@ -42,9 +42,10 @@ diagram's own code sits in a folder of its own under each.
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
 | read a number after a separator, still to come or written — to the end, `until` a character or a `stop` token ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
 | read what an option is set to — a word from a few, `true` or `false` | `Setting` |
+
 | read or write a date in a day.js format, a length of time, or a date in a d3 axis format | `MermaidDate.Read`/`Write`, `MermaidDuration.Read`/`After`, `MermaidTimeFormat.Write` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
-| read a style's properties | `Properties`, and `MermaidStyle.With` in the model |
+| read `key: value` properties — a style's, or metadata closed by a brace | `Properties(known, ends, what)`, and `MermaidStyle.With` in the model |
 | read words to where they end — the rest of the line, `until` a character or a `stop` token | `Words` |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since` |
@@ -62,7 +63,9 @@ diagram's own code sits in a folder of its own under each.
 | draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
-| draw a node: a shape with words in it | `DiagramShapes.Draw`; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
+| draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
+| set words that wrap to a width, each line typed into as the characters it holds | `Wrapped` |
+| read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | show a block with nothing to draw | `AsWritten` |

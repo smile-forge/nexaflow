@@ -384,12 +384,15 @@ public sealed class MermaidLine
     }
 
     /// <summary>
-    /// A style's properties — <c>fill:#ff6b6b, stroke-width:4px</c> — as <see cref="MermaidKinds.Properties"/>, one
-    /// <see cref="MermaidKinds.Property"/> each, a comma between each. A value runs to the next comma outside quotes and
-    /// brackets, so <c>rgb(1, 2, 3)</c> is one value. What is wrong with a value is <see cref="MermaidStyle.Trouble"/>.
+    /// Properties — a style's <c>fill:#ff6b6b, stroke-width:4px</c>, a card's <c>assigned: knsv, priority: 'High'</c> — as
+    /// <see cref="MermaidKinds.Properties"/>, one <see cref="MermaidKinds.Property"/> each, a comma between each. A value runs to the
+    /// next comma outside quotes and brackets, so <c>rgb(1, 2, 3)</c> and <c>'Smith, J'</c> are one value. What is wrong with a
+    /// value is <see cref="MermaidStyle.Trouble"/>.
     /// </summary>
     /// <param name="known">The properties the diagram sets, or null for any: a property it does not set carries the reason.</param>
-    public bool Properties(IReadOnlyCollection<string>? known = null)
+    /// <param name="ends">The character closing the properties — <c>}</c> in <c>@{ … }</c> — where they are written in braces.</param>
+    /// <param name="what">What the properties are, for the reason a property is not known: <c>A style</c>, <c>Metadata</c>.</param>
+    public bool Properties(IReadOnlyCollection<string>? known = null, char? ends = null, string what = "A style")
     {
         var mark = Save();
         Open();
@@ -397,7 +400,7 @@ public sealed class MermaidLine
         while (true)
         {
             var colon = At;
-            while (colon < Written.Length && Written[colon] is not (':' or ',')) colon++;
+            while (colon < Written.Length && Written[colon] is not (':' or ',') && Written[colon] != ends) colon++;
             if (colon >= Written.Length || Written[colon] != ':') return Failed(mark, null);
 
             var name = Written[At..colon].TrimEnd();
@@ -407,22 +410,22 @@ public sealed class MermaidLine
             Add(ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name,
                                  known is null || known.Contains(name, StringComparer.OrdinalIgnoreCase)
                                      ? null
-                                     : $"A style sets {string.Join(", ", known.SkipLast(1))} or {known.Last()}, not '{name}'."));
+                                     : $"{what} sets {string.Join(", ", known.SkipLast(1))} or {known.Last()}, not '{name}'."));
             Space();
             Token(":");
             Space();
 
-            var end = ValueEnd(Written, At);
+            var end = ValueEnd(Written, At, ends);
             var value = Written[At..end].TrimEnd();
             Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
             Space();
             Close(MermaidKinds.Property);
 
-            if (Done) break;
+            if (Done || Next == ends) break;
 
             Token(",");
             Space();
-            if (Done) return Failed(mark, null);
+            if (Done || Next == ends) return Failed(mark, null);
         }
 
         Close(MermaidKinds.Properties);
@@ -521,20 +524,30 @@ public sealed class MermaidLine
         return -1;
     }
 
-    /// <summary>Where a property's value ends: at the next comma outside quotes and brackets, or the end of what is written.</summary>
-    private static int ValueEnd(string written, int at)
+    /// <summary>Where a property's value ends: at the next comma — or <paramref name="ends"/> — outside quotes and brackets, or the end of what is written.</summary>
+    private static int ValueEnd(string written, int at, char? ends = null)
     {
         var depth = 0;
-        var quoted = false;
+        char? quote = null;
 
         for (; at < written.Length; at++)
         {
-            switch (written[at])
+            var character = written[at];
+            if (quote is not null)
             {
-                case '"': quoted = !quoted; break;
-                case '(' when !quoted: depth++; break;
-                case ')' when !quoted: depth = Math.Max(0, depth - 1); break;
-                case ',' when !quoted && depth == 0: return at;
+                if (character == quote) quote = null;
+                continue;
+            }
+
+            switch (character)
+            {
+                case '"' or '\'': quote = character; break;
+                case '(': depth++; break;
+                case ')': depth = Math.Max(0, depth - 1); break;
+                case ',' when depth == 0: return at;
+                default:
+                    if (character == ends && depth == 0) return at;
+                    break;
             }
         }
 

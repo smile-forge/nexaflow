@@ -13,14 +13,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c>, <c>ishikawa</c>, <c>gantt</c>, <c>kanban</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
-
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
@@ -43,7 +40,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
-    private static readonly MermaidKanbanParser   KanbanParser   = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidCynefinParser  CynefinParser  = new();
@@ -73,14 +69,11 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
             MermaidDiagram.Mindmap      => RenderMindmap(block, palette),
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
-            MermaidDiagram.Kanban       => RenderKanban(block, palette),
-
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
             MermaidDiagram.Cynefin      => RenderCynefin(block, palette),
@@ -121,13 +114,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var map = MindmapParser.Parse(block.Body);
         map.Title = Titled(map.Title, block);
         return WpfMindmapRenderer.Render(map, palette);
-    }
-
-    private static FrameworkElement RenderKanban(MermaidBlock block, MarkdownPalette palette)
-    {
-        var board = KanbanParser.Parse(block.Body);
-        board.Title = Titled(board.Title, block);
-        return WpfKanbanRenderer.Render(board, palette);
     }
 
     private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)
