@@ -11,7 +11,7 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// Smoke tests for the WPF quadrant-chart and sequence-diagram renderers — they must
+/// Smoke tests for the legacy WPF diagram renderers — they must
 /// produce a real element without throwing on the UI thread.  Renderer exceptions are
 /// asserted here directly because <see cref="DiagramRenderer"/> swallows them into an
 /// error border.
@@ -20,21 +20,6 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 [TestCategory("UI")]
 public class DiagramRendererTests
 {
-    private const string QuadrantSrc =
-        """
-        quadrantChart
-            title Reach and engagement of campaigns
-            x-axis Low Reach --> High Reach
-            y-axis Low Engagement --> High Engagement
-            quadrant-1 We should expand
-            quadrant-2 Need to promote
-            quadrant-3 Re-evaluate
-            quadrant-4 May be improved
-            Campaign A: [0.3, 0.6]
-            Campaign B: [0.45, 0.23]
-            Campaign C: [0.57, 0.69]
-        """;
-
     private const string SequenceSrc =
         """
         sequenceDiagram
@@ -45,28 +30,12 @@ public class DiagramRendererTests
         """;
 
     [TestMethod]
-    [CoversNode("quadrant-graph")]
-    public void Quadrant_RendersBorder() => UiThread.Run(() =>
-    {
-        var chart = new MermaidQuadrantParser().Parse(QuadrantSrc);
-        var fe    = WpfQuadrantChartRenderer.Render(chart, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-    });
-
-    [TestMethod]
     [CoversNode("sequence-diagram")]
     public void Sequence_RendersBorder() => UiThread.Run(() =>
     {
         var diagram = new MermaidSequenceParser().Parse(SequenceSrc);
         var fe      = WpfSequenceDiagramRenderer.Render(diagram, MarkdownPalette.Dark);
         Assert.IsInstanceOfType(fe, typeof(Border));
-    });
-
-    [TestMethod]
-    [CoversNode("quadrant-graph")]
-    public void Quadrant_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", QuadrantSrc, MarkdownPalette.Dark));
     });
 
     [TestMethod]
@@ -249,135 +218,6 @@ public class DiagramRendererTests
     {
         var board = new MermaidKanbanParser().Parse("kanban\n");
         Assert.IsNotNull(WpfKanbanRenderer.Render(board, MarkdownPalette.Dark));
-    });
-
-    // ── XY chart ──────────────────────────────────────────────────────────
-
-    private const string XySrc =
-        """
-        xychart-beta
-            title "Sales Revenue"
-            x-axis [jan, feb, mar, apr]
-            y-axis "Revenue (in $)" 4000 --> 11000
-            bar  "actual" [5000, 6000, 7500, 8200]
-            line "trend"  [5200, 6100, 7400, 8000]
-        """;
-
-    [TestMethod]
-    public void XyChart_RendersBorder() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(XySrc);
-        var fe    = WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-    });
-
-    [TestMethod]
-    public void XyChart_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", XySrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void XyChart_HorizontalRenders() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(
-            "xychart horizontal\n  x-axis [a, b, c]\n  y-axis 0 --> 10\n  bar [3, 7, 5]\n  line [2, 6, 4]\n");
-        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void XyChart_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              xyChart:
-                showDataLabel: true
-              themeVariables:
-                xyChart:
-                  plotColorPalette: '#000000, #0000FF'
-            ---
-            xychart
-              x-axis [comedy, romance, mystery]
-              y-axis "Number of Books" 0 --> 30
-              bar [12, 2, 20]
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void XyChart_PerPointLabels_RenderWithoutThrowing() => UiThread.Run(() =>
-    {
-        var chart = new MermaidXyChartParser().Parse(
-            "xychart\n  line [540 \"PaLM\", 65 \"LLaMA-65B\", 7 \"Mistral 7B\"]\n");
-        Assert.IsInstanceOfType(WpfXyChartRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    // ── Radar ─────────────────────────────────────────────────────────────
-
-    private const string RadarSrc =
-        """
-        radar-beta
-          title Restaurant Comparison
-          axis food["Food Quality"], service["Service"], price["Price"]
-          axis ambiance["Ambiance"]
-          curve a["Restaurant A"]{4, 3, 2, 4}
-          curve b["Restaurant B"]{3, 4, 3, 3}
-          graticule polygon
-          max 5
-        """;
-
-    [TestMethod]
-    public void Radar_RendersBorder() => UiThread.Run(() =>
-    {
-        var chart = new MermaidRadarParser().Parse(RadarSrc);
-        Assert.IsInstanceOfType(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Radar_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", RadarSrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Radar_CircleGraticuleAndKeyedCurve_Render() => UiThread.Run(() =>
-    {
-        var chart = new MermaidRadarParser().Parse(
-            "radar-beta\n  axis a, b, c\n  curve x{ c: 3, a: 1, b: 2 }\n  ticks 4\n");
-        Assert.IsInstanceOfType(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Radar_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              radar:
-                axisScaleFactor: 0.5
-                curveTension: 0.1
-              themeVariables:
-                cScale0: "#FF0000"
-                cScale1: "#00FF00"
-                radar:
-                  curveOpacity: 0.4
-            ---
-            radar-beta
-              axis A, B, C, D, E
-              curve c1{1,2,3,4,5}
-              curve c2{5,4,3,2,1}
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Radar_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var chart = new MermaidRadarParser().Parse("radar-beta\n");
-        Assert.IsNotNull(WpfRadarRenderer.Render(chart, MarkdownPalette.Dark));
     });
 
     // ── Ishikawa (fishbone) ───────────────────────────────────────────────

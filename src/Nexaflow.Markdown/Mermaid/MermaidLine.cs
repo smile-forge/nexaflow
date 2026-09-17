@@ -150,11 +150,14 @@ public sealed class MermaidLine
         return this;
     }
 
-    /// <summary>Ends the piece <see cref="Open"/> started, as a <paramref name="kind"/> holding everything read since.</summary>
-    public ContentNode Close(string kind, string role = Roles.Element)
+    /// <summary>
+    /// Ends the piece <see cref="Open"/> started, as a <paramref name="kind"/> holding everything read since — with
+    /// <paramref name="trouble"/>, what is wrong with it as a whole, where anything is: values never closed.
+    /// </summary>
+    public ContentNode Close(string kind, string role = Roles.Element, string? trouble = null)
     {
         var from = _groups.Pop();
-        var node = ContentNode.Branch(kind, _pieces.GetRange(from, _pieces.Count - from), role);
+        var node = ContentNode.Branch(kind, _pieces.GetRange(from, _pieces.Count - from), role).Saying(trouble);
 
         _pieces.RemoveRange(from, _pieces.Count - from);
         _pieces.Add(node);
@@ -245,17 +248,29 @@ public sealed class MermaidLine
 
     /// <summary>
     /// Names with <paramref name="separator"/> between each, each read by <paramref name="name"/>, as a
-    /// <see cref="MermaidKinds.Names"/>. A separator with nothing written after it yet is followed by a name still to write,
-    /// standing after the space left for it — which is where typing it puts it.
+    /// <see cref="MermaidKinds.Names"/>. Where nothing is written yet, or a separator has nothing written after it yet, a name
+    /// still to write follows, standing after the space left for it — which is where typing it puts it.
     /// </summary>
     /// <param name="named">The role of each name in the list, which a name still to write is given too.</param>
-    public bool Names(Func<MermaidLine, bool> name, string role, string named, string separator = ",")
+    /// <param name="item">
+    /// The kind each of the list's items is where an item is more than its name — an axis and its label, a curve and its
+    /// values — so each is a piece of its own, a name still to write too; or null where each is only a name.
+    /// </param>
+    /// <param name="ends">The character closing the list — <c>]</c> — before which a name is still to write too, where the list is in brackets.</param>
+    public bool Names(Func<MermaidLine, bool> name, string role, string named, string separator = ",", string? item = null, char? ends = null)
     {
         var mark = Save();
         Open();
 
         while (true)
         {
+            if (Done || Next == ends)
+            {
+                Add(Unwritten(named, item));
+                break;
+            }
+
+            if (item is not null) Open();
             if (!name(this))
             {
                 var reason = Reason;
@@ -264,6 +279,8 @@ public sealed class MermaidLine
                 return false;
             }
 
+            if (item is not null) Close(item);
+
             var next = At;
             while (next < Written.Length && char.IsWhiteSpace(Written[next])) next++;
             if (next >= Written.Length || string.CompareOrdinal(Written, next, separator, 0, separator.Length) != 0) break;
@@ -271,16 +288,17 @@ public sealed class MermaidLine
             Space();
             Token(separator);
             Room();
-
-            if (Done)
-            {
-                Add(ContentNode.Branch(MermaidKinds.Name, [ContentNode.Leaf(MermaidKinds.Words, string.Empty, named)]));
-                break;
-            }
         }
 
         Close(MermaidKinds.Names, role);
         return true;
+    }
+
+    /// <summary>A name still to write — as an item of <paramref name="item"/>, where a list's items are more than their names.</summary>
+    private static ContentNode Unwritten(string named, string? item)
+    {
+        var name = ContentNode.Branch(MermaidKinds.Name, [ContentNode.Leaf(MermaidKinds.Words, string.Empty, named)]);
+        return item is null ? name : ContentNode.Branch(item, [name]);
     }
 
     /// <summary>
@@ -329,16 +347,40 @@ public sealed class MermaidLine
 
     /// <summary>
     /// A number, in the place it is written, as a <see cref="MermaidKinds.Amount"/> holding the
-    /// <see cref="MermaidKinds.Number"/>: everything left on the line, with what <paramref name="trouble"/> finds wrong with
-    /// it — or nothing, where nothing is written yet, which is no complaint: it is still to come, and a hole stands there.
+    /// <see cref="MermaidKinds.Number"/>: everything up to the first of <paramref name="until"/> or <paramref name="stop"/> — or left
+    /// on the line, where neither is given or written — with what <paramref name="trouble"/> finds wrong with it; or nothing, where
+    /// nothing is written yet, which is no complaint: it is still to come, and a hole stands there.
     /// </summary>
-    public void Amount(string role, Func<string, string?> trouble)
+    /// <param name="until">The characters that end a number written among others — <c>,}</c> in <c>{1, 2}</c>. The space before one is not the number's.</param>
+    /// <param name="stop">The token that ends it — <c>--&gt;</c> in <c>0 --&gt; 100</c> — where one is written.</param>
+    public void Amount(string role, Func<string, string?> trouble, string? until = null, string? stop = null)
     {
-        var number = Rest;
+        var number = Upto(until, stop);
 
         Open();
         Add(ContentNode.Leaf(MermaidKinds.Number, number, role, number.Length == 0 ? null : trouble(number)));
         Close(MermaidKinds.Amount);
+    }
+
+    /// <summary>
+    /// What a line sets something to — <c>circle</c>, <c>true</c> — as a <see cref="MermaidKinds.Setting"/>: everything up to the
+    /// first of <paramref name="until"/>, or left on the line, with what <paramref name="trouble"/> finds wrong with it; or
+    /// nothing, where nothing is written yet and it is still to come.
+    /// </summary>
+    public void Setting(string role, Func<string, string?> trouble, string? until = null)
+    {
+        var value = Upto(until);
+        Add(ContentNode.Leaf(MermaidKinds.Setting, value, role, value.Length == 0 ? null : trouble(value)));
+    }
+
+    /// <summary>What is written from here to the first of <paramref name="until"/> or <paramref name="stop"/>, or to the end, less the space before it.</summary>
+    private string Upto(string? until, string? stop = null)
+    {
+        var end = until is null || Done ? -1 : Written.IndexOfAny(until.ToCharArray(), At);
+        var token = stop is null || Done ? -1 : Written.IndexOf(stop, At, StringComparison.Ordinal);
+        if (token >= 0 && (end < 0 || token < end)) end = token;
+
+        return (end < 0 ? Rest : Written[At..end]).TrimEnd();
     }
 
     /// <summary>
@@ -387,9 +429,12 @@ public sealed class MermaidLine
         return true;
     }
 
-    /// <summary>Everything left on the line, as what it says.</summary>
-    public void Words(string role, string? trouble = null) =>
-        Add(ContentNode.Leaf(MermaidKinds.Words, Rest, role, trouble));
+    /// <summary>
+    /// What is written, as what it says: everything left on the line — or up to the first of <paramref name="until"/> or
+    /// <paramref name="stop"/>, less the space before it, where either is given and written.
+    /// </summary>
+    public void Words(string role, string? trouble = null, string? until = null, string? stop = null) =>
+        Add(ContentNode.Leaf(MermaidKinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
 
     /// <summary>Everything left on the line, held as written with the reason — the rest of a line whose start could be read.</summary>
     public void Held(string reason) => Add(ContentNode.Shown(Rest, reason));

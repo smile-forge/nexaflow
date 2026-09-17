@@ -232,4 +232,13 @@ public class PieBuilderTests : MermaidBuilderContract
         Assert.AreEqual("Pets", Written(Pets, title.Part));
         Assert.IsTrue(title.Bounds.Bottom <= Pieces(laid, PiePiece.Wedge).First().Bounds.Top + 0.001);
     });
+
+    [TestMethod]
+    public void TheTitleIsSetAtTheSizeTheFrontMatterAsks() => UiThread.Run(() =>
+    {
+        var plain = Pieces(Build(Pets), MermaidPiece.Title).Single().Bounds;
+        var big = Pieces(Build("---\nconfig:\n  themeVariables:\n    pieTitleTextSize: 30\n---\n" + Pets), MermaidPiece.Title).Single().Bounds;
+
+        Assert.IsTrue(big.Height > plain.Height * 1.5, $"pieTitleTextSize 30 sets it bigger: {big.Height} against {plain.Height}");
+    });
 }

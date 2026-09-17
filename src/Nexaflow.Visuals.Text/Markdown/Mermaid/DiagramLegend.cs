@@ -27,7 +27,11 @@ internal sealed record DiagramKey(ISourcePart? Part, Brush? Swatch, IReadOnlyLis
 /// <param name="outline">What the square of a swatch with no colour yet is drawn in.</param>
 internal sealed class DiagramLegend(IReadOnlyList<DiagramKey> rows, IReadOnlyList<string> columns, bool across, Brush outline)
 {
+    /// <summary>How big a swatch's square is, where nothing asks for another size.</summary>
     public const double SwatchSize = 14;
+
+    /// <summary>How big a swatch's square is drawn — a diagram's front matter may ask: a radar's <c>legendBoxSize</c>.</summary>
+    public double Square { get; init; } = SwatchSize;
 
     /// <summary>Clear air between a swatch and its words, and between columns.</summary>
     public const double Gap = 8;
@@ -59,11 +63,11 @@ internal sealed class DiagramLegend(IReadOnlyList<DiagramKey> rows, IReadOnlyLis
             var height = Height(row);
             build.Open(MermaidPiece.Key, row.Part, new Point(x, y), stops: Stops.None);
 
-            build.Open(MermaidPiece.Swatch, part: null, new Point(0, (height - SwatchSize) / 2), stops: Stops.None);
+            build.Open(MermaidPiece.Swatch, part: null, new Point(0, (height - Square) / 2), stops: Stops.None);
             build.Draw(Swatch(row.Swatch));
             build.Close();
 
-            var left = SwatchSize + Gap;
+            var left = Square + Gap;
             for (var column = 0; column < row.Cells.Count && column < columns.Count; column++)
             {
                 if (row.Cells[column] is not { } cell) continue;
@@ -82,19 +86,19 @@ internal sealed class DiagramLegend(IReadOnlyList<DiagramKey> rows, IReadOnlyLis
         build.Close();
     }
 
-    private static double Height(DiagramKey row) => Math.Max(SwatchSize, row.Cells.OfType<DiagramWords>().Select(cell => cell.Height).DefaultIfEmpty(0).Max());
+    private double Height(DiagramKey row) => Math.Max(Square, row.Cells.OfType<DiagramWords>().Select(cell => cell.Height).DefaultIfEmpty(0).Max());
 
     /// <summary>How wide a row is set along a line: its swatch, and its words one after another.</summary>
-    private static double Width(DiagramKey row)
+    private double Width(DiagramKey row)
     {
         var cells = row.Cells.OfType<DiagramWords>().ToList();
-        return SwatchSize + Gap + cells.Sum(cell => cell.Width) + (Math.Max(0, cells.Count - 1) * Gap);
+        return Square + Gap + cells.Sum(cell => cell.Width) + (Math.Max(0, cells.Count - 1) * Gap);
     }
 
     /// <summary>Where a column starts down a column of rows: past the swatch, and past every column before it that any row writes in.</summary>
     private double Left(int column)
     {
-        var left = SwatchSize + Gap;
+        var left = Square + Gap;
         for (var before = 0; before < column; before++)
             if (rows.Any(row => Cell(row, before) is not null))
                 left += Widest(before) + Gap;
@@ -109,9 +113,9 @@ internal sealed class DiagramLegend(IReadOnlyList<DiagramKey> rows, IReadOnlyLis
     /// <summary>A row's swatch: the colour it explains, or only the square one goes in.</summary>
     private LayoutMark Swatch(Brush? ink)
     {
-        if (ink is not null) return new RuleMark(new Rect(0, 0, SwatchSize, SwatchSize), ink);
+        if (ink is not null) return new RuleMark(new Rect(0, 0, Square, Square), ink);
 
-        var square = new RectangleGeometry(new Rect(0.5, 0.5, SwatchSize - 1, SwatchSize - 1));
+        var square = new RectangleGeometry(new Rect(0.5, 0.5, Square - 1, Square - 1));
         square.Freeze();
         return new GeometryMark(square, null, outline, 1);
     }

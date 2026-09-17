@@ -271,6 +271,16 @@ pairs and those regions alike, covers as near its size as the rest allow (`VennL
 Words go at the point of their region furthest from any edge. A union's overlap is a piece standing only where its
 circles meet and no other covers, and each circle stands in what is left of it, so a press in a lens means the union.
 
+**Radar has a grammar and one stage.** `RadarGrammar` reads a `title`, `axis` lines listing axes — a name, and a label in
+brackets after it — `curve` lines listing curves, each a name, a label and its values in braces, and options — `max`,
+`min`, `ticks`, `graticule`, `showLegend` — several to a line; each axis and each curve is a piece of its own in its
+line's list (`MermaidLine.Names` with an `item`). A value is a number, or the axis it is for, a colon and a number.
+`ResolveCurves` hangs under each value the axis it is for — the axis in its place in the order the axes are written,
+anywhere in the block, or the axis it names — and says so where a curve does not give each axis one value, names an axis
+not written, or mixes the two kinds; braces never closed are read as far as they go, with the reason. `RadarChart` reads
+it back, and `RadarBuilder` draws four layers — the graticule's rings, the spokes, the curves and the labels — with the
+legend beside or under them; a spoke and its label point at their axis, a curve and its legend row at the curve.
+
 ## SMILES
 
 Three actors, each needing the one before:

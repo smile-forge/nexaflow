@@ -92,14 +92,17 @@ public sealed class MermaidConfig
     /// <summary>What <c>config: themeVariables:</c> says, or nothing.</summary>
     public MermaidConfig Theme => Section("config")?.Section("themeVariables") ?? None;
 
+    /// <summary>What <c>config: themeVariables:</c> says under a diagram's own section — <c>themeVariables: radar:</c> — or nothing.</summary>
+    public MermaidConfig DiagramTheme(string name) => Theme.Section(name) ?? None;
+
     /// <summary>
-    /// The colours written for <paramref name="prefix"/>1 to <paramref name="prefix"/><paramref name="count"/> — <c>pie1</c>…<c>pie12</c> —
-    /// by their number. What is not written is the theme's.
+    /// The colours written for <paramref name="count"/> keys numbered from <paramref name="first"/> — <c>pie1</c>…<c>pie12</c>,
+    /// <c>cScale0</c>…<c>cScale11</c> — by their number. What is not written is the theme's.
     /// </summary>
-    public IReadOnlyDictionary<int, string> Swatches(string prefix, int count)
+    public IReadOnlyDictionary<int, string> Swatches(string prefix, int count, int first = 1)
     {
         var swatches = new Dictionary<int, string>();
-        for (var number = 1; number <= count; number++)
+        for (var number = first; number < first + count; number++)
             if (Value($"{prefix}{number}") is { Length: > 0 } colour)
                 swatches[number] = colour;
 

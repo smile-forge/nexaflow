@@ -13,16 +13,13 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
-///   • <c>quadrantChart</c>    → <see cref="MermaidQuadrantParser"/> + <see cref="WpfQuadrantChartRenderer"/>
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
-///   • <c>xychart[-beta]</c>   → <see cref="MermaidXyChartParser"/> + <see cref="WpfXyChartRenderer"/>
-///   • <c>radar-beta</c>       → <see cref="MermaidRadarParser"/>   + <see cref="WpfRadarRenderer"/>
 ///   • <c>ishikawa-beta</c>    → <see cref="MermaidIshikawaParser"/> + <see cref="WpfIshikawaRenderer"/>
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -40,7 +37,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
-    private static readonly MermaidQuadrantParser QuadrantParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
     private static readonly MermaidGanttParser    GanttParser    = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
@@ -49,8 +45,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidKanbanParser   KanbanParser   = new();
-    private static readonly MermaidXyChartParser  XyParser       = new();
-    private static readonly MermaidRadarParser    RadarParser    = new();
     private static readonly MermaidIshikawaParser IshikawaParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
@@ -80,7 +74,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
         return block.Diagram switch
         {
-            MermaidDiagram.Quadrant     => RenderQuadrant(block, palette),
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
             MermaidDiagram.Gantt        => RenderGantt(block, palette),
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
@@ -89,8 +82,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
             MermaidDiagram.Kanban       => RenderKanban(block, palette),
-            MermaidDiagram.XyChart      => RenderXyChart(block, palette),
-            MermaidDiagram.Radar        => RenderRadar(block, palette),
             MermaidDiagram.Ishikawa     => RenderIshikawa(block, palette),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
@@ -112,13 +103,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         string.IsNullOrWhiteSpace(existing) && block.FrontMatterTitleText is { } frontmatter ? frontmatter : existing ?? string.Empty;
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
-
-    private static FrameworkElement RenderQuadrant(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = QuadrantParser.Parse(block.Body);
-        chart.Title = Titled(chart.Title, block);
-        return WpfQuadrantChartRenderer.Render(chart, palette);
-    }
 
     private static FrameworkElement RenderSequence(MermaidBlock block, MarkdownPalette palette)
     {
@@ -153,25 +137,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var board = KanbanParser.Parse(block.Body);
         board.Title = Titled(board.Title, block);
         return WpfKanbanRenderer.Render(board, palette);
-    }
-
-    private static FrameworkElement RenderXyChart(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = XyParser.Parse(block.Body);
-        chart.Title  = Titled(chart.Title, block);
-        // The xychart applies its front-matter config: block. A config chartOrientation overrides the declaration keyword.
-        chart.Config = XyChartConfigParser.Parse(block.Config);
-        if (chart.Config.Orientation is XyOrientation o) chart.Orientation = o;
-        return WpfXyChartRenderer.Render(chart, palette);
-    }
-
-    private static FrameworkElement RenderRadar(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = RadarParser.Parse(block.Body);
-        chart.Title  = Titled(chart.Title, block);
-        // Like xychart, radar applies its front-matter config: block (geometry, themeVariables, cScale palette).
-        chart.Config = RadarConfigParser.Parse(block.Config);
-        return WpfRadarRenderer.Render(chart, palette);
     }
 
     private static FrameworkElement RenderIshikawa(MermaidBlock block, MarkdownPalette palette)

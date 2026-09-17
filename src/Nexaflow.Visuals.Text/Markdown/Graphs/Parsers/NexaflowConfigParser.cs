@@ -8,7 +8,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
 /// <summary>
 /// Parses the <c>config: nexaflow:</c> front-matter block into a <see cref="NexaflowGraphConfig"/>.
-/// Same shallow, indentation-aware reader as <see cref="ErConfigParser"/> / <see cref="RadarConfigParser"/>;
+/// Same shallow, indentation-aware reader as <see cref="ErConfigParser"/>;
 /// never throws, and every key it does not recognise is skipped — which is the whole point of the
 /// namespace, since stock mermaid skips the block the same way.
 /// <para>

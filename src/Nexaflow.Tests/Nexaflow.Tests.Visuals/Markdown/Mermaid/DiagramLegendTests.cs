@@ -65,4 +65,22 @@ public class DiagramLegendTests
         Assert.IsInstanceOfType<RuleMark>(swatches[0].Marks[0], "a colour is a square of it");
         Assert.IsInstanceOfType<GeometryMark>(swatches[1].Marks[0], "and no colour yet is the square's outline");
     });
+
+    [TestMethod]
+    public void ASwatchIsDrawnAtTheSizeItIsAskedFor() => UiThread.Run(() =>
+    {
+        var legend = new DiagramLegend([new DiagramKey(new TestPart(0, 5), Brushes.Red, [DiagramShapesTests.Words("Dogs")])], Columns, across: false, Brushes.Gray)
+        {
+            Square = 30,
+        };
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        legend.Draw(build, default);
+        build.Close();
+
+        var swatch = build.Seal().Root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Swatch);
+        Assert.AreEqual(30, swatch.Bounds.Width, 0.5);
+        Assert.IsTrue(legend.Size.Height >= 30, "and the row is as tall as it");
+    });
 }
