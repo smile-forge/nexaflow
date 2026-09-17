@@ -85,23 +85,39 @@ public sealed class MermaidLine
     /// Which of <paramref name="words"/> <paramref name="text"/> starts with, ignoring case — as a word of its own, so
     /// <c>titled</c> is not <c>title</c> — or null. The word comes back as it was asked for, not as it was written.
     /// </summary>
-    public static string? Keyword(string text, params string[] words)
+    public static string? Keyword(string text, params string[] words) => Keyword(text, Letter, words);
+
+    /// <summary>
+    /// <inheritdoc cref="Keyword(string, string[])" path="/summary"/>
+    ///
+    /// <para>
+    /// <paramref name="letter"/> says what carries a word on, for words punctuation may close rather than space: a domain's
+    /// word ends at the arrow in <c>complex--&gt;clear</c>, where a keyword's hyphen carries it on in <c>x-axis</c>.
+    /// </para>
+    /// </summary>
+    public static string? Keyword(string text, Func<char, bool> letter, params string[] words)
     {
         foreach (var word in words)
         {
             if (!text.StartsWith(word, StringComparison.OrdinalIgnoreCase)) continue;
-            if (text.Length == word.Length || !(char.IsLetterOrDigit(text[word.Length]) || text[word.Length] is '_' or '-')) return word;
+            if (text.Length == word.Length || !letter(text[word.Length])) return word;
         }
 
         return null;
     }
 
+    /// <summary>What carries a keyword on: its letters, and the hyphen in <c>x-axis</c> or <c>quadrant-1</c>.</summary>
+    public static bool Letter(char character) => char.IsLetterOrDigit(character) || character is '_' or '-';
+
     // ── What every line has ─────────────────────────────────────────────────
 
-    /// <summary>Takes <paramref name="word"/> where it is written next, as a word of its own and ignoring case.</summary>
-    public bool Word(string word, string kind = MermaidKinds.Key, string role = Roles.Name)
+    /// <summary>
+    /// Takes <paramref name="word"/> where it is written next, as a word of its own and ignoring case — <paramref name="letter"/>
+    /// saying what carries it on, where punctuation may close it (<see cref="Keyword(string, Func{char, bool}, string[])"/>).
+    /// </summary>
+    public bool Word(string word, string kind = MermaidKinds.Key, string role = Roles.Name, Func<char, bool>? letter = null)
     {
-        if (Keyword(Rest, word) is null) return false;
+        if (Keyword(Rest, letter ?? Letter, word) is null) return false;
 
         Add(ContentNode.Leaf(kind, Written.Substring(At, word.Length), role));
         return true;
@@ -392,7 +408,7 @@ public sealed class MermaidLine
     /// <param name="known">The properties the diagram sets, or null for any: a property it does not set carries the reason.</param>
     /// <param name="ends">The character closing the properties — <c>}</c> in <c>@{ … }</c> — where they are written in braces.</param>
     /// <param name="what">What the properties are, for the reason a property is not known: <c>A style</c>, <c>Metadata</c>.</param>
-    public bool Properties(IReadOnlyCollection<string>? known = null, char? ends = null, string what = "A style")
+    public bool Properties(IReadOnlyCollection<string>? known = null, char? ends = null, string what = "A style", bool spaced = false)
     {
         var mark = Save();
         Open();
@@ -415,13 +431,16 @@ public sealed class MermaidLine
             Token(":");
             Space();
 
-            var end = ValueEnd(Written, At, ends);
+            var end = spaced ? ValueWord(Written, At) : ValueEnd(Written, At, ends);
             var value = Written[At..end].TrimEnd();
             Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
             Space();
             Close(MermaidKinds.Property);
 
             if (Done || Next == ends) break;
+
+            // Written one after another, the space after a value is all that goes between them.
+            if (spaced) continue;
 
             Token(",");
             Space();
@@ -549,6 +568,27 @@ public sealed class MermaidLine
                     if (character == ends && depth == 0) return at;
                     break;
             }
+        }
+
+        return at;
+    }
+
+    /// <summary>Where a value written as a word of its own ends: at the space after it, outside anything in quotes.</summary>
+    private static int ValueWord(string written, int at)
+    {
+        char? quote = null;
+
+        for (; at < written.Length; at++)
+        {
+            var character = written[at];
+            if (quote is not null)
+            {
+                if (character == quote) quote = null;
+                continue;
+            }
+
+            if (character is '"' or '\'') quote = character;
+            else if (char.IsWhiteSpace(character)) break;
         }
 
         return at;

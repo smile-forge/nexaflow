@@ -42,10 +42,6 @@ public class GanttBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         GanttBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
     private static string Task(string source, Piece piece) => Written(source, piece.Part).Split(':')[0].Trim();
 
     [TestMethod]

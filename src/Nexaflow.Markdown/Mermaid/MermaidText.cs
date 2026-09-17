@@ -11,12 +11,32 @@ namespace Nexaflow.Markdown.Mermaid;
 /// </summary>
 public static partial class MermaidText
 {
+    /// <summary>
+    /// What Mermaid's own named codes stand for: the punctuation that closes what something says, which is why there is a
+    /// code for it at all — a colon ends a timeline's period, a semicolon ends a statement. HTML knows a name for each of
+    /// these, but not every reader of HTML does, so the ones that matter are named here.
+    /// </summary>
+    private static readonly Dictionary<string, string> Punctuation = new(StringComparer.Ordinal)
+    {
+        ["colon"] = ":", ["semi"] = ";", ["num"] = "#", ["hash"] = "#", ["excl"] = "!", ["quest"] = "?",
+        ["lpar"] = "(", ["rpar"] = ")", ["lbrace"] = "{", ["rbrace"] = "}", ["lbrack"] = "[", ["rbrack"] = "]",
+        ["sol"] = "/", ["bsol"] = "\\", ["equals"] = "=", ["plus"] = "+", ["commat"] = "@", ["dollar"] = "$",
+        ["percnt"] = "%", ["ast"] = "*", ["comma"] = ",", ["period"] = ".", ["apos"] = "'", ["grave"] = "`",
+        ["verbar"] = "|", ["tilde"] = "~", ["lowbar"] = "_",
+    };
+
     /// <summary>What text written with entity codes says. A code that stands for nothing is left as it was written.</summary>
     public static string Decode(string written) =>
         written.Contains('#') ? Entity().Replace(written, Decoded) : written;
 
     /// <summary>Text as a place in quotes holds it: every quote written as the entity code that stands for it.</summary>
     public static string Quoted(string text) => text.Replace("\"", "#quot;", StringComparison.Ordinal);
+
+    /// <summary>What a value written in quotes says: what is between them, read back from its entity codes — and what is in no quotes as it is.</summary>
+    public static string Bare(string? value) =>
+        value is null ? string.Empty
+        : value.Length >= 2 && value[0] == '"' && value[^1] == '"' ? Decode(value[1..^1])
+        : Decode(value);
 
     [GeneratedRegex(@"#(?:(?<number>\d+)|(?<name>[A-Za-z][A-Za-z0-9]*));")]
     private static partial Regex Entity();
@@ -28,6 +48,8 @@ public static partial class MermaidText
                    && code is > 0 and <= 0x10FFFF and (< 0xD800 or > 0xDFFF)
                 ? char.ConvertFromUtf32(code)
                 : match.Value;
+
+        if (Punctuation.TryGetValue(match.Groups["name"].Value, out var character)) return character;
 
         var named = "&" + match.Groups["name"].Value + ";";
         var decoded = WebUtility.HtmlDecode(named);

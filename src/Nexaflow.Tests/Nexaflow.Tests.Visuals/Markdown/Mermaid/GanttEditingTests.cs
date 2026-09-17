@@ -18,34 +18,12 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestCategory("Desktop")]
 [DoNotParallelize]
 [CoversNode("gantt-writing")]
-public class GanttEditingTests
+public class GanttEditingTests : MermaidEditing
 {
     private const string Plan = "gantt\n  section Build\n  Design the whole thing :a1, 2014-01-01, 30d\n  QA :after a1, 1d";
 
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", (editor, rtb) =>
-        {
-            var chart = Find<ContentElement>(editor);
-            Assert.IsNotNull(chart, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
-
-            test(editor, rtb, chart!);
-        });
-
-    private static void PressPast(ContentElement chart, string words)
-    {
-        var piece = chart.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, StringComparison.Ordinal));
-
-        chart.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
-        chart.EndPointerSelect();
-    }
-
-    private static void Write(RichTextBox rtb, string text)
-    {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
-        MarkdownEditorHarness.Pump();
-    }
+    /// <inheritdoc/>
+    protected override string Source => Plan;
 
     [TestMethod]
     public void TypingInATasksNameInItsBarBesideItAndASectionsNameChangesThem() => UiThread.Run(() =>
@@ -75,14 +53,4 @@ public class GanttEditingTests
 
             StringAssert.Contains(chart.Source, "  QA :after a1, 1d", chart.Source);
         }));
-
-    private static T? Find<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is T hit) return hit;
-
-        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
-            if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
-
-        return null;
-    }
 }

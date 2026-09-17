@@ -35,17 +35,13 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidGitGraphParser GitParser      = new();
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
-    private static readonly MermaidCynefinParser  CynefinParser  = new();
     private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
-    private static readonly MermaidTimelineParser  TimelineParser = new();
-    private static readonly MermaidJourneyParser   JourneyParser  = new();
     private static readonly MermaidBlockParser     BlockParser    = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
 
@@ -68,17 +64,15 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-            MermaidDiagram.GitGraph     => RenderGit(block, palette),
+
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
-            MermaidDiagram.Cynefin      => RenderCynefin(block, palette),
             MermaidDiagram.Architecture => RenderArchitecture(block, palette),
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
-            MermaidDiagram.Timeline     => RenderTimeline(block, palette),
-            MermaidDiagram.Journey      => RenderJourney(block, palette),
+
             MermaidDiagram.Block        => RenderBlock(block, palette),
             MermaidDiagram.C4           => RenderC4(block, options),
             MermaidDiagram.C4Sequence   => RenderC4Sequence(block, palette),
@@ -98,13 +92,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var diagram = SequenceParser.Parse(block.Body);
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
-
-    private static FrameworkElement RenderGit(MermaidBlock block, MarkdownPalette palette)
-    {
-        var graph = GitParser.Parse(block.Body);
-        graph.Title = Titled(graph.Title, block);
-        return WpfGitGraphRenderer.Render(graph, palette);
     }
 
     private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)
@@ -134,14 +121,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return RenderGraphFamily(graph, block, options, 1100);
     }
 
-    private static FrameworkElement RenderCynefin(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = CynefinParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = CynefinConfigParser.Parse(block.Config);
-        return WpfCynefinRenderer.Render(diagram, palette);
-    }
-
     private static FrameworkElement RenderArchitecture(MermaidBlock block, MarkdownPalette palette)
     {
         var diagram = ArchitectureParser.Parse(block.Body);
@@ -155,22 +134,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph = SwimlaneParser.Parse(block.Body);
         graph.Title = Titled(graph.Title, block);
         return WpfSwimlaneRenderer.Render(graph, palette);
-    }
-
-    private static FrameworkElement RenderTimeline(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = TimelineParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = TimelineConfigParser.Parse(block.Config);
-        return WpfTimelineRenderer.Render(diagram, palette);
-    }
-
-    private static FrameworkElement RenderJourney(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = JourneyParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = JourneyConfigParser.Parse(block.Config);
-        return WpfJourneyRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderBlock(MermaidBlock block, MarkdownPalette palette)

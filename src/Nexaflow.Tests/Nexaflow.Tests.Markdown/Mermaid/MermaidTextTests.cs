@@ -38,4 +38,13 @@ public class MermaidTextTests
         Assert.AreEqual("a #quot;quoted#quot; word", MermaidText.Quoted(text));
         Assert.AreEqual(text, MermaidText.Decode(MermaidText.Quoted(text)));
     }
+
+    [TestMethod]
+    public void ThePunctuationThatClosesWhatSomethingSaysHasACodeOfItsOwn()
+    {
+        Assert.AreEqual("9:00", MermaidText.Decode("9#colon;00"));
+        Assert.AreEqual("a;b", MermaidText.Decode("a#semi;b"));
+        Assert.AreEqual("50%", MermaidText.Decode("50#percnt;"));
+        Assert.AreEqual("#nothing;", MermaidText.Decode("#nothing;"), "a code that stands for nothing stays as it was written");
+    }
 }

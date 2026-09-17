@@ -169,4 +169,48 @@ public class MermaidLineTests
         CollectionAssert.AreEqual(new int?[] { null, 0, 1, 0 }, MermaidOutline.Nested(items, floor: true).Select(one => one.Parent).ToArray(),
                                   "with a floor, the first item after the root is where the children start");
     }
+
+    [TestMethod]
+    public void AWordAnArrowClosesIsStillThatWord_WhereWhatCarriesAWordOnSaysSo()
+    {
+        Assert.AreEqual("complex", MermaidLine.Keyword("complex-->clear", Letter, "complex"));
+        Assert.IsNull(MermaidLine.Keyword("complex-->clear", "complex"), "a hyphen carries a keyword on, for x-axis");
+        Assert.IsNull(MermaidLine.Keyword("complexity", Letter, "complex"));
+
+        var line = MermaidLine.Of("complex-->clear");
+
+        Assert.IsTrue(line.Word("complex", letter: Letter));
+        Assert.AreEqual("-->clear", line.Rest);
+
+        static bool Letter(char character) => char.IsLetterOrDigit(character) || character == '_';
+    }
+
+    [TestMethod]
+    public void AKeySetToAListIsReadInBracketsOrAsTheLinesUnderIt()
+    {
+        var brackets = MermaidConfig.Read("config:\n  journey:\n    actorColours: [\"#ff0000\", \"#00ff00\"]").Diagram("journey");
+        var dashes = MermaidConfig.Read("config:\n  journey:\n    actorColours:\n      - \"#ff0000\"\n      - \"#00ff00\"\n    width: 200").Diagram("journey");
+
+        CollectionAssert.AreEqual(new[] { "#ff0000", "#00ff00" }, brackets.List("actorColours").ToArray());
+        CollectionAssert.AreEqual(new[] { "#ff0000", "#00ff00" }, dashes.List("actorColours").ToArray());
+        Assert.AreEqual(200, dashes.Size("width"), "and what follows the list is still the diagram's");
+        Assert.AreEqual(0, brackets.List("sectionFills").Count, "a key set to no list at all");
+    }
+
+    [TestMethod]
+    public void OptionsWrittenOneAfterAnotherAreEachAPropertyOfTheirOwn()
+    {
+        var line = MermaidLine.Of("id: \"Alpha one\" type: HIGHLIGHT tag: \"v1.0\"");
+
+        Assert.IsTrue(line.Properties(["id", "type", "tag"], what: "A commit", spaced: true));
+        Assert.IsTrue(line.Done);
+
+        var properties = line.Read(MermaidKinds.Statement).SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Property).ToList();
+
+        Assert.AreEqual(3, properties.Count);
+        CollectionAssert.AreEqual(
+            new[] { "id", "type", "tag" },
+            properties.Select(property => property.Children.First(child => child.Kind == MermaidKinds.Key).Text).ToArray());
+        Assert.AreEqual("\"Alpha one\"", properties[0].Children.First(child => child.Kind == MermaidKinds.Setting).Text, "a quoted value holds its space");
+    }
 }

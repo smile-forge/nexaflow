@@ -8,6 +8,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -106,4 +108,20 @@ public abstract class MermaidBuilderContract
         block.Arrange(new Rect(block.DesiredSize));
         Assert.IsTrue(block.Picture().PixelWidth > 0, $"{what}: and has a picture to copy");
     });
+
+    // ── What a diagram's own tests ask of what it drew ──────────────────────
+
+    /// <summary>Every piece of a kind that was drawn, in the order it was drawn.</summary>
+    protected static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
+
+    /// <summary>What a piece stands for, as it was written — empty for a piece standing for nothing.</summary>
+    protected static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
+
+    /// <summary>The middle of what a piece takes up, which is where it is for the purposes of saying what is beside what.</summary>
+    protected static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
+
+    /// <summary>The colour a piece is drawn in — the first fill under it — or null where nothing under it is filled.</summary>
+    protected static Color? Fill(Piece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
+            .Select(mark => mark.Fill).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color).FirstOrDefault();
 }

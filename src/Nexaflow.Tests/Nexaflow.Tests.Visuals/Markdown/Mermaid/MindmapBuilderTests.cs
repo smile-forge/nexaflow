@@ -41,10 +41,6 @@ public class MindmapBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         MindmapBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
     private static Piece Node(Laid laid, string source, string title) =>
         Pieces(laid, MindmapPiece.Node).Single(node => Written(source, node.Part).Contains(title, System.StringComparison.Ordinal));
 

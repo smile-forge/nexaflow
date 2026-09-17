@@ -21,6 +21,8 @@ public sealed class MermaidConfig
     private readonly Dictionary<string, string> _values = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MermaidConfig> _sections = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly List<string> _items = [];
+
     /// <summary>Nothing at all — what a block with no front matter has.</summary>
     public static MermaidConfig None { get; } = new();
 
@@ -36,7 +38,14 @@ public sealed class MermaidConfig
         {
             var line = raw.TrimEnd();
             var text = line.TrimStart();
-            if (text.Length == 0 || text[0] is '#' or '-') continue;
+            if (text.Length == 0 || text[0] == '#') continue;
+
+            // A line starting with a dash is one of the list the key above it opened, however far it is indented under it.
+            if (text[0] == '-')
+            {
+                if (text[1..].Trim() is { Length: > 0 } item) open[^1].Config._items.Add(Bare(item));
+                continue;
+            }
 
             var colon = text.IndexOf(':');
             if (colon <= 0) continue;
@@ -66,6 +75,15 @@ public sealed class MermaidConfig
 
     /// <summary>What a key says, or null where it says nothing.</summary>
     public string? Value(string key) => _values.GetValueOrDefault(key);
+
+    /// <summary>
+    /// What a key is set to as a list, in the order it is written: in brackets on the one line, or as the lines under it each
+    /// starting with a dash — nothing, where the key is set to neither.
+    /// </summary>
+    public IReadOnlyList<string> List(string key) =>
+        Value(key) is { Length: > 1 } value && value[0] == '[' && value[^1] == ']'
+            ? [.. value[1..^1].Split(',').Select(item => Bare(item.Trim())).Where(item => item.Length > 0)]
+            : Section(key)?._items ?? [];
 
     /// <summary>Every key set here, with what it says.</summary>
     public IReadOnlyDictionary<string, string> Values => _values;

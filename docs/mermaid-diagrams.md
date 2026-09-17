@@ -36,7 +36,7 @@ diagram's own code sits in a folder of its own under each.
 
 | To | Use |
 |---|---|
-| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead |
+| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead — `Keyword` and `Word` take what carries a word on, for one punctuation may close (`complex-->clear`) |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
 | read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` |
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
@@ -45,14 +45,16 @@ diagram's own code sits in a folder of its own under each.
 
 | read or write a date in a day.js format, a length of time, or a date in a d3 axis format | `MermaidDate.Read`/`Write`, `MermaidDuration.Read`/`After`, `MermaidTimeFormat.Write` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
-| read `key: value` properties — a style's, or metadata closed by a brace | `Properties(known, ends, what)`, and `MermaidStyle.With` in the model |
+| read `key: value` properties — a style's, metadata closed by a brace, or options written one after another with only space between them | `Properties(known, ends, what, spaced)`, and `MermaidStyle.With` in the model |
 | read words to where they end — the rest of the line, `until` a character or a `stop` token | `Words` |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since` |
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
-| read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag` |
+| say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
+| read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets |
+| read what a value in quotes says, entity codes and all | `MermaidText.Bare`, `Decode` |
 
 ### Drawing
 
@@ -62,17 +64,20 @@ diagram's own code sits in a folder of its own under each.
 | colour anything | `Ink` (`DiagramInk`): `Written`, `Series`, `Over`, `Faded` — a colour nobody wrote is the theme's |
 | draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
+| draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
-| set the lines of a wrapped label, against a side | `DiagramWords.Stack` |
+| set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
+| set words that may hold an entity code — drawn as what the code says, and so pressed rather than typed into | `Says` on the builder |
+| put a band over each run of things sharing a group | `DiagramBand.Runs` |
 | set words turned — an axis title read up the page | `DiagramWords.Set(…, degrees)`; a press, a caret and a wash come back through the turn (`Piece.Turned`) |
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |
-| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
+| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words, `Band` is what a shape under it leaves out of its own |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | show a block with nothing to draw | `AsWritten` |
 
@@ -115,7 +120,8 @@ draw goes into the engine (`src/Nexaflow.Visuals.Text/Editing/`), not into a bui
 | Test | Holds |
 |---|---|
 | `MermaidGrammarContract` (Tests.Markdown) | Every block and every prefix prints as written; the grammar only copies; the documented blocks have nothing wrong; anything typed anywhere something is written still reads; every new line is one the grammar reads; a rename is written so its uses still read |
-| `MermaidBuilderContract` (Tests.Visuals) | Every block draws read, written in, wide and narrow, and while every character is typed; everything drawn stands inside the source; words a caret goes into are the characters written; the Markdown renderer shows it on the shared tree |
+| `MermaidBuilderContract` (Tests.Visuals) | Every block draws read, written in, wide and narrow, and while every character is typed; everything drawn stands inside the source; words a caret goes into are the characters written; the Markdown renderer shows it on the shared tree. It hands a diagram's own tests `Pieces`, `Written`, `Middle` and `Fill` to ask what it drew |
+| `MermaidEditing` (Tests.Visuals) | What writing in a diagram is tested through: the block in a real editor, `PressPast` some words it draws, `Write` a keystroke |
 | `MermaidKitRulesTests` (Tests.Markdown) | Every grammar is named in `MermaidDiagrams.Grammar` and tested against the contract |
 | `MermaidBuilderRulesTests` (Tests.Visuals) | A diagram has a grammar and a builder, or neither; every builder is tested against the contract |
 | `MermaidDiagramRulesTests` (Tests.Features.Architecture) | The legacy code is frozen — no file added, none grown, each marked; code on the shared tree never names it; a diagram's own reading and drawing go through the kit |

@@ -42,4 +42,15 @@ public class DiagramCurveTests
         Assert.AreEqual(new Rect(0, 0, 40, 30), DiagramCurve.Closed([new Point(0, 0), new Point(40, 30)], tension: 0.17).Bounds);
         Assert.IsTrue(DiagramCurve.Closed([]).IsEmpty());
     });
+
+    [TestMethod]
+    public void BowedItRunsFromOnePointToAnother_OutTowardTheOneBetween() => UiThread.Run(() =>
+    {
+        var shape = DiagramCurve.Bowed(new Point(0, 0), new Point(50, -40), new Point(100, 0));
+        var hairline = new Pen(Brushes.Black, 1);
+
+        Assert.IsTrue(shape.StrokeContains(hairline, new Point(0, 0)), "from where it starts");
+        Assert.IsTrue(shape.StrokeContains(hairline, new Point(100, 0)), "to where it ends");
+        Assert.IsTrue(shape.Bounds.Top is < -15 and > -40, $"bowed out toward the point between, and no further: {shape.Bounds}");
+    });
 }

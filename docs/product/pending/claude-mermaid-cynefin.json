@@ -1,0 +1,418 @@
+{
+  "branch": "claude/mermaid-cynefin",
+  "nodes": {
+    "cynefin": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "status": "should",
+          "target": "https://mermaid.ai/open-source/syntax/cynefin.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Cynefin/CynefinBuilder.cs",
+          "class": "CynefinBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve",
+          "method": "Bowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector",
+          "method": "Band"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/CynefinBuilderTests.cs",
+            "class": "CynefinBuilderTests"
+          }
+        ]
+      }
+    },
+    "cynefin-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs",
+          "class": "CynefinGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinDiagram.cs",
+          "class": "CynefinDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinConfig.cs",
+          "class": "CynefinConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs",
+          "class": "ResolveDomains"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Keyword"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinGrammarTests.cs",
+            "class": "CynefinGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinDiagramTests.cs",
+            "class": "CynefinDiagramTests"
+          }
+        ]
+      }
+    },
+    "cynefin-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs",
+          "class": "CynefinGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/CynefinEditingTests.cs",
+            "class": "CynefinEditingTests"
+          }
+        ]
+      }
+    },
+    "timeline": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/timeline.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Timeline/TimelineBuilder.cs",
+          "class": "TimelineBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/TimelineBuilderTests.cs",
+            "class": "TimelineBuilderTests"
+          }
+        ]
+      }
+    },
+    "timeline-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs",
+          "class": "TimelineGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineChart.cs",
+          "class": "TimelineChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineConfig.cs",
+          "class": "TimelineConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveSections.cs",
+          "class": "ResolveSections"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText",
+          "method": "Decode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineGrammarTests.cs",
+            "class": "TimelineGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineChartTests.cs",
+            "class": "TimelineChartTests"
+          }
+        ]
+      }
+    },
+    "timeline-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs",
+          "class": "TimelineGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/TimelineEditingTests.cs",
+            "class": "TimelineEditingTests"
+          }
+        ]
+      }
+    },
+    "journey": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/userJourney.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Journey/JourneyBuilder.cs",
+          "class": "JourneyBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/JourneyBuilderTests.cs",
+            "class": "JourneyBuilderTests"
+          }
+        ]
+      }
+    },
+    "journey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs",
+          "class": "JourneyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyDiagram.cs",
+          "class": "JourneyDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs",
+          "class": "JourneyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/Stages/ResolveTasks.cs",
+          "class": "ResolveTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidConfig.cs",
+          "class": "MermaidConfig",
+          "method": "List"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyGrammarTests.cs",
+            "class": "JourneyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyDiagramTests.cs",
+            "class": "JourneyDiagramTests"
+          }
+        ]
+      }
+    },
+    "journey-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs",
+          "class": "JourneyGrammar",
+          "method": "Names"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/JourneyEditingTests.cs",
+            "class": "JourneyEditingTests"
+          }
+        ]
+      }
+    },
+    "gitgraph": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Git/GitBuilder.cs",
+          "class": "GitBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Piece.cs",
+          "class": "Piece",
+          "method": "Turned"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/gitgraph.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GitBuilderTests.cs",
+            "class": "GitBuilderTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs",
+          "class": "GitGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGraph.cs",
+          "class": "GitGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs",
+          "class": "GitConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs",
+          "class": "ResolveGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Properties"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitGrammarTests.cs",
+            "class": "GitGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitGraphTests.cs",
+            "class": "GitGraphTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs",
+          "class": "GitGrammar",
+          "method": "Names"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GitEditingTests.cs",
+            "class": "GitEditingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 24,
+  "touched_nodes": [
+    "cynefin",
+    "cynefin-ast",
+    "cynefin-writing",
+    "gitgraph",
+    "gitgraph-ast",
+    "gitgraph-writing",
+    "journey",
+    "journey-ast",
+    "journey-writing",
+    "timeline",
+    "timeline-ast",
+    "timeline-writing"
+  ]
+}

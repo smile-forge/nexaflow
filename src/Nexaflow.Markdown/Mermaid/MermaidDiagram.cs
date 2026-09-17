@@ -92,6 +92,10 @@ public static class MermaidDiagrams
         MermaidDiagram.Gantt => Gantts,
         MermaidDiagram.Kanban => Kanbans,
         MermaidDiagram.Mindmap => Mindmaps,
+        MermaidDiagram.Cynefin => Cynefins,
+        MermaidDiagram.Timeline => Timelines,
+        MermaidDiagram.Journey => Journeys,
+        MermaidDiagram.GitGraph => Gits,
         _ => null,
     };
 
@@ -112,6 +116,14 @@ public static class MermaidDiagrams
     private static readonly Kanban.KanbanGrammar Kanbans = new();
 
     private static readonly Mindmap.MindmapGrammar Mindmaps = new();
+
+    private static readonly Cynefin.CynefinGrammar Cynefins = new();
+
+    private static readonly Timeline.TimelineGrammar Timelines = new();
+
+    private static readonly Journey.JourneyGrammar Journeys = new();
+
+    private static readonly Git.GitGrammar Gits = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =

@@ -33,6 +33,10 @@ public class MermaidFigureWriter
         ("Gantt chart", "mermaid-gantt.png"),
         ("Kanban board", "mermaid-kanban.png"),
         ("Mindmap", "mermaid-mindmap.png"),
+        ("Cynefin diagram", "mermaid-cynefin.png"),
+        ("Timeline", "mermaid-timeline.png"),
+        ("User journey", "mermaid-journey.png"),
+        ("Git graph", "mermaid-gitgraph.png"),
     ];
 
     [TestMethod]

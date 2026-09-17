@@ -72,7 +72,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
         var titles = board.Columns.Select((column, index) => Titled(column.Title, column.Hole, column.Label, column.Part, TitleSize, Ink.Written(config.ScaleLabel.GetValueOrDefault(Scale(index))) ?? Palette.Text, width - Padding, FontWeights.SemiBold)).ToList();
         var titleRoom = Math.Max(TitleRoom, titles.Max(lines => lines.Sum(line => line.Height)));
 
-        var laid = new List<(KanbanColumn Column, Rect Bounds, List<(DiagramWords, Point, string)> Title, List<Laying> Cards)>();
+        var laid = new List<(KanbanColumn Column, Rect Bounds, IReadOnlyList<(DiagramWords Words, Point At, string Kind)> Title, List<Laying> Cards)>();
         for (var index = 0; index < board.Columns.Count; index++)
         {
             var column = board.Columns[index];
@@ -94,7 +94,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
                 var words = new List<(DiagramWords, Point, string)>();
 
                 var room = new Rect(bounds.Left + padding, bounds.Top + Padding, bounds.Width - padding - Padding, titleHeight);
-                words.AddRange(DiagramWords.Stack(lines, room, TextAlignment.Left).Select(line => (line.Words, line.At, KanbanPiece.Title)));
+                words.AddRange(DiagramWords.Placed(lines, room, KanbanPiece.Title, TextAlignment.Left));
 
                 var foot = room.Bottom;
                 if (ticket is not null) words.Add((ticket, new Point(bounds.Left + padding, foot), KanbanPiece.Ticket));
@@ -105,9 +105,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
             }
 
             var height = Math.Max(y - titleRoom + (3 * Padding), 50) + (titleRoom - TitleRoom);
-            var title = DiagramWords.Stack(titles[index], new Rect(left, 0, width, titles[index].Sum(line => line.Height)))
-                .Select(line => (line.Words, line.At, KanbanPiece.Title))
-                .ToList();
+            var title = DiagramWords.Placed(titles[index], new Rect(left, 0, width, titles[index].Sum(line => line.Height)), KanbanPiece.Title);
 
             laid.Add((column, new Rect(left, 0, width, Math.Max(height, titleRoom + Padding)), title, cards));
         }
