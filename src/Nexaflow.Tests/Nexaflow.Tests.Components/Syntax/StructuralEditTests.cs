@@ -1116,6 +1116,76 @@ public class StructuralEditTests
         AssertLine(text, "    public int Add(int a) => a;");
     }
 
+    /// <summary>
+    /// The grammar nests attributes inside the declaration they decorate, so a signature written from the
+    /// declaration's first character wrote straight over them: re-typing a method's signature silently deleted
+    /// its [TestMethod], and the file still compiled everywhere the attribute only mattered at run time.
+    /// </summary>
+    [TestMethod]
+    public void Signature_KeepsTheAttributesAboveTheDeclaration()
+    {
+        const string src = """
+            namespace N;
+
+            public class Widget
+            {
+                [Obsolete("use Plus")]
+                [Conditional("DEBUG")]
+                public void Add(int n)
+                {
+                }
+            }
+            """;
+
+        var text = Applied(StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add",
+                                                StructuralEdit.Op.Signature, "public void Add(long n)"));
+
+        AssertLine(text, "    [Obsolete(\"use Plus\")]");
+        AssertLine(text, "    [Conditional(\"DEBUG\")]");
+        AssertLine(text, "    public void Add(long n)");
+    }
+
+    /// <summary>A replacement carrying attributes of its own means to replace the ones that are there — keeping
+    /// both declares each one twice, which compiles and so is only caught by reading the file.</summary>
+    [TestMethod]
+    public void Signature_BringingItsOwnAttributes_ReplacesTheOnesThatWereThere()
+    {
+        const string src = """
+            namespace N;
+
+            public class Widget
+            {
+                [Obsolete("use Plus")]
+                [Conditional("DEBUG")]
+                public void Add(int n)
+                {
+                }
+            }
+            """;
+
+        var result = StructuralEdit.Apply("c-sharp", src, "T:Widget/M:Add", StructuralEdit.Op.Signature,
+                                          "[Obsolete(\"use Plus\")]\npublic void Add(long n)");
+        var text   = Applied(result);
+
+        Assert.AreEqual(1, SourceText.Of(text).Lines.Count(l => l.Trim() == "[Obsolete(\"use Plus\")]"));
+        Assert.AreEqual(-1, LineOf(text, "    [Conditional(\"DEBUG\")]"));
+        AssertLine(text, "    public void Add(long n)");
+        Assert.IsTrue(result.Notes.Any(n => n.Contains("attribute")), "the replaced attributes should be noted");
+    }
+
+    /// <summary>The same nesting in a language that spells it differently: Python hangs the decorators off a
+    /// wrapper node, and a signature edit has to begin after them there too.</summary>
+    [TestMethod]
+    public void Signature_KeepsAPythonDecorator()
+    {
+        const string py = "class A:\n    @staticmethod\n    def f(a):\n        return a\n";
+
+        var text = Applied(StructuralEdit.Apply("python", py, "T:A/M:f", StructuralEdit.Op.Signature, "def f(a, b):"));
+
+        AssertLine(text, "    @staticmethod");
+        AssertLine(text, "    def f(a, b):");
+    }
+
     // ── Line endings ────────────────────────────────────────────────────────
 
     /// <summary>

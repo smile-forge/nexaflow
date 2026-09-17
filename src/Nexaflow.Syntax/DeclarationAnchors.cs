@@ -18,6 +18,7 @@ namespace Nexaflow.Syntax;
 /// <param name="Start">Character offset the declaration begins at (its attributes included, where the grammar nests them).</param>
 /// <param name="End">Character offset one past its last character.</param>
 /// <param name="TriviaStart">Where the doc comments/decorators attached above it begin; equals <paramref name="Start"/> when there are none.</param>
+/// <param name="AttributesEnd">Character offset one past the attributes the grammar nests inside the declaration; null when it carries none.</param>
 public sealed record DeclarationAnchor(
     string NodeType,
     int Start,
@@ -30,7 +31,8 @@ public sealed record DeclarationAnchor(
     int? BodyStart,
     int? BodyEnd,
     int? BodyContentStart = null,
-    int? BodyContentEnd = null)
+    int? BodyContentEnd = null,
+    int? AttributesEnd = null)
 {
     /// <summary>Whether the grammar gave this declaration a body, and so whether the signature and the body
     /// can be edited apart from one another.</summary>
@@ -312,7 +314,26 @@ public sealed class DeclarationAnchors
             name?.StartIndex, name?.EndIndex,
             @params?.StartIndex, @params?.EndIndex,
             body?.StartIndex, body?.EndIndex,
-            first?.StartIndex, last?.EndIndex);
+            first?.StartIndex, last?.EndIndex,
+            AttributesEnd(span));
+    }
+
+    /// <summary>Where the attributes the grammar counts as part of the declaration stop — C#'s
+    /// <c>attribute_list</c> children, the decorators of a Python <c>decorated_definition</c> — so an edit to the
+    /// signature can begin after them instead of over them.</summary>
+    private static int? AttributesEnd(Node span)
+    {
+        int? end = null;
+
+        foreach (var child in span.Children)
+        {
+            if (!IsTrivia(child.Type)) break;
+
+            // A comment counts only once an attribute is behind it: `[Fact] // why` keeps the comment with the
+            // attribute, while one in front of everything is trivia the declaration merely begins after.
+            if (end is not null || !child.Type.Contains("comment", StringComparison.Ordinal)) end = child.EndIndex;
+        }
+        return end;
     }
 
     private static Node? NameOf(Node node) => node.GetChildForField("name");

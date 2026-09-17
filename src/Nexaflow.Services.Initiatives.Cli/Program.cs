@@ -744,7 +744,8 @@ internal static class Program
                   still the one the graph labelled — so a stale graph cannot overwrite whatever now occupies
                   those lines. The result is re-parsed before writing, and an edit that would break the file is
                   refused. `signature` keeps the body byte-for-byte and `body` keeps the signature; both are
-                  checked afterwards, not assumed. Line endings, indentation and BOMs are the tool's problem:
+                  checked afterwards, not assumed. `signature` keeps the attributes too, unless the
+                  replacement opens with one of its own. Line endings, indentation and BOMs are the tool's problem:
                   write the replacement flush-left with \n and it lands indented, with the file's own endings.
                   --dry-run prints the hunk and writes nothing. --expect S refuses unless the block still
                   contains S, for a caller pinning an edit to what it read.

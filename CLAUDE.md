@@ -130,7 +130,7 @@ What it guarantees, and why it is the only way files here are changed:
 
 | To | Run |
 |---|---|
-| replace, re-sign, re-body or delete a declaration | `replace` / `signature` / `body` / `delete <id>` (`replace` keeps the doc comment unless yours has a `<summary>`) |
+| replace, re-sign, re-body or delete a declaration | `replace` / `signature` / `body` / `delete <id>` (`replace` keeps the doc comment unless yours has a `<summary>`; `signature` keeps the attributes unless yours opens with one) |
 | add beside one, or into a type | `insert-before` / `insert-after` / `append <id>` |
 | change a few lines inside one member | `substitute <id> --find … --text …` — its doc comment too; literal unless `--regex`, once unless `--all` |
 | rename it | `rename <id> --to N` — **`--references`** carries it to every use, override and implementation the compiler binds |

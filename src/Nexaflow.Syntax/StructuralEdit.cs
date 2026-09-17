@@ -395,7 +395,7 @@ public static partial class StructuralEdit
         {
             Op.Replace      => Replace(source, anchor, text, indent, newline, o.WithTrivia, grammarId, notes),
             Op.Delete       => Delete(source, anchor),
-            Op.Signature    => Signature(source, anchor, text, indent, newline),
+            Op.Signature    => Signature(source, anchor, text, indent, newline, grammarId, notes),
             Op.Body         => Body(source, anchor, text, indent, newline),
             Op.Rename       => Rename(source, anchor, renameTo),
             Op.InsertBefore => InsertBefore(source, anchor, text, indent, newline),
@@ -558,6 +558,22 @@ public static partial class StructuralEdit
         };
     }
 
+    /// <summary>Whether a replacement signature opens with an attribute of its own, and so means to replace the
+    /// ones already on the declaration rather than to be written underneath them.</summary>
+    private static bool OpensWithAttribute(string grammarId, string text)
+    {
+        var first = SourceText.BlockOf(text).FirstOrDefault(l => l.Trim().Length > 0)?.Trim();
+        if (first is not { Length: > 0 }) return false;
+
+        return grammarId switch
+        {
+            "rust" => first.StartsWith("#[", StringComparison.Ordinal),
+            "python" or "ruby" or "java" or "kotlin" or "scala"
+                or "typescript" or "tsx" or "javascript" => first.StartsWith('@'),
+            _ => first.StartsWith('['),
+        };
+    }
+
     private static (string? Text, string? Error) Delete(string src, DeclarationAnchor a)
     {
         // Whole lines, so no indentation is left stranded, and one adjacent blank line goes with it —
@@ -576,7 +592,8 @@ public static partial class StructuralEdit
     }
 
     private static (string? Text, string? Error) Signature(string src, DeclarationAnchor a, string? text,
-                                                           string indent, string newline)
+                                                           string indent, string newline, string grammarId,
+                                                           List<string> notes)
     {
         if (text is null) return (null, "Replacement signature is required.");
         if (a.BodyStart is not { } bodyStart)
@@ -587,7 +604,26 @@ public static partial class StructuralEdit
         // the file's own formatting, and a caller supplying a signature should not have to reproduce it.
         var end = bodyStart;
         while (end > a.Start && char.IsWhiteSpace(src[end - 1])) end--;
-        return (Splice(src, a.Start, end, Block(text, indent, newline, indentFirst: false)), null);
+
+        // The grammar nests attributes inside the declaration, so starting at its first character wrote over
+        // them: a [TestMethod] disappeared every time its method was re-signed. Begin after them instead,
+        // keeping the whitespace that follows for the same reason as above — unless the replacement brings
+        // attributes of its own, where keeping the old ones too declares them twice, which compiles and so is
+        // only ever caught by reading the file.
+        var start = a.Start;
+        if (a.AttributesEnd is { } attributes)
+        {
+            if (OpensWithAttribute(grammarId, text))
+                notes.Add("the replacement opens with an attribute, so it replaced the existing ones rather than "
+                        + "being added below them.");
+            else
+            {
+                start = attributes;
+                while (start < end && char.IsWhiteSpace(src[start])) start++;
+            }
+        }
+
+        return (Splice(src, start, end, Block(text, indent, newline, indentFirst: false)), null);
     }
 
     private static (string? Text, string? Error) Body(string src, DeclarationAnchor a, string? text,
