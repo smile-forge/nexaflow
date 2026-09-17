@@ -1,0 +1,91 @@
+{
+  "branch": "claude/mermaid-ishikawa",
+  "nodes": {
+    "ishikawa": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Ishikawa/IshikawaBuilder.cs",
+          "class": "IshikawaBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/IshikawaBuilderTests.cs",
+            "class": "IshikawaBuilderTests"
+          }
+        ]
+      }
+    },
+    "ishikawa-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaGrammar.cs",
+          "class": "IshikawaGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaChart.cs",
+          "class": "IshikawaChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs",
+          "class": "IshikawaConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaGrammarTests.cs",
+            "class": "IshikawaGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaChartTests.cs",
+            "class": "IshikawaChartTests"
+          }
+        ]
+      }
+    },
+    "ishikawa-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes",
+          "method": "Clear"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/IshikawaEditingTests.cs",
+            "class": "IshikawaEditingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "ishikawa",
+    "ishikawa-ast",
+    "ishikawa-writing"
+  ]
+}

@@ -106,4 +106,14 @@ public class MermaidLineTests
         Assert.AreEqual("green", config.DiagramTheme("radar").Value("axisColor"));
         Assert.AreSame(MermaidConfig.None, config.DiagramTheme("pie"), "and a diagram whose section is not written has none");
     }
+
+    [TestMethod]
+    public void WhatConfigSaysForEveryDiagramIsItsOwn_BesideEachDiagramsSection()
+    {
+        var config = MermaidConfig.Read("config:\n  fontSize: 18\n  pie:\n    textPosition: 0.5");
+
+        Assert.AreEqual(18, config.Shared.Size("fontSize"));
+        Assert.AreEqual("0.5", config.Shared.Section("pie")!.Value("textPosition"));
+        Assert.AreSame(MermaidConfig.None, MermaidConfig.Read("title: x").Shared, "and front matter with no config has none");
+    }
 }

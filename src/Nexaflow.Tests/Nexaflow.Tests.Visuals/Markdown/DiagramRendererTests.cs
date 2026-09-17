@@ -220,64 +220,6 @@ public class DiagramRendererTests
         Assert.IsNotNull(WpfKanbanRenderer.Render(board, MarkdownPalette.Dark));
     });
 
-    // ── Ishikawa (fishbone) ───────────────────────────────────────────────
-
-    private const string IshikawaSrc =
-        """
-        ishikawa-beta
-            Blurry Photo
-            Process
-                Out of focus
-                Shutter speed too slow
-            Equipment
-                LENS
-                    Inappropriate lens
-                    Dirty lens
-            Environment
-                Too dark
-        """;
-
-    [TestMethod]
-    public void Ishikawa_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidIshikawaParser().Parse(IshikawaSrc);
-        Assert.IsInstanceOfType(WpfIshikawaRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Ishikawa_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", IshikawaSrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Ishikawa_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              ishikawa:
-                diagramPadding: 30
-            ---
-            ishikawa-beta
-              Slow API Response
-              Infrastructure
-                No CDN
-              Code
-                N+1 queries
-                Missing caching
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Ishikawa_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidIshikawaParser().Parse("ishikawa-beta\n");
-        Assert.IsNotNull(WpfIshikawaRenderer.Render(d, MarkdownPalette.Dark));
-    });
-
     // ── Sankey ────────────────────────────────────────────────────────────
 
     private const string SankeySrc =

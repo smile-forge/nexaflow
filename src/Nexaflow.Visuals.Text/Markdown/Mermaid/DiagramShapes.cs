@@ -209,25 +209,31 @@ internal static class DiagramShapes
                             Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words)
     {
         var outline = Outline(shape, bounds);
+        var room = Inside(shape, bounds);
+        var at = words is null ? default : new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2));
 
         build.Open(kind, part, stops: Stops.None);
 
         // The drawing is a piece of its own, and a leaf: only what draws is pressed, so a shape with words in it stands in its
-        // outline through this, and the words in it stand in front.
+        // outline through this — less where its words are, which stand in front.
         build.Open(MermaidPiece.Shape, part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         if (Details(shape, bounds) is { } details && stroke is not null)
             build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
-        build.Occupies(outline);
+        build.Occupies(words is null ? outline : Clear(outline, new Rect(at, new Size(words.Width, words.Height))));
         build.Close();
 
-        if (words is not null)
-        {
-            var room = Inside(shape, bounds);
-            words.Set(build, new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2)), wordsKind);
-        }
+        words?.Set(build, at, wordsKind);
 
         build.Close();
+    }
+
+    /// <summary>Where a shape stands with words drawn over it: its outline, less where the words are, so a press on them means them.</summary>
+    public static Geometry Clear(Geometry outline, Rect words)
+    {
+        var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, new RectangleGeometry(words));
+        stands.Freeze();
+        return stands;
     }
 
     // ── Outlines ────────────────────────────────────────────────────────────

@@ -88,6 +88,7 @@ public static class MermaidDiagrams
         MermaidDiagram.Radar => Radars,
         MermaidDiagram.XyChart => XyCharts,
         MermaidDiagram.Quadrant => Quadrants,
+        MermaidDiagram.Ishikawa => Ishikawas,
         _ => null,
     };
 
@@ -100,6 +101,8 @@ public static class MermaidDiagrams
     private static readonly Xy.XyGrammar XyCharts = new();
 
     private static readonly Quadrant.QuadrantGrammar Quadrants = new();
+
+    private static readonly Ishikawa.IshikawaGrammar Ishikawas = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =
