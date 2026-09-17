@@ -40,12 +40,6 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         IshikawaBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
-    private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
-
     [TestMethod]
     public void EveryCauseHasABoneStandingForItsLine_AndTheEventTheHeadAndTheSpine() => UiThread.Run(() =>
     {

@@ -48,10 +48,6 @@ public class XyBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700, bool writing = false) =>
         XyBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room, writing);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
     [TestMethod]
     public void EveryValueOfABarSeriesIsABarStandingForTheValueWritten() => UiThread.Run(() =>
         CollectionAssert.AreEqual(new[] { "20", "50", "80" }, Pieces(Build(Revenue), XyPiece.Bar).Select(bar => Written(Revenue, bar.Part)).ToArray()));

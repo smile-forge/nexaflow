@@ -41,10 +41,6 @@ public class KanbanBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 700) =>
         KanbanBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
     [TestMethod]
     public void ColumnsStandSideBySide_WithTheirCardsStackedInThem() => UiThread.Run(() =>
     {

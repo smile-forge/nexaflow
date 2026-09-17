@@ -107,9 +107,7 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
             var (lines, _, shape) = said[node];
             var bounds = room.At(placed[node]);
             var fill = Fill(map, node);
-            var words = DiagramWords.Stack(lines, DiagramShapes.Inside(shape, bounds))
-                .Select(line => (line.Words, line.At, MindmapPiece.Title))
-                .ToList();
+            var words = DiagramWords.Placed(lines, DiagramShapes.Inside(shape, bounds), MindmapPiece.Title);
 
             // A node with no border of its own is underlined instead, as Mermaid draws one.
             var under = node.Shape != MindmapShape.Plain ? null : Line(bounds);

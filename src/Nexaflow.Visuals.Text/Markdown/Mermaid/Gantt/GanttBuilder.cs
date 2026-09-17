@@ -111,7 +111,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             var tall = lines.Sum(line => line.Height);
             var aside = new Rect(10, top + ((from + to) * gap / 2) - (tall / 2), beside, tall);
 
-            words.AddRange(DiagramWords.Stack(lines, aside, TextAlignment.Left).Select(line => (line.Words, line.At, GanttPiece.SectionName)));
+            words.AddRange(DiagramWords.Placed(lines, aside, GanttPiece.SectionName, TextAlignment.Left));
         }
 
         // Each task: its bar, diamond or marker, and its name in the bar where it fits, beside it where it does not.

@@ -137,7 +137,7 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
             [JourneyPiece.Name], across: true, Palette.CodeBorder);
     }
 
-    /// <summary>A band over the tasks each named section groups.</summary>
+    /// <summary>A band over each run of tasks the same section groups.</summary>
     private void Sections(LayoutBuilder build, JourneyDiagram diagram, IReadOnlyList<(JourneyTask Task, JourneySection Section)> tasks,
                           IReadOnlyList<Rect> boxes, double top, DiagramRoom room)
     {
@@ -145,25 +145,18 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
 
         build.Open(JourneyPiece.Sections, part: null, stops: Stops.None);
 
-        for (var at = 0; at < tasks.Count;)
+        foreach (var (order, at, _, run) in DiagramBand.Runs(tasks, task => task.Section.Order, boxes))
         {
-            var section = tasks[at].Section;
-            var last = at;
-            while (last + 1 < tasks.Count && tasks[last + 1].Section == section) last++;
+            if (tasks[at].Section.Name is not { } name) continue;
 
-            if (section.Name is { } name)
-            {
-                var band = new Rect(boxes[at].Left, top, boxes[last].Right - boxes[at].Left, Band);
-                var fill = Ink.Series(section.Order, diagram.Config.SectionFill(section.Order));
-                var words = Wrapped(name.Says, name.Hole, NameSize, Palette.Text, Math.Max(20, band.Width - (Pad * 2)), FontWeights.SemiBold);
+            var band = new Rect(run.Left, top, run.Width, Band);
+            var fill = Ink.Series(order, diagram.Config.SectionFill(order));
+    var words = Says(name.Says, name.Hole, NameSize, Palette.Text, Math.Max(20, band.Width - (Pad * 2)), FontWeights.SemiBold);
 
-                room.Reach(band);
-                DiagramShapes.Draw(build, JourneyPiece.Section, section.Part, DiagramShape.Rounded, band,
-                    DiagramInk.Faded(fill, Banded), new DiagramStroke(fill),
-                    [.. DiagramWords.Stack(words, Rect.Inflate(band, -Pad, -Pad)).Select(line => (line.Words, line.At, JourneyPiece.Name))]);
-            }
-
-            at = last + 1;
+            room.Reach(band);
+            DiagramShapes.Draw(build, JourneyPiece.Section, tasks[at].Section.Part, DiagramShape.Rounded, band,
+                DiagramInk.Faded(fill, Banded), new DiagramStroke(fill),
+                DiagramWords.Placed(words, Rect.Inflate(band, -Pad, -Pad), JourneyPiece.Name));
         }
 
         build.Close();
@@ -240,11 +233,11 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
             var (task, section) = tasks[at];
             var box = boxes[at];
             var fill = Ink.Series(section.Order, diagram.Config.SectionFill(section.Order));
-            var words = Wrapped(task.Says.Says, task.Says.Hole, size, Palette.Text, Math.Max(20, box.Width - (Pad * 2)));
+            var words = Says(task.Says.Says, task.Says.Hole, size, Palette.Text, Math.Max(20, box.Width - (Pad * 2)));
 
             DiagramShapes.Draw(build, JourneyPiece.Task, task.Part, DiagramShape.Rounded, box,
                 DiagramInk.Faded(fill, Tinted), new DiagramStroke(fill),
-                [.. DiagramWords.Stack(words, Rect.Inflate(box, -Pad, -Pad)).Select(line => (line.Words, line.At, JourneyPiece.Says))]);
+                DiagramWords.Placed(words, Rect.Inflate(box, -Pad, -Pad), JourneyPiece.Says));
 
             Actors(build, diagram, task, box);
         }

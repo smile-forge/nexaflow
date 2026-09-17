@@ -18,35 +18,13 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestCategory("Desktop")]
 [DoNotParallelize]
 [CoversNode("cynefin-writing")]
-public class CynefinEditingTests
+public class CynefinEditingTests : MermaidEditing
 {
     private const string Sense =
         "cynefin-beta\n  complex\n    \"Investigate root cause\"\n  confusion\n    \"Unclassified A\"\n  chaotic\n  chaotic --> complex : \"Stabilised\"";
 
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run("Sense:\n\n```mermaid\n" + Sense + "\n```\n", (editor, rtb) =>
-        {
-            var diagram = Find<ContentElement>(editor);
-            Assert.IsNotNull(diagram, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
-
-            test(editor, rtb, diagram!);
-        });
-
-    private static void PressPast(ContentElement diagram, string words)
-    {
-        var piece = diagram.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == diagram.Source.IndexOf(words, StringComparison.Ordinal));
-
-        diagram.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
-        diagram.EndPointerSelect();
-    }
-
-    private static void Write(RichTextBox rtb, string text)
-    {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
-        MarkdownEditorHarness.Pump();
-    }
+    /// <inheritdoc/>
+    protected override string Source => Sense;
 
     [TestMethod]
     public void TypingInACardedItemOneInTheDisorderAndAMovementsLabelChangesThem() => UiThread.Run(() =>
@@ -67,14 +45,4 @@ public class CynefinEditingTests
             Assert.AreEqual(0, diagram.Diagnostics.Count);
             StringAssert.Contains(editor.Markdown, "Investigate root causes", "and so does the document");
         }));
-
-    private static T? Find<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is T hit) return hit;
-
-        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
-            if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
-
-        return null;
-    }
 }

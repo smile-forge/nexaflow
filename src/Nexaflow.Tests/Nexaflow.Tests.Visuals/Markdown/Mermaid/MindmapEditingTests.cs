@@ -18,34 +18,12 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestCategory("Desktop")]
 [DoNotParallelize]
 [CoversNode("mindmap-writing")]
-public class MindmapEditingTests
+public class MindmapEditingTests : MermaidEditing
 {
     private const string Plan = "mindmap\n  root((Nexaflow))\n    Markdown\n      id4[Extensions that cover every case anybody could think of writing]";
 
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", (editor, rtb) =>
-        {
-            var chart = Find<ContentElement>(editor);
-            Assert.IsNotNull(chart, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
-
-            test(editor, rtb, chart!);
-        });
-
-    private static void PressPast(ContentElement chart, string words)
-    {
-        var piece = chart.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, StringComparison.Ordinal));
-
-        chart.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
-        chart.EndPointerSelect();
-    }
-
-    private static void Write(RichTextBox rtb, string text)
-    {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
-        MarkdownEditorHarness.Pump();
-    }
+    /// <inheritdoc/>
+    protected override string Source => Plan;
 
     [TestMethod]
     public void TypingInTheRootsTitleABareOnesAndEachLineOfAWrappedOneChangesThem() => UiThread.Run(() =>
@@ -70,15 +48,6 @@ public class MindmapEditingTests
             StringAssert.Contains(chart.Source, "of writing?]", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message)));
         }));
-    private static T? Find<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is T hit) return hit;
-
-        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
-            if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
-
-        return null;
-    }
 }
 
 

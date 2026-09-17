@@ -13,23 +13,21 @@ public sealed class ResolveSections : IAstStage
 {
     public string Name => "timeline:sections";
 
-    public ContentNode Run(ContentNode tree)
+    public ContentNode Run(ContentNode tree) =>
+        Further(MermaidGrouping.Under(tree, TimelineKinds.Section, TimelineKinds.Period, TimelineKinds.Fact, TimelineRoles.In));
+
+    /// <summary>Which period each line of further events adds them to, and the reason where there is no period above it.</summary>
+    private static ContentNode Further(ContentNode tree)
     {
         var said = new Dictionary<ContentNode, string?>();
-        var section = -1;
         var period = -1;
 
         foreach (var line in tree.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line))
         {
             switch (line.Stated())
             {
-                case { Kind: TimelineKinds.Section }:
-                    section++;
-                    break;
-
-                case { Kind: TimelineKinds.Period } at:
+                case { Kind: TimelineKinds.Period }:
                     period++;
-                    said[at] = section.ToString(CultureInfo.InvariantCulture);
                     break;
 
                 case { Kind: TimelineKinds.More } more:
@@ -41,14 +39,10 @@ public sealed class ResolveSections : IAstStage
         if (said.Count == 0) return tree;
 
         return AstRewrite.Each(tree, node =>
-        {
-            if (!said.TryGetValue(node, out var which)) return node;
-
-            return node.Kind == TimelineKinds.Period
-                ? node.Saying(TimelineKinds.Fact, TimelineRoles.In, which!)
-                : which is null
+            said.TryGetValue(node, out var which)
+                ? which is null
                     ? node.Saying("A line of events adds them to the period above it, and there is none: 2004 : Facebook.")
-                    : node.Saying(TimelineKinds.Fact, TimelineRoles.Of, which);
-        });
+                    : node.Saying(TimelineKinds.Fact, TimelineRoles.Of, which)
+                : node);
     }
 }

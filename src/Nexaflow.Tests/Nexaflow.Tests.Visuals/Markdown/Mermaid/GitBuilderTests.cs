@@ -49,16 +49,6 @@ public class GitBuilderTests : MermaidBuilderContract
     private static Laid Build(string source, double room = 900) =>
         GitBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
 
-    private static List<Piece> Pieces(Laid laid, string kind) => [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];
-
-    private static string Written(string source, ISourcePart? part) => part is null ? "" : source.Substring(part.Start, part.Length);
-
-    private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
-
-    private static Color? Fill(Piece piece) =>
-        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
-            .Select(mark => mark.Fill).OfType<SolidColorBrush>().Select(brush => (Color?)brush.Color).FirstOrDefault();
-
     [TestMethod]
     public void EveryCommitIsDrawnAlongTheLaneOfTheBranchItIsMadeOn() => UiThread.Run(() =>
     {

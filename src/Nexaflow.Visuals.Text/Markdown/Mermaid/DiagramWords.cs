@@ -98,4 +98,16 @@ internal sealed class DiagramWords
             top += line.Height;
         }
     }
+
+    /// <summary>
+    /// The lines stacked in <paramref name="room"/>, each as a piece of <paramref name="kind"/> — what a shape is drawn with
+    /// (<see cref="DiagramShapes.Draw(LayoutBuilder, string, ISourcePart, DiagramShape, Rect, Brush, DiagramStroke, IReadOnlyList{ValueTuple{DiagramWords, Point, string}}, Geometry)"/>).
+    /// </summary>
+    public static IReadOnlyList<(DiagramWords Words, Point At, string Kind)> Placed(
+        IReadOnlyList<DiagramWords> lines, Rect room, string kind, TextAlignment align = TextAlignment.Center) =>
+        [.. Stack(lines, room, align).Select(line => (line.Words, line.At, kind))];
+
+    /// <summary>How much room the lines take stacked: as wide as the widest of them, and as tall as all of them together.</summary>
+    public static Size Taken(IReadOnlyList<DiagramWords> lines) =>
+        new(lines.Select(line => line.Width).DefaultIfEmpty(0).Max(), lines.Sum(line => line.Height));
 }

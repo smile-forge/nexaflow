@@ -264,7 +264,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         foreach (var (cause, lines, box) in fish.Boxes)
         {
             var bounds = Rect.Offset(box, shift);
-            var words = DiagramWords.Stack(lines, bounds).Select(line => (line.Words, line.At, MermaidPiece.Words)).ToList();
+            var words = DiagramWords.Placed(lines, bounds, MermaidPiece.Words);
 
             DiagramShapes.Draw(build, IshikawaPiece.Cause, cause.Part, DiagramShape.Rectangle, bounds, fish.Fill, new DiagramStroke(fish.Line, 2), words);
         }

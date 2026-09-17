@@ -127,11 +127,11 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
                     .Select(happening =>
                     {
                         var words = Said(happening.Says, EventSize, Palette.Text, width);
-                        return new Happening(happening, words, new Size(Column, Taken(words).Height + (pad * 2)));
+                        return new Happening(happening, words, new Size(Column, DiagramWords.Taken(words).Height + (pad * 2)));
                     })
                     .ToList();
 
-                shown.Add(new Shown(period, lines, Taken(lines), events, section.Order, slot));
+                shown.Add(new Shown(period, lines, DiagramWords.Taken(lines), events, section.Order, slot));
             }
         }
 
@@ -210,7 +210,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
     // ── Layers ──────────────────────────────────────────────────────────────
 
-    /// <summary>A band over the periods each named section groups — <paramref name="over"/> saying where it goes.</summary>
+    /// <summary>A band over each run of periods the same section groups — <paramref name="over"/> saying where it goes.</summary>
     private void Bands(LayoutBuilder build, TimelineChart chart, IReadOnlyList<Shown> said, IReadOnlyList<Rect> boxes,
                        Func<Rect, Rect> over, double pad, DiagramRoom room)
     {
@@ -218,26 +218,18 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
         build.Open(TimelinePiece.Sections, part: null, stops: Stops.None);
 
-        for (var at = 0; at < said.Count;)
+        foreach (var (section, at, _, run) in DiagramBand.Runs(said, shown => shown.Section, boxes))
         {
-            var section = said[at].Section;
-            var last = at;
-            while (last + 1 < said.Count && said[last + 1].Section == section) last++;
+            if (chart.Sections.FirstOrDefault(group => group.Order == section) is not { Name: { } name } group) continue;
 
-            var group = chart.Sections.FirstOrDefault(group => group.Order == section);
-            if (group?.Name is { } name)
-            {
-                var band = over(Rect.Union(boxes[at], boxes[last]));
-                var lines = Said(name, NameSize, Palette.Text, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
-                var fill = Colour(chart, said[at].Slot);
+            var band = over(run);
+            var lines = Said(name, NameSize, Palette.Text, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
+            var fill = Colour(chart, said[at].Slot);
 
-                room.Reach(band);
-                DiagramShapes.Draw(build, TimelinePiece.Section, group.Part, DiagramShape.Rounded, band,
-                    DiagramInk.Faded(fill, Banded), new DiagramStroke(DiagramInk.Faded(fill, 0.5)),
-                    [.. DiagramWords.Stack(lines, Rect.Inflate(band, -pad, -pad)).Select(line => (line.Words, line.At, TimelinePiece.Name))]);
-            }
-
-            at = last + 1;
+            room.Reach(band);
+            DiagramShapes.Draw(build, TimelinePiece.Section, group.Part, DiagramShape.Rounded, band,
+                DiagramInk.Faded(fill, Banded), new DiagramStroke(DiagramInk.Faded(fill, 0.5)),
+                DiagramWords.Placed(lines, Rect.Inflate(band, -pad, -pad), TimelinePiece.Name));
         }
 
         build.Close();
@@ -281,7 +273,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
         build.Open(TimelinePiece.Periods, part: null, stops: Stops.None);
         DiagramShapes.Draw(build, TimelinePiece.Period, shown.Period.Part, DiagramShape.Rounded, box, colour, new DiagramStroke(colour, 1.2),
-            [.. DiagramWords.Stack(shown.Lines, Rect.Inflate(box, -pad, -pad)).Select(line => (line.Words, line.At, TimelinePiece.Says))]);
+            DiagramWords.Placed(shown.Lines, Rect.Inflate(box, -pad, -pad), TimelinePiece.Says));
         build.Close();
 
         if (events.Count == 0) return;
@@ -295,8 +287,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
             DiagramShapes.Draw(build, TimelinePiece.Event, happening.Event.Says.Part, DiagramShape.Rounded, events[at],
                 DiagramInk.Faded(colour, Tinted), new DiagramStroke(colour),
-                [.. DiagramWords.Stack(happening.Lines, Rect.Inflate(events[at], -pad, -pad), TextAlignment.Left)
-                      .Select(line => (line.Words, line.At, TimelinePiece.Says))]);
+                DiagramWords.Placed(happening.Lines, Rect.Inflate(events[at], -pad, -pad), TimelinePiece.Says, TextAlignment.Left));
         }
 
         build.Close();
@@ -309,18 +300,8 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     /// <c>&lt;br&gt;</c> says to — or, where it holds an entity code, what that code says, which is worked out and so
     /// pressed rather than typed into.
     /// </summary>
-    private IReadOnlyList<DiagramWords> Said(TimelineText text, double size, Brush ink, double width, FontWeight? weight = null)
-    {
-        var written = text.Says.Text;
-        var says = MermaidText.Decode(written);
-
-        return says == written
-            ? Wrapped(text.Says, text.Hole, size, ink, width, weight)
-            : [Worked(says, text.Says, size, ink, weight)];
-    }
-
-    private static Size Taken(IReadOnlyList<DiagramWords> lines) =>
-        new(lines.Select(line => line.Width).DefaultIfEmpty(0).Max(), lines.Sum(line => line.Height));
+    private IReadOnlyList<DiagramWords> Said(TimelineText text, double size, Brush ink, double width, FontWeight? weight = null) =>
+        Says(text.Says, text.Hole, size, ink, width, weight);
 
     /// <summary>The colour a slot is drawn in: the one its <c>cScale</c> writes, or the theme's own.</summary>
     private Brush Colour(TimelineChart chart, int slot) => Ink.Series(slot, chart.Config.ScaleAt(slot));

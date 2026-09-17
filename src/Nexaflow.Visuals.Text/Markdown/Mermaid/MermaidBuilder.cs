@@ -339,6 +339,20 @@ internal abstract class MermaidBuilder : ContentBuilder
         return lines.Count == 0 ? [whole] : lines;
     }
 
+    /// <summary>
+    /// What a piece of text says, set as the diagram draws it: the characters written, wrapped to <paramref name="width"/> and
+    /// broken where a <c>&lt;br&gt;</c> says to — or, where it holds an entity code (<see cref="MermaidText"/>), what that code
+    /// stands for, which is worked out and so pressed rather than typed into.
+    /// </summary>
+    protected IReadOnlyList<DiagramWords> Says(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
+                                               FontWeight? weight = null)
+    {
+        var written = part?.Text ?? string.Empty;
+        var says = MermaidText.Decode(written);
+
+        return says == written ? Wrapped(part, hole, size, ink, width, weight) : [Worked(says, part, size, ink, weight)];
+    }
+
     /// <summary>Where the stretches between <c>&lt;br&gt;</c> breaks start and end — one stretch, for words with none.</summary>
     private static IReadOnlyList<(int From, int To)> Breaks(string says)
     {

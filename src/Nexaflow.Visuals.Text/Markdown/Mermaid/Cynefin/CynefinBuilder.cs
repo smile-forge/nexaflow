@@ -212,8 +212,8 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
         var cards = items.Select(item =>
         {
-            var lines = Wrapped(item.Says.Says, item.Says.Hole, ItemSize, Palette.Text, wrap);
-            var said = new Size(lines.Select(line => line.Width).DefaultIfEmpty(0).Max(), lines.Sum(line => line.Height));
+            var lines = Says(item.Says.Says, item.Says.Hole, ItemSize, Palette.Text, wrap);
+            var said = DiagramWords.Taken(lines);
             return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, said, Inset));
         });
 
@@ -387,9 +387,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         {
             var at = Rect.Offset(bounds, shift);
             var inside = Rect.Inflate(DiagramShapes.Inside(DiagramShape.Rounded, at), -Inset, -Inset);
-            var words = DiagramWords.Stack(card.Lines, inside, left ? TextAlignment.Left : TextAlignment.Right)
-                .Select(line => (line.Words, line.At, CynefinPiece.Says))
-                .ToList();
+            var words = DiagramWords.Placed(card.Lines, inside, CynefinPiece.Says, left ? TextAlignment.Left : TextAlignment.Right);
 
             DiagramShapes.Draw(build, CynefinPiece.Item, card.Item.Part, DiagramShape.Rounded, at, Palette.CodeBg, stroke, words);
         }
