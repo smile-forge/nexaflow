@@ -64,8 +64,10 @@ diagram's own code sits in a folder of its own under each.
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
-| set words that wrap to a width, each line typed into as the characters it holds | `Wrapped` |
+| set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
+| lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
+| read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | show a block with nothing to draw | `AsWritten` |

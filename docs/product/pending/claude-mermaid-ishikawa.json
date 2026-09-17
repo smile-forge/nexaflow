@@ -255,10 +255,100 @@
           }
         ]
       }
+    },
+    "mindmap": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Mindmap/MindmapBuilder.cs",
+          "class": "MindmapBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTree.cs",
+          "class": "DiagramTree"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MindmapBuilderTests.cs",
+            "class": "MindmapBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramTreeTests.cs",
+            "class": "DiagramTreeTests"
+          }
+        ]
+      }
+    },
+    "mindmap-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapGrammar.cs",
+          "class": "MindmapGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/ResolveRoot.cs",
+          "class": "ResolveRoot"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapTree.cs",
+          "class": "MindmapTree"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs",
+          "class": "MindmapConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapGrammarTests.cs",
+            "class": "MindmapGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapTreeTests.cs",
+            "class": "MindmapTreeTests"
+          }
+        ]
+      }
+    },
+    "mindmap-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MindmapEditingTests.cs",
+            "class": "MindmapEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 24,
   "touched_nodes": [
     "gantt",
     "gantt-ast",
@@ -268,6 +358,9 @@
     "ishikawa-writing",
     "kanban",
     "kanban-ast",
-    "kanban-writing"
+    "kanban-writing",
+    "mindmap",
+    "mindmap-ast",
+    "mindmap-writing"
   ]
 }

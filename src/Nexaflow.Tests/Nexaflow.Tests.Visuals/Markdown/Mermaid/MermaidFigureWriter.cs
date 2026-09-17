@@ -32,6 +32,7 @@ public class MermaidFigureWriter
         ("Ishikawa (fishbone) diagram", "mermaid-ishikawa.png"),
         ("Gantt chart", "mermaid-gantt.png"),
         ("Kanban board", "mermaid-kanban.png"),
+        ("Mindmap", "mermaid-mindmap.png"),
     ];
 
     [TestMethod]

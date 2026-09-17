@@ -13,7 +13,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c>, <c>ishikawa</c>, <c>gantt</c>, <c>kanban</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c>, <c>ishikawa</c>, <c>gantt</c>, <c>kanban</c>, <c>mindmap</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -36,7 +36,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
-    private static readonly MermaidMindmapParser  MindmapParser  = new();
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
@@ -70,7 +69,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
-            MermaidDiagram.Mindmap      => RenderMindmap(block, palette),
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
@@ -107,13 +105,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph = GitParser.Parse(block.Body);
         graph.Title = Titled(graph.Title, block);
         return WpfGitGraphRenderer.Render(graph, palette);
-    }
-
-    private static FrameworkElement RenderMindmap(MermaidBlock block, MarkdownPalette palette)
-    {
-        var map = MindmapParser.Parse(block.Body);
-        map.Title = Titled(map.Title, block);
-        return WpfMindmapRenderer.Render(map, palette);
     }
 
     private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)

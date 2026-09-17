@@ -167,7 +167,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
 
     /// <summary>Whether a card's title is in brackets Mermaid pads twice as far: <c>[…]</c>, <c>(…)</c> or <c>{{…}}</c>.</summary>
     private static bool Bracketed(KanbanCard card) =>
-        card.Part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label)?.Children.FirstOrDefault()?.Text is "[" or "(" or "{{";
+        MermaidOutline.Opening(card.Part) is "[" or "(" or "{{";
 
     /// <summary>The ink of a priority's stripe — none for <c>Medium</c>, or for a priority Mermaid does not know.</summary>
     private Brush? Priority(string? priority) => priority switch
