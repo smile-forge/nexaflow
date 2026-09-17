@@ -51,7 +51,7 @@ diagram's own code sits in a folder of its own under each.
 | try one reading and go back | `Save`, `Restore`, `Since` |
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
-| read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag` |
+| read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets |
 
 ### Drawing

@@ -184,4 +184,16 @@ public class MermaidLineTests
 
         static bool Letter(char character) => char.IsLetterOrDigit(character) || character == '_';
     }
+
+    [TestMethod]
+    public void AKeySetToAListIsReadInBracketsOrAsTheLinesUnderIt()
+    {
+        var brackets = MermaidConfig.Read("config:\n  journey:\n    actorColours: [\"#ff0000\", \"#00ff00\"]").Diagram("journey");
+        var dashes = MermaidConfig.Read("config:\n  journey:\n    actorColours:\n      - \"#ff0000\"\n      - \"#00ff00\"\n    width: 200").Diagram("journey");
+
+        CollectionAssert.AreEqual(new[] { "#ff0000", "#00ff00" }, brackets.List("actorColours").ToArray());
+        CollectionAssert.AreEqual(new[] { "#ff0000", "#00ff00" }, dashes.List("actorColours").ToArray());
+        Assert.AreEqual(200, dashes.Size("width"), "and what follows the list is still the diagram's");
+        Assert.AreEqual(0, brackets.List("sectionFills").Count, "a key set to no list at all");
+    }
 }

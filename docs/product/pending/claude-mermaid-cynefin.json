@@ -200,14 +200,115 @@
           }
         ]
       }
+    },
+    "journey": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/userJourney.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Journey/JourneyBuilder.cs",
+          "class": "JourneyBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/JourneyBuilderTests.cs",
+            "class": "JourneyBuilderTests"
+          }
+        ]
+      }
+    },
+    "journey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs",
+          "class": "JourneyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyDiagram.cs",
+          "class": "JourneyDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs",
+          "class": "JourneyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/Stages/ResolveTasks.cs",
+          "class": "ResolveTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidConfig.cs",
+          "class": "MermaidConfig",
+          "method": "List"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyGrammarTests.cs",
+            "class": "JourneyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyDiagramTests.cs",
+            "class": "JourneyDiagramTests"
+          }
+        ]
+      }
+    },
+    "journey-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs",
+          "class": "JourneyGrammar",
+          "method": "Names"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/JourneyEditingTests.cs",
+            "class": "JourneyEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 18,
   "touched_nodes": [
     "cynefin",
     "cynefin-ast",
     "cynefin-writing",
+    "journey",
+    "journey-ast",
+    "journey-writing",
     "timeline",
     "timeline-ast",
     "timeline-writing"

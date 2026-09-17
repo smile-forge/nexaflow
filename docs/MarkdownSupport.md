@@ -159,7 +159,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
-| `journey` | ✅ (scored faces, actor legend) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
 | `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
@@ -550,21 +550,26 @@ colon typed in goes in as `#colon;`, which is how Mermaid writes one inside what
 colon splits, exactly as in Mermaid, so a
 colon inside an event needs `#colon;`; labels wrap at a fixed column width rather than Mermaid's `useMaxWidth` fit.
 
-**Journey sub-features** ([`MermaidJourneyParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidJourneyParser.cs)
-+ [`WpfJourneyRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfJourneyRenderer.cs)).
-A user journey has its own [`JourneyDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/JourneyDiagram.cs) model —
-sections of scored tasks and the actors on each, with the distinct actor list (first-appearance order) as the legend.
-Tasks run left to right under a band per section; above each task a **face** floats in a score lane (higher for a better
-score, drawn from vector strokes — no emoji font), coloured by mood from the palette's success/warning/danger tokens:
-5–4 smile, 3 flat, 2–1 frown. Each actor gets a colour, shown in a legend and as a dot on every task they take part in.
-Supported: `title`; `section`; `Task name: score: actor, actor` (a missing score reads as 3, one outside 1–5 is
-clamped, a task may have no actors, tasks before any `section` land in an unnamed one); `%%` comments; and
-`accTitle`/`accDescr` (dropped). **The front-matter `config:` block is applied**
-([`JourneyConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/JourneyConfigParser.cs) →
-[`JourneyConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/JourneyConfig.cs)): `config: journey`
-`width`/`height`/`boxMargin`/`taskFontSize`, the colour lists `actorColours`/`sectionFills` (flow or block YAML lists), and
-the `themeVariables` `fillType0…7` section palette (else the palette's series bank). **Limitations:** actors are matched by
-exact name; `useMaxWidth` and `leftMargin`/`rightMargin` are ignored.
+**Journey sub-features** ([`JourneyGrammar`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs) →
+[`JourneyDiagram`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyDiagram.cs) →
+[`JourneyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Journey/JourneyBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every task and actor is the characters it was
+written as. Tasks run left to right under a band per section; over each task a **face** floats as high as it scored
+(drawn from strokes — no emoji font), coloured by mood from the palette's success/warning/danger tokens: 5–4 smile, 3
+flat, 2–1 frown. Each actor takes a colour, shown in a legend along the top and as a mark on every task they take part
+in. Supported: `title`; `section`; `Task name: score: actor, actor` (a task may have no actors, and tasks before any
+`section` are a group of their own with no name); `%%` comments; and `accTitle`/`accDescr`. A task stands for its line,
+a band for its `section` line, a face for the score it shows, and an actor's mark for where they are named on that
+task's line. **A score nobody can reach is no score at all**: the line says what is wrong with it and the task shows the
+middling face, where the legacy renderer clamped it silently. **The front matter is applied**
+([`JourneyConfig`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs)): `config: journey:`
+`width`/`height`/`boxMargin`/`taskFontSize`, the colour lists `actorColours`/`sectionFills` (written in brackets or as the
+lines under the key), and the `themeVariables` `fillType0…7` slots behind the sections' list. Writing in place: what a
+task says, a section's name and an actor's name in the legend are typed into where they are drawn; **an actor renamed in
+the legend is renamed in every task they take part in**; Enter under a task starts another, scored in the middle with its
+name still to write; and a colon, a comma or a per cent sign typed in goes in as the entity code standing for it, those
+being what a line is read by. **Limitations:** actors are matched by name, ignoring the space round it; `useMaxWidth` and
+`leftMargin`/`rightMargin` are read and kept, not applied.
 
 **Block sub-features** ([`MermaidBlockParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidBlockParser.cs)
 + [`WpfBlockRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfBlockRenderer.cs)).
@@ -1367,8 +1372,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state/class/requirement routing; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); journey (face routing not raw text, all five scores + actor/section colours from config); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, git graph, state, class, requirement, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); journey + `JourneyConfig` (sections/tasks/scores/actors, distinct actor order, score defaults + clamping, actor-less tasks, colour lists + `fillType`); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state/class/requirement routing; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, git graph, state, class, requirement, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |
