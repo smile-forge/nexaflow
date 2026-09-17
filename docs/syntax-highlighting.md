@@ -144,8 +144,10 @@ Add a new role only if an existing one doesn't fit: add the token to `Tokens.xam
    - **Interpolation / templates:** capture only the literal fragments (e.g. C# `(string_content)`,
      JS/TS `(string_fragment)`) — never the whole interpolated node, or the embedded `${…}` / `{…}`
      identifiers get the string colour. The braces stay uncaptured (plain text).
-   - One unknown node type fails the **whole** query. Discover the real node/field names by dumping the
-     tree: `CodeHighlighter.TryCreate("<id>")!.GetParseTree(snippet)`. Offsets the binding reports are
+   - One unknown node type fails the **whole** query, which costs that language its colour and nothing else:
+     the parse does not depend on the query, and `CodeHighlighter.CanHighlight` reports it — a test asks that
+     of every registered grammar. Discover the real node/field names by dumping the tree:
+     `CodeHighlighter.TryCreate("<id>")!.GetParseTree(snippet)`. Offsets the binding reports are
      **UTF-16 char offsets** — they map straight to editor document offsets, no conversion.
 
 3. **Register the extensions** in the `TreeSitterLanguages` static constructor

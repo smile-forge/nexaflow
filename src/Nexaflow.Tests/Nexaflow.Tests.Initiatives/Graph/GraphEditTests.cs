@@ -4,6 +4,7 @@ using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Syntax.Compiler;
 
 namespace Nexaflow.Tests.Initiatives.Graph;
 
@@ -434,6 +435,43 @@ public class GraphEditTests
         var broken = GraphEdit.Plan(new KnowledgeGraph(), "file:src/App/App.csproj", StructuralEdit.Op.Substitute,
             "", Reader(project), new StructuralEdit.Options(Find: "</ItemGroup>"));
         Assert.IsFalse(broken.Ok, "an element left unclosed does not parse as XML, so it is not written");
+    }
+
+    /// <summary>
+    /// Valid C# the grammar cannot read is still valid C#, so the edit lands. The grammar is a third-party
+    /// approximation that lags the language — <c>with</c> has been contextual since C# 9 and it still reads the
+    /// word as a keyword, so <c>var with = a;</c> comes back a parse error — and an edit refused on that is a
+    /// caller told to rewrite working code. <see cref="SyntaxAuthorities"/> puts the compiler in charge instead.
+    /// </summary>
+    [TestMethod]
+    public void ValidCSharpTheGrammarCannotParse_IsWritten()
+    {
+        SyntaxAuthorities.Register("c-sharp", CSharpSyntax.FirstError);
+
+        var result = GraphEdit.Plan(AddNode, "code:src/Sample.cs#T:C/M:Add", StructuralEdit.Op.Body,
+            "{\n    var with = a;\n    (with, b) = (b, with);\n    return with + b;\n}", Reader(Source),
+            new StructuralEdit.Options());
+
+        var text = Applied(result);
+        AssertLine(text, "        var with = a;");
+        AssertLine(text, "        (with, b) = (b, with);");
+        Assert.IsTrue(new DeclarationAnchors().ParsesCleanly("c-sharp", text),
+                      "and the result is reported as parsing, because the compiler is what was asked");
+    }
+
+    /// <summary>
+    /// The other half of the same seam: handing the compiler the question is not the same as dropping it. C#
+    /// that does not parse at all is refused exactly as before.
+    /// </summary>
+    [TestMethod]
+    public void CSharpThatDoesNotParse_IsStillRefused()
+    {
+        SyntaxAuthorities.Register("c-sharp", CSharpSyntax.FirstError);
+
+        var result = GraphEdit.Plan(AddNode, "code:src/Sample.cs#T:C/M:Add", StructuralEdit.Op.Body,
+            "{\n    return a + ;\n}", Reader(Source), new StructuralEdit.Options());
+
+        Assert.IsFalse(result.Ok, "a body the compiler cannot parse is not written");
     }
 
     [TestMethod]

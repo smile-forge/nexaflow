@@ -89,7 +89,8 @@ public sealed class DeclarationAnchors
     }
 
     /// <summary>
-    /// Whether the grammar parses this text without an error node anywhere in it.
+    /// Whether this text parses without an error anywhere in it — asked of the language's own front-end where
+    /// <see cref="SyntaxAuthorities"/> has one, and of the grammar otherwise.
     /// <para>
     /// <see cref="CodeOutline.ParseFailed"/> is a coarser question — it asks whether the <i>root</i> came
     /// back as an error, which is the case that silently empties a file out of the graph. An editor needs
@@ -102,6 +103,8 @@ public sealed class DeclarationAnchors
     public bool ParsesCleanly(string grammarId, string text)
     {
         if (string.IsNullOrEmpty(grammarId)) return false;
+        if (SyntaxAuthorities.For(grammarId) is { } authority) return authority(text ?? "") is null;
+
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
         if (highlighter is null) return false;
         try { return highlighter.WithParseTree(text, root => !root.HasError); }
@@ -109,13 +112,16 @@ public sealed class DeclarationAnchors
     }
 
     /// <summary>
-    /// Where the first thing the grammar could not parse is, as a 1-based line and column — the <c>ERROR</c> node, or the
-    /// token it had to invent — or null when it parses cleanly. What turns "the edit would leave the file unparseable"
-    /// into something that can be fixed without reading the whole result back.
+    /// Where the first thing that could not be parsed is, as a 1-based line and column — the <c>ERROR</c> node, or the
+    /// token the grammar had to invent — or null when it parses cleanly. What turns "the edit would leave the file
+    /// unparseable" into something that can be fixed without reading the whole result back. Comes from the language's
+    /// own front-end where <see cref="SyntaxAuthorities"/> has one, so the two answers agree on the same text.
     /// </summary>
     public (int Line, int Column)? FirstError(string grammarId, string text)
     {
         if (string.IsNullOrEmpty(grammarId)) return null;
+        if (SyntaxAuthorities.For(grammarId) is { } authority) return authority(text ?? "");
+
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
         if (highlighter is null) return null;
         try

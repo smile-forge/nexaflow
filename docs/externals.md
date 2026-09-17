@@ -335,6 +335,12 @@ the submodule convention (org fork, `upstream` remote, `nexaflow` integration br
   and `.xaml` file under `src/` parses, and names the C# features this repo actually relies on. Before that
   guard existed, a grammar too old for the language silently produced *absence* — and absence reads as a
   fact about the code, not about the parser. `CodeOutline.ParseFailed` is what makes it assertable.
+- **A grammar's verdict does not decide whether an edit is valid C#.** `nfi` registers Roslyn's parser as
+  the authority for `c-sharp` (`SyntaxAuthorities`), so `graph edit` refuses on the compiler's answer, not
+  the grammar's. The C# grammar is pinned at upstream tip and still reads `with` as a keyword everywhere,
+  which made `var with = at;` — legal, `with` being contextual — an unwritable edit; the next lag would
+  have been a different word. What the grammar still decides is what the *graph* can see, which is what
+  the test above guards. Asking Roslyn is also the cheaper of the two, by roughly ten times.
 
 
 - **`ProjectReference`, never `PackageReference`** for these deps. Match how Nexaflow references its own

@@ -1,0 +1,24 @@
+{
+  "branch": "claude/eager-jepsen-69559f",
+  "nodes": {
+    "syntax-structural-edit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/StructuralEdit.cs",
+          "class": "StructuralEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Syntax/SyntaxAuthorities.cs",
+          "class": "SyntaxAuthorities"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "syntax-structural-edit"
+  ]
+}
