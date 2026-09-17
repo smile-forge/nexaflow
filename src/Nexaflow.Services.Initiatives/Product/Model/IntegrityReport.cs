@@ -26,4 +26,26 @@ public sealed class IntegrityReport
     [JsonIgnore] public bool IsClean => Issues.Count == 0;
     [JsonIgnore] public int IssueCount => Issues.Count;
     [JsonIgnore] public int AdvisoryCount => Advisories.Count;
+
+    /// <summary>
+    /// Folds in a scan of just <paramref name="nodeIds"/>: their link findings are replaced by
+    /// <paramref name="scoped"/>'s, and the tree-wide findings a node scan does not make are kept.
+    /// </summary>
+    public void Refresh(IntegrityReport scoped, IReadOnlySet<string> nodeIds)
+    {
+        Issues = [.. Issues.Where(i => !nodeIds.Contains(i.NodeId) || IsTreeWide(i.Kind))
+            .Concat(scoped.Issues)
+            .OrderBy(i => i.NodeId, StringComparer.Ordinal)
+            .ThenBy(i => i.Concern ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(i => i.Index)];
+        Advisories = [.. Advisories.Where(a => !nodeIds.Contains(a.NodeId))
+            .Concat(scoped.Advisories)
+            .OrderBy(a => a.NodeId, StringComparer.Ordinal)
+            .ThenBy(a => a.Concern ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(a => a.Index)];
+        Generated = scoped.Generated;
+    }
+
+    private static bool IsTreeWide(IntegrityKind kind)
+        => kind is IntegrityKind.StaleCoverageNode or IntegrityKind.StaleCoverageBuild or IntegrityKind.UnlinkedProject;
 }
