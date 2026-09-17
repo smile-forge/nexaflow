@@ -43,7 +43,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
-    private static readonly MermaidTimelineParser  TimelineParser = new();
     private static readonly MermaidJourneyParser   JourneyParser  = new();
     private static readonly MermaidBlockParser     BlockParser    = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
@@ -75,7 +74,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Er           => RenderEr(block, options),
             MermaidDiagram.Architecture => RenderArchitecture(block, palette),
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
-            MermaidDiagram.Timeline     => RenderTimeline(block, palette),
             MermaidDiagram.Journey      => RenderJourney(block, palette),
             MermaidDiagram.Block        => RenderBlock(block, palette),
             MermaidDiagram.C4           => RenderC4(block, options),
@@ -145,14 +143,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph = SwimlaneParser.Parse(block.Body);
         graph.Title = Titled(graph.Title, block);
         return WpfSwimlaneRenderer.Render(graph, palette);
-    }
-
-    private static FrameworkElement RenderTimeline(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = TimelineParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = TimelineConfigParser.Parse(block.Config);
-        return WpfTimelineRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderJourney(MermaidBlock block, MarkdownPalette palette)

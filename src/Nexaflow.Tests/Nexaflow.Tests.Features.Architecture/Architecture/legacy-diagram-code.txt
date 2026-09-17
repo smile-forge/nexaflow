@@ -14,8 +14,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs 57
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyConfig.cs 48
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyDiagram.cs 35
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SequenceDiagram.cs 167
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/TimelineConfig.cs 29
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/TimelineDiagram.cs 43
 src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs 129
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Graph.cs 361
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Layout/GraphExpansion.cs 273
@@ -45,11 +43,9 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs 91
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs 390
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs 419
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs 78
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidTimelineParser.cs 120
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs 131
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NomnomlParser.cs 215
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/SankeyConfigParser.cs 141
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/TimelineConfigParser.cs 97
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs 170
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4LegendPainter.cs 106
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4Palette.cs 124
@@ -68,4 +64,3 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfJourneyRenderer.cs 217
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs 301
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs 661
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs 314
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfTimelineRenderer.cs 306

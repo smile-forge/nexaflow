@@ -93,6 +93,7 @@ public static class MermaidDiagrams
         MermaidDiagram.Kanban => Kanbans,
         MermaidDiagram.Mindmap => Mindmaps,
         MermaidDiagram.Cynefin => Cynefins,
+        MermaidDiagram.Timeline => Timelines,
         _ => null,
     };
 
@@ -115,6 +116,8 @@ public static class MermaidDiagrams
     private static readonly Mindmap.MindmapGrammar Mindmaps = new();
 
     private static readonly Cynefin.CynefinGrammar Cynefins = new();
+
+    private static readonly Timeline.TimelineGrammar Timelines = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =

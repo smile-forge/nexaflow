@@ -107,13 +107,109 @@
           }
         ]
       }
+    },
+    "timeline": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/timeline.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Timeline/TimelineBuilder.cs",
+          "class": "TimelineBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/TimelineBuilderTests.cs",
+            "class": "TimelineBuilderTests"
+          }
+        ]
+      }
+    },
+    "timeline-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs",
+          "class": "TimelineGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineChart.cs",
+          "class": "TimelineChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineConfig.cs",
+          "class": "TimelineConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveSections.cs",
+          "class": "ResolveSections"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText",
+          "method": "Decode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineGrammarTests.cs",
+            "class": "TimelineGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineChartTests.cs",
+            "class": "TimelineChartTests"
+          }
+        ]
+      }
+    },
+    "timeline-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs",
+          "class": "TimelineGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/TimelineEditingTests.cs",
+            "class": "TimelineEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 12,
   "touched_nodes": [
     "cynefin",
     "cynefin-ast",
-    "cynefin-writing"
+    "cynefin-writing",
+    "timeline",
+    "timeline-ast",
+    "timeline-writing"
   ]
 }

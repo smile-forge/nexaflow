@@ -34,6 +34,7 @@ public class MermaidFigureWriter
         ("Kanban board", "mermaid-kanban.png"),
         ("Mindmap", "mermaid-mindmap.png"),
         ("Cynefin diagram", "mermaid-cynefin.png"),
+        ("Timeline", "mermaid-timeline.png"),
     ];
 
     [TestMethod]

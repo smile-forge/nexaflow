@@ -36,6 +36,7 @@ internal static class MermaidBuilders
         MermaidDiagram.Kanban => Kanban.KanbanBuilder.Build,
         MermaidDiagram.Mindmap => Mindmap.MindmapBuilder.Build,
         MermaidDiagram.Cynefin => Cynefin.CynefinBuilder.Build,
+        MermaidDiagram.Timeline => Timeline.TimelineBuilder.Build,
         _ => null,
     };
 
