@@ -126,7 +126,10 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
             if (cur >= 0 && cur != i) mgr.Workspaces.Move(cur, i);
         }
 
-        _config.Contexts = ordered.Count > 0 ? ordered : [.. mgr.Workspaces];
+        // The list content is WorkspaceManager's to write — this page only says what it should now hold.
+        // Going through SaveWorkspaces is what keeps a workspace still in use (which the removal loop above
+        // refused to drop) in the saved list, and what the Options Save that follows then re-writes verbatim.
+        mgr.SaveWorkspaces();
     }
 
     // Add Workspace: commit any pending edits, create the new workspace, then run the workspace-setup
@@ -174,8 +177,7 @@ public partial class WorkspaceConfigControl : UserControl, ICustomConfigApply
     {
         if (sender is not Button { Tag: Workspace edit } || _config is null) return;
 
-        Apply();                                    // create/update workspaces + sync order
-        WorkspaceManager.Instance.SaveWorkspaces();   // persist now (we bypass the Options Save button)
+        Apply();   // create/update workspaces, sync order, and persist (we bypass the Options Save button)
 
         if (!_editToOriginal.TryGetValue(edit, out var original)) return;
 

@@ -335,24 +335,31 @@ public partial class SetupWizardViewModel : ObservableObject
     // ── Build ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds the wizard for <paramref name="startupWorkspace"/>, or returns null when nothing needs
-    /// configuring (App then launches the window directly). Steps: optional What's-New (after an
-    /// update) → each unconfigured GLOBAL feature config → first-workspace setup (if the workspace has
-    /// no usable AI assignment).
+    /// The first-run / post-update wizard, or null when there is nothing to ask. Steps are added only where
+    /// information is genuinely missing — see each numbered block — with one exception: a config that could
+    /// not be read at all takes the wizard through the workspace's AI setup again, because what that file
+    /// held is gone and the user is being asked to confirm what replaced it.
     /// </summary>
     public static SetupWizardViewModel? Build(Workspace startupWorkspace)
     {
         var steps = new List<IWizardStep>();
+
+        // A config whose file was present but unreadable: its settings are back at their defaults. Lead with
+        // what happened and what was recovered, so the steps that follow read as re-verification.
+        var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
+        if (unreadable.Count > 0)
+            steps.Add(new MarkdownStep("Recovered", RecoveryNotes(unreadable)));
 
         // 1. What's New — only after a version bump (not on a brand-new install).
         if (TryLoadWhatsNew(out var whatsNew))
             steps.Add(new MarkdownStep("What's New", whatsNew));
 
         // 2. GLOBAL feature configs that opt into the wizard via [MandatorySetup], excluding the
-        //    Workspaces list. Show one when it is brand-new (defaulted — first run / new feature) OR
-        //    it was migrated from an older version but is now missing genuinely-new required info; a
-        //    migrated config whose required fields all carried over is left alone (no re-ask). The
-        //    step is prefilled with the migrated values (the editor binds the live config).
+        //    Workspaces list. Show one when it is brand-new (defaulted — first run / new feature, which
+        //    an unreadable config is also listed as) OR it was migrated from an older version but is now
+        //    missing genuinely-new required info; a migrated config whose required fields all carried over
+        //    is left alone (no re-ask). The step is prefilled with the migrated values (the editor binds
+        //    the live config).
         var defaulted = ConfigManager.Instance.GetDefaultedConfigs()
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var migrated = ConfigManager.Instance.GetMigratedConfigs()
@@ -369,14 +376,36 @@ public partial class SetupWizardViewModel : ObservableObject
                 e => ConfigManager.Instance.Save(e.RealConfig, e.ConfigName)));
         }
 
-        // 3. First-workspace setup, only if the startup workspace has no usable AI assignment.
+        // 3. First-workspace setup, if the startup workspace has no usable AI assignment — or if anything
+        //    was unreadable, in which case the assignment that IS there is exactly what needs confirming.
         startupWorkspace.EnsureSharedServicesLoaded();
         WorkspaceSetupContext? ctx = null;
-        if (!IsWorkspaceConfigured(startupWorkspace))
+        if (unreadable.Count > 0 || !IsWorkspaceConfigured(startupWorkspace))
             ctx = AppendWorkspaceSetupSteps(steps, startupWorkspace);
 
         return steps.Count == 0 ? null : new SetupWizardViewModel(steps, ctx);
     }
+
+    /// <summary>What the first step of a recovery run says: which settings were lost, that they are on
+    /// defaults, that the damaged files were kept, and that the rest of the wizard confirms what replaced
+    /// them. Workspace data folders survive a lost list, so the conversations and notes are still there.</summary>
+    private static string RecoveryNotes(IReadOnlyList<string> unreadable)
+        => $"""
+            ## Some settings could not be read
+
+            Nexaflow could not read {string.Join(", ", unreadable.Select(n => $"`{n}`"))} this time, so
+            those settings are back at their defaults. Each damaged file has been kept beside its folder
+            under `%APPDATA%\Smile\nexaflow`, and the details are in the crash log, so nothing has been
+            thrown away.
+
+            Your workspaces' own data — conversations, notes, ribbon layouts and provider settings — lives
+            in its own folder per workspace and was not affected. A workspace whose entry was lost has been
+            rebuilt from that folder, so it is back with its contents intact; its symbol and colour were
+            stored in the file that was lost, so those have been picked afresh.
+
+            The remaining steps let you confirm what replaced the settings that were lost. You can skip
+            them and set everything up later in Options.
+            """;
 
     /// <summary>
     /// Builds a wizard containing ONLY the workspace-setup steps (provider → key → model, plus any

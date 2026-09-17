@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Nexaflow.Core;
 using Nexaflow.Core.Services;
@@ -135,6 +136,65 @@ public class ConfigUnreadableValueTests
 
         Assert.AreEqual(Language.French, cfg.Language, "the hook still runs after the carry-over skipped the value");
         Assert.IsFalse(File.Exists(_log.CurrentPath), "a value the hook owns is not a fault");
+    }
+
+    // ── A whole file that cannot be read ──
+
+    [TestMethod]
+    public void Register_AFileThatIsNotJson_FallsBackToDefaults_RatherThanThrowing()
+    {
+        var name = UniqueName();
+        WriteConfig(name, Current, "{ this is not json");
+
+        var cfg = (ShapeChangedConfig)ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+
+        Assert.AreEqual(Language.English, cfg.Language, "a damaged file must not stop the app starting");
+        Assert.AreEqual(13, cfg.TextFontSize);
+        CollectionAssert.Contains(ConfigManager.Instance.GetUnreadableConfigs().ToList(), name,
+            "reported as lost, which is what the user is told and the wizard re-asks on");
+        CollectionAssert.Contains(ConfigManager.Instance.GetDefaultedConfigs().ToList(), name,
+            "and as defaulted, because that is what it now holds");
+        StringAssert.Contains(File.ReadAllText(_log.CurrentPath), "could not be read");
+    }
+
+    [TestMethod]
+    public void Register_AFileThatIsNotJson_IsKeptAside_SoTheNextLaunchStartsClean()
+    {
+        var name = UniqueName();
+        const string damaged = "{ this is not json";
+        var path = WriteConfig(name, Current, damaged);
+
+        ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+
+        Assert.IsFalse(File.Exists(path), "the file that cannot be read is moved out of the way");
+        var kept = Directory.GetFiles(Path.Combine(_dir, name), "config_*.json.unreadable-*").Single();
+        Assert.AreEqual(damaged, File.ReadAllText(kept), "with its bytes intact, to recover by hand");
+    }
+
+    [TestMethod]
+    public void LoadFrom_AMigrationSourceThatIsNotJson_FallsBackToDefaults()
+    {
+        var name = UniqueName();
+        WriteConfig(name, Prior, "not json either");
+
+        var cfg = new ShapeChangedConfig();
+        ConfigManager.Instance.LoadFrom(_dir, cfg, name);
+
+        Assert.AreEqual(13, cfg.TextFontSize, "an unreadable older file is a fallback, not a crash");
+        StringAssert.Contains(File.ReadAllText(_log.CurrentPath), "could not be read");
+    }
+
+    [TestMethod]
+    public void Saving_ClearsTheUnreadableMark()
+    {
+        var name = UniqueName();
+        WriteConfig(name, Current, "{ this is not json");
+        var cfg = ConfigManager.Instance.Register(new ShapeChangedConfig(), name);
+
+        ConfigManager.Instance.Save(cfg, name);
+
+        CollectionAssert.DoesNotContain(ConfigManager.Instance.GetUnreadableConfigs().ToList(), name,
+            "once the user's answers are written there is nothing left to re-ask");
     }
 
     private static string UniqueName() => "unreadable_" + Guid.NewGuid().ToString("N");

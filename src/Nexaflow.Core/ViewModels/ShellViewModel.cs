@@ -344,6 +344,9 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
     /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.</summary>
     public object? ActiveOverlay => Overlays.ActiveOverlay;
 
+    /// <summary>The open confirmation/prompt, shown by the modal host above the overlay host.</summary>
+    public object? ActiveModal => Overlays.ActiveModal;
+
     /// <summary>True while a feature-pushed overlay (not a built-in modal) is showing.</summary>
     public bool HasFeatureOverlay => Overlays.HasFeatureOverlay;
 
@@ -641,8 +644,8 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
         // If this workspace was removed in the Options panel, switch to the first available.
         WorkspaceManager.Instance.WorkspacesRefreshed += (_, _) =>
         {
-            if (CurrentRuntime is null
-                || !WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace))
+            if (CurrentRuntime is not null
+                && !WorkspaceManager.Instance.Workspaces.Contains(CurrentRuntime.Workspace))
             {
                 var fallback = WorkspaceManager.Instance.Workspaces.FirstOrDefault();
                 if (fallback is not null)
@@ -1117,7 +1120,10 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         var liveWs = mgr.FindLiveWorkspace(workspace);
 
-        var message = liveWs is not null
+        var message = ReferenceEquals(liveWs, CurrentRuntime) && liveWs is not null
+            ? $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
+              + "conversation in it. This window switches to another workspace; its other windows close."
+            : liveWs is not null
             ? $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
               + "conversation in it, and closes all of its open windows."
             : $"Delete “{workspace.Name}”?\n\nThis is irreversible: it permanently deletes the workspace and every "
@@ -1132,12 +1138,16 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
         if (ReferenceEquals(liveWs, CurrentRuntime))
         {
-            // The current workspace: collapse to this window, delete the data while a window is still
-            // alive, then close this last window — its close removes the workspace from active memory
-            // (and quits the app if no other window remains).
+            // The active workspace: collapse to this window and move it onto a surviving workspace BEFORE
+            // the delete, so the app is never left window-less (closing the last window shuts it down) and
+            // the list-refresh that follows finds this runtime already on a workspace that still exists.
+            var fallback = mgr.Workspaces.FirstOrDefault(w => !ReferenceEquals(w, workspace));
+            if (fallback is null) { ShowErrorToast("The last workspace can't be deleted."); return; }
+
             _shellServices.CloseOtherWindows(this);
+            mgr.SwitchWorkspace(CurrentRuntime!, fallback);
             mgr.DeleteWorkspace(workspace, force: true);
-            _shellServices.CloseAllWindows();
+            WorkspaceConfigOpen = false;
             return;
         }
 

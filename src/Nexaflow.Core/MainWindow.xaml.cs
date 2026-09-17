@@ -97,14 +97,14 @@ public partial class MainWindow : Window
         {
             if (e.Key == Key.Escape)
             {
-                if (_vm.HasFeatureOverlay) { _vm.CloseOverlay(); return; }
+                // Topmost first, and only that one: an open question is what the key is answering, and
+                // the panel behind it (which may have raised it) stays open for the answer.
+                if (_vm.ActiveModal is not null || _vm.HasFeatureOverlay) { _vm.CloseOverlay(); return; }
                 _vm.OptionsOpen            = false;
                 _vm.WorkspaceConfigOpen    = false;
                 _vm.NotificationsOpen      = false;
                 _vm.Ai.AiResponseOverlayOpen = false;
                 RibbonControl.ViewModel.IsEditOpen = false;
-                _vm.Overlays.Confirmation?.CancelCommand.Execute(null);
-                _vm.Overlays.Prompt?.CancelCommand.Execute(null);
             }
         };
 

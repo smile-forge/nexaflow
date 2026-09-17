@@ -6,6 +6,7 @@
             <RowDefinition Height="Auto"/>  <!-- heading + instructions -->
             <RowDefinition Height="Auto"/>  <!-- empty state -->
             <RowDefinition Height="*"/>     <!-- tab list -->
+            <RowDefinition Height="Auto"/>  <!-- session-restore opt-out -->
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -65,5 +66,19 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <Border Grid.Row="3" Margin="0,12,0,0" Padding="0,12,0,0"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel>
+                <CheckBox x:Name="NoSessionRestoreCheck"
+                          Content="Never offer to restore the last session"
+                          Foreground="{StaticResource TextBrush}" FontSize="12"
+                          Checked="NoSessionRestore_Changed" Unchecked="NoSessionRestore_Changed"
+                          AutomationProperties.AutomationId="DefaultTabs_NoSessionRestore"/>
+                <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Text="This workspace always starts from the tabs above. Without this, closing it with a different set of tabs records them, and the next open offers to reopen them."/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

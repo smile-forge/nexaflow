@@ -761,12 +761,24 @@
              picked by DataTemplate (defined in Window.Resources above; feature overlays contribute
              their own via IThemeContribution). Built lazily on open, torn down on close. The backdrop
              dims the shell; backdrop-click closes only overlays that opt in via
-             IShellOverlay.DismissOnBackdrop — the built-in modals don't (they use their own buttons).
+             IShellOverlay.DismissOnBackdrop.
              ═══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="0" Grid.RowSpan="5" Panel.ZIndex="150"
               Visibility="{Binding ActiveOverlay, Converter={StaticResource NullToVis}}">
             <Border Background="{DynamicResource ScrimBrush}" MouseDown="OverlayBackdrop_MouseDown"/>
             <ContentControl Content="{Binding ActiveOverlay}"/>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             MODAL HOST — the built-in confirmation / prompt (ActiveModal), a layer ABOVE the overlay
+             host so a question raised from inside Options or Configure is reachable and answers for a
+             panel that is still there behind it (with its unapplied edits) once the question is gone.
+             Its backdrop only swallows clicks: these modals dismiss via their own buttons or Escape.
+             ═══════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="0" Grid.RowSpan="5" Panel.ZIndex="160"
+              Visibility="{Binding ActiveModal, Converter={StaticResource NullToVis}}">
+            <Border Background="{DynamicResource ScrimBrush}"/>
+            <ContentControl Content="{Binding ActiveModal}"/>
         </Grid>
 
         <!-- ═══════════════════════════════════════════════════════════

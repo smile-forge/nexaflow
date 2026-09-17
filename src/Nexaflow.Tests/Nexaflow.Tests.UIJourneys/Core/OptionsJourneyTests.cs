@@ -231,7 +231,14 @@ public class OptionsJourneyTests : OptionsOverlayJourney
     private void DriveExternalApps(AutomationElement list)
     {
         SelectSection(list, "External Apps", "ExternalApps_Add");
-        Check("The registry switch toggles, and back", () => FlipAndBack("ExternalApps_UseRegistry"));
+        // Turning the registry switch off asks whether to keep the current Windows handlers by importing them
+        // first — a window-modal question, so nothing else in the panel is reachable until it is answered.
+        // "Do not Import" declines the (slow) HKCR sweep; either answer turns the handlers off.
+        Check("Turning the registry switch off asks about importing", () =>
+            SetToggle("ExternalApps_UseRegistry", false) && WaitForId("Chrome_ConfirmCancel", 5) is not null);
+        Check("Do not Import answers it", () =>
+            PressNth("Chrome_ConfirmCancel", 0) && WaitForFs(() => !Exists("Chrome_ConfirmCancel"), 5));
+        Check("The registry switch goes back on", () => SetToggle("ExternalApps_UseRegistry", true));
 
         var apps = 0;
         Check("+ Add adds an app and selects it", () =>
@@ -261,20 +268,6 @@ public class OptionsJourneyTests : OptionsOverlayJourney
             PressNth("ExternalApps_Remove", 0) && WaitForFs(() => ListCount("ExternalApps_List") == apps, 3));
     }
 
-    /// <summary>Flips a toggle and flips it back, requiring each flip to register — leaves it where it started.</summary>
-    private bool FlipAndBack(string automationId)
-    {
-        var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.Patterns.Toggle.PatternOrDefault;
-        if (toggle is null) return false;
-        var was = toggle.ToggleState.Value;
-        toggle.Toggle();
-        Wait.UntilInputIsProcessed();
-        var flipped = WaitForFs(() => toggle.ToggleState.Value != was, 2);
-        toggle.Toggle();
-        Wait.UntilInputIsProcessed();
-        return flipped && WaitForFs(() => toggle.ToggleState.Value == was, 2);
-    }
-
     /// <summary>A criterion is added and removed, then added again so the mapping differs from its bundled default —
     /// which is what offers Reset: declined once, then confirmed, restoring the original criteria.</summary>
     private void DriveFileTypeActions(AutomationElement list)
@@ -291,13 +284,19 @@ public class OptionsJourneyTests : OptionsOverlayJourney
         Check("✕ removes it", () =>
             PressNth("FileMap_RemoveCriterion", -1) && WaitForFs(() => CountOf("FileMap_RemoveCriterion") == criteria, 3));
 
-        Check("A second criterion makes the mapping differ from its default", () =>
-            PressNth("FileMap_AddCriterion", 0) && WaitForFs(() => Exists("FileMap_ResetToDefault"), 3));
+        // Reset to Default appears only once the live criteria differ from the bundled ones, and a blank row is
+        // not a difference — the editor ignores empty values because they change nothing about what the mapping
+        // matches. So what makes it differ is dropping a criterion the experience really has.
+        Check("Dropping a criterion makes the mapping differ from its default", () =>
+            criteria > 0
+            && PressNth("FileMap_RemoveCriterion", -1)
+            && WaitForFs(() => CountOf("FileMap_RemoveCriterion") == criteria - 1
+                            && Exists("FileMap_ResetToDefault"), 3));
         Check("Reset to Default asks inline", () =>
             PressNth("FileMap_ResetToDefault", 0) && WaitForFs(() => Exists("FileMap_ResetCancel"), 3));
         Check("Cancel keeps the edit", () =>
             PressNth("FileMap_ResetCancel", 0)
-            && WaitForFs(() => Exists("FileMap_ResetToDefault") && CountOf("FileMap_RemoveCriterion") == criteria + 1, 3));
+            && WaitForFs(() => Exists("FileMap_ResetToDefault") && CountOf("FileMap_RemoveCriterion") == criteria - 1, 3));
         Check("Reset asks again", () =>
             PressNth("FileMap_ResetToDefault", 0) && WaitForFs(() => Exists("FileMap_ResetConfirm"), 3));
         Check("Confirming restores the bundled criteria", () =>
@@ -343,12 +342,16 @@ public class OptionsJourneyTests : OptionsOverlayJourney
     /// <summary>
     /// Git's manager path is a [FilePath] setting, which the property grid renders with a browse button onto the
     /// app's own file picker — the one path editor any section declares. Opened, checked, and cancelled.
+    /// The id is the Options panel's own: OptionsPanel.xaml carries its own copies of the property-row templates,
+    /// so the ConfigEditorView twin the Configure panel and the wizard render is never in this tree. Naming that
+    /// one here would also be enough for the AutomationId ratchet to call it covered, which is how it came to be
+    /// pressed by name and never found — so it is deliberately not spelled out.
     /// </summary>
     private void DriveGitPathPicker(AutomationElement list)
     {
-        SelectSection(list, "Git", "ConfigEditor_BrowseFile");
+        SelectSection(list, "Git", "Options_BrowseFile");
         Check("Browse opens the in-app file picker", () =>
-            PressNth("ConfigEditor_BrowseFile", 0) && WaitFor(() => FindInAppWindows("FileBrowser_Cancel"), 10) is not null);
+            PressNth("Options_BrowseFile", 0) && WaitFor(() => FindInAppWindows("FileBrowser_Cancel"), 10) is not null);
         Check("The file picker offers OK", () => FindInAppWindows("FileBrowser_Ok") is not null);
         Check("Cancel closes the file picker", () => PressInDialog("FileBrowser_Cancel"));
     }

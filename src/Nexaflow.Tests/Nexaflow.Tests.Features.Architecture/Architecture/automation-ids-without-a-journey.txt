@@ -27,10 +27,13 @@ identity_Icon
 identity_Name
 
 # src/Nexaflow.Core/Controls/ConfigEditorView.xaml
-# The property grid's folder browse button renders only for a [FolderPath] setting, and no config in the repo
-# declares one — the attribute is documented and supported, but nothing shipping uses it. Its [FilePath] twin is
-# reached through Git's manager path in OptionsJourneyTests.
+# This view is the property grid the CONFIGURE panel and the setup wizard render; the Options panel carries its
+# own copies of the same row templates, with its own ids. So these two are reachable only through a
+# workspace-scoped or provider config that declares the attribute, and none does: [FolderPath] is declared
+# nowhere in the repo at all, and the one [FilePath] setting (Git's manager path) is a GLOBAL config, which
+# only ever appears in Options — where OptionsJourneyTests drives it as Options_BrowseFile.
 ConfigEditor_BrowseFolder
+ConfigEditor_BrowseFile
 
 # src/Nexaflow.Core/Controls/AiAbilityGridControl.xaml
 # A column's remove button is collapsed on the None column, and None is the only column until a provider is
@@ -277,7 +280,6 @@ AiBar_Queue
 # can be clicked.
 Options_ClearValue
 Options_BrowseFolder
-Options_BrowseFile
 Options_Toggle
 
 # src/Nexaflow.Core/Controls/RibbonEditor.xaml

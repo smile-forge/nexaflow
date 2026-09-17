@@ -33,8 +33,14 @@ public sealed class OverlayCoordinator : ObservableObject
 
     // ── Overlay host ──────────────────────────────────────────────────────
 
-    /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.</summary>
+    /// <summary>The content view-model shown in the shell's overlay host, or null when nothing is open.
+    /// A panel, not a question: the built-in modals are <see cref="ActiveModal"/> and layer above this.</summary>
     public object? ActiveOverlay { get; private set; }
+
+    /// <summary>The open confirmation or prompt, or null. Its host sits above the overlay host, so a
+    /// question raised from inside the Options or Configure panel is reachable and the panel — with
+    /// whatever the user has edited but not applied — is still there behind it to answer for.</summary>
+    public object? ActiveModal => (object?)Confirmation ?? Prompt;
 
     private object? _featureOverlay;
     private object? _optionsPanel;
@@ -54,9 +60,7 @@ public sealed class OverlayCoordinator : ObservableObject
         object? next =
             _featureOverlay
             ?? (_optionsOpen()         ? _optionsPanel         : null)
-            ?? (_workspaceConfigOpen() ? _workspaceConfigPanel : null)
-            ?? (object?)Confirmation
-            ?? Prompt;
+            ?? (_workspaceConfigOpen() ? _workspaceConfigPanel : null);
 
         if (ReferenceEquals(next, ActiveOverlay)) return;
         ActiveOverlay = next;
@@ -71,14 +75,15 @@ public sealed class OverlayCoordinator : ObservableObject
         Sync();
     }
 
-    /// <summary>Closes whatever overlay is currently active (feature overlay or the built-in modal).</summary>
+    /// <summary>Closes the topmost thing open: an unanswered question first (it is what covers the panel
+    /// that raised it), then a feature overlay, then the panels. Backs Esc and the backdrop click.</summary>
     public void CloseOverlay()
     {
-        if (_featureOverlay is not null) { _featureOverlay = null; Sync(); return; }
+        if (Confirmation is { } c)        { c.CancelCommand.Execute(null); return; }
+        if (Prompt is { } p)              { p.CancelCommand.Execute(null); return; }
+        if (_featureOverlay is not null)  { _featureOverlay = null; Sync(); return; }
         if (_optionsOpen())               _closeOptions();
         else if (_workspaceConfigOpen())  _closeWorkspaceConfig();
-        else if (Confirmation is { } c)   c.CancelCommand.Execute(null);
-        else if (Prompt is { } p)         p.CancelCommand.Execute(null);
     }
 
     // ── Confirmation modal ────────────────────────────────────────────────
@@ -118,7 +123,7 @@ public sealed class OverlayCoordinator : ObservableObject
         Confirmation = request;
         OnPropertyChanged(nameof(Confirmation));
         OnPropertyChanged(nameof(ConfirmationVisible));
-        Sync();
+        OnPropertyChanged(nameof(ActiveModal));
     }
 
     // ── Input-prompt modal ────────────────────────────────────────────────
@@ -152,6 +157,6 @@ public sealed class OverlayCoordinator : ObservableObject
         Prompt = request;
         OnPropertyChanged(nameof(Prompt));
         OnPropertyChanged(nameof(PromptVisible));
-        Sync();
+        OnPropertyChanged(nameof(ActiveModal));
     }
 }

@@ -71,6 +71,46 @@ public sealed class WorkspaceManager
     public const string OrphanQuarantineDir = "_orphaned";
 
     /// <summary>
+    /// Rebuilds <paramref name="config"/>'s workspace list from the data folders under <c>Contexts\</c> —
+    /// the recovery path for a <c>workcontexts.json</c> that could not be read. The folder name IS the
+    /// workspace name (see <see cref="WorkspaceDir"/>), so a workspace whose entry is gone comes back
+    /// pointing at everything it owns: its AI and provider config, ribbon layout, per-workspace feature
+    /// configs (scratchpad notes among them) and every conversation. Nothing else rebuilds the list from
+    /// disk, so without this the damaged file costs the user all of that, and
+    /// <see cref="QuarantineOrphanedDataFolders"/> would file it as orphaned.
+    /// <para>
+    /// Additive and idempotent: entries already in the list are kept as they are, and only folders no entry
+    /// names are added (with a fresh symbol and colour — those lived only in the file that was lost). The
+    /// folders themselves are read for their names and never touched. Returns the names recovered.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> RecoverWorkspacesFromDataFolders(WorkspacesConfig config)
+    {
+        var root = Path.Combine(ConfigManager.Instance.BaseDir, "Contexts");
+        if (!Directory.Exists(root)) return [];
+
+        var known     = config.Contexts.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var recovered = new List<Workspace>();
+
+        foreach (var dir in Directory.GetDirectories(root).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            var name = Path.GetFileName(dir);
+            if (string.Equals(name, OrphanQuarantineDir, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!known.Add(name)) continue;
+
+            var (icon, color) = WorkspaceStyle.Random();
+            recovered.Add(new Workspace { Name = name, Icon = icon, Color = color });
+        }
+
+        if (recovered.Count == 0) return [];
+
+        // Through the setter, so the rebuilt list is sanitized like any other (a folder whose name is not a
+        // usable workspace name, or that collides with an entry already there, is dealt with there).
+        config.Contexts = [.. config.Contexts, .. recovered];
+        return [.. recovered.Select(p => p.Name)];
+    }
+
+    /// <summary>
     /// Quarantines data folders under <c>Contexts\</c> that no loaded workspace references — leftovers from a
     /// workspace removed out-of-band, or (the reason this exists) folders orphaned when an older build reset
     /// the workspace list on a version bump before forward-migration existed. Nothing rebuilds the list from

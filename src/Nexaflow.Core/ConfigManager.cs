@@ -22,6 +22,8 @@ public sealed class ConfigManager
     private readonly HashSet<string> _defaultedConfigs = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _migratedConfigs  = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly HashSet<string> _unreadableConfigs = new(StringComparer.OrdinalIgnoreCase);
+
     // Guards all mutable state: feature-assembly activation registers configs on the background warm-up
     // thread, while the UI thread registers/saves/reads concurrently. Reentrant (Monitor) so a method that
     // calls another locked member on the same thread is safe.
@@ -152,6 +154,14 @@ public sealed class ConfigManager
                 case LoadOutcome.None:
                     _defaultedConfigs.Add(configName);
                     break;
+                case LoadOutcome.Unreadable:
+                    // Not a first run — there WAS a file. It is tracked as defaulted (that is what the
+                    // config now holds, so every existing consumer stays right) and separately as
+                    // unreadable, which is the signal the user is told about and the wizard re-asks on.
+                    IsFirstRun = false;
+                    _defaultedConfigs.Add(configName);
+                    _unreadableConfigs.Add(configName);
+                    break;
             }
 
             _configs.Add(config);
@@ -179,6 +189,17 @@ public sealed class ConfigManager
     { lock (_gate) return _migratedConfigs.ToList(); }
 
     /// <summary>
+    /// Config names whose file was present but could not be read at all — corrupt JSON, or a file the
+    /// process could not open. Whatever it held is gone: the config runs on defaults (plus any value that
+    /// was recovered before the read failed) and a corrupt file is kept beside its folder as
+    /// <c>.unreadable-&lt;stamp&gt;</c>. These are reported to the user and re-verified by the setup wizard,
+    /// which is what tells "your settings were lost" apart from the brand-new config
+    /// <see cref="GetDefaultedConfigs"/> also lists them as. An entry is removed once the config is saved.
+    /// </summary>
+    public IReadOnlyList<string> GetUnreadableConfigs()
+    { lock (_gate) return _unreadableConfigs.ToList(); }
+
+    /// <summary>
     /// Persists <paramref name="config"/> to its versioned JSON file.
     /// Throws <see cref="IOException"/> on write failure.
     /// </summary>
@@ -193,6 +214,7 @@ public sealed class ConfigManager
             File.WriteAllText(path, SerializeProtected(config));
             _defaultedConfigs.Remove(configName);
             _migratedConfigs.Remove(configName);
+            _unreadableConfigs.Remove(configName);
         }
     }
 
@@ -235,7 +257,7 @@ public sealed class ConfigManager
         return JsonSerializer.Deserialize(json, config.GetType(), _opts)!;
     }
 
-    private enum LoadOutcome { None, Loaded, Migrated }
+    private enum LoadOutcome { None, Loaded, Migrated, Unreadable }
 
     /// <summary>
     /// Loads <paramref name="config"/> from its current-version file under
@@ -246,6 +268,12 @@ public sealed class ConfigManager
     /// <see cref="Nexaflow.Providers.Common.IConfigMigration"/> hook fixes up renames/restructures,
     /// the result is written under the current version, and the stale files are removed
     /// (write-then-delete so a failed write never loses the prior data).
+    /// <para>
+    /// A file that cannot be read at all reports <c>Unreadable</c> rather than throwing: whatever was
+    /// recovered before the read failed stays, the rest keeps its defaults, and the fault is on record —
+    /// one damaged file must not stop the app, which is also the only way the data it referred to (a
+    /// workspace's conversations, notes and provider config) can be recovered at all.
+    /// </para>
     /// </summary>
     private LoadOutcome LoadOrMigrate(object config, string parentDir, string configName, Version version)
     {
@@ -253,10 +281,7 @@ public sealed class ConfigManager
         var exact = Path.Combine(dir, $"config_{version}.json");
 
         if (File.Exists(exact))
-        {
-            Record(Load(config, exact));
-            return LoadOutcome.Loaded;
-        }
+            return TryLoad(config, exact) ? LoadOutcome.Loaded : LoadOutcome.Unreadable;
 
         if (!Directory.Exists(dir)) return LoadOutcome.None;
 
@@ -268,8 +293,14 @@ public sealed class ConfigManager
             .FirstOrDefault();
         if (prior.path is null) return LoadOutcome.None;
 
-        var rawText    = File.ReadAllText(prior.path);
-        var unreadable = Load(config, prior.path);   // lenient carry-over of all name-matching fields
+        string rawText;
+        try { rawText = File.ReadAllText(prior.path); }
+        catch (Exception ex) when (IsUnreadable(ex)) { RecordUnreadable(prior.path, ex); return LoadOutcome.Unreadable; }
+
+        // Lenient carry-over of all name-matching fields.
+        bool hasHook = config is Nexaflow.Features.Common.IConfigMigration
+                              or Nexaflow.Providers.Common.IConfigMigration;
+        if (!TryLoad(config, prior.path, recordValueFaults: !hasHook)) return LoadOutcome.Unreadable;
 
         // Optional custom upgrade path for shape changes the field copy can't express (renames etc.). The hook has the
         // raw old JSON in hand, so a value the carry-over could not read is the hook's to recover rather than a fault.
@@ -279,8 +310,6 @@ public sealed class ConfigManager
                 fm.MigrateFrom(previous, prior.ver!);
             else if (config is Nexaflow.Providers.Common.IConfigMigration pm)
                 pm.MigrateFrom(previous, prior.ver!);
-            else
-                Record(unreadable);
         }
 
         if (!_suppressWrites)
@@ -291,6 +320,56 @@ public sealed class ConfigManager
                     File.Delete(stale);
         }
         return LoadOutcome.Migrated;
+    }
+
+    /// <summary>
+    /// Reads <paramref name="path"/> onto <paramref name="config"/>. False when the file could not be read
+    /// at all — the fault is on record and, when the content itself is corrupt, the file is set aside so the
+    /// next launch starts from a clean one with the damaged bytes still on disk to recover by hand.
+    /// <paramref name="recordValueFaults"/> is false for a migration whose config has an
+    /// <c>IConfigMigration</c> hook: recovering a value the carry-over could not read is that hook's job,
+    /// so a value it is about to fix is not a fault worth logging.
+    /// </summary>
+    private bool TryLoad(object config, string path, bool recordValueFaults = true)
+    {
+        try
+        {
+            var valueFaults = Load(config, path);
+            if (recordValueFaults) Record(valueFaults);
+            return true;
+        }
+        catch (Exception ex) when (IsUnreadable(ex))
+        {
+            RecordUnreadable(path, ex);
+            return false;
+        }
+    }
+
+    /// <summary>A read that failed for the file rather than for one stored value.</summary>
+    private static bool IsUnreadable(Exception ex)
+        => ex is JsonException or IOException or UnauthorizedAccessException;
+
+    /// <summary>
+    /// Puts an unreadable file on record and, for corrupt content (as opposed to a file that could not be
+    /// opened — which may just be locked, and whose data is probably still good), renames it aside so the
+    /// app starts from defaults next launch instead of failing on the same bytes for ever.
+    /// </summary>
+    private void RecordUnreadable(string path, Exception cause)
+    {
+        string? kept = null;
+        if (cause is JsonException && !_suppressWrites)
+        {
+            try
+            {
+                kept = $"{path}.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}";
+                File.Move(path, kept, overwrite: true);
+            }
+            catch { kept = null; }   // left in place; it is reported either way
+        }
+
+        FaultLog.Record(new InvalidDataException(
+            $"{path} could not be read, so its settings fall back to their defaults."
+          + (kept is null ? string.Empty : $" The file is kept as {kept}."), cause));
     }
 
     /// <summary>Parses the version out of a <c>config_{version}.json</c> path, or null if it doesn't match.</summary>
@@ -306,8 +385,8 @@ public sealed class ConfigManager
     /// Copies every stored value whose name matches a writable property onto <paramref name="config"/>. A value that no
     /// longer reads as its property's type — written by a build where that property had another shape, such as an enum
     /// that became a string — is skipped, so the property keeps its default, and is returned as a fault rather than
-    /// thrown: one stale setting must not keep a whole config, and with it the app, from loading. A file that is not
-    /// JSON throws.
+    /// thrown: one stale setting must not keep a whole config, and with it the app, from loading. A file that cannot be
+    /// read as JSON at all throws, for <see cref="TryLoad"/> to turn into a reported fallback to defaults.
     /// </summary>
     private static List<InvalidDataException> Load(object config, string path)
     {
@@ -331,7 +410,9 @@ public sealed class ConfigManager
             {
                 pi.SetValue(config, JsonSerializer.Deserialize(el.Value.GetRawText(), pi.PropertyType, _opts));
             }
-            catch (JsonException ex)
+            // Anything this one value can throw — it does not read as the property's type, or the setter
+            // itself rejected it — leaves that property at its default and the rest of the file readable.
+            catch (Exception ex)
             {
                 // The stored value stays out of the message: a crash log is what a user sends with a fault report.
                 unreadable.Add(new InvalidDataException(
