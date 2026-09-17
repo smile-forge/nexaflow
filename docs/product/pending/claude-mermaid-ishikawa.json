@@ -79,11 +79,109 @@
           }
         ]
       }
+    },
+    "gantt": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Gantt/GanttBuilder.cs",
+          "class": "GanttBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTime.cs",
+          "class": "DiagramTime"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GanttBuilderTests.cs",
+            "class": "GanttBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramTimeTests.cs",
+            "class": "DiagramTimeTests"
+          }
+        ]
+      }
+    },
+    "gantt-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs",
+          "class": "GanttGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs",
+          "class": "ResolveSchedule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttChart.cs",
+          "class": "GanttChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttConfig.cs",
+          "class": "GanttConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidTime.cs",
+          "class": "MermaidDate"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttGrammarTests.cs",
+            "class": "GanttGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttChartTests.cs",
+            "class": "GanttChartTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTimeTests.cs",
+            "class": "MermaidTimeTests"
+          }
+        ]
+      }
+    },
+    "gantt-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs",
+          "class": "GanttGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GanttEditingTests.cs",
+            "class": "GanttEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 12,
   "touched_nodes": [
+    "gantt",
+    "gantt-ast",
+    "gantt-writing",
     "ishikawa",
     "ishikawa-ast",
     "ishikawa-writing"

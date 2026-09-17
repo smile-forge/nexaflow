@@ -91,7 +91,7 @@ internal sealed class C4Palette
         // Ink is legibility, not palette: a card fill is a saturated colour of its own, so the
         // theme's Text brush is the wrong answer whenever the two are both dark (a Person card on a
         // light theme) or both light. Choose by the fill's own brightness, as the sequence renderer's
-        // OnAccent and the Gantt bars already do.
+        // OnAccent already does.
         Brush text = DiagramBrushes.ParseCss(info.FontColor) is Color fc
             ? DiagramBrushes.Frozen(fc)
             : DiagramBrushes.OnColor(DiagramBrushes.Composite(fillColor, _bg), Ink, Paper);

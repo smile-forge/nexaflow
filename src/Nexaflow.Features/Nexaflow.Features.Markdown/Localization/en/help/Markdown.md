@@ -273,19 +273,23 @@ requirementDiagram
 
 ### Gantt chart
 
-Project schedules with sections, dependencies (`after`) and task states (`done` / `active`).
+Project schedules with sections, dependencies (`after`, `until`), task states (`done` / `active` / `crit`), milestones,
+vertical markers and excluded days. Task and section names are typed into where they are drawn.
 
 ````markdown
 ```mermaid
 gantt
     title Project timeline
     dateFormat YYYY-MM-DD
+    excludes weekends
     section Design
     Spec           :done,   des1, 2024-01-01, 2024-01-07
     Mockups        :active, des2, 2024-01-08, 5d
     section Build
-    Implementation :        b1, after des2, 10d
+    Implementation :crit,   b1, after des2, 10d
     Testing        :        b2, after b1, 4d
+    Release        :milestone, r1, after b2, 0d
+    Code freeze    :vert,   2024-01-22, 1d
 ```
 ````
 

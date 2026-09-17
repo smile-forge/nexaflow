@@ -32,6 +32,7 @@ internal static class MermaidBuilders
         MermaidDiagram.XyChart => XyBuilder.Build,
         MermaidDiagram.Quadrant => QuadrantBuilder.Build,
         MermaidDiagram.Ishikawa => Ishikawa.IshikawaBuilder.Build,
+        MermaidDiagram.Gantt => Gantt.GanttBuilder.Build,
         _ => null,
     };
 

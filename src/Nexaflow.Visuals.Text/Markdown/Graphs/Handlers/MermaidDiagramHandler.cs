@@ -16,7 +16,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
+
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
@@ -38,7 +38,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidGanttParser    GanttParser    = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
     private static readonly MermaidMindmapParser  MindmapParser  = new();
     private static readonly MermaidStateParser    StateParser    = new();
@@ -74,7 +73,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-            MermaidDiagram.Gantt        => RenderGantt(block, palette),
+
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
             MermaidDiagram.Mindmap      => RenderMindmap(block, palette),
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
@@ -108,13 +107,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var diagram = SequenceParser.Parse(block.Body);
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
-
-    private static FrameworkElement RenderGantt(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = GanttParser.Parse(block.Body);
-        chart.Title = Titled(chart.Title, block);
-        return WpfGanttRenderer.Render(chart, palette);
     }
 
     private static FrameworkElement RenderGit(MermaidBlock block, MarkdownPalette palette)

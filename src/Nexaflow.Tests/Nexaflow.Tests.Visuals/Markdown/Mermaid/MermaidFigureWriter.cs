@@ -30,6 +30,7 @@ public class MermaidFigureWriter
         ("XY chart", "mermaid-xychart.png"),
         ("Quadrant chart", "mermaid-quadrant.png"),
         ("Ishikawa (fishbone) diagram", "mermaid-ishikawa.png"),
+        ("Gantt chart", "mermaid-gantt.png"),
     ];
 
     [TestMethod]
