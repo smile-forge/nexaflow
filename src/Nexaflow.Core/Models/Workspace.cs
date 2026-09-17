@@ -47,6 +47,14 @@ public sealed partial class Workspace : ObservableObject
     /// </summary>
     public List<DefaultTabDescriptor>? LastSessionTabs { get; set; }
 
+    /// <summary>
+    /// True when this workspace never offers to restore its last session: no toast on open, and the
+    /// tabs a closing window leaves behind are not recorded at all (so turning it on also drops any
+    /// <see cref="LastSessionTabs"/> already held). Set on the Configure panel's "Default tabs" page —
+    /// a workspace meant to start from a fixed tabset every time. Serialized inline in the workspace list.
+    /// </summary>
+    public bool SuppressSessionRestore { get; set; }
+
     /// <summary>UI-only, transient: set by the Workspaces editor on each row copy to mark whether the
     /// workspace is currently live (its Delete button is hidden — a running workspace can't be removed).
     /// Never serialised; false on the saved workspaces.</summary>

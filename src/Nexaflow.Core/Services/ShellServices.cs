@@ -354,18 +354,28 @@ public sealed class ShellServices : IShellServices
 
     private void OpenLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
     {
-        // Open each pane's active tab last (AddTab makes the newest tab active) so selection is restored.
-        static IEnumerable<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
-            => src.OrderBy(t => t.IsActive ? 1 : 0);
-
-        var left  = ActiveLast(tabs.Where(t => t.Pane <= 0)).ToList();
-        var right = ActiveLast(tabs.Where(t => t.Pane == 1)).ToList();
-
-        // A right-only layout collapses to a single pane rather than splitting off an empty left one.
-        if (left.Count == 0 && right.Count > 0) { left = right; right = []; }
-
+        var (left, right) = PlanLayout(tabs);
         foreach (var t in left)  OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: false);
         foreach (var t in right) OpenTab(t.PageKind, CloneParams(t.PageParams), inRightPane: true);
+    }
+
+    /// <summary>
+    /// The order a saved tabset is reopened in, which is what makes the reopened window match the saved
+    /// one: each pane's tabs in their recorded order but with its active tab LAST (AddTab makes the newest
+    /// tab active, so last opened ends selected), and a right-pane-only layout collapsed into the left
+    /// pane rather than splitting off an empty one. Separated from the opening so it can be asserted
+    /// without a window or the feature registry behind it.
+    /// </summary>
+    internal static (IReadOnlyList<DefaultTabDescriptor> Left, IReadOnlyList<DefaultTabDescriptor> Right)
+        PlanLayout(IReadOnlyList<DefaultTabDescriptor> tabs)
+    {
+        static List<DefaultTabDescriptor> ActiveLast(IEnumerable<DefaultTabDescriptor> src)
+            => src.OrderBy(t => t.IsActive ? 1 : 0).ToList();
+
+        var left  = ActiveLast(tabs.Where(t => t.Pane <= 0));
+        var right = ActiveLast(tabs.Where(t => t.Pane == 1));
+
+        return left.Count == 0 && right.Count > 0 ? (right, []) : (left, right);
     }
 
     // Fresh dict per open so a page mutating its PageParams can't corrupt the shared saved descriptor.
@@ -385,8 +395,19 @@ public sealed class ShellServices : IShellServices
         var target = host ?? FocusedWindow;
         if (target is null) return;
 
-        var layout = target.CaptureTabLayout();
         var ws = _workspace.Workspace;
+
+        // A workspace that never offers a restore records nothing — and drops anything recorded before the
+        // setting was turned on, so the offer can't reappear from stale data.
+        if (ws.SuppressSessionRestore)
+        {
+            if (ws.LastSessionTabs is null) return;
+            ws.LastSessionTabs = null;
+            WorkspaceManager.Instance.SaveWorkspaces();
+            return;
+        }
+
+        var layout = target.CaptureTabLayout();
         ws.LastSessionTabs = layout.Count > 0 && !TabsetsEquivalent(layout, ws.DefaultTabs)
             ? layout.ToList()
             : null;
@@ -396,6 +417,7 @@ public sealed class ShellServices : IShellServices
     /// <summary>Once the default tabs are up, offers a one-click restore of the recorded last session.</summary>
     private void OfferSessionRestore()
     {
+        if (_workspace.Workspace.SuppressSessionRestore) return;
         if (_workspace.Workspace.LastSessionTabs is not { Count: > 0 } session) return;
 
         // Transient: a passing offer, not a message worth keeping. Once it scrolls past it's meaningless,

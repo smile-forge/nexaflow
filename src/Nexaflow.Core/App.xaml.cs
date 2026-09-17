@@ -249,6 +249,16 @@ public partial class App : Application
         var wcConfig = new WorkspacesConfig();
         ConfigManager.Instance.Register(wcConfig, wcConfig.ConfigName);
 
+        // A workcontexts.json that could not be read leaves the list defaulted to a single workspace,
+        // which would strand every existing workspace's data — AI and provider config, ribbon, scratchpad
+        // notes, conversations — in a folder nothing references any more. Rebuild the list from those
+        // folders before the provider scan below, so the recovered workspaces' providers load too.
+        var listUnreadable = ConfigManager.Instance.GetUnreadableConfigs()
+            .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
+        var recoveredWorkspaces = listUnreadable
+            ? WorkspaceManager.RecoverWorkspacesFromDataFolders(wcConfig)
+            : [];
+
         // ── 3. Providers — union of all assembly file names across workspaces ──
         ProviderManager.Instance.Initialize(activityManager);
 
@@ -275,6 +285,9 @@ public partial class App : Application
         var listIsAuthoritative = !ConfigManager.Instance.GetDefaultedConfigs()
             .Contains(wcConfig.ConfigName, StringComparer.OrdinalIgnoreCase);
         WorkspaceManager.Instance.QuarantineOrphanedDataFolders(listIsAuthoritative);
+
+        // Persist the rebuilt list at once, so the recovery holds even if this session ends badly.
+        if (listUnreadable) WorkspaceManager.Instance.SaveWorkspaces();
 
         // A workspace rebuild (Configure panel) needs to create a replacement window for a fresh
         // workspace; hand WorkspaceManager the factory that knows how to build MainWindow.
@@ -355,6 +368,13 @@ public partial class App : Application
         HostCapabilityService.Instance.StartProbe();
         StartupTimings.Mark("Init.Voice");
 
+        // ── 6b. Damaged config: say so, say what came back ───────────────────
+        // Settings that could not be read are already on defaults and on record in the crash log; this is
+        // what tells the user, rather than leaving them to notice. The setup wizard opens for the same
+        // reason (SetupWizardViewModel.Build re-asks on an unreadable config), so this is the account of
+        // what happened and the wizard is the re-verification.
+        ReportUnreadableConfigs(recoveredWorkspaces);
+
         // ── 7. About — read-only Options section (registered last so it sorts to the bottom) ──
         var aboutConfig = new AboutConfig();
         ConfigManager.Instance.Register(aboutConfig, aboutConfig.ConfigName);
@@ -367,6 +387,33 @@ public partial class App : Application
         StartupTimings.Mark("Init.JumpListAndIpc");
 
         return voiceConfig;
+    }
+
+    /// <summary>
+    /// Posts one message naming the settings that could not be read this launch and the workspaces
+    /// recovered from their data folders. Persistent (not a passing toast): it is the record of settings
+    /// the user is expected to check, and the wizard that opens beside it covers the re-verification.
+    /// </summary>
+    private static void ReportUnreadableConfigs(IReadOnlyList<string> recoveredWorkspaces)
+    {
+        var unreadable = ConfigManager.Instance.GetUnreadableConfigs();
+        if (unreadable.Count == 0) return;
+
+        var body = $"Could not read: {string.Join(", ", unreadable)}. "
+                 + "Those settings are back at their defaults — the damaged files are kept beside them, and "
+                 + $"the details are in the log at {CrashLog.Instance.CurrentPath}.";
+
+        if (recoveredWorkspaces.Count > 0)
+            body += $" Recovered {recoveredWorkspaces.Count} workspace(s) from their data folders, with "
+                  + $"their conversations and settings intact: {string.Join(", ", recoveredWorkspaces)}.";
+
+        MessageCenter.Instance.Post(new NotificationItem
+        {
+            Title     = "Some settings could not be read",
+            Body      = body,
+            Severity  = MessageSeverity.Warning,
+            ShowToast = true,
+        });
     }
 
     protected override void OnExit(ExitEventArgs e)

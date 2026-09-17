@@ -55,6 +55,9 @@ public class WorkspaceConfigJourneyTests : OptionsOverlayJourney
         SelectSection(sections!, "Default tabs", "DefaultTabs_Remove");
         var tabs = 0;
         Check("The captured tabset is listed", () => WaitForFs(() => (tabs = CountOf("DefaultTabs_Remove")) > 0, 3));
+        Check("The last-session offer can be switched off for this workspace", () =>
+            SetToggle("DefaultTabs_NoSessionRestore", true));
+        Check("... and back on", () => SetToggle("DefaultTabs_NoSessionRestore", false));
         Check("✕ drops a tab from it", () =>
             PressNth("DefaultTabs_Remove", 0) && WaitForFs(() => CountOf("DefaultTabs_Remove") == tabs - 1, 3));
 

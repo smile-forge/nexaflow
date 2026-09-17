@@ -221,6 +221,123 @@ public class WorkspaceManagerTests
         Assert.AreEqual("A",       one.Icon);
     }
 
+    [TestMethod]
+    public void SaveWorkspaces_PersistsEveryStoredField_AndNothingRuntimeOnly()
+    {
+        var workspace = new Workspace
+        {
+            Name                   = "Dev",
+            Color                  = "#ABCDEF",
+            Icon                   = "\u25C6",
+            SuppressSessionRestore = true,
+            DefaultTabs            = [new DefaultTabDescriptor { PageKind = "Terminal", Pane = 1, IsActive = true }],
+            LastSessionTabs        = [new DefaultTabDescriptor { PageKind = "Markdown", Title = "notes.md" }],
+            IsInUse                = true,   // transient UI flag — must not reach the file
+        };
+        InitWith(workspace);
+
+        WorkspaceManager.Instance.SaveWorkspaces();
+
+        var saved = LoadPersisted().Contexts.Single();
+        Assert.AreEqual("Dev",      saved.Name);
+        Assert.AreEqual("#ABCDEF",  saved.Color);
+        Assert.AreEqual("\u25C6",   saved.Icon);
+        Assert.IsTrue(saved.SuppressSessionRestore);
+        Assert.AreEqual("Terminal", saved.DefaultTabs.Single().PageKind);
+        Assert.AreEqual(1,          saved.DefaultTabs.Single().Pane);
+        Assert.IsTrue(saved.DefaultTabs.Single().IsActive);
+        Assert.AreEqual("Markdown", saved.LastSessionTabs?.Single().PageKind);
+        Assert.AreEqual("notes.md", saved.LastSessionTabs?.Single().Title);
+        Assert.IsFalse(saved.IsInUse, "IsInUse marks a live row in the editor and is never persisted");
+    }
+
+    // ── A workspace list the app cannot run on ──
+
+    [TestMethod]
+    public void AWorkspaceListThatIsNotUsable_IsMadeUsable_RatherThanTakingTheAppDown()
+    {
+        // Everything a hand-edited or half-written workcontexts.json can hold that would otherwise throw:
+        // the name is the data folder (Path.Combine on null), and startup indexes the first workspace.
+        var config = new WorkspacesConfig
+        {
+            Contexts =
+            [
+                null!,
+                new Workspace { Name = null!, Color = null!, Icon = "  " },
+                new Workspace { Name = "  Dev  " },
+                new Workspace { Name = "DEV" },                              // the same folder, case-insensitively
+                new Workspace { Name = "Re:ports/Q1" },                      // not a folder name
+                new Workspace { Name = "Tabs", DefaultTabs = [null!], LastSessionTabs = [null!] },
+            ],
+        };
+
+        var names = config.Contexts.Select(c => c.Name).ToArray();
+        CollectionAssert.AreEqual(new[] { "Default", "Dev", "DEV 2", "ReportsQ1", "Tabs" }, names);
+        Assert.AreEqual(new Workspace().Color, config.Contexts[0].Color, "a blank colour would not bind to a brush");
+        Assert.AreEqual(new Workspace().Icon,  config.Contexts[0].Icon);
+
+        var tabs = config.Contexts.Single(c => c.Name == "Tabs");
+        Assert.IsFalse(names.Contains("Re:ports/Q1"), "the characters a folder name cannot hold are dropped");
+        Assert.AreEqual(0, tabs.DefaultTabs.Count, "an entry that is not there cannot open a tab");
+        Assert.IsNull(tabs.LastSessionTabs, "and a session holding nothing is no offer at all");
+
+        // The folder for every surviving name resolves, which is what startup does before anything else.
+        foreach (var workspace in config.Contexts)
+            Assert.IsFalse(string.IsNullOrWhiteSpace(WorkspaceManager.WorkspaceDir(workspace.Name)));
+
+        WorkspaceManager.Instance.Initialize(config);
+        Assert.AreEqual(5, WorkspaceManager.Instance.Workspaces.Count);
+    }
+
+    [TestMethod]
+    public void AnEmptyWorkspaceList_StillYieldsOne_BecauseStartupOpensTheFirst()
+    {
+        var config = new WorkspacesConfig { Contexts = [] };
+
+        Assert.AreEqual(1, config.Contexts.Count);
+        Assert.AreEqual("Default", config.Contexts[0].Name);
+    }
+
+    [TestMethod]
+    public void AListThatCouldNotBeRead_IsRebuiltFromTheDataFolders_WithTheirContentsIntact()
+    {
+        // What is left after workcontexts.json is lost: the folders, each holding a workspace's notes,
+        // conversations and settings, and a list that names none of them.
+        var root = Path.Combine(_baseDir, "Contexts");
+        Directory.CreateDirectory(Path.Combine(root, "Dev", "Conversations"));
+        File.WriteAllText(Path.Combine(root, "Dev", "Conversations", "chat.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(root, "Research"));
+        Directory.CreateDirectory(Path.Combine(root, WorkspaceManager.OrphanQuarantineDir, "Old"));
+
+        var config = new WorkspacesConfig { Contexts = [new Workspace { Name = "Dev" }] };
+
+        var recovered = WorkspaceManager.RecoverWorkspacesFromDataFolders(config);
+
+        CollectionAssert.AreEqual(new[] { "Research" }, recovered.ToArray(),
+            "only a folder no entry names; the quarantine bin was put aside deliberately");
+        CollectionAssert.AreEquivalent(new[] { "Dev", "Research" },
+                                       config.Contexts.Select(c => c.Name).ToArray());
+        Assert.IsTrue(File.Exists(Path.Combine(root, "Dev", "Conversations", "chat.json")),
+            "the folders are read for their names and never touched");
+
+        // And the recovered list is what a save then writes, so the recovery survives the session.
+        WorkspaceManager.Instance.Initialize(config);
+        WorkspaceManager.Instance.SaveWorkspaces();
+        CollectionAssert.AreEquivalent(new[] { "Dev", "Research" },
+                                       LoadPersisted().Contexts.Select(c => c.Name).ToArray());
+    }
+
+    [TestMethod]
+    public void RecoveringAListThatNamesEveryFolder_ChangesNothing()
+    {
+        var root = Path.Combine(_baseDir, "Contexts");
+        Directory.CreateDirectory(Path.Combine(root, "Dev"));
+        var config = new WorkspacesConfig { Contexts = [new Workspace { Name = "Dev", Color = "#111111" }] };
+
+        Assert.AreEqual(0, WorkspaceManager.RecoverWorkspacesFromDataFolders(config).Count);
+        Assert.AreEqual("#111111", config.Contexts.Single().Color, "a workspace already in the list is left alone");
+    }
+
     // ── QuarantineOrphanedDataFolders ──
 
     private string QuarantineDir => Path.Combine(_baseDir, "Contexts", WorkspaceManager.OrphanQuarantineDir);

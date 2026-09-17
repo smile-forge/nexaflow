@@ -135,6 +135,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     {
         var el = CheckPresent(label, automationId, seconds);
         if (el is null) return null;
+        if (BlockedByModalQuestion(automationId)) return null;
         if (!el.IsEnabled)
         {
             _failures.Add($"{label}: '{automationId}' is disabled — invoking it cannot do anything.");
@@ -206,6 +207,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// </summary>
     protected bool TypeInto(string automationId, string text)
     {
+        if (BlockedByModalQuestion(automationId)) return false;
         var box = WaitFor(() =>
         {
             var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
@@ -218,6 +220,36 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         return WaitForFs(() => box.AsTextBox().Text == text, 2);
     }
 
+    // ── Modal questions ───────────────────────────────────────────────────────────
+    // The shell's confirmation and prompt are window-modal: while one is open the user can reach nothing
+    // else in the window. Every helper below drives a control through its UIA pattern, which needs no
+    // mouse and so passes straight through the scrim covering the page. Left unchecked that lets a journey
+    // "press" a control nobody could get to, and every check after it reports on a window the user would
+    // have been locked out of — which is not a pass, it is the test having stopped describing the app.
+
+    /// <summary>The modal question's own controls: the only ones reachable while it is open.</summary>
+    private static readonly string[] ModalOwnIds =
+        ["Chrome_ConfirmOk", "Chrome_ConfirmCancel", "ShellPromptOk", "ShellPromptCancel", "ShellPromptBox"];
+
+    /// <summary>
+    /// True when a shell confirmation or prompt is open and <paramref name="automationId"/> is no part of
+    /// it. Records the failure here, naming the question that was left open, because the enclosing check
+    /// can only report that something returned false — and "returned false" is exactly what this looked
+    /// like for as long as it went unnoticed.
+    /// </summary>
+    private bool BlockedByModalQuestion(string automationId)
+    {
+        if (ModalOwnIds.Contains(automationId, StringComparer.Ordinal)) return false;
+
+        if ((MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Chrome_ConfirmOk"))
+          ?? MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("ShellPromptOk"))) is null) return false;
+
+        _failures.Add($"'{automationId}' was driven while the shell's modal question was still open. "
+                    + "Answer it in the journey first: a user could not have reached this control, so "
+                    + "neither should the pass.");
+        return true;
+    }
+
     /// <summary>How many controls carry <paramref name="automationId"/> — for an id stamped on every row of a list.</summary>
     protected int CountOf(string automationId) =>
         MainWindow.FindAllDescendants(cf => cf.ByAutomationId(automationId)).Length;
@@ -228,6 +260,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// </summary>
     protected bool PressNth(string automationId, int index)
     {
+        if (BlockedByModalQuestion(automationId)) return false;
         var rows = MainWindow.FindAllDescendants(cf => cf.ByAutomationId(automationId));
         var i = index < 0 ? rows.Length - 1 : index;
         if (i < 0 || i >= rows.Length) return false;
@@ -255,6 +288,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// <summary>Sets a toggle (ToggleButton, CheckBox) to <paramref name="on"/> through its pattern. True once it reads so.</summary>
     protected bool SetToggle(string automationId, bool on)
     {
+        if (BlockedByModalQuestion(automationId)) return false;
         var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId))?.Patterns.Toggle.PatternOrDefault;
         if (toggle is null) return false;
         var want = on ? FlaUI.Core.Definitions.ToggleState.On : FlaUI.Core.Definitions.ToggleState.Off;

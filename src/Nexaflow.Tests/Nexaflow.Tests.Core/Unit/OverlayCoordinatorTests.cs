@@ -15,6 +15,17 @@ public class OverlayCoordinatorTests
 {
     private static OverlayCoordinator Make() => new(() => false, () => false, () => { }, () => { });
 
+    // A coordinator with the Options panel open, as the shell reports it: the panel object is pushed in
+    // and the flag reads true until something clears it.
+    private static OverlayCoordinator MakeWithOptionsOpen(object panel, Action onCloseOptions)
+    {
+        bool open = true;
+        var o = new OverlayCoordinator(() => open, () => false,
+                                       () => { open = false; onCloseOptions(); }, () => { });
+        o.OptionsPanel = panel;
+        return o;
+    }
+
     [TestMethod]
     [CoversNode("chrome-prompt-confirm")]
     public void Confirming_RunsTheCallbackOnce_WithTheHostAlreadyClear()
@@ -22,10 +33,10 @@ public class OverlayCoordinatorTests
         var o = Make();
         int confirms = 0;
         object? hostWhenItRan = "unset";
-        o.ShowConfirmation("Delete", "Really?", () => { confirms++; hostWhenItRan = o.ActiveOverlay; });
+        o.ShowConfirmation("Delete", "Really?", () => { confirms++; hostWhenItRan = o.ActiveModal; });
 
         var request = o.Confirmation!;
-        Assert.AreSame(request, o.ActiveOverlay, "the host renders the request itself");
+        Assert.AreSame(request, o.ActiveModal, "the host renders the request itself");
 
         request.ConfirmCommand.Execute(null);
         request.ConfirmCommand.Execute(null);
@@ -33,7 +44,7 @@ public class OverlayCoordinatorTests
         Assert.AreEqual(1, confirms, "a second click on an answered dialog must not re-run the action");
         Assert.IsNull(hostWhenItRan, "the dialog is gone before the action runs");
         Assert.IsFalse(o.ConfirmationVisible);
-        Assert.IsNull(o.ActiveOverlay);
+        Assert.IsNull(o.ActiveModal);
     }
 
     [TestMethod]
@@ -48,7 +59,7 @@ public class OverlayCoordinatorTests
 
         Assert.IsTrue(cancelled);
         Assert.IsNull(o.Confirmation);
-        Assert.IsNull(o.ActiveOverlay);
+        Assert.IsNull(o.ActiveModal);
     }
 
     [TestMethod]
@@ -79,7 +90,7 @@ public class OverlayCoordinatorTests
 
         Assert.IsTrue(firstCancelled, "an awaiting ConfirmAsync completes instead of hanging on an unreachable dialog");
         Assert.AreEqual("Second", o.Confirmation!.Title, "the dialog shows the question its buttons answer");
-        Assert.AreSame(o.Confirmation, o.ActiveOverlay);
+        Assert.AreSame(o.Confirmation, o.ActiveModal);
     }
 
     [TestMethod]
@@ -92,7 +103,7 @@ public class OverlayCoordinatorTests
         o.Confirmation!.ConfirmCommand.Execute(null);
 
         Assert.AreEqual("Then", o.Confirmation?.Title);
-        Assert.AreSame(o.Confirmation, o.ActiveOverlay);
+        Assert.AreSame(o.Confirmation, o.ActiveModal);
     }
 
     [TestMethod]
@@ -106,7 +117,7 @@ public class OverlayCoordinatorTests
         o.CloseOverlay();
 
         Assert.IsTrue(cancelled);
-        Assert.IsNull(o.ActiveOverlay);
+        Assert.IsNull(o.ActiveModal);
     }
 
     [TestMethod]
@@ -134,7 +145,7 @@ public class OverlayCoordinatorTests
         o.ShowPrompt("Rename", "Name", "old.txt", got.Add);
 
         var request = o.Prompt!;
-        Assert.AreSame(request, o.ActiveOverlay);
+        Assert.AreSame(request, o.ActiveModal);
         Assert.AreEqual("old.txt", request.Value, "the box starts from the seed");
 
         request.Value = "new.txt";
@@ -143,7 +154,7 @@ public class OverlayCoordinatorTests
 
         CollectionAssert.AreEqual(new[] { "new.txt" }, got);
         Assert.IsFalse(o.PromptVisible);
-        Assert.IsNull(o.ActiveOverlay);
+        Assert.IsNull(o.ActiveModal);
     }
 
     [TestMethod]
@@ -169,10 +180,53 @@ public class OverlayCoordinatorTests
         o.ShowPrompt("Save as", "File name", "a.txt", _ => { });
         o.ShowConfirmation("Overwrite?", "a.txt exists.", () => { });
 
-        Assert.AreSame(o.Confirmation, o.ActiveOverlay, "the confirmation outranks the prompt");
+        Assert.AreSame(o.Confirmation, o.ActiveModal, "the confirmation outranks the prompt");
 
         o.Confirmation!.ConfirmCommand.Execute(null);
 
-        Assert.AreSame(o.Prompt, o.ActiveOverlay, "the prompt comes back once the confirmation is answered");
+        Assert.AreSame(o.Prompt, o.ActiveModal, "the prompt comes back once the confirmation is answered");
+    }
+
+    [TestMethod]
+    [CoversNode("chrome-prompt-confirm")]
+    public void AQuestionRaisedFromAPanel_LayersAboveIt_LeavingThePanelOpenBehind()
+    {
+        var panel = new object();
+        var o = MakeWithOptionsOpen(panel, () => Assert.Fail("asking a question must not close the panel"));
+
+        // The Options page's own Delete button: the question it raises has to be reachable, which it is
+        // only if it renders somewhere other than the host the panel occupies.
+        o.ShowConfirmation("Remove workspace", "Remove “Dev”?", () => { });
+
+        Assert.AreSame(o.Confirmation, o.ActiveModal, "the question is on the layer above the panel");
+        Assert.AreSame(panel, o.ActiveOverlay, "and the panel it was raised from is still shown beneath it");
+
+        o.Confirmation!.ConfirmCommand.Execute(null);
+
+        Assert.IsNull(o.ActiveModal);
+        Assert.AreSame(panel, o.ActiveOverlay, "the same panel instance — its unapplied edits were never torn down");
+    }
+
+    [TestMethod]
+    [CoversNode("chrome-prompt-confirm")]
+    public void CloseOverlay_WithAPanelOpen_AnswersTheQuestionAndKeepsThePanel()
+    {
+        var panel = new object();
+        bool panelClosed = false;
+        var o = MakeWithOptionsOpen(panel, () => panelClosed = true);
+
+        bool cancelled = false;
+        o.ShowConfirmation("Remove workspace", "Remove “Dev”?",
+                           () => Assert.Fail("confirm must not fire"), () => cancelled = true);
+
+        o.CloseOverlay();   // Escape, or the backdrop
+
+        Assert.IsTrue(cancelled, "the topmost thing open is the question, so that is what closes");
+        Assert.IsFalse(panelClosed, "one Escape does not also close the panel behind it");
+        Assert.AreSame(panel, o.ActiveOverlay);
+
+        o.CloseOverlay();   // a second Escape, with nothing above it now
+
+        Assert.IsTrue(panelClosed);
     }
 }
