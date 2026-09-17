@@ -132,6 +132,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `pdf417` | ✅ | ✅ — see [PDF417](#pdf417--sub-support) below |
 | `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
 | `smiles` | ✅ | ✅ — chemical structures on the shared syntax tree; see [Chemical structures](#chemical-structures--sub-support) below |
+| `wordcloud` | ✅ | ✅ — words packed on the shared syntax tree; see [Word clouds](#word-clouds--sub-support) below |
 | `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
@@ -1072,6 +1073,111 @@ are drawn up to half as long again.
 **Known limits.** A `/` `\` inside a large ring cannot bend the ring it is part of, so its geometry follows the ring. A stereocentre in a cage gets its wedge from the page
 as drawn, not from the solid's depth. Only tetrahedral centres get wedges: `@AL`, `@SP`, `@TB`
 and `@OH` read, but draw no stereo. There is no option to draw hydrogens explicitly, and no settings line.
+
+---
+
+## Word clouds — sub-support
+
+A **`wordcloud`** fence packs words into a picture, each set at the size its weight comes to. The body is a
+flat list of `key: value` lines doing two jobs: **the settings are the lines above the words**, and the
+first word closes them — after it, every line is a word and what it counts for, settings' names included.
+That rule is what lets a cloud count `shape`, `scale`, `colour` and `gap`, which are ordinary English as
+well as settings; the one case it cannot reach — a cloud whose *heaviest* word is named like a setting — is
+written in quotes, `"shape": 40`, which makes a word of it wherever it stands. `#` starts a comment. It is
+registered as an
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/WordCloudDiagramHandler.cs), and is
+on the shared syntax tree ([markdown-ast.md](markdown-ast.md#word-clouds)).
+
+| Piece | What it does |
+|---|---|
+| [`WordCloudParser`](../src/Nexaflow.Markdown/WordCloud/WordCloudParser.cs) | the block into a lossless tree, to the character: a line's key, its colon and its value, the quotes around a word held beside it rather than in it, comments and space as trivia. A line that is neither is held with the reason |
+| [`WordCloudReader`](../src/Nexaflow.Markdown/WordCloud/WordCloudReader.cs) | the tree into settings and words, heaviest first; the line between a fault that stops it being a cloud and a weight that will not read |
+| [`WordCloudChart`](../src/Nexaflow.Markdown/WordCloud/WordCloudChart.cs) | a weight into a size: the lightest word at `minSize`, the heaviest at `maxSize`, and the rest between them on a linear, root or log scale |
+| [`WordMask`](../src/Nexaflow.Markdown/WordCloud/WordMask.cs) | a word's letters filled onto a grid of cells, from the outlines the type engine hands over — the shape the fitting reads |
+| [`WordCloudShapes`](../src/Nexaflow.Markdown/WordCloud/WordCloudShape.cs) | how far the outline reaches at each angle: circle, cardioid, diamond, square, triangle, triangle-forward, pentagon, star |
+| [`WordCloudStencil`](../src/Nexaflow.Markdown/WordCloud/WordCloudStencil.cs) | the shape a cloud is packed *into* — letters, or a picture's silhouette — as a grid of cells saying where a word may go |
+| [`WordCloudBoard`](../src/Nexaflow.Markdown/WordCloud/WordCloudBoard.cs) | the picture as a grid of free and taken cells, and the search outwards from the middle that finds a word its place |
+| [`WordCloudRandom`](../src/Nexaflow.Markdown/WordCloud/WordCloudRandom.cs) | the throw every choice is made from, taken from the block's `seed:` so the same source always gives the same cloud |
+| [`WordCloudBuilder`](../src/Nexaflow.Visuals.Text/Markdown/WordCloud/WordCloudBuilder.cs) | setting each word, asking for its outline, packing it, and laying it out as a run of text where it landed |
+| [`WordCloudInk`](../src/Nexaflow.Visuals.Text/Markdown/WordCloud/WordCloudInk.cs) | what a word is drawn in: the palette's series colours in turn, colours written out, or a scattered dark or light throw |
+
+**The packing is `wordcloud2.js`'s, ported.** Words go down heaviest first; each takes the first place it
+fits, searching outwards from the middle along rings of ever-growing radius; nothing is moved once it is
+down. The `shape:` is not a boundary and nothing is clipped by it — it pulls the ring in at the angles where
+the outline is nearer the middle, so the words simply run out where the outline is — which means a shape only
+reads as one with a few hundred words to run out against. The places at one radius are tried in a shuffled
+order, because tried in the order they are computed the words stack into spokes.
+
+**A shape it runs out at, or a stencil it fills.** `shape:` is the first of two ways to shape a cloud and the
+weaker one — it pulls the rings in and the words run out at the outline, which is all a circle or a star
+needs and is no use at all for a letter, whose edge is not a function of its angle. `letters:` and `mask:`
+are the other way round: every cell outside the shape is taken before a word is placed, so the packing fills
+it from the inside and never has to know what shape it is. A stencil sets `shape:` and `ellipticity:` aside
+while it is in force, sizes the picture to its own proportions, and is what makes a cloud spell a word or
+hold a silhouette. A picture is found exactly as an `![](…)` is — the host's resolver, then the document's
+folder (`DiagramRenderOptions.Pictures`) — so a block can reach no picture an image could not, and the part
+of it that is the shape is its own to say: one drawn with transparency means the part that is there, one
+without means the part that is dark.
+
+**The fitting is by the letters, not the boxes.** That is what makes a cloud a cloud: a short word slides
+under a capital's arm and into the bowl of a `g`. `wordcloud2.js` gets each word's shape by drawing it on a
+canvas and reading the pixels back; there is no canvas here, so the glyph outlines are filled straight onto
+the grid — the same answer, without a rendering pass, and testable without a desktop.
+
+**The same block always gives the same cloud.** A cloud is laid out again from nothing on every keystroke,
+every change of theme and every change of column width, so the throw comes from the block rather than from
+the clock (`seed:`, and a generator of its own rather than `System.Random`, which is free to change how it
+draws between runtimes). A reader adding a word watches the rest hold still.
+
+**The picture is what was drawn, not the room it was given.** `width:` and `height:` bound how far out the
+words may go; the layout is then trimmed to the union of what was placed. A cloud of a dozen words in a wide
+column is a small picture rather than a dozen words marooned in a field of nothing pushing the prose either
+side of it apart — which is what a fixed canvas, as `wordcloud2.js` has, would give.
+
+**Settings**
+
+| Key | Default | What it is |
+|---|---|---|
+| `width` | the column, up to 900 | how much room across the packing may use, in pixels |
+| `height` | 0.6 × the width | how much room down it may use |
+| `shape` | `circle` | `circle`, `cardioid`, `diamond`, `square`, `triangle`, `triangle-forward`, `pentagon`, `star` |
+| `letters` | none | letters to pack the cloud into the shape of, set in the block's own face |
+| `mask` | none | a picture whose silhouette to pack into, named as an `![](…)` names one |
+| `ellipticity` | `0.65` | how far the cloud is squashed towards its waist; `1` is round |
+| `font` | `Segoe UI, Arial, sans-serif` | the faces a word is set in, first that the machine has |
+| `bold` | `true` | whether the words are set bold |
+| `minSize` / `maxSize` | `12` / `72` | the sizes the lightest and heaviest words are set at |
+| `scale` | `sqrt` | how a weight becomes a size: `linear`, `sqrt`, `log` |
+| `gridSize` | `4` | how finely a word's shape is known when it is fitted, in pixels |
+| `gap` | `2` | clear air kept around every word |
+| `rotate` | `0.1` | the share of the words set on their side, nought to one |
+| `minRotation` / `maxRotation` | `-90` / `90` | the angles a turned word may take, in degrees; negative reads upward |
+| `rotationSteps` | `0` | how many angles there are between them; `0` is any angle, `2` the tidier level-or-on-its-side look |
+| `color` / `colour` | `theme` | `theme`, `random-dark`, `random-light`, or colours to take in turn |
+| `background` | none | what the picture is drawn on; the page it sits on where absent |
+| `seed` | `1` | the throw the placement makes |
+| `shuffle` | `true` | whether the places at one radius are tried in a shuffled order |
+| `fit` | `true` | whether a word too big for the room left is set smaller until it fits |
+
+`weightFactor` has no counterpart: it is a JavaScript function, and a block cannot hold one. `minSize` and
+`maxSize` say the same thing in a form a block can — and better, because the weights in a block are whatever
+somebody counted, and one multiplier cannot suit counts in the tens and counts in the thousands alike.
+
+**Editable where it is drawn.** Every word is a run of text carrying the characters it was written with, so
+the caret stands in it, a drag picks out its letters, and typing into the picture edits the block — the same
+`IEditableBlock` seam that drives a formula and a barcode. The weights are drawn nowhere and are edited in
+the block's source.
+
+**Two kinds of failure.** A setting given something it cannot take, or a line that is not a pair, stops the
+block being a cloud at all: its lines are shown as they were written with the reason waved under them, which
+is all anyone can do with them. A weight that will not read is a different thing — the block is well formed,
+that word is the part being edited, and the other forty words are still a cloud — so the line keeps its wave
+and loses its place in the picture. A word there was no room left for says so too, as a warning, because a
+word silently missing from a cloud is a word the reader believes was never counted.
+
+**Known limits.** One word to a line: a phrase is drawn as written, but nothing splits prose into words or
+counts them. There is no `origin:` and no `drawOutOfBound` — a cloud packs from the middle of its room and
+stays inside it — and no hover or click behaviour beyond the selection every block has.
 
 ---
 

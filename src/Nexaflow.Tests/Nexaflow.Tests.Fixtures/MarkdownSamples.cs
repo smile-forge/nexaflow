@@ -57,6 +57,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("pdf417.md",                Pdf417),
         SampleFile.Text("aztec.md",                 Aztec),
         SampleFile.Text("smiles.md",                Smiles),
+        SampleFile.Text("wordcloud.md",             WordCloud),
     ];
 
     private const string LatexMathSymbols =
@@ -4334,6 +4335,703 @@ internal sealed class MarkdownSamples : ISampleSet
         layers: 1
         ```
         """";
+
+    private const string WordCloud =
+        """"
+        # Word clouds
+
+        A `wordcloud` fence packs words into a picture, each set at the size its weight comes to. Every line is
+        `something: value`: the settings are the lines above the words, and the first word closes them — after it,
+        every line is a word and what it counts for. A `#` starts a comment.
+
+        A cloud needs words to look like one. A dozen of them is a dozen words; the picture below is a hundred and
+        twenty, which is where the packing starts to show.
+
+        ## What a cloud looks like
+
+        ```wordcloud
+        design: 900
+        system: 517
+        colour: 374
+        layout: 297
+        type: 248
+        grid: 215
+        space: 190
+        scale: 171
+        contrast: 155
+        rhythm: 143
+        balance: 132
+        texture: 123
+        pattern: 116
+        shape: 109
+        line: 103
+        form: 98
+        hierarchy: 93
+        alignment: 89
+        proximity: 85
+        typography: 82
+        serif: 79
+        kerning: 76
+        leading: 73
+        baseline: 71
+        ligature: 69
+        glyph: 66
+        italic: 64
+        roman: 63
+        caption: 61
+        heading: 59
+        palette: 58
+        hue: 56
+        saturation: 55
+        tone: 54
+        tint: 52
+        accent: 51
+        neutral: 50
+        gradient: 49
+        opacity: 48
+        shadow: 47
+        canvas: 46
+        margin: 45
+        gutter: 44
+        column: 44
+        module: 43
+        template: 42
+        mockup: 41
+        prototype: 41
+        wireframe: 40
+        sketch: 39
+        draft: 39
+        revision: 38
+        proof: 38
+        render: 37
+        export: 36
+        asset: 36
+        artboard: 35
+        layer: 35
+        mask: 34
+        motion: 34
+        easing: 34
+        timing: 33
+        transition: 33
+        duration: 32
+        spring: 32
+        bounce: 32
+        fade: 31
+        slide: 31
+        rotate: 30
+        parallax: 30
+        keyframe: 30
+        curve: 29
+        anticipation: 29
+        overlap: 29
+        stagger: 28
+        brand: 28
+        identity: 28
+        logo: 28
+        mark: 27
+        voice: 27
+        story: 27
+        message: 26
+        audience: 26
+        context: 26
+        craft: 26
+        detail: 26
+        polish: 25
+        restraint: 25
+        clarity: 25
+        intent: 25
+        constraint: 24
+        tradeoff: 24
+        iteration: 24
+        critique: 24
+        legible: 24
+        readable: 23
+        focus: 23
+        label: 23
+        landmark: 23
+        ratio: 23
+        target: 22
+        keyboard: 22
+        screen: 22
+        reader: 22
+        print: 22
+        mobile: 22
+        tablet: 21
+        desktop: 21
+        viewport: 21
+        breakpoint: 21
+        responsive: 21
+        fluid: 21
+        adaptive: 21
+        container: 20
+        stack: 20
+        flow: 20
+        wrap: 20
+        snap: 20
+        anchor: 20
+        offset: 20
+        ```
+
+        ## Shapes
+
+        The words are packed outwards from the middle and run out where the outline is — nothing is clipped, so a
+        shape needs plenty of words before it reads as one.
+
+        ```wordcloud
+        shape: cardioid
+        ellipticity: 1
+        height: 620
+        weather: 700
+        rain: 402
+        cloud: 291
+        wind: 231
+        storm: 193
+        frost: 167
+        mist: 148
+        snow: 133
+        thunder: 121
+        sunshine: 111
+        drizzle: 103
+        shower: 96
+        gale: 90
+        breeze: 85
+        fog: 80
+        hail: 76
+        sleet: 73
+        lightning: 69
+        rainbow: 66
+        overcast: 64
+        pressure: 61
+        front: 59
+        isobar: 57
+        forecast: 55
+        warning: 53
+        flood: 52
+        drought: 50
+        humid: 49
+        muggy: 47
+        crisp: 46
+        chill: 45
+        thaw: 44
+        freeze: 43
+        melt: 42
+        damp: 41
+        dry: 40
+        bright: 39
+        dull: 38
+        grey: 37
+        blue: 37
+        morning: 36
+        evening: 35
+        night: 35
+        dawn: 34
+        dusk: 33
+        noon: 33
+        season: 32
+        spring: 32
+        summer: 31
+        autumn: 31
+        winter: 30
+        monsoon: 30
+        cyclone: 29
+        hurricane: 29
+        tornado: 28
+        blizzard: 28
+        squall: 28
+        swell: 27
+        tide: 27
+        current: 26
+        coast: 26
+        moor: 26
+        valley: 25
+        ridge: 25
+        summit: 25
+        plain: 25
+        estuary: 24
+        channel: 24
+        strait: 24
+        bay: 23
+        temperature: 23
+        degrees: 23
+        celsius: 23
+        minimum: 22
+        maximum: 22
+        average: 22
+        record: 22
+        anomaly: 21
+        trend: 21
+        pattern: 21
+        satellite: 21
+        radar: 21
+        station: 20
+        buoy: 20
+        balloon: 20
+        model: 20
+        ensemble: 20
+        hindcast: 19
+        nowcast: 19
+        outlook: 19
+        ```
+
+        ```wordcloud
+        shape: star
+        ellipticity: 1
+        height: 620
+        space: 700
+        orbit: 402
+        launch: 291
+        rocket: 231
+        booster: 193
+        payload: 167
+        capsule: 148
+        module: 133
+        station: 121
+        probe: 111
+        lander: 103
+        rover: 96
+        flyby: 90
+        transit: 85
+        eclipse: 80
+        comet: 76
+        asteroid: 73
+        meteor: 69
+        nebula: 66
+        galaxy: 64
+        cluster: 61
+        quasar: 59
+        pulsar: 57
+        supernova: 55
+        redshift: 53
+        parallax: 52
+        spectrum: 50
+        telescope: 49
+        mirror: 47
+        aperture: 46
+        exposure: 45
+        photon: 44
+        neutrino: 43
+        gravity: 42
+        tidal: 41
+        escape: 40
+        velocity: 39
+        apogee: 38
+        perigee: 37
+        inclination: 37
+        trajectory: 36
+        burn: 35
+        thrust: 35
+        stage: 34
+        fairing: 33
+        gimbal: 33
+        telemetry: 32
+        downlink: 32
+        beacon: 31
+        antenna: 31
+        solar: 30
+        panel: 30
+        battery: 29
+        cryogenic: 29
+        propellant: 28
+        oxidiser: 28
+        plume: 28
+        reentry: 27
+        ablation: 27
+        splashdown: 26
+        lunar: 26
+        martian: 26
+        venusian: 25
+        jovian: 25
+        saturnian: 25
+        kuiper: 25
+        oort: 24
+        heliosphere: 24
+        corona: 24
+        flare: 23
+        observatory: 23
+        survey: 23
+        catalogue: 23
+        ephemeris: 22
+        occultation: 22
+        albedo: 22
+        regolith: 22
+        crater: 21
+        rille: 21
+        mare: 21
+        ```
+
+        ## Turned words
+
+        `rotate:` is the share of the words turned. They take any angle between `minRotation:` and `maxRotation:`;
+        `rotationSteps: 2` gives the tidier look of words either level or on their side.
+
+        ```wordcloud
+        rotate: 0.35
+        rotationSteps: 2
+        minRotation: -90
+        maxRotation: 0
+        design: 900
+        system: 517
+        colour: 374
+        layout: 297
+        type: 248
+        grid: 215
+        space: 190
+        scale: 171
+        contrast: 155
+        rhythm: 143
+        balance: 132
+        texture: 123
+        pattern: 116
+        shape: 109
+        line: 103
+        form: 98
+        hierarchy: 93
+        alignment: 89
+        proximity: 85
+        typography: 82
+        serif: 79
+        kerning: 76
+        leading: 73
+        baseline: 71
+        ligature: 69
+        glyph: 66
+        italic: 64
+        roman: 63
+        caption: 61
+        heading: 59
+        palette: 58
+        hue: 56
+        saturation: 55
+        tone: 54
+        tint: 52
+        accent: 51
+        neutral: 50
+        gradient: 49
+        opacity: 48
+        shadow: 47
+        canvas: 46
+        margin: 45
+        gutter: 44
+        column: 44
+        module: 43
+        template: 42
+        mockup: 41
+        prototype: 41
+        wireframe: 40
+        sketch: 39
+        draft: 39
+        revision: 38
+        proof: 38
+        render: 37
+        export: 36
+        asset: 36
+        artboard: 35
+        layer: 35
+        mask: 34
+        motion: 34
+        ```
+
+        ## Colours
+
+        `theme` takes the palette's series colours in turn, so a cloud follows the theme as every other chart does.
+        Colours written out are taken in turn instead, and `random-dark` / `random-light` scatter them.
+
+        ```wordcloud
+        color: #e06c75 #e5c07b #98c379 #61afef
+        background: #1c1f26
+        weather: 700
+        rain: 402
+        cloud: 291
+        wind: 231
+        storm: 193
+        frost: 167
+        mist: 148
+        snow: 133
+        thunder: 121
+        sunshine: 111
+        drizzle: 103
+        shower: 96
+        gale: 90
+        breeze: 85
+        fog: 80
+        hail: 76
+        sleet: 73
+        lightning: 69
+        rainbow: 66
+        overcast: 64
+        pressure: 61
+        front: 59
+        isobar: 57
+        forecast: 55
+        warning: 53
+        flood: 52
+        drought: 50
+        humid: 49
+        muggy: 47
+        crisp: 46
+        chill: 45
+        thaw: 44
+        freeze: 43
+        melt: 42
+        damp: 41
+        dry: 40
+        bright: 39
+        dull: 38
+        grey: 37
+        blue: 37
+        morning: 36
+        evening: 35
+        night: 35
+        dawn: 34
+        dusk: 33
+        noon: 33
+        season: 32
+        spring: 32
+        summer: 31
+        autumn: 31
+        ```
+
+        ```wordcloud
+        color: random-dark
+        background: #ffffff
+        space: 700
+        orbit: 402
+        launch: 291
+        rocket: 231
+        booster: 193
+        payload: 167
+        capsule: 148
+        module: 133
+        station: 121
+        probe: 111
+        lander: 103
+        rover: 96
+        flyby: 90
+        transit: 85
+        eclipse: 80
+        comet: 76
+        asteroid: 73
+        meteor: 69
+        nebula: 66
+        galaxy: 64
+        cluster: 61
+        quasar: 59
+        pulsar: 57
+        supernova: 55
+        redshift: 53
+        parallax: 52
+        spectrum: 50
+        telescope: 49
+        mirror: 47
+        aperture: 46
+        exposure: 45
+        photon: 44
+        neutrino: 43
+        gravity: 42
+        tidal: 41
+        escape: 40
+        velocity: 39
+        apogee: 38
+        perigee: 37
+        inclination: 37
+        trajectory: 36
+        burn: 35
+        thrust: 35
+        stage: 34
+        fairing: 33
+        gimbal: 33
+        telemetry: 32
+        downlink: 32
+        beacon: 31
+        antenna: 31
+        ```
+
+        ## Letters and pictures
+
+        `shape:` bends the cloud towards an outline. `letters:` and `mask:` mark out where the words may go at
+        all, so the cloud fills a shape rather than tending towards one. Keep `maxSize:` well down: the words
+        have to be small against the letters or there is nothing left of the shape to read.
+
+        ```wordcloud
+        letters: CLOUD
+        minSize: 4
+        maxSize: 26
+        scale: log
+        gridSize: 2
+        gap: 1
+        rotate: 0
+        design: 900
+        system: 517
+        colour: 374
+        layout: 297
+        type: 248
+        grid: 215
+        space: 190
+        scale: 171
+        contrast: 155
+        rhythm: 143
+        balance: 132
+        texture: 123
+        pattern: 116
+        shape: 109
+        line: 103
+        form: 98
+        hierarchy: 93
+        alignment: 89
+        proximity: 85
+        typography: 82
+        serif: 79
+        kerning: 76
+        leading: 73
+        baseline: 71
+        ligature: 69
+        glyph: 66
+        italic: 64
+        roman: 63
+        caption: 61
+        heading: 59
+        palette: 58
+        hue: 56
+        saturation: 55
+        tone: 54
+        tint: 52
+        accent: 51
+        neutral: 50
+        gradient: 49
+        opacity: 48
+        shadow: 47
+        canvas: 46
+        margin: 45
+        gutter: 44
+        column: 44
+        module: 43
+        template: 42
+        mockup: 41
+        prototype: 41
+        wireframe: 40
+        sketch: 39
+        draft: 39
+        revision: 38
+        proof: 38
+        render: 37
+        export: 36
+        asset: 36
+        artboard: 35
+        layer: 35
+        mask: 34
+        motion: 34
+        easing: 34
+        timing: 33
+        transition: 33
+        duration: 32
+        spring: 32
+        bounce: 32
+        fade: 31
+        slide: 31
+        rotate: 30
+        parallax: 30
+        keyframe: 30
+        curve: 29
+        anticipation: 29
+        overlap: 29
+        stagger: 28
+        brand: 28
+        identity: 28
+        logo: 28
+        mark: 27
+        voice: 27
+        story: 27
+        message: 26
+        audience: 26
+        context: 26
+        craft: 26
+        detail: 26
+        polish: 25
+        restraint: 25
+        clarity: 25
+        intent: 25
+        constraint: 24
+        tradeoff: 24
+        iteration: 24
+        critique: 24
+        legible: 24
+        readable: 23
+        focus: 23
+        label: 23
+        landmark: 23
+        ratio: 23
+        target: 22
+        keyboard: 22
+        screen: 22
+        reader: 22
+        print: 22
+        mobile: 22
+        tablet: 21
+        desktop: 21
+        viewport: 21
+        breakpoint: 21
+        responsive: 21
+        fluid: 21
+        adaptive: 21
+        container: 20
+        stack: 20
+        flow: 20
+        wrap: 20
+        snap: 20
+        anchor: 20
+        offset: 20
+        ```
+
+        A `mask:` works the same way with a picture — its opaque part if it has transparency, its dark part if
+        it has not — named as an `![](…)` names one and found beside the document.
+
+        ## Scales
+
+        `scale:` decides what the middle of the range looks like. Counts spread over orders of magnitude read better
+        on `log`; `linear` is the plain reading, and `sqrt` — the default — spreads the light words apart.
+
+        ```wordcloud
+        scale: log
+        minSize: 10
+        the: 12000
+        of: 6400
+        and: 5900
+        to: 4100
+        in: 3200
+        hexadecimal: 40
+        onomatopoeia: 12
+        ```
+
+        ## When it will not draw
+
+        A weight that is not a number leaves its line waved under and the rest of the words a cloud; a setting given
+        something it cannot take stops the block being one at all, and its lines are shown as they were written.
+
+        ```wordcloud
+        WPF: 120
+        XAML: lots
+        MVVM: 74
+        ```
+
+        ## A word named as a setting
+
+        The settings are the lines above the words, so `scale`, `colour` and `gap` below the first word are words.
+        Only the very first word needs quoting to be one.
+
+        ```wordcloud
+        shape: circle
+        "shape": 90
+        colour: 74
+        scale: 61
+        gap: 50
+        font: 44
+        hue: 38
+        outline: 32
+        weight: 27
+        ```
+        """";
+
+
 
     private const string Smiles =
         """"
