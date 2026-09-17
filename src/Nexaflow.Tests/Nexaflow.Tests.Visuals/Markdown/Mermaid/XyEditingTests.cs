@@ -122,4 +122,19 @@ public class XyEditingTests
 
         return null;
     }
+
+    [TestMethod]
+    public void TypingIntoTheTurnedAxisTitleWritesWhereThePointerIs() => UiThread.Run(() =>
+        InADocument((editor, rtb, chart) =>
+        {
+            var title = chart.Laid.Root.SelfAndDescendants().First(piece => piece.Words is { Maps: true } && piece.Kind == XyPiece.AxisTitle);
+
+            // The y-axis title is turned a quarter turn: its head is the end of its words, so a press there writes at the end.
+            chart.BeginPointerSelect(new Point(title.Bounds.X + (title.Bounds.Width / 2), title.Bounds.Top + 1));
+            chart.EndPointerSelect();
+            Write(rtb, "!");
+
+            StringAssert.Contains(chart.Source, "y-axis \"Revenue!\"", chart.Source);
+            Assert.AreEqual(0, chart.Diagnostics.Count, Trouble(chart));
+        }, "xychart\n x-axis \"Month\" [jan, feb]\n y-axis \"Revenue\"\n bar \"Sold\" [1, 2]"));
 }

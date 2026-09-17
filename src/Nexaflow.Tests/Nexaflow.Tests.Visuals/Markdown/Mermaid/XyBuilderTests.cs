@@ -154,4 +154,30 @@ public class XyBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void AChartOfNothingIsShownAsItWasWritten() => UiThread.Run(() =>
         Assert.IsTrue(Pieces(Build("xychart"), LayoutText.SourceKind).Any()));
+
+    [TestMethod]
+    public void TheUprightAxissTitleIsTurnedToReadUpIt_AndAPressInItMeansTheLetterUnderThePointer() => UiThread.Run(() =>
+    {
+        var laid = Build(Revenue);
+        var title = Pieces(laid, XyPiece.AxisTitle).Single(piece => Written(Revenue, piece.Part) == "Revenue");
+
+        Assert.IsTrue(title.Bounds.Height > title.Bounds.Width, $"turned, so it stands taller than it is wide: {title.Bounds}");
+        Assert.IsTrue(title.Bounds.Right <= Pieces(laid, XyPiece.YAxis).Single().Bounds.Left + 1, "left of the axis it names");
+
+        // It reads upward: a press at its foot means the first letter, and one at its head the last.
+        var across = title.Bounds.X + (title.Bounds.Width / 2);
+        var foot = laid.Root.OffsetAt(new Point(across, title.Bounds.Bottom - 1));
+        var head = laid.Root.OffsetAt(new Point(across, title.Bounds.Top + 1));
+
+        Assert.AreEqual(title.Part!.Start, foot, "the first letter is at the foot");
+        Assert.AreEqual(title.Part.Start + title.Part.Length, head, "and the last at the head");
+
+        // And a caret in it lies across the turned words rather than standing up them, as does the wash over a stretch of them.
+        var caret = laid.Root.CaretRect(title.Part.Start + 1);
+        Assert.IsTrue(caret.Width > caret.Height, $"the caret is turned with the words it stands in: {caret}");
+
+        var washed = laid.Root.RangeRects(title.Part.Start, 3).Single();
+        Assert.IsTrue(washed.Height > washed.Width, $"three letters of turned words are washed up the page: {washed}");
+        Assert.IsTrue(washed.Height < title.Bounds.Height && title.Bounds.IntersectsWith(washed), "three letters of the words, not all of them");
+    });
 }

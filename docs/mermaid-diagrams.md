@@ -68,6 +68,7 @@ diagram's own code sits in a folder of its own under each.
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack` |
+| set words turned — an axis title read up the page | `DiagramWords.Set(…, degrees)`; a press, a caret and a wash come back through the turn (`Piece.Turned`) |
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |

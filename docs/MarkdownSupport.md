@@ -365,9 +365,12 @@ Mermaid would refuse is held with the reason beneath — categories on a y-axis,
 `labelFontSize`, `showTitle`, `titleFontSize`, `showTick`, `tickLength`, `showAxisLine` and `axisLineWidth`; and
 `themeVariables: xyChart:` `backgroundColor`, `titleColor`, `dataLabelColor`, `legendTextColor`, the eight
 `xAxis…Color`/`yAxis…Color` keys and `plotColorPalette`. A size nobody wrote is the app's own, and a colour the theme's.
-**Not applied:** `labelRotation` and axis titles turned upright — the layout tree can turn a piece (`LayoutPaint.Turn`, as the
-LaTeX builder does), so this is work left undone rather than something the tree cannot do; an upright axis's title sits over it
-meanwhile. And `plotReservedSpacePercent`, `titlePadding`, `labelPadding` and `tickWidth`, which size Mermaid's own layout.
+The upright axis's title is **turned a quarter turn** to read up the axis, as Mermaid sets it, and it is still typed into where
+it is drawn: a press in turned words means the letter under the pointer, and the caret and the wash over a stretch of them are
+turned with them (`Piece.Turned`).
+**Not applied:** each axis's `labelRotation`, which would turn its tick words as well — the turning is there, but the room an
+axis leaves for its words is worked out square, so turned tick words would want that worked out again. And
+`plotReservedSpacePercent`, `titlePadding`, `labelPadding` and `tickWidth`, which size Mermaid's own layout.
 **Written in place:** a category is typed into under its tick, an axis's title where it is drawn, and a series' name in
 its legend row; a word given a space or a bracket is put in quotes; a category deleted to nothing leaves a hole; Enter
 on a series starts another of its kind with its values still to write.**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →

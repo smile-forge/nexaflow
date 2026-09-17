@@ -68,7 +68,7 @@ public sealed record XyAxisConfig
 /// The switches and the orientation are Mermaid's, and so are their defaults. A size, a padding or a colour nobody wrote is
 /// the theme's, so it is null here — what Mermaid's own renderer draws at is not a claim about what this one should.
 /// <c>plotReservedSpacePercent</c> and each axis's <c>labelRotation</c> are read and kept, but a chart on the layout tree
-/// sizes its plot from what is written round it and sets its words level.
+/// sizes its plot from what is written round it, and leaves square room for an axis's tick words.
 /// </para>
 /// </summary>
 public sealed record XyConfig

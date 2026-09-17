@@ -81,27 +81,33 @@ public static class LayoutText
     /// is, so nothing is stored per character.
     /// </para>
     /// </summary>
-    /// <param name="maps">
-    /// Whether what is drawn is what was written, character for character. False for text worked out rather than typed
-    /// — a percentage, a number set to two decimal places — which a caret cannot go inside.
-    /// </param>
-    /// <param name="ink">
-    /// What the run is painted in, or null for the foreground of whatever it is drawn on. A text run's own brush is only
-    /// how it was measured: painting sets the ink, so a colour asked for has to be asked for here.
+    /// <param name="degrees">
+    /// How far the run is turned about where it starts — nought for the ordinary case. A turned run reaches where its letters
+    /// land rather than where they were set, and stands in the letters themselves, so a press on it means the letter under the
+    /// pointer and a caret in it stands turned with it (<see cref="Piece.Turned"/>).
     /// </param>
     public static int Words(LayoutBuilder into, FormattedText text, Point at, double room,
                             TextAlignment align, ISourcePart? part, string kind, bool maps = true, bool writes = false,
-                            Brush? ink = null)
+                            Brush? ink = null, double degrees = 0)
     {
         text.MaxTextWidth = System.Math.Max(1, room);
         text.TextAlignment = align;
 
+        var turn = degrees == 0 ? null : new LayoutPaint([new RotateTransform(degrees)]);
+
         // A run that says something about a piece of source rather than showing it is nowhere to put a caret: the share a
         // slice takes is worked out, and a reader pressing it means the slice.
-        var piece = into.Open(kind, part, at, maps || writes ? Stops.Both : Stops.None);
+        var piece = into.Open(kind, part, at, maps || writes ? Stops.Both : Stops.None, gathers: turn is null, paints: turn);
 
         into.Draw(new TextMark(text, default, ink));
         into.Words(new LayoutWords(text, default, maps, writes));
+
+        if (turn is not null)
+        {
+            var letters = new Rect(0, 0, text.Width, text.Height);
+            into.Covers(turn.Turn![0].TransformBounds(letters));
+            into.Occupies(new RectangleGeometry(letters));
+        }
 
         into.Close();
         return piece;

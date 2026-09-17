@@ -63,7 +63,8 @@ internal sealed class DiagramWords
     public double Baseline => Hole is null ? _text.Baseline : _letter.Baseline;
 
     /// <summary>Sets them with their top left at <paramref name="at"/>, as a piece of <paramref name="kind"/>.</summary>
-    public void Set(LayoutBuilder build, Point at, string kind)
+    /// <param name="degrees">How far the words are turned about where they start — nought for level words, -90 for words read upward.</param>
+    public void Set(LayoutBuilder build, Point at, string kind, double degrees = 0)
     {
         if (Hole is not null)
         {
@@ -71,7 +72,7 @@ internal sealed class DiagramWords
             return;
         }
 
-        LayoutText.Words(build, _text, at, _text.Width, TextAlignment.Left, Part, kind, maps: _maps, writes: _writes, ink: Ink);
+        LayoutText.Words(build, _text, at, _text.Width, TextAlignment.Left, Part, kind, maps: _maps, writes: _writes, ink: Ink, degrees: degrees);
     }
 
     /// <summary>

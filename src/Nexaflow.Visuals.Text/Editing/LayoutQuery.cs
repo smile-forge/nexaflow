@@ -114,7 +114,7 @@ public static class LayoutQuery
 
         // Inside a run of text the press means the letter it landed on rather than the nearer end of the whole run.
         if (piece is { Words: { Maps: true } words, Part: { } inside })
-            return inside.Start + words.IndexAt(point.X - piece.Anchor.X);
+            return inside.Start + words.IndexAt(Local(piece, point).X);
 
         var at = piece.Sits();
         if (at.Length <= 0) return at.Start;
@@ -196,6 +196,19 @@ public static class LayoutQuery
     /// <summary>A rectangle in a piece's own frame, moved to where that piece sits on the page.</summary>
     private static Rect Shift(Rect rect, Vector by) =>
         rect.IsEmpty ? rect : new Rect(rect.X + by.X, rect.Y + by.Y, rect.Width, rect.Height);
+
+    /// <summary>
+    /// A point of the content as a whole, in one piece's own frame: past its anchor, and back through however it is turned.
+    /// </summary>
+    private static Point Local(Piece piece, Point point)
+    {
+        var at = new Point(point.X - piece.Anchor.X, point.Y - piece.Anchor.Y);
+        return piece.Turned?.Inverse is { } back ? back.Transform(at) : at;
+    }
+
+    /// <summary>A rectangle of a piece's own frame, where it is drawn: turned as the piece is, then past its anchor.</summary>
+    private static Rect Page(Piece piece, Rect rect) =>
+        Shift(piece.Turned is { } turn && !rect.IsEmpty ? turn.TransformBounds(rect) : rect, piece.Anchor);
 
     /// <summary>
     /// One step from here along an axis — the next thing to select when a selection grows that way, or
@@ -600,7 +613,7 @@ public static class LayoutQuery
     {
         // A caret inside a run of text stands between two of its letters, which only the run can say.
         if (root.WordsAt(offset) is { Words: { } words, Part: { } written } run)
-            return Shift(words.Caret(offset - written.Start), run.Anchor);
+            return Page(run, words.Caret(offset - written.Start));
 
         if (root.StopAt(offset) is >= 0 and var stop) return Index(root)[stop].CaretRect();
 
@@ -797,7 +810,7 @@ public static class LayoutQuery
     /// that occupies one, and otherwise the box that already said yes.
     /// </summary>
     private static bool Inside(Piece piece, Point point) =>
-        piece.Region is not { } region || region.FillContains(point - piece.Anchor);
+        piece.Region is not { } region || region.FillContains(Local(piece, point));
 
     /// <summary>Whether a rectangle reaches what a piece stands in — see <see cref="Inside"/>.</summary>
     private static bool Touches(Piece piece, Rect area) =>
@@ -909,7 +922,7 @@ public static class LayoutQuery
             .Where(piece => piece is { Words.Maps: true } && piece.Part is { Length: > 0 } written
                             && written.Start < start + length && written.End() > start
                             && (written.Start < start || written.End() > start + length))
-            .Select(piece => Shift(piece.Words!.Covers(start - piece.Part!.Start, start + length - piece.Part!.Start), piece.Anchor))
+            .Select(piece => Page(piece, piece.Words!.Covers(start - piece.Part!.Start, start + length - piece.Part!.Start)))
             .Where(rect => !rect.IsEmpty);
 
         return [.. whole.Concat(part)];
