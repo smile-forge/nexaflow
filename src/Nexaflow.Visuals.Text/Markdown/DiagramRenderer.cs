@@ -40,6 +40,7 @@ public static class DiagramRenderer
         new Pdf417DiagramHandler(),                            // pdf417
         new AztecDiagramHandler(),                             // aztec
         new SmilesDiagramHandler(),                            // smiles (chemical structures)
+        new WordCloudDiagramHandler(),                         // wordcloud
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────

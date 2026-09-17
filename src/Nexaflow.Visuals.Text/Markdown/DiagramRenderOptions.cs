@@ -53,6 +53,19 @@ public sealed class DiagramRenderOptions
     public Func<string, bool>? OnNavigate { get; init; }
 
     /// <summary>
+    /// How a block that names a picture finds it — a word cloud's <c>mask:</c>.
+    ///
+    /// <para>
+    /// The same resolution an <c>![](…)</c> gets and deliberately not a second one: the host's own resolver
+    /// first, then the document's folder, so a document that does not live on disk brings its pictures the
+    /// way it already brings the rest of them, and a block cannot reach anywhere an image could not. Null
+    /// where the caller has no document to resolve against, and a block that names a picture then says it
+    /// could not be found.
+    /// </para>
+    /// </summary>
+    public Func<string, System.Windows.Media.ImageSource?>? Pictures { get; init; }
+
+    /// <summary>
     /// Expand/collapse handler. Return true when the host took it on (it will re-emit the diagram);
     /// return false, or leave it null, and the diagram opens the node itself.
     /// </summary>

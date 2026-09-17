@@ -964,6 +964,112 @@ A structure is read-only on the page, but you can select across it and copy the 
 
 ---
 
+## Word clouds
+
+A fenced `wordcloud` block packs words into a picture, each set at the size its weight comes to. Every
+line is `something: value`. Settings go at the top; the first word ends them, and from there every line is
+a word and what it counts for — so a cloud can count `shape`, `scale` or `colour` without losing its
+shape. A line starting with `#` is a comment:
+
+````markdown
+```wordcloud
+WPF: 120
+XAML: 96
+MVVM: 74
+tabs: 61
+terminal: 55
+markdown: 50
+```
+````
+
+![A word cloud of a hundred and twenty design words, the heaviest in the middle](images/markdown/wordcloud.png)
+
+The heaviest word goes in first and takes the middle; the rest fill in around it, each dropping into the
+first gap it fits. Words are fitted by the shape of their letters, not by the box around them, so a short
+word slides under a capital's arm — which is what makes a cloud look like a cloud rather than like a wall.
+
+**A cloud needs words.** A dozen of them is a dozen words with space around them; it takes a hundred or
+more before the packing has anything to pack, and a few hundred before a `shape:` reads as one.
+
+**The picture is what was drawn.** `width:` and `height:` say how much room the packing may use, not how
+big the picture is: it is trimmed to the words, so a handful of them is a small picture rather than a few
+words marooned in the middle of the page. With no `width:`, the cloud is given the column it sits in.
+
+### Shapes, turns and colours
+
+````markdown
+```wordcloud
+shape: star
+scale: log
+rotate: 0.15
+color: #b5304a #d1793f #3f7fb5 #4f9c6b #7a4fa3
+weather: 1200
+rain: 715
+cloud: 528
+```
+````
+
+![A star-shaped cloud of nearly three hundred words in five colours, some of them turned](images/markdown/wordcloud-shapes.png)
+
+| You write | You get |
+|---|---|
+| `shape: star` | the outline the words are packed into: `circle`, `cardioid`, `diamond`, `square`, `triangle`, `triangle-forward`, `pentagon`, `star`. Nothing is clipped — the words simply run out where the outline is, so the shape shows best with plenty of words |
+| `letters: CLOUD` | pack the cloud into the shape of those letters instead |
+| `mask: heart.png` | pack it into the shape a picture holds — its opaque part if it has transparency, its dark part if it has not. The picture is found beside your document, exactly as `![](heart.png)` would find it |
+| `rotate: 0.3` | the share of the words turned, from `0` to `1`. They take any angle between `minRotation:` and `maxRotation:` (`-90` to `90` by default); `rotationSteps: 2` gives the tidier look of words either level or on their side, and nothing in between |
+| `color: theme` | the app's chart colours, taken in turn — so the cloud follows your theme. Write colours instead (`#b5304a #3f7fb5`) to use those, or `random-dark` / `random-light` to scatter them |
+| `background: #101010` | what the picture is drawn on. Without it, the page shows through |
+| `minSize: 12` `maxSize: 72` | the sizes the lightest and heaviest words are set at. Everything between is spread by `scale:` — `sqrt` (the default), `linear` or `log` for counts spread over orders of magnitude |
+| `font: Georgia` `bold: no` | the face the words are set in |
+| `gap: 4` | clear air kept around every word. `gridSize:` is how finely the letters are fitted — smaller packs tighter and takes longer |
+| `seed: 7` | the same block always draws the same cloud; change the seed to shuffle it into a different arrangement |
+
+If the very first word is named like a setting, write it in quotes — that makes a word of it wherever it
+stands:
+
+````markdown
+```wordcloud
+shape: circle
+"shape": 40
+"color": 34
+```
+````
+
+### Letters and pictures
+
+`shape:` bends the cloud towards an outline. `letters:` and `mask:` do something stronger: they mark out
+where the words may go at all, so the cloud fills a shape rather than merely tending towards one.
+
+````markdown
+```wordcloud
+letters: CLOUD
+minSize: 4
+maxSize: 30
+scale: log
+design: 900
+system: 594
+colour: 456
+```
+````
+
+![The word CLOUD spelled out in small words](images/markdown/wordcloud-letters.png)
+
+Keep `maxSize:` well down when you do this — the words have to be small against the letters, or there is
+nothing left of the shape to read. `mask:` works the same way with a picture: draw your shape in black on
+white (or as a transparent PNG), put it beside the document, and name it.
+
+**You can type into it.** Click into any word in the picture and edit it where it stands — the block
+follows. The weights are not drawn, so those are edited in the block's source.
+
+### When it can't be drawn
+
+A weight that is not a number leaves a wavy line under that line and the rest of the words still draw; so
+does a word there was no room left for, because a word silently missing from a cloud is a word you would
+believe was never counted. A setting given something it cannot take — a shape that does not exist, a width
+that is not a number — stops the block being a cloud at all, and it shows its own lines with the reason.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the

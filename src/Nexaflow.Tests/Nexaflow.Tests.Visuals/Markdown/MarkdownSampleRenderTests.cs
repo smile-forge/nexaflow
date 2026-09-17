@@ -287,4 +287,25 @@ public class MarkdownSampleRenderTests
         foreach (var fence in fences)
             Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a smiles fence");
     });
+
+    /// <summary>
+    /// Every cloud in the reference draws. The sections are deliberately awkward — a shape, turned words,
+    /// colours written out, a weight that will not read, a word named as a setting — so that a block which
+    /// stops being a cloud in one of those ways is caught here rather than in a document.
+    /// </summary>
+    [TestMethod]
+    public void WordCloudSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "wordcloud.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        var fences = doc.OfType<FencedCodeBlock>()
+                        .Where(f => "wordcloud".Equals(f.Info, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(fences.Count >= 8, $"expected every section of the reference, found {fences.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a wordcloud fence");
+    });
 }

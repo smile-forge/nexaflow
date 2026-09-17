@@ -32,6 +32,7 @@ Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and
 Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles
 Mermaid/     MermaidParser, MermaidBlock, MermaidDiagram, MermaidKinds, MermaidConfig — what every mermaid diagram shares
 Mermaid/Pie/ PieGrammar, PieChart, PieConfig, Stages/ResolveSlices — what a pie says for itself
+WordCloud/   WordCloudParser, WordCloudReader, WordCloudChart, WordCloudSettings, WordMask, WordCloudBoard, WordCloudShapes — wordcloud
 ```
 
 The layout tree is still in `src/Nexaflow.Visuals.Text/Editing/` because `ILayoutNode.Bounds` is a
@@ -311,6 +312,40 @@ part.
 **The oracle is RDKit.** `SmilesCorpusTests` reads SmilesDB's 5,481 molecules beside a reference made by
 RDKit — whether it read each one, the hydrogens on every atom, how many atoms its own depiction overlaps —
 and holds the stages and the layout to it.
+
+## Word clouds
+
+A parser and a builder with nothing between them — the 2D codes' shape, for the 2D codes' reason.
+`WordCloudParser` reads a `wordcloud` body into lines of pairs, one grammar doing two jobs: the settings are
+the lines above the words, and the first word closes them. Which a line is, is settled in the parser because
+it is settled by what a reader can see — the key, and whether any word has been written yet — rather than by
+anything worked out later; the quotes that force a word are held beside it as `Roles.Open` and `Roles.Close`,
+so the word drawn has no quotes and the line still prints back as it was written.
+
+**Nothing is hung on the tree, because there is nothing to hang.** A pipeline is where a tree is changed to say
+what the text means, and nothing about a cloud's line means anything its own characters do not say. The two
+facts that come from outside a line are neither of them the tree's. The size a weight comes to is read off the
+block, as a pie's share is read off `PieChart` rather than resolved into it. The colour a word takes belongs to
+whoever is drawing and would go stale the moment the theme changed — which is the rule `ResolveSlices` states
+for a slice the config does not colour.
+
+**The layout tree is flat on purpose.** A cloud has no grouping in it: every word is placed absolutely, so the
+pieces are one run of text per word, directly under the picture. Grouping them by line or by entry would be
+grouping by the source's shape rather than the drawing's, and such a group's box would be the union of words
+scattered right across the picture — which is the box a press, a marquee and the wash would then be answered
+with.
+
+**A shape is two different things.** `WordCloudShapes` is a function of an angle: it pulls the search's rings
+in, and the words run out at the outline. `WordCloudStencil` is a grid of cells taken before a word is placed,
+which is the only way to pack a cloud into a letter — a letter's edge is not a function of its angle. Both are
+in this assembly; what the builder adds is the one thing a stencil needs from a desktop, which is the outline
+of a letter or the pixels of a picture.
+
+**Where a word goes is not the builder's.** `WordMask` and `WordCloudBoard` do the packing in this assembly,
+against a grid of cells and geometry of their own, so it is tested over the shapes without a desktop. What only
+a type engine knows — the shape of the letters, which is what makes a cloud interlock rather than stack — the
+builder contributes, filling the outlines it is handed onto that grid. Every word carries the part it was drawn
+from and nothing else in the picture carries one, because nothing else in it was typed.
 
 ## The oracle
 

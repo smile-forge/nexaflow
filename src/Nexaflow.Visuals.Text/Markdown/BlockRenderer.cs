@@ -979,6 +979,7 @@ public static class BlockRenderer
             Palette           = ctx.Palette,
             SourceOffset      = FencedContentOffset(rawMarkdown, content),
             OnNavigate        = ctx.OnNavigate,
+            Pictures          = src => Picture(src, ctx),
             OnExpand          = ctx.OnDiagramExpand,
             OnSelect          = ctx.OnDiagramSelect,
             FitToWidth        = ctx.FitContentToWidth,
@@ -987,6 +988,28 @@ public static class BlockRenderer
             MaxHeight         = ctx.MaxDiagramHeight,
             ViewState         = ctx.DiagramStates?.Next(),
         });
+    }
+
+    /// <summary>
+    /// A picture named inside a block, found exactly as one named by an <c>![](…)</c> is: the host's
+    /// resolver, then the document's own folder. A resolver that throws is a host bug rather than a reason to
+    /// lose the block, so it falls through to the file.
+    /// </summary>
+    private static ImageSource? Picture(string src, MarkdownRenderContext ctx)
+    {
+        if (ctx.ImageResolver is { } resolve)
+        {
+            try
+            {
+                if (resolve(src) is { } supplied) return supplied;
+            }
+            catch
+            {
+                // fall through to the file
+            }
+        }
+
+        return LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
     }
 
     /// <summary>
