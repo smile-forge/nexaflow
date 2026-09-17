@@ -3667,7 +3667,8 @@ internal static class Program
     /// the same "edit then show the effect" contract as remap/add-node.</summary>
     private static int SaveAndValidate(ProductState state, string root, string message,
                                        IReadOnlyList<(string NodeId, string? Concern)>? touchedLinks = null,
-                                       IEnumerable<Snaplink>? written = null)
+                                       IEnumerable<Snaplink>? written = null,
+                                       bool treeChanged = false)
     {
         // remap rewrites en masse — twenty links over as many nodes — so no argument names one link and only
         // what it produced is worth checking. Checked here, before the write, so a rewrite onto a path that is
@@ -3690,6 +3691,25 @@ internal static class Program
             CapturePending(state, root, branch, touchedLinks);
 
         SaveTree(root, store, state);
+
+        // A snaplink edit is checked where it landed: the links and concerns of the nodes it touched are all it
+        // can have changed. The whole tree — other nodes' links, coverage, unlinked projects — is `validate`'s,
+        // and the release gate's; rescanning it on every link made each edit pay for all of them.
+        if (touchedLinks is { Count: > 0 } && !treeChanged)
+        {
+            var nodes = touchedLinks.Select(t => t.NodeId).ToHashSet(StringComparer.Ordinal);
+            var scoped = SnaplinkValidator.ValidateNodes(state, root, FileRootsFor(root), nodes);
+            if (store.LoadIntegrity() is { } saved)
+            {
+                saved.Refresh(scoped, nodes);
+                store.SaveIntegrity(saved);
+            }
+            Console.WriteLine(message);
+            Console.WriteLine(scoped.IsClean
+                ? $"Snaplinks OK — checked {scoped.ScannedSnaplinks} on the {nodes.Count} node(s) changed."
+                : $"{scoped.IssueCount} broken snaplink(s) on the node(s) changed — run: validate .");
+            return scoped.IsClean ? Clean : Broken;
+        }
 
         // Validated against the in-memory state either way, so a branch sees its own links resolved against
         // its own tree rather than the shared tree's older idea of them.
@@ -4035,6 +4055,7 @@ internal static class Program
         // batch has to make the same split a single verb does: nodes to the shared tree, links to the
         // branch. Collected as we go, because a batch can legitimately do both in one run.
         var touchedLinks = new List<(string NodeId, string? Concern)>();
+        var treeChanged = false;
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -4045,6 +4066,7 @@ internal static class Program
             // before the line runs, or a branch rewrites the tree every other worktree reads.
             if (tokens is ["remap", var moved, ..]) touchedLinks.AddRange(SnaplinkRemapper.Touching(state, moved));
             else if (LinkTargetOf(tokens) is { } target) touchedLinks.Add(target);
+            else treeChanged = true;
             var (ok, msg) = ApplyOne(state, tokens, root);
 
             if (!ok)
@@ -4065,7 +4087,7 @@ internal static class Program
             return Clean;
         }
         return SaveAndValidate(state, root, $"Applied {applied.Count} instruction(s) from {Path.GetFileName(file)}.",
-                               touchedLinks);
+                               touchedLinks, treeChanged: treeChanged);
     }
 
     /// <summary>

@@ -95,6 +95,15 @@ public sealed class SnaplinkValidator
         => new SnaplinkValidator(productRoot, fileRoots).Run(state, manifest);
 
     /// <summary>
+    /// Validates only <paramref name="nodeIds"/> — their links and their unbacked concerns, which is everything a
+    /// snaplink edit on those nodes can change. The tree-wide checks (coverage, unlinked projects) stay with
+    /// <c>Validate</c>.
+    /// </summary>
+    public static IntegrityReport ValidateNodes(ProductState state, string productRoot, IEnumerable<string>? fileRoots,
+                                                IReadOnlySet<string> nodeIds)
+        => new SnaplinkValidator(productRoot, fileRoots).Run(state, manifest: null, nodeIds);
+
+    /// <summary>
     /// Re-checks a <em>single</em> link. The Integrity page uses this after an inline edit so a fix is
     /// confirmed in milliseconds rather than forcing another full-tree scan (which parses every referenced
     /// source file and takes seconds). The verdict distinguishes a link proven good from one nothing could be
@@ -125,26 +134,30 @@ public sealed class SnaplinkValidator
         return validator.Check(link);
     }
 
-    private IntegrityReport Run(ProductState state, TestCoverageManifest? manifest)
+    private IntegrityReport Run(ProductState state, TestCoverageManifest? manifest, IReadOnlySet<string>? only = null)
     {
         var report = new IntegrityReport
         {
             Generated = DateTime.Now.ToString("o"),
-            ScannedNodes = state.Nodes.Count
+            ScannedNodes = only is null ? state.Nodes.Count : state.Nodes.Keys.Count(only.Contains)
         };
 
         _nodeIds = state.Nodes.Keys.ToHashSet(StringComparer.Ordinal);
 
         foreach (var (id, node) in state.Nodes)
         {
+            if (only is not null && !only.Contains(id)) continue;
             Scan(node.Snaplinks, id, node.Title, concern: null, report);
             foreach (var link in node.Concerns ?? [])
                 Scan(link.Snaplinks, id, node.Title, link.Tag, report);
         }
 
-        FlagUnbackedConcerns(state, report);
-        FlagStaleCoverageNodes(state, manifest, report);
-        FlagUnlinkedProjects(state, report);
+        FlagUnbackedConcerns(state, report, only);
+        if (only is null)
+        {
+            FlagStaleCoverageNodes(state, manifest, report);
+            FlagUnlinkedProjects(state, report);
+        }
 
         report.Issues = [.. report.Issues
             .OrderBy(i => i.NodeId, StringComparer.Ordinal)
@@ -162,7 +175,7 @@ public sealed class SnaplinkValidator
     /// where the concern def demands one (<see cref="ConcernDef.RequiresSnaplink"/>). Provable from the
     /// tree alone — no file I/O — so it stays within the "only report what we can prove broken" bar.
     /// </summary>
-    private static void FlagUnbackedConcerns(ProductState state, IntegrityReport report)
+    private static void FlagUnbackedConcerns(ProductState state, IntegrityReport report, IReadOnlySet<string>? only = null)
     {
         var mustLink = state.Product.Concerns
             .Where(c => c.RequiresSnaplink)
@@ -170,7 +183,7 @@ public sealed class SnaplinkValidator
             .ToHashSet(StringComparer.Ordinal);
         if (mustLink.Count == 0) return;
 
-        foreach (var (id, node) in state.Nodes)
+        foreach (var (id, node) in state.Nodes.Where(n => only is null || only.Contains(n.Key)))
             foreach (var link in node.Concerns ?? [])
                 if (mustLink.Contains(link.Tag)
                     && link.Status is Status.Done or Status.Faulted
