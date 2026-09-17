@@ -18,7 +18,7 @@ lines list items with values and whose options share a line, xychart one with ax
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
-| `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme` and `DiagramTheme(name)` | `PieConfig`, `VennConfig`, `RadarConfig` |
+| `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Diagram.cs` (or `Chart`) | The model: the tree read back into what it describes, every part kept. `Of(MermaidBlock)`. The title is `MermaidBlock.Title` | `PieChart`, `VennDiagram`, `RadarChart` |
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
@@ -42,8 +42,10 @@ diagram's own code sits in a folder of its own under each.
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
 | read a number after a separator, still to come or written — to the end, `until` a character or a `stop` token ends it | `Room`, then `Amount` with `MermaidNumber.Positive` or `Where` |
 | read what an option is set to — a word from a few, `true` or `false` | `Setting` |
+
+| read or write a date in a day.js format, a length of time, or a date in a d3 axis format | `MermaidDate.Read`/`Write`, `MermaidDuration.Read`/`After`, `MermaidTimeFormat.Write` |
 | say what is wrong with a piece as a whole — braces never closed | `Close(kind, role, trouble)` |
-| read a style's properties | `Properties`, and `MermaidStyle.With` in the model |
+| read `key: value` properties — a style's, or metadata closed by a brace | `Properties(known, ends, what)`, and `MermaidStyle.With` in the model |
 | read words to where they end — the rest of the line, `until` a character or a `stop` token | `Words` |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since` |
@@ -61,13 +63,22 @@ diagram's own code sits in a folder of its own under each.
 | draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
-| draw a node: a shape with words in it | `DiagramShapes.Draw`; `Around` sizes a shape for its words, `Edge` is where a line meets it |
+| draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
+| set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
+| lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
+| gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
+| set the lines of a wrapped label, against a side | `DiagramWords.Stack` |
+| set words turned — an axis title read up the page | `DiagramWords.Set(…, degrees)`; a press, a caret and a wash come back through the turn (`Piece.Turned`) |
+| read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
+| read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
+| nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |
 | draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
-| draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks |
+| draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | show a block with nothing to draw | `AsWritten` |
 
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed
-through the leaves it draws. That is why `DiagramShapes.Draw` draws its outline as a `Shape` leaf beside its words, and
+through the leaves it draws. That is why `DiagramShapes.Draw` draws its outline as a `Shape` leaf beside its words — standing
+in its outline less where the words are, so a press on them means them — and
 why a region's circles and its words are layers of their own. Where shapes overlap, a press means the one seen: a shape
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
@@ -61,7 +63,8 @@ internal sealed class DiagramWords
     public double Baseline => Hole is null ? _text.Baseline : _letter.Baseline;
 
     /// <summary>Sets them with their top left at <paramref name="at"/>, as a piece of <paramref name="kind"/>.</summary>
-    public void Set(LayoutBuilder build, Point at, string kind)
+    /// <param name="degrees">How far the words are turned about where they start — nought for level words, -90 for words read upward.</param>
+    public void Set(LayoutBuilder build, Point at, string kind, double degrees = 0)
     {
         if (Hole is not null)
         {
@@ -69,6 +72,30 @@ internal sealed class DiagramWords
             return;
         }
 
-        LayoutText.Words(build, _text, at, _text.Width, TextAlignment.Left, Part, kind, maps: _maps, writes: _writes, ink: Ink);
+        LayoutText.Words(build, _text, at, _text.Width, TextAlignment.Left, Part, kind, maps: _maps, writes: _writes, ink: Ink, degrees: degrees);
+    }
+
+    /// <summary>
+    /// Where each of <paramref name="lines"/> goes, set one under the other in <paramref name="room"/> — what
+    /// <see cref="MermaidBuilder.Wrapped"/> hands back, set as the lines of one label: against the side
+    /// <paramref name="align"/> says, and middling down the room.
+    /// </summary>
+    public static IEnumerable<(DiagramWords Words, Point At)> Stack(IReadOnlyList<DiagramWords> lines, Rect room,
+                                                                    TextAlignment align = TextAlignment.Center)
+    {
+        var top = room.Top + ((room.Height - lines.Sum(line => line.Height)) / 2);
+
+        foreach (var line in lines)
+        {
+            var left = align switch
+            {
+                TextAlignment.Right => room.Right - line.Width,
+                TextAlignment.Center => room.Left + ((room.Width - line.Width) / 2),
+                _ => room.Left,
+            };
+
+            yield return (line, new Point(left, top));
+            top += line.Height;
+        }
     }
 }

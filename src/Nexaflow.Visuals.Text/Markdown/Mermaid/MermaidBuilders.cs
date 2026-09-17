@@ -31,6 +31,10 @@ internal static class MermaidBuilders
         MermaidDiagram.Radar => RadarBuilder.Build,
         MermaidDiagram.XyChart => XyBuilder.Build,
         MermaidDiagram.Quadrant => QuadrantBuilder.Build,
+        MermaidDiagram.Ishikawa => Ishikawa.IshikawaBuilder.Build,
+        MermaidDiagram.Gantt => Gantt.GanttBuilder.Build,
+        MermaidDiagram.Kanban => Kanban.KanbanBuilder.Build,
+        MermaidDiagram.Mindmap => Mindmap.MindmapBuilder.Build,
         _ => null,
     };
 

@@ -106,4 +106,67 @@ public class MermaidLineTests
         Assert.AreEqual("green", config.DiagramTheme("radar").Value("axisColor"));
         Assert.AreSame(MermaidConfig.None, config.DiagramTheme("pie"), "and a diagram whose section is not written has none");
     }
+
+    [TestMethod]
+    public void WhatConfigSaysForEveryDiagramIsItsOwn_BesideEachDiagramsSection()
+    {
+        var config = MermaidConfig.Read("config:\n  fontSize: 18\n  pie:\n    textPosition: 0.5");
+
+        Assert.AreEqual(18, config.Shared.Size("fontSize"));
+        Assert.AreEqual("0.5", config.Shared.Section("pie")!.Value("textPosition"));
+        Assert.AreSame(MermaidConfig.None, MermaidConfig.Read("title: x").Shared, "and front matter with no config has none");
+    }
+
+    [TestMethod]
+    public void PropertiesInBracesEndAtTheBrace_AndAQuotedCommaIsPartOfTheValue()
+    {
+        var line = MermaidLine.Of("@{ assigned: 'Smith, J', priority: High }");
+        line.Token("@{");
+        line.Space();
+
+        Assert.IsTrue(line.Properties(["assigned", "priority"], ends: '}', what: "Metadata"));
+        line.Space();
+        Assert.AreEqual('}', line.Next, "the brace is left for the line to close");
+
+        var values = line.Read("line").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Setting).Select(node => node.Text).ToArray();
+        CollectionAssert.AreEqual(new[] { "'Smith, J'", "High" }, values);
+    }
+
+    [TestMethod]
+    public void APropertyNobodySetsIsSaidAsWhatThePropertiesAre()
+    {
+        var line = MermaidLine.Of("colour: red");
+        line.Properties(["assigned"], what: "Metadata");
+
+        StringAssert.StartsWith(line.Read("line").SelfAndDescendants().Single(node => node.Trouble is not null).Trouble, "Metadata sets");
+    }
+
+    [TestMethod]
+    public void ALinesIndentIsTheSpaceBeforeWhatItStates()
+    {
+        var lines = MermaidParser.Parse("kanban\n  Todo\n\t\ta[Card]").SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line).ToList();
+
+        CollectionAssert.AreEqual(new[] { 0, 2, 2 }, lines.Select(line => line.Indent()).ToArray(), "a tab counts as one");
+    }
+
+    [TestMethod]
+    public void AnOutlineNestsEachItemUnderTheNearestItemIndentedLess()
+    {
+        var items = (IReadOnlyList<(int, string)>)[(0, "root"), (2, "a"), (4, "b"), (3, "c"), (2, "d")];
+        var nested = MermaidOutline.Nested(items);
+
+        CollectionAssert.AreEqual(new int?[] { null, 0, 1, 1, 0 }, nested.Select(one => one.Parent).ToArray(),
+                                  "c is indented between b and a, so it hangs off a, as Mermaid reads it");
+    }
+
+    [TestMethod]
+    public void AnItemIndentedNoFurtherThanTheRootHangsOffNothing_OrOffTheRootWhereTheOutlineSaysSo()
+    {
+        var items = (IReadOnlyList<(int, string)>)[(4, "event"), (0, "a"), (2, "sub"), (0, "b")];
+
+        CollectionAssert.AreEqual(new int?[] { null, null, 1, null }, MermaidOutline.Nested(items).Select(one => one.Parent).ToArray(),
+                                  "nothing but the root may be written left of it");
+        CollectionAssert.AreEqual(new int?[] { null, 0, 1, 0 }, MermaidOutline.Nested(items, floor: true).Select(one => one.Parent).ToArray(),
+                                  "with a floor, the first item after the root is where the children start");
+    }
 }

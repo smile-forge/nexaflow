@@ -274,11 +274,11 @@ internal abstract class MermaidBuilder : ContentBuilder
         State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End ? part.Text : MermaidText.Decode(part.Text);
 
     /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
-    private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null) =>
+    private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(DiagramText.BodyFont, FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
+            new Typeface(DiagramText.BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
             size,
             ink,
             PixelsPerDip);
@@ -288,13 +288,77 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// and typed into where that is the characters written — or <paramref name="hole"/>, where one stands because nothing is
     /// written there yet. See <see cref="DiagramWords"/>.
     /// </summary>
-    protected DiagramWords Written(ContentPart? part, ContentPart? hole, double size, Brush ink, FontWeight? weight = null)
+    protected DiagramWords Written(ContentPart? part, ContentPart? hole, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null)
     {
         var letter = Text("x", size, ink);
         if (hole is not null || part is null) return new DiagramWords(letter, part, hole, letter, ink, maps: false, writes: false);
 
         var says = Shown(part);
-        return new DiagramWords(Text(says, size, ink, weight), part, null, letter, ink, maps: says == part.Text, writes: true);
+        return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Text, writes: true);
+    }
+
+    /// <summary>
+    /// What somebody wrote, as <see cref="Written"/> sets it, wrapped to <paramref name="width"/>: broken where a <c>&lt;br&gt;</c>
+    /// says to, after a space where a line would run past the width, or inside a word too long for a line of its own — each line
+    /// typed into as the characters it holds. Words that read as something other than their characters are wrapped as they read, and
+    /// only pressed.
+    /// </summary>
+    protected IReadOnlyList<DiagramWords> Wrapped(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
+                                                  FontWeight? weight = null, FontStyle? slant = null)
+    {
+        var whole = Written(part, hole, size, ink, weight, slant);
+        if (part is null || hole is not null) return [whole];
+
+        var says = Shown(part);
+        var maps = says == part.Text;
+        var breaks = Breaks(says);
+        if (breaks.Count == 1 && whole.Width <= width) return [whole];
+
+        var letter = Text("x", size, ink);
+        var lines = new List<DiagramWords>();
+
+        foreach (var (from, to) in breaks)
+            for (var start = from; start < to || (start == from && from == to);)
+            {
+                var end = Math.Min(start + 1, to);
+                var broken = -1;
+                while (end < to && Text(says[start..(end + 1)], size, ink, weight, slant).Width <= width)
+                {
+                    end++;
+                    if (says[end - 1] == ' ') broken = end;
+                }
+
+                if (end < to && broken > start) end = broken;
+
+                var line = says[start..end];
+                lines.Add(new DiagramWords(Text(line, size, ink, weight, slant), maps ? new SourceSpan(part.Start + start, end - start) : part, null, letter, ink, maps, writes: maps));
+                if (end == start) break;
+                start = end;
+            }
+
+        return lines.Count == 0 ? [whole] : lines;
+    }
+
+    /// <summary>Where the stretches between <c>&lt;br&gt;</c> breaks start and end — one stretch, for words with none.</summary>
+    private static IReadOnlyList<(int From, int To)> Breaks(string says)
+    {
+        var stretches = new List<(int, int)>();
+
+        for (var at = 0; at <= says.Length;)
+        {
+            var (start, length) = (says.Length, 0);
+            foreach (var mark in (string[])["<br/>", "<br />", "<br>"])
+            {
+                var found = says.IndexOf(mark, at, StringComparison.OrdinalIgnoreCase);
+                if (found >= 0 && found < start) (start, length) = (found, mark.Length);
+            }
+
+            stretches.Add((at, start));
+            if (length == 0) break;
+            at = start + length;
+        }
+
+        return stretches;
     }
 
     /// <summary>

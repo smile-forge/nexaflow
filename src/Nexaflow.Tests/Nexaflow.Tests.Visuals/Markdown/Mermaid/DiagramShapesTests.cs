@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Editing;
@@ -85,7 +86,7 @@ public class DiagramShapesTests
     [TestMethod]
     public void AShapeStandsInItsOutline_WithItsWordsInTheMiddle() => UiThread.Run(() =>
     {
-        var words = Words("Decide");
+        var words = Words("Decide", new TestPart(0, 6));
         var bounds = new Rect(new Point(40, 30), DiagramShapes.Around(DiagramShape.Diamond, new Size(words.Width, words.Height), pad: 6));
 
         var build = new LayoutBuilder();
@@ -107,13 +108,41 @@ public class DiagramShapesTests
         Assert.IsTrue(inside.Kind == MermaidPiece.Shape && inside.Parent == node, $"a press inside the diamond means it, not the {inside.Kind}");
         Assert.AreEqual("Page", root.PieceAt(new Point(bounds.X + 2, bounds.Y + 2)).Kind, "and one in the corner of its bounds, outside it, means what is behind");
         Assert.AreEqual(bounds.X + (bounds.Width / 2), said.Bounds.X + (said.Bounds.Width / 2), 1, "the words are in the middle across");
+        Assert.AreEqual(MermaidPiece.Words, root.PieceAt(new Point(said.Bounds.Right - 1, said.Bounds.Y + (said.Bounds.Height / 2))).Kind, "and a press on the words means them, not the shape under them");
     });
 
     /// <summary>Words worked out, which stand for nothing.</summary>
-    internal static DiagramWords Words(string text)
+    internal static DiagramWords Words(string text, ISourcePart? part = null)
     {
         var set = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 12, Brushes.Black, 1.0);
         var letter = new FormattedText("x", CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 12, Brushes.Black, 1.0);
-        return new DiagramWords(set, part: null, hole: null, letter, Brushes.Black, maps: false, writes: false);
+        return new DiagramWords(set, part, hole: null, letter, Brushes.Black, maps: part is not null, writes: part is not null);
     }
+
+    [TestMethod]
+    public void AShapeWithWordsPlacedInItStandsLessThoseWordsAndWhatIsDrawnOverIt() => UiThread.Run(() =>
+    {
+        var bounds = new Rect(0, 0, 200, 120);
+        var title = Words("Title", new TestPart(0, 5));
+        var covered = new RectangleGeometry(new Rect(20, 60, 160, 40));
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        DiagramShapes.Draw(build, "Column", new TestPart(10, 3), DiagramShape.Rectangle, bounds, Brushes.White, new DiagramStroke(Brushes.Black),
+                           [(title, new Point(10, 10), "Title")], covered);
+
+        // A card drawn after the column, where the column was told something is drawn over it: a press there is the card's,
+        // though the column came first.
+        build.Open("Card", new TestPart(20, 2), stops: Stops.None);
+        build.Draw(new GeometryMark(covered, Brushes.Gray, null, 0));
+        build.Occupies(covered);
+        build.Close();
+        build.Close();
+
+        var root = build.Seal().Root;
+
+        Assert.AreEqual("Title", root.PieceAt(new Point(12, 10 + (title.Height / 2))).Kind, "a press on the words means them");
+        Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new Point(100, 45)).Kind, "one elsewhere in the shape means the shape");
+        Assert.AreEqual("Card", root.PieceAt(new Point(100, 80)).Kind, "and one where something else is drawn over it means that");
+    });
 }

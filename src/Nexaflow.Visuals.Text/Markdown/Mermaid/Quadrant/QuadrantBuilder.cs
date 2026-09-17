@@ -128,10 +128,11 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         }
 
         // Words reach past the chart's edges: everything moves over so they are not cut off.
-        var reached = plot;
-        foreach (var (said, at, _) in words) reached.Union(new Rect(at, new Size(said.Width, said.Height)));
-        foreach (var (_, centre, radius) in dots) reached.Union(new Rect(centre.X - radius, centre.Y - radius, radius * 2, radius * 2));
-        var shift = new Vector(-reached.X, -reached.Y);
+        var room = new DiagramRoom();
+        room.Reach(plot);
+        foreach (var (said, at, _) in words) room.Reach(said, at);
+        foreach (var (_, centre, radius) in dots) room.Reach(new Rect(centre.X - radius, centre.Y - radius, radius * 2, radius * 2));
+        var shift = room.Shift;
 
         // What is drawn over the quadrants, which a press there means rather than the quadrant under it.
         var over = new GeometryGroup();
@@ -147,7 +148,7 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         foreach (var (said, at, kind) in words) said.Set(build, at + shift, kind);
         build.Close();
 
-        return reached.Size;
+        return room.Size;
     }
 
     /// <summary>A quadrant's cell: the first top right, then anticlockwise.</summary>

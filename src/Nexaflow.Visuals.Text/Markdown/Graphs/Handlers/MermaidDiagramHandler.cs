@@ -13,14 +13,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c> → its grammar, its stages and its
+///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c>, <c>ishikawa</c>, <c>gantt</c>, <c>kanban</c>, <c>mindmap</c> → its grammar, its stages and its
 ///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-///   • <c>gantt</c>            → <see cref="MermaidGanttParser"/>    + <see cref="WpfGanttRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>kanban</c>           → <see cref="MermaidKanbanParser"/>  + <see cref="WpfKanbanRenderer"/>
-///   • <c>ishikawa-beta</c>    → <see cref="MermaidIshikawaParser"/> + <see cref="WpfIshikawaRenderer"/>
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
@@ -38,14 +35,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidGanttParser    GanttParser    = new();
     private static readonly MermaidGitGraphParser GitParser      = new();
-    private static readonly MermaidMindmapParser  MindmapParser  = new();
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
-    private static readonly MermaidKanbanParser   KanbanParser   = new();
-    private static readonly MermaidIshikawaParser IshikawaParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidCynefinParser  CynefinParser  = new();
@@ -75,14 +68,10 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-            MermaidDiagram.Gantt        => RenderGantt(block, palette),
             MermaidDiagram.GitGraph     => RenderGit(block, palette),
-            MermaidDiagram.Mindmap      => RenderMindmap(block, palette),
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
-            MermaidDiagram.Kanban       => RenderKanban(block, palette),
-            MermaidDiagram.Ishikawa     => RenderIshikawa(block, palette),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
             MermaidDiagram.Cynefin      => RenderCynefin(block, palette),
@@ -111,40 +100,11 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
     }
 
-    private static FrameworkElement RenderGantt(MermaidBlock block, MarkdownPalette palette)
-    {
-        var chart = GanttParser.Parse(block.Body);
-        chart.Title = Titled(chart.Title, block);
-        return WpfGanttRenderer.Render(chart, palette);
-    }
-
     private static FrameworkElement RenderGit(MermaidBlock block, MarkdownPalette palette)
     {
         var graph = GitParser.Parse(block.Body);
         graph.Title = Titled(graph.Title, block);
         return WpfGitGraphRenderer.Render(graph, palette);
-    }
-
-    private static FrameworkElement RenderMindmap(MermaidBlock block, MarkdownPalette palette)
-    {
-        var map = MindmapParser.Parse(block.Body);
-        map.Title = Titled(map.Title, block);
-        return WpfMindmapRenderer.Render(map, palette);
-    }
-
-    private static FrameworkElement RenderKanban(MermaidBlock block, MarkdownPalette palette)
-    {
-        var board = KanbanParser.Parse(block.Body);
-        board.Title = Titled(board.Title, block);
-        return WpfKanbanRenderer.Render(board, palette);
-    }
-
-    private static FrameworkElement RenderIshikawa(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = IshikawaParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);   // Ishikawa has no inline title; a front-matter title shows above.
-        diagram.Config = IshikawaConfigParser.Parse(block.Config);
-        return WpfIshikawaRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)

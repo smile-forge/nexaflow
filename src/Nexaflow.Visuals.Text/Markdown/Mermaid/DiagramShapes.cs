@@ -58,6 +58,12 @@ internal enum DiagramShape
 
     /// <summary>A rectangle with its top left corner folded down.</summary>
     Card,
+
+    /// <summary><c>)text(</c> — a cloud, as a mindmap draws one.</summary>
+    Cloud,
+
+    /// <summary><c>))text((</c> — a starburst, as a mindmap draws a bang.</summary>
+    Bang,
 }
 
 /// <summary>
@@ -88,6 +94,7 @@ internal static class DiagramShapes
             DiagramShape.Circle or DiagramShape.DoubleCircle => new EllipseGeometry(bounds),
             DiagramShape.Cylinder => Cylinder(bounds),
             DiagramShape.Document => Document(bounds),
+            DiagramShape.Cloud => Cloud(bounds),
             _ when Corners(shape, bounds) is { } points => Polygon(points),
             _ => new RectangleGeometry(bounds),
         };
@@ -138,6 +145,8 @@ internal static class DiagramShapes
             DiagramShape.Cylinder => new Rect(x, y + (Lid(bounds) * 2), w, Math.Max(0, h - (Lid(bounds) * 3))),
             DiagramShape.Document => new Rect(x, y, w, Math.Max(0, h - (Wave(bounds) * 2))),
             DiagramShape.Card => new Rect(x + (Fold(bounds) / 2), y, Math.Max(0, w - (Fold(bounds) / 2)), h),
+            DiagramShape.Cloud => Inset(bounds, w * 0.14, h * 0.2),
+            DiagramShape.Bang => Inset(bounds, w * 0.22, h * 0.24),
             _ => bounds,
         };
     }
@@ -161,6 +170,8 @@ internal static class DiagramShapes
             case DiagramShape.Cylinder: return new Size(w, h / 0.55 * 0.15 < 10 ? h / 0.55 : h + 30);
             case DiagramShape.Document: return new Size(w, h / 0.85);
             case DiagramShape.Card: return new Size(w + (Math.Min(12, h / 3) / 2), h);
+            case DiagramShape.Cloud: return new Size(w / 0.72, h / 0.6);
+            case DiagramShape.Bang: return new Size(w / 0.56, h / 0.52);
             case DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
                 or DiagramShape.Trapezoid or DiagramShape.TrapezoidAlt:
                 return new Size(w + (h / 3 * 2), h);
@@ -209,25 +220,61 @@ internal static class DiagramShapes
                             Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words)
     {
         var outline = Outline(shape, bounds);
+        var room = Inside(shape, bounds);
+        var at = words is null ? default : new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2));
 
         build.Open(kind, part, stops: Stops.None);
 
         // The drawing is a piece of its own, and a leaf: only what draws is pressed, so a shape with words in it stands in its
-        // outline through this, and the words in it stand in front.
+        // outline through this — less where its words are, which stand in front.
         build.Open(MermaidPiece.Shape, part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         if (Details(shape, bounds) is { } details && stroke is not null)
             build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
-        build.Occupies(outline);
+        build.Occupies(words is null ? outline : Clear(outline, new Rect(at, new Size(words.Width, words.Height))));
         build.Close();
 
-        if (words is not null)
-        {
-            var room = Inside(shape, bounds);
-            words.Set(build, new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2)), wordsKind);
-        }
+        words?.Set(build, at, wordsKind);
 
         build.Close();
+    }
+
+    /// <summary>
+    /// Draws a shape with words set wherever the diagram puts them — a card's title at its top left and its assignee at its foot —
+    /// as <see cref="Draw(LayoutBuilder, string, ISourcePart?, DiagramShape, Rect, Brush?, DiagramStroke?, DiagramWords?, string)"/>
+    /// draws one with its words in the middle: the shape standing in its outline less where each of its words is, and less what else
+    /// is drawn over it — <paramref name="covered"/>, a column's cards — which a press there means instead.
+    /// </summary>
+    public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds, Brush? fill, DiagramStroke? stroke,
+                            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null)
+    {
+        var outline = Outline(shape, bounds);
+        var over = new GeometryGroup();
+        if (covered is not null) over.Children.Add(covered);
+        foreach (var (said, at, _) in words) over.Children.Add(new RectangleGeometry(new Rect(at, new Size(said.Width, said.Height))));
+
+        build.Open(kind, part, stops: Stops.None);
+
+        build.Open(MermaidPiece.Shape, part, stops: Stops.None);
+        build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        if (Details(shape, bounds) is { } details && stroke is not null)
+            build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
+        var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, over);
+        stands.Freeze();
+        build.Occupies(stands);
+        build.Close();
+
+        foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind);
+
+        build.Close();
+    }
+
+    /// <summary>Where a shape stands with words drawn over it: its outline, less where the words are, so a press on them means them.</summary>
+    public static Geometry Clear(Geometry outline, Rect words)
+    {
+        var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, new RectangleGeometry(words));
+        stands.Freeze();
+        return stands;
     }
 
     // ── Outlines ────────────────────────────────────────────────────────────
@@ -240,6 +287,7 @@ internal static class DiagramShapes
 
         return shape switch
         {
+        DiagramShape.Bang => Bang(r),
             DiagramShape.Diamond => [new(cx, y), new(x + w, cy), new(cx, y + h), new(x, cy)],
             DiagramShape.Hexagon => [new(x + k, y), new(x + w - k, y), new(x + w, cy), new(x + w - k, y + h), new(x + k, y + h), new(x, cy)],
             DiagramShape.Asymmetric => [new(x, y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x + Notch(r), cy)],
@@ -312,6 +360,50 @@ internal static class DiagramShapes
         }
 
         return shape;
+    }
+
+    /// <summary>
+    /// A cloud filling <paramref name="bounds"/>: a band across its middle with a bump over and under each third of it, every bump
+    /// inside the bounds, so a cloud takes the room it is given like any other shape.
+    /// </summary>
+    private static Geometry Cloud(Rect bounds)
+    {
+        var (w, h) = (bounds.Width, bounds.Height);
+        var puffs = new GeometryGroup();
+        puffs.Children.Add(new RectangleGeometry(new Rect(bounds.X + (w * 0.06), bounds.Y + (h * 0.3), w * 0.88, h * 0.45)));
+
+        // Three bumps along the top and three along the foot, the middle one of each the tallest.
+        foreach (var (at, wide, tall, top) in (( double At, double Wide, double Tall, bool Top)[])
+                 [(0.0, 0.42, 0.62, true), (0.28, 0.46, 0.7, true), (0.58, 0.42, 0.62, true),
+                  (0.02, 0.4, 0.55, false), (0.3, 0.44, 0.62, false), (0.58, 0.4, 0.55, false)])
+            puffs.Children.Add(new EllipseGeometry(new Rect(bounds.X + (w * at), top ? bounds.Y : bounds.Bottom - (h * tall), w * wide, h * tall)));
+
+        return United(puffs);
+    }
+
+    /// <summary>A starburst filling <paramref name="bounds"/>: sixteen points round its middle, every other one drawn in.</summary>
+    private static IReadOnlyList<Point> Bang(Rect bounds)
+    {
+        var (cx, cy) = (bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+        var points = new List<Point>();
+
+        for (var spike = 0; spike < 16; spike++)
+        {
+            var angle = spike * Math.PI / 8;
+            var reach = spike % 2 == 0 ? 1.0 : 0.82;
+            points.Add(new Point(cx + (Math.Cos(angle) * bounds.Width / 2 * reach), cy + (Math.Sin(angle) * bounds.Height / 2 * reach)));
+        }
+
+        return points;
+    }
+
+    /// <summary>Several shapes as one outline, with nothing of the lines where they meet.</summary>
+    private static Geometry United(GeometryGroup shapes)
+    {
+        Geometry united = new RectangleGeometry(Rect.Empty);
+        foreach (var shape in shapes.Children) united = new CombinedGeometry(GeometryCombineMode.Union, united, shape);
+
+        return united;
     }
 
     // ── Proportions ─────────────────────────────────────────────────────────

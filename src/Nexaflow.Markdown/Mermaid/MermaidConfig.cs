@@ -86,6 +86,9 @@ public sealed class MermaidConfig
             ? value[1..^1]
             : value;
 
+    /// <summary>What <c>config:</c> says for every diagram — <c>config: fontSize</c> — or nothing.</summary>
+    public MermaidConfig Shared => Section("config") ?? None;
+
     /// <summary>What <c>config:</c> says under a diagram's own section — <c>config: pie:</c> — or nothing.</summary>
     public MermaidConfig Diagram(string name) => Section("config")?.Section(name) ?? None;
 

@@ -124,10 +124,10 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         var flatTitle = AxisTitle(flatConfig, flatAxis);
         var legend = Legend(chart);
 
-        // Round the plot: the upright axis's words to its left and its title over it, the flat axis's words and title under it,
-        // the legend under those, and room on the right for half the last word along the foot.
-        var left = DiagramAxis.Room(upright, upright: true, Tick(uprightConfig));
-        var top = uprightTitle is null ? Gap : uprightTitle.Height + Gap;
+        // Round the plot: the upright axis's words to its left with its title turned upright beyond them, the flat axis's words
+        // and title under it, the legend under those, and room on the right for half the last word along the foot.
+        var left = DiagramAxis.Room(upright, upright: true, Tick(uprightConfig)) + (uprightTitle is null ? 0 : uprightTitle.Height + Gap);
+        var top = Gap;
         var bottom = DiagramAxis.Room(flat, upright: false, Tick(flatConfig)) + (flatTitle is null ? 0 : Gap + flatTitle.Height);
         var under = legend.Size.Height > 0 ? legend.Size.Height + (config.LegendPadding ?? Gap * 2) : 0;
         var right = Math.Max(Gap * 2, flat.LastOrDefault()?.Words?.Width / 2 ?? 0);
@@ -160,7 +160,9 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         Axis(build, horizontal ? XyPiece.XAxis : XyPiece.YAxis, uprightAxis?.Part, plot.BottomLeft, plot.TopLeft, upright, uprightConfig, after: false, horizontal);
         Axis(build, horizontal ? XyPiece.YAxis : XyPiece.XAxis, flatAxis?.Part, plot.BottomLeft, plot.BottomRight, flat, flatConfig, after: true, horizontal: false);
 
-        uprightTitle?.Set(build, new Point(0, 0), XyPiece.AxisTitle);
+        // The upright axis's title is turned a quarter turn so it reads up the axis, as Mermaid sets it: anchored at its foot,
+        // it reaches up by however wide its words are and right by however tall they are.
+        uprightTitle?.Set(build, new Point(0, plot.Top + ((plot.Height + uprightTitle.Width) / 2)), XyPiece.AxisTitle, degrees: -90);
         flatTitle?.Set(build, new Point(plot.Left + ((plot.Width - flatTitle.Width) / 2), plot.Bottom + DiagramAxis.Room(flat, upright: false, Tick(flatConfig)) + Gap), XyPiece.AxisTitle);
 
         build.Open(XyPiece.Labels, part: null, stops: Stops.None);

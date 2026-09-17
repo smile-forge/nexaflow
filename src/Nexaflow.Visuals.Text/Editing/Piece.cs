@@ -118,6 +118,25 @@ public readonly record struct Piece
     public LayoutPaint? Painting => _tree?.PaintOf(_at);
 
     /// <summary>
+    /// How the piece is turned inside whatever holds it, as one transform about its own anchor — null for the ordinary case,
+    /// which is every piece of most content. What is drawn turned is pressed and caretted turned: a press comes back through
+    /// this into the piece's own frame, and a caret or a wash goes out through it. See <see cref="LayoutPaint.Turn"/>.
+    /// </summary>
+    public Transform? Turned
+    {
+        get
+        {
+            if (Painting?.Turn is not { Count: > 0 } turns) return null;
+            if (turns.Count == 1) return turns[0];
+
+            var group = new TransformGroup();
+            foreach (var turn in turns) group.Children.Add(turn);
+
+            return group;
+        }
+    }
+
+    /// <summary>
     /// The shape it stands in, in its own frame, where its builder said its box overstates it — or nothing, which is nearly
     /// always. See <see cref="LayoutBuilder.Occupies"/>.
     /// </summary>
