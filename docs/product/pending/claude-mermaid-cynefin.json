@@ -298,14 +298,116 @@
           }
         ]
       }
+    },
+    "gitgraph": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Git/GitBuilder.cs",
+          "class": "GitBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Piece.cs",
+          "class": "Piece",
+          "method": "Turned"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/gitgraph.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GitBuilderTests.cs",
+            "class": "GitBuilderTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs",
+          "class": "GitGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGraph.cs",
+          "class": "GitGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs",
+          "class": "GitConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs",
+          "class": "ResolveGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Properties"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitGrammarTests.cs",
+            "class": "GitGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitGraphTests.cs",
+            "class": "GitGraphTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs",
+          "class": "GitGrammar",
+          "method": "Names"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/GitEditingTests.cs",
+            "class": "GitEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 18,
+  "changed_sets": 24,
   "touched_nodes": [
     "cynefin",
     "cynefin-ast",
     "cynefin-writing",
+    "gitgraph",
+    "gitgraph-ast",
+    "gitgraph-writing",
     "journey",
     "journey-ast",
     "journey-writing",

@@ -32,6 +32,12 @@ public static partial class MermaidText
     /// <summary>Text as a place in quotes holds it: every quote written as the entity code that stands for it.</summary>
     public static string Quoted(string text) => text.Replace("\"", "#quot;", StringComparison.Ordinal);
 
+    /// <summary>What a value written in quotes says: what is between them, read back from its entity codes — and what is in no quotes as it is.</summary>
+    public static string Bare(string? value) =>
+        value is null ? string.Empty
+        : value.Length >= 2 && value[0] == '"' && value[^1] == '"' ? Decode(value[1..^1])
+        : Decode(value);
+
     [GeneratedRegex(@"#(?:(?<number>\d+)|(?<name>[A-Za-z][A-Za-z0-9]*));")]
     private static partial Regex Entity();
 

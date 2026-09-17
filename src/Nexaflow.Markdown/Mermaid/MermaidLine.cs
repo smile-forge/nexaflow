@@ -408,7 +408,7 @@ public sealed class MermaidLine
     /// <param name="known">The properties the diagram sets, or null for any: a property it does not set carries the reason.</param>
     /// <param name="ends">The character closing the properties — <c>}</c> in <c>@{ … }</c> — where they are written in braces.</param>
     /// <param name="what">What the properties are, for the reason a property is not known: <c>A style</c>, <c>Metadata</c>.</param>
-    public bool Properties(IReadOnlyCollection<string>? known = null, char? ends = null, string what = "A style")
+    public bool Properties(IReadOnlyCollection<string>? known = null, char? ends = null, string what = "A style", bool spaced = false)
     {
         var mark = Save();
         Open();
@@ -431,13 +431,16 @@ public sealed class MermaidLine
             Token(":");
             Space();
 
-            var end = ValueEnd(Written, At, ends);
+            var end = spaced ? ValueWord(Written, At) : ValueEnd(Written, At, ends);
             var value = Written[At..end].TrimEnd();
             Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
             Space();
             Close(MermaidKinds.Property);
 
             if (Done || Next == ends) break;
+
+            // Written one after another, the space after a value is all that goes between them.
+            if (spaced) continue;
 
             Token(",");
             Space();
@@ -565,6 +568,27 @@ public sealed class MermaidLine
                     if (character == ends && depth == 0) return at;
                     break;
             }
+        }
+
+        return at;
+    }
+
+    /// <summary>Where a value written as a word of its own ends: at the space after it, outside anything in quotes.</summary>
+    private static int ValueWord(string written, int at)
+    {
+        char? quote = null;
+
+        for (; at < written.Length; at++)
+        {
+            var character = written[at];
+            if (quote is not null)
+            {
+                if (character == quote) quote = null;
+                continue;
+            }
+
+            if (character is '"' or '\'') quote = character;
+            else if (char.IsWhiteSpace(character)) break;
         }
 
         return at;

@@ -7,7 +7,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockConfig.cs 15
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockDiagram.cs 105
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs 199
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ErConfig.cs 30
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/GitGraph.cs 51
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs 57
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyConfig.cs 48
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyDiagram.cs 35
@@ -33,7 +32,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs 567
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidDirectives.cs 85
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs 383
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidFlowchartParser.cs 629
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidGitGraphParser.cs 188
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs 299
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs 91
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs 390
@@ -54,7 +52,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/GraphRenderOptions.cs 33
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/SvgGraphRenderer.cs 198
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfArchitectureRenderer.cs 486
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfBlockRenderer.cs 473
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGitGraphRenderer.cs 233
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs 1371
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs 301
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs 661

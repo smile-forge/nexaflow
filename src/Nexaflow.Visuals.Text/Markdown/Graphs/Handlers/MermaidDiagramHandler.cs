@@ -35,7 +35,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidGitGraphParser GitParser      = new();
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
@@ -65,7 +64,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-            MermaidDiagram.GitGraph     => RenderGit(block, palette),
+
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
@@ -93,13 +92,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var diagram = SequenceParser.Parse(block.Body);
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
-
-    private static FrameworkElement RenderGit(MermaidBlock block, MarkdownPalette palette)
-    {
-        var graph = GitParser.Parse(block.Body);
-        graph.Title = Titled(graph.Title, block);
-        return WpfGitGraphRenderer.Render(graph, palette);
     }
 
     private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)

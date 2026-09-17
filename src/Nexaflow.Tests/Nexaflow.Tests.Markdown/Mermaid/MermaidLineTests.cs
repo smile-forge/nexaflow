@@ -196,4 +196,21 @@ public class MermaidLineTests
         Assert.AreEqual(200, dashes.Size("width"), "and what follows the list is still the diagram's");
         Assert.AreEqual(0, brackets.List("sectionFills").Count, "a key set to no list at all");
     }
+
+    [TestMethod]
+    public void OptionsWrittenOneAfterAnotherAreEachAPropertyOfTheirOwn()
+    {
+        var line = MermaidLine.Of("id: \"Alpha one\" type: HIGHLIGHT tag: \"v1.0\"");
+
+        Assert.IsTrue(line.Properties(["id", "type", "tag"], what: "A commit", spaced: true));
+        Assert.IsTrue(line.Done);
+
+        var properties = line.Read(MermaidKinds.Statement).SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Property).ToList();
+
+        Assert.AreEqual(3, properties.Count);
+        CollectionAssert.AreEqual(
+            new[] { "id", "type", "tag" },
+            properties.Select(property => property.Children.First(child => child.Kind == MermaidKinds.Key).Text).ToArray());
+        Assert.AreEqual("\"Alpha one\"", properties[0].Children.First(child => child.Kind == MermaidKinds.Setting).Text, "a quoted value holds its space");
+    }
 }
