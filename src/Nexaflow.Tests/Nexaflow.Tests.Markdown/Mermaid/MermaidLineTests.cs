@@ -169,4 +169,19 @@ public class MermaidLineTests
         CollectionAssert.AreEqual(new int?[] { null, 0, 1, 0 }, MermaidOutline.Nested(items, floor: true).Select(one => one.Parent).ToArray(),
                                   "with a floor, the first item after the root is where the children start");
     }
+
+    [TestMethod]
+    public void AWordAnArrowClosesIsStillThatWord_WhereWhatCarriesAWordOnSaysSo()
+    {
+        Assert.AreEqual("complex", MermaidLine.Keyword("complex-->clear", Letter, "complex"));
+        Assert.IsNull(MermaidLine.Keyword("complex-->clear", "complex"), "a hyphen carries a keyword on, for x-axis");
+        Assert.IsNull(MermaidLine.Keyword("complexity", Letter, "complex"));
+
+        var line = MermaidLine.Of("complex-->clear");
+
+        Assert.IsTrue(line.Word("complex", letter: Letter));
+        Assert.AreEqual("-->clear", line.Rest);
+
+        static bool Letter(char character) => char.IsLetterOrDigit(character) || character == '_';
+    }
 }

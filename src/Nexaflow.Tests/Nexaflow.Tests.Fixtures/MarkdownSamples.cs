@@ -821,11 +821,12 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Cynefin diagram
 
-        A `cynefin-beta` diagram places items into the five sense-making domains — `complex` (top-left),
-        `complicated` (top-right), `chaotic` (bottom-left), `clear` (bottom-right) and the central
-        `confusion`. Items are quoted strings in a domain block; the confusion centre shows up to three
-        items with a `+N more` overflow badge. Transitions (`domainA --> domainB : "label"`) draw as
-        labelled arrows.
+        A `cynefin-beta` diagram places items into the five sense-making domains — `complex` (top left),
+        `complicated` (top right), `chaotic` (bottom left), `clear` (bottom right) and the central
+        `confusion`, drawn as a cloud. A domain's word on a line of its own opens it, and every line after
+        it is an item in it, written in quotes or bare. Transitions (`domainA --> domainB : "label"`) draw
+        as labelled arrows, bending round the middle where they would cross it; the grid grows to hold
+        everything written in it.
 
         ## Making sense of the work
 
@@ -841,7 +842,7 @@ internal sealed class MarkdownSamples : ISampleSet
             clear
                 "Apply the standard runbook"
             chaotic
-                "Stop the bleeding"
+                Stop the bleeding
             confusion
                 "Unclassified incident A"
                 "Unclassified incident B"
@@ -849,6 +850,7 @@ internal sealed class MarkdownSamples : ISampleSet
                 "Unclassified incident D"
             chaotic --> complex : "Stabilised"
             complex --> complicated : "Pattern found"
+            complicated --> clear
         ```
 
         ## With domain descriptions and theme colours

@@ -77,4 +77,13 @@ public class DiagramConnectorTests
         var line = (GeometryMark)Drawn(DiagramHead.None, null, new Point(0, 0), new Point(50, 40), new Point(100, 0)).Marks[0];
         Assert.IsTrue(line.Shape.StrokeContains(new Pen(Brushes.Black, 2), new Point(50, 40)));
     });
+
+    [TestMethod]
+    public void TheBandARouteStandsInReachesEitherSideOfIt() => UiThread.Run(() =>
+    {
+        var band = DiagramConnector.Band([new Point(0, 0), new Point(100, 0)]);
+
+        Assert.IsTrue(band.FillContains(new Point(50, 3)), "within reach of the line");
+        Assert.IsFalse(band.FillContains(new Point(50, 20)), "and no further from it");
+    });
 }

@@ -36,7 +36,7 @@ diagram's own code sits in a folder of its own under each.
 
 | To | Use |
 |---|---|
-| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead |
+| read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead — `Keyword` and `Word` take what carries a word on, for one punctuation may close (`complex-->clear`) |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
 | read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` |
 | read a label in brackets — `[…]`, `(…)`, `{{…}}` — quoted or bare | `Label(open, close, role)` |
@@ -62,6 +62,7 @@ diagram's own code sits in a folder of its own under each.
 | colour anything | `Ink` (`DiagramInk`): `Written`, `Series`, `Over`, `Faded` — a colour nobody wrote is the theme's |
 | draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
+| draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
@@ -72,7 +73,7 @@ diagram's own code sits in a folder of its own under each.
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |
-| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words |
+| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words, `Band` is what a shape under it leaves out of its own |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | show a block with nothing to draw | `AsWritten` |
 

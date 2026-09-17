@@ -133,6 +133,13 @@ internal static class DiagramConnector
         return route[^1];
     }
 
+    /// <summary>
+    /// The band a route stands in — how near a press must be to mean it (<see cref="Reach"/>) — for a shape drawn under one to
+    /// leave it out of what it stands in itself.
+    /// </summary>
+    public static Geometry Band(IReadOnlyList<Point> route, double thickness = 1, bool curved = false) =>
+        Frozen(Line(route, curved).GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(Reach, thickness))));
+
     // ── Heads ───────────────────────────────────────────────────────────────
 
     /// <summary>

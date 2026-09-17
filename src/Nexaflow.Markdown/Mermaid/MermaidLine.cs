@@ -85,23 +85,39 @@ public sealed class MermaidLine
     /// Which of <paramref name="words"/> <paramref name="text"/> starts with, ignoring case — as a word of its own, so
     /// <c>titled</c> is not <c>title</c> — or null. The word comes back as it was asked for, not as it was written.
     /// </summary>
-    public static string? Keyword(string text, params string[] words)
+    public static string? Keyword(string text, params string[] words) => Keyword(text, Letter, words);
+
+    /// <summary>
+    /// <inheritdoc cref="Keyword(string, string[])" path="/summary"/>
+    ///
+    /// <para>
+    /// <paramref name="letter"/> says what carries a word on, for words punctuation may close rather than space: a domain's
+    /// word ends at the arrow in <c>complex--&gt;clear</c>, where a keyword's hyphen carries it on in <c>x-axis</c>.
+    /// </para>
+    /// </summary>
+    public static string? Keyword(string text, Func<char, bool> letter, params string[] words)
     {
         foreach (var word in words)
         {
             if (!text.StartsWith(word, StringComparison.OrdinalIgnoreCase)) continue;
-            if (text.Length == word.Length || !(char.IsLetterOrDigit(text[word.Length]) || text[word.Length] is '_' or '-')) return word;
+            if (text.Length == word.Length || !letter(text[word.Length])) return word;
         }
 
         return null;
     }
 
+    /// <summary>What carries a keyword on: its letters, and the hyphen in <c>x-axis</c> or <c>quadrant-1</c>.</summary>
+    public static bool Letter(char character) => char.IsLetterOrDigit(character) || character is '_' or '-';
+
     // ── What every line has ─────────────────────────────────────────────────
 
-    /// <summary>Takes <paramref name="word"/> where it is written next, as a word of its own and ignoring case.</summary>
-    public bool Word(string word, string kind = MermaidKinds.Key, string role = Roles.Name)
+    /// <summary>
+    /// Takes <paramref name="word"/> where it is written next, as a word of its own and ignoring case — <paramref name="letter"/>
+    /// saying what carries it on, where punctuation may close it (<see cref="Keyword(string, Func{char, bool}, string[])"/>).
+    /// </summary>
+    public bool Word(string word, string kind = MermaidKinds.Key, string role = Roles.Name, Func<char, bool>? letter = null)
     {
-        if (Keyword(Rest, word) is null) return false;
+        if (Keyword(Rest, letter ?? Letter, word) is null) return false;
 
         Add(ContentNode.Leaf(kind, Written.Substring(At, word.Length), role));
         return true;

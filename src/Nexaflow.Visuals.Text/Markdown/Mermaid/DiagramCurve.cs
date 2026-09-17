@@ -53,4 +53,21 @@ internal static class DiagramCurve
         shape.Freeze();
         return shape;
     }
+
+    /// <summary>
+    /// The open curve from <paramref name="from"/> to <paramref name="to"/>, bowed through <paramref name="control"/>: a
+    /// quadratic Bézier, which is how a boundary between two places sweeps rather than cuts.
+    /// </summary>
+    public static Geometry Bowed(Point from, Point control, Point to)
+    {
+        var shape = new StreamGeometry();
+        using (var pen = shape.Open())
+        {
+            pen.BeginFigure(from, isFilled: false, isClosed: false);
+            pen.QuadraticBezierTo(control, to, isStroked: true, isSmoothJoin: false);
+        }
+
+        shape.Freeze();
+        return shape;
+    }
 }

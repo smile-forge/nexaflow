@@ -41,7 +41,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
-    private static readonly MermaidCynefinParser  CynefinParser  = new();
     private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
     private static readonly MermaidTimelineParser  TimelineParser = new();
@@ -74,7 +73,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
-            MermaidDiagram.Cynefin      => RenderCynefin(block, palette),
             MermaidDiagram.Architecture => RenderArchitecture(block, palette),
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
             MermaidDiagram.Timeline     => RenderTimeline(block, palette),
@@ -132,14 +130,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         }
 
         return RenderGraphFamily(graph, block, options, 1100);
-    }
-
-    private static FrameworkElement RenderCynefin(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = CynefinParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = CynefinConfigParser.Parse(block.Config);
-        return WpfCynefinRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderArchitecture(MermaidBlock block, MarkdownPalette palette)

@@ -1,0 +1,119 @@
+{
+  "branch": "claude/mermaid-cynefin",
+  "nodes": {
+    "cynefin": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "status": "should",
+          "target": "https://mermaid.ai/open-source/syntax/cynefin.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Cynefin/CynefinBuilder.cs",
+          "class": "CynefinBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve",
+          "method": "Bowed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector",
+          "method": "Band"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/CynefinBuilderTests.cs",
+            "class": "CynefinBuilderTests"
+          }
+        ]
+      }
+    },
+    "cynefin-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs",
+          "class": "CynefinGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinDiagram.cs",
+          "class": "CynefinDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinConfig.cs",
+          "class": "CynefinConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs",
+          "class": "ResolveDomains"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Keyword"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinGrammarTests.cs",
+            "class": "CynefinGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinDiagramTests.cs",
+            "class": "CynefinDiagramTests"
+          }
+        ]
+      }
+    },
+    "cynefin-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs",
+          "class": "CynefinGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/CynefinEditingTests.cs",
+            "class": "CynefinEditingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "cynefin",
+    "cynefin-ast",
+    "cynefin-writing"
+  ]
+}

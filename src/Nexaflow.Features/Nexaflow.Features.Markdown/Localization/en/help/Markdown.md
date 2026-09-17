@@ -496,6 +496,31 @@ venn-beta
 
 ![A three-circle Venn diagram with a central intersection](images/markdown/mermaid-venn.png)
 
+### Cynefin diagram
+
+Sense-making: what is in hand sorted into the five domains — complex, complicated, chaotic and
+clear in the corners, confusion as disorder in the middle — with the movements between them.
+
+````markdown
+```mermaid
+cynefin-beta
+    title Making sense of the incident
+    complex
+        "Run a safe-to-fail experiment"
+    complicated
+        "Consult an expert"
+    clear
+        "Apply the runbook"
+    chaotic
+        "Stop the bleeding"
+    confusion
+        "Unclassified report"
+    chaotic --> complex : "Stabilised"
+```
+````
+
+![A Cynefin grid with items in its four domains and a cloud of disorder in the middle](images/markdown/mermaid-cynefin.png)
+
 ### Timeline
 
 Periods along a spine, each with its events stacked beneath; sections band the periods they group.
