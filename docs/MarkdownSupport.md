@@ -256,8 +256,10 @@ time, and what `layout:` names is read and kept.
 **The front matter is applied** ([`MindmapConfig`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs)): `config:
 mindmap:` `padding` and `maxNodeWidth` (`useMaxWidth` read); and the `themeVariables:` `cScale0`…`cScale11`,
 `cScaleLabel0`…`cScaleLabel11` and `cScaleInv0`…`cScaleInv11` for the branches, with `git0` and `gitBranchLabel0` for the root.
-A colour nobody wrote is the theme's. **Not applied:** icons and classes, markdown strings' formatting (`**bold**` is drawn as
-written) and titles written over several lines, and the `handDrawn` look.
+A colour nobody wrote is the theme's. **Not applied:** icons, since no icon font is shipped to draw `fa fa-book` with, and
+classes, since a mindmap declares none; markdown strings' formatting — `**bold**` is drawn as written, because what is drawn is
+what is typed into, and hiding the asterisks would leave a caret nowhere to stand; titles written over several lines, which a
+line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a title is typed into where it is drawn, on whichever of its wrapped lines is pressed; a quote, a closing
 bracket or a comment typed into a title in brackets puts it in quotes, and a bracket typed into a bare title makes it a title in
 quotes; Enter on a node starts another as far in as it.
@@ -283,7 +285,9 @@ each line standing for the characters it holds.
 `ticketBaseUrl` (a linked ticket drawn in the accent), `sectionWidth`, and `padding` and `useMaxWidth` (read); and the
 `themeVariables:` `cScale0`…`cScale11` and `cScaleLabel0`…`cScaleLabel11` for the columns — the first column taking the
 scale's third, as Mermaid numbers them — and `background`, `nodeBorder` and `textColor` for the cards. A colour nobody wrote
-is the theme's. **Not applied:** following a ticket's link, icons and classes, metadata written over several lines, and the `handDrawn` look.
+is the theme's. **Not applied:** following a ticket's link (which wants a press on a piece to reach the host); icons, since no
+icon font is shipped to draw `fa fa-book` with, and classes, since a kanban board declares none; metadata written over several
+lines, which a line-by-line grammar does not see; and the `handDrawn` look.
 **Written in place:** a column's or a card's title is typed into where it is drawn, on whichever of its lines is pressed; a
 quote, a closing bracket or a comment typed into a title in brackets puts it in quotes, and a bracket typed into a bare title
 makes it a title in quotes; Enter on a column starts a card under it with its title still to write, and on a card another.
@@ -316,7 +320,9 @@ compact` at the top of the front matter or under `config: gantt:`; `config: gant
 `activeTaskBorderColor`, `doneTaskBkgColor`, `doneTaskBorderColor`, `critBkgColor`, `critBorderColor`, `gridColor`,
 `todayLineColor`, `vertLineColor`, `titleColor` and `textColor`. A size nobody wrote is Mermaid's, and a colour the theme's.
 The chart is as wide as its room; where nothing says how far apart the dates are, as many are marked as have room to be read.
-**Not applied:** following a `click`'s link or call, `<br>` in section names, a milestone's name in italics, and `themeCSS`.
+A section's name wraps to the room left of the chart and breaks where a `<br>` says to; a milestone's name is set in italics.
+**Not applied:** following a `click`'s link (which wants a press on a piece to reach the host) or its `call` (a JavaScript
+callback, which there is nothing here to call), and `themeCSS`, which is CSS for an SVG.
 **Written in place:** a task's name is typed into in its bar or beside it, a section's name at the left; a colon typed into a
 task's name is not written, since a name runs to its colon; an id renamed where it is declared is renamed in every `after`,
 `until` and `click` naming it; Enter on a task or a section starts a task with its name still to write.
@@ -359,9 +365,9 @@ Mermaid would refuse is held with the reason beneath — categories on a y-axis,
 `labelFontSize`, `showTitle`, `titleFontSize`, `showTick`, `tickLength`, `showAxisLine` and `axisLineWidth`; and
 `themeVariables: xyChart:` `backgroundColor`, `titleColor`, `dataLabelColor`, `legendTextColor`, the eight
 `xAxis…Color`/`yAxis…Color` keys and `plotColorPalette`. A size nobody wrote is the app's own, and a colour the theme's.
-**Not applied:** `labelRotation` and axis titles turned upright (words on the layout tree are set level — an upright
-axis's title sits over it), and `plotReservedSpacePercent`, `titlePadding`, `labelPadding` and
-`tickWidth`, which size Mermaid's own layout.
+**Not applied:** `labelRotation` and axis titles turned upright — the layout tree can turn a piece (`LayoutPaint.Turn`, as the
+LaTeX builder does), so this is work left undone rather than something the tree cannot do; an upright axis's title sits over it
+meanwhile. And `plotReservedSpacePercent`, `titlePadding`, `labelPadding` and `tickWidth`, which size Mermaid's own layout.
 **Written in place:** a category is typed into under its tick, an axis's title where it is drawn, and a series' name in
 its legend row; a word given a space or a bracket is put in quotes; a category deleted to nothing leaves a hole; Enter
 on a series starts another of its kind with its values still to write.**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →
@@ -403,7 +409,9 @@ slants, slanting where its parent's is level — the bones' lengths shared out b
 **The front matter is applied** ([`IshikawaConfig`](../src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs)):
 `config: ishikawa:` `diagramPadding` and `useMaxWidth` (read, the diagram drawn to its content), `config: fontSize`, and
 `themeVariables:` `lineColor`, `mainBkg` and `textColor`; a front-matter `title:` is set over the diagram.
-**Not applied:** Mermaid's wrapping of long causes onto several lines, and the `handDrawn` look.
+A cause's words wrap onto several lines where they are long, as Mermaid wraps them — the event's at thirteen characters and a
+cause's at fifteen — each line typed into as the characters it holds.
+**Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
 **Written in place:** the event is typed into in the head, a cause in its box or beside its bone.
 **Sankey sub-features** ([`MermaidSankeyParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs)
 + [`WpfSankeyRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs)).

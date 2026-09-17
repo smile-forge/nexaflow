@@ -106,8 +106,12 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         {
             var own = rowed.Where(task => task.Section == section).ToList();
             var (from, to) = (own.Min(task => task.Order), own.Max(task => task.Order) + 1);
-            var name = Written(section.Name, section.Hole, c.SectionFontSize ?? 11, Ink.Written(c.TitleColour) ?? Palette.Text);
-            words.Add((name, new Point(10, top + ((from + to) * gap / 2) - (name.Height / 2)), GanttPiece.SectionName));
+            var beside = Math.Max(40, left - 20);
+            var lines = Wrapped(section.Name, section.Hole, c.SectionFontSize ?? 11, Ink.Written(c.TitleColour) ?? Palette.Text, beside);
+            var tall = lines.Sum(line => line.Height);
+            var aside = new Rect(10, top + ((from + to) * gap / 2) - (tall / 2), beside, tall);
+
+            words.AddRange(DiagramWords.Stack(lines, aside, TextAlignment.Left).Select(line => (line.Words, line.At, GanttPiece.SectionName)));
         }
 
         // Each task: its bar, diamond or marker, and its name in the bar where it fits, beside it where it does not.
@@ -119,7 +123,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             var (fill, stroke, inside) = Inks(task, c);
             var name = Written(task.Name, task.Hole, task.Vert ? MarkerSize : c.FontSize ?? 11,
                                task.Vert ? Marker(c) : task.Clickable ? Ink.Written(c.TaskTextClickable) ?? Palette.Accent : inside,
-                               task.Clickable ? FontWeights.Bold : null);
+                               task.Clickable ? FontWeights.Bold : null, task.Milestone ? FontStyles.Italic : null);
 
             if (task.Vert)
             {
@@ -146,7 +150,9 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             if (!task.Milestone)
                 shapes.Add((task, DiagramShape.Rounded, new Rect(from + left, y, Math.Max(1, to - from), bar), fill, stroke, null));
 
-            if (!task.Clickable) name = Written(task.Name, task.Hole, c.FontSize ?? 11, Ink.Written(c.TaskTextOutside) ?? Palette.Text);
+            if (!task.Clickable)
+                name = Written(task.Name, task.Hole, c.FontSize ?? 11, Ink.Written(c.TaskTextOutside) ?? Palette.Text, null,
+                               task.Milestone ? FontStyles.Italic : null);
             var beside = to + name.Width + (1.5 * left) > width ? from + left - 5 - name.Width : to + left + 5;
             words.Add((name, new Point(beside, y + (bar / 2) - (name.Height / 2)), GanttPiece.Label));
         }
@@ -166,12 +172,13 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         // Words reach past the chart's edges: everything moves over so they are not cut off.
         // The chart reaches from where its grid starts to under its dates; Mermaid's room over the grid is the title's, set above it.
         var foot = height - 50;
-        var reached = new Rect(0, Math.Min(top + gridStart - 50, top - 2), width, 0);
-        reached.Union(new Rect(0, foot, width, DiagramAxis.Room(ticks, upright: false, tick: 0)));
-        if (chart.TopAxis) reached.Union(new Rect(0, top - DiagramAxis.Room(ticks, upright: false, tick: 0), width, 0));
-        foreach (var (said, at, _) in words) reached.Union(new Rect(at, new Size(said.Width, said.Height)));
-        foreach (var shape in shapes) reached.Union(shape.Bounds);
-        var shift = new Vector(-reached.X, -reached.Y);
+        var taken = new DiagramRoom();
+        taken.Reach(new Rect(0, Math.Min(top + gridStart - 50, top - 2), width, 0));
+        taken.Reach(new Rect(0, foot, width, DiagramAxis.Room(ticks, upright: false, tick: 0)));
+        if (chart.TopAxis) taken.Reach(new Rect(0, top - DiagramAxis.Room(ticks, upright: false, tick: 0), width, 0));
+        foreach (var (said, at, _) in words) taken.Reach(said, at);
+        foreach (var shape in shapes) taken.Reach(shape.Bounds);
+        var shift = taken.Shift;
 
         Excluded(build, chart, first, last, X, left, gridStart, height - top - gridStart, shift);
         Rows(build, chart, rowed, width - (right / 2), gap, top, styles, shift);
@@ -186,9 +193,9 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             DiagramShapes.Draw(build, GanttPiece.Task, task.Part, shape, Rect.Offset(bounds, shift), fill, stroke, name, GanttPiece.Label);
         build.Close();
 
-        Today(build, chart, first, last, X(DateTime.Now) + left, Math.Max(titleTop, reached.Top), Math.Min(height - titleTop, reached.Bottom), shift);
+        Today(build, chart, first, last, X(DateTime.Now) + left, Math.Max(titleTop, taken.Reached.Top), Math.Min(height - titleTop, taken.Reached.Bottom), shift);
 
-        return reached.Size;
+        return taken.Size;
     }
 
     /// <summary>The dates the axis marks: every so often as <c>tickInterval</c> says, where it says so sensibly, or else about <paramref name="count"/> on round boundaries.</summary>

@@ -16,6 +16,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Ishikawa/IshikawaBuilder.cs",
           "class": "IshikawaBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramRoom.cs",
+          "class": "DiagramRoom"
         }
       ],
       "concerns": {
@@ -44,6 +49,12 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs",
           "class": "IshikawaConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
         }
       ],
       "concerns": {
@@ -244,6 +255,12 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
           "class": "MermaidBuilder",
           "method": "Wrapped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords",
+          "method": "Stack"
         }
       ],
       "concerns": {
@@ -310,6 +327,12 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
           "class": "MermaidOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
         }
       ],
       "concerns": {

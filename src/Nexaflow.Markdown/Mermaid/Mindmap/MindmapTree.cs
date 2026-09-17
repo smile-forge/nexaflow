@@ -71,41 +71,47 @@ public sealed class MindmapTree
     public static MindmapTree Of(MermaidBlock block)
     {
         var map = new MindmapTree(block, MindmapConfig.Read(block.Config));
-        var written = new List<(int Indent, MindmapNode Node)>();
+        var parts = block.Reading.Root.SelfAndDescendants().ToList();
 
-        foreach (var part in block.Reading.Root.SelfAndDescendants())
+        var lines = parts
+            .Where(part => part.Kind == MindmapKinds.Node && part.Trouble is null)
+            .Select(part => (part.Indent(), part))
+            .ToList();
+
+        // The root first, and every node under the nearest node before it indented less, however unclear the indentation
+        // between them; a node indented no further than the root hangs off nothing, and is not drawn.
+        var nested = MermaidOutline.Nested(lines);
+        var made = new Dictionary<ContentPart, MindmapNode>();
+        var nodes = new MindmapNode?[nested.Count];
+
+        for (var at = 0; at < nested.Count; at++)
         {
+            var (part, parent) = (nested[at].Item, nested[at].Parent);
+
+            if (at == 0)
+            {
+                map.Root = new MindmapNode(part, Title(part), Hole(part), Shape(part), 0, -1);
+                nodes[at] = map.Root;
+            }
+            else if (parent is { } over && nodes[over] is { } under)
+            {
+                nodes[at] = new MindmapNode(part, Title(part), Hole(part), Shape(part), under.Depth + 1,
+                                            under.Depth == 0 ? under.Children.Count % Branches : under.Branch);
+                under.Add(nodes[at]!);
+            }
+
+            if (nodes[at] is { } node) made[part] = node;
+        }
+
+        // An icon or a class is the node above its line's.
+        MindmapNode? last = null;
+        foreach (var part in parts)
             switch (part.Kind)
             {
-                case MindmapKinds.Icon when written.Count > 0:
-                    written[^1].Node.Icon = part.Words()?.Text;
-                    break;
-
-                case MindmapKinds.Class when written.Count > 0:
-                    written[^1].Node.Class = part.Words()?.Text;
-                    break;
-
-                case MindmapKinds.Node when part.Trouble is null:
-                    var indent = part.Indent();
-
-                    if (map.Root is null)
-                    {
-                        map.Root = new MindmapNode(part, Title(part), Hole(part), Shape(part), 0, -1);
-                        written.Add((indent, map.Root));
-                        break;
-                    }
-
-                    // The nearest node before it indented less is its parent, however unclear the indentation between them.
-                    var over = written.LastOrDefault(above => above.Indent < indent);
-                    if (over.Node is not { } parent) break;
-
-                    var node = new MindmapNode(part, Title(part), Hole(part), Shape(part), parent.Depth + 1,
-                                               parent.Depth == 0 ? parent.Children.Count % Branches : parent.Branch);
-                    parent.Add(node);
-                    written.Add((indent, node));
-                    break;
+                case MindmapKinds.Node when made.TryGetValue(part, out var node): last = node; break;
+                case MindmapKinds.Icon when last is not null: last.Icon = part.Words()?.Text; break;
+                case MindmapKinds.Class when last is not null: last.Class = part.Words()?.Text; break;
             }
-        }
 
         return map;
     }

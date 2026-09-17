@@ -62,10 +62,17 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     public void TheEventsCausesAreBoxed_TheRestAreWords_AndAllAreTheCharactersWritten() => UiThread.Run(() =>
     {
         var laid = Build(Photo);
+        var labels = Pieces(laid, IshikawaPiece.Label);
 
         CollectionAssert.AreEqual(new[] { "Process", "User", "Equipment", "Environment" }, Pieces(laid, IshikawaPiece.Cause).Select(cause => Written(Photo, cause.Part)).ToArray());
-        Assert.AreEqual(9, Pieces(laid, IshikawaPiece.Label).Count);
-        Assert.IsTrue(Pieces(laid, IshikawaPiece.Label).All(label => label.Words is { Maps: true }));
+        Assert.IsTrue(labels.All(label => label.Words is { Maps: true }), "every cause typed into where it is drawn");
+
+        // A long cause is wrapped, as Mermaid wraps one, so it is drawn as more than one line — each line its own characters.
+        var said = string.Concat(labels.Select(label => Written(Photo, label.Part)));
+        foreach (var cause in new[] { "Out of focus", "Shutter speed too slow", "Shaky hands", "LENS", "Dirty lens", "Damaged lens", "SENSOR", "Dirty sensor", "Too dark" })
+            StringAssert.Contains(said.Replace(" ", ""), cause.Replace(" ", ""), cause);
+
+        Assert.IsTrue(labels.Count > 9, "the longest cause takes more than one line");
     });
 
     [TestMethod]

@@ -99,4 +99,50 @@ public static class MermaidOutline
 
         return null;
     }
+
+    /// <summary>
+    /// What nests what, for a diagram written as an indented outline: each item with the item it hangs off, which is the nearest
+    /// item before it indented less. The first item hangs off nothing, and is the outline's root.
+    ///
+    /// <para>
+    /// The indentation only has to say which of the lines before it a line belongs under, so an outline nobody lined up neatly still
+    /// nests: a line indented deeper than its uncle but shallower than its sibling hangs off the nearest line shallower than it,
+    /// which is what Mermaid does. An item indented no further than the root hangs off nothing — null, for the diagram to refuse.
+    /// </para>
+    /// <para>
+    /// Where <paramref name="floor"/> says so, the root's own indentation is nothing to go by — the first item after it is where the
+    /// children start, and anything indented less than that is a child of the root rather than hanging off nothing. That is how a
+    /// fishbone reads, since its event may be written further in than its causes.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<(T Item, int? Parent)> Nested<T>(IReadOnlyList<(int Indent, T Item)> items, bool floor = false)
+    {
+        var nested = new List<(T, int?)>(items.Count);
+        if (items.Count == 0) return nested;
+
+        nested.Add((items[0].Item, null));
+        if (items.Count == 1) return nested;
+
+        var root = items[0].Indent;
+        var start = items[1].Indent;
+
+        for (var at = 1; at < items.Count; at++)
+        {
+            var indent = Deep(items[at].Indent);
+
+            var parent = (int?)null;
+            for (var over = at - 1; over > 0; over--)
+                if (Deep(items[over].Indent) < indent)
+                {
+                    parent = over;
+                    break;
+                }
+
+            nested.Add((items[at].Item, parent ?? (floor || indent > root ? 0 : null)));
+        }
+
+        return nested;
+
+        int Deep(int indent) => floor ? Math.Max(indent, start) : indent;
+    }
 }

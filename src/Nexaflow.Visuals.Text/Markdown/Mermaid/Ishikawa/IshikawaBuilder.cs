@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Ishikawa;
 using Nexaflow.Visuals.Text.Editing;
@@ -65,6 +66,10 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     /// <summary>The room between words and the end of their bone.</summary>
     private const double Gap = 4;
 
+    /// <summary>How many characters Mermaid wraps the event's words at, and a cause's.</summary>
+    private const int HeadLetters = 13;
+    private const int CauseLetters = 15;
+
     private IshikawaBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
         : base(state, palette, pixelsPerDip, room, writing) { }
 
@@ -83,12 +88,12 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
         var config = chart.Config;
         var fish = new Fish(Ink.Written(config.LineColour) ?? Palette.TextMuted, Ink.Written(config.Background) ?? Palette.CodeBg,
-                            Ink.Written(config.TextColour) ?? Palette.Text, config.FontSize ?? CauseSize);
+                            Ink.Written(config.TextColour) ?? Palette.Text, config.FontSize ?? CauseSize, config.DiagramPadding ?? 0);
 
         // The head, its flat side on the spine's end.
-        var said = Written(effect.Says, null, fish.Size + 1, fish.Text, FontWeights.SemiBold);
-        var (wide, tall) = (Math.Max(60, said.Width + 6), Math.Max(40, (said.Height * 2) + 40));
-        fish.Head = (effect, said, wide, tall);
+        var said = Said(fish, effect.Says, fish.Size + 1, FontWeights.SemiBold, HeadLetters);
+        var (wide, tall) = (Math.Max(60, said.Size.Width + 6), Math.Max(40, (said.Size.Height * 2) + 40));
+        fish.Head = (effect, said.Lines, said.Size, wide, tall);
         fish.Reach(new Rect(0, -tall / 2, wide * 1.2, tall));
 
         // The event's causes above the spine and below it in turn, each side's length shared out by the causes it holds.
@@ -118,15 +123,26 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         fish.Spine = (new Point(along, 0), new Point(0, 0));
         fish.Reach(new Rect(along, 0, -along, 0));
 
-        var padding = config.DiagramPadding ?? 0;
-        var shift = new Vector(padding - fish.Bounds.X, padding - fish.Bounds.Y);
+        var shift = fish.Shift;
 
         Head(build, fish, shift);
         Causes(build, fish, shift);
         Labels(build, fish, shift);
         Bones(build, fish, effect, shift);
 
-        return new Size(fish.Bounds.Width + (padding * 2), fish.Bounds.Height + (padding * 2));
+        return fish.Taken;
+    }
+
+    /// <summary>
+    /// What a cause says, wrapped as Mermaid wraps it — at most <paramref name="letters"/> characters to a line — and how much room
+    /// its lines take together.
+    /// </summary>
+    private (IReadOnlyList<DiagramWords> Lines, Size Size) Said(Fish fish, ContentPart says, double size, FontWeight? weight, int letters)
+    {
+        var room = Worked(new string('x', letters), null, size, fish.Text).Width;
+        var lines = Wrapped(says, null, size, fish.Text, room, weight);
+
+        return (lines, new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height)));
     }
 
     /// <summary>A cause's bone off the spine, its box at the bone's end, and every cause under it along the bone.</summary>
@@ -136,12 +152,12 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         var slant = new Vector(-Math.Cos(Angle) * reach, Math.Sin(Angle) * reach * direction);
         var end = start + slant;
 
-        var words = Written(cause.Says, null, fish.Size, fish.Text);
-        var box = new Rect(end.X - (words.Width / 2) - BoxAcross, end.Y + (11 * direction) - (words.Height / 2) - BoxUp,
-                           words.Width + (BoxAcross * 2), words.Height + (BoxUp * 2));
+        var words = Said(fish, cause.Says, fish.Size, null, CauseLetters);
+        var box = new Rect(end.X - (words.Size.Width / 2) - BoxAcross, end.Y + (11 * direction) - (words.Size.Height / 2) - BoxUp,
+                           words.Size.Width + (BoxAcross * 2), words.Size.Height + (BoxUp * 2));
 
         // The bone stops at the box, so what is pressed in the box is the box.
-        fish.Boxes.Add((cause, words, box));
+        fish.Boxes.Add((cause, words.Lines, box));
         fish.Bones.Add((cause, DiagramShapes.Edge(DiagramShape.Rectangle, box, start), start, 2));
         fish.Reach(box);
         fish.Reach(new Rect(start, end));
@@ -162,7 +178,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
             var (under, depth, parent) = entries[index];
             var y = heights[index];
             var of = bones[parent];
-            var said = Written(under.Says, null, fish.Size, fish.Text);
+            var said = Said(fish, under.Says, fish.Size, null, CauseLetters);
             Point near, far;
             Rect at;
 
@@ -172,7 +188,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
                 var rise = of.End.Y - of.Start.Y;
                 near = new Point(Lerp(of.Start.X, of.End.X, rise == 0 ? 0.5 : (y - of.Start.Y) / rise), y);
                 far = new Point(near.X - (under.Causes.Count > 0 ? Stem + (under.Causes.Count * PerCause) : Stub), y);
-                at = new Rect(far.X - Gap - said.Width, y - (said.Height / 2), said.Width, said.Height);
+                at = new Rect(far.X - Gap - said.Size.Width, y - (said.Size.Height / 2), said.Size.Width, said.Size.Height);
             }
             else
             {
@@ -180,10 +196,10 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
                 var taken = of.Taken++;
                 near = new Point(Lerp(of.Start.X, of.End.X, (double)(of.Causes - taken) / (of.Causes + 1)), of.Start.Y);
                 far = new Point(near.X - (Math.Cos(Angle) * ((y - near.Y) / (Math.Sin(Angle) * direction))), y);
-                at = new Rect(far.X - Gap - said.Width, direction < 0 ? y - said.Height : y, said.Width, said.Height);
+                at = new Rect(far.X - Gap - said.Size.Width, direction < 0 ? y - said.Size.Height : y, said.Size.Width, said.Size.Height);
             }
 
-            fish.Labels.Add((under, said, at.TopLeft));
+            fish.Labels.Add((under, said.Lines, at));
             fish.Bones.Add((under, far, near, 1));
             fish.Reach(at);
             fish.Reach(new Rect(near, far));
@@ -221,7 +237,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
     private static void Head(LayoutBuilder build, Fish fish, Vector shift)
     {
-        var (effect, said, wide, tall) = fish.Head;
+        var (effect, lines, words, wide, tall) = fish.Head;
         var top = new Point(shift.X, shift.Y - (tall / 2));
         var figure = new PathFigure { StartPoint = top, IsClosed = true };
         figure.Segments.Add(new LineSegment(new Point(shift.X, shift.Y + (tall / 2)), true));
@@ -229,29 +245,42 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         var outline = new PathGeometry([figure]);
         outline.Freeze();
 
+        var room = new Rect(shift.X + 6, shift.Y - (words.Height / 2), words.Width, words.Height);
+
         build.Open(IshikawaPiece.Head, effect.Part, stops: Stops.None);
         build.Open(MermaidPiece.Shape, effect.Part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, fish.Fill, fish.Line, 2));
-        var at = new Point(shift.X + 6, shift.Y - (said.Height / 2));
-        build.Occupies(DiagramShapes.Clear(outline, new Rect(at, new Size(said.Width, said.Height))));
+        build.Occupies(DiagramShapes.Clear(outline, room));
         build.Close();
-        said.Set(build, at, MermaidPiece.Words);
+
+        foreach (var (line, at) in DiagramWords.Stack(lines, room)) line.Set(build, at, MermaidPiece.Words);
         build.Close();
     }
 
-    private static void Causes(LayoutBuilder build, Fish fish, Vector shift)
+    private void Causes(LayoutBuilder build, Fish fish, Vector shift)
     {
         build.Open(IshikawaPiece.Causes, part: null, stops: Stops.None);
-        foreach (var (cause, words, box) in fish.Boxes)
-            DiagramShapes.Draw(build, IshikawaPiece.Cause, cause.Part, DiagramShape.Rectangle, Rect.Offset(box, shift), fish.Fill,
-                               new DiagramStroke(fish.Line, 2), words);
+
+        foreach (var (cause, lines, box) in fish.Boxes)
+        {
+            var bounds = Rect.Offset(box, shift);
+            var words = DiagramWords.Stack(lines, bounds).Select(line => (line.Words, line.At, MermaidPiece.Words)).ToList();
+
+            DiagramShapes.Draw(build, IshikawaPiece.Cause, cause.Part, DiagramShape.Rectangle, bounds, fish.Fill, new DiagramStroke(fish.Line, 2), words);
+        }
+
         build.Close();
     }
 
     private static void Labels(LayoutBuilder build, Fish fish, Vector shift)
     {
         build.Open(IshikawaPiece.Words, part: null, stops: Stops.None);
-        foreach (var (_, words, at) in fish.Labels) words.Set(build, at + shift, IshikawaPiece.Label);
+
+        // A cause's words are set against the end of its bone, as Mermaid sets them.
+        foreach (var (_, lines, at) in fish.Labels)
+            foreach (var (line, place) in DiagramWords.Stack(lines, Rect.Offset(at, shift), TextAlignment.Right))
+                line.Set(build, place, IshikawaPiece.Label);
+
         build.Close();
     }
 
@@ -280,36 +309,32 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     }
 
     /// <summary>Everything the diagram draws, where it draws it before it is moved clear of the edges, and the inks it draws with.</summary>
-    private sealed class Fish(Brush line, Brush fill, Brush text, double size)
+    private sealed class Fish(Brush line, Brush fill, Brush text, double size, double padding)
     {
-        private Rect _bounds = Rect.Empty;
+        private readonly DiagramRoom _room = new(padding);
 
         public Brush Line { get; } = line;
         public Brush Fill { get; } = fill;
         public Brush Text { get; } = text;
         public double Size { get; } = size;
 
-        public (IshikawaCause Effect, DiagramWords Words, double Wide, double Tall) Head { get; set; }
+        public (IshikawaCause Effect, IReadOnlyList<DiagramWords> Lines, Size Words, double Wide, double Tall) Head { get; set; }
         public (Point From, Point To) Spine { get; set; }
 
-        public List<(IshikawaCause Cause, DiagramWords Words, Rect Box)> Boxes { get; } = [];
-        public List<(IshikawaCause Cause, DiagramWords Words, Point At)> Labels { get; } = [];
+        public List<(IshikawaCause Cause, IReadOnlyList<DiagramWords> Lines, Rect Box)> Boxes { get; } = [];
+        public List<(IshikawaCause Cause, IReadOnlyList<DiagramWords> Lines, Rect At)> Labels { get; } = [];
         public List<(IshikawaCause Cause, Point Far, Point Near, double Thickness)> Bones { get; } = [];
 
-        private readonly List<Rect> _drawn = [];
-
-        public Rect Bounds => _bounds;
+        /// <summary>What moves everything drawn inside the box the diagram takes, and how big that box is.</summary>
+        public Vector Shift => _room.Shift;
+        public Size Taken => _room.Size;
 
         /// <summary>How much has been drawn so far — to ask later how far left what was drawn since reaches.</summary>
-        public int Drawn => _drawn.Count;
+        public int Drawn => _room.Count;
 
-        public void Reach(Rect rect)
-        {
-            _drawn.Add(rect);
-            _bounds.Union(rect);
-        }
+        public void Reach(Rect rect) => _room.Reach(rect);
 
         /// <summary>How far left what was drawn since <paramref name="from"/> reaches.</summary>
-        public double Left(int from) => _drawn.Skip(from).Select(rect => rect.Left).DefaultIfEmpty(0).Min();
+        public double Left(int from) => _room.Left(from);
     }
 }

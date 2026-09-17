@@ -42,28 +42,25 @@ public sealed class IshikawaChart
     public static IshikawaChart Of(MermaidBlock block)
     {
         var chart = new IshikawaChart(block, IshikawaConfig.Read(block.Config));
-        var stack = new List<(int Level, IshikawaCause Cause)>();
-        int? start = null;
 
-        foreach (var part in block.Reading.Root.SelfAndDescendants().Where(part => part.Kind == IshikawaKinds.Cause))
+        var lines = block.Reading.Root.SelfAndDescendants()
+            .Where(part => part.Kind == IshikawaKinds.Cause && part.Words() is { Length: > 0 })
+            .Select(part => (part.Indent(), part))
+            .ToList();
+
+        // The event first, and every cause under the nearest cause before it indented less — the event's own indentation
+        // counting for nothing, since it may be written further in than its causes.
+        var nested = MermaidOutline.Nested(lines, floor: true);
+        var causes = new List<IshikawaCause>(nested.Count);
+
+        for (var at = 0; at < nested.Count; at++)
         {
-            if (part.Words() is not { Length: > 0 } says) continue;
-            var cause = new IshikawaCause(part, says);
+            var (part, parent) = (nested[at].Item, nested[at].Parent);
+            var cause = new IshikawaCause(part, part.Words()!);
+            causes.Add(cause);
 
-            if (chart.Effect is null)
-            {
-                chart.Effect = cause;
-                stack.Add((0, cause));
-                continue;
-            }
-
-            var indent = part.Indent();
-            start ??= indent;
-            var level = Math.Max(1, indent - start.Value + 1);
-
-            while (stack.Count > 1 && stack[^1].Level >= level) stack.RemoveAt(stack.Count - 1);
-            stack[^1].Cause.Add(cause);
-            stack.Add((level, cause));
+            if (parent is { } over) causes[over].Add(cause);
+            else chart.Effect ??= cause;
         }
 
         return chart;

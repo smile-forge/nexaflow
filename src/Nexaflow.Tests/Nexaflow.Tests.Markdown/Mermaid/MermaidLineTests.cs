@@ -148,4 +148,25 @@ public class MermaidLineTests
 
         CollectionAssert.AreEqual(new[] { 0, 2, 2 }, lines.Select(line => line.Indent()).ToArray(), "a tab counts as one");
     }
+
+    [TestMethod]
+    public void AnOutlineNestsEachItemUnderTheNearestItemIndentedLess()
+    {
+        var items = (IReadOnlyList<(int, string)>)[(0, "root"), (2, "a"), (4, "b"), (3, "c"), (2, "d")];
+        var nested = MermaidOutline.Nested(items);
+
+        CollectionAssert.AreEqual(new int?[] { null, 0, 1, 1, 0 }, nested.Select(one => one.Parent).ToArray(),
+                                  "c is indented between b and a, so it hangs off a, as Mermaid reads it");
+    }
+
+    [TestMethod]
+    public void AnItemIndentedNoFurtherThanTheRootHangsOffNothing_OrOffTheRootWhereTheOutlineSaysSo()
+    {
+        var items = (IReadOnlyList<(int, string)>)[(4, "event"), (0, "a"), (2, "sub"), (0, "b")];
+
+        CollectionAssert.AreEqual(new int?[] { null, null, 1, null }, MermaidOutline.Nested(items).Select(one => one.Parent).ToArray(),
+                                  "nothing but the root may be written left of it");
+        CollectionAssert.AreEqual(new int?[] { null, 0, 1, 0 }, MermaidOutline.Nested(items, floor: true).Select(one => one.Parent).ToArray(),
+                                  "with a floor, the first item after the root is where the children start");
+    }
 }

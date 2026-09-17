@@ -71,25 +71,24 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         foreach (var node in map.Nodes)
         {
             var shape = Shaped(node.Shape);
-            var room = Room(node.Shape, padding);
-            var lines = Wrapped(node.Title, node.Hole, TextSize, Words(map, node), Math.Max(20, widest - (room * 2)));
+            var pad = Room(node.Shape, padding);
+            var lines = Wrapped(node.Title, node.Hole, TextSize, Words(map, node), Math.Max(20, widest - (pad * 2)));
             var words = new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height));
 
-            said[node] = (lines, DiagramShapes.Around(shape, words, room), shape);
+            said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape);
         }
 
         var placed = DiagramTree.Lay(root, node => node.Children, node => said[node].Size);
 
-        var reached = Rect.Empty;
-        foreach (var (_, rect) in placed) reached.Union(rect);
-        var shift = new Vector(-reached.X, -reached.Y);
+        var room = new DiagramRoom();
+        foreach (var (_, rect) in placed) room.Reach(rect);
 
         // The branches under the nodes, so a press near where they meet means the node.
         build.Open(MindmapPiece.Branches, part: null, stops: Stops.None);
         foreach (var node in map.Nodes)
             foreach (var child in node.Children)
             {
-                var (from, to) = (Rect.Offset(placed[node], shift), Rect.Offset(placed[child], shift));
+                var (from, to) = (room.At(placed[node]), room.At(placed[child]));
                 var start = DiagramShapes.Edge(said[node].Shape, from, Middle(to));
                 var end = DiagramShapes.Edge(said[child].Shape, to, Middle(from));
                 var bend = (start.X + end.X) / 2;
@@ -106,17 +105,11 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         foreach (var node in map.Nodes)
         {
             var (lines, _, shape) = said[node];
-            var bounds = Rect.Offset(placed[node], shift);
-            var inside = DiagramShapes.Inside(shape, bounds);
+            var bounds = room.At(placed[node]);
             var fill = Fill(map, node);
-
-            var top = inside.Top + ((inside.Height - lines.Sum(line => line.Height)) / 2);
-            var words = new List<(DiagramWords, Point, string)>();
-            foreach (var line in lines)
-            {
-                words.Add((line, new Point(inside.Left + ((inside.Width - line.Width) / 2), top), MindmapPiece.Title));
-                top += line.Height;
-            }
+            var words = DiagramWords.Stack(lines, DiagramShapes.Inside(shape, bounds))
+                .Select(line => (line.Words, line.At, MindmapPiece.Title))
+                .ToList();
 
             // A node with no border of its own is underlined instead, as Mermaid draws one.
             var under = node.Shape != MindmapShape.Plain ? null : Line(bounds);
@@ -130,7 +123,7 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
 
         build.Close();
 
-        return reached.Size;
+        return room.Size;
     }
 
     /// <summary>The line under a node with no border of its own.</summary>
