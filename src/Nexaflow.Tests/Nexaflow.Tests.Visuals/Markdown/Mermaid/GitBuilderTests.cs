@@ -141,4 +141,17 @@ public class GitBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(Color.FromRgb(0x4E, 0x79, 0xA7), Fill(Pieces(laid, GitPiece.Commit).Single()));
     });
+
+    [TestMethod]
+    public void ACherryPickIsTaggedWithTheCommitItTook_UnlessItIsTaggedItself() => UiThread.Run(() =>
+    {
+        const string source = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  checkout main\n  cherry-pick id: \"B\"";
+        var tagged = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  checkout main\n  cherry-pick id: \"B\" tag: \"taken\"";
+
+        var tags = Pieces(Build(source), GitPiece.Tag);
+
+        Assert.AreEqual(1, tags.Count);
+        Assert.AreEqual("\"B\"", Written(source, tags[0].Part), "the tag stands for the id it took");
+        Assert.AreEqual("\"taken\"", Written(tagged, Pieces(Build(tagged), GitPiece.Tag)[0].Part), "and its own tag where it has one");
+    });
 }

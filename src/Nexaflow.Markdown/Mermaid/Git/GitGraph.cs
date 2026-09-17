@@ -24,7 +24,8 @@ public sealed record GitBranch(ContentPart? Part, ContentPart? Named, string Nam
 /// <param name="Id">What it is called: the id written for it, or one of the graph's own where none is.</param>
 /// <param name="Said">The id as written, where one is — what a commit says under itself.</param>
 /// <param name="Parents">What it follows: the branch's last commit, then the branch merged in or the commit picked.</param>
-public sealed record GitCommit(ContentPart Part, string Id, GitSaid? Said, GitSaid? Tag, GitKept Kept, GitBranch Branch,
+/// <param name="Taken">The commit a cherry-pick takes, as written — what it is tagged with where nothing else tags it.</param>
+public sealed record GitCommit(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, GitSaid? Tag, GitKept Kept, GitBranch Branch,
                                 int Position, IReadOnlyList<string> Parents, bool Merge, bool Picked, int Order);
 
 /// <summary>
@@ -56,7 +57,7 @@ public sealed class GitGraph
             (null, null, config.MainBranchName, config.MainBranchOrder, 0),
         };
 
-        var made = new List<(ContentPart Part, string Id, GitSaid? Said, GitSaid? Tag, GitKept Kept, string Branch,
+        var made = new List<(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, GitSaid? Tag, GitKept Kept, string Branch,
                              int Position, List<string> Parents, bool Merge, bool Picked)>();
 
         var heads = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -102,7 +103,7 @@ public sealed class GitGraph
                     along[on] = position + 1;
                     at++;
 
-                    made.Add((part, id, picked ? null : taken, Said(part, "tag"), Keeping(part), on, position, parents,
+                    made.Add((part, id, picked ? null : taken, picked ? taken : null, Said(part, "tag"), Keeping(part), on, position, parents,
                               part.Kind == GitKinds.Merge, picked));
                     heads[on] = id;
                     break;
@@ -118,7 +119,7 @@ public sealed class GitGraph
         graph.Branches = [.. lanes.OrderBy(branch => branch.Made)];
         graph.Commits =
         [
-            .. made.Select((commit, order) => new GitCommit(commit.Part, commit.Id, commit.Said, commit.Tag, commit.Kept,
+            .. made.Select((commit, order) => new GitCommit(commit.Part, commit.Id, commit.Said, commit.Taken, commit.Tag, commit.Kept,
                 lanes.First(branch => StringComparer.Ordinal.Equals(branch.Name, commit.Branch)),
                 commit.Position, commit.Parents, commit.Merge, commit.Picked, order)),
         ];

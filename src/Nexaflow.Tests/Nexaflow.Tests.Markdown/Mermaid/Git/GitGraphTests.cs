@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Git;
 using Nexaflow.Tests.Fixtures;
 
@@ -108,5 +109,24 @@ public class GitGraphTests
         Assert.IsTrue(GitGraph.Read("gitGraph").Empty);
         Assert.IsTrue(GitGraph.Read("gitGraph\n  branch develop").Empty);
         Assert.IsFalse(GitGraph.Read("gitGraph\n  commit").Empty);
+    }
+
+    [TestMethod]
+    public void ACherryPickSaysWhichCommitItTook()
+    {
+        var picked = GitGraph.Read("gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  checkout main\n  cherry-pick id: \"B\"")
+            .Commits.Single(commit => commit.Picked);
+
+        Assert.AreEqual("B", picked.Taken!.Says, "which is what it is tagged with where nothing else tags it");
+        Assert.IsNull(picked.Said, "and it says nothing of its own under itself");
+    }
+
+    [TestMethod]
+    public void APickOfAMergeNamesWhichParentItTakes()
+    {
+        const string source = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  checkout main\n  merge develop id: \"M\"\n  branch release\n  cherry-pick id: \"M\" parent: \"A\"";
+
+        Assert.AreEqual(0, MermaidParser.Read(source).SelfAndDescendants().Count(node => node.Trouble is not null), "a parent of the merge is no complaint");
+        Assert.AreEqual("M", GitGraph.Read(source).Commits.Single(commit => commit.Picked).Taken!.Says);
     }
 }

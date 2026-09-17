@@ -76,9 +76,10 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     /// <summary>How solid a domain is tinted where no front matter colours it.</summary>
     private const double Tint = 0.16;
 
-    /// <summary>How far a boundary bows as it sweeps in, and how thick a movement is drawn.</summary>
+    /// <summary>How far a boundary bows as it sweeps in, how thick a movement is drawn, and how heavy the cliff is.</summary>
     private const double Bow = 30;
     private const double Thick = 1.5;
+    private const double Falling = 2.5;
 
     /// <summary>How far along a movement its label sits, and how far its bend clears the disorder it goes round.</summary>
     private const double Along = 0.3;
@@ -149,8 +150,16 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
                 return at;
             }
 
-            if (stack.Name is { } name) words.Add((name, Place(new Size(name.Width, name.Height), stack.About is null ? Gap : Snug), CynefinPiece.Name));
-            if (stack.About is { } about) words.Add((about, Place(new Size(about.Width, about.Height), Gap), CynefinPiece.About));
+            if (stack.Name is { } name) words.Add((name, Place(new Size(name.Width, name.Height), stack.About.Count == 0 ? Gap : Snug), CynefinPiece.Name));
+
+            // Stacking up from the foot of the grid puts the last line first, so what it says stays in the order it is read in.
+            var said = top ? stack.About : [.. stack.About.Reverse()];
+
+            for (var line = 0; line < said.Count; line++)
+            {
+                var about = said[line];
+                words.Add((about, Place(new Size(about.Width, about.Height), line == said.Count - 1 ? Gap : 0), CynefinPiece.About));
+            }
             foreach (var card in stack.Cards) cards.Add((card, new Rect(Place(card.Size, Gap), card.Size), left));
         }
 
@@ -175,7 +184,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
         Domains(build, diagram, cells, shift, over);
         Boundaries(build, config, plot, blob, cloud, shift);
-        Moves(build, routes, shift);
+        Moves(build, config, routes, shift);
         Centre(build, diagram, disorder, blob, cloud, shift);
         Cards(build, cards, shift);
 
@@ -192,29 +201,38 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     private sealed record Card(CynefinItem Item, IReadOnlyList<DiagramWords> Lines, Size Size);
 
     /// <summary>What a domain shows, stacked from its outer corner: its word, how it is worked, and a card for each item in it.</summary>
-    private sealed record Shown(DiagramWords? Name, DiagramWords? About, IReadOnlyList<Card> Cards)
+    private sealed record Shown(DiagramWords? Name, IReadOnlyList<DiagramWords> About, IReadOnlyList<Card> Cards)
     {
         /// <summary>How much room it all takes, the gaps between included.</summary>
         public Size Taken => new(
-            Math.Max(Math.Max(Name?.Width ?? 0, About?.Width ?? 0), Cards.Select(card => card.Size.Width).DefaultIfEmpty(0).Max()),
-            (Name?.Height ?? 0) + (About is null ? 0 : About.Height + Snug) + Cards.Sum(card => card.Size.Height + Gap));
+            Math.Max(Math.Max(Name?.Width ?? 0, DiagramWords.Taken(About).Width), Cards.Select(card => card.Size.Width).DefaultIfEmpty(0).Max()),
+            (Name?.Height ?? 0) + (About.Count == 0 ? 0 : DiagramWords.Taken(About).Height + Snug) + Cards.Sum(card => card.Size.Height + Gap));
     }
 
     private Shown Stacked(CynefinDiagram diagram, CynefinDomain domain, double wrap)
     {
+        var config = diagram.Config;
         var items = diagram.ItemsIn(domain);
         var opened = diagram.Opened(domain);
 
-        var name = opened is null ? null : Written(opened.Word, hole: null, NameSize, Palette.Text, FontWeights.SemiBold);
-        var about = diagram.Config.ShowDomainDescriptions && (opened is not null || items.Count > 0)
-            ? Worked(CynefinDiagram.Practice(domain), opened?.Part, AboutSize, Palette.TextMuted)
-            : null;
+        var ink = Ink.Written(config.TextColour) ?? Palette.Text;
+        var said = config.ItemFontSize ?? ItemSize;
+
+        var name = opened is null
+            ? null
+            : Written(opened.Word, hole: null, config.DomainFontSize ?? NameSize, Ink.Written(config.LabelColour) ?? Palette.Text, FontWeights.SemiBold);
+
+        // How the domain is worked, in the words the framework uses for it: the decision model, then the practice.
+        var about = config.ShowDomainDescriptions && (opened is not null || items.Count > 0)
+            ? CynefinDiagram.Practice(domain)
+                .Select(says => Worked(says, opened?.Part, config.ItemFontSize ?? AboutSize, Ink.Written(config.TextColour) ?? Palette.TextMuted))
+                .ToList()
+            : [];
 
         var cards = items.Select(item =>
         {
-            var lines = Says(item.Says.Says, item.Says.Hole, ItemSize, Palette.Text, wrap);
-            var said = DiagramWords.Taken(lines);
-            return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, said, Inset));
+            var lines = Says(item.Says.Says, item.Says.Hole, said, ink, wrap);
+            return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, DiagramWords.Taken(lines), Inset));
         });
 
         return new Shown(name, about, [.. cards]);
@@ -226,7 +244,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         var lines = new List<(DiagramWords Words, string Kind)>();
 
         if (shown.Name is { } name) lines.Add((name, CynefinPiece.Name));
-        if (shown.About is { } about) lines.Add((about, CynefinPiece.About));
+        lines.AddRange(shown.About.Select(about => (about, CynefinPiece.About)));
         lines.AddRange(shown.Cards.SelectMany(card => card.Lines).Select(line => (line, CynefinPiece.Says)));
 
         return lines;
@@ -253,7 +271,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
             routes.Add((move, route));
 
-            if (Said(move.Label, LabelSize, Palette.Text) is { } label)
+            if (Said(move.Label, LabelSize, Ink.Written(diagram.Config.TextColour) ?? Palette.Text) is { } label)
             {
                 // Beside the line rather than under it, square to the way it runs, so the line never crosses what it says.
                 var along = route[1] - from;
@@ -317,7 +335,10 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         build.Close();
     }
 
-    /// <summary>The line round the grid, and the four boundaries sweeping from the middle of each edge into the disorder.</summary>
+    /// <summary>
+    /// The line round the grid, and the four boundaries sweeping from the middle of each edge into the disorder — the one from
+    /// the foot of the grid being the cliff, the fall from clear into chaotic, which Cynefin draws heavier than the rest.
+    /// </summary>
     private void Boundaries(LayoutBuilder build, CynefinConfig config, Rect plot, Rect blob, Size cloud, Vector shift)
     {
         var grid = Rect.Offset(plot, shift);
@@ -325,11 +346,14 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         var disorder = Rect.Offset(blob, shift);
 
         var lines = new GeometryGroup { Children = { new RectangleGeometry(grid) } };
+        var cliff = new GeometryGroup();
 
-        foreach (var edge in new[]
+        foreach (var (edge, falls) in new[]
                  {
-                     new Point(middle.X, grid.Top), new Point(grid.Right, middle.Y),
-                     new Point(middle.X, grid.Bottom), new Point(grid.Left, middle.Y),
+                     (new Point(middle.X, grid.Top), false),
+                     (new Point(grid.Right, middle.Y), false),
+                     (new Point(middle.X, grid.Bottom), true),
+                     (new Point(grid.Left, middle.Y), false),
                  })
         {
             var into = cloud.Width > 0 ? DiagramShapes.Edge(DiagramShape.Cloud, disorder, edge) : middle;
@@ -339,21 +363,23 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
             var along = into - edge;
             along.Normalize();
 
-            lines.Children.Add(DiagramCurve.Bowed(edge, half + (new Vector(along.Y, -along.X) * Bow), into));
+            (falls ? cliff : lines).Children.Add(DiagramCurve.Bowed(edge, half + (new Vector(along.Y, -along.X) * Bow), into));
         }
 
         lines.Freeze();
+        cliff.Freeze();
 
         build.Open(CynefinPiece.Boundaries, part: null, stops: Stops.None);
-        build.Draw(new GeometryMark(lines, null, Ink.Written(config.BoundaryColour) ?? Palette.CodeBorder, 1));
+        build.Draw(new GeometryMark(lines, null, Ink.Written(config.BoundaryColour) ?? Palette.CodeBorder, config.BoundaryWidth ?? 1));
+        build.Draw(new GeometryMark(cliff, null, Ink.Written(config.CliffColour) ?? Palette.Danger, config.CliffWidth ?? Falling));
         build.Close();
     }
 
-    private void Moves(LayoutBuilder build, IReadOnlyList<(CynefinMove Move, IReadOnlyList<Point> Route)> routes, Vector shift)
+    private void Moves(LayoutBuilder build, CynefinConfig config, IReadOnlyList<(CynefinMove Move, IReadOnlyList<Point> Route)> routes, Vector shift)
     {
         if (routes.Count == 0) return;
 
-        var stroke = new DiagramStroke(Palette.TextMuted, Thick, DiagramStroke.Dashed);
+        var stroke = new DiagramStroke(Ink.Written(config.ArrowColour) ?? Palette.TextMuted, config.ArrowWidth ?? Thick, DiagramStroke.Dashed);
 
         build.Open(CynefinPiece.Moves, part: null, stops: Stops.None);
         foreach (var (move, route) in routes)

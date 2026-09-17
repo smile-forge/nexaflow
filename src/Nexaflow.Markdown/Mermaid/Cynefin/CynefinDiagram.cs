@@ -31,14 +31,17 @@ public sealed record CynefinMove(ContentPart Part, CynefinDomain From, CynefinDo
 /// </summary>
 public sealed class CynefinDiagram
 {
-    /// <summary>How each domain is worked, which it says under its name where the front matter asks it to.</summary>
-    private static readonly Dictionary<CynefinDomain, string> Practices = new()
+    /// <summary>
+    /// How each domain is worked, which it says under its name: the decision model it asks for, and the kind of practice that
+    /// comes of it — as the Cynefin framework names them. Disorder is where a thing sits while nobody knows.
+    /// </summary>
+    private static readonly Dictionary<CynefinDomain, IReadOnlyList<string>> Practices = new()
     {
-        [CynefinDomain.Clear] = "sense · categorise · respond",
-        [CynefinDomain.Complicated] = "sense · analyse · respond",
-        [CynefinDomain.Complex] = "probe · sense · respond",
-        [CynefinDomain.Chaotic] = "act · sense · respond",
-        [CynefinDomain.Confusion] = "no domain yet",
+        [CynefinDomain.Clear] = ["Sense → Categorise → Respond", "Best Practices"],
+        [CynefinDomain.Complicated] = ["Sense → Analyse → Respond", "Good Practices"],
+        [CynefinDomain.Complex] = ["Probe → Sense → Respond", "Emergent Practices"],
+        [CynefinDomain.Chaotic] = ["Act → Sense → Respond", "Novel Practices"],
+        [CynefinDomain.Confusion] = ["Disorder"],
     };
 
     private readonly Dictionary<CynefinDomain, CynefinOpening> _opened = [];
@@ -96,7 +99,7 @@ public sealed class CynefinDiagram
     public IReadOnlyList<CynefinItem> ItemsIn(CynefinDomain domain) => [.. Items.Where(item => item.Domain == domain)];
 
     /// <summary>How a domain is worked: what it says under its name where the front matter asks for descriptions.</summary>
-    public static string Practice(CynefinDomain domain) => Practices[domain];
+    public static IReadOnlyList<string> Practice(CynefinDomain domain) => Practices[domain];
 
     /// <summary>The domain a word opens, ignoring case — or null for a word that opens none.</summary>
     public static CynefinDomain? Domain(string? word) => word?.Trim().ToLowerInvariant() switch

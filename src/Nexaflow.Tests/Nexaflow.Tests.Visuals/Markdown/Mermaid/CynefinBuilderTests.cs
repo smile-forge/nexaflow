@@ -130,11 +130,37 @@ public class CynefinBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
-    public void EachDomainSaysHowItIsWorkedWhereTheFrontMatterAsks() => UiThread.Run(() =>
+    public void EachDomainSaysHowItIsWorked_UnlessTheFrontMatterSaysNot() => UiThread.Run(() =>
     {
-        var laid = Build("---\nconfig:\n  cynefin:\n    showDomainDescriptions: true\n---\ncynefin-beta\n  complex");
+        var said = Pieces(Build("cynefin-beta\n  complex"), CynefinPiece.About).Select(piece => piece.Words!.Glyphs.Text).ToArray();
 
-        Assert.AreEqual("probe · sense · respond", Pieces(laid, CynefinPiece.About).Single().Words!.Glyphs.Text);
-        Assert.AreEqual(0, Pieces(Build("cynefin-beta\n  complex"), CynefinPiece.About).Count, "and says nothing where it does not");
+        CollectionAssert.AreEqual(new[] { "Probe → Sense → Respond", "Emergent Practices" }, said);
+        Assert.AreEqual(0, Pieces(Build("---\nconfig:\n  cynefin:\n    showDomainDescriptions: false\n---\ncynefin-beta\n  complex"), CynefinPiece.About).Count);
+    });
+
+    [TestMethod]
+    public void TheCliffFromClearIntoChaoticIsDrawnHeavierThanTheOtherBoundaries() => UiThread.Run(() =>
+    {
+        var marks = Pieces(Build(Sense), CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<GeometryMark>().ToList();
+
+        Assert.AreEqual(2, marks.Count, "the boundaries, and the cliff");
+        Assert.IsTrue(marks[1].Thickness > marks[0].Thickness, $"the cliff is heavier: {marks[1].Thickness} over {marks[0].Thickness}");
+        Assert.IsTrue(marks[1].Shape.Bounds.Top > marks[0].Shape.Bounds.Top, "and it is the boundary at the foot of the grid");
+    });
+
+    [TestMethod]
+    public void TheColoursAndSizesTheFrontMatterWritesAreWhatIsDrawn() => UiThread.Run(() =>
+    {
+        var laid = Build(
+            "---\nconfig:\n  themeVariables:\n    cynefin:\n      cliffColor: \"#ff0000\"\n      cliffWidth: 5\n      arrowColor: \"#00ff00\"\n"
+            + "      labelColor: \"#0000ff\"\n---\ncynefin-beta\n  complex\n  clear\n  complex --> clear : \"Learned\"");
+
+        var cliff = Pieces(laid, CynefinPiece.Boundaries).Single().Marks.ToArray().OfType<GeometryMark>().Last();
+        var move = Pieces(laid, CynefinPiece.Move).Single().Marks.ToArray().OfType<GeometryMark>().First();
+
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)cliff.Stroke!).Color);
+        Assert.AreEqual(5, cliff.Thickness);
+        Assert.AreEqual(Color.FromRgb(0, 0xFF, 0), ((SolidColorBrush)move.Stroke!).Color);
+
     });
 }

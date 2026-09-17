@@ -204,7 +204,8 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
             var at = where(commit.Position, commit.Branch.Lane);
             Drawn(build, commit, at, Lane(graph, commit.Branch.Lane));
 
-            if (commit.Tag is { Says.Length: > 0 } tag)
+            // A cherry-pick says which commit it took where nothing else tags it, as Mermaid tags one.
+            if ((commit.Tag ?? commit.Taken) is { Says.Length: > 0 } tag)
             {
                 var words = Worked(tag.Says, tag.Part, config.TagLabelFontSize ?? TagSize, Ink.Written(config.TagLabelColour) ?? Palette.Text);
                 var size = new Size(words.Width + (Pad * 2), words.Height + Pad);
@@ -216,7 +217,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
                 DiagramShapes.Draw(build, GitPiece.Tag, tag.Part, DiagramShape.Rounded, bounds,
                     Ink.Written(config.TagLabelBackground) ?? Palette.CodeBg,
                     new DiagramStroke(Ink.Written(config.TagLabelBorder) ?? Lane(graph, commit.Branch.Lane), 1.2),
-                    words, GitPiece.Tag);
+                    words, MermaidPiece.Words);
             }
 
             if (!config.ShowCommitLabel || commit.Said is not { Says.Length: > 0 } said) continue;

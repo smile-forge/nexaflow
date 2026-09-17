@@ -46,7 +46,7 @@ public class GitGrammarTests : MermaidGrammarContract
         History,
         Kept,
         "gitGraph LR:\n   commit\n   branch develop order: 2\n   commit\n   checkout main\n   merge develop tag: \"release\"",
-        "gitGraph\n   commit id: \"Alpha\"\n   branch develop\n   commit\n   checkout main\n   cherry-pick id: \"Alpha\"",
+        "gitGraph\n   commit id: \"Alpha\"\n   branch develop\n   commit id: \"Beta\"\n   checkout main\n   cherry-pick id: \"Beta\"",
         "---\nconfig:\n  gitGraph:\n    mainBranchName: trunk\n    showCommitLabel: false\n    rotateCommitLabel: false\n---\ngitGraph\n   commit\n   branch develop\n   commit",
     ];
 
@@ -75,6 +75,9 @@ public class GitGrammarTests : MermaidGrammarContract
         ("an id given twice", "gitGraph\n   commit id: \"A\"\n   commit id: \"A\""),
         ("a cherry-pick of nothing", "gitGraph\n   commit\n   cherry-pick"),
         ("a cherry-pick of a commit nothing writes", "gitGraph\n   commit\n   cherry-pick id: \"nope\""),
+        ("a cherry-pick of a commit on this branch", "gitGraph\n   commit id: \"A\"\n   cherry-pick id: \"A\""),
+        ("a cherry-pick with nothing committed to pick onto", "gitGraph\n   branch develop\n   commit id: \"A\"\n   checkout main\n   cherry-pick id: \"A\""),
+        ("a cherry-pick of a merge saying nothing of its parents", "gitGraph\n   commit id: \"A\"\n   branch develop\n   commit id: \"B\"\n   checkout main\n   merge develop id: \"M\"\n   branch release\n   cherry-pick id: \"M\""),
         ("an option a commit does not set", "gitGraph\n   commit colour: red"),
         ("a line that is no git graph line", "gitGraph\n   rebase develop"),
     ];
@@ -119,6 +122,10 @@ public class GitGrammarTests : MermaidGrammarContract
                      ("gitGraph\n   commit\n   cherry-pick", "names the commit it takes"),
                      ("gitGraph\n   commit\n   cherry-pick id: \"nope\"", "No commit above this has the id nope"),
                      ("gitGraph\n   commit colour: red", "A commit sets"),
+                     ("gitGraph\n   commit id: \"A\"\n   cherry-pick id: \"A\"", "takes a commit from another branch"),
+                     ("gitGraph\n   branch develop\n   commit id: \"A\"\n   checkout main\n   cherry-pick id: \"A\"", "with a commit on it already"),
+                     ("gitGraph\n   commit id: \"A\"\n   branch develop\n   commit id: \"B\"\n   checkout main\n   merge develop id: \"M\"\n   branch release\n   cherry-pick id: \"M\"", "which of its parents"),
+                     ("gitGraph\n   commit id: \"A\"\n   branch develop\n   commit id: \"B\"\n   checkout main\n   merge develop id: \"M\"\n   branch release\n   cherry-pick id: \"M\" parent: \"Z\"", "is no parent of M"),
                      ("gitGraph\n   rebase develop", "A git graph is commits"),
                  })
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");

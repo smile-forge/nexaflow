@@ -86,6 +86,8 @@ public class CynefinDiagramTests
         Assert.IsTrue(config.ShowDomainDescriptions);
         Assert.AreEqual("#4e79a7", config.DomainFills[(int)CynefinDomain.Complex]);
         Assert.AreEqual("#888888", config.BoundaryColour);
+        Assert.IsTrue(CynefinConfig.Default.ShowDomainDescriptions, "a domain says how it is worked unless the front matter says not to");
+        Assert.IsFalse(CynefinDiagram.Read("---\nconfig:\n  cynefin:\n    showDomainDescriptions: false\n---\ncynefin-beta\n  complex").Config.ShowDomainDescriptions);
     }
 
     [TestMethod]
@@ -104,6 +106,29 @@ public class CynefinDiagramTests
     }
 
     [TestMethod]
-    public void EveryDomainSaysHowItIsWorked() =>
-        Assert.AreEqual("probe · sense · respond", CynefinDiagram.Practice(CynefinDomain.Complex));
+    public void EveryDomainSaysHowItIsWorked_TheDecisionModelAndThePracticeItAsksFor()
+    {
+        CollectionAssert.AreEqual(new[] { "Probe → Sense → Respond", "Emergent Practices" }, CynefinDiagram.Practice(CynefinDomain.Complex).ToArray());
+        CollectionAssert.AreEqual(new[] { "Sense → Categorise → Respond", "Best Practices" }, CynefinDiagram.Practice(CynefinDomain.Clear).ToArray());
+        CollectionAssert.AreEqual(new[] { "Disorder" }, CynefinDiagram.Practice(CynefinDomain.Confusion).ToArray());
+    }
+
+    [TestMethod]
+    public void TheFrontMatterSaysHowTheBoundariesTheCliffTheArrowsAndTheWordsAreDrawn()
+    {
+        var config = CynefinDiagram.Read(
+            "---\nconfig:\n  themeVariables:\n    cynefin:\n      boundaryWidth: 2\n      cliffColor: \"#ff0000\"\n      cliffWidth: 4\n"
+            + "      arrowColor: \"#00ff00\"\n      arrowWidth: 3\n      labelColor: \"#ffffff\"\n      textColor: \"#cccccc\"\n"
+            + "      domainFontSize: 18\n      itemFontSize: 9\n---\ncynefin-beta\n  complex\n    \"One\"").Config;
+
+        Assert.AreEqual(2, config.BoundaryWidth);
+        Assert.AreEqual("#ff0000", config.CliffColour);
+        Assert.AreEqual(4, config.CliffWidth);
+        Assert.AreEqual("#00ff00", config.ArrowColour);
+        Assert.AreEqual(3, config.ArrowWidth);
+        Assert.AreEqual("#ffffff", config.LabelColour);
+        Assert.AreEqual("#cccccc", config.TextColour);
+        Assert.AreEqual(18, config.DomainFontSize);
+        Assert.AreEqual(9, config.ItemFontSize);
+    }
 }

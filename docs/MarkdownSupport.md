@@ -249,7 +249,10 @@ made; a commit follows the last commit on its branch, a merge follows the branch
 follows the commit it takes, drawn dashed. A merge is ringed, a cherry-pick marked, a reversed commit crossed through and
 a highlighted one squared off. **What the history means together is said where it is wrong**: a branch made twice,
 checked out or merged before it is made, or merged into itself; an id given to two commits; a commit picked that nothing
-above writes; and a `type:` a git graph does not keep. **The front matter is applied**
+above writes; a cherry-pick of a commit on the branch it is picked onto, or onto a branch with nothing committed yet; a
+cherry-pick of a merge that does not name which of the merge's parents it takes, or names one that is not a parent; and
+a `type:` a git graph does not keep. A cherry-pick is tagged with the commit it took unless it is tagged itself, as
+Mermaid tags one. **The front matter is applied**
 ([`GitConfig`](../src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs)): `config: gitGraph:` `mainBranchName`,
 `mainBranchOrder`, `showBranches`, `showCommitLabel`, `rotateCommitLabel` (an id turned where it is written, which a press
 and a caret follow round) and `parallelCommits` (every branch keeping its own count), and the `themeVariables`
@@ -541,14 +544,20 @@ twice is the one domain); and transitions `domainA --> domainB : "label"`, the l
 space round it. An item written before any domain is opened, and a transition to anything that is no domain, say so
 where they are written. The four practised domains are drawn in the corners of a grid — complex top left, complicated
 top right, chaotic bottom left, clear bottom right — with `confusion` a cloud in the middle and the four boundaries
-sweeping the same way round into it, which is the swirl. Each domain's items are carded in its outer corner and
-disorder's are set inside the cloud; **the grid and the cloud grow to hold what is written in them**, so nothing is
-trimmed away, and a movement that would cross the middle bends round the cloud instead.
+sweeping the same way round into it, which is the swirl. The boundary at the foot of the grid is the **cliff**, the fall
+from clear into chaotic, drawn heavier than the rest as the framework draws it. Each domain says how it is worked under
+its name — the decision model and the practice it asks for, `Probe → Sense → Respond` and `Emergent Practices` — which
+Mermaid shows unless the front matter says not to. Each domain's items are carded in its outer corner and disorder's are
+set inside the cloud; **the grid and the cloud grow to hold what is written in them**, so nothing is trimmed away, and a
+movement that would cross the middle bends round the cloud instead. **Mermaid caps disorder at three items with a `+N
+more` badge; this renderer draws them all**, because nothing written should be hidden from the reader writing it.
 **The front matter is applied** ([`CynefinConfig`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinConfig.cs)):
-`config: cynefin:` `width`/`height` (the least the grid is drawn at), `padding`, and `showDomainDescriptions` (each
-domain says how it is worked — `probe · sense · respond`), and the `themeVariables: cynefin:` domain backgrounds
-(`complexBg`/`complicatedBg`/`clearBg`/`chaoticBg`/`confusionBg`/`boundaryColor`, read under `themeVariables:` itself as
-well, else the palette's series bank). Writing in place: an item's words, disorder's and a movement's label are typed
+`config: cynefin:` `width`/`height` (the least the grid is drawn at), `padding` and `showDomainDescriptions`, and the
+`themeVariables: cynefin:` domain backgrounds (`complexBg`/`complicatedBg`/`clearBg`/`chaoticBg`/`confusionBg`) with
+`boundaryColor`/`boundaryWidth`, `cliffColor`/`cliffWidth`, `arrowColor`/`arrowWidth`, `labelColor`/`domainFontSize` for
+a domain's name and `textColor`/`itemFontSize` for its items and description — each read under `themeVariables:` itself
+as well, else the theme's own. **Not applied:** `boundaryAmplitude` and `seed`, which wave Mermaid's boundaries and hold
+that waviness still for its own image tests. Writing in place: an item's words, disorder's and a movement's label are typed
 into where they are drawn; Enter under a domain or an item starts another item with a hole for its words, and anywhere
 else the word opening a domain; and text typed in that would open a domain, title the diagram, or hold an arrow, a quote
 or a comment is put in quotes.
