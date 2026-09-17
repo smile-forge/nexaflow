@@ -17,7 +17,10 @@ public class CodeHighlighterTests
     public void Grammar_NativeLoadsAndQueryCompiles(string grammarId)
     {
         using var highlighter = CodeHighlighter.TryCreate(grammarId);
-        Assert.IsNotNull(highlighter, $"grammar '{grammarId}' failed (native missing or query invalid)");
+        Assert.IsNotNull(highlighter, $"grammar '{grammarId}' failed to load its native");
+        Assert.IsTrue(highlighter.CanHighlight,
+                      $"grammar '{grammarId}' loads, but its highlight query does not compile against it - a query that "
+                      + "names a node kind the grammar lacks costs colour silently, because nothing else asks it");
     }
 
     [TestMethod]

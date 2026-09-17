@@ -9,6 +9,7 @@ using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Hosting;
 using Nexaflow.Services.Initiatives.Graph.Store;
+using Nexaflow.Syntax.Compiler;
 
 namespace Nexaflow.Services.Initiatives.Cli;
 
@@ -39,6 +40,11 @@ internal static class Program
         // marks or hyphens — an error message that quotes a line of code back at you is no use if it quotes it
         // wrong. Guarded because a redirected or absent console rejects the assignment.
         try { Console.OutputEncoding = new UTF8Encoding(false); } catch { /* not a console we can set */ }
+
+        // The compiler, not the grammar, says whether an edit's C# is valid. Here rather than in either library:
+        // Nexaflow.Syntax.Compiler is deliberately Roslyn and nothing else, and this is the process that edits
+        // code. Before the daemon branch below, so the resident process wires it too.
+        SyntaxAuthorities.Register("c-sharp", CSharpSyntax.FirstError);
 
         if (args.Length > 0 && args[0] == DaemonServer.ModeArgument) return DaemonServer.Run(args);
 

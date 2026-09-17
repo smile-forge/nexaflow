@@ -26,7 +26,14 @@ public sealed class CodeHighlighter : IDisposable
     public string GrammarId => _grammarId;
     private readonly Language _language;
     private readonly Parser _parser;
-    private readonly Query _query;
+    private readonly string _queryText;
+
+    // Compiled the first time colouring is asked for, never for a parse. Compiling the C# highlight query costs
+    // about 15 ms, and every caller in this assembly - the outline, the anchors, the structural editor, the graph's
+    // extractors - only ever wants the parse tree, which is ready in 9 microseconds. Keeping the two apart is also
+    // what stops a query that does not compile costing anything but colour.
+    private Query? _query;
+    private bool _queryFailed;
 
     // Child highlighters for embedded languages, keyed by grammar id. Caches the *null miss* too, so an
     // unavailable grammar (sql, graphql) isn't retried on every reparse. One UI thread ⇒ no locking.
@@ -48,16 +55,17 @@ public sealed class CodeHighlighter : IDisposable
         ["xaml"]  = "xml",    // XAML is XML; the id stays distinct so the outline can read WPF meaning
     };
 
-    private CodeHighlighter(string grammarId, Language language, Parser parser, Query query)
+    private CodeHighlighter(string grammarId, Language language, Parser parser, string queryText)
     {
         _grammarId = grammarId;
         _language = language;
         _parser = parser;
-        _query = query;
+        _queryText = queryText;
     }
 
-    /// <summary>Creates a highlighter for <paramref name="grammarId"/> (e.g. "c-sharp"), or null if the
-    /// grammar/native is unavailable or the query fails to compile. Never throws.</summary>
+    /// <summary>Creates a highlighter for <paramref name="grammarId"/> (e.g. "c-sharp"), or null if the grammar is
+    /// one nothing is registered for or its native is unavailable. Ready to parse; colouring compiles its query on
+    /// first use, so a query that does not compile costs colour and nothing else. Never throws.</summary>
     public static CodeHighlighter? TryCreate(string grammarId)
     {
         if (!HighlightQueries.ByGrammar.TryGetValue(grammarId, out var queryText))
@@ -65,21 +73,34 @@ public sealed class CodeHighlighter : IDisposable
 
         Language? language = null;
         Parser? parser = null;
-        Query? query = null;
         try
         {
             language = new Language(NativeAlias.GetValueOrDefault(grammarId, grammarId));
             parser = new Parser(language);
-            query = new Query(language, queryText);
-            return new CodeHighlighter(grammarId, language, parser, query);   // keep the alias id for injection routing
+            return new CodeHighlighter(grammarId, language, parser, queryText);   // keep the alias id for injection routing
         }
         catch
         {
-            query?.Dispose();
             parser?.Dispose();
             language?.Dispose();
             return null;
         }
+    }
+
+    /// <summary>
+    /// Whether this grammar's highlight query compiles, compiling it if nothing has yet. Colouring asks it on its
+    /// way through; a test asks it to prove a query is still valid against the grammar it names nodes from, which
+    /// is what creating a highlighter used to prove on every caller's time.
+    /// </summary>
+    public bool CanHighlight => Query() is not null;
+
+    /// <summary>The compiled highlight query, or null when it does not compile against this grammar. Tried once.</summary>
+    private Query? Query()
+    {
+        if (_query is not null || _queryFailed) return _query;
+        try { _query = new Query(_language, _queryText); }
+        catch { _queryFailed = true; }
+        return _query;
     }
 
     public IReadOnlyList<HighlightSpan> Highlight(string text)
@@ -95,12 +116,12 @@ public sealed class CodeHighlighter : IDisposable
     private void HighlightInto(List<HighlightSpan> spans, string text, int offset,
         TreeSitter.Range[]? included, InjectionBudget budget)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrEmpty(text) || Query() is not { } query) return;
         _parser.IncludedRanges = included ?? NoRanges;
         using var tree = _parser.Parse(text);
         if (tree is null) return;
 
-        foreach (var capture in _query.Execute(tree.RootNode).Captures)
+        foreach (var capture in query.Execute(tree.RootNode).Captures)
         {
             var node = capture.Node;
             var length = node.EndIndex - node.StartIndex;
@@ -379,7 +400,7 @@ public sealed class CodeHighlighter : IDisposable
     {
         foreach (var c in _children.Values) c?.Dispose();
         _children.Clear();
-        _query.Dispose();
+        _query?.Dispose();
         _parser.Dispose();
         _language.Dispose();
     }
