@@ -61,6 +61,9 @@ internal static class Render
     public static string Plain(string markdown)
         => markdown.Replace("**", "").Replace("`", "").Replace("*", "");
 
+    /// <summary>A block of markdown as HTML — a section's opening prose, which carries no app link schemes.</summary>
+    public static string Loose(string markdown) => Markdig.Markdown.ToHtml(markdown, Pipeline);
+
     private static string Rewrite(HelpPage page, IReadOnlyDictionary<string, HelpPage> byTopic)
     {
         var body = new StringBuilder();

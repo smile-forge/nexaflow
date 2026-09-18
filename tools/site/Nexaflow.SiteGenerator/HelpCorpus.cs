@@ -11,91 +11,109 @@ internal sealed record HelpPage(
     string Slug,
     string Path,
     string Body,
-    string Group);
+    string Group,
+    string? Node);
+
+/// <summary>A section of the site: one page introducing a group of the app, with its own hand-written opening.</summary>
+internal sealed record Section(string Group, string Slug, string Title);
+
+/// <summary>Where a help page belongs on the site, and the product-tree node that describes its feature.</summary>
+internal sealed record Placement(string Group, string? Node = null);
 
 /// <summary>
 /// The help pages the app ships, read straight from the feature projects so the site cannot drift from what a
-/// reader sees in the app. A page that is not in <see cref="Groups"/> stops the build: a new help page has to be
-/// given a home on the site deliberately, rather than quietly going missing from every index.
+/// reader sees in the app. A page that is not in <see cref="Catalogue"/> stops the build: a new help page has to
+/// be given a home on the site deliberately, rather than quietly going missing from every index.
 /// </summary>
 internal sealed class HelpCorpus
 {
     public required IReadOnlyList<HelpPage> Pages { get; init; }
 
-    /// <summary>The sections of the site, in the order they are shown.</summary>
-    public static readonly string[] GroupOrder =
+    /// <summary>
+    /// The sections of the site, in the order they are shown. "Getting around" has no section page of its own —
+    /// it is one page about the help pane, and it belongs in the reference rather than on the front of the site.
+    /// </summary>
+    public static readonly Section[] Sections =
     [
-        "Open anything",
-        "Author & draw",
-        "Run your machine",
-        "Keep track",
-        "With your AI",
-        "Getting around",
+        new("Open anything",    "open",     "Open anything"),
+        new("Author & draw",    "author",   "Author & draw"),
+        new("Run your machine", "system",   "Run your machine"),
+        new("Keep track",       "track",    "Keep track"),
+        new("With your AI",     "together", "With your AI"),
     ];
 
-    /// <summary>Which section each help topic belongs to. Every topic but the index must be here.</summary>
-    private static readonly Dictionary<string, string> Groups = new(StringComparer.OrdinalIgnoreCase)
+    public static readonly string[] GroupOrder =
+        [.. Sections.Select(s => s.Group), "Getting around"];
+
+    public static Section? SectionFor(string group) => Sections.FirstOrDefault(s => s.Group == group);
+
+    /// <summary>
+    /// Every help topic's home on the site, and the product-tree node whose description and concerns describe it.
+    /// Only the page that leads a feature carries the node, so a feature is badged once rather than on every one
+    /// of its pages.
+    /// </summary>
+    private static readonly Dictionary<string, Placement> Catalogue = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["FileSystem"] = "Open anything",
-        ["Search"] = "Open anything",
-        ["Text"] = "Open anything",
-        ["Code"] = "Open anything",
-        ["Json"] = "Open anything",
-        ["Logs"] = "Open anything",
-        ["Tabular"] = "Open anything",
-        ["Notebook"] = "Open anything",
-        ["Html"] = "Open anything",
-        ["Pdf"] = "Open anything",
-        ["Images"] = "Open anything",
-        ["Svg"] = "Open anything",
-        ["Font"] = "Open anything",
-        ["Audio"] = "Open anything",
-        ["Video"] = "Open anything",
-        ["Model3D"] = "Open anything",
-        ["Dicom"] = "Open anything",
-        ["Email"] = "Open anything",
-        ["Hex"] = "Open anything",
-        ["Compressed"] = "Open anything",
-        ["VirtualDisk"] = "Open anything",
-        ["Executable"] = "Open anything",
+        ["FileSystem"] = new("Open anything", "win-file-system"),
+        ["Search"] = new("Open anything", "win-search"),
+        ["Text"] = new("Open anything", "text-viewer"),
+        ["Code"] = new("Open anything", "code"),
+        ["Json"] = new("Open anything", "json"),
+        ["Logs"] = new("Open anything", "log-viewer"),
+        ["Tabular"] = new("Open anything", "tabular"),
+        ["Notebook"] = new("Open anything", "notebook"),
+        ["Html"] = new("Open anything", "web-viewer"),
+        ["Pdf"] = new("Open anything", "pdf"),
+        ["Images"] = new("Open anything", "images"),
+        ["Svg"] = new("Open anything", "svg"),
+        ["Font"] = new("Open anything", "font"),
+        ["Audio"] = new("Open anything", "audio"),
+        ["Video"] = new("Open anything", "video"),
+        ["Model3D"] = new("Open anything", "model3d"),
+        ["Dicom"] = new("Open anything", "dicom"),
+        ["Email"] = new("Open anything", "email"),
+        ["Hex"] = new("Open anything", "hex"),
+        ["Compressed"] = new("Open anything", "compressed"),
+        ["VirtualDisk"] = new("Open anything", "virtual-disk-viewer"),
+        ["Executable"] = new("Open anything", "executable-inspector"),
 
-        ["Markdown"] = "Author & draw",
-        ["MarkdownDiagrams"] = "Author & draw",
-        ["DiagramsFlowAndStructure"] = "Author & draw",
-        ["DiagramsPlanning"] = "Author & draw",
-        ["DiagramsCharts"] = "Author & draw",
-        ["MarkdownCodes"] = "Author & draw",
-        ["MarkdownScience"] = "Author & draw",
-        ["Solver"] = "Author & draw",
+        ["Markdown"] = new("Author & draw", "markdown"),
+        ["MarkdownDiagrams"] = new("Author & draw"),
+        ["DiagramsFlowAndStructure"] = new("Author & draw"),
+        ["DiagramsPlanning"] = new("Author & draw"),
+        ["DiagramsCharts"] = new("Author & draw"),
+        ["MarkdownCodes"] = new("Author & draw"),
+        ["MarkdownScience"] = new("Author & draw"),
+        ["Solver"] = new("Author & draw", "solver"),
 
-        ["Console"] = "Run your machine",
-        ["Processes"] = "Run your machine",
-        ["ProcessDetail"] = "Run your machine",
-        ["SystemInfo"] = "Run your machine",
-        ["SystemServices"] = "Run your machine",
-        ["SystemEnvVars"] = "Run your machine",
-        ["WindowsRegistry"] = "Run your machine",
-        ["WindowsApps"] = "Run your machine",
-        ["Network"] = "Run your machine",
+        ["Console"] = new("Run your machine", "console"),
+        ["Processes"] = new("Run your machine", "processes"),
+        ["ProcessDetail"] = new("Run your machine"),
+        ["SystemInfo"] = new("Run your machine", "sysinfo"),
+        ["SystemServices"] = new("Run your machine"),
+        ["SystemEnvVars"] = new("Run your machine"),
+        ["WindowsRegistry"] = new("Run your machine", "win-registry"),
+        ["WindowsApps"] = new("Run your machine", "windowsapps"),
+        ["Network"] = new("Run your machine", "network"),
 
-        ["ProductManager"] = "Keep track",
-        ["ProductIntegrity"] = "Keep track",
-        ["ProductSearch"] = "Keep track",
-        ["GraphViewer"] = "Keep track",
-        ["Projects"] = "Keep track",
-        ["ProjectDetail"] = "Keep track",
-        ["Scratchpad"] = "Keep track",
+        ["ProductManager"] = new("Keep track", "product"),
+        ["ProductIntegrity"] = new("Keep track"),
+        ["ProductSearch"] = new("Keep track"),
+        ["GraphViewer"] = new("Keep track"),
+        ["Projects"] = new("Keep track", "projects"),
+        ["ProjectDetail"] = new("Keep track"),
+        ["Scratchpad"] = new("Keep track", "scratchpad"),
 
-        ["AIChat"] = "With your AI",
-        ["Conversation"] = "With your AI",
+        ["AIChat"] = new("With your AI", "aichat"),
+        ["Conversation"] = new("With your AI"),
 
-        ["Help"] = "Getting around",
+        ["Help"] = new("Getting around"),
     };
 
     public static HelpCorpus Read(string repo)
     {
         var pages = new List<HelpPage>();
-        var ungrouped = new List<string>();
+        var unplaced = new List<string>();
 
         foreach (var project in ProjectDirs(repo))
         {
@@ -107,18 +125,19 @@ internal sealed class HelpCorpus
                 var topic = Path.GetFileNameWithoutExtension(file);
                 if (topic.Equals("index", StringComparison.OrdinalIgnoreCase)) continue;
 
-                if (!Groups.TryGetValue(topic, out var group)) { ungrouped.Add(file); continue; }
+                if (!Catalogue.TryGetValue(topic, out var placement)) { unplaced.Add(file); continue; }
 
                 var (title, summary, body) = Split(File.ReadAllText(file).Replace("\r\n", "\n"), topic);
                 pages.Add(new HelpPage(
-                    Path.GetFileName(project), topic, title, summary, Slug(topic), file, body, group));
+                    Path.GetFileName(project), topic, title, summary, Slug(topic), file, body,
+                    placement.Group, placement.Node));
             }
         }
 
-        if (ungrouped.Count > 0)
+        if (unplaced.Count > 0)
             throw new InvalidOperationException(
-                "these help pages have no section in HelpCorpus.Groups, so the site would drop them:\n  "
-                + string.Join("\n  ", ungrouped));
+                "these help pages have no section in HelpCorpus.Catalogue, so the site would drop them:\n  "
+                + string.Join("\n  ", unplaced));
 
         return new HelpCorpus { Pages = pages.OrderBy(p => p.Title, StringComparer.OrdinalIgnoreCase).ToList() };
     }

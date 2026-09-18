@@ -6,11 +6,12 @@ var output = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(repo, "s
 var version = VersionOf(repo);
 
 var corpus = HelpCorpus.Read(repo);
+var tree = ProductTree.Read(repo);
 
-Site.Write(corpus, output, version);
+Site.Write(corpus, tree, repo, output, version);
 Site.CopyImages(repo, output);
 
-Console.WriteLine($"Nexaflow {version}: {corpus.Pages.Count} help pages written to {output}");
+Console.WriteLine($"Nexaflow {version} ({tree.Version} product tree): {corpus.Pages.Count} help pages written to {output}");
 foreach (var group in HelpCorpus.GroupOrder)
     Console.WriteLine($"  {group,-18} {corpus.Pages.Count(p => p.Group == group),3}");
 
