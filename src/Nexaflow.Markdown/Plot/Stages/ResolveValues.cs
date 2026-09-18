@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.Plot.Stages;
 
@@ -29,7 +30,7 @@ public sealed class ResolveValues : IAstStage
                 : node);
 
     private static ContentNode Said(ContentNode cell) =>
-        PlotNumber.Read(cell.Says()) is { } number
+        SettingValues.Read(cell.Says()) is { } number
             ? cell.Telling((PlotKinds.Fact, PlotRoles.Number, PlotNumber.Written(number)))
             : cell;
 }

@@ -5376,6 +5376,67 @@ internal sealed class MarkdownSamples : ISampleSet
         0.4   0.8
         ```
 
+    
+        ## Naming, fading and unstacking
+
+        `subtitle:` and `caption:` sit above and below the plot, `legendTitle:` names the key, `label:` names
+        each mark, and `alpha:` fades them by a column. `jitter:` moves marks off their place so rows landing
+        on the same value stop hiding one another — always the same way for the same block.
+
+        ```scatter
+        title: Wealth and longevity
+        subtitle: Eight economies
+        legendTitle: Region
+        colour: region
+        label: place
+        alpha: life
+        jitter: 0.02
+        caption: Source: made up for the example
+        xTitle: GDP per head
+        yTitle: Life expectancy
+
+        gdp    life  region    place
+        1280   52.9  Africa    Chad
+        38225  81.7  Europe    France
+        9771   76.5  Asia      China
+        14103  75.1  Americas  Brazil
+        54225  82.5  Oceania   Australia
+        2104   64.9  Asia      India
+        780    59.3  Africa    Niger
+        22400  78.9  Europe    Poland
+        ```
+
+        ## A shape, a flip, and a line per group
+
+        `aspect:` holds the panel to a shape, `flip:` swaps the axes — each title going with its own channel —
+        and `group:` fits a line per group rather than one through everything. A band is part of the answer,
+        so the axis opens out to show all of it unless `yLimits:` says otherwise.
+
+        ```scatter
+        title: Fuel economy by weight
+        aspect: 1
+        flip: true
+        fit: lm
+        group: cyl
+        colour: cyl
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg   cyl
+        2620    21.0  six
+        2320    22.8  four
+        3440    18.7  eight
+        3570    14.3  eight
+        3190    24.4  four
+        2200    32.4  four
+        1615    30.4  four
+        5250    10.4  eight
+        3170    15.8  eight
+        2770    19.7  six
+        3460    18.1  six
+        1835    33.9  four
+        ```
+
         ## Scales and gridlines
 
         `xScale:` and `yScale:` take `linear`, `log`, `log2`, `ln`, `sqrt` and `reverse`; `xLimits:` and

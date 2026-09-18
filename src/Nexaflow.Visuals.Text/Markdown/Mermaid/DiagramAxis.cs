@@ -60,6 +60,13 @@ internal static class DiagramScale
         var decimals = step >= 1 ? 0 : Math.Min(10, (int)Math.Ceiling(-Math.Log10(step) - 1e-9));
         return value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.CurrentCulture);
     }
+
+    /// <summary>
+    /// A number with as many decimals as it needs and no more — how a log tick, a break a block wrote, or
+    /// a number beside a colour bar is written, where <see cref="Label"/>'s decimals-from-the-step does not
+    /// apply because there is no even step to take them from.
+    /// </summary>
+    public static string Plain(double value) => value.ToString("0.############", CultureInfo.CurrentCulture);
 }
 
 /// <summary>How a value becomes a distance along an axis.</summary>
@@ -164,6 +171,25 @@ internal sealed record DiagramSpan
     }
 
     /// <summary>
+    /// The value as this span reads it — the number anything worked out <em>over</em> the axis is worked
+    /// out from, so a fit down a logarithmic axis is a fit through the logarithms.
+    /// </summary>
+    public double? Reading(double value) => this.Forward(value);
+
+    /// <summary>
+    /// The value a reading came from: <see cref="Reading"/> turned about, so what was worked out in the
+    /// axis's own terms can be said in the reader's again.
+    /// </summary>
+    public double Value(double reading) => this.Transform switch
+    {
+        DiagramTransform.Log10 => Math.Pow(10, reading),
+        DiagramTransform.Log2 => Math.Pow(2, reading),
+        DiagramTransform.NaturalLog => Math.Exp(reading),
+        DiagramTransform.Sqrt => reading * reading,
+        _ => reading,
+    };
+
+    /// <summary>
     /// The ticks along the span: each value, where it stands, and what it is written as. Round numbers
     /// on a plain axis, and a step of the base on a logarithmic one — 1, 10, 100, which is the only
     /// numbering of a log axis anybody reads.
@@ -182,7 +208,7 @@ internal sealed record DiagramSpan
             {
                 var value = Math.Pow(step, power);
                 if (value >= this.Min * (1 - 1e-9) && value <= this.Max * (1 + 1e-9) && this.At(value) is { } at)
-                    marks.Add((value, at, Plain(value)));
+                    marks.Add((value, at, DiagramScale.Plain(value)));
             }
 
             return marks;
@@ -216,10 +242,6 @@ internal sealed record DiagramSpan
         DiagramTransform.NaturalLog => Math.E,
         _ => 10,
     };
-
-    /// <summary>A number with as many decimals as it needs and no more, which is how a log tick is written.</summary>
-    private static string Plain(double value) =>
-        value.ToString("0.############", CultureInfo.CurrentCulture);
 }
 
 /// <summary>

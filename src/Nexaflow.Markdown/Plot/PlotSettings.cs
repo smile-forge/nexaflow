@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Settings;
+
 namespace Nexaflow.Markdown.Plot;
 
 /// <summary>
@@ -79,12 +81,35 @@ public sealed record PlotSettings
     /// <summary>Which gridlines are drawn behind the marks.</summary>
     public PlotGrid Grid { get; init; } = PlotGrid.Both;
 
+    /// <summary>
+    /// How far a mark is moved off its place at random, as a share of the gap between ticks, so rows
+    /// landing on the same value stop hiding one another. The same block always moves them the same way.
+    /// </summary>
+    public double Jitter { get; init; }
+
+    /// <summary>
+    /// How much wider than tall the panel is drawn, where the block would rather say than take the room —
+    /// ggplot2's <c>coord_fixed</c>. One makes a square panel, which is what a correlation matrix wants.
+    /// </summary>
+    public double? Aspect { get; init; }
+
+    /// <summary>Whether the axes are swapped, so what was drawn across is drawn up — <c>coord_flip</c>.</summary>
+    public bool Flip { get; init; }
+
     // ── How big a value is drawn ────────────────────────────────────────────
 
     /// <summary>The smallest and largest a mark is drawn, across which the size channel is spread.</summary>
     public double MinSize { get; init; } = 4;
 
     public double MaxSize { get; init; } = 24;
+
+    /// <summary>
+    /// How see-through the faintest and plainest marks are, across which a column mapped to alpha is
+    /// spread. Nothing mapped leaves every mark at the plain end.
+    /// </summary>
+    public double MinAlpha { get; init; } = 0.2;
+
+    public double MaxAlpha { get; init; } = 0.85;
 
     public const double SmallestSize = 0.5;
     public const double LargestSize = 200;
@@ -229,17 +254,5 @@ public static class PlotSetting
     public static readonly string Names = string.Join(", ", Keys);
 
     /// <summary>Whether a key names a setting. Case and hyphens are ignored, so <c>x-scale</c> is <c>xScale</c>.</summary>
-    public static bool Is(string? key)
-    {
-        var name = Plain(key);
-
-        foreach (var known in Keys)
-            if (Plain(known) == name) return true;
-
-        return false;
-    }
-
-    /// <summary>A key as it is compared: lower case, and without the hyphens a reader may write it with.</summary>
-    public static string Plain(string? key) =>
-        (key ?? string.Empty).Replace("-", string.Empty).Trim().ToLowerInvariant();
+    public static bool Is(string? key) => SettingKeys.Is(key, Keys);
 }

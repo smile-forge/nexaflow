@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Settings;
+
 namespace Nexaflow.Markdown.WordCloud;
 
 /// <summary>How a weight becomes a size.</summary>
@@ -164,17 +166,5 @@ public static class WordCloudSetting
     public static readonly string Names = string.Join(", ", Keys);
 
     /// <summary>Whether a key names a setting. Case and hyphens are ignored, so <c>min-size</c> is <c>minSize</c>.</summary>
-    public static bool Is(string? key)
-    {
-        var name = Plain(key);
-
-        foreach (var known in Keys)
-            if (Plain(known) == name) return true;
-
-        return false;
-    }
-
-    /// <summary>A key as it is compared: lower case, and without the hyphens a reader may write it with.</summary>
-    public static string Plain(string? key) =>
-        (key ?? string.Empty).Replace("-", string.Empty).Trim().ToLowerInvariant();
+    public static bool Is(string? key) => SettingKeys.Is(key, Keys);
 }

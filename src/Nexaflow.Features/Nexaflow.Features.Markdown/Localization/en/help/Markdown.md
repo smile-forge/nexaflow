@@ -1154,10 +1154,13 @@ your groups apart, and `size: 4` sets the size of all of them.
 
 | To | Write |
 |---|---|
-| name it | `title:` `subtitle:` `caption:` `xTitle:` `yTitle:` |
+| name it | `title:` `subtitle:` `caption:` `xTitle:` `yTitle:` `legendTitle:` |
 | say where the marks go | `x:` `y:` |
-| tell groups apart | `colour:` `shape:` — a column name, or a colour or mark name |
+| tell groups apart | `colour:` `shape:` `group:` — a column name, or a colour or mark name |
 | size the marks | `size:` — a column name, or a number; `sizeRange: 4 28` |
+| fade or name them | `alpha:` a column or a number, `alphaRange: 0.2 1`; `label:` a column to name each mark |
+| unstack them | `jitter: 0.4` — moves marks off their place so equal rows stop hiding each other |
+| shape the panel | `aspect: 1` for square, `flip: true` to swap the axes |
 | draw something else | `geom: point`, `tile`, `bin2d`, `hex`, `density2d` |
 | fit a line through them | `fit: lm` or `loess`, with `se: true` for the band |
 | report the correlation | `stats: r r2 n p`, and `method: pearson`, `spearman` or `kendall` |
@@ -1197,6 +1200,11 @@ wt    -0.87   0.66   1.00
 **Too many points to see?** `geom: hex` counts them into bins instead, and a `density2d` block draws the
 shape of the cloud — `contour: bands`, `lines` or `raster`, with `points: true` to show the rows through
 it.
+
+**The axis shows everything drawn on it.** Ask for a fitted line with `se: true` and the axis opens out
+far enough to show the whole confidence band — it is part of the answer, not decoration. Write `yLimits:`
+and you get exactly the ends you asked for instead. With `group:` you get a line per group, each with its
+own colour, so you can tell overlapping bands apart.
 
 **You can type into it.** A value drawn on a tile is the one you wrote, so clicking into it and typing
 changes the block. Clicking a point selects the row it came from. A number the plot chose — a tick, a

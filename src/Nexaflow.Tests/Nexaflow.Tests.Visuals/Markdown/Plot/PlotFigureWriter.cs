@@ -197,6 +197,80 @@ public class PlotFigureWriter
             .Replace("geom: density2d", $"geom: density2d\ncontour: {contour}\npoints: {points.ToString().ToLowerInvariant()}")
             .Replace("bins: 26\n", string.Empty);
 
+    /// <summary>The settings that used to parse and do nothing: subtitle, caption, key title, label, alpha.</summary>
+    private const string Furnished = """
+        title: Wealth and longevity
+        subtitle: Eight economies, most recent year
+        caption: Source: made up for the figure
+        legendTitle: Region
+        colour: region
+        label: place
+        alpha: life
+        xTitle: GDP per head
+        yTitle: Life expectancy
+
+        gdp    life  region    place
+        1280   52.9  Africa    Chad
+        38225  81.7  Europe    France
+        9771   76.5  Asia      China
+        14103  75.1  Americas  Brazil
+        54225  82.5  Oceania   Australia
+        2104   64.9  Asia      India
+        780    59.3  Africa    Niger
+        22400  78.9  Europe    Poland
+        """;
+
+    /// <summary>Rows landing on the same value, with and without being shaken apart.</summary>
+    private static string Stacked(double jitter) => $"""
+        title: Ratings by month
+        jitter: {jitter}
+        xTitle: Month
+        yTitle: Rating
+
+        month  rating
+        Jan    3
+        Jan    3
+        Jan    4
+        Jan    4
+        Jan    5
+        Feb    4
+        Feb    4
+        Feb    4
+        Feb    5
+        Feb    5
+        Mar    2
+        Mar    3
+        Mar    3
+        Mar    3
+        Mar    4
+        """;
+
+    /// <summary>A square panel and swapped axes.</summary>
+    private const string Shaped = """
+        title: Fuel economy by weight
+        aspect: 1
+        flip: true
+        fit: lm
+        group: cyl
+        colour: cyl
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg   cyl
+        2620    21.0  six
+        2320    22.8  four
+        3440    18.7  eight
+        3570    14.3  eight
+        3190    24.4  four
+        2200    32.4  four
+        1615    30.4  four
+        5250    10.4  eight
+        3170    15.8  eight
+        2770    19.7  six
+        3460    18.1  six
+        1835    33.9  four
+        """;
+
     [TestMethod]
     public void WritePlotFigures()
     {
@@ -209,6 +283,18 @@ public class PlotFigureWriter
         {
             Write(Path.Combine(folder, "scatter.png"), Plain, PlotFence.Scatter, MarkdownPalette.Light,
                               Brushes.White, 640);
+
+                        Write(Path.Combine(folder, "settings-furnished.png"), Furnished, PlotFence.Scatter,
+                              MarkdownPalette.Light, Brushes.White, 640);
+
+                        Write(Path.Combine(folder, "settings-jitter-none.png"), Stacked(0), PlotFence.Scatter,
+                              MarkdownPalette.Light, Brushes.White, 420);
+
+                        Write(Path.Combine(folder, "settings-jitter.png"), Stacked(0.6), PlotFence.Scatter,
+                              MarkdownPalette.Light, Brushes.White, 420);
+
+                        Write(Path.Combine(folder, "settings-shaped.png"), Shaped, PlotFence.Scatter,
+                              MarkdownPalette.Light, Brushes.White, 520);
 
                         Write(Path.Combine(folder, "scatter-fit.png"),
                               "fit: lm\nse: true\nstats: r r2 n p\n" + Plain,

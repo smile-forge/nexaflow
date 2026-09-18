@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.Plot;
 
@@ -67,11 +68,11 @@ public static class PlotParser
     {
         var pieces = new List<ContentNode>();
 
-        var lead = Leading(body);
-        var trail = Trailing(body, lead);
+        var lead = SettingLines.Leading(body);
+        var trail = SettingLines.Trailing(body, lead);
         var text = body[lead..(body.Length - trail)];
 
-        if (lead > 0) pieces.Add(Space(body[..lead]));
+        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead]));
 
         if (text.Length == 0)
         {
@@ -86,7 +87,7 @@ public static class PlotParser
             settings = false;
             pieces.Add(ContentNode.Leaf(PlotKinds.Data, text, Roles.Name));
         }
-        else if (settings && Colon(text) is var colon and > 0 && PlotSetting.Is(Named(text, colon)))
+        else if (settings && SettingLines.Colon(text) is var colon and > 0 && PlotSetting.Is(Named(text, colon)))
         {
             pieces.Add(Setting(text, colon));
         }
@@ -96,34 +97,17 @@ public static class PlotParser
             pieces.Add(Row(text));
         }
 
-        if (trail > 0) pieces.Add(Space(body[(body.Length - trail)..]));
-        if (terminator.Length > 0) pieces.Add(Space(terminator));
+        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..]));
+        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator));
 
         return ContentNode.Branch(PlotKinds.Line, pieces);
-    }
-
-    /// <summary>
-    /// The colon that divides a setting, which is the first one outside quotes, so a value may hold as
-    /// many more as it likes.
-    /// </summary>
-    private static int Colon(string text)
-    {
-        var quoted = false;
-
-        for (var at = 0; at < text.Length; at++)
-        {
-            if (text[at] == '\"') quoted = !quoted;
-            else if (text[at] == ':' && !quoted) return at;
-        }
-
-        return -1;
     }
 
     /// <summary>What a line names, without the space between it and its colon.</summary>
     private static string Named(string text, int colon)
     {
         var key = text[..colon];
-        return key[..(key.Length - Trailing(key, 0))];
+        return key[..(key.Length - SettingLines.Trailing(key, 0))];
     }
 
     /// <summary>
@@ -133,20 +117,20 @@ public static class PlotParser
     private static ContentNode Setting(string text, int colon)
     {
         var key = text[..colon];
-        var keyEnd = key.Length - Trailing(key, 0);
+        var keyEnd = key.Length - SettingLines.Trailing(key, 0);
 
         var pieces = new List<ContentNode>
         {
             ContentNode.Leaf(PlotKinds.Key, key[..keyEnd], Roles.Name),
         };
 
-        if (keyEnd < key.Length) pieces.Add(Space(key[keyEnd..]));
+        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..]));
 
         pieces.Add(ContentNode.Leaf(Kinds.Token, text[colon..(colon + 1)], Roles.Separator));
 
         var rest = text[(colon + 1)..];
-        var gap = Leading(rest);
-        if (gap > 0) pieces.Add(Space(rest[..gap]));
+        var gap = SettingLines.Leading(rest);
+        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap]));
 
         if (gap < rest.Length)
             pieces.Add(ContentNode.Leaf(PlotKinds.Value, rest[gap..], PlotRoles.Value));
@@ -173,7 +157,7 @@ public static class PlotParser
             {
                 var space = at;
                 while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
-                pieces.Add(Space(text[space..at]));
+                pieces.Add(SettingLines.Space(text[space..at]));
             }
             else if (text[at] == ',')
             {
@@ -219,22 +203,5 @@ public static class PlotParser
             ContentNode.Leaf(PlotKinds.Cell, written[1..^1], Roles.Cell),
             ContentNode.Leaf(Kinds.Token, written[^1..], Roles.Close),
         ], Roles.Cell);
-    }
-
-    private static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
-
-    private static int Leading(string text)
-    {
-        var n = 0;
-        while (n < text.Length && char.IsWhiteSpace(text[n])) n++;
-        return n;
-    }
-
-    /// <summary>How much space ends <paramref name="text"/>, never reaching back past <paramref name="floor"/>.</summary>
-    private static int Trailing(string text, int floor)
-    {
-        var n = 0;
-        while (text.Length - n > floor && char.IsWhiteSpace(text[text.Length - n - 1])) n++;
-        return n;
     }
 }

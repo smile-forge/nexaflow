@@ -691,4 +691,196 @@ public class PlotBuilderTests
         Assert.IsTrue(ticks.Length > 0);
         Assert.IsTrue(ticks.All(tick => tick.Words is not { Maps: true }));
     });
+
+    // ── Settings that used to parse and do nothing ──────────────────────────
+
+    [TestMethod]
+    public void ASubtitleAndACaptionAreDrawn() => UiThread.Run(() =>
+    {
+        var said = Of(Lay("title: One\nsubtitle: Two\ncaption: Three\n\n" + Cars), PlotPiece.Title)
+                   .Select(piece => piece.Words?.Glyphs.Text)
+                   .ToArray();
+
+        CollectionAssert.Contains(said, "One");
+        CollectionAssert.Contains(said, "Two");
+        CollectionAssert.Contains(said, "Three");
+    });
+
+    [TestMethod]
+    public void TheKeyCarriesItsOwnTitle() => UiThread.Run(() =>
+    {
+        var said = Of(Lay("colour: origin\nlegendTitle: Origin\n\nweight  mpg  origin\n3504  18  USA\n2372  24  Japan"),
+                      PlotPiece.Name)
+                   .Select(piece => piece.Words?.Glyphs.Text)
+                   .ToArray();
+
+        CollectionAssert.Contains(said, "Origin");
+        CollectionAssert.Contains(said, "USA");
+    });
+
+    [TestMethod]
+    public void AColumnMappedToAlphaMakesSomeMarksFainter() => UiThread.Run(() =>
+    {
+        var marks = Marks(Lay("alpha: share\n\nx  y  share\n1  1  1\n2  2  100"));
+
+        Assert.AreNotEqual(Clearness(marks[0]), Clearness(marks[1]));
+    });
+
+    private static double Clearness(Piece piece) =>
+        piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
+             .Select(mark => mark.Fill?.Opacity ?? 1).FirstOrDefault();
+
+    [TestMethod]
+    public void JitterMovesMarksOffTheirPlaceAndAlwaysTheSameWay() => UiThread.Run(() =>
+    {
+        const string Stacked = "x  y\n1  1\n1  1\n1  1";
+
+        var still = Marks(Lay(Stacked)).Select(mark => mark.Bounds.Left).ToArray();
+        var shaken = Marks(Lay("jitter: 0.5\n\n" + Stacked)).Select(mark => mark.Bounds.Left).ToArray();
+
+        Assert.AreEqual(1, still.Distinct().Count(), "without jitter they sit on top of one another");
+        Assert.IsTrue(shaken.Distinct().Count() > 1, "with it they do not");
+
+        // Thrown from where each row was written rather than from the clock.
+        CollectionAssert.AreEqual(shaken, Marks(Lay("jitter: 0.5\n\n" + Stacked))
+                                          .Select(mark => mark.Bounds.Left).ToArray());
+    });
+
+    [TestMethod]
+    public void AColumnMappedToLabelNamesEachMark() => UiThread.Run(() =>
+    {
+        var said = Of(Lay("label: name\n\nx  y  name\n1  1  Alpha\n2  2  Beta"), PlotPiece.Label)
+                   .Select(piece => piece.Words?.Glyphs.Text)
+                   .ToArray();
+
+        CollectionAssert.AreEquivalent(new[] { "Alpha", "Beta" }, said);
+    });
+
+    [TestMethod]
+    public void FlipSwapsTheAxes() => UiThread.Run(() =>
+    {
+        // The upright title is the turned one, whichever order the pieces happen to be laid in.
+        Assert.AreEqual("mpg", Upright(Lay(Cars)));
+    Assert.AreEqual("weight", Upright(Lay("flip: true\n\n" + Cars)));
+
+            // A title written for a channel goes where that channel is drawn, so flipping carries it up the
+            // page with its own values rather than leaving it over somebody else's.
+            Assert.AreEqual("Kerb weight",
+                            Upright(Lay("flip: true\nxTitle: Kerb weight\nyTitle: Economy\n\n" + Cars)));
+    });
+
+    /// <summary>What is written up the side, which is the axis title drawn turned.</summary>
+    private static string? Upright(Laid laid)
+    {
+        foreach (var piece in Of(laid, PlotPiece.AxisTitle))
+            if (piece.Turned is not null) return piece.Words?.Glyphs.Text;
+
+        return null;
+    }
+
+    [TestMethod]
+    public void AspectHoldsThePanelToTheShapeItAsksFor() => UiThread.Run(() =>
+    {
+        // A correlation matrix asked for square cells is not a correlation matrix drawn oblong. The room
+        // left over is simply not used, so it is the panel's shape that is held, not its width.
+        Assert.AreEqual(1.0, Shape(Lay("aspect: 1\nwidth: 400\nheight: 400\n\n" + Cars)), 0.02);
+    Assert.AreEqual(2.0, Shape(Lay("aspect: 2\nwidth: 400\nheight: 400\n\n" + Cars)), 0.02);
+
+            // And with no size of its own, which is how a block is usually written.
+            Assert.AreEqual(1.0, Shape(Lay("aspect: 1\n\n" + Cars)), 0.02);
+    });
+
+    [TestMethod]
+    public void AspectHoldsEvenWithAFitAndAFlipOverIt() => UiThread.Run(() =>
+    {
+        // The combination the figure is drawn from, because a shape held in isolation and lost in company
+        // is a shape nobody can rely on.
+        const string Source = """
+            title: Fuel economy by weight
+            aspect: 1
+            flip: true
+            fit: lm
+            group: cyl
+            colour: cyl
+
+            weight  mpg   cyl
+            2620    21.0  six
+            2320    22.8  four
+            3440    18.7  eight
+            3570    14.3  eight
+            3190    24.4  four
+            2200    32.4  four
+            1615    30.4  four
+            5250    10.4  eight
+            """;
+
+        Assert.AreEqual(1.0, Shape(Lay(Source, room: 520)), 0.02);
+    });
+
+    [TestMethod]
+    public void TheTitleStandsClearOfThePanel() => UiThread.Run(() =>
+    {
+        // A title drawn over the top gridline is a title drawn inside the plot.
+        Clear(Lay("title: Fuel economy by weight\naspect: 1\n\n" + Cars, room: 520));
+        Clear(Lay("title: Ratings by month\njitter: 0.6\n\nmonth  rating\nJan  3\nJan  4\nFeb  5", room: 420));
+        Clear(Lay("title: One\nsubtitle: Two\n\n" + Cars, room: 640));
+    });
+
+    private static void Clear(Laid laid)
+    {
+        var title = Of(laid, PlotPiece.Title)[0].Bounds;
+        var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
+
+        foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
+        foreach (var piece in Of(laid, PlotPiece.Title)) title.Union(piece.Bounds);
+
+        Assert.IsTrue(title.Top >= panel.Bottom - 0.5 || title.Bottom <= panel.Top + 0.5,
+                      $"a title reaching {title.Top}–{title.Bottom} runs into a panel of {panel.Top}–{panel.Bottom}");
+    }
+
+    /// <summary>
+    /// How much wider than tall the panel came out. Measured off the gridlines, which span the panel
+    /// exactly — an axis piece reaches past it by however far its last number overhangs.
+    /// </summary>
+    private static double Shape(Laid laid)
+    {
+        var grid = Of(laid, PlotPiece.Grid);
+        var panel = grid[0].Bounds;
+
+        foreach (var piece in grid) panel.Union(piece.Bounds);
+
+        return panel.Width / panel.Height;
+    }
+
+    [TestMethod]
+    public void AColumnMappedToGroupFitsALinePerGroup() => UiThread.Run(() =>
+    {
+        const string Two = "x  y  side\n1  1  up\n2  2  up\n3  3  up\n1  9  down\n2  8  down\n3  7  down";
+
+        Assert.AreEqual(1, Of(Lay("fit: lm\nse: false\n\n" + Two), PlotPiece.Fit).Length);
+        Assert.AreEqual(2, Of(Lay("fit: lm\nse: false\ngroup: side\n\n" + Two), PlotPiece.Fit).Length);
+    });
+
+    [TestMethod]
+    public void NoMarkIsShakenPastTheAxis() => UiThread.Run(() =>
+    {
+        // A mark moved off its place to stop it hiding another is still a mark standing at a value, and a
+        // value the axis says is not there is not one.
+        var laid = Lay("jitter: 0.9\n\nmonth  rating\nJan  3\nJan  3\nJan  5\nFeb  5\nFeb  2\nMar  4");
+
+        var panel = Of(laid, PlotPiece.Grid)[0].Bounds;
+            foreach (var piece in Of(laid, PlotPiece.Grid)) panel.Union(piece.Bounds);
+
+            // A mark held to the edge lands on it, and an edge is not a place two doubles agree about.
+            panel.Inflate(0.01, 0.01);
+
+        foreach (var mark in Marks(laid))
+        {
+            var middle = new System.Windows.Point(mark.Bounds.Left + (mark.Bounds.Width / 2),
+                                                  mark.Bounds.Top + (mark.Bounds.Height / 2));
+
+            Assert.IsTrue(panel.Contains(middle),
+                          $"a mark at {middle} stands outside a panel of {panel}");
+        }
+    });
 }

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.Plot.Stages;
 
@@ -80,7 +81,7 @@ public sealed class ResolveShape(PlotSettings settings) : IAstStage
 
         var cells = rows[0].Cells();
 
-        return cells.Count > 0 && cells.All(cell => PlotNumber.Read(cell.Says()) is null);
+        return cells.Count > 0 && cells.All(cell => SettingValues.Read(cell.Says()) is null);
     }
 
     /// <summary>
@@ -99,7 +100,7 @@ public sealed class ResolveShape(PlotSettings settings) : IAstStage
             var cells = row.Cells();
 
             if (cells.Count != wide + 1) return false;
-            if (PlotNumber.Read(cells[0].Says()) is not null) return false;
+            if (SettingValues.Read(cells[0].Says()) is not null) return false;
         }
 
         return true;

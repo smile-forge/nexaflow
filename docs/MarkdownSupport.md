@@ -1590,12 +1590,12 @@ written at all.
 |---|---|
 | labs | `title` `subtitle` `caption` `xTitle` `yTitle` `legendTitle` |
 | aes | `x` `y` `color`/`colour` `fill` `size` `shape` `alpha` `label` `group` `header` |
-| geom | `geom: point\|tile\|bin2d\|hex\|density2d`, `points` `bins` |
+| geom | `geom: point\|tile\|bin2d\|hex\|density2d`, `points` `bins` `jitter` |
 | density | `contour: lines\|bands\|raster` `levels` `bandwidth` `adjust` |
 | stat | `fit: none\|lm\|loess` `se` `level` `stats: r r2 n p` `method: pearson\|spearman\|kendall` |
-| scales | `xScale`/`yScale: linear\|log\|log10\|log2\|ln\|sqrt\|reverse`, `xLimits` `yLimits` `xBreaks` `yBreaks` `sizeRange` |
+| scales | `xScale`/`yScale: linear\|log\|log10\|log2\|ln\|sqrt\|reverse`, `xLimits` `yLimits` `xBreaks` `yBreaks` `sizeRange` `alphaRange` |
 | colour | `palette`, `gradient: viridis\|magma\|plasma\|inferno\|blues\|reds\|greens\|rdbu\|<colours…>`, `midpoint` `fillLimits` `labels` `legend: right\|bottom\|left\|top\|none` |
-| panel | `grid: both\|x\|y\|none` `width` `height` |
+| panel | `grid: both\|x\|y\|none` `width` `height` `aspect` `flip` |
 
 **What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
 parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
@@ -1615,6 +1615,20 @@ values for `mtcars`.
 **Drawn out of the Mermaid kit**: marks through `DiagramGlyphs` and `DiagramShapes`, contours and bands
 through `DiagramCurve`, axes through `DiagramAxis` and `DiagramSpan`, gridlines through `DiagramGrid`,
 colour through `DiagramInk` and `DiagramColours`, and the key through `DiagramLegend` or `DiagramBar`.
+
+**A channel is a channel, and a place is a place.** Only `x`, `y`, `fill` and `size` use a column up: a
+column feeding colour, shape, alpha, label or group is still free to be x, and a column may feed several
+channels at once — `colour: region` beside `shape: region` is how a chart tells its groups apart twice
+over. What nobody mapped, the free columns take in order.
+
+**What is drawn over the marks is shown by the axes.** A fit's confidence band is part of the answer
+rather than decoration over it, so the range opens out to show all of it — unless `yLimits:` wrote the
+ends, which are then the ends the reader asked for and the band is held to them. A band takes its own
+line's colour and is drawn beneath the marks; the line is drawn over them. A mark shaken off its place by
+`jitter:` is held inside the panel, because a mark past the axis stands at a value the axis says is not
+there. `flip:` carries each title with its own channel, so `xTitle:` names what `x:` maps wherever it ends
+up drawn; `aspect:` holds the panel to a shape and the block takes up only what was drawn, so the key
+still sits beside the plot it explains.
 
 **Written in place:** a value drawn on its own tile is the characters it was written with, so a caret
 stands in it and typing into the picture edits the block. A number the plot chose — a tick, a

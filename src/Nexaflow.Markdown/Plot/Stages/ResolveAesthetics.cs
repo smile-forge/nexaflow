@@ -61,8 +61,14 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
     ///
     /// <para>
     /// A column may feed several: <c>colour: region</c> beside <c>shape: region</c> is how a chart tells its
-    /// groups apart twice over, so the same groups read in colour and in print alike. So this is a list per
-    /// column rather than one channel, and a cell carries a fact for each.
+    /// groups apart twice over. So this is a list per column rather than one channel, and a cell carries a
+    /// fact for each.
+    /// </para>
+    /// <para>
+    /// <strong>Only a place is used up by being taken.</strong> What nobody mapped, the columns take in
+    /// order — but a column feeding colour or alpha is still free to be x, because those say something
+    /// <em>about</em> a mark rather than where it goes. Counting them as taken left a plot of four columns
+    /// with three of them spoken for and nothing at all to put up the page.
     /// </para>
     /// </summary>
     private IReadOnlyDictionary<int, List<PlotAesthetic>> Mapped(ContentNode tree)
@@ -70,6 +76,9 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
         var columns = Columns(tree);
         var mapped = new Dictionary<int, List<PlotAesthetic>>();
         var spoken = new HashSet<PlotAesthetic>();
+
+        // The columns standing for somewhere on the panel, which is what cannot be shared.
+        var placed = new HashSet<int>();
 
         Map(settings.X, PlotAesthetic.X);
         Map(settings.Y, PlotAesthetic.Y);
@@ -95,23 +104,35 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
 
             channels.Add(channel);
             spoken.Add(channel);
+
+            if (Places(channel)) placed.Add(which);
         }
 
-        // The first column nobody has spoken for, where this channel has none. A column already feeding
-        // something is not free: a plot of weight, mpg and origin is not a plot of origin against anything.
+        // The first column no place has been given to yet, where this channel has none.
         void Fall(PlotAesthetic channel)
         {
             if (spoken.Contains(channel)) return;
 
             for (var at = 0; at < columns.Count; at++)
-                if (!mapped.ContainsKey(at))
+                if (!placed.Contains(at))
                 {
-                    mapped[at] = [channel];
+                    if (!mapped.TryGetValue(at, out var channels)) mapped[at] = channels = [];
+
+                    channels.Add(channel);
                     spoken.Add(channel);
+                    placed.Add(at);
+
                     return;
                 }
         }
     }
+
+    /// <summary>
+    /// Whether a channel says where a mark goes rather than what it looks like. Two marks may share a
+    /// colour; they cannot share a place.
+    /// </summary>
+    private static bool Places(PlotAesthetic channel) =>
+        channel is PlotAesthetic.X or PlotAesthetic.Y or PlotAesthetic.Fill or PlotAesthetic.Size;
 
     /// <summary>
     /// Which column <paramref name="written"/> names, by its name or by its place counted from one — or

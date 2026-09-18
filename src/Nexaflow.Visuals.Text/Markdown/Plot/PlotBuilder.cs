@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
+using Nexaflow.Markdown.Settings;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -107,26 +108,32 @@ internal sealed class PlotBuilder : ContentBuilder
     // ── Turning a value into a place ────────────────────────────────────────
 
     /// <summary>
-    /// An axis: what is written along it, where a value stands on it from nought to one, and how much of it
-    /// one value takes up — which is how wide a tile is drawn.
+    /// An axis: which channel it reads, what is written along it, where a value stands on it from nought to
+    /// one, and how much of it one value takes up — which is how wide a tile is drawn.
     /// </summary>
-    private sealed record Placing(IReadOnlyList<DiagramTick> Ticks, Func<PlotValue?, double?> At, double Slot);
+    /// <param name="Channel">
+    /// Carried because a flipped plot reads up the page what it would otherwise read across. Everything that
+    /// places a mark asks the axis which channel to take, so nothing else has to know the axes were swapped.
+    /// </param>
+    private sealed record Placing(PlotAesthetic Channel, IReadOnlyList<DiagramTick> Ticks,
+                                  Func<PlotValue?, double?> At, double Slot);
 
     /// <summary>
     /// How a channel is laid along its axis: numbered where its values are numbers, and a slot per name
     /// where they are names — the same division ggplot2 makes between a continuous and a discrete scale.
     /// </summary>
     private Placing Along(PlotChart chart, PlotAesthetic channel, PlotScale scale,
-                          (double Min, double Max)? limits, IReadOnlyList<double>? breaks, bool slots)
+                          (double Min, double Max)? limits, IReadOnlyList<double>? breaks, bool slots,
+                          (double Min, double Max)? widened = null)
     {
-        if (!slots && chart.Counts(channel) && (limits ?? chart.Reach(channel)) is { } reach)
+        if (!slots && chart.Counts(channel) && (limits ?? Both(chart.Reach(channel), widened)) is { } reach)
         {
             // Limits the block wrote are the ends it asked for, so they are not opened out to round numbers.
             var span = DiagramSpan.Of(reach.Min, reach.Max, Transform(scale), widen: limits is null);
 
             var marks = breaks is null
                 ? span.Ticks()
-                : [.. breaks.Select(value => (Value: value, At: span.At(value), Says: Plain(value)))
+                : [.. breaks.Select(value => (Value: value, At: span.At(value), Says: DiagramScale.Plain(value)))
                             .Where(tick => tick.At is not null and >= -1e-9 and <= 1 + 1e-9)
                             .Select(tick => (tick.Value, At: tick.At!.Value, tick.Says))];
 
@@ -134,11 +141,11 @@ internal sealed class PlotBuilder : ContentBuilder
                                  tick.At, this.Worked(tick.Says, null, LabelSize, _palette.TextMuted)))
                              .ToList();
 
-            return new Placing(ticks, value => value?.Number is { } number ? span.At(number) : null, 1);
+    return new Placing(channel, ticks, value => value?.Number is { } number ? span.At(number) : null, 1);
         }
 
         var names = slots ? chart.Slots(channel) : chart.Named(channel);
-        if (names.Count == 0) return new Placing([], _ => null, 1);
+    if (names.Count == 0) return new Placing(channel, [], _ => null, 1);
 
         // A value stands in the middle of its own slot, so the first and last are inside the panel rather
         // than on its edges — and the slot is exactly how wide a tile is drawn, so a row of them fills the
@@ -150,9 +157,27 @@ internal sealed class PlotBuilder : ContentBuilder
                               places[name], this.Worked(name, null, LabelSize, _palette.TextMuted)))
                           .ToList();
 
-        return new Placing(marked,
-            value => value is not null && places.TryGetValue(value.Text, out var place) ? place : null,
-            1.0 / names.Count);
+        return new Placing(channel, marked,
+                value => value is not null && places.TryGetValue(value.Text, out var place) ? place : null,
+                1.0 / names.Count);
+    }
+
+    /// <summary>The plain span a channel's numbers make, before anything drawn over them widens it.</summary>
+    private static DiagramSpan Spanned(PlotChart chart, PlotAesthetic channel, PlotScale scale,
+                                       (double Min, double Max)? limits)
+    {
+        var reach = limits ?? chart.Reach(channel) ?? (Min: 0.0, Max: 1.0);
+
+        return DiagramSpan.Of(reach.Min, reach.Max, Transform(scale), widen: limits is null);
+    }
+
+    /// <summary>Both reaches together, so what is drawn over an axis is shown by it.</summary>
+    private static (double Min, double Max)? Both((double Min, double Max)? one, (double Min, double Max)? other)
+    {
+        if (one is null) return other;
+        if (other is null) return one;
+
+        return (Math.Min(one.Value.Min, other.Value.Min), Math.Max(one.Value.Max, other.Value.Max));
     }
 
     /// <summary>How the kit reads an axis the block asked for.</summary>
@@ -166,22 +191,17 @@ internal sealed class PlotBuilder : ContentBuilder
         _ => DiagramTransform.Linear,
     };
 
-    /// <summary>A break as it is written on the axis: as many decimals as it needs and no more.</summary>
-    private static string Plain(double value) =>
-        value.ToString("0.############", CultureInfo.CurrentCulture);
-
     /// <summary>
     /// Which mark a point is drawn as: the glyph its group takes where a column feeds shape, the one the
     /// block named where it named one, and a circle otherwise.
     /// </summary>
-    private DiagramGlyph Glyph(PlotChart chart, PlotMark mark, IReadOnlyList<string> shapes)
+    private DiagramGlyph Glyph(PlotChart chart, PlotMark mark, IReadOnlyDictionary<string, int> shapes)
     {
-        if (shapes.Count == 0)
-            return DiagramGlyphs.Named(chart.Settings.Shape) ?? DiagramGlyph.Circle;
+        if (shapes.Count == 0) return DiagramGlyphs.Named(chart.Settings.Shape) ?? DiagramGlyph.Circle;
 
-        var at = mark[PlotAesthetic.Shape] is { } value ? Place(shapes, value.Text) : -1;
-
-        return at < 0 ? DiagramGlyph.Circle : DiagramGlyphs.At(at);
+        return mark[PlotAesthetic.Shape] is { } value && shapes.TryGetValue(value.Text, out var at)
+            ? DiagramGlyphs.At(at)
+            : DiagramGlyph.Circle;
     }
 
     /// <summary>
@@ -205,11 +225,53 @@ internal sealed class PlotBuilder : ContentBuilder
     }
 
     /// <summary>
+    /// How see-through a mark is drawn: spread over the alpha channel where a column feeds it, and the
+    /// plainest where none does.
+    /// </summary>
+    private static double Clearness(PlotChart chart, PlotMark mark, bool over)
+    {
+        var it = chart.Settings;
+
+        if (over) return Through;
+
+        if (!chart.Counts(PlotAesthetic.Alpha)
+            || chart.Reach(PlotAesthetic.Alpha) is not { } reach
+            || mark[PlotAesthetic.Alpha]?.Number is not { } number)
+            return it.MaxAlpha;
+
+        var share = reach.Max - reach.Min <= 0 ? 1 : (number - reach.Min) / (reach.Max - reach.Min);
+
+        return it.MinAlpha + (share * (it.MaxAlpha - it.MinAlpha));
+    }
+
+    /// <summary>
+    /// How far a mark is moved off its place, so rows landing on the same value stop hiding one another.
+    ///
+    /// <para>
+    /// Thrown from where the row was written rather than from the clock, so the same block always draws
+    /// the same picture — the rule a word cloud's packing keeps, for the same reason.
+    /// </para>
+    /// </summary>
+    private static (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
+                                                    Placing across, Placing up)
+    {
+        if (chart.Settings.Jitter <= 0) return (0, 0);
+
+        var throws = new Random(mark.Part.Start * 397);
+
+        var wide = chart.Settings.Jitter * across.Slot * plot.Width;
+        var tall = chart.Settings.Jitter * up.Slot * plot.Height;
+
+        return (((throws.NextDouble() * 2) - 1) * wide / 2, ((throws.NextDouble() * 2) - 1) * tall / 2);
+    }
+
+    /// <summary>
     /// How the marks are coloured: which channel says so, and whether it says it by naming a group or by
     /// standing somewhere along a run of colours.
     /// </summary>
     private sealed record Painting(PlotAesthetic Channel,
                                    IReadOnlyList<string> Groups,
+                                   IReadOnlyDictionary<string, int> Order,
                                    DiagramSpan? Span,
                                    IReadOnlyList<Color> Stops)
     {
@@ -233,9 +295,13 @@ internal sealed class PlotBuilder : ContentBuilder
             // say — there may be no third column at all — so it always gets a run of colours, and which counts
             // it runs over is settled once the bins are cut.
         if (it.Geom is PlotGeom.Bin2d or PlotGeom.Hex or PlotGeom.Density2d)
-                return new Painting(channel, [], DiagramSpan.Of(1, 2, widen: false), this.Ramp(it, trouble));
+                return new Painting(channel, [], Ordered([]), DiagramSpan.Of(1, 2, widen: false), this.Ramp(it, trouble));
 
-            if (!chart.Counts(channel)) return new Painting(channel, chart.Named(channel), null, []);
+        if (!chart.Counts(channel))
+                {
+                    var groups = chart.Named(channel);
+                    return new Painting(channel, groups, Ordered(groups), null, []);
+                }
 
         var reach = it.FillLimits ?? chart.Reach(channel) ?? (Min: 0.0, Max: 1.0);
 
@@ -252,7 +318,8 @@ internal sealed class PlotBuilder : ContentBuilder
 
         var even = it.FillLimits is not null || it.Midpoint is not null;
 
-        return new Painting(channel, [], DiagramSpan.Of(reach.Min, reach.Max, widen: !even), this.Ramp(it, trouble));
+    return new Painting(channel, [], Ordered([]),
+                                DiagramSpan.Of(reach.Min, reach.Max, widen: !even), this.Ramp(it, trouble));
     }
 
     /// <summary>The run of colours the block asked for, or the one its kind of number is read along.</summary>
@@ -297,8 +364,7 @@ internal sealed class PlotBuilder : ContentBuilder
                 ? _ink.Scale(paint.Stops, share)
                 : _palette.TextMuted;
 
-        var at = mark[paint.Channel] is { } value ? Place(paint.Groups, value.Text) : -1;
-        var order = at < 0 ? 0 : at;
+        var order = mark[paint.Channel] is { } value && paint.Order.TryGetValue(value.Text, out var at) ? at : 0;
 
         return _ink.Series(order, Swatch(chart.Settings.Palette, order));
     }
@@ -321,8 +387,8 @@ internal sealed class PlotBuilder : ContentBuilder
 
         foreach (var mark in chart.Marks)
         {
-            var x = across.At(mark[PlotAesthetic.X]);
-            var y = up.At(mark[PlotAesthetic.Y]);
+            var x = across.At(mark[across.Channel]);
+                    var y = up.At(mark[up.Channel]);
 
             if (x is null || y is null)
             {
@@ -387,8 +453,8 @@ internal sealed class PlotBuilder : ContentBuilder
 
         foreach (var mark in chart.Marks)
         {
-            var x = across.At(mark[PlotAesthetic.X]);
-            var y = up.At(mark[PlotAesthetic.Y]);
+            var x = across.At(mark[across.Channel]);
+                    var y = up.At(mark[up.Channel]);
 
             if (x is null || y is null)
             {
@@ -494,7 +560,7 @@ internal sealed class PlotBuilder : ContentBuilder
     /// </summary>
     private List<(DiagramWords Words, Point At)> Drawn(PlotChart chart, LayoutBuilder build, Rect plot,
                                                        Placing across, Placing up, Painting paint,
-                                                       IReadOnlyList<string> shapes, bool tiles,
+                                                       IReadOnlyDictionary<string, int> shapes, bool tiles,
                                                        List<Diagnostic> trouble, bool over = false)
     {
         var it = chart.Settings;
@@ -504,8 +570,8 @@ internal sealed class PlotBuilder : ContentBuilder
 
         foreach (var mark in chart.Marks)
         {
-            var x = across.At(mark[PlotAesthetic.X]);
-            var y = up.At(mark[PlotAesthetic.Y]);
+            var x = across.At(mark[across.Channel]);
+                        var y = up.At(mark[up.Channel]);
 
             if (x is null || y is null)
             {
@@ -518,8 +584,14 @@ internal sealed class PlotBuilder : ContentBuilder
                 continue;
             }
 
-            var at = new Point(plot.Left + (x.Value * plot.Width), plot.Bottom - (y.Value * plot.Height));
-            var fill = this.Fill(chart, mark, paint);
+            var (shakeAcross, shakeUp) = Shake(chart, mark, plot, across, up);
+
+                    // Held inside the panel, because a mark shaken past the axis is a mark standing at a value the
+                            // axis says is not there.
+                            var at = new Point(Math.Clamp(plot.Left + (x.Value * plot.Width) + shakeAcross, plot.Left, plot.Right),
+                                               Math.Clamp(plot.Bottom - (y.Value * plot.Height) + shakeUp, plot.Top, plot.Bottom));
+
+                    var fill = this.Fill(chart, mark, paint);
 
             var box = tiles
                         ? new Rect(at.X - (across.Slot * plot.Width / 2), at.Y - (up.Slot * plot.Height / 2),
@@ -531,16 +603,23 @@ internal sealed class PlotBuilder : ContentBuilder
                 : DiagramGlyphs.Outline(this.Glyph(chart, mark, shapes), box);
 
             build.Open(PlotPiece.Mark, mark.Part, stops: Stops.None);
-    build.Draw(new GeometryMark(outline, tiles ? fill : DiagramInk.Faded(fill, over ? Through : 0.85), null, 0));
+    build.Draw(new GeometryMark(outline,
+                                        tiles ? fill : DiagramInk.Faded(fill, Clearness(chart, mark, over)),
+                                        null, 0));
             build.Occupies(outline);
             build.Close();
 
             // A value written on its own tile, which a small heat map has room for and a big one has not.
-            if (!it.Labels || mark[paint.Channel] is not { } said) continue;
+    // A column mapped to label names each mark; `labels: true` writes the value the colour stands for.
+            var naming = mark[PlotAesthetic.Label] ?? (it.Labels ? mark[paint.Channel] : null);
+            if (naming is not { } said) continue;
 
-    // The characters the reader typed, so a value drawn on its tile is one they can type into.
-                    var words = this.Written(said.Inner, LabelSize, _ink.Over(fill));
-            labels.Add((words, new Point(at.X - (words.Width / 2), at.Y - (words.Height / 2))));
+            // The characters the reader typed, so a value drawn on a mark is one they can type into.
+            var words = this.Written(said.Inner, LabelSize, tiles ? _ink.Over(fill) : _palette.Text);
+
+            labels.Add((words, tiles
+                ? new Point(at.X - (words.Width / 2), at.Y - (words.Height / 2))
+                : new Point(at.X + Gap, at.Y - (words.Height / 2))));
         }
 
         build.Close();
@@ -548,84 +627,216 @@ internal sealed class PlotBuilder : ContentBuilder
         return labels;
     }
 
+    /// <summary>A fitted line and what it is drawn in — its group's colour, so overlapping bands are told apart.</summary>
+    private sealed record Fitting(PlotLine Line, Brush Ink);
+
     /// <summary>
-    /// Draws what was worked out from the points rather than written in them: the fitted line with the band
-    /// its own uncertainty makes, and the figures saying how much of it is worth believing.
+    /// The lines fitted through the points, worked out but not yet drawn.
     ///
     /// <para>
-    /// The band goes down first and the line over it, so the line is never half hidden by its own doubt.
-    /// Neither stands for any row — nobody typed a regression — so neither takes a caret.
+    /// Fitted on the panel, so a line follows a log axis where there is one and can simply be drawn. What
+    /// the points say about each other is worked out from the values instead, because down the page is the
+    /// way a screen counts and not the way a number does.
     /// </para>
     /// </summary>
-    private void Fitted(PlotChart chart, LayoutBuilder build, Rect plot, Placing across, Placing up)
+    private IReadOnlyList<Fitting> Fits(PlotChart chart, Rect plot, Placing across, Placing up, Painting paint)
+    {
+        var it = chart.Settings;
+        if (it.Fit == PlotFit.None) return [];
+
+        var placed = new List<(double X, double Y)>();
+        var inks = new List<Brush>();
+
+        foreach (var mark in chart.Marks)
+            if (across.At(mark[across.Channel]) is { } x && up.At(mark[up.Channel]) is { } y)
+            {
+                placed.Add((plot.Left + (x * plot.Width), plot.Bottom - (y * plot.Height)));
+                inks.Add(this.Fill(chart, mark, paint));
+            }
+
+        var grouped = chart.Named(PlotAesthetic.Group).Count > 0;
+        var lines = new List<Fitting>();
+
+        foreach (var group in Split(chart, placed.Count))
+        {
+            if (group.Count == 0) continue;
+
+            var points = group.Select(at => placed[at]).ToList();
+
+            var line = it.Fit == PlotFit.Loess
+                ? PlotFits.Curved(points, it.Se, level: it.Level)
+                : PlotFits.Straight(points, it.Se, it.Level);
+
+            if (line is null) continue;
+
+            // One fit through everything is the accent's; a fit per group takes that group's own colour, so
+            // two bands lying over each other still say which is which.
+            lines.Add(new Fitting(line, grouped ? inks[group[0]] : _palette.Accent));
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// How far up and down the fitted bands reach, in the values' own terms — so the axis can be opened out
+    /// to show all of them.
+    ///
+    /// <para>
+    /// <strong>A band is part of the answer, not decoration over it.</strong> Cropping one to the panel
+    /// leaves a plot that says the fit stops where the axis happens to, which is not what the arithmetic
+    /// said; ggplot2 trains its scale on every layer for the same reason. Where the block wrote the ends
+    /// itself, they are the ends it asked for and this is not consulted.
+    /// </para>
+    /// <para>
+    /// Worked out in the axis's own reading rather than on the panel, because the panel is not laid out yet
+    /// — and a fit down a logarithmic axis is a fit through the logarithms either way.
+    /// </para>
+    /// </summary>
+    private (double Min, double Max)? Banding(PlotChart chart, PlotAesthetic acrossChannel,
+                                              PlotAesthetic upChannel, DiagramSpan across, DiagramSpan up)
     {
         var it = chart.Settings;
 
-        if (it.Fit == PlotFit.None && it.Stats is null) return;
+        if (it.Fit == PlotFit.None || !it.Se) return null;
 
-        // Two readings of the same rows, and they are not interchangeable.
-        //
-        // The line is fitted on the panel, so it follows a log axis where there is one and can simply be
-        // drawn. The figures are worked out from the values themselves, because down the page is the way a
-        // screen counts and not the way a number does — a fit on the panel would report every correlation
-        // with its sign turned about.
-        var placed = new List<(double X, double Y)>();
+        var read = new List<(double X, double Y)>();
+
+        foreach (var mark in chart.Marks)
+            if (mark[acrossChannel]?.Number is { } x && mark[upChannel]?.Number is { } y
+                && across.Reading(x) is { } alongX && up.Reading(y) is { } alongY)
+                read.Add((alongX, alongY));
+
+        double? least = null, most = null;
+
+        foreach (var group in Split(chart, read.Count))
+            {
+                var points = group.Select(at => read[at]).ToList();
+
+                var line = it.Fit == PlotFit.Loess
+                    ? PlotFits.Curved(points, band: true, level: it.Level)
+                    : PlotFits.Straight(points, band: true, it.Level);
+
+            if (line?.Below is not { } below || line.Above is not { } above) continue;
+
+            foreach (var (_, y) in below) least = least is null ? y : Math.Min(least.Value, y);
+            foreach (var (_, y) in above) most = most is null ? y : Math.Max(most.Value, y);
+        }
+
+        if (least is null || most is null) return null;
+
+        return (up.Value(least.Value), up.Value(most.Value));
+    }
+
+    /// <summary>
+    /// What the points say about each other, written on the panel — from the values themselves, because
+    /// down the page is the way a screen counts and not the way a number does.
+    /// </summary>
+    private void Reported(PlotChart chart, LayoutBuilder build, Rect plot)
+    {
+        var it = chart.Settings;
+        if (it.Stats is not { Count: > 0 }) return;
+
         var values = new List<(double X, double Y)>();
 
         foreach (var mark in chart.Marks)
-        {
-            if (across.At(mark[PlotAesthetic.X]) is { } x && up.At(mark[PlotAesthetic.Y]) is { } y)
-                placed.Add((plot.Left + (x * plot.Width), plot.Bottom - (y * plot.Height)));
+            if (mark[PlotAesthetic.X]?.Number is { } x && mark[PlotAesthetic.Y]?.Number is { } y)
+                values.Add((x, y));
 
-            if (mark[PlotAesthetic.X]?.Number is { } across2 && mark[PlotAesthetic.Y]?.Number is { } up2)
-                values.Add((across2, up2));
-        }
-
-        if (it.Fit != PlotFit.None)
-        {
-            var line = it.Fit == PlotFit.Loess
-                ? PlotFits.Curved(placed, it.Se, level: it.Level)
-                : PlotFits.Straight(placed, it.Se, it.Level);
-
-            if (line is not null) this.Traced(build, line);
-        }
-
-        if (it.Stats is { Count: > 0 } && PlotFits.Of(it.Method, values) is { } said)
-            this.Reported(build, plot, it, said);
+        if (PlotFits.Of(it.Method, values) is { } said) this.Reported(build, plot, it, said);
     }
 
-    /// <summary>The band, then the line over it.</summary>
-    private void Traced(LayoutBuilder build, PlotLine line)
+    /// <summary>
+    /// The band a fit's own uncertainty makes, under the marks.
+    ///
+    /// <para>
+    /// Under, because a band is context and the rows are the subject: drawn over them it greys out the very
+    /// points it is about. And clipped to the panel, because a fit through four points has a band wider than
+    /// anything the axes cover, and a band reaching past them says the plot extends where it does not.
+    /// </para>
+    /// </summary>
+    private void Banded(LayoutBuilder build, IReadOnlyList<Fitting> lines, Rect plot)
     {
-        if (line.Below is { Count: > 1 } below && line.Above is { Count: > 1 } above)
+        foreach (var fitting in lines)
         {
+            var line = fitting.Line;
+            if (line.Below is not { Count: > 1 } below || line.Above is not { Count: > 1 } above) continue;
+
             // Up one edge and back down the other, which closes the band without a seam through it.
             var round = new List<Point>();
 
             foreach (var (x, y) in below) round.Add(new Point(x, y));
             for (var at = above.Count - 1; at >= 0; at--) round.Add(new Point(above[at].X, above[at].Y));
 
-            var shape = DiagramCurve.Closed(round);
+            var shape = Within(DiagramCurve.Closed(round), plot);
 
-            build.Open(PlotPiece.Band, part: null, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, DiagramInk.Faded(_palette.TextMuted, 0.18), null, 0));
-            build.Covers(shape.Bounds);
+                    build.Open(PlotPiece.Band, part: null, stops: Stops.None);
+            build.Draw(new GeometryMark(shape, DiagramInk.Faded(fitting.Ink, 0.16), null, 0));
+            build.Covers(plot);
             build.Close();
         }
+    }
 
-        var trace = new PathFigure { StartPoint = new Point(line.Along[0].X, line.Along[0].Y) };
+    /// <summary>Whatever of a shape falls inside the panel, which is all of it that means anything.</summary>
+    private static Geometry Within(Geometry shape, Rect plot)
+    {
+        var panel = new RectangleGeometry(plot);
+        var kept = Geometry.Combine(shape, panel, GeometryCombineMode.Intersect, null);
 
-        for (var at = 1; at < line.Along.Count; at++)
-            trace.Segments.Add(new LineSegment(new Point(line.Along[at].X, line.Along[at].Y), true));
+        kept.Freeze();
+        return kept;
+    }
 
-        var path = new PathGeometry();
-        path.Figures.Add(trace);
-        path.Freeze();
+    /// <summary>
+    /// Which rows belong together for the purpose of a fit, as their places in the order they were read.
+    ///
+    /// <para>
+    /// Indices rather than the points themselves, so a caller can find whatever else it holds about the
+    /// same rows — their colours, say. Handing back the points alone left the colours to be matched up by
+    /// counting, and a dictionary does not hand its groups back in the order they were written.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<int>> Split(PlotChart chart, int count)
+    {
+        var named = chart.Marks.Where(mark => mark[PlotAesthetic.X] is not null).ToList();
 
-        build.Open(PlotPiece.Fit, part: null, stops: Stops.None);
-        build.Draw(new GeometryMark(path, null, _palette.Accent, 2));
-        build.Occupies(path.GetWidenedPathGeometry(new Pen(Brushes.Black, DiagramConnector.Reach)));
-        build.Close();
+        if (chart.Named(PlotAesthetic.Group).Count == 0)
+            return [[.. Enumerable.Range(0, count)]];
+
+        var parts = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+
+        for (var at = 0; at < count && at < named.Count; at++)
+        {
+            var name = named[at][PlotAesthetic.Group]?.Text ?? string.Empty;
+
+            if (!parts.TryGetValue(name, out var part)) parts[name] = part = [];
+
+            part.Add(at);
+        }
+
+        return [.. parts.Values];
+    }
+
+    /// <summary>The fitted lines themselves, over the marks and clipped to the panel.</summary>
+    private void Traced(LayoutBuilder build, IReadOnlyList<Fitting> lines, Rect plot)
+    {
+        foreach (var fitting in lines)
+        {
+            var line = fitting.Line;
+            var trace = new PathFigure { StartPoint = new Point(line.Along[0].X, line.Along[0].Y) };
+
+            for (var at = 1; at < line.Along.Count; at++)
+                trace.Segments.Add(new LineSegment(new Point(line.Along[at].X, line.Along[at].Y), true));
+
+            var path = new PathGeometry();
+            path.Figures.Add(trace);
+
+            var drawn = Within(path.GetWidenedPathGeometry(new Pen(Brushes.Black, 2)), plot);
+
+            build.Open(PlotPiece.Fit, part: null, stops: Stops.None);
+    build.Draw(new GeometryMark(drawn, fitting.Ink, null, 0));
+            build.Occupies(drawn);
+            build.Close();
+        }
     }
 
     /// <summary>
@@ -663,13 +874,21 @@ internal sealed class PlotBuilder : ContentBuilder
     /// <summary>A coefficient as a reader wants it: two decimals, which is all one is worth.</summary>
     private static string Figure(double value) => value.ToString("0.00", CultureInfo.CurrentCulture);
 
-    /// <summary>Where a name stands in the order the groups were first written.</summary>
-    private static int Place(IReadOnlyList<string> groups, string name)
+    /// <summary>
+    /// Where each name stands in the order the groups were first written.
+    ///
+    /// <para>
+    /// A map rather than a search, because this is asked once per mark: a scatter of four thousand rows
+    /// against a dozen groups walked the list four thousand times to answer the same twelve questions.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyDictionary<string, int> Ordered(IReadOnlyList<string> names)
     {
-        for (var at = 0; at < groups.Count; at++)
-            if (groups[at] == name) return at;
+        var order = new Dictionary<string, int>(StringComparer.Ordinal);
 
-        return -1;
+        for (var at = 0; at < names.Count; at++) order[names[at]] = at;
+
+        return order;
     }
 
     /// <summary>The colour the block wrote for a place in the order, or null to leave it to the theme.</summary>
@@ -682,11 +901,7 @@ internal sealed class PlotBuilder : ContentBuilder
     {
         var it = chart.Settings;
 
-        var wide = Math.Clamp(it.Width > 0 ? it.Width : Math.Min(_room, PlotSettings.RoomLimit),
-                              PlotSettings.MinSide, PlotSettings.MaxSide);
-
-        var tall = Math.Clamp(it.Height > 0 ? it.Height : wide * PlotSettings.HeightShare,
-                              PlotSettings.MinSide, PlotSettings.MaxSide);
+        var (wide, tall) = SettingRoom.Fit(it.Width, it.Height, _room, PlotSettings.HeightShare);
 
         var trouble = new List<Diagnostic>();
 
@@ -695,20 +910,41 @@ internal sealed class PlotBuilder : ContentBuilder
     var bins = it.Geom is PlotGeom.Bin2d or PlotGeom.Hex;
             var cloud = it.Geom == PlotGeom.Density2d;
 
-        var across = this.Along(chart, PlotAesthetic.X, it.XScale, it.XLimits, it.XBreaks, tiles);
-        var up = this.Along(chart, PlotAesthetic.Y, it.YScale, it.YLimits, it.YBreaks, tiles);
+        // Flipped, the axes swap: what was read across is read up. Everything after this is told which is
+            // which, so nothing else has to know.
+            var acrossChannel = it.Flip ? PlotAesthetic.Y : PlotAesthetic.X;
+            var upChannel = it.Flip ? PlotAesthetic.X : PlotAesthetic.Y;
+
+            var across = this.Along(chart, acrossChannel, it.XScale, it.XLimits, it.XBreaks, tiles);
+
+                // A band is part of the answer, so the axis opens out to show all of it — unless the block wrote the
+                // ends itself, in which case they are the ends it asked for.
+                var banding = tiles || bins || cloud || it.YLimits is not null
+                    ? null
+                    : this.Banding(chart, acrossChannel, upChannel,
+                                   Spanned(chart, acrossChannel, it.XScale, it.XLimits),
+                                   Spanned(chart, upChannel, it.YScale, it.YLimits));
+
+                var up = this.Along(chart, upChannel, it.YScale, it.YLimits, it.YBreaks, tiles, banding);
 
         var paint = this.Paint(chart, trouble);
-        var shapes = chart.Named(PlotAesthetic.Shape);
+    var named = chart.Named(PlotAesthetic.Shape);
+            var shapes = Ordered(named);
 
-        if (it.Shape is not null && shapes.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
+    if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
             trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`shape: {it.Shape}` names neither a column nor a mark. "
                                        + $"The marks are {DiagramGlyphs.Names}."));
 
         var title = it.Title is null ? null : this.Worked(it.Title, null, TitleSize, _palette.Heading);
-        var xTitle = this.AxisTitle(chart, PlotAesthetic.X, it.XTitle);
-        var yTitle = this.AxisTitle(chart, PlotAesthetic.Y, it.YTitle);
+            var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);
+            var caption = it.Caption is null ? null : this.Worked(it.Caption, null, LabelSize, _palette.TextMuted);
+
+            // A title follows its own channel rather than its side of the panel: `xTitle:` names what `x:` maps,
+                // and flipping carries both of them up the page together. Naming the side instead put the weight
+                // title under an axis of miles per gallon.
+                var xTitle = this.AxisTitle(chart, acrossChannel, it.Flip ? it.YTitle : it.XTitle);
+                var yTitle = this.AxisTitle(chart, upChannel, it.Flip ? it.XTitle : it.YTitle);
 
         // What a binned plot's colours run over is the counts, and there is no knowing them until the bins
         // are cut — so it takes the room a bar needs now and is given its numbers once they are counted.
@@ -721,18 +957,33 @@ internal sealed class PlotBuilder : ContentBuilder
         var left = DiagramAxis.Room(up.Ticks, upright: true) + (yTitle is null ? 0 : yTitle.Height + Gap)
                    + (it.Legend == PlotLegend.Left ? key.Size.Width + (Gap * 2) : 0);
 
-        var top = (title is null ? Gap : title.Height + (Gap * 2))
-                  + (it.Legend == PlotLegend.Top ? key.Size.Height + Gap : 0);
+        var top = (title is null ? Gap : title.Height + Gap)
+                      + (subtitle is null ? (title is null ? 0 : Gap) : subtitle.Height + Gap)
+                      + (it.Legend == PlotLegend.Top ? key.Size.Height + Gap : 0);
 
-        var bottom = DiagramAxis.Room(across.Ticks, upright: false) + (xTitle is null ? 0 : Gap + xTitle.Height)
-                     + (it.Legend == PlotLegend.Bottom ? key.Size.Height + (Gap * 2) : 0);
+            var bottom = DiagramAxis.Room(across.Ticks, upright: false) + (xTitle is null ? 0 : Gap + xTitle.Height)
+                         + (caption is null ? 0 : Gap + caption.Height)
+                         + (it.Legend == PlotLegend.Bottom ? key.Size.Height + (Gap * 2) : 0);
 
         var right = Math.Max(Gap * 2, (across.Ticks.LastOrDefault()?.Words?.Width / 2) ?? 0)
                     + (it.Legend == PlotLegend.Right ? key.Size.Width + (Gap * 2) : 0);
 
-        var plot = new Rect(left, top,
-                            Math.Max(Smallest, wide - left - right),
-                            Math.Max(Smallest, tall - top - bottom));
+        var panel = new Size(Math.Max(Smallest, wide - left - right), Math.Max(Smallest, tall - top - bottom));
+
+            // A panel the block gave a shape to keeps it, and the room left over is simply not used: a
+            // correlation matrix asked for square cells is not a correlation matrix drawn oblong.
+            if (it.Aspect is { } shape and > 0)
+            {
+                if (panel.Width / panel.Height > shape) panel = new Size(panel.Height * shape, panel.Height);
+                else panel = new Size(panel.Width, panel.Width / shape);
+            }
+
+        var plot = new Rect(left, top, panel.Width, panel.Height);
+
+                // What was actually drawn, which is what the block takes up. A panel held to a shape leaves room
+                // over, and room over would stand the key away from the plot it explains.
+                wide = left + panel.Width + right;
+                tall = top + panel.Height + bottom;
 
         var build = new LayoutBuilder();
         build.Open(PlotPiece.Plot);
@@ -748,7 +999,12 @@ internal sealed class PlotBuilder : ContentBuilder
         if (!tiles && it.Grid is PlotGrid.Both or PlotGrid.X)
             DiagramGrid.Draw(build, PlotPiece.Grid, plot, across.Ticks, upright: false, faint);
 
-        var labels = new List<(DiagramWords Words, Point At)>();
+    var labels = new List<(DiagramWords Words, Point At)>();
+
+            // Under the marks: a band is context and the rows are the subject, so drawn over them it greys out
+            // the very points it is about.
+        var fits = bins || cloud ? [] : this.Fits(chart, plot, across, up, paint);
+            this.Banded(build, fits, plot);
 
         if (bins)
             {
@@ -771,7 +1027,9 @@ internal sealed class PlotBuilder : ContentBuilder
             }
 
     // Over the marks and under the axes: worked out from them, and never over the numbers.
-            if (!bins && !cloud) this.Fitted(chart, build, plot, across, up);
+        this.Traced(build, fits, plot);
+
+        if (!bins && !cloud) this.Reported(chart, build, plot);
 
             if (labels.Count > 0)
         {
@@ -787,7 +1045,13 @@ internal sealed class PlotBuilder : ContentBuilder
                          PlotPiece.Tick, after: true);
 
         title?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - title.Width) / 2), Gap),
-                   PlotPiece.Title);
+                       PlotPiece.Title);
+
+            subtitle?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - subtitle.Width) / 2),
+                                           (title?.Height ?? 0) + Gap),
+                          PlotPiece.Title);
+
+            caption?.Set(build, new Point(plot.Left, tall - caption.Height), PlotPiece.Title);
 
         // Turned a quarter turn so it reads up the axis: anchored at its foot, it reaches up by however
         // wide its words are.
@@ -822,12 +1086,32 @@ internal sealed class PlotBuilder : ContentBuilder
     /// The key, whichever kind this chart needs: a row per group where the colour names one, and a bar of
     /// the colours themselves where it is a quantity.
     /// </summary>
-    private sealed record Chart(DiagramLegend? Rows, DiagramBar? Bar)
+    private sealed record Chart(DiagramLegend? Rows, DiagramBar? Bar, DiagramWords? Heading = null)
     {
-        public Size Size => this.Rows?.Size ?? this.Bar?.Size ?? new Size(0, 0);
+        private const double Apart = 4;
+
+        public Size Size
+        {
+            get
+            {
+                var key = this.Rows?.Size ?? this.Bar?.Size ?? new Size(0, 0);
+
+                if (this.Heading is not { } heading || key.Height <= 0) return key;
+
+                return new Size(Math.Max(key.Width, heading.Width), key.Height + heading.Height + Apart);
+            }
+        }
 
         public void Draw(LayoutBuilder build, Point at)
         {
+            // Words rather than a row of the key: a row with no swatch is drawn as an empty outlined
+            // square, which reads as a colour nobody chose rather than as a heading.
+            if (this.Heading is { } heading)
+            {
+                heading.Set(build, at, PlotPiece.Name);
+                at = new Point(at.X, at.Y + heading.Height + Apart);
+            }
+
             this.Rows?.Draw(build, at);
             this.Bar?.Draw(build, at);
         }
@@ -844,24 +1128,30 @@ internal sealed class PlotBuilder : ContentBuilder
             // — which is the value the colour turns about where one was written.
             var marks = new[] { 0.0, 0.5, 1.0 }
                 .Select(at => (At: at, Value: span.Min + (at * (span.Max - span.Min))))
-                .Select(mark => (mark.At, Words: this.Worked(Plain(Rounded(mark.Value)), null, LabelSize, _palette.Text)))
+                .Select(mark => (mark.At, Words: this.Worked(DiagramScale.Plain(Rounded(mark.Value)), null, LabelSize, _palette.Text)))
                 .ToList();
 
-            return new Chart(null, new DiagramBar(paint.Stops, marks, _palette.CodeBorder));
+    return new Chart(null, new DiagramBar(paint.Stops, marks, _palette.CodeBorder), this.Heading(chart));
         }
 
         if (paint.Groups.Count == 0) return new Chart(null, null);
 
         var rows = paint.Groups.Select((name, at) => new DiagramKey(
-                                this.Named(chart, paint.Channel, name),
-                                _ink.Series(at, Swatch(chart.Settings.Palette, at)),
-                                [this.Worked(name, null, LabelSize, _palette.Text)]))
-                            .ToList();
+                                    this.Named(chart, paint.Channel, name),
+                                    _ink.Series(at, Swatch(chart.Settings.Palette, at)),
+                                    [this.Worked(name, null, LabelSize, _palette.Text)]))
+                                .ToList();
 
         var across = chart.Settings.Legend is PlotLegend.Bottom or PlotLegend.Top;
 
-        return new Chart(new DiagramLegend(rows, [PlotPiece.Name], across, _palette.CodeBorder), null);
+    return new Chart(new DiagramLegend(rows, [PlotPiece.Name], across, _palette.CodeBorder), null, this.Heading(chart));
     }
+
+    /// <summary>What the key is called, where the block calls it anything.</summary>
+    private DiagramWords? Heading(PlotChart chart) =>
+        chart.Settings.LegendTitle is { } said
+            ? this.Worked(said, null, LabelSize, _palette.Heading)
+            : null;
 
     /// <summary>
     /// The key a binned heat map gets: the counts its colours run over, rather than any column's values.
@@ -870,7 +1160,7 @@ internal sealed class PlotBuilder : ContentBuilder
     {
         var marks = new[] { 0.0, 0.5, 1.0 }
             .Select(at => (At: at, Value: Math.Round(counts.Min + (at * (counts.Max - counts.Min)))))
-            .Select(mark => (mark.At, Words: this.Worked(Plain(mark.Value), null, LabelSize, _palette.Text)))
+            .Select(mark => (mark.At, Words: this.Worked(DiagramScale.Plain(mark.Value), null, LabelSize, _palette.Text)))
             .ToList();
 
         return new Chart(null, new DiagramBar(stops, marks, _palette.CodeBorder));

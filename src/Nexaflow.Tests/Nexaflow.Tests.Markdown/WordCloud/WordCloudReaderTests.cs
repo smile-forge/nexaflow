@@ -203,7 +203,7 @@ public class WordCloudReaderTests
         StringAssert.Contains(Refused("shape: blob\nWPF: 40"), "not a shape");
         StringAssert.Contains(Refused("scale: cubic\nWPF: 40"), "not a scale");
         StringAssert.Contains(Refused("bold: sometimes\nWPF: 40"), "not true or false");
-        StringAssert.Contains(Refused("gridSize: 900\nWPF: 40"), "usable range");
+        StringAssert.Contains(Refused("gridSize: 900\nWPF: 40"), "is outside");
         StringAssert.Contains(Refused("minSize: 40\nmaxSize: 10\nWPF: 40"), "larger than");
     }
 

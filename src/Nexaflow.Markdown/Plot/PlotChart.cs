@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Plot.Stages;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.Plot;
 
@@ -239,7 +240,7 @@ public sealed record PlotChart(PlotSettings Settings,
     }
 
     private static PlotValue Valued(ContentPart cell, string text) =>
-        new(cell, Inner(cell), text, PlotNumber.Read(cell.Node.Said(PlotRoles.Number) ?? text));
+        new(cell, Inner(cell), text, SettingValues.Read(cell.Node.Said(PlotRoles.Number) ?? text));
 
     /// <summary>
     /// The part holding a cell's own characters: the cell itself where it is bare, and what is between the

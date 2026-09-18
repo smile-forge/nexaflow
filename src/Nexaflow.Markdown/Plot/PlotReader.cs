@@ -1,5 +1,7 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Settings;
 using System.Globalization;
+using static Nexaflow.Markdown.Settings.SettingValues;
 
 namespace Nexaflow.Markdown.Plot;
 
@@ -24,17 +26,8 @@ public static class PlotReader
     /// the fence's own name asks for, which a <c>geom:</c> line overrides.
     /// </summary>
     public static bool TrySettings(ContentNode root, PlotFence fence,
-                                   out PlotSettings? settings, out string? error)
-    {
-        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var node in root.SelfAndDescendants())
-            if (node.Kind == PlotKinds.Setting)
-                fields[PlotSetting.Plain(node.Part(Roles.Name)?.Text)] =
-                    node.Part(PlotRoles.Value)?.Text ?? string.Empty;
-
-        return TrySettings(fields, fence, out settings, out error);
-    }
+                                   out PlotSettings? settings, out string? error) =>
+        TrySettings(SettingKeys.Written(root, PlotKinds.Setting, PlotRoles.Value), fence, out settings, out error);
 
     private static bool TrySettings(IReadOnlyDictionary<string, string> fields, PlotFence fence,
                                     out PlotSettings? settings, out string? error)
@@ -64,7 +57,20 @@ public static class PlotReader
         if (!Range(fields, "sizeRange", it.MinSize, it.MaxSize, PlotSettings.SmallestSize,
                    PlotSettings.LargestSize, out var minSize, out var maxSize, out error)) return false;
 
-        if (!Maybe(fields, "header", out var header, out error)) return false;
+    if (!Maybe(fields, "header", out var header, out error)) return false;
+            if (!Flag(fields, "flip", it.Flip, out var flip, out error)) return false;
+
+            if (!Number(fields, "jitter", it.Jitter, 0, 1, out var jitter, out error)) return false;
+            if (!Range(fields, "alphaRange", it.MinAlpha, it.MaxAlpha, 0, 1,
+                       out var minAlpha, out var maxAlpha, out error)) return false;
+
+            double? aspect = null;
+            if (Text(fields, "aspect") is not null)
+            {
+                if (!Number(fields, "aspect", 1, 0.05, 20, out var shape, out error)) return false;
+
+                aspect = shape;
+            }
         if (!Flag(fields, "labels", it.Labels, out var labels, out error)) return false;
 
         if (!Colours(fields, "palette", out var palette, out error)) return false;
@@ -116,8 +122,14 @@ public static class PlotReader
 
                     Legend = legend,
 
-                    MinSize = minSize,
-            MaxSize = maxSize,
+            MinSize = minSize,
+                    MaxSize = maxSize,
+                    MinAlpha = minAlpha,
+                    MaxAlpha = maxAlpha,
+
+                    Jitter = jitter,
+                    Aspect = aspect,
+                    Flip = flip,
 
             Palette = palette,
             Gradient = Text(fields, "gradient"),
@@ -270,35 +282,6 @@ public static class PlotReader
 
     // ── What a value has to be ──────────────────────────────────────────────
 
-    /// <summary>What a key was set to, or null where it was not written or was left blank.</summary>
-    private static string? Text(IReadOnlyDictionary<string, string> fields, string key) =>
-        fields.TryGetValue(key, out var value) && value.Trim().Length > 0 ? value.Trim() : null;
-
-    private static bool Number(IReadOnlyDictionary<string, string> fields, string key, double fallback,
-                               double min, double max, out double result, out string? error)
-    {
-        result = fallback;
-        error = null;
-
-        if (Text(fields, key) is not { } written) return true;
-
-        if (!double.TryParse(written, NumberStyles.Float, CultureInfo.InvariantCulture, out var read)
-            || double.IsNaN(read) || double.IsInfinity(read))
-        {
-            error = $"`{key}: {written}` is not a number.";
-            return false;
-        }
-
-        if (read < min || read > max)
-        {
-            error = $"`{key}: {written}` is outside {Written(min)} to {Written(max)}.";
-            return false;
-        }
-
-        result = read;
-        return true;
-    }
-
     /// <summary>Two numbers, low then high — what <c>sizeRange: 4 28</c> says.</summary>
     private static bool Range(IReadOnlyDictionary<string, string> fields, string key,
                               double lowIf, double highIf, double min, double max,
@@ -393,69 +376,6 @@ public static class PlotReader
         result = read;
         return true;
     }
-
-    /// <summary>A flag that may simply not have been written, which is not the same as being false.</summary>
-    private static bool Maybe(IReadOnlyDictionary<string, string> fields, string key,
-                              out bool? result, out string? error)
-    {
-        result = null;
-        error = null;
-
-        if (Text(fields, key) is not { } written) return true;
-
-        if (Yes.Contains(written, StringComparer.OrdinalIgnoreCase)) result = true;
-        else if (No.Contains(written, StringComparer.OrdinalIgnoreCase)) result = false;
-        else
-        {
-            error = $"`{key}: {written}` is not true or false.";
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>A flag, taking what it was given where nothing was written.</summary>
-    private static bool Flag(IReadOnlyDictionary<string, string> fields, string key, bool fallback,
-                             out bool result, out string? error)
-    {
-        if (!Maybe(fields, key, out var said, out error))
-        {
-            result = fallback;
-            return false;
-        }
-
-        result = said ?? fallback;
-        return true;
-    }
-
-    private static readonly string[] Yes = ["true", "yes", "on", "1"];
-    private static readonly string[] No = ["false", "no", "off", "0"];
-
-    /// <summary>One of the few things a key takes, named as it is written.</summary>
-    private static bool Choice<TChoice>(IReadOnlyDictionary<string, string> fields, string key,
-                                        TChoice fallback, out TChoice result, out string? error)
-        where TChoice : struct, Enum
-    {
-        result = fallback;
-        error = null;
-
-        if (Text(fields, key) is not { } written) return true;
-
-        if (!Enum.TryParse(written.Replace("-", string.Empty), ignoreCase: true, out result)
-            || !Enum.IsDefined(result))
-        {
-            result = fallback;
-            error = $"`{key}: {written}` is not one of {string.Join(", ", Named<TChoice>())}.";
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>What a choice's values are called, lower case, which is how they are written.</summary>
-    private static IEnumerable<string> Named<TChoice>() where TChoice : struct, Enum =>
-        Enum.GetNames<TChoice>().Select(name => name.ToLowerInvariant());
-
     /// <summary>Colours written out, taken in turn — or null where none was written.</summary>
     private static bool Colours(IReadOnlyDictionary<string, string> fields, string key,
                                 out IReadOnlyList<string>? result, out string? error)
@@ -476,11 +396,4 @@ public static class PlotReader
         result = colours;
         return true;
     }
-
-    /// <summary>A value written as several, separated by space or commas alike — as a row's cells are.</summary>
-    private static IReadOnlyList<string> Split(string written) =>
-        written.Split([' ', '\t', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    private static string Written(double value) =>
-        value.ToString("0.###", CultureInfo.InvariantCulture);
 }

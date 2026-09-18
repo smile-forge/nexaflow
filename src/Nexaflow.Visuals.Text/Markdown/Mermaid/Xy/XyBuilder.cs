@@ -109,11 +109,10 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         var slots = Math.Max(1, chart.Slots);
 
         // The numbers: as written, or the values' own widened out to round numbers.
-        var (min, max) = chart.Range;
-        if (chart.Y is not { Ranged: true }) (min, max) = DiagramScale.Nice(min, max);
-        var step = DiagramScale.Step(min, max);
+                var (min, max) = chart.Range;
+                var span = DiagramSpan.Of(min, max, widen: chart.Y is not { Ranged: true });
 
-        var values = Ticks(config.YAxis, chart.Y, DiagramScale.Ticks(min, max).Select(value => (DiagramScale.At(value, min, max), DiagramScale.Label(value, step))));
+                var values = Ticks(config.YAxis, chart.Y, span.Ticks().Select(tick => (tick.At, tick.Says)));
         var categories = Categories(chart, slots);
 
         var (upright, flat) = horizontal ? (categories, values) : (values, categories);
@@ -143,7 +142,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
             ? new Point(plot.Left + (value * plot.Width), plot.Top + (along * plot.Height))
             : new Point(plot.Left + (along * plot.Width), plot.Bottom - (value * plot.Height));
 
-        double Reach(double value) => Math.Clamp(DiagramScale.At(value, min, max), 0, 1);
+        double Reach(double value) => Math.Clamp(span.At(value) ?? 0, 0, 1);
 
         if (Ink.Written(config.BackgroundColour) is { } background)
         {
@@ -193,9 +192,8 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
         if (chart.X is { Ranged: true } ranged)
         {
-            var (from, to) = (ranged.Min!.Value, ranged.Max!.Value);
-            var step = DiagramScale.Step(from, to);
-            return Ticks(config, ranged, DiagramScale.Ticks(from, to).Select(value => (DiagramScale.At(value, from, to), DiagramScale.Label(value, step))));
+            var span = DiagramSpan.Of(ranged.Min!.Value, ranged.Max!.Value, widen: false);
+                        return Ticks(config, ranged, span.Ticks().Select(tick => (tick.At, tick.Says)));
         }
 
         return [.. Enumerable.Range(0, slots).Select(at => new DiagramTick(Along(chart, at, slots), null))];

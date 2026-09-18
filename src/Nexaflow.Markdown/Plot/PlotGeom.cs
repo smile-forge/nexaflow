@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Settings;
+
 namespace Nexaflow.Markdown.Plot;
 
 /// <summary>
@@ -163,7 +165,7 @@ public static class PlotFences
     };
 
     /// <summary>The fence a fenced block's language names, or null where it names none of them.</summary>
-    public static PlotFence? Named(string? language) => PlotSetting.Plain(language) switch
+    public static PlotFence? Named(string? language) => SettingKeys.Plain(language) switch
     {
         "scatter" or "scatterplot" => PlotFence.Scatter,
         "bubble" or "bubbleplot" => PlotFence.Bubble,

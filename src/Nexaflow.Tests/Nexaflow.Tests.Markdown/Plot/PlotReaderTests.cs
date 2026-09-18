@@ -169,7 +169,7 @@ public class PlotReaderTests
     [TestMethod]
     public void ANumberOutsideWhatItsSettingTakesStopsTheBlock()
     {
-        StringAssert.Contains(Refused("width: 99999\n1 2"), "is outside");
+    StringAssert.Contains(Refused("width: 99999\n1 2"), "is outside");
     }
 
     [TestMethod]
@@ -341,6 +341,6 @@ public class PlotReaderTests
     public void BinsAndLevelsAreHeldToWhatCanBeDrawn()
     {
         StringAssert.Contains(Refused("bins: 9000\n1 2"), "whole numbers");
-        StringAssert.Contains(Refused("levels: 500\n1 2"), "is outside");
+    StringAssert.Contains(Refused("levels: 500\n1 2"), "is outside");
     }
 }
