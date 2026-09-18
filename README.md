@@ -50,9 +50,9 @@ A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcod
 It isn't only diagrams. Chemical structures from SMILES strings, word clouds packed into a shape, QR codes and five barcode families — all drawn from a fenced block, on your machine.
 
 <p align="center">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/smiles.png" width="32%" alt="Skeletal chemical structures drawn from SMILES strings">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/wordcloud-shapes.png" width="32%" alt="A word cloud packed into a shape">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/qr-codes.png" width="32%" alt="QR codes generated from a fenced block">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/smiles-cages.png" width="38%" alt="Skeletal chemical structures drawn from SMILES strings">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/wordcloud-shapes.png" width="28%" alt="A word cloud packed into a shape">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/qr-codes.png" width="28%" alt="QR codes generated from a fenced block">
 </p>
 
 **[Everything the Markdown editor draws →](https://smile-forge.github.io/nexaflow/author/)**
