@@ -163,7 +163,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
-| `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
 [`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
@@ -603,24 +603,33 @@ name still to write; and a colon, a comma or a per cent sign typed in goes in as
 being what a line is read by. **Limitations:** actors are matched by name, ignoring the space round it; `useMaxWidth` and
 `leftMargin`/`rightMargin` are read and kept, not applied.
 
-**Block sub-features** ([`MermaidBlockParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidBlockParser.cs)
-+ [`WpfBlockRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfBlockRenderer.cs)).
-A block diagram has its own [`BlockDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockDiagram.cs) model — a
-root group of items (nodes, spaces, block arrows, nested groups) plus edges — drawn by a **grid renderer, not a layout
-engine**: the author's placement is what renders. Each group wraps its items into rows by its `columns` count (auto = one
-row), a column is as wide as its widest item, a spanning item widens the columns it covers, and a nested group is measured
-first and then stretched to the cell it lands in. Supported: `block-beta` / `block` headers; `columns N`; `id:N` widths;
-`space` / `space:N`; `block:id:N … end` and anonymous `block … end` with their own `columns`; every flowchart bracket shape
-(`()`, `([])`, `[[]]`, `[()]`, `(())`, `((()))`, `>]`, `{}`, `{{}}`, `[//]`, `[\\]`, `[/\]`, `[\/]`), reusing the shared
-`NodeShape` vocabulary; block arrows `id<["label"]>(dir)` for `right`/`left`/`up`/`down`/`x`/`y` and comma-combined
-directions (unioned into one glyph); edges `-->` / `---` / `-- "label" -->` between any two items by id, including groups,
-with inline shapes on either end; `<br>` and HTML entities in labels; `%%` comments; and styling via `style`, `classDef`
-+ `class` (`fill`, `stroke`, `stroke-width`, `color`, `stroke-dasharray`), applied whether the line precedes or follows the
-item. **The front-matter `config:` block is applied**
-([`BlockConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/BlockConfigParser.cs) →
-[`BlockConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockConfig.cs)): `config: block` `padding`.
-**Limitations:** edges are straight centre-to-centre lines (Mermaid routes around blocks); `useMaxWidth` is ignored (the
-canvas is sized to its content and scrolls); a label containing `--` outside quotes reads as an edge.
+**Block sub-features** ([`BlockGrammar`](../src/Nexaflow.Markdown/Mermaid/Block/BlockGrammar.cs) →
+[`BlockDiagram`](../src/Nexaflow.Markdown/Mermaid/Block/BlockDiagram.cs) →
+[`BlockBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Block/BlockBuilder.cs)).
+**Where a block is drawn is what its author wrote** — the whole point of the type, and why nothing here works out a position.
+A grid is laid out in the `columns N` it is given, or in one row where it is given none or `auto`; blocks fill it left to
+right and wrap as the columns fill; `id:2` takes that many of them; `space` / `space:3` leaves cells empty; and
+`block:ID … end`, or an anonymous `block … end`, nests a grid of its own inside a cell, with its own `columns`. Every cell of
+a grid is the size of the largest block in it, a block spanning columns being that much wider, and a composite drawn bigger
+than it asked for — because something beside it was wider — grows the blocks inside it to fill what it got. A block is drawn
+in the shape its brackets say, the fourteen Mermaid writes
+([`MermaidShapes`](../src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs)): `[]`, `()`, `([])`, `[[]]`, `[()]`, `(())`, `((()))`,
+`>]`, `{}`, `{{}}`, `[//]`, `[\\]`, `[/\]`, `[\/]`. A block arrow `id<["label"]>(right)` is drawn as a shaft and a head for
+every direction it points — `right`/`left`/`up`/`down`, `x` and `y` for a pair of opposites, and any of them combined with
+commas. Links join the blocks written either side of them: `-->`, `---`, `--x`, `--o`, `<-->`, the thick `==>`, the dotted
+`-.->`, the invisible-in-Mermaid `~~~`, and `-- "X" -->` with what is written on it over the middle of the line.
+`classDef`, `class` and `style` colour the blocks, above them or below them, the `default` class being what every block starts
+from and a `style` line winning over the classes it is given; `fill`, `color`, `stroke`, `stroke-width`, `fill-opacity` and
+`stroke-dasharray` are applied. **Everything drawn stands for what was written** — a composite holds its own blocks in the
+layout, so pressing one means that block and pressing the room round it means the composite; what is drawn on a block is the
+characters of its label, or of its id where nothing else says anything, and is typed into where it is drawn. Enter starts
+another block with its label to write, and what a bare id cannot hold is dropped rather than written.
+**The front matter is applied** ([`BlockConfig`](../src/Nexaflow.Markdown/Mermaid/Block/BlockConfig.cs)): `config: block`
+`padding`. **Divergences from Mermaid:** Mermaid reads a block diagram without caring where its lines end, so it would take a
+link written across two of them, where here what a link joins is written on one line; Mermaid has no `title` line in a block
+diagram and neither does this, so a title is the front matter's; a block whose span overruns the columns left on its row is
+drawn to the end of that row rather than outside the grid; a label written with no id before it reads as a block still being
+written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block being drawn at the size its blocks come to.
 
 **C4 sub-features** ([`MermaidC4Parser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs)
 + [`C4GraphProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs)

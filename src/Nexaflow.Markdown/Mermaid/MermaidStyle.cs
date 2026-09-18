@@ -29,6 +29,23 @@ public sealed record MermaidStyle
     /// <summary>How solid its fill is, from nought to one.</summary>
     public double? FillOpacity { get; init; }
 
+    /// <summary>The dashes its outline is drawn with, as written — the lengths drawn and left, over and over.</summary>
+    public string? Dashes { get; init; }
+
+    /// <summary>
+    /// This style over <paramref name="under"/>: what this one asks for wins, and what it says nothing about stays whatever was
+    /// already asked — a <c>style</c> line over the classes a block is given, over the class every block starts from.
+    /// </summary>
+    public MermaidStyle Over(MermaidStyle under) => new()
+    {
+        Fill = Fill ?? under.Fill,
+        Colour = Colour ?? under.Colour,
+        Stroke = Stroke ?? under.Stroke,
+        StrokeWidth = StrokeWidth ?? under.StrokeWidth,
+        FillOpacity = FillOpacity ?? under.FillOpacity,
+        Dashes = Dashes ?? under.Dashes,
+    };
+
     /// <summary>The same style with one more property set — or unchanged, for one no style sets.</summary>
     public MermaidStyle With(string property, string value) => property.ToLowerInvariant() switch
     {
@@ -37,6 +54,7 @@ public sealed record MermaidStyle
         "stroke" => this with { Stroke = value },
         "stroke-width" => this with { StrokeWidth = MermaidNumber.Pixels(value) },
         "fill-opacity" when MermaidNumber.Read(value) is { } opacity => this with { FillOpacity = Math.Clamp(opacity, 0, 1) },
+        "stroke-dasharray" => this with { Dashes = value },
         _ => this,
     };
 

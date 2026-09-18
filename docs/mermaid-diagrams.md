@@ -52,6 +52,9 @@ diagram's own code sits in a folder of its own under each.
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
+| say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens |
+| read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line — then `MermaidShapes.Of` for the shape that was written |
+| lay a style over the classes something is given | `MermaidStyle.Over` |
 | read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets |
 | read what a value in quotes says, entity codes and all | `MermaidText.Bare`, `Decode` |
@@ -66,6 +69,7 @@ diagram's own code sits in a folder of its own under each.
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
+| draw a node in the shape Mermaid's brackets say | `DiagramShapes.For` — the drawn shape a `MermaidShape` comes to |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
