@@ -397,11 +397,117 @@
           }
         ]
       }
+    },
+    "block": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/block.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Block/BlockBuilder.cs",
+          "class": "BlockBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes",
+          "method": "For"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/BlockBuilderTests.cs",
+            "class": "BlockBuilderTests"
+          }
+        ]
+      }
+    },
+    "block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockGrammar.cs",
+          "class": "BlockGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockDiagram.cs",
+          "class": "BlockDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockConfig.cs",
+          "class": "BlockConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/Stages/ResolveBlocks.cs",
+          "class": "ResolveBlocks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs",
+          "class": "MermaidShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidNesting.cs",
+          "class": "MermaidNesting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Block/BlockGrammarTests.cs",
+            "class": "BlockGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Block/BlockDiagramTests.cs",
+            "class": "BlockDiagramTests"
+          }
+        ]
+      }
+    },
+    "block-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Block/BlockGrammar.cs",
+          "class": "BlockGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/BlockEditingTests.cs",
+            "class": "BlockEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 24,
+  "changed_sets": 30,
   "touched_nodes": [
+    "block",
+    "block-ast",
+    "block-writing",
     "cynefin",
     "cynefin-ast",
     "cynefin-writing",

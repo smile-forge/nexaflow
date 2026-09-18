@@ -13,16 +13,14 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///
 /// Mermaid is a family of diagram types sharing one language tag. The block is read once, by
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
-///   • a diagram named in <see cref="MermaidBuilders"/> — <c>pie</c>, <c>venn-beta</c>, <c>radar-beta</c>, <c>xychart</c>, <c>quadrantChart</c>, <c>ishikawa</c>, <c>gantt</c>, <c>kanban</c>, <c>mindmap</c> → its grammar, its stages and its
-///     builder, on the shared layout tree (docs/mermaid-diagrams.md)
+///   • a diagram named in <see cref="MermaidBuilders"/> → its grammar, its stages and its builder, on the shared layout
+///     tree, in an element it can be selected and written in (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>timeline</c>         → <see cref="MermaidTimelineParser"/> + <see cref="WpfTimelineRenderer"/>
-///   • <c>journey</c>          → <see cref="MermaidJourneyParser"/>  + <see cref="WpfJourneyRenderer"/>
-///   • <c>block-beta</c>       → <see cref="MermaidBlockParser"/>    + <see cref="WpfBlockRenderer"/>
+
 ///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
 ///   • <c>C4Sequence</c>       → <see cref="MermaidC4Parser"/> + <see cref="C4SequenceProjector"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>graph / flowchart</c> → <see cref="MermaidFlowchartParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -42,7 +40,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
-    private static readonly MermaidBlockParser     BlockParser    = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
 
     public bool CanHandle(string language) =>
@@ -73,7 +70,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Architecture => RenderArchitecture(block, palette),
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
 
-            MermaidDiagram.Block        => RenderBlock(block, palette),
             MermaidDiagram.C4           => RenderC4(block, options),
             MermaidDiagram.C4Sequence   => RenderC4Sequence(block, palette),
             MermaidDiagram.Flowchart    => RenderGraphFamily(FlowParser.Parse(block.Body), block, options, 900),
@@ -134,14 +130,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var graph = SwimlaneParser.Parse(block.Body);
         graph.Title = Titled(graph.Title, block);
         return WpfSwimlaneRenderer.Render(graph, palette);
-    }
-
-    private static FrameworkElement RenderBlock(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = BlockParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = BlockConfigParser.Parse(block.Config);
-        return WpfBlockRenderer.Render(diagram, palette);
     }
 
     /// <summary>
