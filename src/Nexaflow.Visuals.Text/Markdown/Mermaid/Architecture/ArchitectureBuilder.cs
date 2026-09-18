@@ -306,7 +306,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         var inner = diagram.Groups.Where(child => child.In == group.Id).ToList();
         var held = sized.Where(service => service.Service.In == group.Id).ToList();
 
-        var covered = Union([
+    var covered = DiagramShapes.United([
             .. over,
             .. inner.Where(child => groups.ContainsKey(child.Id)).Select(child => (Geometry)new RectangleGeometry(groups[child.Id])),
             .. held.Select(service => (Geometry)new RectangleGeometry(service.Bounds)),
@@ -325,19 +325,6 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         foreach (var service in held) Drawn(build, service);
 
         build.Close();
-    }
-
-    /// <summary>
-    /// Several shapes as one. Gathering them into a group instead would leave the drawing right and the standing wrong: a line's
-    /// band is wound the other way round from a rectangle, and either fill rule then takes their overlap back out again.
-    /// </summary>
-    private static Geometry Union(IReadOnlyList<Geometry> shapes)
-    {
-        Geometry all = new RectangleGeometry(Rect.Empty);
-        foreach (var shape in shapes) all = new CombinedGeometry(GeometryCombineMode.Union, all, shape);
-
-        all.Freeze();
-        return all;
     }
 
     /// <summary>A service: the picture over it and the words under it — or, for a junction, the dot edges meet at.</summary>
@@ -423,11 +410,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
                 ? []
                 : Says(edge.Said, edge.SaidHole, (diagram.Config.FontSize ?? TextSize) - 1, Palette.Text, Widest);
 
-            var taken = DiagramWords.Taken(said);
-            var middle = DiagramConnector.Middle(along);
-
-            routes.Add(new Route(edge, along, said,
-                                 new Rect(middle.X - (taken.Width / 2), middle.Y - (taken.Height / 2), taken.Width, taken.Height)));
+            routes.Add(new Route(edge, along, said, DiagramConnector.Room(along, said)));
         }
 
         return routes;
@@ -445,7 +428,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         foreach (var route in routes)
         {
     over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (route.Room.Width > 0 && route.Room.Height > 0) over.Add(new RectangleGeometry(Rect.Inflate(route.Room, 2, 1)));
+    if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
         }
 
         return over;
@@ -464,7 +447,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
                                   route.Edge.StartHead ? DiagramHead.Arrow : DiagramHead.None,
                                   route.Edge.EndHead ? DiagramHead.Arrow : DiagramHead.None);
 
-            Said(build, route);
+            DiagramConnector.Says(build, ArchitecturePiece.Label, route.Edge.Part, route.Room, route.Said, Palette.CodeBg);
         }
 
         build.Close();
@@ -501,21 +484,6 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
     }
 
     private static bool Sideways(ArchitectureSide side) => side is ArchitectureSide.Left or ArchitectureSide.Right;
-
-    /// <summary>What is written on an edge, over the middle of it, on a patch of the card's own colour.</summary>
-    private void Said(LayoutBuilder build, Route route)
-    {
-        if (route.Said.Count == 0 || route.Room.Width <= 0 || route.Room.Height <= 0) return;
-
-        var backing = new RectangleGeometry(Rect.Inflate(route.Room, 2, 1));
-        backing.Freeze();
-
-        build.Open(ArchitecturePiece.Label, route.Edge.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(backing, Palette.CodeBg, null, 0));
-        build.Occupies(backing);
-        foreach (var (words, where, kind) in DiagramWords.Placed(route.Said, route.Room, MermaidPiece.Words)) words.Set(build, where, kind);
-        build.Close();
-    }
 
     /// <summary>An edge worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
     private sealed record Route(ArchitectureEdge Edge, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);

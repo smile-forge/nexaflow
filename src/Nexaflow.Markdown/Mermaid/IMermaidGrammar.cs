@@ -86,6 +86,18 @@ public interface IMermaidGrammar
 public readonly record struct MermaidWriting(int Start, int End, string Text, int Caret)
 {
     /// <summary>
+    /// Text written where only some characters may go — a bare id, a class, a number — with the rest dropped, since a name
+    /// that cannot be quoted has nowhere to put them. Null where all of it may go in as it is.
+    /// </summary>
+    public static MermaidWriting? Only(int caret, string text, Func<char, bool> holds)
+    {
+        if (text.All(holds)) return null;
+
+        var kept = new string([.. text.Where(holds)]);
+        return new MermaidWriting(caret, caret, kept, caret + kept.Length);
+    }
+
+    /// <summary>
     /// Text written at the caret inside quotes, which hold anything but a quote — or null where there is no quote in it
     /// and it goes in as it is.
     /// </summary>

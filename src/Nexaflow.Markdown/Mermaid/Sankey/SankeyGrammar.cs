@@ -45,7 +45,8 @@ public sealed class SankeyGrammar : IMermaidGrammar
     /// </remarks>
     public MermaidWriting? Escaping(ContentPart part, int caret, string text)
     {
-        if (part.Parent is { Kind: MermaidKinds.Amount }) return Only(caret, text, character => char.IsAsciiDigit(character) || character is '.' or '-');
+        if (part.Parent is { Kind: MermaidKinds.Amount })
+            return MermaidWriting.Only(caret, text, character => char.IsAsciiDigit(character) || character is '.' or '-');
         if (part.Parent is not { } holder || part.Kind is not (MermaidKinds.Words or Kinds.Hole)) return null;
 
         var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
@@ -120,14 +121,5 @@ public sealed class SankeyGrammar : IMermaidGrammar
         line.Close(MermaidKinds.Name, role);
         line.Space();
         return true;
-    }
-
-    /// <summary>Text written where only some characters may go, with the rest dropped — or null where it all may go.</summary>
-    private static MermaidWriting? Only(int caret, string text, Func<char, bool> holds)
-    {
-        if (text.All(holds)) return null;
-
-        var kept = new string([.. text.Where(holds)]);
-        return new MermaidWriting(caret, caret, kept, caret + kept.Length);
     }
 }

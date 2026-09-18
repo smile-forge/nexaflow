@@ -204,4 +204,25 @@ public class BlockBuilderTests : MermaidBuilderContract
 
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
+
+    [TestMethod]
+    public void ACompositeDoesNotStandWhereALinkIsDrawnOverIt() => UiThread.Run(() =>
+    {
+        var laid = Build("block-beta\n  block:one[\"Outer\"]\n    columns 2\n    a b\n  end\n  a -- \"why\" --> b");
+        var said = Pieces(laid, BlockPiece.Label).Single();
+        var holding = Pieces(laid, BlockPiece.Holding).Single();
+        var at = Middle(said.Bounds);
+
+        Assert.IsTrue(holding.Bounds.Contains(at), "what is written on the link sits over the composite");
+        Assert.IsFalse(Stands(holding, at), "and the composite does not stand there, so a press there means the link");
+    });
+
+    /// <summary>Whether a piece's shape stands at a point, which is where a press on it lands rather than on what is under it.</summary>
+    private static bool Stands(Piece piece, Point at)
+    {
+        var shift = piece.Offset;
+        foreach (var over in piece.Ancestors()) shift += over.Offset;
+
+        return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
+    }
 }

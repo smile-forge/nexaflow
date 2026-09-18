@@ -70,11 +70,9 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
         var role = part.Kind == Kinds.Hole ? part.Parent?.Role : part.Role;
-        if (role is not (ArchitectureRoles.Id or ArchitectureRoles.In or ArchitectureRoles.Side)) return null;
-        if (text.All(MermaidLine.Letter)) return null;
-
-        var kept = new string([.. text.Where(MermaidLine.Letter)]);
-        return new MermaidWriting(caret, caret, kept, caret + kept.Length);
+        return role is ArchitectureRoles.Id or ArchitectureRoles.In or ArchitectureRoles.Side
+            ? MermaidWriting.Only(caret, text, MermaidLine.Letter)
+            : null;
     }
 
     /// <inheritdoc/>

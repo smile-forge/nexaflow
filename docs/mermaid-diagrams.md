@@ -56,7 +56,8 @@ diagram's own code sits in a folder of its own under each.
 | read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line — then `MermaidShapes.Of` for the shape that was written |
 | lay a style over the classes something is given | `MermaidStyle.Over` |
 | read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
-| escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets |
+| escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets; `MermaidWriting.Only` where a name cannot be quoted at all and what it cannot hold is dropped |
+| read a value in quotes that may hold a quote of its own, written twice | `MermaidLine.Quoted` with `doubled` — a CSV field |
 | read what a value in quotes says, entity codes and all | `MermaidText.Bare`, `Decode` |
 
 ### Drawing
@@ -70,7 +71,8 @@ diagram's own code sits in a folder of its own under each.
 | draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node in the shape Mermaid's brackets say | `DiagramShapes.For` — the drawn shape a `MermaidShape` comes to |
-| say what a piece stands in where other pieces are drawn over it | `build.Occupies` of its shape less theirs, **united** rather than grouped — a line's band is wound the other way round from a rectangle, and either fill rule takes their overlap back out |
+| say what a piece stands in where other pieces are drawn over it | `build.Occupies` of its shape less `DiagramShapes.United` of theirs — a group of them would stand wrong, a line's band being wound the other way round from a rectangle |
+| write what is said on a connector over the middle of it | `DiagramConnector.Room` for the room it takes, worked out before anything is drawn so what is under it does not stand there, then `DiagramConnector.Says` to draw it on a patch of the card's colour |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |

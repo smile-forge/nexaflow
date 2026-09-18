@@ -87,8 +87,8 @@ public sealed class BlockGrammar : IMermaidGrammar
     {
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is BlockRoles.Id or BlockRoles.Class or BlockRoles.Direction) return Kept(caret, text, Bare);
-        if (part.Parent is { Kind: MermaidKinds.Amount }) return Kept(caret, text, char.IsAsciiDigit);
+        if (part.Role is BlockRoles.Id or BlockRoles.Class or BlockRoles.Direction) return MermaidWriting.Only(caret, text, Bare);
+        if (part.Parent is { Kind: MermaidKinds.Amount }) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
 
         return null;
     }
@@ -343,15 +343,6 @@ public sealed class BlockGrammar : IMermaidGrammar
                   said => Directions.Contains(said, StringComparer.OrdinalIgnoreCase)
                       ? null
                       : $"A block arrow points {string.Join(", ", Directions.SkipLast(1))} or {Directions[^1]}.");
-
-    /// <summary>Text written where <paramref name="text"/> cannot go as it is, with what cannot go dropped.</summary>
-    private static MermaidWriting? Kept(int caret, string text, Func<char, bool> holds)
-    {
-        if (text.All(holds)) return null;
-
-        var kept = new string([.. text.Where(holds)]);
-        return new MermaidWriting(caret, caret, kept, caret + kept.Length);
-    }
 
     /// <summary>Takes nothing, with the reason: a reading that got part of the way and cannot go on.</summary>
     private static bool Back(MermaidLine line, MermaidLine.Mark mark, string? reason = null)

@@ -99,11 +99,15 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
         Place(sized, diagram.Columns, new Rect(default, size), pad);
 
+        // The links are worked out before anything is drawn, because a composite under one of them does not stand where it runs.
+        var routes = Routes(diagram, Placed(sized));
+        var over = Covered(routes);
+
         build.Open(BlockPiece.Blocks, part: null, stops: Stops.None);
-        foreach (var item in sized) Drawn(build, item, pad);
+        foreach (var item in sized) Drawn(build, item, pad, over);
         build.Close();
 
-        Links(build, diagram, Placed(sized));
+        Links(build, routes);
 
         return size;
     }
@@ -228,7 +232,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
     // ── Drawing it ──────────────────────────────────────────────────────────
 
-    private void Drawn(LayoutBuilder build, Sized sized, double pad)
+    private void Drawn(LayoutBuilder build, Sized sized, double pad, IReadOnlyList<Geometry> over)
     {
         var item = sized.Item;
         if (item.Kind == BlockKind.Space) return;
@@ -236,7 +240,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         switch (item.Kind)
         {
             case BlockKind.Composite:
-                Holds(build, sized, pad);
+                Holds(build, sized, pad, over);
                 break;
 
             case BlockKind.Arrow:
@@ -251,22 +255,24 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     }
 
     /// <summary>A composite: its box, what is written at the top of it, and the blocks of its own grid drawn inside its piece.</summary>
-    private void Holds(LayoutBuilder build, Sized sized, double pad)
+    private void Holds(LayoutBuilder build, Sized sized, double pad, IReadOnlyList<Geometry> over)
     {
         var item = sized.Item;
         var said = DiagramWords.Taken(sized.Words);
         var heading = new Rect(sized.Bounds.X + pad, sized.Bounds.Y + (pad / 4), Math.Max(0, sized.Bounds.Width - (pad * 2)), said.Height);
 
-        var covered = new GeometryGroup();
-        foreach (var child in sized.Items.Where(child => child.Item.Kind != BlockKind.Space))
-            covered.Children.Add(DiagramShapes.Outline(Shaped(child.Item), child.Bounds));
-        covered.Freeze();
+        var covered = DiagramShapes.United(
+        [
+            .. over,
+            .. sized.Items.Where(child => child.Item.Kind != BlockKind.Space)
+                  .Select(child => DiagramShapes.Outline(Shaped(child.Item), child.Bounds)),
+        ]);
 
         build.Open(BlockPiece.Composite, item.Part, stops: Stops.None);
         DiagramShapes.Draw(build, BlockPiece.Holding, item.Part, Shaped(item), sized.Bounds, Fill(item), Stroke(item),
                            DiagramWords.Placed(sized.Words, heading, MermaidPiece.Words), covered);
 
-        foreach (var child in sized.Items) Drawn(build, child, pad);
+        foreach (var child in sized.Items) Drawn(build, child, pad, over);
         build.Close();
     }
 
@@ -362,58 +368,69 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     // ── The links ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The links, drawn over the grid: each from the edge of the block it leaves to the edge of the block it reaches, with what
-    /// is written on it over the middle of the line.
+    /// Where every link runs: from the edge of the block it leaves to the edge of the block it reaches, with what is written
+    /// on it over the middle of the line.
     /// </summary>
-    private void Links(LayoutBuilder build, BlockDiagram diagram, IReadOnlyDictionary<string, Sized> placed)
+    private List<Route> Routes(BlockDiagram diagram, IReadOnlyDictionary<string, Sized> placed)
     {
-        if (diagram.Links.Count == 0) return;
-
-        build.Open(BlockPiece.Links, part: null, stops: Stops.None);
+        var routes = new List<Route>();
 
         foreach (var link in diagram.Links)
         {
             if (!placed.TryGetValue(link.From, out var from) || !placed.TryGetValue(link.To, out var to)) continue;
 
-            var route = new[]
+            var along = new[]
             {
                 DiagramShapes.Edge(Shaped(from.Item), from.Bounds, Middle(to.Bounds)),
                 DiagramShapes.Edge(Shaped(to.Item), to.Bounds, Middle(from.Bounds)),
             };
 
-            var stroke = new DiagramStroke(Palette.TextMuted, link.Thick ? Thick : 1, link.Dotted ? DiagramStroke.Dotted : null);
-            DiagramConnector.Draw(build, BlockPiece.Link, link.Part, route, stroke, Headed(link.Start), Headed(link.End));
+            var said = link.Said is null && link.SaidHole is null
+                ? []
+                : Says(link.Said, link.SaidHole, LabelSize, Palette.Text, Widest);
 
-            Said(build, link, route);
+            routes.Add(new Route(link, along, said, DiagramConnector.Room(along, said)));
+        }
+
+        return routes;
+    }
+
+    /// <summary>What the links cover, which whatever is drawn under them does not stand in.</summary>
+    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
+    {
+        var over = new List<Geometry>();
+
+        foreach (var route in routes)
+        {
+            over.Add(DiagramConnector.Band(route.Along, Thick));
+            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
+        }
+
+        return over;
+    }
+
+    /// <summary>The links, drawn over the grid.</summary>
+    private void Links(LayoutBuilder build, IReadOnlyList<Route> routes)
+    {
+        if (routes.Count == 0) return;
+
+        build.Open(BlockPiece.Links, part: null, stops: Stops.None);
+
+        foreach (var route in routes)
+        {
+            var stroke = new DiagramStroke(Palette.TextMuted, route.Link.Thick ? Thick : 1, route.Link.Dotted ? DiagramStroke.Dotted : null);
+
+            DiagramConnector.Draw(build, BlockPiece.Link, route.Link.Part, route.Along, stroke,
+                                  Headed(route.Link.Start), Headed(route.Link.End));
+
+            DiagramConnector.Says(build, BlockPiece.Label, route.Link.Part, route.Room, route.Said, Palette.CodeBg);
         }
 
         build.Close();
     }
 
-    /// <summary>What is written on a link, over the middle of it — on a patch of the card's own colour, so the line does not run through it.</summary>
-    private void Said(LayoutBuilder build, BlockLink link, IReadOnlyList<Point> route)
-    {
-        if (link.Said is null && link.SaidHole is null) return;
-
-        var lines = Says(link.Said, link.SaidHole, LabelSize, Palette.Text, Widest);
-        var said = DiagramWords.Taken(lines);
-        if (said.Width <= 0 || said.Height <= 0) return;
-
-        var at = DiagramConnector.Middle(route);
-        var room = new Rect(at.X - (said.Width / 2), at.Y - (said.Height / 2), said.Width, said.Height);
-
-        build.Open(BlockPiece.Label, link.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(Backing(room), Palette.CodeBg, null, 0));
-        foreach (var (words, where, kind) in DiagramWords.Placed(lines, room, MermaidPiece.Words)) words.Set(build, where, kind);
-        build.Close();
-    }
-
-    private static Geometry Backing(Rect room)
-    {
-        var shape = new RectangleGeometry(Rect.Inflate(room, 2, 1));
-        shape.Freeze();
-        return shape;
-    }
+    /// <summary>A link worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
+    private sealed record Route(BlockLink Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
 
     private static DiagramHead Headed(BlockHead head) => head switch
     {

@@ -289,6 +289,19 @@ internal static class DiagramShapes
         build.Close();
     }
 
+    /// <summary>
+    /// Several shapes as one. A group of them would draw the same and stand wrong: a line's band is wound the other way round
+    /// from a rectangle, and either fill rule takes the overlap of the two back out again.
+    /// </summary>
+    public static Geometry United(IEnumerable<Geometry> shapes)
+    {
+        Geometry all = new RectangleGeometry(Rect.Empty);
+        foreach (var shape in shapes) all = new CombinedGeometry(GeometryCombineMode.Union, all, shape);
+
+        all.Freeze();
+        return all;
+    }
+
     /// <summary>Where a shape stands with words drawn over it: its outline, less where the words are, so a press on them means them.</summary>
     public static Geometry Clear(Geometry outline, Rect words)
     {
