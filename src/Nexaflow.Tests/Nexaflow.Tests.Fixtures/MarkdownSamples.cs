@@ -777,10 +777,11 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Swimlane diagram
 
-        A `swimlane-beta` diagram is a flowchart whose top-level `subgraph`s become lanes. An optional
-        direction (`TB`/`BT`/`LR`/`RL`) follows the keyword; nodes use flowchart shapes (`[rect]`,
-        `(round)`, `([stadium])`, `{decision}`, `((circle))`) and edges use flowchart links
-        (`-->`, `---`, `-->|label|`, `-.->`, `==>`), including edges that cross lanes.
+        A `swimlane-beta` diagram is a flowchart divided by who owns each step: every `subgraph` written
+        outside them all is a lane, a band of its own that the work in it runs through, named at the near
+        end of the band. An optional direction (`TB`/`TD`/`BT`/`LR`/`RL`) follows the keyword. A lane's own
+        steps come one to a rank, and an arrow to another lane is a handoff, which goes across rather than
+        on. Everything else is a flowchart's: every node shape, every link, classes and styles.
 
         ## Vertical lanes (default TB)
 
@@ -800,7 +801,7 @@ internal sealed class MarkdownSamples : ISampleSet
             pick -.->|No| pay
         ```
 
-        ## Horizontal lanes (LR) and thick links
+        ## Horizontal lanes (LR), a lane named in words, and classes
 
         ```mermaid
         swimlane-beta LR
@@ -808,7 +809,7 @@ internal sealed class MarkdownSamples : ISampleSet
                 code[Write code]
                 fix(Fix issues)
             end
-            subgraph ci[CI]
+            subgraph Build server
                 build[Build]
                 test{Tests pass?}
             end
@@ -816,6 +817,8 @@ internal sealed class MarkdownSamples : ISampleSet
             build --> test
             test -->|Yes| done([Deploy])
             test --> fix
+            classDef waiting fill:#6e6ce6,stroke:#333
+            class test waiting
         ```
         """;
 

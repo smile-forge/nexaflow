@@ -162,6 +162,35 @@ flowchart LR
 
 ![A flowchart running left to right, two of its nodes gathered in a subgraph and one coloured by a class](images/markdown/mermaid-flowchart.png)
 
+### Swimlane diagram
+
+A flowchart divided by who owns each step. Every `subgraph` written outside them all is a lane — a band of its own, named at the
+near end of it, that the work in it runs through — and an arrow from one lane to another is a handoff.
+
+````markdown
+```mermaid
+swimlane-beta LR
+    subgraph Author
+        write[Write the page]
+        fix[Fix the notes]
+    end
+    subgraph Review team
+        read{Reads well?}
+    end
+    subgraph Publishing
+        ship([Publish])
+    end
+    write --> read
+    read -->|yes| ship
+    read -->|no| fix
+    fix --> read
+    classDef waiting fill:#6e6ce6,stroke:#333
+    class read waiting
+```
+````
+
+![A swimlane diagram running left to right, its three lanes stacked as bands with a decision handed from one to the next](images/markdown/mermaid-swimlane.png)
+
 ### Sequence diagram
 
 Participants and the messages between them, including notes and async arrows.

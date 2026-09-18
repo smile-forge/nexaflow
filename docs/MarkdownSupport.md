@@ -161,7 +161,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
 | `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
-| `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `swimlane-beta` | ✅ (shared layout tree; lane bands, written in place) | ✅ grammar (`SwimlaneGrammarTests`) + draw (`SwimlaneBuilderTests`) + writing (`SwimlaneEditingTests`) + lanes (`DiagramLanesTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
@@ -185,7 +185,8 @@ with a label between bars (`-->|yes|`) or between its opening and its closing (`
 joins several nodes at once, a chain carries on from what the link before it reached, and a link back to the node it leaves runs
 round beside it. **A subgraph holds its nodes in the layout**: what is inside one is laid out in its own space, which is what lets
 a `direction` line run it its own way, and drawn inside the subgraph's piece — so pressing a node means that node and pressing the
-room round it means the subgraph, which stands only where its nodes and the links over it leave it uncovered. `classDef`, `class`,
+room round it means the subgraph, which stands only where its nodes and the links over it leave it uncovered. A subgraph is named
+`subgraph id [Label]`, or in words (`subgraph The first part`), the name being its title as well. `classDef`, `class`,
 `:::`, `style` and `linkStyle` (by number, or `default`) colour it all, the `default` class being what every node starts from;
 `click` says where a node leads and what it says while pointed at; `accTitle`/`accDescr` are read. **Everything drawn stands for
 what was written**: a node for the node written for it, a line for the link that was written, and what is drawn on a node is the
@@ -578,16 +579,36 @@ reads three of the four side pairings one way and the fourth the other, so an ed
 puts that end above rather than below, where here all four read the same way; and `randomize`, `seed`, `numIter` and
 `edgeElasticity` steer a solver this does not run.
 
-**Swimlane sub-features** ([`MermaidSwimlaneParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs)
-+ [`WpfSwimlaneRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs)).
-Swimlane syntax is flowchart syntax where every **top-level `subgraph` is a lane**, so the parser rewrites the
-`swimlane-beta [DIR]` header to a `flowchart [DIR]` header and reuses `MermaidFlowchartParser` for the full grammar; the
-dedicated renderer draws each lane as a band (horizontal bands for `TB`/`BT`, vertical columns for `LR`/`RL`) with
-its nodes flowing along the lane and edges (including cross-lane ones) drawn between node centres. Supported:
-direction (`TB`/`TD`/`BT`/`LR`/`RL`); lanes via top-level `subgraph id[Label] … end`; flowchart node shapes
-(`[rect]`, `(round)`, `([stadium])`, `{decision}`, `((circle))`); flowchart edges (`-->`, `---`, `-->|label|`,
-`-.->`, `==>`); and `accTitle`/`accDescr` (dropped as accessibility metadata). **Limitations:** each lane lays its
-nodes out in a single row/column in declaration order (no per-lane Sugiyama), so long lanes scroll rather than wrap.
+**Swimlane sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
+[`FlowchartDiagram`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartDiagram.cs) →
+[`SwimlaneBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Swimlane/SwimlaneBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
+**A swimlane is a flowchart**, read by the flowchart's own grammar into the flowchart's own model — which is how Mermaid
+reads and draws it too, one parser and one renderer differing only in the layout — so everything in the flowchart section
+above holds here: every node shape, every link, `&`, chains, nested subgraphs, `classDef` / `class` / `:::` / `style` /
+`linkStyle`, `click`, `id@{ … }` metadata, `accTitle` / `accDescr`, and the `config: flowchart:` keys.
+What differs is **the lanes**. A `subgraph` written outside them all is a lane rather than a box: a band running the whole
+length of the chart with the lane's own name in a strip at the near end of it — turned a quarter turn to read up the band
+where the chart runs across the page (`LR`/`RL`), and flat across the top of it where it runs down (`TB`/`TD`/`BT`). A lane
+is named `subgraph id [Label]`, or in words (`subgraph Sales team`), the name being its title as well. **A lane's steps come
+one to a rank**, so every step of a lane's own work is a row — or a column — of its own; and **work handed to another lane
+goes across rather than on**, leaving what it reaches where that lane's own work has got to, which is what keeps the lanes
+in step with each other. Only the name strip is filled, each lane taking a colour of its own, so the lanes are told apart
+without colouring over the work; a lane and its strip both stand for the `subgraph` line that opened it, so pressing
+anywhere in the band that nothing else stands means the lane. A subgraph nested inside a lane is still a box, laid out in
+its own space within the band; a node in no lane at all sits in a band of its own before them all; and a lane with nothing
+written in it yet is still a band. **The front matter is applied**
+([`SwimlaneConfig`](../src/Nexaflow.Markdown/Mermaid/Swimlane/SwimlaneConfig.cs)): `config: swimlane:`
+`ignoreCrossLaneEdges` (`false` asks for a handoff to count like any other link and hold what it reaches a rank on) and
+`automaticLaneOrdering` (which sets the lanes across in an order that keeps the handoffs between them short rather than the
+order they are written in); everything else a swimlane is drawn by is the flowchart's own `config: flowchart:` block, as it
+is in Mermaid. **Divergences from Mermaid:** `automaticLaneOrdering` settles on an order by swapping neighbouring lanes
+while that shortens the handoffs, where Mermaid restarts the same search from several shuffles of the written order, so a
+chart with several equally short orders may pick a different one; `lineHops` draws a small arc or a gap where two lines
+cross, and a line here is drawn where it runs; `direction` inside a lane is read and changes nothing, a lane running the
+chart's own way because its band is the chart; a link naming a lane rather than a node in it is not drawn, a lane being
+where work happens rather than a step in it; and `layout`, `look`, `theme` and `optimizeRanksByCrossings` name a layout
+engine, a drawing style, a palette and a knob on a layering pass none of which is here.
 
 **Cynefin sub-features** ([`CynefinGrammar`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs) →
 [`CynefinDiagram`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinDiagram.cs) →
@@ -1672,7 +1693,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state/class/requirement routing; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); swimlane (lane routing not raw text, horizontal direction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state/class/requirement routing; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
 | [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, state, class, requirement, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |

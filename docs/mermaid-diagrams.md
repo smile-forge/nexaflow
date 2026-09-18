@@ -23,6 +23,12 @@ lines list items with values and whose options share a line, xychart one with ax
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
+**A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
+the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
+`SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes
+themselves ask for is its own (`SwimlaneConfig`). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
+and a builder's over what it draws.
+
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
 matter's), what could not be read set beneath it, the card, and the element the block is shown and written in.
 `MermaidDiagramHandler` asks `MermaidBuilders` first, so a diagram named there never reaches its legacy renderer.
@@ -80,6 +86,8 @@ diagram's own code sits in a folder of its own under each.
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
 | lay nodes joined by lines out in ranks — a flowchart, a state chart | `DiagramLayers.Lay` of `DiagramCell`s and `DiagramJoin`s: ranks by how far the links reach, an order that keeps few lines crossing, boxes laid out in their own space and run their own way, and a route for every line |
+| lay the same out in lanes — a swimlane | `DiagramLanes` of `DiagramLane`s, given to `DiagramLayers.Lay`: each cell keeps to the band its `DiagramCell.Lane` names, a lane's cells come one to a rank, and a link handed between two lanes goes across rather than on. A lane is not a cell — it is the band its cells are laid out in, and comes back its `Bounds` and the `Strip` at the near end where its name goes |
+| set a shape's words turned — a lane's name read up its band | `DiagramShapes.Draw` with `degrees`, which stands the words in the room the turn leaves them |
 | draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray` |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
