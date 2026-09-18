@@ -26,6 +26,7 @@ public class MermaidFigureWriter
     [
         ("Flowchart", "mermaid-flowchart.png"),
         ("Swimlane diagram", "mermaid-swimlane.png"),
+        ("State diagram", "mermaid-state.png"),
         ("Pie chart", "mermaid-pie.png"),
         ("Venn diagram", "mermaid-venn.png"),
         ("Radar chart", "mermaid-radar.png"),

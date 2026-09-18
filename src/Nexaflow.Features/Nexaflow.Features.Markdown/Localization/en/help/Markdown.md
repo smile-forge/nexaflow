@@ -239,22 +239,28 @@ classDiagram
 
 ### State diagram
 
-States, transitions, start/end markers and composite states.
+States, the transitions between them, the dots a scope starts and stops at, composite states and notes.
 
 ````markdown
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
     Idle --> Loading : open file
+    state Loading {
+        [*] --> Reading
+        Reading --> Parsing
+        Parsing --> [*]
+    }
     Loading --> Rendered : success
     Loading --> Error : failure
+    note right of Error : the file is kept open
     Rendered --> Idle : close
     Error --> Idle : retry
     Rendered --> [*]
 ```
 ````
 
-![A state machine with start and end markers](images/markdown/mermaid-state.png)
+![A state machine whose loading state holds two states of its own, with a note beside the error state](images/markdown/mermaid-state.png)
 
 ### Entity-relationship diagram
 

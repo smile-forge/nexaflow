@@ -155,6 +155,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLanes.cs",
           "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidStretch.cs",
+          "class": "MermaidStretch"
         }
       ],
       "concerns": {
@@ -241,12 +246,65 @@
           }
         ]
       }
+    },
+    "state-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateGrammar.cs",
+          "class": "StateGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateDiagram.cs",
+          "class": "StateDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateConfig.cs",
+          "class": "StateConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/State/StateBuilder.cs",
+          "class": "StateBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/stateDiagram.html"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/State/StateGrammarTests.cs",
+            "class": "StateGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/State/StateDiagramTests.cs",
+            "class": "StateDiagramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/StateBuilderTests.cs",
+            "class": "StateBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/StateEditingTests.cs",
+            "class": "StateEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
     "mermaid-diagram-kit",
+    "state-diagram",
     "swimlanes"
   ]
 }

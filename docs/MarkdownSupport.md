@@ -150,7 +150,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttChartTests`) + draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitGraphTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + nesting, shapes + config (`MindmapTreeTests`) + draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
-| `stateDiagram` / `stateDiagram-v2` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + states, transitions, notes + config (`StateDiagramTests`) + draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
 | `classDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanBoardTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
@@ -230,16 +230,30 @@ row all point at the same slice, so choosing one highlights all three. **Limitat
 pointer the layout does not yet report, so it picks out nothing; and a value is typed into only where the host makes
 the block editable.
 
-**State-diagram sub-features** ([`MermaidStateParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs)).
-State diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer` (pseudostate
-shapes: a filled **start** dot, a ringed **end** dot, a fork/join **bar**; a choice is a diamond; a note
-is a dashed amber callout; composite boxes get a tinted **header band**). Supported: states + descriptions
-(`state "d" as id`, `id : d`), transitions with labels, `[*]` start/end, **arbitrarily-nested** composite
-states (`state X { … }`, laid out as boxes-within-boxes via `Subgraph.ParentId`), choice/fork/join, notes
-(single- and multi-line), `direction`, comments, and styling (`classDef` / `class` / inline `:::`).
-Antiparallel transition pairs (`A --> B` / `B --> A`) are bowed apart so both arrows show. **Limitations:**
-concurrency `--` dividers are not drawn (regions just stack), and `[*]` is one shared start + one shared
-end per scope.
+**State-diagram sub-features** ([`StateGrammar`](../src/Nexaflow.Markdown/Mermaid/State/StateGrammar.cs) →
+[`StateDiagram`](../src/Nexaflow.Markdown/Mermaid/State/StateDiagram.cs) →
+[`StateBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/State/StateBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
+Supported: `stateDiagram` and `stateDiagram-v2`; a state written as an id, as `id : what it says`, or as
+`state "what it says" as id`; transitions `a --> b`, with `: what it says` on them; `[*]`, which is **the one dot each
+scope starts at and the one it stops at** — whichever way the transitions round it run, so a diagram writing it four
+times draws two dots; composite states `state X { … }`, nested as deep as they are written and each laid out in its own
+space so a `direction` line runs it its own way; `<<fork>>`, `<<join>>` and `<<choice>>`, and the `[[fork]]` form Mermaid
+also reads; `--` dividing a composite state into regions running at the same time, drawn as a line the width of its box;
+notes written `note left of` or `note right of`, on one line or **across several until an `end note`**, and floating
+notes `note "…" as id`; `classDef`, `class`, `:::` and `style`, where `start` and `end` name the dots; `click` with a
+URL and a tooltip; `direction`; `accTitle`/`accDescr`; comments; and a title from the front matter. **A composite state
+holds its states in the layout** and is drawn behind them, so pressing a state means that state and pressing the room
+round it means the composite state — which stands for the whole `state … }` it was written as. **The front matter is
+applied** ([`StateConfig`](../src/Nexaflow.Markdown/Mermaid/State/StateConfig.cs)): `config: state:` `nodeSpacing`,
+`rankSpacing`, `padding`, `wrappingWidth`, `minNodeWidth`, `titleTopMargin`, `noteMargin`, `dividerMargin`, `forkWidth`
+and `forkHeight`, and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a note is drawn beside the state it is
+about, but which side is settled by the layout rather than by `left of` / `right of`; `hide empty description` is read
+and changes nothing, since a state with nothing written on it is already drawn as its id alone; `scale 350 width` is read
+and changes nothing, the diagram being drawn at the size it comes to; a `#` comment is not read, only `%%`; and `theme`,
+`look`, `layout`, `arrowMarkerAbsolute`, `defaultRenderer`, `useMaxWidth`, `sizeUnit`, `textHeight`, `titleShift`,
+`miniPadding`, `fontSizeFactor`, `fontSize`, `labelHeight`, `edgeLengthFactor`, `compositTitleSize` and `radius` name a
+renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
 **Class-diagram sub-features** ([`MermaidClassParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs)).
 Class diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer`. Each class is a

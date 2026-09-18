@@ -1761,9 +1761,11 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — State diagram
 
-        A `stateDiagram-v2` models states and the transitions between them. `[*]` is the
-        start/end pseudostate; `state X { … }` nests a composite state; `<<choice>>`,
-        `<<fork>>`/`<<join>>` and notes are supported.
+        A `stateDiagram-v2` models states and the transitions between them, drawn on the shared
+        layout tree. `[*]` is the one dot a scope starts at and the one it stops at; `state X { … }`
+        nests a composite state, laid out in its own space so a `direction` line runs it its own way;
+        `<<choice>>`, `<<fork>>`/`<<join>>`, `--` regions, notes on one line or across several, and
+        `classDef`/`class`/`:::`/`style` are all read and drawn.
 
         Simple sample
 
