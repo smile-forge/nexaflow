@@ -1,0 +1,212 @@
+{
+  "branch": "claude/help-site-showcase",
+  "nodes": {
+    "mermaid": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownDiagrams.md",
+            "title_path": [
+              "Markdown \u2014 Diagrams"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/DiagramsFlowAndStructure.md",
+            "title_path": [
+              "Markdown \u2014 Diagrams: flow \u0026 structure"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/DiagramsPlanning.md",
+            "title_path": [
+              "Markdown \u2014 Diagrams: planning \u0026 time"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/DiagramsCharts.md",
+            "title_path": [
+              "Markdown \u2014 Diagrams: charts \u0026 analysis"
+            ]
+          }
+        ]
+      }
+    },
+    "pdf417": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownCodes.md",
+            "title_path": [
+              "Markdown \u2014 QR codes \u0026 barcodes",
+              "PDF417"
+            ]
+          }
+        ]
+      }
+    },
+    "aztec": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownCodes.md",
+            "title_path": [
+              "Markdown \u2014 QR codes \u0026 barcodes",
+              "Aztec Code"
+            ]
+          }
+        ]
+      }
+    },
+    "barcode": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownCodes.md",
+            "title_path": [
+              "Markdown \u2014 QR codes \u0026 barcodes",
+              "Barcodes"
+            ]
+          }
+        ]
+      }
+    },
+    "qr-code": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "QR codes \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownCodes.md",
+            "title_path": [
+              "Markdown \u2014 QR codes \u0026 barcodes",
+              "QR codes"
+            ]
+          }
+        ]
+      }
+    },
+    "datamatrix": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownCodes.md",
+            "title_path": [
+              "Markdown \u2014 QR codes \u0026 barcodes",
+              "Data Matrix"
+            ]
+          }
+        ]
+      }
+    },
+    "wordcloud": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/markdown-ast.md",
+            "title_path": [
+              "The rendering pipeline",
+              "Word clouds"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Word clouds \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownScience.md",
+            "title_path": [
+              "Markdown \u2014 Chemistry, word clouds \u0026 plots",
+              "Word clouds"
+            ]
+          }
+        ]
+      }
+    },
+    "correlation-plots": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Correlation plots \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "docs/markdown-ast.md",
+            "title_path": [
+              "The rendering pipeline",
+              "Correlation plots"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownScience.md",
+            "title_path": [
+              "Markdown \u2014 Chemistry, word clouds \u0026 plots",
+              "Correlation plots"
+            ]
+          }
+        ]
+      }
+    },
+    "chemical-structures": {
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Chemical structures \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownScience.md",
+            "title_path": [
+              "Markdown \u2014 Chemistry, word clouds \u0026 plots",
+              "Chemical structures"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 9,
+  "touched_nodes": [
+    "aztec",
+    "barcode",
+    "chemical-structures",
+    "correlation-plots",
+    "datamatrix",
+    "mermaid",
+    "pdf417",
+    "qr-code",
+    "wordcloud"
+  ]
+}

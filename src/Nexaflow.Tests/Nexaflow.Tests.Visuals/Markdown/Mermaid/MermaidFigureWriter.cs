@@ -43,6 +43,14 @@ public class MermaidFigureWriter
         ("Sankey diagram", "mermaid-sankey.png"),
     ];
 
+    /// <summary>The help pages the diagram examples live on, in the order a reader meets them.</summary>
+    private static readonly string[] DiagramPages =
+    [
+        "DiagramsFlowAndStructure.md",
+        "DiagramsPlanning.md",
+        "DiagramsCharts.md",
+    ];
+
     [TestMethod]
     public void TheHelpPagesExamplesDrawWithNothingWrong() => UiThread.Run(() =>
     {
@@ -83,28 +91,34 @@ public class MermaidFigureWriter
         return block;
     }
 
-    /// <summary>The <c>mermaid</c> example the help page shows under a heading.</summary>
+    /// <summary>The <c>mermaid</c> example a diagram help page shows under a heading.</summary>
     private static string Example(string heading)
     {
-        var page = File.ReadAllText(HelpPage()).Replace("\r\n", "\n");
-        var at = page.IndexOf($"### {heading}\n", StringComparison.Ordinal);
-        Assert.IsTrue(at >= 0, $"the help page has no '{heading}' heading");
+        foreach (var name in DiagramPages)
+        {
+            var page = File.ReadAllText(Path.Combine(HelpFolder(), name)).Replace("\r\n", "\n");
+            var at = page.IndexOf($"\n## {heading}\n", StringComparison.Ordinal);
+            if (at < 0) continue;
 
-        var example = Regex.Match(page[at..], "```mermaid\n(?<source>.*?)\n```", RegexOptions.Singleline);
-        Assert.IsTrue(example.Success, $"the help page shows no mermaid example under '{heading}'");
-        return example.Groups["source"].Value;
+            var example = Regex.Match(page[at..], "```mermaid\n(?<source>.*?)\n```", RegexOptions.Singleline);
+            Assert.IsTrue(example.Success, $"{name} shows no mermaid example under '{heading}'");
+            return example.Groups["source"].Value;
+        }
+
+        Assert.Fail($"no diagram help page has a '{heading}' heading");
+        return string.Empty;
     }
 
-    /// <summary>The Markdown feature's help page, found from wherever the test runs.</summary>
-    private static string HelpPage()
+    /// <summary>The Markdown feature's help folder, found from wherever the test runs.</summary>
+    private static string HelpFolder()
     {
         for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
         {
-            var page = Path.Combine(folder.FullName, "src", "Nexaflow.Features", "Nexaflow.Features.Markdown", "Localization", "en", "help", "Markdown.md");
-            if (File.Exists(page)) return page;
+            var help = Path.Combine(folder.FullName, "src", "Nexaflow.Features", "Nexaflow.Features.Markdown", "Localization", "en", "help");
+            if (Directory.Exists(help)) return help;
         }
 
-        Assert.Fail("the Markdown help page is not above the test's folder");
+        Assert.Fail("the Markdown feature's help folder is not above the test's folder");
         return string.Empty;
     }
 }
