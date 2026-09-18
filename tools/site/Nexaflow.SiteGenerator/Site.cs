@@ -15,6 +15,23 @@ internal static class Site
     private static readonly HashSet<string> Unfinished = new(StringComparer.OrdinalIgnoreCase) { "solver", "network" };
 
     /// <summary>
+    /// The themes, in the order the page shows them, with the one line each that says what it is. Every picture is
+    /// the same document in the same window, so a reader is comparing the theme and nothing else.
+    /// </summary>
+    private static readonly (string Name, string Note)[] Themes =
+    [
+        ("Dark", "The default: quiet, and out of the way."),
+        ("Light", "The same, for a bright room."),
+        ("Ocean", "Cool blues, with a little depth behind them."),
+        ("Nature", "Greens, and leaves behind the page."),
+        ("Sandstone", "Warm stone, and a desert scene."),
+        ("Gothic", "Moonlight, a castle and bats."),
+        ("Arctic", "Pale blue, ice and sky."),
+        ("Flowers", "An illustrated meadow behind your document."),
+        ("Sunny", "Bright and yellow."),
+    ];
+
+    /// <summary>
     /// Figures for the front page, all drawn by the app's own renderer for the help pages. They are all Mermaid
     /// ones on purpose: the writers draw those in the dark palette, so the strip reads as one set rather than a
     /// jumble of light and dark grounds. The chemistry and word clouds are on the Author page.
@@ -56,6 +73,7 @@ internal static class Site
         foreach (var section in HelpCorpus.Sections) WriteSection(section, corpus, tree, repo, output, version);
 
         WriteIndex(corpus, output, version);
+        WriteThemes(output, version);
         WriteLanding(corpus, tree, output, version);
     }
 
@@ -116,6 +134,39 @@ internal static class Site
               Shell(title + " — Nexaflow", Render.Plain(lede), body.ToString(), "../", version));
     }
 
+    /// <summary>The gallery: the same document, the same window, dressed nine different ways.</summary>
+    private static void WriteThemes(string output, string version)
+    {
+        var body = new StringBuilder("""
+            <header class="page-head">
+              <h1>Themes</h1>
+              <p class="lede">Nine of them, and they go further than a colour swap: several paint an illustrated
+              backdrop behind your work, and the diagrams in your document take the theme's colours too.</p>
+            </header>
+            <article class="prose">
+              <p>Every picture below is the same document in the same window. Pick a theme in Options; a backdrop
+                 that moves can stop itself while you are on battery, and text size and per-tab zoom are yours to set
+                 on top of whichever you choose.</p>
+            </article>
+
+            <section class="group"><div class="gallery">
+            """);
+
+        foreach (var (name, note) in Themes)
+            body.Append($"""
+                <figure>
+                  <img src="../assets/showcase/nexaflow-markdown-{name.ToLowerInvariant()}.jpg"
+                       alt="Nexaflow in the {Encode(name)} theme" loading="lazy">
+                  <figcaption><b>{Encode(name)}</b> — {Encode(note)}</figcaption>
+                </figure>
+                """);
+
+        body.Append("</div></section>\n");
+
+        Write(Path.Combine(output, "themes", "index.html"),
+              Shell("Themes — Nexaflow", "Nine themes, several with an illustrated backdrop.", body.ToString(), "../", version));
+    }
+
     private static void WriteIndex(HelpCorpus corpus, string output, string version)
     {
         var body = new StringBuilder("""
@@ -170,6 +221,14 @@ internal static class Site
                 <a class="button ghost" href="together/">How the AI works</a>
               </p>
               <p class="small">Windows 10 or 11 &middot; free and public domain &middot; no accounts, no telemetry</p>
+            </section>
+
+            <section class="shot">
+              <img src="assets/showcase/nexaflow-markdown-dark.jpg"
+                   alt="Nexaflow showing a document with two diagrams drawn in it, and the assistant's input bar beneath">
+              <p class="small">A document open in the editor, its diagrams drawn as you type, and the bar at the
+                 bottom that can see it. <a href="themes/">Nine themes</a> &middot;
+                 <a href="together/">how the AI works</a>.</p>
             </section>
 
             <section class="strip">
@@ -267,6 +326,7 @@ internal static class Site
         var nav = new StringBuilder();
         foreach (var section in HelpCorpus.Sections)
             nav.Append($"<a href=\"{toRoot}{section.Slug}/\">{Encode(section.Title)}</a>");
+        nav.Append($"<a href=\"{toRoot}themes/\">Themes</a>");
         nav.Append($"<a href=\"{toRoot}help/\">Reference</a>");
         nav.Append($"<a href=\"{Repo}/releases/latest\">Download</a>");
 
@@ -309,9 +369,13 @@ internal static class Site
 
     private static void Write(string path, string html) => File.WriteAllText(path.EnsureFolder(), html);
 
-    /// <summary>Copies every picture a help pack carries into one place per project.</summary>
+    /// <summary>Copies every picture a help pack carries into one place per project, and the app's own pictures.</summary>
     public static void CopyImages(string repo, string output)
     {
+        var showcase = Path.Combine(repo, "docs", "images", "showcase");
+        if (Directory.Exists(showcase))
+            foreach (var file in Directory.EnumerateFiles(showcase))
+                File.Copy(file, Path.Combine(output, "assets", "showcase", Path.GetFileName(file)).EnsureFolder(), overwrite: true);
         var src = Path.Combine(repo, "src");
         foreach (var project in Directory.GetDirectories(src)
                      .Where(d => Path.GetFileName(d) != "Nexaflow.Tests")

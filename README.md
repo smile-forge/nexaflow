@@ -12,12 +12,10 @@ The goal isn't to add more features. It's to reduce the friction between you and
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
 
 <p align="center">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-c4.png" width="32%" alt="A C4 container diagram drawn by Nexaflow">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-sankey.png" width="32%" alt="A Sankey diagram drawn by Nexaflow">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-radar.png" width="32%" alt="A radar chart drawn by Nexaflow">
+  <img src="docs/images/showcase/nexaflow-markdown-dark.jpg" width="92%" alt="Nexaflow showing a document with two diagrams drawn in it, and the assistant's input bar beneath">
 </p>
 
-<p align="center"><sub>Drawn by Nexaflow itself, from text you type — no browser, no diagram server, nothing sent anywhere.</sub></p>
+<p align="center"><sub>A document open in the editor, its diagrams drawn as you type — no browser, no diagram server, nothing sent anywhere — and the bar at the bottom that can see it.</sub></p>
 
 <p align="center"><b><a href="https://smile-forge.github.io/nexaflow/">See what it does →</a></b></p>
 
@@ -74,7 +72,9 @@ Lightweight project tracking with a backlog workflow. A Product Manager for trac
 
 **🎨 Themes that go further than a colour swap**
 
-Several themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Text size is yours to set, and every text surface has its own zoom on top of it.
+Nine themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Several paint an illustrated scene behind your work, and the diagrams in your document take the theme's colours too. Text size is yours to set, and every text surface has its own zoom on top of it.
+
+**[See all nine →](https://smile-forge.github.io/nexaflow/themes/)**
 
 **🤖 An assistant looking at the same screen you are**
 

@@ -157,6 +157,21 @@ internal static class Css
         .card p { margin: 0; color: var(--muted); font-size: 0.89rem; line-height: 1.5; }
 
         /* The front page's proof that the drawing is real: the app's own figures, at their own size. */
+        .shot { margin: 40px 0 8px; }
+        .shot img {
+          display: block; width: 100%; height: auto; border: 1px solid var(--line);
+          border-radius: var(--radius); background: var(--surface);
+        }
+        .shot .small { margin: 10px 2px 0; }
+
+        .gallery { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+        .gallery figure { margin: 0; }
+        .gallery img {
+          display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius);
+        }
+        .gallery figcaption { margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
+        .gallery figcaption b { color: var(--text); }
+
         .unreleased {
           margin: 0 0 28px; padding: 10px 14px; border-radius: var(--radius);
           border: 1px solid #c98a2b; color: var(--text); background: rgba(201, 138, 43, 0.10);
