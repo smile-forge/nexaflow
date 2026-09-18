@@ -594,8 +594,9 @@ is named `subgraph id [Label]`, or in words (`subgraph Sales team`), the name be
 one to a rank**, so every step of a lane's own work is a row — or a column — of its own; and **work handed to another lane
 goes across rather than on**, leaving what it reaches where that lane's own work has got to, which is what keeps the lanes
 in step with each other. Only the name strip is filled, each lane taking a colour of its own, so the lanes are told apart
-without colouring over the work; a lane and its strip both stand for the `subgraph` line that opened it, so pressing
-anywhere in the band that nothing else stands means the lane. A subgraph nested inside a lane is still a box, laid out in
+without colouring over the work; a lane and its strip both stand for the whole of the `subgraph … end` the lane was
+written as, so pressing anywhere in the band that nothing else stands means the lane, and everything drawn in it stands
+for a stretch of what the lane itself stands for. A subgraph nested inside a lane is still a box, laid out in
 its own space within the band; a node in no lane at all sits in a band of its own before them all; and a lane with nothing
 written in it yet is still a band. **The front matter is applied**
 ([`SwimlaneConfig`](../src/Nexaflow.Markdown/Mermaid/Swimlane/SwimlaneConfig.cs)): `config: swimlane:`

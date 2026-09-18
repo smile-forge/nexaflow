@@ -108,6 +108,13 @@ public sealed record FlowchartGroup(
 {
     /// <summary>The hole standing where what is written on it goes.</summary>
     public ContentPart? SaidHole { get; init; }
+
+    /// <summary>
+    /// The whole of it as it was written, from the line that opened it through the <c>end</c> that closed it — the opening line
+    /// alone, where nothing closed it. What is drawn for a subgraph that holds the whole of its work, a swimlane's lane, stands for
+    /// this, so a press on the lane means the lane and everything in it sits inside it.
+    /// </summary>
+    public ISourcePart Whole { get; init; } = default(SourceSpan);
 }
 
 /// <summary>
@@ -201,6 +208,7 @@ public sealed class FlowchartDiagram
         var known = new Dictionary<string, Made>(StringComparer.Ordinal);
         var groups = new List<Held>();
         var opened = new Dictionary<string, Held>(StringComparer.Ordinal);
+        var open = new Stack<Held>();
         var links = new List<Joined>();
         var named = new Dictionary<string, Joined>(StringComparer.Ordinal);
         var ways = new Dictionary<string, FlowchartWay>(StringComparer.Ordinal);
@@ -219,10 +227,16 @@ public sealed class FlowchartDiagram
             switch (stated.Kind)
             {
                 case FlowchartKinds.Opens:
-                    var group = Opens(stated, Keyed(inside), groups.Count);
-                    groups.Add(group);
-                    opened[group.Key] = group;
-                    break;
+                        var group = Opens(stated, Keyed(inside), groups.Count);
+                        groups.Add(group);
+                        opened[group.Key] = group;
+                        open.Push(group);
+                        break;
+
+                    // Where a subgraph is closed is where the whole of it ends, which is the stretch it was written as.
+                    case FlowchartKinds.Ends:
+                        if (open.Count > 0) open.Pop().Closed = stated;
+                        break;
 
                 case FlowchartKinds.Nodes:
                     Laid(stated, Keyed(inside), nodes, known, links, named);
@@ -509,6 +523,7 @@ public sealed class FlowchartDiagram
             styles.GetValueOrDefault(held.Id, MermaidStyle.None), held.Order)
         {
             SaidHole = held.SaidHole,
+            Whole = new SourceSpan(held.Part.Start, (held.Closed?.End ?? held.Part.End) - held.Part.Start),
         };
 
     /// <summary>A node being read: what it is called, and everything the lines say about it as they are read.</summary>
@@ -578,6 +593,9 @@ public sealed class FlowchartDiagram
         public ContentPart? Said { get; init; }
 
         public ContentPart? SaidHole { get; init; }
+
+        /// <summary>The <c>end</c> that closed it, or null for one nothing ends.</summary>
+        public ContentPart? Closed { get; set; }
     }
 }
 

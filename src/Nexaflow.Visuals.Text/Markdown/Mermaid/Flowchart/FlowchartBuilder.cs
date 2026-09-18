@@ -455,7 +455,8 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             .. Inside(diagram, plan, group.Key).Select(node => DiagramShapes.Outline(node.Shape, room.At(node.Cell.Bounds))),
         ]);
 
-        build.Open(FlowchartPiece.Group, group.Part, stops: Stops.None);
+    // A lane stands for the whole of the subgraph that opened it, so what is drawn inside it sits inside what it stands for too.
+        build.Open(FlowchartPiece.Group, lane is not null ? group.Whole : group.Part, stops: Stops.None);
 
         if (lane is not null) Banded(build, diagram, lane, bounds, room.At(lane.Band.Strip), covered);
         else
@@ -469,18 +470,19 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
     /// <summary>
     /// A lane: the band the work in it runs through, and the strip at the near end of the band with the lane's own name in it. Only the
-    /// strip is filled, so the lanes are told apart without colouring over the work; both stand for the <c>subgraph</c> line that opened
-    /// the lane, so pressing anywhere in it that nothing else stands means the lane.
+    /// strip is filled, so the lanes are told apart without colouring over the work; both stand for the whole of the
+    /// <c>subgraph … end</c> the lane was written as, so pressing anywhere in it that nothing else stands means the lane, and
+    /// everything drawn in it stands for a stretch of what the lane itself stands for.
     /// </summary>
     private void Banded(LayoutBuilder build, FlowchartDiagram diagram, Lane lane, Rect bounds, Rect strip, Geometry covered)
     {
         var turned = diagram.Way is FlowchartWay.Right or FlowchartWay.Left;
         var stroke = Stroke(lane.Group.Style);
 
-        DiagramShapes.Draw(build, FlowchartPiece.Lane, lane.Group.Part, DiagramShape.Rectangle, bounds, null, stroke, [],
+        DiagramShapes.Draw(build, FlowchartPiece.Lane, lane.Group.Whole, DiagramShape.Rectangle, bounds, null, stroke, [],
                            DiagramShapes.United([covered, new RectangleGeometry(strip)]));
 
-        DiagramShapes.Draw(build, FlowchartPiece.Title, lane.Group.Part, DiagramShape.Rectangle, strip, Fill(lane.Group), stroke,
+        DiagramShapes.Draw(build, FlowchartPiece.Title, lane.Group.Whole, DiagramShape.Rectangle, strip, Fill(lane.Group), stroke,
                            [.. Named(lane.Words, strip, turned)], covered, turned ? -90 : 0);
     }
 

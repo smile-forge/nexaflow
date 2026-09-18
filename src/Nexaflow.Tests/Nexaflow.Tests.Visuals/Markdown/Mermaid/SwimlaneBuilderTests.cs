@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -201,12 +202,36 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
         var lane = Pieces(laid, FlowchartPiece.Lane).First();
         var node = Pieces(laid, FlowchartPiece.Node).First();
 
-        Assert.AreEqual("subgraph Customer", Written(source, lane.Part)?.Trim(),
-                        "the band stands for the subgraph that opened the lane");
+        Assert.AreEqual("subgraph Customer\n    one\n  end", Written(source, lane.Part),
+                        "the band stands for the whole of what the lane was written as, not the line that opened it");
 
         Assert.IsTrue(Stands(lane, new Point(lane.Bounds.Left + 2, lane.Bounds.Bottom - 2)),
                       "a press in the band where nothing else is drawn means the lane");
         Assert.IsFalse(Stands(lane, Middle(node.Bounds)), "and where a node is drawn it means the node");
+    });
+
+    [TestMethod]
+    public void WhatIsDrawnInALaneStandsForAStretchOfWhatTheLaneStandsFor() => UiThread.Run(() =>
+    {
+        const string source = "swimlane-beta TB\n  subgraph Team\n    subgraph Morning\n      a[Early]\n    end\n    b[Late]\n  end\n  c[Loose]";
+
+        var laid = Build(source);
+        var lane = Pieces(laid, FlowchartPiece.Lane).Single();
+
+        foreach (var piece in Pieces(laid, FlowchartPiece.Group).Concat(Pieces(laid, FlowchartPiece.Node))
+                     .Where(piece => piece.Ancestors().Any(over => over.Kind == FlowchartPiece.Lane || ReferenceEquals(over.Part, lane.Part)))
+                     .Append(lane))
+        {
+            if (piece.Part is not { } part || ReferenceEquals(part, lane.Part)) continue;
+
+            Assert.IsTrue(part.Start >= lane.Part!.Start && part.End() <= lane.Part.End(),
+                          $"{Written(source, part)} is written inside the lane, so it stands inside what the lane stands for");
+        }
+
+        Assert.IsFalse(Pieces(laid, FlowchartPiece.Node)
+                           .Where(piece => Written(source, piece.Part) == "c[Loose]")
+                           .Any(piece => piece.Part!.Start >= lane.Part!.Start && piece.Part.End() <= lane.Part.End()),
+                       "and a node written outside every lane stands outside them");
     });
 
     [TestMethod]

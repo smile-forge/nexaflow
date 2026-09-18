@@ -106,7 +106,9 @@ diagram's own code sits in a folder of its own under each.
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed
 through the leaves it draws. That is why `DiagramShapes.Draw` draws its outline as a `Shape` leaf beside its words — standing
 in its outline less where the words are, so a press on them means them — and
-why a region's circles and its words are layers of their own. Where shapes overlap, a press means the one seen: a shape
+why a region's circles and its words are layers of their own. **A piece that holds other pieces stands for the whole stretch they
+were written in**: a swimlane's lane stands for its whole `subgraph … end`, not the line that opened it, so what is drawn in the lane
+stands for a stretch of what the lane itself stands for. Where shapes overlap, a press means the one seen: a shape
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 
