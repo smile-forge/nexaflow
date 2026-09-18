@@ -60,7 +60,12 @@ public static class FlowchartPiece
 /// <strong>A swimlane is a flowchart laid out in lanes.</strong> Where <see cref="Laning"/> says so, a subgraph written outside them
 /// all is a lane rather than a box: a band running the whole length of the chart, its name in a strip at the near end of it, its
 /// cells one to a rank, and a link handed to another lane going across rather than on. Everything else about it — the shapes, the
-/// links, the styling, what stands for what — is a flowchart's, which is how Mermaid draws it too.
+/// links, the styling — is a flowchart's, which is how Mermaid draws it too.
+/// </para>
+/// <para>
+/// <strong>A lane and a box are not the same kind of grouping</strong>, so they do not stand for the same thing. A box is drawn
+/// round the nodes written inside it, and stands for the line that opened it; a lane is the stretch of work it holds, and stands
+/// for the whole <c>subgraph … end</c> it was written as, so that selecting it selects the lane.
 /// </para>
 /// </summary>
 internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
