@@ -65,8 +65,6 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     /// <summary>How big the chart is drawn before anything asks for another size.</summary>
     private const double Wide = 560;
     private const double Tall = 320;
-
-    private const double Smallest = 40;
     private const double Gap = 6;
     private const double LabelSize = 11.5;
     private const double TitleSize = 12.5;
@@ -110,10 +108,9 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
         // The numbers: as written, or the values' own widened out to round numbers.
         var (min, max) = chart.Range;
-        if (chart.Y is not { Ranged: true }) (min, max) = DiagramScale.Nice(min, max);
-        var step = DiagramScale.Step(min, max);
+        var span = DiagramSpan.Of(min, max, widen: chart.Y is not { Ranged: true });
 
-        var values = Ticks(config.YAxis, chart.Y, DiagramScale.Ticks(min, max).Select(value => (DiagramScale.At(value, min, max), DiagramScale.Label(value, step))));
+        var values = Ticks(config.YAxis, chart.Y, span.Ticks().Select(tick => (tick.At, tick.Says)));
         var categories = Categories(chart, slots);
 
         var (upright, flat) = horizontal ? (categories, values) : (values, categories);
@@ -124,26 +121,25 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         var flatTitle = AxisTitle(flatConfig, flatAxis);
         var legend = Legend(chart);
 
-        // Round the plot: the upright axis's words to its left with its title turned upright beyond them, the flat axis's words
-        // and title under it, the legend under those, and room on the right for half the last word along the foot.
-        var left = DiagramAxis.Room(upright, upright: true, Tick(uprightConfig)) + (uprightTitle is null ? 0 : uprightTitle.Height + Gap);
-        var top = Gap;
-        var bottom = DiagramAxis.Room(flat, upright: false, Tick(flatConfig)) + (flatTitle is null ? 0 : Gap + flatTitle.Height);
-        var under = legend.Size.Height > 0 ? legend.Size.Height + (config.LegendPadding ?? Gap * 2) : 0;
-        var right = Math.Max(Gap * 2, flat.LastOrDefault()?.Words?.Width / 2 ?? 0);
-
         var wide = config.Width ?? Wide;
         if (config.UseMaxWidth && !double.IsInfinity(Space)) wide = Math.Min(wide, Space);
         var tall = config.Height ?? Tall;
 
-        var plot = new Rect(left, top, Math.Max(Smallest, wide - left - right), Math.Max(Smallest, tall - top - bottom - under));
+        // Round the plot: the axes' own room, and the legend under it.
+        var under = legend.Size.Height > 0 ? legend.Size.Height + (config.LegendPadding ?? Gap * 2) : 0;
+
+        var edges = DiagramPanel.Room(upright, flat, uprightTitle, flatTitle, Gap,
+                                      Tick(uprightConfig), Tick(flatConfig))
+                    + new DiagramEdges(0, Gap, 0, under);
+
+        var plot = DiagramPanel.Round(wide, tall, edges).Plot;
 
         // Along the categories, from nought at the first slot's side to one at the last's; and along the numbers, from min to max.
         Point On(double along, double value) => horizontal
             ? new Point(plot.Left + (value * plot.Width), plot.Top + (along * plot.Height))
             : new Point(plot.Left + (along * plot.Width), plot.Bottom - (value * plot.Height));
 
-        double Reach(double value) => Math.Clamp(DiagramScale.At(value, min, max), 0, 1);
+        double Reach(double value) => Math.Clamp(span.At(value) ?? 0, 0, 1);
 
         if (Ink.Written(config.BackgroundColour) is { } background)
         {
@@ -160,16 +156,14 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         Axis(build, horizontal ? XyPiece.XAxis : XyPiece.YAxis, uprightAxis?.Part, plot.BottomLeft, plot.TopLeft, upright, uprightConfig, after: false, horizontal);
         Axis(build, horizontal ? XyPiece.YAxis : XyPiece.XAxis, flatAxis?.Part, plot.BottomLeft, plot.BottomRight, flat, flatConfig, after: true, horizontal: false);
 
-        // The upright axis's title is turned a quarter turn so it reads up the axis, as Mermaid sets it: anchored at its foot,
-        // it reaches up by however wide its words are and right by however tall they are.
-        uprightTitle?.Set(build, new Point(0, plot.Top + ((plot.Height + uprightTitle.Width) / 2)), XyPiece.AxisTitle, degrees: -90);
-        flatTitle?.Set(build, new Point(plot.Left + ((plot.Width - flatTitle.Width) / 2), plot.Bottom + DiagramAxis.Room(flat, upright: false, Tick(flatConfig)) + Gap), XyPiece.AxisTitle);
+        new DiagramPanel(plot, wide, tall).Titles(build, XyPiece.AxisTitle, uprightTitle, flatTitle,
+                                                  DiagramAxis.Room(flat, upright: false, Tick(flatConfig)) + Gap);
 
         build.Open(XyPiece.Labels, part: null, stops: Stops.None);
         foreach (var (words, at, kind) in labels) words.Set(build, at, kind);
         build.Close();
 
-        var width = Math.Max(plot.Right + right, left + legend.Size.Width);
+        var width = Math.Max(plot.Right + edges.Right, edges.Left + legend.Size.Width);
         if (legend.Size.Height > 0) legend.Draw(build, new Point(plot.Left + Math.Max(0, (plot.Width - legend.Size.Width) / 2), tall - legend.Size.Height));
 
         return new Size(Math.Max(width, wide), tall);
@@ -193,9 +187,8 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
         if (chart.X is { Ranged: true } ranged)
         {
-            var (from, to) = (ranged.Min!.Value, ranged.Max!.Value);
-            var step = DiagramScale.Step(from, to);
-            return Ticks(config, ranged, DiagramScale.Ticks(from, to).Select(value => (DiagramScale.At(value, from, to), DiagramScale.Label(value, step))));
+            var span = DiagramSpan.Of(ranged.Min!.Value, ranged.Max!.Value, widen: false);
+                        return Ticks(config, ranged, span.Ticks().Select(tick => (tick.At, tick.Says)));
         }
 
         return [.. Enumerable.Range(0, slots).Select(at => new DiagramTick(Along(chart, at, slots), null))];

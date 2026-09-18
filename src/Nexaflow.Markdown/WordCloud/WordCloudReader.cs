@@ -1,5 +1,7 @@
 using System.Globalization;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Settings;
+using static Nexaflow.Markdown.Settings.SettingValues;
 
 namespace Nexaflow.Markdown.WordCloud;
 
@@ -35,7 +37,7 @@ public static class WordCloudReader
             }
 
             if (part.Kind == WordCloudKinds.Setting)
-                fields[WordCloudSetting.Plain(part.Part(Roles.Name)?.Text)] =
+                fields[SettingKeys.Plain(part.Part(Roles.Name)?.Text)] =
                     part.Part(WordCloudRoles.Value)?.Text ?? string.Empty;
 
             else if (part.Kind == WordCloudKinds.Entry)
@@ -163,36 +165,6 @@ public static class WordCloudReader
         return true;
     }
 
-    private static string? Text(IReadOnlyDictionary<string, string> fields, string key) =>
-        fields.TryGetValue(WordCloudSetting.Plain(key), out var value) && value.Trim().Length > 0
-            ? value.Trim()
-            : null;
-
-    private static bool Number(IReadOnlyDictionary<string, string> fields, string key, double fallback,
-                               double min, double max, out double result, out string? error)
-    {
-        result = fallback;
-        error = null;
-
-        if (Text(fields, key) is not { } value) return true;
-
-        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            || double.IsNaN(parsed) || double.IsInfinity(parsed))
-        {
-            error = $"`{key}: {value}` is not a number.";
-            return false;
-        }
-
-        if (parsed < min || parsed > max)
-        {
-            error = $"`{key}: {value}` is outside the usable range {Written(min)}–{Written(max)}.";
-            return false;
-        }
-
-        result = parsed;
-        return true;
-    }
-
     private static bool Yes(IReadOnlyDictionary<string, string> fields, string key, bool fallback,
                             out bool result, out string? error)
     {
@@ -247,7 +219,4 @@ public static class WordCloudReader
                 return false;
         }
     }
-
-    /// <summary>A number as a diagnostic says it, so a range reads as 4–32 rather than as 4–32.0000.</summary>
-    private static string Written(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 }

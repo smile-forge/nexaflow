@@ -308,4 +308,31 @@ public class MarkdownSampleRenderTests
         foreach (var fence in fences)
             Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a wordcloud fence");
     });
+
+    /// <summary>
+    /// Every correlation-plot fence of the reference renders — the four languages, and every section of
+    /// what they can be written with.
+    /// </summary>
+    [TestMethod]
+    public void PlotSampleRenders() => UiThread.Run(() =>
+    {
+        string md  = File.ReadAllText(TestSampleData.Path("markdown", "plots.md"));
+        var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
+
+        string[] fences = ["scatter", "bubble", "heatmap", "density2d"];
+
+        var blocks = doc.OfType<FencedCodeBlock>()
+                        .Where(f => f.Info is not null
+                                    && fences.Contains(f.Info, StringComparer.OrdinalIgnoreCase))
+                        .ToList();
+
+        Assert.IsTrue(blocks.Count >= 10, $"expected every section of the reference, found {blocks.Count}");
+
+        foreach (var fence in fences)
+            Assert.IsTrue(blocks.Any(block => fence.Equals(block.Info, StringComparison.OrdinalIgnoreCase)),
+                          $"the reference shows no {fence}");
+
+        foreach (var block in blocks)
+            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null for a plot fence");
+    });
 }

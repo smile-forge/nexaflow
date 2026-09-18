@@ -49,6 +49,18 @@ internal sealed class DiagramInk(MarkdownPalette palette)
     }
 
     /// <summary>
+    /// The colour a share from nought to one takes along a ramp. The other colour question: <c>Series</c>
+    /// says which of a few a group takes, and this says how far along a run a number is.
+    /// </summary>
+    public Brush Scale(DiagramRamp ramp, double share) => Frozen(DiagramColours.At(ramp, share));
+
+    /// <summary>
+    /// The same along a run of colours read off a ramp or written out — the colours themselves, so a
+    /// block that named them is not read again for every mark.
+    /// </summary>
+    public Brush Scale(IReadOnlyList<Color> stops, double share) => Frozen(DiagramColours.At(stops, share));
+
+    /// <summary>
     /// The dashes a style's <c>stroke-dasharray</c> writes, as the lengths drawn and left — or null where it writes none this can
     /// read. Any diagram whose styling can ask for a dashed line reads it the same way.
     /// </summary>
@@ -67,5 +79,12 @@ internal sealed class DiagramInk(MarkdownPalette palette)
         var dashes = new DoubleCollection(lengths);
         dashes.Freeze();
         return dashes;
+    }
+
+    private static Brush Frozen(Color colour)
+    {
+        var brush = new SolidColorBrush(colour);
+        brush.Freeze();
+        return brush;
     }
 }

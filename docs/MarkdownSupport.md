@@ -133,6 +133,10 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `aztec` | ✅ | ✅ — see [Aztec Code](#aztec-code--sub-support) below |
 | `smiles` | ✅ | ✅ — chemical structures on the shared syntax tree; see [Chemical structures](#chemical-structures--sub-support) below |
 | `wordcloud` | ✅ | ✅ — words packed on the shared syntax tree; see [Word clouds](#word-clouds--sub-support) below |
+| `scatter` | ✅ | ✅ — points on the shared syntax tree; see [Correlation plots](#correlation-plots--sub-support) below |
+| `bubble` | ✅ | ✅ — a scatter plot with a column mapped to size; see [Correlation plots](#correlation-plots--sub-support) below |
+| `heatmap` | ✅ | ✅ — tiles, a correlation matrix written or worked out, or rows counted into bins; see [Correlation plots](#correlation-plots--sub-support) below |
+| `density2d` | ✅ | ✅ — the contours of a kernel density estimate; see [Correlation plots](#correlation-plots--sub-support) below |
 | `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
 **Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
@@ -1552,6 +1556,104 @@ Available in Markdig but not in the pipeline. None are supported, so none are te
 | Pragma lines | `UsePragmaLines()` | Source-line tracking spans (HTML-output concern). |
 | Self-pipeline | `UseSelfPipeline()` | In-document pipeline directives. |
 | `UseAdvancedExtensions()` | — | The bundle of most of the above; deliberately **not** called. |
+
+---
+
+
+## Correlation plots — sub-support
+
+Four fences — **`scatter`**, **`bubble`**, **`heatmap`** and **`density2d`** — draw a table of values
+against a pair of axes. They share one grammar
+([`PlotParser`](../src/Nexaflow.Markdown/Plot/PlotParser.cs) →
+[`PlotPipeline`](../src/Nexaflow.Markdown/Plot/PlotPipeline.cs) →
+[`PlotChart`](../src/Nexaflow.Markdown/Plot/PlotChart.cs) →
+[`PlotBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs)), because they differ in what
+is drawn rather than in what is written — the division ggplot2 makes. Registered as an
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/PlotDiagramHandler.cs), one
+instance per fence, and drawn on the **shared layout tree**
+([markdown-ast.md](markdown-ast.md#correlation-plots)).
+
+**The block is settings, then a table.** The settings are the `key: value` lines above it and the first
+row closes them, so a column headed `size` is a column; a bare `data` line closes them on purpose. A `#`
+starts a comment. Cells are separated by spaces or commas alike, and a cell in quotes is one value
+whatever it holds. A first row no cell of which reads as a number names the columns, and a table whose
+every row is one cell wider than that header is read down its side as well — which is how anybody writes
+a correlation matrix.
+
+**A setting that names a column maps it to a channel; anything else is set for every mark.** `size: pop`
+is the pop column and `size: 4` is the size of all of them, so a mapping and a constant need no separate
+syntax. A column may feed several channels at once. What nobody maps, the columns take in order: the
+first free column is x and the next is y, which is what makes two columns of numbers a plot with nothing
+written at all.
+
+| Group | Keys |
+|---|---|
+| labs | `title` `subtitle` `caption` `xTitle` `yTitle` `legendTitle` |
+| aes | `x` `y` `color`/`colour` `fill` `size` `shape` `alpha` `label` `group` `header` |
+| geom | `geom: point\|tile\|bin2d\|hex\|density2d\|corr`, `points` `bins` `jitter` |
+| facets | `facet` `facetCols` |
+| density | `contour: lines\|bands\|raster` `levels` `bandwidth` `adjust` |
+| stat | `fit: none\|lm\|loess` `se` `level` `stats: r r2 n p` `method: pearson\|spearman\|kendall` |
+| scales | `xScale`/`yScale: linear\|log\|log10\|log2\|ln\|sqrt\|reverse`, `xLimits` `yLimits` `xBreaks` `yBreaks` `sizeRange` `alphaRange` |
+| colour | `palette`, `gradient: viridis\|magma\|plasma\|inferno\|blues\|reds\|greens\|rdbu\|<colours…>`, `midpoint` `fillLimits` `labels` `legend: right\|bottom\|left\|top\|none` |
+| panel | `grid: both\|x\|y\|none` `width` `height` `aspect` `flip` |
+
+**`geom: corr` works the matrix out rather than being given one.** The table is the observations, and
+every numeric column is correlated with every other by whatever `method:` names, one tile per pair. It is
+the only plot whose marks nobody wrote, so a tile is drawn but not typed into — the names down its two
+axes are the header cells, which are. A column reads as numeric where more of its cells are numbers than
+are not, a pair sharing fewer than three rows says nothing rather than something meaningless, and the
+run of colours diverges about nought over −1 to 1 unless `gradient:`, `midpoint:` or `fillLimits:` say
+otherwise. Neither axis takes a title from a column, because both axes are the columns.
+
+**`facet:` splits the plot into a panel per value of a column**, laid out `facetCols` across — or about
+as wide as tall where nothing says. Every panel is drawn on the **same scales**, which is the whole point
+of facets: a panel is there to be read against its neighbours. A fit, a band and the figures `stats:`
+asks for are worked out per panel from that panel's own rows. The numbers go round the outside alone —
+down the first column of panels and along the bottom row — and each panel carries the value its rows
+share over it. One value is no division at all and is drawn as one plot. Like colour, a facet column is
+not used up as a place, so it is still free to be x or y.
+
+**What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
+parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
+column is called and which one a cell stands in (`ResolveColumns`), what a cell reads as
+(`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), and the coefficient between
+each pair of numeric columns (`ResolveCorrelations`). None of it is in the characters of any one line,
+and every one of the answers changes as the next line is typed.
+
+**The statistics are neither the parser's nor the builder's** — WPF-free beside the model, so they are
+tested without a desktop and held against R's own numbers:
+[`PlotBins`](../src/Nexaflow.Markdown/Plot/PlotBins.cs) (rectangular and hexagonal binning, each point to
+its nearest bin), [`PlotDensity`](../src/Nexaflow.Markdown/Plot/PlotDensity.cs) (MASS's `kde2d` with
+Silverman's rule, and marching squares for the contours) and
+[`PlotFits`](../src/Nexaflow.Markdown/Plot/PlotFits.cs) (least squares with its confidence band, loess,
+and Pearson, Spearman and Kendall with r², n and p). `PlotFitsTests` checks them against R's published
+values for `mtcars`.
+
+**Drawn out of the Mermaid kit**: marks through `DiagramGlyphs` and `DiagramShapes`, contours and bands
+through `DiagramCurve`, axes through `DiagramAxis` and `DiagramSpan`, gridlines through `DiagramGrid`,
+colour through `DiagramInk` and `DiagramColours`, and the key through `DiagramLegend` or `DiagramBar`.
+
+**A channel is a channel, and a place is a place.** Only `x`, `y`, `fill` and `size` use a column up: a
+column feeding colour, shape, alpha, label or group is still free to be x, and a column may feed several
+channels at once — `colour: region` beside `shape: region` is how a chart tells its groups apart twice
+over. What nobody mapped, the free columns take in order.
+
+**What is drawn over the marks is shown by the axes.** A fit's confidence band is part of the answer
+rather than decoration over it, so the range opens out to show all of it — unless `yLimits:` wrote the
+ends, which are then the ends the reader asked for and the band is held to them. A band takes its own
+line's colour and is drawn beneath the marks; the line is drawn over them. A mark shaken off its place by
+`jitter:` is held inside the panel, because a mark past the axis stands at a value the axis says is not
+there. `flip:` carries each title with its own channel, so `xTitle:` names what `x:` maps wherever it ends
+up drawn; `aspect:` holds the panel to a shape and the block takes up only what was drawn, so the key
+still sits beside the plot it explains.
+
+**Written in place:** a value drawn on its own tile is the characters it was written with, so a caret
+stands in it and typing into the picture edits the block. A number the plot chose — a tick, a
+coefficient — is worked out rather than written, and stepping never stops in one. Every mark carries the
+row it was drawn from, so a press means that row; a bin, a contour and a fitted line carry nothing,
+because nobody typed them. A cell that will not read loses only its own mark and is waved where it
+stands, where a setting that will not read stops the block being a plot at all.
 
 ---
 

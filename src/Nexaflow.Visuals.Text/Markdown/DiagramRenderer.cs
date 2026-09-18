@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 using System.Windows;
@@ -41,6 +42,10 @@ public static class DiagramRenderer
         new AztecDiagramHandler(),                             // aztec
         new SmilesDiagramHandler(),                            // smiles (chemical structures)
         new WordCloudDiagramHandler(),                         // wordcloud
+        new PlotDiagramHandler(PlotFence.Scatter),             // scatter
+        new PlotDiagramHandler(PlotFence.Bubble),              // bubble
+        new PlotDiagramHandler(PlotFence.Heatmap),             // heatmap
+        new PlotDiagramHandler(PlotFence.Density2d),           // density2d
     ];
 
     // ── Public API ─────────────────────────────────────────────────────────

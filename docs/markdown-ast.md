@@ -33,6 +33,7 @@ Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depic
 Mermaid/     MermaidParser, MermaidBlock, MermaidDiagram, MermaidKinds, MermaidConfig — what every mermaid diagram shares
 Mermaid/Pie/ PieGrammar, PieChart, PieConfig, Stages/ResolveSlices — what a pie says for itself
 WordCloud/   WordCloudParser, WordCloudReader, WordCloudChart, WordCloudSettings, WordMask, WordCloudBoard, WordCloudShapes — wordcloud
+Plot/        PlotParser, PlotPipeline, Stages/…, PlotReader, PlotSettings, PlotChart, PlotBins, PlotDensity, PlotFits — scatter, bubble, heatmap, density2d
 ```
 
 The layout tree is still in `src/Nexaflow.Visuals.Text/Editing/` because `ILayoutNode.Bounds` is a
@@ -346,6 +347,53 @@ against a grid of cells and geometry of their own, so it is tested over the shap
 a type engine knows — the shape of the letters, which is what makes a cloud interlock rather than stack — the
 builder contributes, filling the outlines it is handed onto that grid. Every word carries the part it was drawn
 from and nothing else in the picture carries one, because nothing else in it was typed.
+
+## Correlation plots
+
+Four fences and one grammar. `scatter`, `bubble`, `heatmap` and `density2d` differ in what is drawn
+rather than in what is written, which is the division ggplot2 makes — so a bubble plot is a scatter plot
+with one more column mapped, not a language of its own.
+
+**The parser decides only the shape of a line.** `PlotParser` splits the block into settings, comments,
+blanks, the `data` keyword and rows of cells, and copies. Whether the first row names the columns,
+whether the table is a long list of points or a matrix, what a cell reads as and which channel it feeds
+are facts about the block as a whole — and every one of them changes as the next line is typed, which is
+exactly why none of them is settled while the characters are being read.
+
+| Stage | What it works out |
+|---|---|
+| `ResolveShape` | which row names the columns, and whether the rows are a long list or a matrix |
+| `ResolveColumns` | each column's name and place, and which one each cell stands in |
+| `ResolveValues` | the number a cell reads as, where it reads as one |
+| `ResolveAesthetics` | which channels each column feeds, or the constant a setting names instead |
+| `ResolveCorrelations` | for `geom: corr`, the coefficient between each pair of numeric columns — the one plot whose marks nobody wrote |
+
+**A header is the first row no cell of which reads as a number.** That is the rule a reader already has
+in their head and it needs no keyword; `header:` settles only the two cases it cannot reach. **A matrix
+is a header with every row one cell wider than it**, the extra leading cell naming the row — which is
+how anybody writes a correlation matrix, and reading it needs no setting at all because the shape says
+it.
+
+**A setting that names a column is a mapping; anything else is a constant.** `size: pop` and `size: 4`
+are the same key, and which one a value is cannot be known from the characters — `4` is a perfectly good
+column name — so it is settled once the columns are known, and only a mapping leaves a fact behind. A
+column may feed several channels, which is how a chart tells its groups apart in colour and in print at
+once; so a cell carries a fact per channel rather than one.
+
+**What is worked out is not what is drawn.** `PlotBins`, `PlotDensity` and `PlotFits` are WPF-free
+beside the model — the same division that keeps a molecule's layout and a word cloud's packing out of
+their builders — so binning, a kernel density estimate and a regression are all tested without a
+desktop, against R's published numbers for `mtcars` rather than against our own opinion of them.
+
+**Two readings of the same rows, and they are not interchangeable.** A fitted line is worked out on the
+panel, so it follows a log axis where there is one and can simply be drawn. The coefficients are worked
+out from the values, because down the page is the way a screen counts and not the way a number does — a
+correlation fitted on the panel comes out with its sign turned about.
+
+**Only what was typed is pressed.** A mark carries the row it was drawn from and a value drawn on its
+own tile is the characters it was written with, so a caret stands in it and typing into the picture
+edits the block. A tick's number, a coefficient, a gridline, a bin and a contour carry nothing, because
+nobody typed any of them — and stepping never stops in one.
 
 ## The oracle
 

@@ -60,6 +60,239 @@ internal static class DiagramScale
         var decimals = step >= 1 ? 0 : Math.Min(10, (int)Math.Ceiling(-Math.Log10(step) - 1e-9));
         return value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.CurrentCulture);
     }
+
+    /// <summary>
+    /// A number with as many decimals as it needs and no more — how a log tick, a break a block wrote, or
+    /// a number beside a colour bar is written, where <see cref="Label"/>'s decimals-from-the-step does not
+    /// apply because there is no even step to take them from.
+    /// </summary>
+    public static string Plain(double value) => value.ToString("0.############", CultureInfo.CurrentCulture);
+}
+
+/// <summary>How a value becomes a distance along an axis.</summary>
+internal enum DiagramTransform
+{
+    Linear,
+
+    Log10,
+    Log2,
+    NaturalLog,
+
+    Sqrt,
+
+    /// <summary>Linear, with the axis running the other way.</summary>
+    Reverse,
+}
+
+/// <summary>
+/// A range and how it is read: where a value stands along it, where its ticks go, and what each says.
+///
+/// <para>
+/// <see cref="DiagramScale"/> answers those for a plain range and is what every chart drawn so far
+/// needs. This wraps it so an axis can also be logarithmic, square-rooted or reversed — which is what
+/// a scatter plot of anything spanning orders of magnitude needs, and what ggplot2 spells
+/// <c>scale_x_log10</c>.
+/// </para>
+/// <para>
+/// <strong>A value with no place returns null rather than nought.</strong> Nought is a real place on an
+/// axis, and a log scale has nothing whatever to say about a value of nought or less — so the two have
+/// to be different answers, and the caller decides whether that is a mark left out or a block that will
+/// not draw.
+/// </para>
+/// </summary>
+internal sealed record DiagramSpan
+{
+    private DiagramSpan(double min, double max, DiagramTransform transform)
+    {
+        this.Min = min;
+        this.Max = max;
+        this.Transform = transform;
+    }
+
+    public double Min { get; }
+
+    public double Max { get; }
+
+    public DiagramTransform Transform { get; }
+
+    /// <summary>
+    /// The span covering <paramref name="min"/> to <paramref name="max"/>.
+    /// </summary>
+    /// <param name="widen">
+    /// Whether the range is opened out to round numbers so its ends are ticks. False where the block
+    /// wrote the ends itself, which is a reader asking for exactly those.
+    /// </param>
+    public static DiagramSpan Of(double min, double max, DiagramTransform transform = DiagramTransform.Linear,
+                                 bool widen = true)
+    {
+        if (Logs(transform))
+        {
+            var step = Base(transform);
+
+            // Nowhere for nought or less to go. The span starts a step below the largest value instead,
+            // and the values that cannot be placed are the caller's to report — never quietly moved.
+            if (!(max > 0)) (min, max) = (1, step);
+            if (!(min > 0)) min = max / step;
+
+            if (!widen) return new DiagramSpan(min, max <= min ? min * step : max, transform);
+
+            var low = Math.Pow(step, Math.Floor(Math.Log(min, step)));
+            var high = Math.Pow(step, Math.Ceiling(Math.Log(max, step)));
+
+            return new DiagramSpan(low, high <= low ? low * step : high, transform);
+        }
+
+        // A square root has nothing to say about less than nought either, but the axis itself is fine:
+        // it simply starts at nought.
+        if (transform == DiagramTransform.Sqrt && min < 0) min = 0;
+
+        if (!widen) return new DiagramSpan(min, max <= min ? min + 1 : max, transform);
+
+        var (from, to) = DiagramScale.Nice(min, max);
+        if (transform == DiagramTransform.Sqrt && from < 0) from = 0;
+
+        return new DiagramSpan(from, to <= from ? from + 1 : to, transform);
+    }
+
+    /// <summary>
+    /// Where a value stands, from nought at the start to one at the end — or null where this span has
+    /// nowhere to put it.
+    /// </summary>
+    public double? At(double value)
+    {
+        if (this.Forward(value) is not { } place
+            || this.Forward(this.Min) is not { } low
+            || this.Forward(this.Max) is not { } high)
+            return null;
+
+        var at = high > low ? (place - low) / (high - low) : 0;
+
+        return this.Transform == DiagramTransform.Reverse ? 1 - at : at;
+    }
+
+    /// <summary>
+    /// The value as this span reads it — the number anything worked out <em>over</em> the axis is worked
+    /// out from, so a fit down a logarithmic axis is a fit through the logarithms.
+    /// </summary>
+    public double? Reading(double value) => this.Forward(value);
+
+    /// <summary>
+    /// The value a reading came from: <see cref="Reading"/> turned about, so what was worked out in the
+    /// axis's own terms can be said in the reader's again.
+    /// </summary>
+    public double Value(double reading) => this.Transform switch
+    {
+        DiagramTransform.Log10 => Math.Pow(10, reading),
+        DiagramTransform.Log2 => Math.Pow(2, reading),
+        DiagramTransform.NaturalLog => Math.Exp(reading),
+        DiagramTransform.Sqrt => reading * reading,
+        _ => reading,
+    };
+
+    /// <summary>
+    /// The ticks along the span: each value, where it stands, and what it is written as. Round numbers
+    /// on a plain axis, and a step of the base on a logarithmic one — 1, 10, 100, which is the only
+    /// numbering of a log axis anybody reads.
+    /// </summary>
+    public IReadOnlyList<(double Value, double At, string Says)> Ticks(int count = 5)
+    {
+        var marks = new List<(double Value, double At, string Says)>();
+
+        if (Logs(this.Transform))
+        {
+            var step = Base(this.Transform);
+            var from = (int)Math.Floor(Math.Log(this.Min, step));
+            var to = (int)Math.Ceiling(Math.Log(this.Max, step));
+
+            for (var power = from; power <= to && marks.Count < 40; power++)
+            {
+                var value = Math.Pow(step, power);
+                if (value >= this.Min * (1 - 1e-9) && value <= this.Max * (1 + 1e-9) && this.At(value) is { } at)
+                    marks.Add((value, at, DiagramScale.Plain(value)));
+            }
+
+            return marks;
+        }
+
+        var apart = DiagramScale.Step(this.Min, this.Max, count);
+
+        foreach (var value in DiagramScale.Ticks(this.Min, this.Max, count))
+            if (this.At(value) is { } at)
+                marks.Add((value, at, DiagramScale.Label(value, apart)));
+
+        return marks;
+    }
+
+    /// <summary>The value as this span reads it, or null where it cannot read it at all.</summary>
+    private double? Forward(double value) => this.Transform switch
+    {
+        DiagramTransform.Log10 => value > 0 ? Math.Log10(value) : null,
+        DiagramTransform.Log2 => value > 0 ? Math.Log2(value) : null,
+        DiagramTransform.NaturalLog => value > 0 ? Math.Log(value) : null,
+        DiagramTransform.Sqrt => value >= 0 ? Math.Sqrt(value) : null,
+        _ => value,
+    };
+
+    private static bool Logs(DiagramTransform transform) =>
+        transform is DiagramTransform.Log10 or DiagramTransform.Log2 or DiagramTransform.NaturalLog;
+
+    private static double Base(DiagramTransform transform) => transform switch
+    {
+        DiagramTransform.Log2 => 2,
+        DiagramTransform.NaturalLog => Math.E,
+        _ => 10,
+    };
+}
+
+/// <summary>
+/// The lines across a panel at each of an axis's ticks.
+///
+/// <para>
+/// Its own piece rather than a long tick on the axis: a tick is drawn <em>outward</em>, away from what
+/// the axis is measuring, so lengthening one reaches out into the margin rather than back across the
+/// panel. They are also drawn before everything else and stand for nothing anybody wrote, which a tick
+/// does not.
+/// </para>
+/// </summary>
+internal static class DiagramGrid
+{
+    /// <summary>
+    /// The lines across <paramref name="panel"/> at each of <paramref name="ticks"/>, added to a shape of their own so a
+    /// diagram drawing more than one set of them draws them all as one.
+    /// </summary>
+    /// <param name="upright">
+    /// Whether the ticks belong to the axis running up the page, whose lines therefore run across.
+    /// </param>
+    public static void Lines(GeometryGroup into, Rect panel, IReadOnlyList<DiagramTick> ticks, bool upright)
+    {
+        foreach (var mark in ticks)
+            into.Children.Add(upright
+                ? new LineGeometry(new Point(panel.Left, panel.Bottom - (mark.At * panel.Height)),
+                                   new Point(panel.Right, panel.Bottom - (mark.At * panel.Height)))
+                : new LineGeometry(new Point(panel.Left + (mark.At * panel.Width), panel.Top),
+                                   new Point(panel.Left + (mark.At * panel.Width), panel.Bottom)));
+    }
+
+    /// <summary>
+    /// Draws a line across <paramref name="panel"/> at each of <paramref name="ticks"/>.
+    /// </summary>
+    /// <param name="upright">
+    /// Whether the ticks belong to the axis running up the page, whose lines therefore run across.
+    /// </param>
+    public static void Draw(LayoutBuilder build, string kind, Rect panel, IReadOnlyList<DiagramTick> ticks,
+                            bool upright, DiagramStroke stroke)
+    {
+        if (ticks.Count == 0) return;
+
+        var lines = new GeometryGroup();
+        Lines(lines, panel, ticks, upright);
+        lines.Freeze();
+
+        // Nothing wrote a gridline, so it stands for nothing and is nowhere to put a caret.
+        build.Open(kind, part: null, stops: Stops.None);
+        build.Draw(new GeometryMark(lines, null, stroke.Ink, stroke.Thickness) { Dashes = stroke.Dashes });
+        build.Close();
+    }
 }
 
 /// <summary>

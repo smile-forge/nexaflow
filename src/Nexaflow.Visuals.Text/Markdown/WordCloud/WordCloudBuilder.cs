@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -139,13 +140,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     private Laid Lay(WordCloudChart chart, WordCloudInk ink, Brush? background)
     {
-        var room = Math.Clamp(
-            _settings.Width > 0 ? _settings.Width : Math.Min(_room, WordCloudSettings.RoomLimit),
-            WordCloudSettings.MinSide, WordCloudSettings.MaxSide);
-
-        var fall = Math.Clamp(
-            _settings.Height > 0 ? _settings.Height : room * WordCloudSettings.HeightShare,
-            WordCloudSettings.MinSide, WordCloudSettings.MaxSide);
+        var (room, fall) = SettingRoom.Fit(_settings.Width, _settings.Height, _room,
+                                                  WordCloudSettings.HeightShare);
 
         var stencil = Stencil(room, fall, out var lost);
         if (lost is not null) return Stopped(lost);

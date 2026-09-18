@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.WordCloud;
 
@@ -54,40 +55,23 @@ public static class WordCloudParser
     {
         var pieces = new List<ContentNode>();
 
-        var lead = Leading(body);
-        var trail = Trailing(body, lead);
+        var lead = SettingLines.Leading(body);
+        var trail = SettingLines.Trailing(body, lead);
         var text = body[lead..(body.Length - trail)];
 
-        if (lead > 0) pieces.Add(Space(body[..lead]));
+        if (lead > 0) pieces.Add(SettingLines.Space(body[..lead]));
 
         if (text.Length == 0) { }
         else if (text[0] == '#') pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia));
-        else if (Colon(text) is var colon and > 0) pieces.Add(Pair(text, colon, ref settings));
+        else if (SettingLines.Colon(text) is var colon and > 0) pieces.Add(Pair(text, colon, ref settings));
         else
             pieces.Add(ContentNode.Shown(
                 text, $"'{text}' is not a `word: weight` line."));
 
-        if (trail > 0) pieces.Add(Space(body[(body.Length - trail)..]));
-        if (terminator.Length > 0) pieces.Add(Space(terminator));
+        if (trail > 0) pieces.Add(SettingLines.Space(body[(body.Length - trail)..]));
+        if (terminator.Length > 0) pieces.Add(SettingLines.Space(terminator));
 
         return ContentNode.Branch(WordCloudKinds.Line, pieces);
-    }
-
-    /// <summary>
-    /// The colon that divides the line, which is the first one outside quotes: a word written
-    /// <c>"9:15": 4</c> is the time, not a word called <c>"9</c>.
-    /// </summary>
-    private static int Colon(string text)
-    {
-        var quoted = false;
-
-        for (var at = 0; at < text.Length; at++)
-        {
-            if (text[at] == '"') quoted = !quoted;
-            else if (text[at] == ':' && !quoted) return at;
-        }
-
-        return -1;
     }
 
     /// <summary>
@@ -109,7 +93,7 @@ public static class WordCloudParser
     private static ContentNode Pair(string text, int colon, ref bool settings)
     {
         var key = text[..colon];
-        var keyEnd = key.Length - Trailing(key, 0);
+        var keyEnd = key.Length - SettingLines.Trailing(key, 0);
         var written = key[..keyEnd];
 
         var setting = settings && written.Length > 0 && written[0] != '"' && WordCloudSetting.Is(written);
@@ -122,13 +106,13 @@ public static class WordCloudParser
                 : Word(written),
         };
 
-        if (keyEnd < key.Length) pieces.Add(Space(key[keyEnd..]));
+        if (keyEnd < key.Length) pieces.Add(SettingLines.Space(key[keyEnd..]));
 
         pieces.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
 
         var rest = text[(colon + 1)..];
-        var gap = Leading(rest);
-        if (gap > 0) pieces.Add(Space(rest[..gap]));
+        var gap = SettingLines.Leading(rest);
+        if (gap > 0) pieces.Add(SettingLines.Space(rest[..gap]));
 
         if (gap < rest.Length)
             pieces.Add(setting
@@ -158,22 +142,5 @@ public static class WordCloudParser
             ContentNode.Leaf(WordCloudKinds.Word, written[1..^1], WordCloudRoles.Word),
             ContentNode.Leaf(Kinds.Token, "\"", Roles.Close),
         ], WordCloudRoles.Word);
-    }
-
-    private static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
-
-    private static int Leading(string text)
-    {
-        var n = 0;
-        while (n < text.Length && char.IsWhiteSpace(text[n])) n++;
-        return n;
-    }
-
-    /// <summary>How much space ends <paramref name="text"/>, never reaching back past <paramref name="floor"/>.</summary>
-    private static int Trailing(string text, int floor)
-    {
-        var n = 0;
-        while (text.Length - n > floor && char.IsWhiteSpace(text[text.Length - n - 1])) n++;
-        return n;
     }
 }
