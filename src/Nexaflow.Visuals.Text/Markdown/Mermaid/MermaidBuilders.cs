@@ -39,6 +39,9 @@ internal static class MermaidBuilders
         MermaidDiagram.Timeline => Timeline.TimelineBuilder.Build,
         MermaidDiagram.Journey => Journey.JourneyBuilder.Build,
         MermaidDiagram.GitGraph => Git.GitBuilder.Build,
+        MermaidDiagram.Block => Block.BlockBuilder.Build,
+        MermaidDiagram.Architecture => Architecture.ArchitectureBuilder.Build,
+        MermaidDiagram.Sankey => Sankey.SankeyBuilder.Build,
         _ => null,
     };
 

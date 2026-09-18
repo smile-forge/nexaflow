@@ -153,17 +153,17 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + nesting + config (`IshikawaChartTests`) + draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
-| `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + nodes, flows + config (`SankeyChartTests`) + draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
-| `architecture-beta` | ✅ (grid layout, icon glyphs) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
-| `block-beta` | ✅ (author-placed grid, nested blocks) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
 [`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
@@ -442,20 +442,26 @@ A cause's words wrap onto several lines where they are long, as Mermaid wraps th
 cause's at fifteen — each line typed into as the characters it holds.
 **Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
 **Written in place:** the event is typed into in the head, a cause in its box or beside its bone.
-**Sankey sub-features** ([`MermaidSankeyParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs)
-+ [`WpfSankeyRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs)).
-A flow diagram with its own [`SankeyDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyDiagram.cs)
-model — nodes inferred from links. After the `sankey` keyword the body is **RFC-4180 CSV**: three columns
-`source,target,value`, one link per row; fields with commas are double-quoted and a literal quote is a doubled `""`;
-blank lines and `%%` comments are skipped. Laid out left→right by longest-path depth (adjusted by `nodeAlignment`),
-nodes sized by throughput and joined by bezier ribbons whose width is the value. **The front-matter `config:` block is
-applied** ([`SankeyConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/SankeyConfigParser.cs) →
-[`SankeyConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyConfig.cs)): `config: sankey`
-`width`/`height`, `linkColor` (`source`/`target`/`gradient`/a fixed colour), `nodeAlignment` (`justify`/`center`/`left`/
-`right`), `showValues` + `prefix`/`suffix`, `nodeWidth`/`nodePadding`, `labelStyle` (`legacy`/`outlined`), and the
-`nodeColors` map (per-node colour overrides). Node/link colours otherwise come from the palette's series bank. A
-front-matter `title:` (Sankey has no inline title keyword) renders above the diagram. **Limitation:** newlines inside
-a quoted CSV field (a record spanning lines) aren't supported — each row is one line.
+**Sankey sub-features** ([`SankeyGrammar`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs) →
+[`SankeyChart`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyChart.cs) →
+[`SankeyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs)).
+A flow to a line, written as the three columns of a CSV row — where it comes from, where it goes, and what it is worth.
+**Nothing declares a node**: the nodes are the names the flows are written between, in the order they are first written,
+which is the order they are stacked in and the colour each takes. A field holds anything but a comma and a quote as it is;
+one given either is written in quotes, and a quote between those is written twice. Each node is drawn as a bar as tall as
+it is worth — whatever flows into it or out of it, whichever is the more — in a column as far along as the longest run of
+flows reaching it, and each flow as a ribbon as thick as it is worth, leaving and arriving stacked in the order the flows
+are written. Every column is drawn to one scale, so the tallest of them fills the height. **Everything drawn stands for
+what was written**: a ribbon for the row it was written on, a bar for the row that first named it, and a name is the
+characters written, typed into where it is drawn — a name given a comma or a quote being put in quotes as it is typed.
+Enter starts another flow with all three of its columns to write. **The front matter is applied**
+([`SankeyConfig`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs)): `config: sankey:` `width`/`height` (the least
+it is drawn at), `linkColor` (`source`, `target`, `gradient` or a colour of its own), `nodeAlignment`
+(`justify`/`center`/`left`/`right`), `showValues` with `prefix`/`suffix`, and this renderer's own `nodeWidth`,
+`nodePadding`, `labelStyle` (`plain`/`outlined`) and `nodeColors` map. A title is the front matter's, Mermaid's sankey
+having no title line of its own. **Divergences from Mermaid:** a row is a line, where RFC 4180 lets a quoted field run
+across two of them; a fourth column is read as part of what the flow is worth, and said to be no number, where Mermaid
+reads three and stops; and `%%` comments are skipped here, which Mermaid's sankey reads as part of a name.
 
 **ER-diagram sub-features** ([`MermaidErParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs)).
 An entity is structurally a UML box, so ER reuses the shared graph model + Sugiyama layout + `WpfGraphRenderer`
@@ -507,21 +513,31 @@ press, and Ctrl+click adds a region, a label or an item to what is chosen. Press
 in it, and pressing where a union's circles overlap chooses the union. **Limitations:** a diagram is drawn in the app's
 theme, so Mermaid's `redux-color` theme, `neo` look and hand-drawn look are not.
 
-**Architecture sub-features** ([`MermaidArchitectureParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidArchitectureParser.cs)
-+ [`WpfArchitectureRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfArchitectureRenderer.cs)).
-An architecture diagram has its own [`ArchitectureDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureDiagram.cs)
-model — groups, the services/junctions inside them, and side-anchored edges — drawn by a **dedicated grid renderer**
-(not the Sugiyama pipeline): services are placed on a grid seeded from the edges' side hints (`A:R -- L:B` puts B to
-the right of A), groups draw as boxes around their members, and edges anchor to the declared `T`/`B`/`L`/`R` side.
-Supported: `group id(icon)[Title]` with nesting (`in parent`); `service id(icon)[Title] in group`; `junction`;
-edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` (all four arrow forms, cross-group `{group}` endpoints); and
-`align row`/`align column`. The five default icons (cloud/database/disk/internet/server) render as **built-in vector
-glyphs**; unknown/custom `pack:name` icons fall back to a caption. **The front-matter `config:` block is applied**
-([`ArchitectureConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/ArchitectureConfigParser.cs) →
-[`ArchitectureConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureConfig.cs)): `nodeSeparation`
-tunes cell spacing; the physics keys (`randomize`/`seed`/`idealEdgeLengthMultiplier`) are parsed but the grid layout
-is deterministic. **Limitations:** placement is a deterministic grid heuristic, not Mermaid's force-directed engine,
-so complex graphs may lay out differently; edges route as straight side-to-side lines.
+**Architecture sub-features** ([`ArchitectureGrammar`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs) →
+[`ArchitectureDiagram`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureDiagram.cs) →
+[`ArchitectureBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureBuilder.cs)).
+**The sides an edge leaves by are what say where things sit**: `db:R -- L:server` puts the server to the right of the
+database, and walking the edges out from each service in turn lays the whole diagram on a grid — which is where Mermaid
+starts too, before handing the result to a force-directed solver to settle. Here the walk is the answer, so the same
+diagram is drawn the same way every time. Supported: `group id(icon)[Title]` nested with `in parent`;
+`service id(icon)[Title] in group`, the icon being words of its own in quotes where it is; `junction`, drawn as the dot
+its edges meet at; edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` with a head at either end or both, the `{group}`
+that reaches the group a service is in, and `-[reads]-` to say what an edge is; `align row` and `align column`; a `title`
+and the accessibility lines. The five icons Mermaid ships — `cloud`, `database`, `disk`, `internet`, `server` — are drawn
+as pictures ([`ArchitectureIcons`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureIcons.cs)), and
+an icon from a pack is written out as what it is called, which says as much as a picture nobody has. **Everything drawn
+stands for what was written** — a group holds its services in the layout, so pressing a service means that service and
+pressing the room round it means the group; what is written under a service is the characters written, or of its id where
+nothing else is, typed into where it is drawn. Enter starts another service with its id to write, and what a bare id
+cannot hold is dropped. **The front matter is applied**
+([`ArchitectureConfig`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureConfig.cs)): `config: architecture:`
+`iconSize`, `fontSize`, `padding`, `nodeSeparation` and `idealEdgeLengthMultiplier`, the last being how far apart two
+services sharing a cell are spread. **Divergences from Mermaid:** Mermaid keeps one neighbour per side of a service, so
+three services reaching a fourth the same way land two deep and `align` exists to pull them apart — here they all land in
+one cell and the cell spreads them, across or down as `align` asks, so nothing is ever drawn on top of anything; Mermaid
+reads three of the four side pairings one way and the fourth the other, so an edge leaving sideways and arriving at a top
+puts that end above rather than below, where here all four read the same way; and `randomize`, `seed`, `numIter` and
+`edgeElasticity` steer a solver this does not run.
 
 **Swimlane sub-features** ([`MermaidSwimlaneParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs)
 + [`WpfSwimlaneRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs)).
@@ -603,24 +619,33 @@ name still to write; and a colon, a comma or a per cent sign typed in goes in as
 being what a line is read by. **Limitations:** actors are matched by name, ignoring the space round it; `useMaxWidth` and
 `leftMargin`/`rightMargin` are read and kept, not applied.
 
-**Block sub-features** ([`MermaidBlockParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidBlockParser.cs)
-+ [`WpfBlockRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfBlockRenderer.cs)).
-A block diagram has its own [`BlockDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockDiagram.cs) model — a
-root group of items (nodes, spaces, block arrows, nested groups) plus edges — drawn by a **grid renderer, not a layout
-engine**: the author's placement is what renders. Each group wraps its items into rows by its `columns` count (auto = one
-row), a column is as wide as its widest item, a spanning item widens the columns it covers, and a nested group is measured
-first and then stretched to the cell it lands in. Supported: `block-beta` / `block` headers; `columns N`; `id:N` widths;
-`space` / `space:N`; `block:id:N … end` and anonymous `block … end` with their own `columns`; every flowchart bracket shape
-(`()`, `([])`, `[[]]`, `[()]`, `(())`, `((()))`, `>]`, `{}`, `{{}}`, `[//]`, `[\\]`, `[/\]`, `[\/]`), reusing the shared
-`NodeShape` vocabulary; block arrows `id<["label"]>(dir)` for `right`/`left`/`up`/`down`/`x`/`y` and comma-combined
-directions (unioned into one glyph); edges `-->` / `---` / `-- "label" -->` between any two items by id, including groups,
-with inline shapes on either end; `<br>` and HTML entities in labels; `%%` comments; and styling via `style`, `classDef`
-+ `class` (`fill`, `stroke`, `stroke-width`, `color`, `stroke-dasharray`), applied whether the line precedes or follows the
-item. **The front-matter `config:` block is applied**
-([`BlockConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/BlockConfigParser.cs) →
-[`BlockConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/BlockConfig.cs)): `config: block` `padding`.
-**Limitations:** edges are straight centre-to-centre lines (Mermaid routes around blocks); `useMaxWidth` is ignored (the
-canvas is sized to its content and scrolls); a label containing `--` outside quotes reads as an edge.
+**Block sub-features** ([`BlockGrammar`](../src/Nexaflow.Markdown/Mermaid/Block/BlockGrammar.cs) →
+[`BlockDiagram`](../src/Nexaflow.Markdown/Mermaid/Block/BlockDiagram.cs) →
+[`BlockBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Block/BlockBuilder.cs)).
+**Where a block is drawn is what its author wrote** — the whole point of the type, and why nothing here works out a position.
+A grid is laid out in the `columns N` it is given, or in one row where it is given none or `auto`; blocks fill it left to
+right and wrap as the columns fill; `id:2` takes that many of them; `space` / `space:3` leaves cells empty; and
+`block:ID … end`, or an anonymous `block … end`, nests a grid of its own inside a cell, with its own `columns`. Every cell of
+a grid is the size of the largest block in it, a block spanning columns being that much wider, and a composite drawn bigger
+than it asked for — because something beside it was wider — grows the blocks inside it to fill what it got. A block is drawn
+in the shape its brackets say, the fourteen Mermaid writes
+([`MermaidShapes`](../src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs)): `[]`, `()`, `([])`, `[[]]`, `[()]`, `(())`, `((()))`,
+`>]`, `{}`, `{{}}`, `[//]`, `[\\]`, `[/\]`, `[\/]`. A block arrow `id<["label"]>(right)` is drawn as a shaft and a head for
+every direction it points — `right`/`left`/`up`/`down`, `x` and `y` for a pair of opposites, and any of them combined with
+commas. Links join the blocks written either side of them: `-->`, `---`, `--x`, `--o`, `<-->`, the thick `==>`, the dotted
+`-.->`, the invisible-in-Mermaid `~~~`, and `-- "X" -->` with what is written on it over the middle of the line.
+`classDef`, `class` and `style` colour the blocks, above them or below them, the `default` class being what every block starts
+from and a `style` line winning over the classes it is given; `fill`, `color`, `stroke`, `stroke-width`, `fill-opacity` and
+`stroke-dasharray` are applied. **Everything drawn stands for what was written** — a composite holds its own blocks in the
+layout, so pressing one means that block and pressing the room round it means the composite; what is drawn on a block is the
+characters of its label, or of its id where nothing else says anything, and is typed into where it is drawn. Enter starts
+another block with its label to write, and what a bare id cannot hold is dropped rather than written.
+**The front matter is applied** ([`BlockConfig`](../src/Nexaflow.Markdown/Mermaid/Block/BlockConfig.cs)): `config: block`
+`padding`. **Divergences from Mermaid:** Mermaid reads a block diagram without caring where its lines end, so it would take a
+link written across two of them, where here what a link joins is written on one line; Mermaid has no `title` line in a block
+diagram and neither does this, so a title is the front matter's; a block whose span overruns the columns left on its row is
+drawn to the end of that row rather than outside the grid; a label written with no id before it reads as a block still being
+written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block being drawn at the size its blocks come to.
 
 **C4 sub-features** ([`MermaidC4Parser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs)
 + [`C4GraphProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs)

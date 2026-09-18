@@ -202,51 +202,6 @@ public class DiagramRendererTests
         Electricity,Homes,55
         """;
 
-    [TestMethod]
-    public void Sankey_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidSankeyParser().Parse(SankeySrc);
-        Assert.IsInstanceOfType(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Sankey_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", SankeySrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Sankey_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              sankey:
-                showValues: true
-                linkColor: gradient
-                nodeAlignment: left
-                suffix: " TWh"
-                nodeColors:
-                  Electricity: "#4e79a7"
-            ---
-            sankey
-
-            Coal,Electricity,75
-            Gas,Electricity,40
-            Electricity,Industry,60
-            Electricity,Homes,55
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Sankey_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidSankeyParser().Parse("sankey\n");
-        Assert.IsNotNull(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark));
-    });
-
     // ── ER diagram ────────────────────────────────────────────────────────
 
     private const string ErSrc =
@@ -300,54 +255,6 @@ public class DiagramRendererTests
             service server(server)[Server] in api
             db:R -- L:server
         """;
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidArchitectureParser().Parse(ArchitectureSrc);
-        Assert.IsInstanceOfType(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_DispatchesToGridRendererNotRawText() => UiThread.Run(() =>
-    {
-        // architecture-beta used to fall through to raw source text; it must now route to the grid
-        // renderer: Border → ScrollViewer → Canvas (the raw fallback is Border → TextBlock).
-        var fe = DiagramRenderer.Render("mermaid", ArchitectureSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "architecture-beta should route to the architecture renderer");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_GroupsIconsAndCrossGroupEdge_Render() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            architecture-beta
-                group public(cloud)[Public]
-                group private(cloud)[Private]
-                service gateway(internet)[Gateway] in public
-                service app(server)[App] in private
-                junction j1 in private
-                gateway:R --> L:app
-                app:B -- T:j1
-                gateway{group}:B --> T:app{group}
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidArchitectureParser().Parse("architecture-beta\n");
-        Assert.IsNotNull(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark));
-    });
 
     // ── Swimlane diagram ──────────────────────────────────────────────────
 
@@ -430,64 +337,4 @@ public class DiagramRendererTests
           class Frontend front
           class Backend,Database back
         """;
-
-    [TestMethod]
-    [CoversNode("block")]
-    public void Block_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidBlockParser().Parse(BlockSrc);
-        Assert.IsInstanceOfType(WpfBlockRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    [CoversNode("block")]
-    public void Block_DispatchesToBlockRendererNotRawText() => UiThread.Run(() =>
-    {
-        var fe = DiagramRenderer.Render("mermaid", BlockSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        // The raw-source fallback wraps a TextBlock; the block renderer wraps a scrolling canvas.
-        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
-    });
-
-    [TestMethod]
-    [CoversNode("block")]
-    public void Block_NestedGroupsEdgesAndEveryShape_Render() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            title: Everything at once
-            config:
-              block:
-                padding: 12
-            ---
-            block-beta
-              columns 4
-              db(("DB")) blockArrowId6<["&nbsp;"]>(down) both<["x"]>(x) updown<["y"]>(y)
-              block:ID:2
-                A
-                B["A wide one in the middle"]
-                C
-              end
-              space D
-              b("round") c(["stadium"]) d[["subroutine"]] e[("cylinder")]
-              g>"flag"] h{"rhombus"} i{{"hexagon"}} n((("double circle")))
-              j[/"parallelogram"/] k[\"alt"\] l[/"trapezoid"\] m[\"alt"/]
-              ID --> D
-              C -- "label" --> D
-              A --- b
-              style B fill:#969,stroke:#333,stroke-width:4px,color:#fff,stroke-dasharray: 5 5
-            """;
-        var fe = DiagramRenderer.Render("mermaid", src, MarkdownPalette.Light);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        Assert.IsInstanceOfType(((Border)fe).Child, typeof(ScrollViewer));
-    });
-
-    [TestMethod]
-    [CoversNode("block")]
-    public void Block_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidBlockParser().Parse("block-beta\n");
-        Assert.IsNotNull(WpfBlockRenderer.Render(d, MarkdownPalette.Dark));
-    });
 }

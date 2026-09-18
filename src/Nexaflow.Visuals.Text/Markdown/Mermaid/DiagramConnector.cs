@@ -84,6 +84,9 @@ internal static class DiagramConnector
     /// <summary>How near a press has to be to a connector's line to mean it.</summary>
     public const double Reach = 8;
 
+    /// <summary>The air round what is written on a connector, between its words and the line they are drawn over.</summary>
+    private const double Air = 2;
+
     /// <summary>
     /// Draws a connector through <paramref name="route"/>, as a piece of <paramref name="kind"/> standing for
     /// <paramref name="part"/>: straight from point to point, or <paramref name="curved"/> through them, ending in
@@ -131,6 +134,41 @@ internal static class DiagramConnector
         }
 
         return route[^1];
+    }
+
+    /// <summary>
+    /// The room what is written on a connector takes, over the middle of it and with a little air round it — or nothing, where
+    /// there is nothing to say. Whatever is drawn under it does not stand there, so it is worked out before anything is drawn.
+    /// </summary>
+    public static Rect Room(IReadOnlyList<Point> route, IReadOnlyList<DiagramWords> said)
+    {
+        var taken = DiagramWords.Taken(said);
+        if (taken.Width <= 0 || taken.Height <= 0) return Rect.Empty;
+
+        var at = Middle(route);
+        return Rect.Inflate(new Rect(at.X - (taken.Width / 2), at.Y - (taken.Height / 2), taken.Width, taken.Height), Air, Air / 2);
+    }
+
+    /// <summary>
+    /// What is written on a connector, in the room <see cref="Room"/> gave it: the words on a patch of <paramref name="backing"/>,
+    /// so the line does not run through them and a press there means the connector rather than whatever is under it.
+    /// </summary>
+    public static void Says(LayoutBuilder build, string kind, ISourcePart? part, Rect room, IReadOnlyList<DiagramWords> said,
+                            Brush backing, string wordsKind = MermaidPiece.Words)
+    {
+        if (room.IsEmpty) return;
+
+        var patch = new RectangleGeometry(room);
+        patch.Freeze();
+
+        build.Open(kind, part, stops: Stops.None);
+        build.Draw(new GeometryMark(patch, backing, null, 0));
+        build.Occupies(patch);
+
+        foreach (var (words, at, said_kind) in DiagramWords.Placed(said, Rect.Inflate(room, -Air, -Air / 2), wordsKind))
+            words.Set(build, at, said_kind);
+
+        build.Close();
     }
 
     /// <summary>

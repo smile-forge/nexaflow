@@ -27,24 +27,35 @@ public static class MermaidOutline
     /// whether one was written at all.
     /// </summary>
     /// <param name="stops">The characters that end a bare id, which is everything the brackets open with, and whatever else the diagram does not allow.</param>
-    public static bool Node(MermaidLine line, string idRole, string titleRole, string stops, out bool titled)
+    /// <param name="brackets">The brackets a title may be written in, longest opening first — <see cref="Brackets"/> where the diagram writes those.</param>
+    /// <param name="spaced">
+    /// Whether the space after the node is the node's. A diagram writing one node to a line takes it, so what follows on that line
+    /// is read hard against it; one writing several takes only the space between an id and the brackets after it, so each node
+    /// stands for its own characters and the space between two of them is the line's.
+    /// </param>
+    public static bool Node(MermaidLine line, string idRole, string titleRole, string stops, out bool titled,
+                            IReadOnlyList<(string Open, string Close)>? brackets = null, bool spaced = true)
     {
-        titled = Bracket(line) is not null;
+        var written = brackets ?? Brackets;
+        titled = Bracket(line, written) is not null;
 
         if (!titled)
         {
             line.Open();
             line.Words(idRole, until: stops);
             line.Close(MermaidKinds.Name, idRole);
+
+            var mark = line.Save();
             line.Space();
+            if (!spaced && Bracket(line, written) is null) line.Restore(mark);
         }
 
-        if (Bracket(line) is var (open, close))
+        if (Bracket(line, written) is var (open, close))
         {
             if (!line.Label(open, close, titleRole)) return false;
 
             titled = true;
-            line.Space();
+            if (spaced) line.Space();
         }
 
         return true;
@@ -90,15 +101,29 @@ public static class MermaidOutline
     public static string? Opening(ContentPart node) =>
         node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label)?.Children.FirstOrDefault(child => child.Role == Roles.Open)?.Text;
 
-    /// <summary>The brackets a title opens with next, where one does.</summary>
-    private static (string Open, string Close)? Bracket(MermaidLine line)
+    /// <summary>
+    /// The brackets a title opens with next, where one does. Where several closings may end the same opening — <c>[/…/]</c>
+    /// and <c>[/…\]</c> — it is ended by whichever of them is written first, which is what says which shape it is.
+    /// </summary>
+    private static (string Open, string Close)? Bracket(MermaidLine line, IReadOnlyList<(string Open, string Close)> brackets)
     {
-        foreach (var bracket in Brackets)
-            if (line.Sees(bracket.Open))
-                return bracket;
+        (string Open, string Close)? found = null;
 
-        return null;
+        foreach (var bracket in brackets)
+        {
+            if (!line.Sees(bracket.Open)) continue;
+            if (found is null) { found = bracket; continue; }
+            if (!string.Equals(bracket.Open, found.Value.Open, StringComparison.Ordinal)) break;
+
+            if (Ends(line, bracket.Close) < Ends(line, found.Value.Close)) found = bracket;
+        }
+
+        return found;
     }
+
+    /// <summary>How far along the line a closing is written, or the end of it where it is not written at all.</summary>
+    private static int Ends(MermaidLine line, string close) =>
+        line.Written.IndexOf(close, line.At, StringComparison.Ordinal) is var at && at < 0 ? int.MaxValue : at;
 
     /// <summary>
     /// What nests what, for a diagram written as an indented outline: each item with the item it hangs off, which is the nearest

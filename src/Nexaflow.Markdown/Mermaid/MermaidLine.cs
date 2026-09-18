@@ -214,22 +214,38 @@ public sealed class MermaidLine
     // ── What lines are made of ──────────────────────────────────────────────
 
     /// <summary>
-    /// Text in quotes, the quotes machinery either side of the <see cref="MermaidKinds.Words"/> they hold: as a
-    /// <paramref name="kind"/>, or laid in among the pieces round it where the kind is null. Anything but a quote goes in
-    /// quotes — a quote is written as its entity code (<see cref="MermaidText"/>).
+    /// Text in quotes: the quote next, what follows it, and the quote closing it. False where nothing is quoted here, and a
+    /// failure with the reason where nothing closes it.
     /// </summary>
-    /// <param name="what">What is in quotes, for the reason where the closing quote is never written: <c>label</c>, <c>name</c>.</param>
-    public bool Quoted(string role, string? kind = MermaidKinds.Quoted, string what = "text")
+    /// <param name="doubled">
+    /// Whether a quote written twice inside the quotes is one quote rather than the end of them, which is how a CSV field
+    /// holds one.
+    /// </param>
+    public bool Quoted(string role, string? kind = MermaidKinds.Quoted, string what = "text", bool doubled = false)
     {
         if (Next != '"') return false;
 
-        var close = Written.IndexOf('"', At + 1);
+        var close = Closing(doubled);
         if (close < 0) return Fail($"This {what} is never closed with a quote.");
 
         if (kind is not null) Open();
         Quotes(close, role);
         if (kind is not null) Close(kind);
         return true;
+    }
+
+    /// <summary>Where the quotes opening at the reading close, or -1 where nothing closes them.</summary>
+    private int Closing(bool doubled)
+    {
+        for (var at = At + 1; at < Written.Length; at++)
+        {
+            if (Written[at] != '"') continue;
+            if (doubled && at + 1 < Written.Length && Written[at + 1] == '"') { at++; continue; }
+
+            return at;
+        }
+
+        return -1;
     }
 
     /// <summary>

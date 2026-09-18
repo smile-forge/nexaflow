@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -83,6 +84,25 @@ internal static class DiagramShapes
 
     /// <summary>How far in a <see cref="DiagramShape.Subroutine"/>'s inner lines and a <see cref="DiagramShape.DoubleCircle"/>'s inner ring are.</summary>
     private const double Inner = 5;
+
+    /// <summary>The shape Mermaid's brackets say, as one to draw — a plain box for brackets that say none.</summary>
+    public static DiagramShape For(MermaidShape shape) => shape switch
+    {
+        MermaidShape.Rounded => DiagramShape.Rounded,
+        MermaidShape.Stadium => DiagramShape.Stadium,
+        MermaidShape.Subroutine => DiagramShape.Subroutine,
+        MermaidShape.Cylinder => DiagramShape.Cylinder,
+        MermaidShape.Circle => DiagramShape.Circle,
+        MermaidShape.DoubleCircle => DiagramShape.DoubleCircle,
+        MermaidShape.Asymmetric => DiagramShape.Asymmetric,
+        MermaidShape.Diamond => DiagramShape.Diamond,
+        MermaidShape.Hexagon => DiagramShape.Hexagon,
+        MermaidShape.Parallelogram => DiagramShape.Parallelogram,
+        MermaidShape.ParallelogramAlt => DiagramShape.ParallelogramAlt,
+        MermaidShape.Trapezoid => DiagramShape.Trapezoid,
+        MermaidShape.TrapezoidAlt => DiagramShape.TrapezoidAlt,
+        _ => DiagramShape.Rectangle,
+    };
 
     /// <summary>The outline of a shape filling <paramref name="bounds"/> — what is filled, stroked, and stood in. Frozen.</summary>
     public static Geometry Outline(DiagramShape shape, Rect bounds)
@@ -267,6 +287,19 @@ internal static class DiagramShapes
         foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind);
 
         build.Close();
+    }
+
+    /// <summary>
+    /// Several shapes as one. A group of them would draw the same and stand wrong: a line's band is wound the other way round
+    /// from a rectangle, and either fill rule takes the overlap of the two back out again.
+    /// </summary>
+    public static Geometry United(IEnumerable<Geometry> shapes)
+    {
+        Geometry all = new RectangleGeometry(Rect.Empty);
+        foreach (var shape in shapes) all = new CombinedGeometry(GeometryCombineMode.Union, all, shape);
+
+        all.Freeze();
+        return all;
     }
 
     /// <summary>Where a shape stands with words drawn over it: its outline, less where the words are, so a press on them means them.</summary>

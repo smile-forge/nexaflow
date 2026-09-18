@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Editing;
@@ -145,4 +146,13 @@ public class DiagramShapesTests
         Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new Point(100, 45)).Kind, "one elsewhere in the shape means the shape");
         Assert.AreEqual("Card", root.PieceAt(new Point(100, 80)).Kind, "and one where something else is drawn over it means that");
     });
+
+    [TestMethod]
+    public void EveryShapeMermaidsBracketsSayIsDrawnAsOneOfItsOwn()
+    {
+        var drawn = MermaidShapes.Nodes.Select(node => DiagramShapes.For(node.Shape)).ToList();
+
+        Assert.AreEqual(MermaidShapes.Nodes.Count, drawn.Distinct().Count(), "no two pairs of brackets are drawn the same");
+        Assert.AreEqual(DiagramShape.Rectangle, DiagramShapes.For(MermaidShape.None), "and brackets that say no shape are a plain box");
+    }
 }
