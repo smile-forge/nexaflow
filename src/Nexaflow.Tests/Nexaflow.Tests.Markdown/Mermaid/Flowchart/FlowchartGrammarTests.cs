@@ -192,28 +192,6 @@ public class FlowchartGrammarTests : MermaidGrammarContract
     }
 
     [TestMethod]
-    public void EveryLinkSaysWhatItDraws()
-    {
-        foreach (var (written, drawn) in new (string Written, MermaidLinks.Drawn)[]
-                 {
-                     ("-->", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.Arrow, MermaidLineStyle.Solid, 1)),
-                     ("--->", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.Arrow, MermaidLineStyle.Solid, 2)),
-                     ("---", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.None, MermaidLineStyle.Solid, 1)),
-                     ("----", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.None, MermaidLineStyle.Solid, 2)),
-                     ("==>", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.Arrow, MermaidLineStyle.Thick, 1)),
-                     ("-.->", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.Arrow, MermaidLineStyle.Dotted, 1)),
-                     ("-..->", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.Arrow, MermaidLineStyle.Dotted, 2)),
-                     ("<-->", new MermaidLinks.Drawn(MermaidHead.Arrow, MermaidHead.Arrow, MermaidLineStyle.Solid, 1)),
-                     ("o--o", new MermaidLinks.Drawn(MermaidHead.Circle, MermaidHead.Circle, MermaidLineStyle.Solid, 1)),
-                     ("x--x", new MermaidLinks.Drawn(MermaidHead.Cross, MermaidHead.Cross, MermaidLineStyle.Solid, 1)),
-                     ("~~~", new MermaidLinks.Drawn(MermaidHead.None, MermaidHead.None, MermaidLineStyle.Invisible, 1)),
-                 })
-        {
-            Assert.AreEqual(drawn, MermaidLinks.Of(written), written);
-        }
-    }
-
-    [TestMethod]
     public void WhatIsWrongIsSaid()
     {
         foreach (var (source, said) in new[]

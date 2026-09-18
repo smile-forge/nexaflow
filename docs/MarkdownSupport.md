@@ -139,7 +139,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 
 | Sub-type | Status | Tests |
 |---|---|---|
-| `graph` / `flowchart` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests` — shapes, arrows, edge ids, chains `A-->B-->C`, fan-out `A-->B & C`, nested subgraphs) + sample render |
+| `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + nodes, links, subgraphs, styling + config (`FlowchartDiagramTests`) + draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantChartTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
 | `sequenceDiagram` | ✅ | ✅ parser (`DiagramParsersTests`, extensive) + render (`DiagramRendererTests`) + sample |
@@ -164,6 +164,38 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
+
+**Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
+[`FlowchartDiagram`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartDiagram.cs) →
+[`FlowchartBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartBuilder.cs)).
+Nodes joined by links, laid out in ranks by how far along the links reach them
+([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
+as few lines crossing as can be managed, then each node set across its rank beside the ones it joins). A node is an id with a
+label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, of which the fifty-odd
+names come to the nearest shape this draws; a bare id is carried on by a dash or a dot, and ends where a link starts, which is
+Mermaid's own rule and the reason `A-->B` needs no space in it. **A node written again is the same node**, the second writing
+saying more about it, so a link may name nodes a line above laid out. Links are read from the characters they are drawn as
+([`MermaidLinks`](../src/Nexaflow.Markdown/Mermaid/MermaidLinks.cs)): `-->`, `---`, `--o`, `--x`, `<-->`, `o--o`, `x--x`, thick
+`==>`, dotted `-.->`, invisible `~~~`, each as long as it is written — a longer one holding what it joins that many ranks apart —
+with a label between bars (`-->|yes|`) or between its opening and its closing (`-- yes -->`, `== yes ==>`, `-. yes .->`). `&`
+joins several nodes at once, a chain carries on from what the link before it reached, and a link back to the node it leaves runs
+round beside it. **A subgraph holds its nodes in the layout**: what is inside one is laid out in its own space, which is what lets
+a `direction` line run it its own way, and drawn inside the subgraph's piece — so pressing a node means that node and pressing the
+room round it means the subgraph, which stands only where its nodes and the links over it leave it uncovered. `classDef`, `class`,
+`:::`, `style` and `linkStyle` (by number, or `default`) colour it all, the `default` class being what every node starts from;
+`click` says where a node leads and what it says while pointed at; `accTitle`/`accDescr` are read. **Everything drawn stands for
+what was written**: a node for the node written for it, a line for the link that was written, and what is drawn on a node is the
+characters written — its label, or its id where nothing else says anything — typed into where it is drawn. **The front matter is
+applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs)): `config: flowchart:`
+`nodeSpacing`, `rankSpacing`, `diagramPadding`, `wrappingWidth`, `subGraphTitleMargin` and `curve` (`linear` draws straight lines,
+anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
+Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
+have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
+nodes come to; the `@{ shape: … }` names Mermaid draws with a detail of their own — a window pane, a bow tie, a crossed circle —
+come to the nearest shape this has; an `icon:` or `img:` node is drawn as its label, there being no icon pack to fetch; and a
+`click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the source. **A
+flowchart asking for nodes that open and close** — anything in a `config: nexaflow:` block — is drawn by the expandable graph view
+instead (below), which is the one thing the shared layout tree cannot do yet.
 
 **Pie sub-features** ([`PieGrammar`](../src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs) →
 [`PieChart`](../src/Nexaflow.Markdown/Mermaid/Pie/PieChart.cs) →
@@ -697,9 +729,10 @@ itself, not a second copy of it.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 
-`graph`/`flowchart`, `stateDiagram`, `classDiagram`, `erDiagram` and `requirementDiagram` share the graph model,
-the Sugiyama layout and [`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs),
-so they also share two things that only matter once a graph gets big.
+`stateDiagram`, `classDiagram`, `erDiagram` and `requirementDiagram` share the graph model, the Sugiyama layout and
+[`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs), so they also share two things
+that only matter once a graph gets big — and a `graph`/`flowchart` joins them for as long as it asks to, a `config: nexaflow:`
+block being what sends it here rather than to the shared layout tree.
 
 **A node can hide a subtree.** `Node.Expansion` is `Leaf` / `Collapsed` / `Expanded`, and a non-leaf node is drawn
 with a **`[+]` / `[−]` chip** on its top-right corner — a *second* hit region, so the node's body keeps its own
