@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>File System — Nexaflow help</title>
+<meta name="description" content="Browses the drives and folders on this PC and acts on the files in them.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>File System</h1>
+  <p class="lede">Browses the drives and folders on this PC and acts on the files in them.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#getting-to-a-folder">Getting to a folder</a></li><li><a href="#opening-a-file">Opening a file</a></li><li><a href="#copying-moving-and-deleting">Copying, moving and deleting</a></li><li><a href="#creating-things">Creating things</a></li><li><a href="#extra-views-on-a-folder">Extra views on a folder</a></li><li><a href="#searching-and-the-assistant">Searching and the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="getting-to-a-folder">Getting to a folder</h2>
+<ul>
+<li>A new tab starts at This PC and lists the drives; Desktop, Documents, Downloads, Pictures, Music and Videos are offered as tabs of their own.</li>
+<li>Go to a path by typing it into the bar at the bottom after <code>&gt;</code> — <code>&gt; C:\data</code>, <code>&gt; %AppData%</code>, or a folder name relative to where you are. A full path is recognised there without the <code>&gt;</code>.</li>
+<li>Right-click a folder in the tree for Open in right pane, which puts a second folder beside this one.</li>
+<li>F5 re-reads the folder. Clicking the folder or file tally under the list shows only that kind; clicking it again shows both.</li>
+</ul>
+<h2 id="opening-a-file">Opening a file</h2>
+<ul>
+<li>Double-click a file, or press Shift+Enter with one row selected. It opens in whichever built-in viewer claims its type, and in the Windows default program when none does.</li>
+<li>A <code>.zip</code>, <code>.7z</code>, <code>.tar.gz</code>, <code>.iso</code> or <code>.vhd</code> opens in place — you browse inside it as though it were a folder. A file that merely happens to be a container, like <code>.docx</code> or <code>.eml</code>, keeps its own viewer.</li>
+<li>Define New fixes what a type opens with from then on: a viewer inside the app or an outside program, applied to this one file, to that extension in this folder, or to the extension anywhere. <span class="locate" title="In the app this points at DefineNew_TargetInternal, DefineNew_TargetNewApp">Show me</span></li>
+</ul>
+<h2 id="copying-moving-and-deleting">Copying, moving and deleting</h2>
+<ul>
+<li>Copy, Cut, Paste, Rename, Delete, Run, Install, Open With, Properties and Copy path act on the selection, from the strip above the list or the right-click menu. Ctrl+C, Ctrl+X and Ctrl+V do the first three.</li>
+<li>Dragging files onto a folder copies them; hold Shift to move. Right-dragging asks at the drop — Copy here, Move here or Cancel.</li>
+<li>A copy or move into a folder that already holds that name arrives as &quot;name (2)&quot;; nothing is replaced.</li>
+<li>Rename takes one item at a time and will not replace a file that already has the name you give.</li>
+<li>Delete asks first and sends the files to the Recycle Bin. Shift+Delete skips the question and deletes them for good.</li>
+<li>Run and Install hand the file to Windows, so a program that needs administrator is Windows asking for it, not this page.</li>
+<li>Copies, moves and deletes are queued and run in the background, with a row each and a Stop all. <span class="locate" title="In the app this points at FileOps_Toggle, FileOps_CancelAll">Show me</span></li>
+<li>A run that stops part-way offers Try again, which continues into the same destination rather than making a second copy. <span class="locate" title="In the app this points at FileOps_Retry">Show me</span></li>
+</ul>
+<h2 id="creating-things">Creating things</h2>
+<ul>
+<li>New opens Create new, which makes a folder, a text file, any type Windows knows how to create, or one of your own templates, and says so before you commit if the name is taken. <span class="locate" title="In the app this points at FileSystem_CreateConfirm">Show me</span></li>
+</ul>
+<h2 id="extra-views-on-a-folder">Extra views on a folder</h2>
+<ul>
+<li>A folder holding a Git repository, a .NET project or a product tree carries a view of it above the files. Viewlet View gives that view the whole pane, File View returns to the list. <span class="locate" title="In the app this points at Viewlet_ViewletView, Viewlet_FileView">Show me</span></li>
+</ul>
+<h2 id="searching-and-the-assistant">Searching and the assistant</h2>
+<ul>
+<li>Type <code>?</code> and a term into the bar to search the files under this folder, or across the PC from This PC. Results open in a Search tab, which also offers a manual scan when a folder is not in the Windows index.</li>
+<li>The assistant acts in the folder you are looking at. It can list the files, find them by name, read one, count its lines and report its size, and — with your approval — create a file or folder, copy, move, rename, or send something to the Recycle Bin.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

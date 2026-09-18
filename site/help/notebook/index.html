@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebook — Nexaflow help</title>
+<meta name="description" content="Opens a Jupyter notebook and shows its cells in order as a page you can read.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>Notebook</h1>
+  <p class="lede">Opens a Jupyter notebook and shows its cells in order as a page you can read.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-notebook">Opening a notebook</a></li><li><a href="#reading-the-cells">Reading the cells</a></li><li><a href="#the-outline">The outline</a></li><li><a href="#searching">Searching</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-notebook">Opening a notebook</h2>
+<ul>
+<li>Double-click a <code>.ipynb</code> in the <a href="../file-system/">File System</a> page, or pick <strong>As Notebook</strong> from the file's actions. <span class="locate" title="In the app this points at TabItem_Notebook">The tab</span> takes the file's name.</li>
+<li>A notebook inside an archive or a disk image opens the same way, with nothing to extract first.</li>
+<li><span class="locate" title="In the app this points at Chrome_BreadcrumbBar">The breadcrumb</span> names the folder the notebook sits in; one opened from an archive points back at the archive.</li>
+<li>This is a reader. Nothing runs, no kernel starts, and the page never writes to the file.</li>
+<li>For a <code>.md</code> file use the <a href="../markdown/">Markdown</a> tab; for flat text, the <a href="../text/">Text viewer</a>.</li>
+</ul>
+<h2 id="reading-the-cells">Reading the cells</h2>
+<ul>
+<li>Markdown cells are rendered: headings, lists, tables, block quotes and links.</li>
+<li><code>$…$</code> inside a sentence and <code>$$…$$</code> on a line of its own are typeset as formulae.</li>
+<li>Mermaid diagrams are drawn. A wide one keeps its size and scrolls sideways.</li>
+<li>A code cell carries its execution label in the gutter: <code>In [3]</code> for the cell that ran third, <code>In [ ]</code> for one that never ran. Long lines scroll sideways.</li>
+<li>Select text in a markdown cell and copy it: plain text, HTML and the original markdown all reach the clipboard. Copy with nothing selected to take the whole cell.</li>
+<li>Stored outputs stay in the file rather than being replayed down the page. Ask the assistant to read them.</li>
+<li>Code is coloured for the kernel the notebook records. Python, Ruby, JavaScript, TypeScript and C# each have their own colouring; an unfamiliar kernel is read as Python.</li>
+<li>Raw cells are shown verbatim, with no colouring and no execution label.</li>
+</ul>
+<h2 id="the-outline">The outline</h2>
+<ul>
+<li>A panel beside the cells lists what each code cell declares, grouped under the cell's number.</li>
+<li>Each class is listed with its members, and every top-level function by signature.</li>
+<li>The text is selectable, so a signature copies into your own code.</li>
+<li>A notebook that declares nothing has no outline column.</li>
+</ul>
+<h2 id="searching">Searching</h2>
+<ul>
+<li>Type <code>?</code> and a word in the AI bar to search the whole notebook, markdown and code alike. <span class="locate" title="In the app this points at AiInputBox, Notebook_SearchMatchCount, Notebook_SearchNext">Show me</span></li>
+<li>A hit is a cell, so the count is a count of cells, and each one is marked down its left edge. In a code cell the matched words are highlighted as well.</li>
+<li>Cells that do not match stay where they are; nothing is hidden.</li>
+<li>Step through the hits with the arrows on the chip, which wrap round at either end, or <span class="locate" title="In the app this points at AiInputBox, Notebook_SearchClear">clear the search</span> to leave the page as it was.</li>
+<li>A plain word matches that whole word, <code>fig*</code> a prefix and <code>*fig*</code> a substring. <code>/pattern/</code> runs a regular expression, with a <code>c</code> flag for case sensitivity. A pattern that will not compile is reported back rather than answered with an empty result.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>Switch on page context in the AI bar and the assistant knows which notebook is open: its kernel, how many code and markdown cells it holds, and the opening line of the first fifteen. <span class="locate" title="In the app this points at AiBar_ContextToggle">Show me</span> It waits until the file has parsed, so it never describes an empty stub.</li>
+<li>It can read the whole notebook, every cell in order with its full source, or one cell by the number the search reports.</li>
+<li>It reads stored outputs: printed text, results, and an error's message and traceback. Images are named by type rather than read.</li>
+<li>It can search and filter, and the cells it kept are the ones marked on the page.</li>
+<li>Nothing is executed and the file is never changed.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

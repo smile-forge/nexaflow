@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabular — Nexaflow help</title>
+<meta name="description" content="Opens a delimited text file as a grid. Nothing you do here writes to the file.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>Tabular</h1>
+  <p class="lede">Opens a delimited text file as a grid. Nothing you do here writes to the file.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-file">Opening a file</a></li><li><a href="#reading-the-grid">Reading the grid</a></li><li><a href="#sorting-and-filtering">Sorting and filtering</a></li><li><a href="#reshaping-columns">Reshaping columns</a></li><li><a href="#templates">Templates</a></li><li><a href="#search-and-the-assistant">Search and the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-file">Opening a file</h2>
+<ul>
+<li>Send a file here from the File System page with the <strong>As Table</strong> (▦) action.</li>
+<li>Comma, tab, semicolon and pipe separators are worked out for you, and quoted fields (<code>&quot;</code> or <code>'</code>) stay whole.</li>
+<li>A file with no separator opens as fixed-width columns if it is space-aligned, otherwise as a single column.</li>
+<li>Leading <code>#</code> comment lines are skipped. Hover the ⓘ above the row numbers to see which.</li>
+<li>Check what was detected — separator, quoting, header row, column count — in the toolbar. <span class="locate" title="In the app this points at Tabular_ShapeLabel">Show me</span></li>
+</ul>
+<h2 id="reading-the-grid">Reading the grid</h2>
+<ul>
+<li>Select rows: click one, Ctrl-click to add or drop one, Shift-click for a range.</li>
+<li>The footer shows the file name, row count and encoding. <code>⟳ counting rows…</code> means the total is still settling.</li>
+<li>A file under 100 KB loads whole. Above that the grid holds 150 rows and re-reads from disk as you scroll, so a jump to the far end takes a moment.</li>
+</ul>
+<h2 id="sorting-and-filtering">Sorting and filtering</h2>
+<ul>
+<li>Sort a column: click the ↕ at the end of its header — ascending ▲, again for descending ▼, again for none.</li>
+<li>Sorting is only offered on files under 100 KB, because it needs the whole file. On a larger file that glyph is blank.</li>
+<li>Open the filter panel: click a header to select the column, Ctrl or Shift for more.</li>
+<li>Filters follow the column type: substring text with a regex switch, min/max for numbers and currency, from/to dates with optional times, checkboxes for true/false.</li>
+<li>Filters stack — a row must pass every active one — and they apply to a large file as its rows stream in.</li>
+</ul>
+<h2 id="reshaping-columns">Reshaping columns</h2>
+<p>Right-click a column header. None of this writes to the file.</p>
+<ul>
+<li><strong>Rename column</strong> gives it a new header.</li>
+<li><strong>Merge with previous</strong> treats that separator as data rather than a delimiter.</li>
+<li><strong>Split by</strong> a character breaks it in two. Characters absent from the column's sample are greyed out.</li>
+<li><strong>Evaluate as</strong> changes its type. Only types that parse every sampled value are offered; text always is.</li>
+</ul>
+<h2 id="templates">Templates</h2>
+<ul>
+<li>Save the current renames, splits, merges and types under a name: <strong><span class="locate" title="In the app this points at Tabular_TemplateThis">Template This</span></strong>. Choose when it comes back: any file in this folder, any file matching a pattern like <code>sales-*.csv</code>, or only when you pick it.</li>
+<li>Apply, switch or delete a saved template: <strong><span class="locate" title="In the app this points at Tabular_ApplyTemplate">Apply Template</span></strong>, whose ✕ deletes one. Incompatible templates are hidden.</li>
+<li>A matching template applies itself when the file opens; if several match, you are asked to choose. <span class="locate" title="In the app this points at Tabular_TemplateThis, Tabular_ApplyTemplate">Show me both</span></li>
+<li>Rename and delete saved templates in Options → Tabular Templates.</li>
+</ul>
+<h2 id="search-and-the-assistant">Search and the assistant</h2>
+<ul>
+<li>Search rows: type <code>?</code> and a term in <span class="locate" title="In the app this points at AiInputBox">the bar at the bottom</span>. A hit is a whole row; hits are marked in the grid and the toolbar chip counts them and steps through them.</li>
+<li><code>fig*</code> matches from the start of a word, <code>*fig*</code> anywhere inside one. The scan stops after 5,000 matching rows and marks that count with a <code>+</code>.</li>
+<li>The assistant sees the detected shape, the columns and their types, the row count, any active filters, the visible rows and the rows you selected. It can read a range of rows, open the filter panel and jump to the first or last row, but it cannot change your data.</li>
+<li>Pin the tab to the ribbon and it comes back with your reshaping applied. Click the folder in the tab's breadcrumb to open a file explorer there.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

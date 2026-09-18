@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network — Nexaflow help</title>
+<meta name="description" content="Lists the devices on your network and what is known about each one.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Run your machine</nav>
+<header class="page-head">
+  <h1>Network</h1>
+  <p class="lede">Lists the devices on your network and what is known about each one.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#finding-devices">Finding devices</a></li><li><a href="#what-it-sends">What it sends</a></li><li><a href="#the-device-list">The device list</a></li><li><a href="#device-details">Device details</a></li><li><a href="#actions-on-a-device">Actions on a device</a></li><li><a href="#elsewhere-in-nexaflow">Elsewhere in Nexaflow</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="finding-devices">Finding devices</h2>
+<ul>
+<li>Press <span class="locate" title="In the app this points at Net_Discover">Discover</span> to search on every adapter it can use.</li>
+<li>Two ways of finding devices ship. One reads the address table Windows already keeps of the machines this PC has recently exchanged traffic with: it sends nothing, needs no elevation, and is the only one that gives you a MAC address. On a quiet network it is a short list.</li>
+<li>The other listens for devices that announce themselves — one small multicast search per adapter, then a listen for the replies. This is what turns up TVs, printers, routers, smart plugs and NAS boxes.</li>
+<li>Each is a switch. Turn one off and it does not run. Hover it to read what it does and what it puts on the network.</li>
+<li>The line under the button says how many observations came back and how many devices they turned out to be.</li>
+<li>If one way of finding devices fails, the other carries on. The log says what each did and why one found nothing.</li>
+</ul>
+<h2 id="what-it-sends">What it sends</h2>
+<ul>
+<li>There is no address sweep and no port scan. A run reads the table, sends one multicast search per adapter, and fetches a description only from an address a device has just given.</li>
+<li>It sends only to your own networks: a device on a locally attached network, or a multicast group that cannot leave it. Loopback, this machine's own addresses and a broadcast aimed at a remote network are refused.</li>
+<li>A run is bounded — a ceiling on packets, on bytes, on how long it may take, and a rate limit per device.</li>
+<li>Fetching a device's description sends no cookies and no credentials, and uses no proxy.</li>
+<li>Discovery never asks for administrator rights. Raw IP and Ethernet sends are refused rather than elevated.</li>
+</ul>
+<h2 id="the-device-list">The device list</h2>
+<ul>
+<li>Both ways of finding a device produce one row, not two. <span class="locate" title="In the app this points at Net_Devices">Show me</span></li>
+<li>Found by names which of them found it. A device that announces itself sends no MAC, so what it reports is joined to the table entry through the address they share.</li>
+<li>A device is named by the name it published; where it published none, by its model or its address.</li>
+<li>IPv4 and IPv6 addresses are listed in full, one per line, not just the first.</li>
+<li>Your own machine is left out. Windows answers its own search, and those replies are dropped.</li>
+</ul>
+<h2 id="device-details">Device details</h2>
+<ul>
+<li>Select a device to open a panel of its facts beside the list. <span class="locate" title="In the app this points at Net_Devices, Net_PanelTabs">Show me</span></li>
+<li>Under each value is what found it, how confident it was, and how long ago.</li>
+<li>Contested marks a fact the two ways of finding devices disagree about.</li>
+<li>Drag the panel wider; the width you choose stays as you move from device to device. Click the selected row again to close the panel.</li>
+</ul>
+<h2 id="actions-on-a-device">Actions on a device</h2>
+<ul>
+<li>Only the actions that apply to the device in hand are offered.</li>
+<li>Ping reports how long the round trip took. No answer is recorded as a result too, since some devices refuse pings by policy.</li>
+<li>Web page, Model, Maker and Service URL open an address the device published, as an ordinary tab. Each appears only where the device published that address.</li>
+<li>Each run gets its own tab in the panel, which you can close. Running the same action again replaces its tab.</li>
+<li>What an action learns stays with the device through the next discovery, and the panel stays on the device you were reading.</li>
+</ul>
+<h2 id="elsewhere-in-nexaflow">Elsewhere in Nexaflow</h2>
+<ul>
+<li>Addresses open as a Nexaflow tab, not in another browser.</li>
+<li>Add Network to your ribbon from the ribbon editor's list of pages.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

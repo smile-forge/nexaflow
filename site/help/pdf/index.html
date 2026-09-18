@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF reader — Nexaflow help</title>
+<meta name="description" content="Shows a PDF&#39;s pages, and lists what the document records about itself.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>PDF reader</h1>
+  <p class="lede">Shows a PDF's pages, and lists what the document records about itself.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-document">Opening a document</a></li><li><a href="#properties">Properties</a></li><li><a href="#contents">Contents</a></li><li><a href="#the-panel">The panel</a></li><li><a href="#with-the-assistant">With the assistant</a></li><li><a href="#extracting-images">Extracting images</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-document">Opening a document</h2>
+<ul>
+<li>Double-click a PDF in the <a href="../file-system/">File System</a> page and it opens here.</li>
+<li>A link that names page 42 opens on page 42, and asking for another page later moves this tab rather than opening a second one.</li>
+<li>A PDF inside an archive opens like any other; the temporary copy is deleted when the tab closes.</li>
+<li>A damaged file — a broken cross-reference table, a font that was never embedded — is recovered by scanning for what survives. A document that opens on an owner password alone opens read-only and is labelled protected.</li>
+<li>When a file cannot be made sense of at all, or is past the size ceiling for reading its structure, the panel says so while the page view carries on showing the document.</li>
+<li>Page selection, in-page search, zoom and print sit on the reader's own toolbar. <span class="locate" title="In the app this points at Pdf_OpenExternal">Open the file in your usual PDF application</span> for anything this does not do.</li>
+<li>A folder search reads a PDF's words, plus its title, author, subject, keywords, bookmark titles and the values typed into its form. A scan with no text is ruled out rather than left as a maybe, and a document that could not be read is reported as unread rather than as a miss.</li>
+</ul>
+<h2 id="properties">Properties</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Pdf_Tab_Properties, Pdf_Properties">The Properties tab</span> reads the document's catalogue, so it fills in while the pages are still painting.</li>
+<li>It lists file name and size, page count, PDF version, whether the document is protected, and how many fields its form carries.</li>
+<li>It also lists title, author, subject, keywords, creator, producer, and the created and modified dates — whichever of them the document states. Fields the document leaves empty are left out.</li>
+<li>Every value is selectable and copyable, and right-click copies the whole set.</li>
+</ul>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Pdf_Tab_Contents, Pdf_Contents">The Contents tab</span> lists the document's own bookmarks, indented, each with the page it starts on.</li>
+<li>Click a row to move the reader to it — to the heading's position down the page where the bookmark names one and the reader honours it.</li>
+<li>A grouping bookmark with no destination of its own, such as &quot;Part II&quot; over its chapters, stays in the list.</li>
+<li>The row you picked stays lit while you read on.</li>
+<li>Right-click to copy a title, a title with its page, or the whole outline with its indentation and page numbers.</li>
+<li>If the reader turns out to ignore page jumps, the rows stop offering one.</li>
+<li>Most PDFs carry no bookmarks. Where there is no outline the tab says so.</li>
+</ul>
+<h2 id="the-panel">The panel</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Pdf_TogglePanel">Hide the panel</span> and the document takes the whole tab.</li>
+<li><span class="locate" title="In the app this points at Pdf_Splitter">Drag the divider</span> to set its width; it comes back that wide next time you show it.</li>
+<li>If the embedded viewer will not start on this PC, the properties and contents are still listed, with the reason and a button to open the file in your usual reader. Where the cause is a missing Microsoft Edge WebView2 runtime, a link to install it is shown too.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It knows which document you have open before it reads a page: its name, how long it is, whether it has a contents list, and its title and author where the document states them.</li>
+<li>It can read any page range in reading order, page by page; a two-column page is read down one column and then the other. A long stretch that runs into its budget names the page it stopped on.</li>
+<li>It can find a phrase across the whole document and report the pages it appears on with a snippet of each, and can jump by the contents list straight to a section.</li>
+<li>It can list what images a page holds — pixel size, format, whether an image repeats one seen earlier — and then fetch only the one worth looking at.</li>
+<li>It can read a scanned page as a picture at its own resolution, and photograph any page as it is rendered.</li>
+<li>It can move your reader to a page, and says so if the reader refuses to move.</li>
+<li>All of it is read-only and none of it stops to ask permission. Two documents open at once stay two separate documents.</li>
+</ul>
+<h2 id="extracting-images">Extracting images</h2>
+<ul>
+<li><strong>Extract images</strong> from a PDF's actions in the file browser writes the pictures out of one document, or of a whole selection at once.</li>
+<li>Each document gets its own folder, and the file names sort into page order.</li>
+<li>JPEG and JPEG 2000 images come out untouched; everything else is decoded to PNG. Bilevel and JPEG 2000 scans are decoded here, so a scanned document does yield images.</li>
+<li>Repeated images are recognised by content and written once. Everything skipped — repeats, anything that could not be decoded, any document that would not open — is counted back to you.</li>
+<li>The work belongs to the shell: close the file browser and it still finishes and still reports how it went.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

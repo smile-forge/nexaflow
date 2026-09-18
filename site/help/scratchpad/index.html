@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scratchpad — Nexaflow help</title>
+<meta name="description" content="A board of post-it notes you can drop files, links, pictures and text onto.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Keep track</nav>
+<header class="page-head">
+  <h1>Scratchpad</h1>
+  <p class="lede">A board of post-it notes you can drop files, links, pictures and text onto.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#making-notes">Making notes</a></li><li><a href="#working-with-a-note">Working with a note</a></li><li><a href="#moving-around-the-board">Moving around the board</a></li><li><a href="#expiry-and-the-recycle-bin">Expiry and the recycle bin</a></li><li><a href="#search-and-the-assistant">Search and the assistant</a></li><li><a href="#where-notes-are-kept">Where notes are kept</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="making-notes">Making notes</h2>
+<ul>
+<li>Drop an image file and it is copied into the note and embedded, and the note sizes itself to the picture.</li>
+<li>Drop any other file, or a folder, and it becomes a link. Clicking it opens the item in Nexaflow, or in Windows if no page here handles it.</li>
+<li>Drag a picture out of a browser with no file behind it and it is saved as a PNG and embedded.</li>
+<li>Drop an http or https address and it shows as a link straight away, then fills in with the page's title, description and preview image, downloaded locally so the note still works offline.</li>
+<li>Drop text or markdown and it becomes the body of the note.</li>
+<li>Drop several files at once and they land in a cascade. Ctrl+V pastes the same way, and right-clicking empty board offers &quot;New post-it here&quot; and &quot;Paste as post-it&quot; at the cursor.</li>
+<li>Add a blank note in the middle of the view, already in edit mode. <span class="locate" title="In the app this points at Scratchpad_AddNote">Show me</span></li>
+</ul>
+<h2 id="working-with-a-note">Working with a note</h2>
+<ul>
+<li>A note's body is markdown. The block your caret is in shows its source while the rest stays rendered, and you can select and copy straight across the whole note.</li>
+<li>Right-click a note's header for a strip of options above it: seven papers (Yellow, Blue, Green, Pink, Orange, Purple, White), four shapes (Square, Rounded, Diagonals, Speech bubble), and Front and Back to restack it.</li>
+<li>Drag the header to move a note. Dragging or resizing one also brings it to the front.</li>
+<li>Resize from any edge or corner, and rotate about the centre with the handle at the left of the header. A tilted note resizes along its own tilt, nothing goes below 80 pixels, and new notes arrive at a random tilt of up to eight degrees.</li>
+</ul>
+<h2 id="moving-around-the-board">Moving around the board</h2>
+<ul>
+<li>The board has no edges. Pan with the middle button, or with a left drag after a short dead zone so a plain click still selects. A drag that starts on a note's header or grip moves the note instead. <span class="locate" title="In the app this points at Scratchpad_Canvas">Show me</span></li>
+<li>Zoom with the scroll wheel about the pointer, or with Ctrl and the numeric keypad's plus or minus. Ctrl+0 returns to 100%.</li>
+<li>Fit rescales and recentres so every note is on screen. <span class="locate" title="In the app this points at Scratchpad_ZoomToFit">Show me</span></li>
+<li>Click the zoom percentage in the status bar for 50, 75, 100, 125 and 150% presets, applied about the centre of the view. <span class="locate" title="In the app this points at Scratchpad_ZoomLabel">Show me</span></li>
+<li>An overview map appears in the top-left corner when notes have drifted off screen. Drag on it to go there.</li>
+</ul>
+<h2 id="expiry-and-the-recycle-bin">Expiry and the recycle bin</h2>
+<ul>
+<li>An unpinned note counts down in its header and goes to the recycle bin when the time runs out.</li>
+<li>Click the countdown to pin the note. A pinned note does not expire; unpinning starts a fresh countdown.</li>
+<li>Set the lifetime a new note starts with in Options, from 30 minutes to 24 hours. The default is two hours.</li>
+<li>The close button on a note's header moves it to the recycle bin. <span class="locate" title="In the app this points at Scratchpad_RecycleBin">Show me</span></li>
+<li>Each binned note is listed by its first non-empty line. Restore puts it back on the board, unpinned and with its images; Delete removes it for good.</li>
+<li>Empty the bin in one go from the dropdown beside the button. It asks first, because nothing there is recoverable afterwards. <span class="locate" title="In the app this points at Scratchpad_BinOptions">Show me</span></li>
+<li>Set how long the bin keeps notes in Options, from one day to Infinite. The default is 30 days, and older notes are purged when Nexaflow starts.</li>
+</ul>
+<h2 id="search-and-the-assistant">Search and the assistant</h2>
+<ul>
+<li>Type <code>?</code> and a word in the AI bar to search the board. Notes that miss are hidden, matched words are marked in the bodies that remain, and the board pans to each hit in reading order without changing the zoom. <code>note*</code> matches a prefix and <code>*note*</code> a substring, and the recycle bin is not searched.</li>
+<li>The assistant is told how many notes there are and how they break down by colour. It can list your notes with their colour, shape, position and a one-line preview, read their markdown, and add a note — filtered by colour or shape if you ask it that way. It cannot edit, delete, recolour, move, pin or restore anything. Notes it writes are white and diagonally rounded.</li>
+</ul>
+<h2 id="where-notes-are-kept">Where notes are kept</h2>
+<ul>
+<li>Each note is a file on disk, saved a moment after you stop typing, with a folder of its own for dropped images and downloaded previews. That folder follows the note into the bin and back out, and goes only when the note is deleted for good.</li>
+<li>The Scratchpad is stored with the app rather than with a workspace, so the same notes are there whichever workspace you switch to.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

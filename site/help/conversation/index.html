@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversation — Nexaflow help</title>
+<meta name="description" content="A saved chat with the assistant that can read and act on the pages you pin to it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> With your AI</nav>
+<header class="page-head">
+  <h1>Conversation</h1>
+  <p class="lede">A saved chat with the assistant that can read and act on the pages you pin to it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#talking-to-the-assistant">Talking to the assistant</a></li><li><a href="#pinning-pages-and-files">Pinning pages and files</a></li><li><a href="#risk-badges">Risk badges</a></li><li><a href="#previewing-what-is-pinned">Previewing what is pinned</a></li><li><a href="#what-the-assistant-can-do-with-them">What the assistant can do with them</a></li><li><a href="#history">History</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="talking-to-the-assistant">Talking to the assistant</h2>
+<ul>
+<li>Type in the AI bar while this tab is in front and the message goes to this thread. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>Select any part of a reply and copy it. Plain text, formatted HTML and the Markdown source all reach the clipboard.</li>
+<li>Expand <em>Ran N tools</em> to see each tool it ran with its result, and anything that failed marked out. <span class="locate" title="In the app this points at Conversation_ToolBatchExpand">Show me</span></li>
+<li>Accept or deny an action it needs your say-so for, with its reason above the buttons. The entry then settles into <em>Approved</em> or <em>Declined</em>. <span class="locate" title="In the app this points at Conversation_ApprovalAccept, Conversation_ApprovalDeny">Show me</span></li>
+<li>Type while it is working and your message is queued, then delivered at the end of the turn in progress.</li>
+</ul>
+<h2 id="pinning-pages-and-files">Pinning pages and files</h2>
+<ul>
+<li>The Context Items banner holds everything the assistant can see.</li>
+<li>Pin something by dragging a tab onto the banner, dropping files on it, or choosing from your open tabs and the pages this workspace can make. <span class="locate" title="In the app this points at Conversation_AddContext">Show me</span></li>
+<li>A pinned tab stays live: pin a folder and the assistant gets its current listing — names, sizes and dates — not just a path. See <a href="../file-system/">File System</a>.</li>
+<li>Dropped files are attached with their text read in. One that has since been moved or deleted is marked.</li>
+<li>Pinning an open tab leaves it in the tab strip, and pinning the same thing twice flashes the chip you already have.</li>
+<li>Collapse the banner to one line naming the first three pinned items, then <em>and N more</em>. <span class="locate" title="In the app this points at Conversation_ToggleContext">Show me</span></li>
+</ul>
+<h2 id="risk-badges">Risk badges</h2>
+<ul>
+<li>A pinned page that gives the assistant wide reach carries a badge: elevated for a whole non-system drive; high for This PC, the system drive, the Windows folder, running processes, services or environment variables.</li>
+<li>The badge follows the page, so navigating a pinned folder somewhere sharper changes it.</li>
+<li>Collapsing the banner hides the detail, not the warning.</li>
+</ul>
+<h2 id="previewing-what-is-pinned">Previewing what is pinned</h2>
+<ul>
+<li>Click a chip to open a preview beside the thread, and click it again to close. <span class="locate" title="In the app this points at Conversation_ContextChip">Show me</span></li>
+<li>Images, fonts, Markdown, text and code get a read-only view. Any other page shows the exact context text the assistant will receive from it.</li>
+<li>Drag the divider to resize the panel. It keeps that width for the rest of the session.</li>
+<li>Close the preview from the panel itself. <span class="locate" title="In the app this points at Conversation_ClosePreview">Show me</span></li>
+</ul>
+<h2 id="what-the-assistant-can-do-with-them">What the assistant can do with them</h2>
+<ul>
+<li>It is given the tools of every page you pin, so it can act through them and not only read them.</li>
+<li>Where one tool arrives from two pages under different scopes, the pair is folded into a single tool that makes the assistant say which scope it means.</li>
+<li>Pin a page that is still gathering its data and your message waits until that page is ready.</li>
+</ul>
+<h2 id="history">History</h2>
+<ul>
+<li>Messages, pinned pages and attachments are saved as you go and come back when you reopen the conversation. The name is generated from your first message.</li>
+<li>Each of your messages is timestamped — <em>5 minutes ago</em> while it is still today, a date once it is not.</li>
+<li>Rewind your latest message to drop it and everything after it, from the thread, from the running token count and from the saved record, and get its text back in the AI bar to edit and send again. Rewind is refused while the assistant is working. <span class="locate" title="In the app this points at Conversation_Rewind, AiInputBox">Show me</span></li>
+<li>The footer tracks the conversation against the model's context window. What is sent is held to three quarters of that window: the oldest messages give way first, and once the conversation has been analysed the summary stands in for the part it covers.</li>
+<li>Search the thread by typing <code>?</code> and a word in the AI bar. Every matching message is marked where it sits, yours and the assistant's; the chip in the footer counts the matches and steps between them. The assistant can run the same search.</li>
+<li>Every conversation is listed and searchable in <a href="../ai-chat/">AI Chat</a>. Close this tab after chatting and, unless you have turned summaries off, it is analysed in the background.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

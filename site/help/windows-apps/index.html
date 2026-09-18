@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installed Apps — Nexaflow help</title>
+<meta name="description" content="Lists the applications installed on this PC and lets you remove, modify or repair them.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Run your machine</nav>
+<header class="page-head">
+  <h1>Installed Apps</h1>
+  <p class="lede">Lists the applications installed on this PC and lets you remove, modify or repair them.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#what-the-list-covers">What the list covers</a></li><li><a href="#finding-an-app">Finding an app</a></li><li><a href="#row-actions">Row actions</a></li><li><a href="#advanced-options">Advanced options</a></li><li><a href="#the-assistant-on-this-page">The assistant on this page</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="what-the-list-covers">What the list covers</h2>
+<ul>
+<li>Win32 programs, read from Windows' own uninstall records: per-machine (64-bit and 32-bit) and per-user. The Source column shows Win32. <span class="locate" title="In the app this points at WindowsApps_List">Show me</span></li>
+<li>Microsoft Store packages installed for your account. The Source column shows Store. Framework, resource and Windows system packages are left out, and an add-on is listed under its app rather than beside it.</li>
+<li>Refresh re-scans both. <span class="locate" title="In the app this points at WindowsApps_Refresh">Show me</span></li>
+<li>A dash under Installed or Size means the app did not report one. Sizes no installer recorded are measured in the background and fill in after the list is already showing.</li>
+<li>Click a column header to sort by it; click the same header again to reverse the order.</li>
+<li>Select several rows with Ctrl or Shift.</li>
+</ul>
+<h2 id="finding-an-app">Finding an app</h2>
+<ul>
+<li>Type <code>?</code> and part of a name in the AI bar to narrow the list. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>Write it as <code>?/pattern/</code> to match with a regular expression; add <code>c</code> after the closing slash to make it case-sensitive.</li>
+<li>The filter matches the application name only, not the publisher.</li>
+</ul>
+<h2 id="row-actions">Row actions</h2>
+<p>The ⋯ button on a row opens its menu. Which entries appear depends on the app.</p>
+<ul>
+<li><strong>Open Location</strong> opens the install folder in a File Explorer tab. Offered when a folder is recorded and still exists on disk.</li>
+<li><strong>Uninstall</strong> asks you to confirm first. For a Win32 program it runs that program's own uninstaller, which may show its own prompts or ask for administrator approval; for a Store app it removes the package for your account. The list re-scans afterwards, and a failure is reported with the reason the uninstaller gave.</li>
+<li><strong>Modify</strong> reopens a Win32 program's installer in maintenance mode so you can add or remove its features. Offered only when the program registered such a command and did not forbid it.</li>
+<li><strong>Remove from list</strong> appears only for a Win32 entry whose install folder and uninstaller are both missing. It deletes the leftover registry record and no files. Removing a machine-wide entry may require running as administrator, and says so if it cannot.</li>
+<li><strong>Move…</strong> and <strong>Advanced options</strong> appear for Store apps, and both open the pane described below.</li>
+</ul>
+<h2 id="advanced-options">Advanced options</h2>
+<p>A pane beside the list, for one Store app. Drag its edge to resize it.</p>
+<ul>
+<li><strong>Let this app run in background</strong> — Power optimized (recommended), Always or Never. The choice is written to the same setting Windows uses.</li>
+<li><strong>Terminate</strong> stops the app and its background processes and says how many it stopped. <strong>Repair</strong> re-registers the app from its own files, leaving your data alone. <strong>Reset</strong> deletes the app's data, settings and sign-in details and reinstalls it; it asks first and cannot be undone. <span class="locate" title="In the app this points at WindowsApps_Terminate, WindowsApps_Repair, WindowsApps_Reset">Show me</span></li>
+<li><strong>Move</strong> relocates the app's files to another drive: pick the drive, then choose Move. It is offered only when this PC has another drive that can hold apps. <span class="locate" title="In the app this points at WindowsApps_MoveVolume, WindowsApps_Move">Show me</span></li>
+<li><strong>App add-ons &amp; downloadable content</strong> lists the optional packages installed against the app, each with its own Remove.</li>
+</ul>
+<h2 id="the-assistant-on-this-page">The assistant on this page</h2>
+<ul>
+<li>It is given the rows you have selected, or the names of the applications loaded, as context. While the first scan is still running it is told so instead.</li>
+<li><code>list_installed_applications</code> gives it every loaded name, ignoring the current filter and selection. <code>get_application_details</code> gives it the publisher, version, install date, size, location and source of one app by name.</li>
+<li>Both only read. Nothing is uninstalled, modified or reset except by you, from the menus above.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

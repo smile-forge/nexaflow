@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text viewer — Nexaflow help</title>
+<meta name="description" content="Opens a text file of any size, and can search it, edit it and split it into smaller files.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>Text viewer</h1>
+  <p class="lede">Opens a text file of any size, and can search it, edit it and split it into smaller files.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-file">Opening a file</a></li><li><a href="#moving-around">Moving around</a></li><li><a href="#finding-and-replacing">Finding and replacing</a></li><li><a href="#editing-and-saving">Editing and saving</a></li><li><a href="#watching-and-splitting">Watching and splitting</a></li><li><a href="#the-assistant">The assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-file">Opening a file</h2>
+<ul>
+<li>The file action is called As Text, and the tab takes the file's name. Files inside an archive open the same way.</li>
+<li>A file of 100 KB or more is read from the top a window at a time. The line count is right from the start, lines you have not scrolled to yet are blank until the viewer reaches them, and the status bar reads Streaming.</li>
+<li>The encoding is detected when the file opens. If characters look wrong, re-read the file as UTF-8, UTF-16 LE, UTF-16 BE, Latin-1 or System Default. <span class="locate" title="In the app this points at Text_Encoding">Show me</span></li>
+</ul>
+<h2 id="moving-around">Moving around</h2>
+<ul>
+<li>Go to a line by pressing Ctrl+G and typing the number. <span class="locate" title="In the app this points at Text_GoToLine">Show me</span></li>
+<li>Line numbers and word wrap are toggles. <span class="locate" title="In the app this points at Text_LineNumbers, Text_WordWrap">Show me</span></li>
+<li>Zoom the text pane with Ctrl and the mouse wheel, or Ctrl+plus and Ctrl+minus; Ctrl+0 resets it. Zoom multiplies the text size set in Options.</li>
+<li>The status bar shows the file's size and its line count.</li>
+</ul>
+<h2 id="finding-and-replacing">Finding and replacing</h2>
+<ul>
+<li>Ctrl+F opens the find bar and Ctrl+H opens it with the replace row. A single-line selection in the text pane starts in the find box. <span class="locate" title="In the app this points at Text_Find, Text_FindBox">Show me</span></li>
+<li>The search covers the whole file, not only the part on screen. The match count is in the bar and in the status bar, and every match is marked down the strip at the right edge.</li>
+<li>F3 or Enter goes to the next match, Shift+F3 or Shift+Enter to the previous. Esc from the find box closes the bar.</li>
+<li>With <code>*?</code> on, which is how it starts, <code>*</code> stands for a run of characters, <code>?</code> for one, and a plain word matches as a word rather than inside a longer one. <code>.*</code> runs the query as a regular expression instead, and <code>Aa</code> makes it case-sensitive. <span class="locate" title="In the app this points at Text_MatchCase, Text_UseWildcards, Text_UseRegex">Show me</span></li>
+<li>Replace and Replace All turn editing on themselves. Replace All works through the whole file, not just the loaded part.</li>
+</ul>
+<h2 id="editing-and-saving">Editing and saving</h2>
+<ul>
+<li>Files open read-only. Edit turns editing on, and the button then reads Editing. <span class="locate" title="In the app this points at Text_EditToggle, Text_Save">Show me</span></li>
+<li>Save with Ctrl+S or the Save button; the file is written in the encoding shown in the encoding box. Until then the tab title carries an asterisk.</li>
+<li>Undo is Ctrl+Z and redo is Ctrl+Y. In a large file, loading a further part of the file drops the undo history.</li>
+<li>A large file inside an archive cannot be edited in place — extract or split it first.</li>
+</ul>
+<h2 id="watching-and-splitting">Watching and splitting</h2>
+<ul>
+<li>Monitoring is on when a file opens: a change on disk reloads the file and shows a banner over the text pane. Changes made while you are editing, or while a save is running, are ignored. <span class="locate" title="In the app this points at Text_Monitor">Show me</span></li>
+<li>Split writes the file out as several new files beside it — by line count, by size in MB, or at lines matching a regular expression. The original is left as it is, and the work runs in the background. <span class="locate" title="In the app this points at Text_SplitToggle, Text_SplitNow">Show me</span></li>
+</ul>
+<h2 id="the-assistant">The assistant</h2>
+<ul>
+<li>It is told the file's name and path, the encoding, the total line count, whether there are unsaved edits, and the numbered lines currently on screen.</li>
+<li>It can read further into the file than you can see, search it, replace or delete a range of lines, replace across the whole file, and save.</li>
+<li>Anything that changes the file or saves it asks you first.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

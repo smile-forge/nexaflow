@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search — Nexaflow help</title>
+<meta name="description" content="Lists what a query matched in this product&#39;s knowledge graph, and opens each result where it lives.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Keep track</nav>
+<header class="page-head">
+  <h1>Search</h1>
+  <p class="lede">Lists what a query matched in this product's knowledge graph, and opens each result where it lives.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#running-a-query">Running a query</a></li><li><a href="#what-gets-searched">What gets searched</a></li><li><a href="#reading-a-result">Reading a result</a></li><li><a href="#opening-a-result">Opening a result</a></li><li><a href="#searching-from-the-ai-bar">Searching from the AI bar</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="running-a-query">Running a query</h2>
+<ul>
+<li>Type in the box beside Graph search and press Enter, or click Search. <span class="locate" title="In the app this points at ProductSearch_Query, ProductSearch_Run">Show me</span></li>
+<li>Plain text is matched as written, and case is ignored. <code>/pattern/</code> is a regular expression; add <code>c</code> after the closing slash to make it case-sensitive, or <code>i</code> to keep it insensitive.</li>
+<li>Filename filters do not apply to a graph, so a query that uses one is refused. Search a node name or a word in the source instead.</li>
+<li>The query that opened this tab has already been run. Searching again from the <a href="../product-manager/">Product</a> tree re-points this tab rather than opening a second one.</li>
+<li>The tab is named for the folder the product's <code>.product</code> folder sits in. <span class="locate" title="In the app this points at TabItem_ProductSearch, CloseTab_ProductSearch">Show me</span></li>
+</ul>
+<h2 id="what-gets-searched">What gets searched</h2>
+<ul>
+<li>Node names, in two senses: the nodes of the product tree, and the files, types and members the graph read out of the code.</li>
+<li>The source behind every code node, one row per matching line.</li>
+<li>A plain query is ranked — exact name first, then names starting with it, then names containing it. A regular expression or a case-sensitive query is matched in the graph's own order instead.</li>
+<li>Each of the two passes stops at 200 rows. The line under the box says how many node names and how many source lines matched, and says which pass was capped. <span class="locate" title="In the app this points at ProductSearch_Status">Show me</span></li>
+<li>If no knowledge graph has been built yet, that line says so. Build one from the <a href="../product-manager/">Product</a> tab's ⋮ menu.</li>
+</ul>
+<h2 id="reading-a-result">Reading a result</h2>
+<ul>
+<li>The badge on the left is the kind of node the row came from. <span class="locate" title="In the app this points at ProductSearch_Results">Show me</span></li>
+<li>Under the label is where it is: the node's id when its name is what matched, or <code>path:line</code> when a source line did, with the matched line printed beneath it.</li>
+</ul>
+<h2 id="opening-a-result">Opening a result</h2>
+<ul>
+<li>Open in tree focuses the <a href="../product-manager/">Product</a> tree on that node. It is there only for a row that is a product-tree node.</li>
+<li>Open file opens the file the node was read from, in whatever normally opens that kind of file. It is there for any other row that has a file behind it.</li>
+<li>A node with no file behind it gets neither, so those rows carry only In graph.</li>
+<li>In graph opens <a href="../graph-viewer/">Graph</a> with that node selected.</li>
+<li>Nothing on this page changes the product tree. Every edit is made on the <a href="../product-manager/">Product</a> page.</li>
+</ul>
+<h2 id="searching-from-the-ai-bar">Searching from the AI bar</h2>
+<ul>
+<li>Type <code>?</code> and a term in the AI bar to run a query without using the box on the page. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>The same thing typed on the <a href="../product-manager/">Product</a> tree is what opens this page in the first place.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It can read the rows on screen — the first thirty of them, each with its kind, label and location.</li>
+<li>It can run a query of its own and narrow the page to the rows it kept, and clearing that search re-runs the query to bring the rest back.</li>
+<li>The tools that edit the tree are not here; ask for those on the <a href="../product-manager/">Product</a> page.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

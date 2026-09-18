@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search — Nexaflow help</title>
+<meta name="description" content="Finds files by name or by what is inside them, using the Windows Search index.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav>
+    <a href="../../help/">Reference</a>
+    <a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a>
+    <a href="https://github.com/smile-forge/nexaflow">GitHub</a>
+  </nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> Open anything</nav>
+<header class="page-head">
+  <h1>Search</h1>
+  <p class="lede">Finds files by name or by what is inside them, using the Windows Search index.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#running-a-search">Running a search</a></li><li><a href="#what-the-box-accepts">What the box accepts</a></li><li><a href="#what-the-index-can-answer">What the index can answer</a></li><li><a href="#scanning-a-folder-instead">Scanning a folder instead</a></li><li><a href="#working-with-results">Working with results</a></li><li><a href="#the-assistant">The assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="running-a-search">Running a search</h2>
+<ul>
+<li>The query sits in the box at the top of the page. Edit it and press Enter to run it again. <span class="locate" title="In the app this points at SearchQueryBox">Show me</span></li>
+<li>Editing the box replaces the query, so that is how you drop a term you added earlier.</li>
+<li>Typing <code>?</code> and a query in the input bar narrows what is already here instead of replacing it — the new terms are added to the ones in the box.</li>
+<li>The breadcrumb names the folder being searched, or This PC when the search covers every drive.</li>
+</ul>
+<h2 id="what-the-box-accepts">What the box accepts</h2>
+<ul>
+<li>Words separated by spaces are all required. A word matches whole, so <code>needle</code> does not match <code>needless</code>.</li>
+<li><code>|</code> inside one term means or: <code>*.txt|*.md</code>.</li>
+<li>Quote a phrase to match it exactly, spaces included: <code>&quot;annual report&quot;</code>.</li>
+<li>File globs match against the name: <code>*.xml</code>, <code>report*</code>.</li>
+<li>A regular expression goes between slashes: <code>/ma(ths|gic)/</code>. Add <code>c</code> after the closing slash to match case.</li>
+<li>Advanced Query Syntax property filters work, the same ones Explorer's search box takes: <code>kind:document</code>, <code>size:&gt;1mb</code>, <code>author:john</code>, <code>modified:last week</code>.</li>
+<li>A regex with no literal text in it gives the index nothing to narrow on, and the page says so instead of showing an empty list.</li>
+</ul>
+<h2 id="what-the-index-can-answer">What the index can answer</h2>
+<ul>
+<li>Only locations Windows indexes are searched. A file in a folder the indexer was never pointed at will not appear.</li>
+<li>Matching on what is inside a file depends on Windows having indexed that file's contents.</li>
+<li>The banner above the list says which case you are in: not indexed, only partly indexed, or indexed and nothing found.</li>
+<li>When the Windows Search service is not running, the banner says nothing could be looked up.</li>
+<li>At most 500 files come back, most recently modified first; the banner says when that limit was reached.</li>
+</ul>
+<h2 id="scanning-a-folder-instead">Scanning a folder instead</h2>
+<ul>
+<li>When the index has no answer, the banner offers Scan, which walks the folder and reads the files. It can run for minutes, so it is offered rather than started. <span class="locate" title="In the app this points at ScanFolder, DeclineScan">Show me</span></li>
+<li>Matches appear as they are found. Stop ends the walk, and the count it reports is a floor, not a total. <span class="locate" title="In the app this points at StopScan">Show me</span></li>
+<li>Scan again re-runs a scan you stopped. <span class="locate" title="In the app this points at RescanFolder">Show me</span></li>
+<li>Once a scan has produced the results, narrowing them runs another scan rather than going back to the index.</li>
+</ul>
+<h2 id="working-with-results">Working with results</h2>
+<ul>
+<li>A query the index can only narrow — a regex, a glob, several terms — puts rows in the list before they are proven. Up to 50 are checked for you.</li>
+<li>Past that the banner asks: Check them reads the rest, Skip leaves them unchecked. <span class="locate" title="In the app this points at VerifyRemaining, SkipVerification">Show me</span></li>
+<li>The badge on a row's icon says what the check found — not looked at yet, probably matches, could not be read, or does not match.</li>
+<li>Click a column header to sort by Name, Location, Size or Modified; click it again to reverse the order.</li>
+<li>Select a row, then Open to open the file with its default application, or Location to open the containing folder in a new Files tab. Both stay disabled until a row is selected.</li>
+</ul>
+<h2 id="the-assistant">The assistant</h2>
+<ul>
+<li>Ask it to search and it runs the query in this tab. It replies before results arrive, so it has to look again to read them.</li>
+<li>Ask why a folder is not being found and it reports the Windows crawl-scope rules for that path. It only reads them.</li>
+<li>It can tell you the current query, the scope and the number of results. It cannot open a file or a folder for you.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>
