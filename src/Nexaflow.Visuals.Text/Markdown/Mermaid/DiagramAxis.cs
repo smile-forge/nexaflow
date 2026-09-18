@@ -257,6 +257,23 @@ internal sealed record DiagramSpan
 internal static class DiagramGrid
 {
     /// <summary>
+    /// The lines across <paramref name="panel"/> at each of <paramref name="ticks"/>, added to a shape of their own so a
+    /// diagram drawing more than one set of them draws them all as one.
+    /// </summary>
+    /// <param name="upright">
+    /// Whether the ticks belong to the axis running up the page, whose lines therefore run across.
+    /// </param>
+    public static void Lines(GeometryGroup into, Rect panel, IReadOnlyList<DiagramTick> ticks, bool upright)
+    {
+        foreach (var mark in ticks)
+            into.Children.Add(upright
+                ? new LineGeometry(new Point(panel.Left, panel.Bottom - (mark.At * panel.Height)),
+                                   new Point(panel.Right, panel.Bottom - (mark.At * panel.Height)))
+                : new LineGeometry(new Point(panel.Left + (mark.At * panel.Width), panel.Top),
+                                   new Point(panel.Left + (mark.At * panel.Width), panel.Bottom)));
+    }
+
+    /// <summary>
     /// Draws a line across <paramref name="panel"/> at each of <paramref name="ticks"/>.
     /// </summary>
     /// <param name="upright">
@@ -268,14 +285,7 @@ internal static class DiagramGrid
         if (ticks.Count == 0) return;
 
         var lines = new GeometryGroup();
-
-        foreach (var mark in ticks)
-            lines.Children.Add(upright
-                ? new LineGeometry(new Point(panel.Left, panel.Bottom - (mark.At * panel.Height)),
-                                   new Point(panel.Right, panel.Bottom - (mark.At * panel.Height)))
-                : new LineGeometry(new Point(panel.Left + (mark.At * panel.Width), panel.Top),
-                                   new Point(panel.Left + (mark.At * panel.Width), panel.Bottom)));
-
+        Lines(lines, panel, ticks, upright);
         lines.Freeze();
 
         // Nothing wrote a gridline, so it stands for nothing and is nowhere to put a caret.

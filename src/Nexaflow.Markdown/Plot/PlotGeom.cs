@@ -28,6 +28,12 @@ public enum PlotGeom
 
     /// <summary>The contours of a 2D kernel density estimate over the rows.</summary>
     Density2d,
+
+    /// <summary>
+    /// A tile per pair of numeric columns, coloured by how strongly they move together. The marks are
+    /// worked out rather than written, so the table is the observations and not the matrix.
+    /// </summary>
+    Corr,
 }
 
 /// <summary>How a value becomes a distance along an axis.</summary>
@@ -122,6 +128,9 @@ public enum PlotAesthetic
     Alpha,
     Label,
     Group,
+
+    /// <summary>Which panel a mark is drawn in, where the block splits the plot into several.</summary>
+    Facet,
 }
 
 /// <summary>

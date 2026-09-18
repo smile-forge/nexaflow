@@ -40,9 +40,6 @@ internal sealed class PlotBuilder : ContentBuilder
     private const double LabelSize = 11.5;
     private const double TitleSize = 15;
 
-    /// <summary>The least room the panel itself is given, however little is left after the gutters.</summary>
-    private const double Smallest = 40;
-
     /// <summary>
     /// How big a mark is drawn where the rows are shown <em>over</em> something else — a density or a
     /// binning. Small and faint on purpose: a row over a cloud is there to say the cloud is made of rows,
@@ -108,15 +105,12 @@ internal sealed class PlotBuilder : ContentBuilder
     // ── Turning a value into a place ────────────────────────────────────────
 
     /// <summary>
-    /// An axis: which channel it reads, what is written along it, where a value stands on it from nought to
-    /// one, and how much of it one value takes up — which is how wide a tile is drawn.
+    /// Where a channel's values go along one axis: what it is marked with, where a value lands from nought
+    /// at the axis's start to one at its end, and how wide one slot is where the axis is slotted.
     /// </summary>
-    /// <param name="Channel">
-    /// Carried because a flipped plot reads up the page what it would otherwise read across. Everything that
-    /// places a mark asks the axis which channel to take, so nothing else has to know the axes were swapped.
-    /// </param>
+    /// <param name="Of">Where a bare name lands, for marks that were worked out rather than written.</param>
     private sealed record Placing(PlotAesthetic Channel, IReadOnlyList<DiagramTick> Ticks,
-                                  Func<PlotValue?, double?> At, double Slot);
+                                  Func<PlotValue?, double?> At, double Slot, Func<string, double?>? Of = null);
 
     /// <summary>
     /// How a channel is laid along its axis: numbered where its values are numbers, and a slot per name
@@ -144,23 +138,30 @@ internal sealed class PlotBuilder : ContentBuilder
     return new Placing(channel, ticks, value => value?.Number is { } number ? span.At(number) : null, 1);
         }
 
-        var names = slots ? chart.Slots(channel) : chart.Named(channel);
+    return this.Slotted(channel, slots ? chart.Slots(channel) : chart.Named(channel));
+}
+
+/// <summary>
+/// An axis of named slots rather than a run of numbers. A value stands in the middle of its own slot,
+/// so the first and last are inside the panel rather than on its edges — and the slot is exactly how
+/// wide a tile is drawn, so a row of them fills the panel once and no more.
+/// </summary>
+private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
+{
     if (names.Count == 0) return new Placing(channel, [], _ => null, 1);
 
-        // A value stands in the middle of its own slot, so the first and last are inside the panel rather
-        // than on its edges — and the slot is exactly how wide a tile is drawn, so a row of them fills the
-        // panel once and no more.
-        var places = new Dictionary<string, double>(StringComparer.Ordinal);
-        for (var at = 0; at < names.Count; at++) places[names[at]] = (at + 0.5) / names.Count;
+    var places = new Dictionary<string, double>(StringComparer.Ordinal);
+    for (var at = 0; at < names.Count; at++) places[names[at]] = (at + 0.5) / names.Count;
 
-        var marked = names.Select(name => new DiagramTick(
-                              places[name], this.Worked(name, null, LabelSize, _palette.TextMuted)))
-                          .ToList();
+    var marked = names.Select(name => new DiagramTick(
+                          places[name], this.Worked(name, null, LabelSize, _palette.TextMuted)))
+                      .ToList();
 
-        return new Placing(channel, marked,
-                value => value is not null && places.TryGetValue(value.Text, out var place) ? place : null,
-                1.0 / names.Count);
-    }
+    double? Place(string name) => places.TryGetValue(name, out var place) ? place : null;
+
+    return new Placing(channel, marked, value => value is null ? null : Place(value.Text),
+                       1.0 / names.Count, Place);
+}
 
     /// <summary>The plain span a channel's numbers make, before anything drawn over them widens it.</summary>
     private static DiagramSpan Spanned(PlotChart chart, PlotAesthetic channel, PlotScale scale,
@@ -295,7 +296,17 @@ internal sealed class PlotBuilder : ContentBuilder
             // say — there may be no third column at all — so it always gets a run of colours, and which counts
             // it runs over is settled once the bins are cut.
         if (it.Geom is PlotGeom.Bin2d or PlotGeom.Hex or PlotGeom.Density2d)
-                return new Painting(channel, [], Ordered([]), DiagramSpan.Of(1, 2, widen: false), this.Ramp(it, trouble));
+            return new Painting(channel, [], Ordered([]), DiagramSpan.Of(1, 2, widen: false), this.Ramp(it, trouble));
+
+        // A coefficient runs from minus one to one about a nought that means something, so the run is
+        // diverging and even about the middle whether or not the block said any of that.
+        if (it.Geom == PlotGeom.Corr)
+        {
+            var (least, most) = it.FillLimits ?? (-1.0, 1.0);
+
+            return new Painting(channel, [], Ordered([]), DiagramSpan.Of(least, most, widen: false),
+                                this.Ramp(it with { Midpoint = it.Midpoint ?? 0 }, trouble));
+        }
 
         if (!chart.Counts(channel))
                 {
@@ -627,6 +638,49 @@ internal sealed class PlotBuilder : ContentBuilder
         return labels;
     }
 
+    /// <summary>
+    /// A tile per pair of columns, coloured by the coefficient the pipeline worked out between them.
+    /// </summary>
+    /// <remarks>
+    /// A tile stands for nothing written: no cell of the table holds the number it is drawn from, so there
+    /// is nowhere for a caret to go. The names down its axes are the header cells, which are.
+    /// </remarks>
+    private List<(DiagramWords Words, Point At)> Correlated(PlotChart chart, LayoutBuilder build, Rect plot,
+                                                            Placing across, Placing up, Painting paint)
+    {
+        var labels = new List<(DiagramWords Words, Point At)>();
+
+        build.Open(PlotPiece.Marks, part: null, stops: Stops.None);
+
+        foreach (var (name, down, r) in chart.Correlations)
+        {
+            if (across.Of?.Invoke(name) is not { } x) continue;
+            if (up.Of?.Invoke(down) is not { } y) continue;
+
+            var at = new Point(plot.Left + (x * plot.Width), plot.Bottom - (y * plot.Height));
+
+            var box = new Rect(at.X - (across.Slot * plot.Width / 2), at.Y - (up.Slot * plot.Height / 2),
+                               across.Slot * plot.Width, up.Slot * plot.Height);
+
+            var outline = DiagramShapes.Outline(DiagramShape.Rectangle, box);
+            var fill = _ink.Scale(paint.Stops, paint.Span?.At(r) ?? 0.5);
+
+            build.Open(PlotPiece.Mark, part: null, stops: Stops.None);
+            build.Draw(new GeometryMark(outline, fill, null, 0));
+            build.Occupies(outline);
+            build.Close();
+
+            if (!chart.Settings.Labels) continue;
+
+            var words = this.Worked(PlotNumber.Written(Math.Round(r, 2)), null, LabelSize, _ink.Over(fill));
+            labels.Add((words, new Point(at.X - (words.Width / 2), at.Y - (words.Height / 2))));
+        }
+
+        build.Close();
+
+        return labels;
+    }
+
     /// <summary>A fitted line and what it is drawn in — its group's colour, so overlapping bands are told apart.</summary>
     private sealed record Fitting(PlotLine Line, Brush Ink);
 
@@ -897,6 +951,99 @@ internal sealed class PlotBuilder : ContentBuilder
 
     // ── The drawing ─────────────────────────────────────────────────────────
 
+    /// <summary>What every panel of a plot is drawn the same way from, worked out once over all the rows.</summary>
+    private sealed record Panelling(Placing Across, Placing Up, Painting Paint,
+                                    IReadOnlyDictionary<string, int> Shapes,
+                                    DiagramStroke Faint,
+                                    bool Tiles, bool Bins, bool Cloud, bool Corr);
+
+    /// <summary>
+    /// Everything drawn inside one panel: its gridlines, its marks, and the fit and the figures worked out
+    /// from the rows that fell in it.
+    /// </summary>
+    /// <remarks>
+    /// Faceted, this runs once per panel over that panel's own rows, while <paramref name="how"/> stays the
+    /// whole plot's — which is what makes the panels readable against one another rather than each against
+    /// itself.
+    /// </remarks>
+    private (List<(DiagramWords Words, Point At)> Labels, DiagramSpan? Counts) Inside(
+        PlotChart chart, LayoutBuilder build, Rect panel, Panelling how, List<Diagnostic> trouble)
+    {
+        var it = chart.Settings;
+        var labels = new List<(DiagramWords Words, Point At)>();
+        DiagramSpan? counts = null;
+
+        // Behind everything, because a gridline is there to be read past.
+        if (!how.Tiles && !how.Corr && it.Grid is PlotGrid.Both or PlotGrid.Y)
+            DiagramGrid.Draw(build, PlotPiece.Grid, panel, how.Up.Ticks, upright: true, how.Faint);
+
+        if (!how.Tiles && !how.Corr && it.Grid is PlotGrid.Both or PlotGrid.X)
+            DiagramGrid.Draw(build, PlotPiece.Grid, panel, how.Across.Ticks, upright: false, how.Faint);
+
+        // Under the marks: a band is context and the rows are the subject, so drawn over them it greys out
+        // the very points it is about.
+        IReadOnlyList<Fitting> fits = how.Bins || how.Cloud || how.Corr
+            ? []
+            : this.Fits(chart, panel, how.Across, how.Up, how.Paint);
+
+        this.Banded(build, fits, panel);
+
+        if (how.Corr)
+        {
+            labels = this.Correlated(chart, build, panel, how.Across, how.Up, how.Paint);
+        }
+        else if (how.Bins)
+        {
+            counts = this.Binned(chart, build, panel, how.Across, how.Up, how.Paint.Stops, trouble);
+        }
+        else if (how.Cloud)
+        {
+            this.Clouded(chart, build, panel, how.Across, how.Up, how.Paint.Stops, trouble);
+
+            // The rows themselves over the cloud, where the block asks for both.
+            if (it.Points)
+                this.Drawn(chart, build, panel, how.Across, how.Up, how.Paint, how.Shapes, false, [], over: true);
+        }
+        else
+        {
+            labels = this.Drawn(chart, build, panel, how.Across, how.Up, how.Paint, how.Shapes, how.Tiles, trouble);
+        }
+
+        // Over the marks and under the axes: worked out from them, and never over the numbers.
+        this.Traced(build, fits, panel);
+
+        if (!how.Bins && !how.Cloud && !how.Corr) this.Reported(chart, build, panel);
+
+        return (labels, counts);
+    }
+
+    /// <summary>
+    /// The panels a faceted plot is divided into, each with the strip over it that names its level.
+    /// </summary>
+    /// <param name="cols">How many stand side by side.</param>
+    /// <param name="strip">How tall the name over each one is.</param>
+    private static IReadOnlyList<(Rect Panel, Rect Strip)> Divided(Rect plot, int count, int cols,
+                                                                   double strip, double gap)
+    {
+        var rows = (int)Math.Ceiling(count / (double)cols);
+
+        var wide = Math.Max(1, (plot.Width - (gap * (cols - 1))) / cols);
+        var tall = Math.Max(1, (plot.Height - (gap * (rows - 1))) / rows);
+
+        var cells = new List<(Rect, Rect)>(count);
+
+        for (var at = 0; at < count; at++)
+        {
+            var left = plot.Left + ((at % cols) * (wide + gap));
+            var top = plot.Top + ((at / cols) * (tall + gap));
+
+            cells.Add((new Rect(left, top + strip, wide, Math.Max(1, tall - strip)),
+                       new Rect(left, top, wide, strip)));
+        }
+
+        return cells;
+    }
+
     private Laid Lay(PlotChart chart)
     {
         var it = chart.Settings;
@@ -907,166 +1054,179 @@ internal sealed class PlotBuilder : ContentBuilder
 
         // A tile stands for one value rather than a stretch of them, so its axes are laid out in slots.
         var tiles = it.Geom == PlotGeom.Tile;
-    var bins = it.Geom is PlotGeom.Bin2d or PlotGeom.Hex;
-            var cloud = it.Geom == PlotGeom.Density2d;
+        var bins = it.Geom is PlotGeom.Bin2d or PlotGeom.Hex;
+        var cloud = it.Geom == PlotGeom.Density2d;
+        var corr = it.Geom == PlotGeom.Corr;
+
+        // A correlation matrix's axes are the columns themselves, both of them, so neither is read off the
+        // rows. Down the side they run the other way, which puts the diagonal where a reader looks for it:
+        // from the top left.
+        var pairs = corr ? chart.Correlations.Select(pair => pair.Across).Distinct().ToList() : [];
+
+        // A panel per value the facet column takes. One value is no division at all, so it is left alone.
+        var levels = it.Facet is null || corr ? [] : chart.Named(PlotAesthetic.Facet);
+        var faceted = levels.Count > 1;
 
         // Flipped, the axes swap: what was read across is read up. Everything after this is told which is
-            // which, so nothing else has to know.
-            var acrossChannel = it.Flip ? PlotAesthetic.Y : PlotAesthetic.X;
-            var upChannel = it.Flip ? PlotAesthetic.X : PlotAesthetic.Y;
+        // which, so nothing else has to know.
+        var acrossChannel = it.Flip ? PlotAesthetic.Y : PlotAesthetic.X;
+        var upChannel = it.Flip ? PlotAesthetic.X : PlotAesthetic.Y;
 
-            var across = this.Along(chart, acrossChannel, it.XScale, it.XLimits, it.XBreaks, tiles);
+        var across = corr
+            ? this.Slotted(acrossChannel, pairs)
+            : this.Along(chart, acrossChannel, it.XScale, it.XLimits, it.XBreaks, tiles);
 
-                // A band is part of the answer, so the axis opens out to show all of it — unless the block wrote the
-                // ends itself, in which case they are the ends it asked for.
-                var banding = tiles || bins || cloud || it.YLimits is not null
-                    ? null
-                    : this.Banding(chart, acrossChannel, upChannel,
-                                   Spanned(chart, acrossChannel, it.XScale, it.XLimits),
-                                   Spanned(chart, upChannel, it.YScale, it.YLimits));
+        // A band is part of the answer, so the axis opens out to show all of it — unless the block wrote the
+        // ends itself, in which case they are the ends it asked for.
+        var banding = tiles || bins || cloud || corr || it.YLimits is not null
+            ? null
+            : this.Banding(chart, acrossChannel, upChannel,
+                           Spanned(chart, acrossChannel, it.XScale, it.XLimits),
+                           Spanned(chart, upChannel, it.YScale, it.YLimits));
 
-                var up = this.Along(chart, upChannel, it.YScale, it.YLimits, it.YBreaks, tiles, banding);
+        var up = corr
+            ? this.Slotted(upChannel, [.. Enumerable.Reverse(pairs)])
+            : this.Along(chart, upChannel, it.YScale, it.YLimits, it.YBreaks, tiles, banding);
 
         var paint = this.Paint(chart, trouble);
-    var named = chart.Named(PlotAesthetic.Shape);
-            var shapes = Ordered(named);
+        var named = chart.Named(PlotAesthetic.Shape);
+        var shapes = Ordered(named);
 
-    if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
+        if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
             trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`shape: {it.Shape}` names neither a column nor a mark. "
                                        + $"The marks are {DiagramGlyphs.Names}."));
 
         var title = it.Title is null ? null : this.Worked(it.Title, null, TitleSize, _palette.Heading);
-            var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);
-            var caption = it.Caption is null ? null : this.Worked(it.Caption, null, LabelSize, _palette.TextMuted);
+        var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);
+        var caption = it.Caption is null ? null : this.Worked(it.Caption, null, LabelSize, _palette.TextMuted);
 
-            // A title follows its own channel rather than its side of the panel: `xTitle:` names what `x:` maps,
-                // and flipping carries both of them up the page together. Naming the side instead put the weight
-                // title under an axis of miles per gallon.
-                var xTitle = this.AxisTitle(chart, acrossChannel, it.Flip ? it.YTitle : it.XTitle);
-                var yTitle = this.AxisTitle(chart, upChannel, it.Flip ? it.XTitle : it.YTitle);
+        // A title follows its own channel rather than its side of the panel: `xTitle:` names what `x:` maps,
+        // and flipping carries both of them up the page together. Naming the side instead put the weight
+        // title under an axis of miles per gallon.
+        var xTitle = this.AxisTitle(chart, acrossChannel, it.Flip ? it.YTitle : it.XTitle);
+        var yTitle = this.AxisTitle(chart, upChannel, it.Flip ? it.XTitle : it.YTitle);
 
         // What a binned plot's colours run over is the counts, and there is no knowing them until the bins
         // are cut — so it takes the room a bar needs now and is given its numbers once they are counted.
-    var key = bins || cloud
-                ? this.Counting(DiagramSpan.Of(1, 2, widen: false), paint.Stops)
+        var key = bins || cloud
+            ? this.Counting(DiagramSpan.Of(1, 2, widen: false), paint.Stops)
+            : corr && paint.Span is { } coefficients
+                ? this.Counting(coefficients, paint.Stops, whole: false)
                 : this.Key(chart, paint);
 
-        // Round the panel: the upright axis's numbers on its left with its title turned up beyond them,
-        // the flat axis's under it, the title over it, and the key on whichever side was asked for.
-        var left = DiagramAxis.Room(up.Ticks, upright: true) + (yTitle is null ? 0 : yTitle.Height + Gap)
-                   + (it.Legend == PlotLegend.Left ? key.Size.Width + (Gap * 2) : 0);
+        // Round the panel: the axes' own room, and beyond it the title band over, the caption under, and the
+        // key on whichever side was asked for.
+        var edges = DiagramPanel.Room(up.Ticks, across.Ticks, yTitle, xTitle, Gap)
+                    + new DiagramEdges(
+                        Left: it.Legend == PlotLegend.Left ? key.Size.Width + (Gap * 2) : 0,
+                        Top: (title is null ? Gap : title.Height + Gap)
+                             + (subtitle is null ? (title is null ? 0 : Gap) : subtitle.Height + Gap)
+                             + (it.Legend == PlotLegend.Top ? key.Size.Height + Gap : 0),
+                        Right: it.Legend == PlotLegend.Right ? key.Size.Width + (Gap * 2) : 0,
+                        Bottom: (caption is null ? 0 : Gap + caption.Height)
+                                + (it.Legend == PlotLegend.Bottom ? key.Size.Height + (Gap * 2) : 0));
 
-        var top = (title is null ? Gap : title.Height + Gap)
-                      + (subtitle is null ? (title is null ? 0 : Gap) : subtitle.Height + Gap)
-                      + (it.Legend == PlotLegend.Top ? key.Size.Height + Gap : 0);
+        // What is given back is what was actually drawn, rather than the room offered.
+        var round = DiagramPanel.Round(wide, tall, edges, it.Aspect, shrink: true);
 
-            var bottom = DiagramAxis.Room(across.Ticks, upright: false) + (xTitle is null ? 0 : Gap + xTitle.Height)
-                         + (caption is null ? 0 : Gap + caption.Height)
-                         + (it.Legend == PlotLegend.Bottom ? key.Size.Height + (Gap * 2) : 0);
-
-        var right = Math.Max(Gap * 2, (across.Ticks.LastOrDefault()?.Words?.Width / 2) ?? 0)
-                    + (it.Legend == PlotLegend.Right ? key.Size.Width + (Gap * 2) : 0);
-
-        var panel = new Size(Math.Max(Smallest, wide - left - right), Math.Max(Smallest, tall - top - bottom));
-
-            // A panel the block gave a shape to keeps it, and the room left over is simply not used: a
-            // correlation matrix asked for square cells is not a correlation matrix drawn oblong.
-            if (it.Aspect is { } shape and > 0)
-            {
-                if (panel.Width / panel.Height > shape) panel = new Size(panel.Height * shape, panel.Height);
-                else panel = new Size(panel.Width, panel.Width / shape);
-            }
-
-        var plot = new Rect(left, top, panel.Width, panel.Height);
-
-                // What was actually drawn, which is what the block takes up. A panel held to a shape leaves room
-                // over, and room over would stand the key away from the plot it explains.
-                wide = left + panel.Width + right;
-                tall = top + panel.Height + bottom;
+        var plot = round.Plot;
+        (wide, tall) = (round.Wide, round.Tall);
 
         var build = new LayoutBuilder();
         build.Open(PlotPiece.Plot);
         build.Covers(new Rect(0, 0, wide, tall));
 
-        // Behind everything, because a gridline is there to be read past.
         var rule = new DiagramStroke(_palette.CodeBorder);
         var faint = new DiagramStroke(DiagramInk.Faded(_palette.CodeBorder, 0.45));
 
-    if (!tiles && it.Grid is PlotGrid.Both or PlotGrid.Y)
-            DiagramGrid.Draw(build, PlotPiece.Grid, plot, up.Ticks, upright: true, faint);
+        var how = new Panelling(across, up, paint, shapes, faint, tiles, bins, cloud, corr);
 
-        if (!tiles && it.Grid is PlotGrid.Both or PlotGrid.X)
-            DiagramGrid.Draw(build, PlotPiece.Grid, plot, across.Ticks, upright: false, faint);
+        var labels = new List<(DiagramWords Words, Point At)>();
+        var strips = new List<(DiagramWords Words, Point At)>();
 
-    var labels = new List<(DiagramWords Words, Point At)>();
+        if (!faceted)
+        {
+            var (said, counts) = this.Inside(chart, build, plot, how, trouble);
 
-            // Under the marks: a band is context and the rows are the subject, so drawn over them it greys out
-            // the very points it is about.
-        var fits = bins || cloud ? [] : this.Fits(chart, plot, across, up, paint);
-            this.Banded(build, fits, plot);
+            labels.AddRange(said);
+            if (counts is not null) key = this.Counting(counts, paint.Stops);
+            if (cloud) key = new Chart(null, null);
 
-        if (bins)
+            this.Axes(build, plot, across, up, rule);
+        }
+        else
+        {
+            var cols = Math.Clamp(it.FacetCols ?? (int)Math.Ceiling(Math.Sqrt(levels.Count)), 1, levels.Count);
+            var over = this.Worked(levels[0], null, LabelSize, _palette.Text).Height + Gap;
+
+            var cells = Divided(plot, levels.Count, cols, over, Gap * 2);
+
+            for (var at = 0; at < levels.Count; at++)
             {
-                if (this.Binned(chart, build, plot, across, up, paint.Stops, trouble) is { } counts)
-                    key = this.Counting(counts, paint.Stops);
+                var level = levels[at];
+                var (panel, strip) = cells[at];
+
+                // Its own rows, on everybody's scales.
+                var only = chart with
+                {
+                    Marks = [.. chart.Marks.Where(mark => mark[PlotAesthetic.Facet]?.Text == level)],
+                };
+
+                var (said, _) = this.Inside(only, build, panel, how, trouble);
+                labels.AddRange(said);
+
+                // The numbers go round the outside alone: down the first column and along the bottom row,
+                // which is where a reader looks for them and is the only place they are not between panels.
+                this.Axes(build, panel, across, up, rule,
+                          side: at % cols == 0,
+                          foot: at + cols >= levels.Count);
+
+                var says = this.Worked(level, null, LabelSize, _palette.Text);
+                strips.Add((says, new Point(strip.Left + Math.Max(0, (strip.Width - says.Width) / 2),
+                                            strip.Top + Math.Max(0, (strip.Height - Gap - says.Height) / 2))));
             }
-            else if (cloud)
-            {
-                // A density says nothing a reader can put a number to, so its key is the run of colours alone
-                // rather than a scale of how thickly anything lies.
-                this.Clouded(chart, build, plot, across, up, paint.Stops, trouble);
-                key = new Chart(null, null);
+        }
 
-                // The rows themselves over the cloud, where the block asks for both.
-        if (it.Points) this.Drawn(chart, build, plot, across, up, paint, shapes, false, [], over: true);
-            }
-            else
-            {
-                labels = this.Drawn(chart, build, plot, across, up, paint, shapes, tiles, trouble);
-            }
-
-    // Over the marks and under the axes: worked out from them, and never over the numbers.
-        this.Traced(build, fits, plot);
-
-        if (!bins && !cloud) this.Reported(chart, build, plot);
-
-            if (labels.Count > 0)
+        if (labels.Count > 0)
         {
             build.Open(PlotPiece.Labels, part: null, stops: Stops.None);
             foreach (var (words, where) in labels) words.Set(build, where, PlotPiece.Label);
             build.Close();
         }
 
-        DiagramAxis.Draw(build, PlotPiece.YAxis, null, plot.BottomLeft, plot.TopLeft, up.Ticks, rule,
-                         PlotPiece.Tick, after: false);
-
-        DiagramAxis.Draw(build, PlotPiece.XAxis, null, plot.BottomLeft, plot.BottomRight, across.Ticks, rule,
-                         PlotPiece.Tick, after: true);
+        foreach (var (words, where) in strips) words.Set(build, where, PlotPiece.Strip);
 
         title?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - title.Width) / 2), Gap),
-                       PlotPiece.Title);
+                   PlotPiece.Title);
 
-            subtitle?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - subtitle.Width) / 2),
-                                           (title?.Height ?? 0) + Gap),
-                          PlotPiece.Title);
+        subtitle?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - subtitle.Width) / 2),
+                                       (title?.Height ?? 0) + Gap),
+                      PlotPiece.Title);
 
-            caption?.Set(build, new Point(plot.Left, tall - caption.Height), PlotPiece.Title);
+        caption?.Set(build, new Point(plot.Left, tall - caption.Height), PlotPiece.Title);
 
-        // Turned a quarter turn so it reads up the axis: anchored at its foot, it reaches up by however
-        // wide its words are.
-        yTitle?.Set(build, new Point(0, plot.Top + ((plot.Height + yTitle.Width) / 2)),
-                    PlotPiece.AxisTitle, degrees: -90);
-
-        xTitle?.Set(build, new Point(plot.Left + Math.Max(0, (plot.Width - xTitle.Width) / 2),
-                                     plot.Bottom + DiagramAxis.Room(across.Ticks, upright: false) + Gap),
-                    PlotPiece.AxisTitle);
+        round.Titles(build, PlotPiece.AxisTitle, yTitle, xTitle,
+                     DiagramAxis.Room(across.Ticks, upright: false) + Gap);
 
         if (key.Size.Height > 0) key.Draw(build, this.Where(it.Legend, key.Size, plot, wide, tall));
 
         build.Close();
 
         return new Laid(build.Seal(), new Size(wide, tall), trouble);
+    }
+
+    /// <summary>The numbers up a panel's side and along its foot.</summary>
+    private void Axes(LayoutBuilder build, Rect panel, Placing across, Placing up, DiagramStroke rule,
+                      bool side = true, bool foot = true)
+    {
+        if (side)
+            DiagramAxis.Draw(build, PlotPiece.YAxis, null, panel.BottomLeft, panel.TopLeft, up.Ticks, rule,
+                             PlotPiece.Tick, after: false);
+
+        if (foot)
+            DiagramAxis.Draw(build, PlotPiece.XAxis, null, panel.BottomLeft, panel.BottomRight, across.Ticks,
+                             rule, PlotPiece.Tick, after: true);
     }
 
     /// <summary>The box a mark of a given radius is drawn in.</summary>
@@ -1156,15 +1316,22 @@ internal sealed class PlotBuilder : ContentBuilder
     /// <summary>
     /// The key a binned heat map gets: the counts its colours run over, rather than any column's values.
     /// </summary>
-    private Chart Counting(DiagramSpan counts, IReadOnlyList<Color> stops)
+    private Chart Counting(DiagramSpan counts, IReadOnlyList<Color> stops, bool whole = true)
     {
         var marks = new[] { 0.0, 0.5, 1.0 }
-            .Select(at => (At: at, Value: Math.Round(counts.Min + (at * (counts.Max - counts.Min)))))
+            .Select(at => (At: at, Value: Round(counts.Min + (at * (counts.Max - counts.Min)), whole)))
             .Select(mark => (mark.At, Words: this.Worked(DiagramScale.Plain(mark.Value), null, LabelSize, _palette.Text)))
             .ToList();
 
         return new Chart(null, new DiagramBar(stops, marks, _palette.CodeBorder));
     }
+
+    /// <summary>
+    /// A number on a colour bar: whole where the bar runs over counts, and to two decimals where it runs
+    /// over a coefficient, which is nought to three digits either way.
+    /// </summary>
+    private static double Round(double value, bool whole) =>
+        whole ? Math.Round(value) : Math.Round(value, 2);
 
     /// <summary>A number on a colour bar, kept to what a reader can take in at a glance.</summary>
     private static double Rounded(double value)

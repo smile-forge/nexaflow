@@ -366,6 +366,7 @@ exactly why none of them is settled while the characters are being read.
 | `ResolveColumns` | each column's name and place, and which one each cell stands in |
 | `ResolveValues` | the number a cell reads as, where it reads as one |
 | `ResolveAesthetics` | which channels each column feeds, or the constant a setting names instead |
+| `ResolveCorrelations` | for `geom: corr`, the coefficient between each pair of numeric columns — the one plot whose marks nobody wrote |
 
 **A header is the first row no cell of which reads as a number.** That is the rule a reader already has
 in their head and it needs no keyword; `header:` settles only the two cases it cannot reach. **A matrix

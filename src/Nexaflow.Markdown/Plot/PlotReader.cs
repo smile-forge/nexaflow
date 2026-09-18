@@ -84,7 +84,8 @@ public static class PlotReader
                 if (!Number(fields, "level", it.Level, 0.5, 0.999, out var confidence, out error)) return false;
                 if (!Reported(fields, out var stats, out error)) return false;
 
-            if (!Number(fields, "levels", it.Levels, 1, 40, out var levels, out error)) return false;
+    if (!Number(fields, "levels", it.Levels, 1, 40, out var levels, out error)) return false;
+            if (!Number(fields, "facetCols", 0, 0, 12, out var facetCols, out error)) return false;
             if (!Number(fields, "adjust", it.Adjust, 0.05, 20, out var adjust, out error)) return false;
         if (!Middle(fields, out var midpoint, out error)) return false;
 
@@ -102,6 +103,8 @@ public static class PlotReader
             Alpha = Text(fields, "alpha"),
             Label = Text(fields, "label"),
             Group = Text(fields, "group"),
+            Facet = Text(fields, "facet"),
+            FacetCols = facetCols > 0 ? (int)facetCols : null,
 
             Header = header,
 

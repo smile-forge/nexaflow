@@ -47,6 +47,9 @@ public static class PlotKinds
 
     /// <summary>What a pipeline stage worked out, hung underneath the piece it is about.</summary>
     public const string Fact = "plot-fact";
+
+    /// <summary>One worked-out correlation: the two columns it is between, and the coefficient.</summary>
+    public const string Pair = "plot-pair";
 }
 
 /// <summary>

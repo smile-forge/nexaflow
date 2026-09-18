@@ -29,6 +29,9 @@ public static class PlotPiece
     public const string AxisTitle = "AxisTitle";
     public const string Title = "Title";
 
+    /// <summary>The name over one panel of a faceted plot, saying which value its rows share.</summary>
+    public const string Strip = "Strip";
+
     /// <summary>A name in the key.</summary>
     public const string Name = "Name";
 

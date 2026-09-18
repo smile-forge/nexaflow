@@ -883,4 +883,222 @@ public class PlotBuilderTests
                           $"a mark at {middle} stands outside a panel of {panel}");
         }
     });
+
+    // ── A correlation matrix, whose marks nobody wrote ──────────────────────
+
+    private const string Observations =
+        "geom: corr\n\nwt  mpg  hp\n2.620  21.0  110\n3.440  18.7  175\n1.615  30.4  52\n5.250  10.4  205";
+
+    [TestMethod]
+    public void ACorrelationMatrixDrawsATilePerPairOfColumns() => UiThread.Run(() =>
+    {
+        // Three columns, so nine tiles — the table's four rows are not marks at all.
+        Assert.AreEqual(9, Marks(Lay(Observations, PlotFence.Heatmap)).Length);
+    });
+
+    [TestMethod]
+    public void BothAxesOfACorrelationMatrixAreTheColumnNames() => UiThread.Run(() =>
+    {
+        var laid = Lay(Observations, PlotFence.Heatmap);
+
+        CollectionAssert.AreEqual(new[] { "wt", "mpg", "hp" }, Marks(laid, PlotPiece.XAxis));
+        CollectionAssert.AreEqual(new[] { "hp", "mpg", "wt" }, Marks(laid, PlotPiece.YAxis),
+                                  "read up the page, so the diagonal falls from the top left");
+    });
+
+    [TestMethod]
+    public void ACorrelationTileStandsForNothingWritten() => UiThread.Run(() =>
+    {
+        // No cell of the table holds the coefficient, so there is nowhere in it for a caret to go.
+        foreach (var mark in Marks(Lay(Observations, PlotFence.Heatmap)))
+            Assert.IsNull(mark.Part, "a worked-out tile is not typed into");
+    });
+
+    [TestMethod]
+    public void ThePerfectDiagonalIsTheStrongestColourOnTheMatrix() => UiThread.Run(() =>
+    {
+        var marks = Marks(Lay(Observations, PlotFence.Heatmap));
+
+        // Which column and which row each tile is in. A tile is not square, so this is counted in slots
+        // rather than measured in pixels.
+        var across = marks.Select(mark => Math.Round(mark.Bounds.Left)).Distinct().Order().ToList();
+        var down = marks.Select(mark => Math.Round(mark.Bounds.Top)).Distinct().Order().ToList();
+
+        var diagonal = marks.Where(mark => across.IndexOf(Math.Round(mark.Bounds.Left))
+                                           == down.IndexOf(Math.Round(mark.Bounds.Top))).ToList();
+
+        Assert.AreEqual(3, diagonal.Count, "three columns, three of them against themselves");
+
+        // A column against itself is one, and one is the far end of the run of colours.
+        var one = Fill(diagonal[0]);
+        foreach (var mark in diagonal) Assert.AreEqual(one, Fill(mark), "every one of them is the same colour");
+        Assert.IsTrue(marks.Any(mark => Fill(mark) != one), "and it is not the colour of everything");
+    });
+
+    [TestMethod]
+    public void LabelsWritesTheCoefficientInsideEachTile() => UiThread.Run(() =>
+    {
+        var laid = Lay("geom: corr\nlabels: true\n\nwt  mpg  hp\n2.620  21.0  110\n3.440  18.7  175\n"
+                       + "1.615  30.4  52\n5.250  10.4  205", PlotFence.Heatmap);
+
+        var said = Of(laid, PlotPiece.Label).Select(piece => piece.Words?.Glyphs.Text ?? string.Empty).ToList();
+
+        Assert.AreEqual(9, said.Count, "a number on every tile");
+        Assert.AreEqual(3, said.Count(text => text == "1"), "a column against itself is exactly one");
+    });
+
+    [TestMethod]
+    public void ATableWithOneNumericColumnIsNoMatrixAndSaysSo() => UiThread.Run(() =>
+    {
+        // Nothing to correlate, so nothing is drawn — and the block still stands rather than throwing.
+        var laid = Lay("geom: corr\n\nname  wt\nMazda  2.620\nMerc  3.440\nFiat  2.200", PlotFence.Heatmap);
+
+        Assert.AreEqual(0, Marks(laid).Length);
+    });
+
+    [TestMethod]
+    public void NeitherAxisOfACorrelationMatrixIsTitledWithOneOfItsOwnColumns() => UiThread.Run(() =>
+    {
+        // Both axes are the columns, so a title taken off a column would be naming one of its own ticks.
+        var laid = Lay(Observations, PlotFence.Heatmap);
+
+        Assert.AreEqual(0, Of(laid, PlotPiece.AxisTitle).Length);
+    });
+
+    [TestMethod]
+    public void ACorrelationMatrixStillTakesTheTitlesTheBlockWrites() => UiThread.Run(() =>
+    {
+        var laid = Lay("geom: corr\nxTitle: Across\nyTitle: Down\n\nwt  mpg  hp\n2.620  21.0  110\n"
+                       + "3.440  18.7  175\n1.615  30.4  52\n5.250  10.4  205", PlotFence.Heatmap);
+
+        var said = Of(laid, PlotPiece.AxisTitle).Select(piece => piece.Words?.Glyphs.Text).ToList();
+
+        CollectionAssert.AreEquivalent(new[] { "Across", "Down" }, said);
+    });
+
+    [TestMethod]
+    public void TheOneIsWhereAColumnMeetsItself() => UiThread.Run(() =>
+    {
+        // The claim this holds: a tile reads one exactly when the name under it and the name beside it are
+        // the same column. Read off the drawn page rather than off the model, so a matrix drawn transposed
+        // would fail here.
+        var laid = Lay("geom: corr\nlabels: true\n\nwt  mpg  hp\n2.620  21.0  110\n3.440  18.7  175\n"
+                       + "1.615  30.4  52\n5.250  10.4  205\n3.190  24.4  62", PlotFence.Heatmap);
+
+        var under = Ticked(laid, PlotPiece.XAxis, piece => piece.Bounds.Left + (piece.Bounds.Width / 2));
+        var beside = Ticked(laid, PlotPiece.YAxis, piece => piece.Bounds.Top + (piece.Bounds.Height / 2));
+
+        var seen = 0;
+
+        foreach (var label in Of(laid, PlotPiece.Label))
+        {
+            var x = label.Bounds.Left + (label.Bounds.Width / 2);
+            var y = label.Bounds.Top + (label.Bounds.Height / 2);
+
+            var across = under.OrderBy(tick => Math.Abs(tick.At - x)).First().Says;
+            var down = beside.OrderBy(tick => Math.Abs(tick.At - y)).First().Says;
+
+            var says = label.Words?.Glyphs.Text ?? string.Empty;
+
+            Assert.AreEqual(across == down, says == "1",
+                            $"the tile at {across} across and {down} down says {says}");
+
+            if (across == down) seen++;
+        }
+
+        Assert.AreEqual(3, seen, "three columns meet themselves three times");
+    });
+
+    /// <summary>Each of an axis's ticks: what it says, and where it is along the page.</summary>
+    private static (string Says, double At)[] Ticked(Laid laid, string axis, Func<Piece, double> along) =>
+        [.. laid.Root.SelfAndDescendants()
+                 .First(piece => piece.Kind == axis)
+                 .SelfAndDescendants()
+                 .Where(piece => piece.Kind == PlotPiece.Tick)
+                 .Select(piece => (piece.Words?.Glyphs.Text ?? string.Empty, along(piece)))];
+
+    // ── Facets: a panel per value of a column, all on the same scales ───────
+
+    private const string Cylinders =
+        "weight  mpg   cyl\n2620  21.0  six\n2320  22.8  four\n3440  18.7  eight\n"
+        + "3570  14.3  eight\n3190  24.4  four\n2200  32.4  four\n1615  30.4  four\n5250  10.4  eight\n"
+        + "3170  15.8  eight\n2770  19.7  six\n3460  18.1  six\n1835  33.9  four";
+
+    private static string ByCylinders(string settings = "facet: cyl") => settings + "\n\n" + Cylinders;
+
+    private static string[] Strips(Laid laid) =>
+        [.. Of(laid, PlotPiece.Strip).Select(piece => piece.Words?.Glyphs.Text ?? string.Empty)];
+
+    [TestMethod]
+    public void EachValueOfTheFacetColumnGetsAPanelOfItsOwn() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEquivalent(new[] { "six", "four", "eight" }, Strips(Lay(ByCylinders())));
+    });
+
+    [TestMethod]
+    public void EveryRowIsStillAMarkOnceTheyAreSplitUp() => UiThread.Run(() =>
+    {
+        // Split across three panels, but not one row lost or drawn twice.
+        Assert.AreEqual(12, Marks(Lay(ByCylinders())).Length);
+    });
+
+    [TestMethod]
+    public void APanelHoldsOnlyItsOwnRows() => UiThread.Run(() =>
+    {
+        // Three panels in a row, so which one a mark is in is settled by how far across the page it is.
+        var laid = Lay(ByCylinders("facet: cyl\nfacetCols: 3"));
+
+        var strips = Of(laid, PlotPiece.Strip)
+            .Select(piece => (Says: piece.Words?.Glyphs.Text ?? string.Empty,
+                              At: piece.Bounds.Left + (piece.Bounds.Width / 2)))
+            .ToList();
+
+        var counted = Marks(laid)
+            .GroupBy(mark => strips.OrderBy(strip =>
+                Math.Abs(strip.At - (mark.Bounds.Left + (mark.Bounds.Width / 2)))).First().Says)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        Assert.AreEqual(5, counted["four"], "five four-cylinder rows");
+        Assert.AreEqual(3, counted["six"], "three sixes");
+        Assert.AreEqual(4, counted["eight"], "four eights");
+    });
+
+    [TestMethod]
+    public void ThePanelsAreAllOnTheSameScales() => UiThread.Run(() =>
+    {
+        // The point of facets: read one panel against another. Each axis is numbered once for all of them.
+        var laid = Lay(ByCylinders());
+
+        var down = Marks(laid, PlotPiece.YAxis);
+
+        Assert.IsTrue(down.Length > 0 && Marks(laid, PlotPiece.XAxis).Length > 0);
+        CollectionAssert.AreEqual(down.Distinct().ToArray(), down, "the numbers up the side are written once");
+    });
+
+    [TestMethod]
+    public void OneValueIsNoDivisionAtAll() => UiThread.Run(() =>
+    {
+        // Everything in one group is one plot, not one panel with a name over it.
+        var laid = Lay("facet: cyl\n\nweight  mpg   cyl\n2620  21.0  six\n2770  19.7  six\n3460  18.1  six");
+
+        Assert.AreEqual(0, Strips(laid).Length);
+        Assert.AreEqual(3, Marks(laid).Length);
+    });
+
+    [TestMethod]
+    public void FacetColsSaysHowManyStandSideBySide() => UiThread.Run(() =>
+    {
+        var strips = Of(Lay(ByCylinders("facet: cyl\nfacetCols: 1")), PlotPiece.Strip);
+
+        Assert.AreEqual(3, strips.Length);
+        Assert.AreEqual(3, strips.Select(piece => Math.Round(piece.Bounds.Top)).Distinct().Count(),
+                        "one panel across, so the three of them stand one above another");
+    });
+
+    [TestMethod]
+    public void AFacetedPlotIsNotSplitByTheColumnItAlreadyPlots() => UiThread.Run(() =>
+    {
+        // The facet column is not used up as a place, so x and y are still the first two columns.
+        Assert.AreEqual(12, Marks(Lay(ByCylinders())).Length, "nothing was left without somewhere to go");
+    });
 }

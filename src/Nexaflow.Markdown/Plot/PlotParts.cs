@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Settings;
 
 namespace Nexaflow.Markdown.Plot;
 
@@ -83,6 +84,24 @@ public static class PlotParts
 
             foreach (var inner in child.Children)
                 if (inner.Role == role) yield return inner;
+        }
+    }
+
+    /// <summary>
+    /// Every correlation worked out under this piece: the column read across, the column read down, and the
+    /// coefficient between them.
+    /// </summary>
+    public static IEnumerable<(string Across, string Down, double R)> Pairs(this ContentNode node)
+    {
+        foreach (var child in node.Children)
+        {
+            if (child.Role != Roles.Derived || child.Kind != PlotKinds.Pair) continue;
+
+            var across = child.Children.FirstOrDefault(inner => inner.Role == PlotRoles.Column)?.Text;
+            var down = child.Children.FirstOrDefault(inner => inner.Role == PlotRoles.Names)?.Text;
+            var r = SettingValues.Read(child.Children.FirstOrDefault(inner => inner.Role == PlotRoles.Number)?.Text);
+
+            if (across is not null && down is not null && r is { } value) yield return (across, down, value);
         }
     }
 }

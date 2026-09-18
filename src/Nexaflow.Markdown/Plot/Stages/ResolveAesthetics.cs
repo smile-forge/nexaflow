@@ -89,6 +89,7 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
         Map(settings.Alpha, PlotAesthetic.Alpha);
         Map(settings.Label, PlotAesthetic.Label);
         Map(settings.Group, PlotAesthetic.Group);
+        Map(settings.Facet, PlotAesthetic.Facet);
 
         Fall(PlotAesthetic.X);
         Fall(PlotAesthetic.Y);

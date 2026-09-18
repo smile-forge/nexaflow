@@ -26,7 +26,8 @@ public static class PlotPipeline
         new(new ResolveShape(settings),
             new ResolveColumns(),
             new ResolveValues(),
-            new ResolveAesthetics(settings));
+            new ResolveAesthetics(settings),
+            new ResolveCorrelations(settings));
 
     /// <summary>
     /// A block read the whole way: parsed, its settings taken off it, and the stages run over it.

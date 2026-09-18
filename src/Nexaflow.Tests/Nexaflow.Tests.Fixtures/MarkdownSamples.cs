@@ -5437,6 +5437,79 @@ internal sealed class MarkdownSamples : ISampleSet
         1835    33.9  four
         ```
 
+        ## A matrix worked out rather than written
+
+        `geom: corr` is given the observations and correlates every numeric column with every other,
+        by whatever `method:` names. A tile is worked out rather than written, so it is drawn but not
+        typed into — the column names down its two axes are.
+
+        ```heatmap
+        title: How the measures move together
+        geom: corr
+        labels: true
+        aspect: 1
+
+        mpg   disp   hp   drat  wt
+        21.0  160.0  110  3.90  2.620
+        22.8  108.0  93   3.85  2.320
+        21.4  258.0  110  3.08  3.215
+        18.7  360.0  175  3.15  3.440
+        14.3  360.0  245  3.21  3.570
+        24.4  146.7  62   3.69  3.190
+        19.2  167.6  123  3.92  3.440
+        16.4  275.8  180  3.07  4.070
+        10.4  472.0  205  2.93  5.250
+        32.4  78.7   66   4.08  2.200
+        30.4  75.7   52   4.93  1.615
+        33.9  71.1   65   4.22  1.835
+        15.5  318.0  150  2.76  3.520
+        13.3  350.0  245  3.73  3.840
+        27.3  79.0   66   4.08  1.935
+        26.0  120.3  91   4.43  2.140
+        15.8  351.0  264  4.22  3.170
+        19.7  145.0  175  3.62  2.770
+        15.0  301.0  335  3.54  3.570
+        21.4  121.0  109  4.11  2.780
+        ```
+
+        ## A panel per group
+
+        `facet:` splits the plot into a panel per value of a column, `facetCols:` saying how many stand
+        side by side. Every panel is drawn on the same scales, which is what lets one be read against
+        another, and the numbers go round the outside alone.
+
+        ```scatter
+        title: Fuel economy by weight
+        facet: cyl
+        colour: cyl
+        fit: lm
+        facetCols: 3
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg   cyl
+        2620    21.0  six
+        2875    21.0  six
+        2320    22.8  four
+        3215    21.4  six
+        3440    18.7  eight
+        3570    14.3  eight
+        3190    24.4  four
+        3150    22.8  four
+        4070    16.4  eight
+        3730    17.3  eight
+        5250    10.4  eight
+        2200    32.4  four
+        1615    30.4  four
+        1835    33.9  four
+        2465    21.5  four
+        3520    15.5  eight
+        1935    27.3  four
+        2770    19.7  six
+        3460    18.1  six
+        2780    21.4  four
+        ```
+
         ## Scales and gridlines
 
         `xScale:` and `yScale:` take `linear`, `log`, `log2`, `ln`, `sqrt` and `reverse`; `xLimits:` and

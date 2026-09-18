@@ -1161,7 +1161,8 @@ your groups apart, and `size: 4` sets the size of all of them.
 | fade or name them | `alpha:` a column or a number, `alphaRange: 0.2 1`; `label:` a column to name each mark |
 | unstack them | `jitter: 0.4` — moves marks off their place so equal rows stop hiding each other |
 | shape the panel | `aspect: 1` for square, `flip: true` to swap the axes |
-| draw something else | `geom: point`, `tile`, `bin2d`, `hex`, `density2d` |
+| draw something else | `geom: point`, `tile`, `bin2d`, `hex`, `density2d`, `corr` |
+| split it into panels | `facet:` a column, `facetCols: 3` for how many across |
 | fit a line through them | `fit: lm` or `loess`, with `se: true` for the band |
 | report the correlation | `stats: r r2 n p`, and `method: pearson`, `spearman` or `kendall` |
 | change an axis | `xScale: log`, `xLimits: 0 100`, `xBreaks: 0 50 100`, `grid: none` |
@@ -1196,6 +1197,15 @@ mpg    1.00  -0.78  -0.87
 hp    -0.78   1.00   0.66
 wt    -0.87   0.66   1.00
 ```
+
+**Or let it work the matrix out for you.** Give a `heatmap` your observations and `geom: corr`, and every
+numeric column is correlated with every other — `method:` choosing which coefficient, `labels: true`
+writing each one on its tile. A tile is worked out rather than written, so it is drawn but not typed
+into; the column names down its two axes are.
+
+**One column too many to read at once?** `facet:` splits the plot into a panel per value of a column,
+with `facetCols:` saying how many stand side by side. Every panel is drawn on the same scales, so they
+can be read against one another, and a fit is worked out per panel from that panel's own rows.
 
 **Too many points to see?** `geom: hex` counts them into bins instead, and a `density2d` block draws the
 shape of the cloud — `contour: bands`, `lines` or `raster`, with `points: true` to show the rows through

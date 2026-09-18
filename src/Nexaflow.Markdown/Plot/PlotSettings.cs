@@ -34,6 +34,15 @@ public sealed record PlotSettings
     public string? Group { get; init; }
 
     /// <summary>
+    /// The column that splits the plot into a panel per value it takes, every panel drawn on the same
+    /// scales so the panels can be read against one another.
+    /// </summary>
+    public string? Facet { get; init; }
+
+    /// <summary>How many panels stand side by side. Nothing written lays them out about as wide as tall.</summary>
+    public int? FacetCols { get; init; }
+
+    /// <summary>
     /// The channel a third column feeds where nobody mapped one. Not written anywhere — it is what the
     /// fence asks for, and it is the whole difference between a scatter plot and a bubble plot.
     /// </summary>
@@ -233,6 +242,7 @@ public static class PlotSetting
 
         // Which column feeds which channel — or, where it names no column, what every mark takes
         "x", "y", "color", "colour", "fill", "size", "shape", "alpha", "label", "group",
+        "facet", "facetCols",
 
         // What is drawn
         "geom", "points", "jitter", "bins", "contour", "levels", "bandwidth", "adjust",

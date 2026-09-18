@@ -271,6 +271,88 @@ public class PlotFigureWriter
         1835    33.9  four
         """;
 
+    /// <summary>A correlation matrix worked out from the observations, rather than written as one.</summary>
+    private const string Computed = """
+        title: How the measures move together
+        geom: corr
+        labels: true
+        aspect: 1
+
+        mpg   cyl  disp   hp   drat  wt
+        21.0  6    160.0  110  3.90  2.620
+        21.0  6    160.0  110  3.90  2.875
+        22.8  4    108.0  93   3.85  2.320
+        21.4  6    258.0  110  3.08  3.215
+        18.7  8    360.0  175  3.15  3.440
+        18.1  6    225.0  105  2.76  3.460
+        14.3  8    360.0  245  3.21  3.570
+        24.4  4    146.7  62   3.69  3.190
+        22.8  4    140.8  95   3.92  3.150
+        19.2  6    167.6  123  3.92  3.440
+        17.8  6    167.6  123  3.92  3.440
+        16.4  8    275.8  180  3.07  4.070
+        17.3  8    275.8  180  3.07  3.730
+        15.2  8    275.8  180  3.07  3.780
+        10.4  8    472.0  205  2.93  5.250
+        10.4  8    460.0  215  3.00  5.424
+        14.7  8    440.0  230  3.23  5.345
+        32.4  4    78.7   66   4.08  2.200
+        30.4  4    75.7   52   4.93  1.615
+        33.9  4    71.1   65   4.22  1.835
+        21.5  4    120.1  97   3.70  2.465
+        15.5  8    318.0  150  2.76  3.520
+        15.2  8    304.0  150  3.15  3.435
+        13.3  8    350.0  245  3.73  3.840
+        19.2  8    400.0  175  3.08  3.845
+        27.3  4    79.0   66   4.08  1.935
+        26.0  4    120.3  91   4.43  2.140
+        30.4  4    95.1   113  3.77  1.513
+        15.8  8    351.0  264  4.22  3.170
+        19.7  6    145.0  175  3.62  2.770
+        15.0  8    301.0  335  3.54  3.570
+        21.4  4    121.0  109  4.11  2.780
+        """;
+
+    /// <summary>A panel per group, all on the same scales, each with its own fitted line.</summary>
+    private const string Split = """
+        title: Fuel economy by weight
+        facet: cyl
+        colour: cyl
+        fit: lm
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg   cyl
+        2620    21.0  six
+        2875    21.0  six
+        2320    22.8  four
+        3215    21.4  six
+        3440    18.7  eight
+        3460    18.1  six
+        3570    14.3  eight
+        3190    24.4  four
+        3150    22.8  four
+        3440    19.2  six
+        4070    16.4  eight
+        3730    17.3  eight
+        3780    15.2  eight
+        5250    10.4  eight
+        5424    10.4  eight
+        2200    32.4  four
+        1615    30.4  four
+        1835    33.9  four
+        2465    21.5  four
+        3520    15.5  eight
+        3840    13.3  eight
+        1935    27.3  four
+        2140    26.0  four
+        1513    30.4  four
+        3170    15.8  eight
+        2770    19.7  six
+        3570    15.0  eight
+        2780    21.4  four
+        """;
+
     [TestMethod]
     public void WritePlotFigures()
     {
@@ -330,6 +412,12 @@ public class PlotFigureWriter
 
                                                             Write(Path.Combine(folder, "density-lines.png"), Clouded("lines", points: true),
                                                                   PlotFence.Density2d, MarkdownPalette.Light, Brushes.White, 620);
+
+                                                            Write(Path.Combine(folder, "heatmap-computed.png"), Computed, PlotFence.Heatmap,
+                                                                  MarkdownPalette.Light, Brushes.White, 620);
+
+                                                            Write(Path.Combine(folder, "scatter-facets.png"), Split, PlotFence.Scatter,
+                                                                  MarkdownPalette.Light, Brushes.White, 660);
         });
     }
 

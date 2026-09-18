@@ -135,7 +135,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `wordcloud` | ✅ | ✅ — words packed on the shared syntax tree; see [Word clouds](#word-clouds--sub-support) below |
 | `scatter` | ✅ | ✅ — points on the shared syntax tree; see [Correlation plots](#correlation-plots--sub-support) below |
 | `bubble` | ✅ | ✅ — a scatter plot with a column mapped to size; see [Correlation plots](#correlation-plots--sub-support) below |
-| `heatmap` | ✅ | ✅ — tiles, a correlation matrix, or rows counted into bins; see [Correlation plots](#correlation-plots--sub-support) below |
+| `heatmap` | ✅ | ✅ — tiles, a correlation matrix written or worked out, or rows counted into bins; see [Correlation plots](#correlation-plots--sub-support) below |
 | `density2d` | ✅ | ✅ — the contours of a kernel density estimate; see [Correlation plots](#correlation-plots--sub-support) below |
 | `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
@@ -1590,18 +1590,36 @@ written at all.
 |---|---|
 | labs | `title` `subtitle` `caption` `xTitle` `yTitle` `legendTitle` |
 | aes | `x` `y` `color`/`colour` `fill` `size` `shape` `alpha` `label` `group` `header` |
-| geom | `geom: point\|tile\|bin2d\|hex\|density2d`, `points` `bins` `jitter` |
+| geom | `geom: point\|tile\|bin2d\|hex\|density2d\|corr`, `points` `bins` `jitter` |
+| facets | `facet` `facetCols` |
 | density | `contour: lines\|bands\|raster` `levels` `bandwidth` `adjust` |
 | stat | `fit: none\|lm\|loess` `se` `level` `stats: r r2 n p` `method: pearson\|spearman\|kendall` |
 | scales | `xScale`/`yScale: linear\|log\|log10\|log2\|ln\|sqrt\|reverse`, `xLimits` `yLimits` `xBreaks` `yBreaks` `sizeRange` `alphaRange` |
 | colour | `palette`, `gradient: viridis\|magma\|plasma\|inferno\|blues\|reds\|greens\|rdbu\|<colours…>`, `midpoint` `fillLimits` `labels` `legend: right\|bottom\|left\|top\|none` |
 | panel | `grid: both\|x\|y\|none` `width` `height` `aspect` `flip` |
 
+**`geom: corr` works the matrix out rather than being given one.** The table is the observations, and
+every numeric column is correlated with every other by whatever `method:` names, one tile per pair. It is
+the only plot whose marks nobody wrote, so a tile is drawn but not typed into — the names down its two
+axes are the header cells, which are. A column reads as numeric where more of its cells are numbers than
+are not, a pair sharing fewer than three rows says nothing rather than something meaningless, and the
+run of colours diverges about nought over −1 to 1 unless `gradient:`, `midpoint:` or `fillLimits:` say
+otherwise. Neither axis takes a title from a column, because both axes are the columns.
+
+**`facet:` splits the plot into a panel per value of a column**, laid out `facetCols` across — or about
+as wide as tall where nothing says. Every panel is drawn on the **same scales**, which is the whole point
+of facets: a panel is there to be read against its neighbours. A fit, a band and the figures `stats:`
+asks for are worked out per panel from that panel's own rows. The numbers go round the outside alone —
+down the first column of panels and along the bottom row — and each panel carries the value its rows
+share over it. One value is no division at all and is drawn as one plot. Like colour, a facet column is
+not used up as a place, so it is still free to be x or y.
+
 **What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
 parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
 column is called and which one a cell stands in (`ResolveColumns`), what a cell reads as
-(`ResolveValues`), and which channels each column feeds (`ResolveAesthetics`). None of it is in the
-characters of any one line, and every one of the answers changes as the next line is typed.
+(`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), and the coefficient between
+each pair of numeric columns (`ResolveCorrelations`). None of it is in the characters of any one line,
+and every one of the answers changes as the next line is typed.
 
 **The statistics are neither the parser's nor the builder's** — WPF-free beside the model, so they are
 tested without a desktop and held against R's own numbers:

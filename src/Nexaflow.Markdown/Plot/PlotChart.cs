@@ -69,7 +69,11 @@ public sealed record PlotChart(PlotSettings Settings,
             else Across(row, marks);
         }
 
-        return new PlotChart(settings, columns, marks) { Matrix = matrix };
+        return new PlotChart(settings, columns, marks)
+        {
+            Matrix = matrix,
+            Correlations = [.. root.Node.Pairs()],
+        };
     }
 
     /// <summary>
@@ -77,6 +81,12 @@ public sealed record PlotChart(PlotSettings Settings,
     /// axes mean: down a matrix the columns are the values, so neither axis has a name of its own.
     /// </summary>
     public bool Matrix { get; init; }
+
+    /// <summary>
+    /// The coefficient between each pair of numeric columns, worked out by the pipeline. Empty unless the
+    /// block asked for <c>geom: corr</c>, whose marks are these rather than the rows.
+    /// </summary>
+    public IReadOnlyList<(string Across, string Down, double R)> Correlations { get; init; } = [];
 
     /// <summary>A long row: one mark, its channels the cells that feed them.</summary>
     private static void Across(ContentPart row, List<PlotMark> marks)
@@ -205,9 +215,11 @@ public sealed record PlotChart(PlotSettings Settings,
     {
         if (written is not null) return written;
 
-                // Down a matrix the columns are the values and the rows are named beside them, so an axis
-                // titled with any one column's name would be naming one of its own ticks.
-                if (this.Matrix && channel is PlotAesthetic.X or PlotAesthetic.Y) return null;
+        // Both axes of a correlation matrix are the columns themselves, and down a written matrix the
+        // columns are the values with the rows named beside them. Either way an axis titled with any one
+        // column's name would be naming one of its own ticks.
+        if ((this.Matrix || this.Settings.Geom == PlotGeom.Corr)
+            && channel is PlotAesthetic.X or PlotAesthetic.Y) return null;
 
         foreach (var mark in this.Marks)
             if (mark[channel]?.Cell.Node.Said(PlotRoles.Column) is { } column && column.Length > 0)

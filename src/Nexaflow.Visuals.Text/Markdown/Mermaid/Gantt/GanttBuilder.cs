@@ -285,13 +285,16 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
 
     private void Grid(LayoutBuilder build, GanttChart chart, IReadOnlyList<DiagramTick> ticks, double span, double left, double foot, double top, double height, double gridStart, Vector shift)
     {
+        // The dates run across, so their lines run down: from under the head of the chart to its foot, and again
+        // over the top where a second axis is drawn up there.
         var lines = new GeometryGroup();
-        foreach (var tick in ticks)
-        {
-            var x = left + (tick.At * span) + shift.X;
-            lines.Children.Add(new LineGeometry(new Point(x, top + gridStart - 50 + shift.Y), new Point(x, foot + shift.Y)));
-            if (chart.TopAxis) lines.Children.Add(new LineGeometry(new Point(x, top + shift.Y), new Point(x, height - gridStart + shift.Y)));
-        }
+
+        DiagramGrid.Lines(lines, new Rect(new Point(left + shift.X, top + gridStart - 50 + shift.Y),
+                                          new Point(left + span + shift.X, foot + shift.Y)), ticks, upright: false);
+
+        if (chart.TopAxis)
+            DiagramGrid.Lines(lines, new Rect(new Point(left + shift.X, top + shift.Y),
+                                              new Point(left + span + shift.X, height - gridStart + shift.Y)), ticks, upright: false);
 
         lines.Freeze();
 

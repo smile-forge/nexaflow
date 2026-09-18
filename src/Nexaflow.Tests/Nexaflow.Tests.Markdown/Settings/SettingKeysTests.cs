@@ -127,6 +127,7 @@ public class SettingKeysTests
         "xBreaks" or "yBreaks" => "0 5 10",
         "bandwidth" => "2 3",
         "bins" => "12",
+        "facetCols" => "2",
         "levels" => "12",
         "midpoint" => "0",
 
