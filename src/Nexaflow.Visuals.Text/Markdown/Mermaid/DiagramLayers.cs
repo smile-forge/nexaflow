@@ -46,14 +46,17 @@ internal sealed class DiagramCell(Size size)
 }
 
 /// <summary>One line a layered layout draws between two cells, and the way it ended up running.</summary>
-/// <param name="span">How many ranks it reaches over at the least, which is how far apart it holds what it joins.</param>
+/// <param name="span">
+/// How many ranks it reaches over at the least, which is how far apart it holds what it joins. Nought holds them in the same rank,
+/// side by side — a note written beside the thing it is about rather than after it — and nothing need be drawn for it.
+/// </param>
 internal sealed class DiagramJoin(DiagramCell from, DiagramCell to, int span = 1)
 {
     public DiagramCell From { get; } = from;
 
     public DiagramCell To { get; } = to;
 
-    public int Span { get; } = Math.Max(1, span);
+    public int Span { get; } = Math.Max(0, span);
 
     /// <summary>Where it runs, from the middle of what it leaves to the middle of what it reaches, bending on the way.</summary>
     public IReadOnlyList<Point> Route { get; set; } = [];
@@ -230,17 +233,32 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// Turns round every link that goes back to something already on the way down, so the ranks can be worked out at all. The
-    /// line is still drawn the way it was written; only the ranking sees it the other way about.
+    /// Turns round every link that goes back to something already on the way down, so the ranks can be worked out at all. The line is
+    /// still drawn the way it was written; only the ranking sees it the other way about.
+    ///
+    /// <para>
+    /// Where nothing reaches a cell the work starts there, so those are walked first and a ring is broken at the link that closes it
+    /// rather than at whichever link happens to be looked at first — which is what keeps a diagram reading from its beginning.
+    /// </para>
     /// </summary>
     private static void Turned(int count, IReadOnlyList<Link> links)
     {
         var leaving = new List<int>[count];
+        var reaching = new int[count];
         for (var cell = 0; cell < count; cell++) leaving[cell] = [];
+
         for (var link = 0; link < links.Count; link++)
-            if (links[link].From != links[link].To) leaving[links[link].From].Add(link);
+        {
+            if (links[link].From == links[link].To) continue;
+
+            leaving[links[link].From].Add(link);
+            reaching[links[link].To]++;
+        }
 
         var state = new int[count];
+
+        for (var cell = 0; cell < count; cell++)
+            if (reaching[cell] == 0 && state[cell] == 0) Walk(cell);
 
         for (var cell = 0; cell < count; cell++)
             if (state[cell] == 0) Walk(cell);

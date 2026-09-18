@@ -34,7 +34,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidErParser       ErParser       = new();
@@ -61,7 +60,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
 
-            MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
+
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
 

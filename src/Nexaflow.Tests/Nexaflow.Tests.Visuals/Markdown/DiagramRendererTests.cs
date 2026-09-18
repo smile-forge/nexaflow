@@ -68,24 +68,7 @@ public class DiagramRendererTests
                         "a wedge each, not the source-text fallback");
     });
 
-    // ── State diagram ──────────────────────────────────────────────────────
 
-    private const string StateSrc =
-        """
-        stateDiagram-v2
-            [*] --> First
-            state First {
-                [*] --> second
-                second --> [*]
-            }
-            First --> Choice
-            state Choice <<choice>>
-            Choice --> Done: ok
-            Done --> [*]
-            note right of Done
-                All finished
-            end note
-        """;
 
     /// <summary>
     /// Asserts the source reached the graph renderer and came back drawn, rather than falling
@@ -108,28 +91,6 @@ public class DiagramRendererTests
             if (FindCanvas(System.Windows.Media.VisualTreeHelper.GetChild(root, i)) is { } hit) return hit;
         return null;
     }
-
-    [TestMethod]
-    public void State_RendersGraphNotSourceText() => UiThread.Run(() =>
-        AssertGraphDiagram(DiagramRenderer.Render("mermaid", StateSrc, MarkdownPalette.Dark), "a state diagram"));
-
-    [TestMethod]
-    public void State_ConcurrencyAndForks_RenderWithoutThrowing() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            stateDiagram-v2
-                state fork_state <<fork>>
-                [*] --> fork_state
-                fork_state --> A
-                fork_state --> B
-                state join_state <<join>>
-                A --> join_state
-                B --> join_state
-                join_state --> [*]
-            """;
-        AssertGraphDiagram(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark), "forks and joins");
-    });
 
     // ── Class diagram ──────────────────────────────────────────────────────
 

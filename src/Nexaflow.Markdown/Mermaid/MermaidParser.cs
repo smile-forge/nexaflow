@@ -91,6 +91,9 @@ public static class MermaidParser
 
         if (Accessibility(source, row, from, to, lines) is { } stop) return stop;
 
+        // A statement written across several lines is found here and read by its grammar, line by line.
+        if (reading.Grammar is { } across && Stretched(source, row, from, to, across, lines) is { } spanned) return spanned;
+
         // What a line says is its diagram's own grammar, handed the line to the end of its row: as much of it as the grammar
         // reads is what was written, and the rest is the line's. A type without one keeps its lines whole.
         if (reading.Grammar?.Statement(source[from..row.End]) is { } said)
@@ -98,6 +101,48 @@ public static class MermaidParser
         else
             lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(MermaidKinds.Statement, text)], to, row));
         return row.Stop;
+    }
+
+    /// <summary>
+    /// A statement written across several lines, where one starts here: the line that opens it, every line inside it and the line that
+    /// ends it, read as one statement and made one line of the tree. Null where no stretch starts here.
+    /// </summary>
+    private static int? Stretched(string source, Row row, int from, int to, IMermaidGrammar grammar, List<ContentNode> lines)
+    {
+        foreach (var stretch in grammar.Stretches)
+        {
+            if (stretch.Opens(source[from..to]) is not { } opened) continue;
+
+            var pieces = new List<ContentNode> { opened };
+            var end = to;
+
+            for (var next = Row.At(source, row.Stop); next.Start < source.Length; next = Row.At(source, next.Stop))
+            {
+                var (start, stop) = next.Text(source);
+                var text = source[start..stop];
+
+                pieces.Add(Space(source[end..start]));
+                end = stop;
+
+                if (text.Length == 0) continue;
+
+                if (!stretch.Ends(text))
+                {
+                    pieces.Add(stretch.Inside(text));
+                    continue;
+                }
+
+                pieces.Add(stretch.Ended(text));
+                lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, pieces)], stop, next));
+                return next.Stop;
+            }
+
+            // Nothing ends it, so what opened it is a statement on its own, said to be never closed.
+            lines.Add(Line(source, row.Start, from, [ContentNode.Branch(stretch.Kind, [opened]).Saying(stretch.Unclosed)], to, row));
+            return row.Stop;
+        }
+
+        return null;
     }
 
     /// <summary>

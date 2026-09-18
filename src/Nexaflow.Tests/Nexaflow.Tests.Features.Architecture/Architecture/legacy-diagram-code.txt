@@ -24,7 +24,7 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs 383
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidFlowchartParser.cs 629
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs 299
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs 390
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidStateParser.cs 419
+
 
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs 131
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NomnomlParser.cs 215
