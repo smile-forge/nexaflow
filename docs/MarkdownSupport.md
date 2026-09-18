@@ -242,7 +242,8 @@ space so a `direction` line runs it its own way; `<<fork>>`, `<<join>>` and `<<c
 also reads; `--` dividing a composite state into regions running at the same time, drawn as a line the width of its box;
 notes written `note left of` or `note right of`, on one line or **across several until an `end note`**, and floating
 notes `note "…" as id`; `classDef`, `class`, `:::` and `style`, where `start` and `end` name the dots; `click` with a
-URL and a tooltip; `direction`; `accTitle`/`accDescr`; comments; and a title from the front matter. **A composite state
+URL and a tooltip; `direction`; `accTitle`/`accDescr`; comments; and a title from the front matter. Two transitions between
+the same pair of states — one each way — are **bowed apart** so both arrows show. **A composite state
 holds its states in the layout** and is drawn behind them, so pressing a state means that state and pressing the room
 round it means the composite state — which stands for the whole `state … }` it was written as. **The front matter is
 applied** ([`StateConfig`](../src/Nexaflow.Markdown/Mermaid/State/StateConfig.cs)): `config: state:` `nodeSpacing`,

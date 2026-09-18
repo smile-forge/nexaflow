@@ -101,6 +101,9 @@ internal static class DiagramLayers
     /// <summary>How far a link back to the cell it leaves reaches out beside it.</summary>
     private const double Loops = 18;
 
+    /// <summary>How far apart the lines joining one pair of cells are bowed, so none is drawn on top of another.</summary>
+    private const double Bows = 12;
+
     /// <summary>
     /// Lays every cell out, hands each its <see cref="DiagramCell.Bounds"/> and each join its <see cref="DiagramJoin.Route"/>,
     /// and says how much room it all came to.
@@ -130,6 +133,7 @@ internal static class DiagramLayers
         foreach (var box in Boxes(cells).OrderBy(Deep)) Moved(cells, joins, box);
 
         foreach (var join in joins) join.Route = Routed(join, way);
+        Parted(cells, joins);
 
         return whole;
     }
@@ -209,10 +213,10 @@ internal static class DiagramLayers
         Turned(cells.Count, links);
 
         var ranks = Ranked(cells, links, laning);
-        var rows = Rowed(cells, links, ranks, way, out var placed, out var chains);
+        var rows = Rowed(cells, links, ranks, way, out var placed, out var chains, out var beside);
 
-        Ordered(rows);
-        Spread(rows, between);
+        Ordered(rows, beside);
+        Spread(rows, between, beside);
 
         var banded = laning?.Held(rows, between) ?? 0;
         var whole = Sized(cells, rows, way, along, laning?.Heading ?? 0, banded, out var from, out var deep);
@@ -221,7 +225,8 @@ internal static class DiagramLayers
         laning?.Settled(way, whole);
 
         foreach (var link in links)
-            link.Join.Bends = [.. (link.Turned ? Enumerable.Reverse(chains[link]) : chains[link]).Select(place => place.Middle)];
+            link.Join.Bends =
+                [.. (link.Turned ? Enumerable.Reverse(chains[link]) : chains[link]).SelectMany(place => Passing(place, link.Turned))];
 
         foreach (var edge in edges)
         {
@@ -352,13 +357,21 @@ internal static class DiagramLayers
     /// The places every rank holds: one for each cell in it, and one for every link passing through it — which is what gives a long link
     /// somewhere to bend and a place in the order of its own. A bend is in the band the link is handed from, so a line reaching past a
     /// rank runs down its own band rather than through the next one.
+    ///
+    /// <para>
+    /// A link reaching over no rank at all joins two cells of the one rank, so it ties them nothing: what is tied is read as the rank
+    /// beside, and a place in this rank is not that. It is kept as <paramref name="beside"/> instead, which sets the one next to the
+    /// other without either standing in for the other's neighbours.
+    /// </para>
     /// </summary>
     private static List<List<Place>> Rowed(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Link> links, int[] ranks,
-                                           DiagramWay way, out Place[] placed, out Dictionary<Link, List<Place>> chains)
+                                           DiagramWay way, out Place[] placed, out Dictionary<Link, List<Place>> chains,
+                                           out Dictionary<Place, Place> beside)
     {
         var rows = new List<List<Place>>();
         placed = new Place[cells.Count];
         chains = [];
+        beside = [];
 
         for (var cell = 0; cell < cells.Count; cell++)
         {
@@ -377,6 +390,12 @@ internal static class DiagramLayers
             chains[link] = chain;
 
             if (first == last) continue;
+
+            if (ranks[first] == ranks[last])
+            {
+                beside[placed[last]] = placed[first];
+                continue;
+            }
 
             var before = placed[first];
 
@@ -408,11 +427,11 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// What order each rank is in: as written to start with, then settled so everything sits near what it joins in the rank beside it
-    /// — which is what keeps the lines between two ranks from crossing. Lanes come first: a rank is ordered lane by lane, so a lane's
-    /// band is the same stretch of every rank.
+    /// What order each rank is in: as written to start with, then settled so everything sits near what it joins in the rank beside it —
+    /// which is what keeps the lines between two ranks from crossing. Lanes come first, so a lane's band is the same stretch of every
+    /// rank, and anything set beside another follows it wherever it lands.
     /// </summary>
-    private static void Ordered(List<List<Place>> rows)
+    private static void Ordered(List<List<Place>> rows, IReadOnlyDictionary<Place, Place> beside)
     {
         Numbered(rows);
 
@@ -430,10 +449,32 @@ internal static class DiagramLayers
                     .ToList();
 
                 row.Clear();
-                row.AddRange(settled);
+                row.AddRange(Following(settled, beside));
                 Numbered(rows);
             }
         }
+    }
+
+    /// <summary>Every place set beside another moved to follow it, so the two come out of the ordering next to each other.</summary>
+    private static List<Place> Following(List<Place> row, IReadOnlyDictionary<Place, Place> beside)
+    {
+        if (beside.Count == 0) return row;
+
+        var after = row.Where(place => beside.ContainsKey(place)).ToLookup(place => beside[place]);
+        if (after.Count == 0) return row;
+
+        var settled = new List<Place>(row.Count);
+
+        foreach (var place in row.Where(place => !beside.ContainsKey(place)))
+        {
+            settled.Add(place);
+            settled.AddRange(after[place]);
+        }
+
+        // Anything set beside a place in another rank is left where the ordering put it.
+        settled.AddRange(row.Where(place => beside.ContainsKey(place) && !settled.Contains(place)));
+
+        return settled;
     }
 
     private static void Numbered(List<List<Place>> rows)
@@ -452,10 +493,11 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// Where everything sits across its rank: beside what it joins in the rank beside it, then pushed apart until nothing
-    /// overlaps, and the rank put back where it wanted to be so the ranks stay lined up with each other.
+    /// Where everything sits across its rank: beside what it joins in the rank beside it, then pushed apart until nothing overlaps, and
+    /// the rank put back where it wanted to be so the ranks stay lined up with each other. Anything set beside another wants to be where
+    /// that one is, and is pushed off it by the same air as everything else.
     /// </summary>
-    private static void Spread(List<List<Place>> rows, double between)
+    private static void Spread(List<List<Place>> rows, double between, IReadOnlyDictionary<Place, Place> beside)
     {
         foreach (var row in rows) Apart(row, between);
 
@@ -467,6 +509,12 @@ internal static class DiagramLayers
             {
                 foreach (var place in row)
                 {
+                    if (beside.TryGetValue(place, out var about))
+                    {
+                        place.At = about.At;
+                        continue;
+                    }
+
                     var near = down ? place.Above : place.Below;
                     if (near.Count > 0) place.At = near.Average(other => other.At);
                 }
@@ -539,11 +587,25 @@ internal static class DiagramLayers
                 var size = place.Cell >= 0 ? cells[place.Cell].Size : default;
                 var start = from[place.Rank] + ((deep[place.Rank] - Along(size, way)) / 2);
 
-                place.Middle = Placed(from[place.Rank] + (deep[place.Rank] / 2), place.At, way, whole);
+                place.Near = Placed(from[place.Rank], place.At, way, whole);
+                place.Far = Placed(from[place.Rank] + deep[place.Rank], place.At, way, whole);
 
                 if (place.Cell >= 0)
                     cells[place.Cell].Bounds = Placed(start, place.At - (Across(size, way) / 2), size, way, whole);
             }
+    }
+
+    /// <summary>
+    /// Where a line bending in a rank runs: into the rank and out of it again, rather than through the middle of it — so a line passing
+    /// a rank runs alongside what is in it instead of cutting the corner off a cell as deep as everything it holds. A rank holding
+    /// nothing but bends has no depth to run down, so it is the one place.
+    /// </summary>
+    private static IEnumerable<Point> Passing(Place place, bool turned)
+    {
+        var (first, last) = turned ? (place.Far, place.Near) : (place.Near, place.Far);
+
+        yield return first;
+        if ((last - first).LengthSquared > 1) yield return last;
     }
 
     internal static Rect Placed(double along, double across, Size size, DiagramWay way, Size whole) => way switch
@@ -587,11 +649,74 @@ internal static class DiagramLayers
         if (Math.Abs(down ? from.X - to.X : from.Y - to.Y) < 1) return [from, to];
         if (Math.Abs(down ? from.Y - to.Y : from.X - to.X) < 1) return [from, to];
 
-        var half = down ? (from.Y + to.Y) / 2 : (from.X + to.X) / 2;
+        var half = down
+            ? Halfway(join.From.Bounds.Top, join.From.Bounds.Bottom, join.To.Bounds.Top, join.To.Bounds.Bottom)
+            : Halfway(join.From.Bounds.Left, join.From.Bounds.Right, join.To.Bounds.Left, join.To.Bounds.Right);
 
         return down
             ? [from, new Point(from.X, half), new Point(to.X, half), to]
             : [from, new Point(half, from.Y), new Point(half, to.Y), to];
+    }
+
+    /// <summary>
+    /// Bows apart the lines that would otherwise be drawn one on top of another: two cells joined more than once — a transition each
+    /// way, or two links written between the same pair — are joined by lines that run the same way between the same two points, and one
+    /// would hide the other, its head sitting over the other's line.
+    ///
+    /// <para>
+    /// The ends stay where they are, because that is where the line meets the shape it joins; everything between them is moved aside by
+    /// the line's place among the lines sharing its pair, and a line with nothing between its ends is given somewhere to bow at.
+    /// </para>
+    /// </summary>
+    private static void Parted(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins)
+    {
+        var at = new Dictionary<DiagramCell, int>(cells.Count);
+        for (var cell = 0; cell < cells.Count; cell++) at[cells[cell]] = cell;
+
+        var shared = joins
+            .Where(join => !ReferenceEquals(join.From, join.To) && join.Route.Count >= 2)
+            .Where(join => at.ContainsKey(join.From) && at.ContainsKey(join.To))
+            .GroupBy(join => (Math.Min(at[join.From], at[join.To]), Math.Max(at[join.From], at[join.To])));
+
+        foreach (var pair in shared)
+        {
+            var many = pair.ToList();
+            if (many.Count < 2) continue;
+
+            for (var one = 0; one < many.Count; one++)
+            {
+                var aside = (one - ((many.Count - 1) / 2.0)) * Bows;
+                if (Math.Abs(aside) > 1e-9) many[one].Route = Bowing(many[one].Route, aside);
+            }
+        }
+    }
+
+    /// <summary>A route moved aside from the straight run between its ends, which stay where they meet what they join.</summary>
+    private static IReadOnlyList<Point> Bowing(IReadOnlyList<Point> route, double aside)
+    {
+        var along = route[^1] - route[0];
+        if (along.Length < 1e-9) return route;
+
+        along.Normalize();
+        var across = new Vector(-along.Y, along.X) * aside;
+
+        return route.Count == 2
+            ? [route[0], new Point(((route[0].X + route[1].X) / 2) + across.X, ((route[0].Y + route[1].Y) / 2) + across.Y), route[1]]
+            : [route[0], .. route.Skip(1).SkipLast(1).Select(bend => bend + across), route[^1]];
+    }
+
+    /// <summary>
+    /// Where a join bends on its way from one cell to the next: halfway across the clear air between the two of them, rather than
+    /// halfway between their middles — a box as deep as everything it holds has its middle far past the edge the line leaves it by, and
+    /// a line bending there would double back into the box. Where the two overlap there is no air between them, so it bends between
+    /// their middles as before.
+    /// </summary>
+    private static double Halfway(double from, double past, double to, double beyond)
+    {
+        if (to >= past) return (past + to) / 2;
+        if (from >= beyond) return (beyond + from) / 2;
+
+        return (from + past + to + beyond) / 4;
     }
 
     /// <summary>A join back to the cell it leaves: out beside it and back again.</summary>
@@ -651,8 +776,10 @@ internal static class DiagramLayers
         /// <summary>Where across its rank it sits.</summary>
         public double At { get; set; }
 
-        /// <summary>Its middle, which is where a line bending here runs through.</summary>
-        public Point Middle { get; set; }
+        /// <summary>Where a line bending here comes into the rank, and where it leaves it.</summary>
+        public Point Near { get; set; }
+
+        public Point Far { get; set; }
 
         public List<Place> Above { get; } = [];
 
