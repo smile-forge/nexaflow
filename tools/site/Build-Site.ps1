@@ -25,9 +25,20 @@ Write-Host 'Building the site generator...' -ForegroundColor Cyan
 dotnet build $project -c Release --nologo | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "the site generator did not build (exit $LASTEXITCODE)" }
 
+# The help pages come from the working tree, so between releases the site describes a version nobody can download
+# yet. The app's version only changes when the release is cut, so it cannot tell you that — whether HEAD is the
+# tagged commit can. Ahead of the tag, every page says so; standing on it, the notice disappears by itself.
+$released = (git tag --list 'v*' --sort=-v:refname | Select-Object -First 1)
+$onRelease = $released -and (git tag --points-at HEAD) -contains $released
+
+if ($released -and -not $onRelease) {
+    Write-Host "this tree is ahead of $released - the site will say so on every page" -ForegroundColor Yellow
+}
+
 Write-Host 'Generating the site...' -ForegroundColor Cyan
 $arguments = @('run', '--project', $project, '-c', 'Release', '--no-build', '--')
-if ($Output) { $arguments += $Output }
+if ($Output) { $arguments += @('--output', $Output) }
+if ($released -and -not $onRelease) { $arguments += @('--ahead-of', $released) }
 
 dotnet @arguments | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "the site generator failed (exit $LASTEXITCODE)" }

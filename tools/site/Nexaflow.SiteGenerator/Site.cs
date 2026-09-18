@@ -29,7 +29,10 @@ internal static class Site
         ("mermaid-quadrant.png", "A quadrant chart drawn by Nexaflow"),
     ];
 
-    public static void Write(HelpCorpus corpus, ProductTree tree, string repo, string output, string version)
+    /// <summary>The notice every page carries while the working tree is ahead of the newest release, or nothing.</summary>
+    private static string _unreleased = string.Empty;
+
+    public static void Write(HelpCorpus corpus, ProductTree tree, string repo, string output, string version, string? aheadOf = null)
     {
         if (Directory.Exists(output)) Directory.Delete(output, recursive: true);
         Directory.CreateDirectory(output);
@@ -38,6 +41,14 @@ internal static class Site
         // which is where every picture on the site lives.
         File.WriteAllText(Path.Combine(output, ".nojekyll"), string.Empty);
         File.WriteAllText(Path.Combine(output, "assets", "site.css").EnsureFolder(), Css.Text);
+
+        _unreleased = aheadOf is null
+            ? string.Empty
+            : $"""
+               <p class="unreleased">These pages describe Nexaflow as it stands <b>after {Encode(aheadOf)}</b>, so some
+               of what they cover is not in the current download yet. The latest release is
+               <a href="{Repo}/releases/latest">{Encode(aheadOf)}</a>.</p>
+               """;
 
         var byTopic = corpus.Pages.ToDictionary(p => p.Topic, StringComparer.OrdinalIgnoreCase);
 
@@ -275,6 +286,7 @@ internal static class Site
               <nav>{nav}</nav>
             </header>
             <main>
+            {_unreleased}
             {body}
             </main>
             <footer class="site">

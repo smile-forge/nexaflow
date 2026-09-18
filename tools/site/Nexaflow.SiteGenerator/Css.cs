@@ -157,6 +157,12 @@ internal static class Css
         .card p { margin: 0; color: var(--muted); font-size: 0.89rem; line-height: 1.5; }
 
         /* The front page's proof that the drawing is real: the app's own figures, at their own size. */
+        .unreleased {
+          margin: 0 0 28px; padding: 10px 14px; border-radius: var(--radius);
+          border: 1px solid #c98a2b; color: var(--text); background: rgba(201, 138, 43, 0.10);
+          font-size: 0.92rem; line-height: 1.5;
+        }
+
         .strip { margin: 56px 0; }
         .strip h2 { font-size: 1.25rem; margin: 0 0 6px; letter-spacing: -0.01em; }
         .strip .small { margin: 0 0 18px; max-width: 58ch; }

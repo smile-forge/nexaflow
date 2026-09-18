@@ -47,12 +47,11 @@ A built-in file tree with full-text Windows Search and AI-assisted query refinem
 
 A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
 
-It isn't only diagrams. Chemical structures from SMILES strings, word clouds packed into a shape, QR codes and five barcode families — all drawn from a fenced block, on your machine.
+It isn't only diagrams. Sheet music engraved from ABC or LilyPond, QR codes, and five barcode families — all drawn from a fenced block, on your machine.
 
 <p align="center">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/smiles-cages.png" width="38%" alt="Skeletal chemical structures drawn from SMILES strings">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/wordcloud-shapes.png" width="28%" alt="A word cloud packed into a shape">
-  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/qr-codes.png" width="28%" alt="QR codes generated from a fenced block">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/music-abc.png" width="56%" alt="A reel engraved from ABC notation, with beaming, repeats and a lyric line">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/qr-codes.png" width="38%" alt="QR codes generated from a fenced block">
 </p>
 
 **[Everything the Markdown editor draws →](https://smile-forge.github.io/nexaflow/author/)**
