@@ -11,6 +11,16 @@ The goal isn't to add more features. It's to reduce the friction between you and
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)
 
+<p align="center">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-c4.png" width="32%" alt="A C4 container diagram drawn by Nexaflow">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-sankey.png" width="32%" alt="A Sankey diagram drawn by Nexaflow">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/mermaid-radar.png" width="32%" alt="A radar chart drawn by Nexaflow">
+</p>
+
+<p align="center"><sub>Drawn by Nexaflow itself, from text you type — no browser, no diagram server, nothing sent anywhere.</sub></p>
+
+<p align="center"><b><a href="https://smile-forge.github.io/nexaflow/">See what it does →</a></b></p>
+
 ---
 
 ## The problem it solves
@@ -37,6 +47,16 @@ A built-in file tree with full-text Windows Search and AI-assisted query refinem
 
 A live Markdown editor with LaTeX, native Mermaid diagrams, and QR codes, barcodes and C4 architecture diagrams generated straight from a fenced block. Formulas aren't pictures — you can put a caret in one and edit it. A code editor with syntax highlighting, code folding, colour previews, and a class/structure map. Dedicated viewers for PDFs, DICOM medical imaging, images (carousel, album, collage, explore), logs, JSON, Email (.eml/.msg), CSV/TSV tables, hex/binary, fonts, SVG, web pages, and Jupyter notebooks. This list keeps growing — understanding more formats, better, is an ongoing focus.
 
+It isn't only diagrams. Chemical structures from SMILES strings, word clouds packed into a shape, QR codes and five barcode families — all drawn from a fenced block, on your machine.
+
+<p align="center">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/smiles.png" width="32%" alt="Skeletal chemical structures drawn from SMILES strings">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/wordcloud-shapes.png" width="32%" alt="A word cloud packed into a shape">
+  <img src="src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/images/markdown/qr-codes.png" width="32%" alt="QR codes generated from a fenced block">
+</p>
+
+**[Everything the Markdown editor draws →](https://smile-forge.github.io/nexaflow/author/)**
+
 **🎬 Media and 3D**
 
 An audio player with spectrum and waveform visualisation, `.lrc` lyrics, and ID3 tag editing. An interactive 3D model viewer supporting STL, OBJ, glTF/glb, FBX, and more. Native video playback. These aren't afterthoughts — they're part of making Nexaflow the one place you actually open things.
@@ -57,9 +77,15 @@ Lightweight project tracking with a backlog workflow. A Product Manager for trac
 
 Several themes, each with its own palette and an optional animated backdrop, which can be stopped automatically while you're running on battery. Text size is yours to set, and every text surface has its own zoom on top of it.
 
-**🤖 AI that works with your context, not despite it**
+**🤖 An assistant looking at the same screen you are**
 
-An AI input bar on every window. A dedicated AI Chat tab with saved history. The AI sees and **interacts** with your workspace — so you spend less time explaining and more time doing. Agentic turns that modify your files always ask first. Pick from several supported providers: Claude, Gemini, OpenAI, or any local model via Ollama (or a combination of them).
+Not an agent you send away to work somewhere you can't see. Every page describes its own state, so when you ask a question with the page attached, the send waits until that page says its context is ready — the answer is about the tab you're actually on, not a guess. Its tools then drive the same view-model your keyboard drives, so an edit the assistant makes to a document appears in your editor and saves through your save. There's no second copy to reconcile, because there was never a second copy.
+
+Reading runs on its own; anything that writes asks first, and deletes go to the Recycle Bin. Some of the restraint is deliberate and permanent — git tooling is read-only, and file actions stay inside the folder you're in. A tool that can quietly do anything is a tool you have to supervise instead of use.
+
+An AI input bar on every window, and a dedicated AI Chat tab with saved history. Pick from Claude, Gemini, OpenAI, or any local model via Ollama — or a combination. It's optional: Nexaflow is a workspace first, and every page works with no provider configured at all.
+
+**[How the AI works →](https://smile-forge.github.io/nexaflow/together/)**
 
 ---
 
@@ -68,6 +94,8 @@ An AI input bar on every window. A dedicated AI Chat tab with saved history. The
 **[⬇️ Download the latest release](https://github.com/smile-forge/nexaflow/releases/latest)**
 
 Requires Windows 10 or 11. AI features are optional — use a local model via Ollama, or an API key for Claude, Gemini, or OpenAI.
+
+Every page's help is online too — the same text F1 shows you in the app: **[the full reference](https://smile-forge.github.io/nexaflow/help/)**.
 
 On first launch, Nexaflow opens its Options panel so you can pick an AI provider and set your projects folder. That's it — start opening tabs.
 
