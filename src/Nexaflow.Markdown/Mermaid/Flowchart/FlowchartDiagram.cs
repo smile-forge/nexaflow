@@ -173,6 +173,23 @@ public sealed class FlowchartDiagram
     public IEnumerable<FlowchartGroup> Within(string? group) =>
         Groups.Where(nested => string.Equals(nested.Parent, group, StringComparison.Ordinal));
 
+    /// <summary>
+    /// The lanes: the subgraphs written outside them all, which is what a swimlane draws as bands. Every other subgraph is inside one.
+    /// </summary>
+    public IEnumerable<FlowchartGroup> Lanes => Within(null);
+
+    /// <summary>
+    /// The lane a subgraph, or anything written in one, belongs to: the outermost subgraph holding it. Null for something written in no
+    /// subgraph at all.
+    /// </summary>
+    public FlowchartGroup? Lane(string? group)
+    {
+        var held = Group(group);
+        while (held is { Parent: { } parent }) held = Group(parent);
+
+        return held;
+    }
+
     /// <summary>The subgraph a key names, or null where none does.</summary>
     public FlowchartGroup? Group(string? key) =>
         key is null ? null : Groups.FirstOrDefault(group => string.Equals(group.Key, key, StringComparison.Ordinal));

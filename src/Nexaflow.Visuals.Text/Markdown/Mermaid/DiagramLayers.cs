@@ -35,6 +35,12 @@ internal sealed class DiagramCell(Size size)
     /// <summary>The room a box keeps at the top of it for what is written there.</summary>
     public double Heading { get; init; }
 
+    /// <summary>
+    /// The band it keeps to, where the layout is laid out in bands — a swimlane's lanes, numbered from one in the order they are given
+    /// (<see cref="DiagramLane"/>). Nought for a cell in no band, and for every cell of a layout laid out in none.
+    /// </summary>
+    public int Lane { get; init; }
+
     /// <summary>Where it ended up — in the space of the box it is in until that box is placed, and absolute after.</summary>
     public Rect Bounds { get; set; }
 }
@@ -77,6 +83,12 @@ internal sealed class DiagramJoin(DiagramCell from, DiagramCell to, int span = 1
 /// <strong>Links that reach over more than one rank bend.</strong> Each rank a link passes through keeps a place of its own for
 /// it, so it is ordered along with everything else and the line goes round what is in the way rather than through it.
 /// </para>
+/// <para>
+/// <strong>Lanes are this layout under a constraint, not another one.</strong> <see cref="Lanes"/> ranks, orders, spreads and
+/// routes exactly as <see cref="Lay"/> does; what it adds is that each cell keeps to the band of the lane holding it, and that a
+/// lane's cells come one to a rank. Everything either of them needs round that — the cycles turned, the bends, the order settled,
+/// the way round it runs — is the same code, which is why both are here.
+/// </para>
 /// </summary>
 internal static class DiagramLayers
 {
@@ -92,19 +104,24 @@ internal static class DiagramLayers
     /// </summary>
     /// <param name="between">How far apart two cells in the same rank are set.</param>
     /// <param name="along">How far apart one rank is set from the next.</param>
+    /// <param name="laning">
+    /// The bands to lay it out in — a swimlane's lanes, each cell keeping to the one its <see cref="DiagramCell.Lane"/> names — or null
+    /// for a layout with none. See <see cref="DiagramLanes"/> for what the bands change.
+    /// </param>
     public static Size Lay(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way,
-                           double between, double along)
+                           double between, double along, DiagramLanes? laning = null)
     {
         // Innermost boxes first: a box is the size of what it holds, so what it holds is arranged before the box is placed.
         foreach (var box in Boxes(cells).OrderByDescending(Deep))
         {
-            var held = Arrange(Within(cells, box), Joining(joins, box), box.Way ?? way, between, along);
+            // A box is a space of its own, which the bands of the layout round it do not reach into.
+            var held = Arrange(Within(cells, box), Joining(joins, box), box.Way ?? way, between, along, laning: null);
 
             box.Size = new Size(Math.Max(box.Size.Width, held.Width + (box.Pad * 2)),
                                 Math.Max(box.Size.Height, held.Height + (box.Pad * 2) + box.Heading));
         }
 
-        var whole = Arrange(Within(cells, null), Joining(joins, null), way, between, along);
+        var whole = Arrange(Within(cells, null), Joining(joins, null), way, between, along, laning);
 
         // Outermost boxes first, so a box is already where it belongs before what is inside it is moved into it.
         foreach (var box in Boxes(cells).OrderBy(Deep)) Moved(cells, joins, box);
@@ -172,13 +189,15 @@ internal static class DiagramLayers
     // ── One level of it ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Lays one level out: the cells in ranks, each rank ordered and then set across, and every join given the places it bends
-    /// at. Hands back the room it all took.
+    /// Lays one level out: the cells in ranks, each rank ordered and then set across, and every join given the places it bends at. Hands
+    /// back the room it all took. Where it is laid out in bands, the laning says how far the links hold things apart and holds each cell
+    /// to its own band.
     /// </summary>
     private static Size Arrange(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Joined> edges, DiagramWay way,
-                                double between, double along)
+                                double between, double along, DiagramLanes? laning)
     {
-        if (cells.Count == 0) return default;
+        // Lanes with nothing in them yet are still bands to place.
+        if (cells.Count == 0 && laning is null) return default;
 
         var at = new Dictionary<DiagramCell, int>(cells.Count);
         for (var cell = 0; cell < cells.Count; cell++) at[cells[cell]] = cell;
@@ -186,14 +205,17 @@ internal static class DiagramLayers
         var links = edges.Select(edge => new Link(edge.Join, at[edge.From], at[edge.To], edge.Join.Span)).ToList();
         Turned(cells.Count, links);
 
-        var ranks = Ranked(cells.Count, links);
+        var ranks = Ranked(cells, links, laning);
         var rows = Rowed(cells, links, ranks, way, out var placed, out var chains);
 
         Ordered(rows);
         Spread(rows, between);
 
-        var whole = Sized(cells, rows, way, along, out var from, out var deep);
+        var banded = laning?.Held(rows, between) ?? 0;
+        var whole = Sized(cells, rows, way, along, laning?.Heading ?? 0, banded, out var from, out var deep);
+
         Settled(cells, rows, way, from, deep, whole);
+        laning?.Settled(way, whole);
 
         foreach (var link in links)
             link.Join.Bends = [.. (link.Turned ? Enumerable.Reverse(chains[link]) : chains[link]).Select(place => place.Middle)];
@@ -241,35 +263,77 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// Which rank each cell is in: as far along as the longest run of links reaching it, every link reaching at least as far as
-    /// it was written long.
+    /// Which rank each cell is in: as far along as the longest run of links reaching it, every link reaching at least as far as it was
+    /// written long — and, where it is laid out in bands, as far as the band it is in has got to (<see cref="DiagramLanes"/>).
     /// </summary>
-    private static int[] Ranked(int count, IReadOnlyList<Link> links)
+    private static int[] Ranked(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Link> links, DiagramLanes? laning)
     {
-        var ranks = new int[count];
+        var ranks = new int[cells.Count];
+        var reaching = new List<Link>[cells.Count];
+        for (var cell = 0; cell < cells.Count; cell++) reaching[cell] = [];
 
-        for (var pass = 0; pass <= count; pass++)
+        foreach (var link in links)
         {
-            var moved = false;
+            var (from, to) = link.Way;
+            if (from != to) reaching[to].Add(link);
+        }
 
-            foreach (var link in links)
+        foreach (var cell in Sorted(cells.Count, links))
+        {
+            var wanted = 0;
+
+            foreach (var link in reaching[cell])
             {
-                var (from, to) = link.Way;
-                if (from == to || ranks[to] >= ranks[from] + link.Span) continue;
-
-                ranks[to] = ranks[from] + link.Span;
-                moved = true;
+                var from = link.Way.From;
+                wanted = Math.Max(wanted, ranks[from] + (laning?.Apart(cells[from], cells[cell], link.Span) ?? link.Span));
             }
 
-            if (!moved) break;
+            ranks[cell] = laning?.Ranked(cells[cell], wanted) ?? wanted;
         }
 
         return ranks;
     }
 
     /// <summary>
-    /// The places every rank holds: one for each cell in it, and one for every link passing through it — which is what gives a
-    /// long link somewhere to bend and a place in the order of its own.
+    /// The cells in an order where everything a link leaves comes before what it reaches, the links having been turned round until
+    /// they can be. Anything still left waiting — nothing, once the cycles are turned — comes last, as it was written.
+    /// </summary>
+    private static IEnumerable<int> Sorted(int count, IReadOnlyList<Link> links)
+    {
+        var waiting = new int[count];
+        var after = new List<int>[count];
+        for (var cell = 0; cell < count; cell++) after[cell] = [];
+
+        foreach (var link in links)
+        {
+            var (from, to) = link.Way;
+            if (from == to) continue;
+
+            after[from].Add(to);
+            waiting[to]++;
+        }
+
+        var ready = new Queue<int>(Enumerable.Range(0, count).Where(cell => waiting[cell] == 0));
+        var order = new List<int>(count);
+
+        while (ready.Count > 0)
+        {
+            var cell = ready.Dequeue();
+            order.Add(cell);
+
+            foreach (var to in after[cell])
+                if (--waiting[to] == 0) ready.Enqueue(to);
+        }
+
+        order.AddRange(Enumerable.Range(0, count).Where(cell => waiting[cell] > 0));
+
+        return order;
+    }
+
+    /// <summary>
+    /// The places every rank holds: one for each cell in it, and one for every link passing through it — which is what gives a long link
+    /// somewhere to bend and a place in the order of its own. A bend is in the band the link is handed from, so a line reaching past a
+    /// rank runs down its own band rather than through the next one.
     /// </summary>
     private static List<List<Place>> Rowed(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Link> links, int[] ranks,
                                            DiagramWay way, out Place[] placed, out Dictionary<Link, List<Place>> chains)
@@ -280,7 +344,11 @@ internal static class DiagramLayers
 
         for (var cell = 0; cell < cells.Count; cell++)
         {
-            placed[cell] = new Place { Cell = cell, Rank = ranks[cell], Size = Across(cells[cell].Size, way) };
+            placed[cell] = new Place
+            {
+                Cell = cell, Rank = ranks[cell], Lane = cells[cell].Lane, Size = Across(cells[cell].Size, way),
+            };
+
             Row(ranks[cell]).Add(placed[cell]);
         }
 
@@ -296,7 +364,7 @@ internal static class DiagramLayers
 
             for (var rank = ranks[first] + 1; rank < ranks[last]; rank++)
             {
-                var bend = new Place { Rank = rank };
+                var bend = new Place { Rank = rank, Lane = cells[first].Lane };
                 Row(rank).Add(bend);
                 chain.Add(bend);
                 Tied(before, bend);
@@ -322,8 +390,9 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// What order each rank is in: as written to start with, then settled so everything sits near what it joins in the rank
-    /// beside it — which is what keeps the lines between two ranks from crossing.
+    /// What order each rank is in: as written to start with, then settled so everything sits near what it joins in the rank beside it
+    /// — which is what keeps the lines between two ranks from crossing. Lanes come first: a rank is ordered lane by lane, so a lane's
+    /// band is the same stretch of every rank.
     /// </summary>
     private static void Ordered(List<List<Place>> rows)
     {
@@ -337,7 +406,8 @@ internal static class DiagramLayers
             {
                 var settled = row
                     .Select((place, order) => (Place: place, Near: Nearest(place, down, order)))
-                    .OrderBy(entry => entry.Near)
+                    .OrderBy(entry => entry.Place.Lane)
+                    .ThenBy(entry => entry.Near)
                     .Select(entry => entry.Place)
                     .ToList();
 
@@ -411,9 +481,12 @@ internal static class DiagramLayers
     private static List<List<Place>> Sweep(List<List<Place>> rows, bool down) =>
         down ? rows : [.. Enumerable.Reverse(rows)];
 
-    /// <summary>How much room it all took, and where each rank starts and how deep it is.</summary>
+    /// <summary>
+    /// How much room it all took, and where each rank starts and how deep it is. The first rank starts past whatever room the lanes
+    /// keep at the near end of their bands for what is written on them.
+    /// </summary>
     private static Size Sized(IReadOnlyList<DiagramCell> cells, List<List<Place>> rows, DiagramWay way, double along,
-                              out double[] from, out double[] deep)
+                              double heading, double banded, out double[] from, out double[] deep)
     {
         deep = [.. rows.Select(row => row.Where(place => place.Cell >= 0)
                                         .Select(place => Along(cells[place.Cell].Size, way))
@@ -421,7 +494,7 @@ internal static class DiagramLayers
                                         .Max())];
 
         from = new double[rows.Count];
-        var running = 0.0;
+        var running = heading;
 
         for (var rank = 0; rank < rows.Count; rank++)
         {
@@ -429,8 +502,11 @@ internal static class DiagramLayers
             running += deep[rank] + along;
         }
 
-        var whole = Math.Max(0, running - along);
-        var across = rows.SelectMany(row => row).Select(place => place.At + (place.Size / 2)).DefaultIfEmpty(0).Max();
+        var whole = Math.Max(heading, running - along);
+        var across = Math.Max(banded, rows.SelectMany(row => row)
+                                          .Select(place => place.At + (place.Size / 2))
+                                          .DefaultIfEmpty(0)
+                                          .Max());
 
         return way is DiagramWay.Down or DiagramWay.Up ? new Size(across, whole) : new Size(whole, across);
     }
@@ -452,7 +528,7 @@ internal static class DiagramLayers
             }
     }
 
-    private static Rect Placed(double along, double across, Size size, DiagramWay way, Size whole) => way switch
+    internal static Rect Placed(double along, double across, Size size, DiagramWay way, Size whole) => way switch
     {
         DiagramWay.Down => new Rect(across, along, size.Width, size.Height),
         DiagramWay.Up => new Rect(across, whole.Height - along - size.Height, size.Width, size.Height),
@@ -475,9 +551,10 @@ internal static class DiagramLayers
     // ── Where a line runs ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Where a join runs once everything is placed: from the middle of what it leaves, through wherever it bends, to the middle
-    /// of what it reaches. A join across one rank bends halfway between the two, so it leaves and arrives square rather than
-    /// slanting across; a join back to the cell it leaves goes round beside it.
+    /// Where a join runs once everything is placed: from the middle of what it leaves, through wherever it bends, to the middle of what
+    /// it reaches. A join across one rank bends halfway between the two, so it leaves and arrives square rather than slanting across; a
+    /// join between two cells side by side in the same rank — a handoff from one lane to the next — runs straight across, there being no
+    /// rank between them to bend in; and a join back to the cell it leaves goes round beside it.
     /// </summary>
     private static IReadOnlyList<Point> Routed(DiagramJoin join, DiagramWay way)
     {
@@ -490,6 +567,7 @@ internal static class DiagramLayers
 
         var down = join.Towards is DiagramWay.Down or DiagramWay.Up;
         if (Math.Abs(down ? from.X - to.X : from.Y - to.Y) < 1) return [from, to];
+        if (Math.Abs(down ? from.Y - to.Y : from.X - to.X) < 1) return [from, to];
 
         var half = down ? (from.Y + to.Y) / 2 : (from.X + to.X) / 2;
 
@@ -536,12 +614,15 @@ internal static class DiagramLayers
     }
 
     /// <summary>A place in a rank: a cell, or somewhere a link passing through bends.</summary>
-    private sealed class Place
+    internal sealed class Place
     {
         /// <summary>Which cell it holds, or -1 for a link passing through.</summary>
         public int Cell { get; init; } = -1;
 
         public int Rank { get; init; }
+
+        /// <summary>Which band it is in — the lane holding it, numbered from one, and nought for one in no lane.</summary>
+        public int Lane { get; init; }
 
         /// <summary>How much room it takes across its rank — none, for a bend.</summary>
         public double Size { get; init; }

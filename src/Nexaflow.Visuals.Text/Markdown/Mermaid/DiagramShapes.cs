@@ -264,18 +264,18 @@ internal static class DiagramShapes
     }
 
     /// <summary>
-    /// Draws a shape with words set wherever the diagram puts them — a card's title at its top left and its assignee at its foot —
-    /// as <see cref="Draw(LayoutBuilder, string, ISourcePart?, DiagramShape, Rect, Brush?, DiagramStroke?, DiagramWords?, string)"/>
-    /// draws one with its words in the middle: the shape standing in its outline less where each of its words is, and less what else
-    /// is drawn over it — <paramref name="covered"/>, a column's cards — which a press there means instead.
+    /// Draws a shape with several sets of words placed where the diagram puts them, each standing for what it was drawn from — a node's
+    /// label and its value, a lane's own name turned a quarter turn to read up its band.
     /// </summary>
+    /// <param name="degrees">How far the words are turned, a quarter turn being <c>-90</c>, which reads them up the page.</param>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds, Brush? fill, DiagramStroke? stroke,
-                            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null)
+                            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null,
+                            double degrees = 0)
     {
         var outline = Outline(shape, bounds);
         var over = new GeometryGroup();
         if (covered is not null) over.Children.Add(covered);
-        foreach (var (said, at, _) in words) over.Children.Add(new RectangleGeometry(new Rect(at, new Size(said.Width, said.Height))));
+        foreach (var (said, at, _) in words) over.Children.Add(new RectangleGeometry(Taken(said, at, degrees)));
 
         build.Open(kind, part, stops: Stops.None);
 
@@ -288,9 +288,20 @@ internal static class DiagramShapes
         build.Occupies(stands);
         build.Close();
 
-        foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind);
+        foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind, degrees);
 
         build.Close();
+    }
+
+    /// <summary>
+    /// The room words take where they are set: their own box, turned about where they are anchored — a quarter turn leaves them reaching
+    /// up from their foot by however wide they are.
+    /// </summary>
+    private static Rect Taken(DiagramWords said, Point at, double degrees)
+    {
+        var room = new Rect(at, new Size(said.Width, said.Height));
+
+        return degrees == 0 ? room : new RotateTransform(degrees, at.X, at.Y).TransformBounds(room);
     }
 
     /// <summary>

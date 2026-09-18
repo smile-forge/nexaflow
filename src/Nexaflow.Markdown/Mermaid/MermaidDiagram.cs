@@ -99,7 +99,9 @@ public static class MermaidDiagrams
         MermaidDiagram.Block => Blocks,
         MermaidDiagram.Architecture => Architectures,
         MermaidDiagram.Sankey => Sankeys,
-        MermaidDiagram.Flowchart => Flowcharts,
+        // A swimlane is a flowchart laid out in lanes, and Mermaid reads the two with one parser: its top-level subgraphs
+        // are the lanes, and everything else about it is a flowchart's. Only its builder differs.
+        MermaidDiagram.Flowchart or MermaidDiagram.Swimlane => Flowcharts,
         _ => null,
     };
 

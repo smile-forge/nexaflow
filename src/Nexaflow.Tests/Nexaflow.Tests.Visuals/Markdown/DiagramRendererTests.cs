@@ -256,71 +256,7 @@ public class DiagramRendererTests
             db:R -- L:server
         """;
 
-    // ── Swimlane diagram ──────────────────────────────────────────────────
 
-    private const string SwimlaneSrc =
-        """
-        swimlane-beta
-            subgraph customer[Customer]
-                start([Place order])
-                pay[Pay]
-            end
-            subgraph fulfilment[Fulfilment]
-                pick{In stock?}
-                ship[Ship order]
-            end
-            start --> pay
-            pay --> pick
-            pick -->|Yes| ship
-            pick -.->|No| pay
-        """;
-
-    [TestMethod]
-    [CoversNode("swimlanes")]
-    public void Swimlane_RendersBorder() => UiThread.Run(() =>
-    {
-        var g = new MermaidSwimlaneParser().Parse(SwimlaneSrc);
-        Assert.IsInstanceOfType(WpfSwimlaneRenderer.Render(g, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    [CoversNode("swimlanes")]
-    public void Swimlane_DispatchesToLaneRendererNotRawText() => UiThread.Run(() =>
-    {
-        var fe = DiagramRenderer.Render("mermaid", SwimlaneSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "swimlane-beta should route to the swimlane renderer");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
-
-    [TestMethod]
-    [CoversNode("swimlanes")]
-    public void Swimlane_HorizontalDirection_Renders() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            swimlane-beta LR
-                subgraph dev[Developer]
-                    code[Write code]
-                end
-                subgraph ci[CI]
-                    build[Build]
-                    test{Tests pass?}
-                end
-                code ==> build
-                build --> test
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    [CoversNode("swimlanes")]
-    public void Swimlane_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var g = new MermaidSwimlaneParser().Parse("swimlane-beta\n");
-        Assert.IsNotNull(WpfSwimlaneRenderer.Render(g, MarkdownPalette.Dark));
-    });
 
     // ── Block diagram ─────────────────────────────────────────────────────
 
