@@ -53,7 +53,10 @@ diagram's own code sits in a folder of its own under each.
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
 | say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens |
-| read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line — then `MermaidShapes.Of` for the shape that was written |
+| read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line, `ends` where a rule of the diagram's own says where the id stops — then `MermaidShapes.Of` for the shape that was written, or `MermaidShapes.Named` for one `@{ shape: … }` names |
+| read a link between two nodes, and what its characters draw | `MermaidLinks.At` — whether one is written there at all, and whether it is the whole of one or the opening of a labelled one — then `MermaidLinks.Of` for its heads, its line and how many ranks it reaches |
+| read the `classDef`, `class` and `style` lines, and work out what everything is styled with | `MermaidStyling`, given the diagram's own roles: `Defined`, `Applied`, `Styled`, then `Styles` in the model and `Resolve` from a stage |
+| read words to where a rule of the diagram's own says they end, rather than to a character | `MermaidLine.Words(role, end)` |
 | lay a style over the classes something is given | `MermaidStyle.Over` |
 | read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets; `MermaidWriting.Only` where a name cannot be quoted at all and what it cannot hold is dropped |
@@ -76,6 +79,8 @@ diagram's own code sits in a folder of its own under each.
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
+| lay nodes joined by lines out in ranks — a flowchart, a state chart | `DiagramLayers.Lay` of `DiagramCell`s and `DiagramJoin`s: ranks by how far the links reach, an order that keeps few lines crossing, boxes laid out in their own space and run their own way, and a route for every line |
+| draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray` |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
 | set words that may hold an entity code — drawn as what the code says, and so pressed rather than typed into | `Says` on the builder |

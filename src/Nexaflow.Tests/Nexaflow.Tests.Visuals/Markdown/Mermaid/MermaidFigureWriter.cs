@@ -24,6 +24,7 @@ public class MermaidFigureWriter
     /// <summary>Each figure: the help page's heading over the example, and the file it is written to.</summary>
     private static readonly (string Heading, string File)[] Figures =
     [
+        ("Flowchart", "mermaid-flowchart.png"),
         ("Pie chart", "mermaid-pie.png"),
         ("Venn diagram", "mermaid-venn.png"),
         ("Radar chart", "mermaid-radar.png"),

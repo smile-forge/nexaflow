@@ -141,21 +141,26 @@ The rest of this section walks through every supported diagram type.
 
 ### Flowchart
 
-Boxes, decisions and flows in any direction, with shaped nodes and labelled edges.
+Boxes, decisions and flows in any direction, with shaped nodes, labelled edges, subgraphs that gather them and classes that
+colour them.
 
 ````markdown
 ```mermaid
 flowchart LR
     Start([Open .md]) --> Parse[Parse markdown]
     Parse --> Q{Diagram fence?}
-    Q -- yes --> Native[Render natively]
-    Q -- no --> Text[Render as text]
+    subgraph Drawing
+        Q -- yes --> Native[Render natively]
+        Q -- no --> Text[Render as text]
+    end
     Native --> Done([Display])
     Text --> Done
+    classDef chosen fill:#6e6ce6,stroke:#333
+    class Native chosen
 ```
 ````
 
-![A flowchart with stadium, rectangle and diamond nodes](images/markdown/mermaid-flowchart.png)
+![A flowchart running left to right, two of its nodes gathered in a subgraph and one coloured by a class](images/markdown/mermaid-flowchart.png)
 
 ### Sequence diagram
 

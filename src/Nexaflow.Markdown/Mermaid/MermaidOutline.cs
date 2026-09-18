@@ -34,7 +34,8 @@ public static class MermaidOutline
     /// stands for its own characters and the space between two of them is the line's.
     /// </param>
     public static bool Node(MermaidLine line, string idRole, string titleRole, string stops, out bool titled,
-                            IReadOnlyList<(string Open, string Close)>? brackets = null, bool spaced = true)
+                            IReadOnlyList<(string Open, string Close)>? brackets = null, bool spaced = true,
+                            Func<string, int, int>? ends = null)
     {
         var written = brackets ?? Brackets;
         titled = Bracket(line, written) is not null;
@@ -42,7 +43,10 @@ public static class MermaidOutline
         if (!titled)
         {
             line.Open();
-            line.Words(idRole, until: stops);
+
+            if (ends is null) line.Words(idRole, until: stops);
+            else line.Words(idRole, ends(line.Written, line.At));
+
             line.Close(MermaidKinds.Name, idRole);
 
             var mark = line.Save();

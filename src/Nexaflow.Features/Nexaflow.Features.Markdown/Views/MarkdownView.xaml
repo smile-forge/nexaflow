@@ -17,8 +17,139 @@
     </UserControl.InputBindings>
 
     <UserControl.Resources>
-        <cv:BoolToVisibilityConverter        x:Key="BoolVis"/>
-        <cv:InverseBoolToVisibilityConverter x:Key="InvBoolVis"/>
+        <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             VIEW-MODE SLIDER — three stops, Rendered · Split · Source
+             The rail is a plain track with a dot under each stop rather than a bar that fills up: the
+             thumb says which mode is chosen, not how much of something there is. Rail and dots are both
+             inset by half the thumb, so a dot sits exactly where the thumb's centre comes to rest at any
+             width. Every brush is a palette token — the control is whatever the active theme makes of it.
+             ══════════════════════════════════════════════════════════════════ -->
+
+        <!-- Either side of the thumb: hit-testable (so a click jumps to the nearest stop) but unpainted. -->
+        <Style x:Key="ModeSliderRail" TargetType="RepeatButton">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Focusable"             Value="False"/>
+            <Setter Property="IsTabStop"             Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModeSliderThumb" TargetType="Thumb">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Width"                 Value="14"/>
+            <Setter Property="Height"                Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <!-- Ringed in the toolbar's own surface, so the disc reads as a knob lifted off the
+                             rail rather than a blob sitting on it — on a light theme as on a dark one. -->
+                        <Ellipse x:Name="Disc"
+                                 Fill="{StaticResource AccentBrush}"
+                                 Stroke="{StaticResource SurfaceBrush}"
+                                 StrokeThickness="2"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Disc" Property="Fill" Value="{StaticResource Accent2Brush}"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Disc" Property="Fill" Value="{StaticResource Accent2Brush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModeSlider" TargetType="Slider">
+            <Setter Property="Minimum"              Value="0"/>
+            <Setter Property="Maximum"              Value="2"/>
+            <Setter Property="TickFrequency"        Value="1"/>
+            <Setter Property="IsSnapToTickEnabled"  Value="True"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="SmallChange"          Value="1"/>
+            <Setter Property="LargeChange"          Value="1"/>
+            <Setter Property="Height"               Value="16"/>
+            <Setter Property="Cursor"               Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Background="Transparent">
+                            <!-- Rail and dots are the muted-text tone, thinned. It is the one token guaranteed to read
+                                 against its own surface whichever way round the theme is — a border tone goes pale on
+                                 the light themes and a surface tone all but vanishes on them. -->
+                            <Border x:Name="Rail" Height="3" CornerRadius="1.5"
+                                    Margin="7,0" VerticalAlignment="Center" Opacity="0.35"
+                                    Background="{StaticResource TextMutedBrush}"/>
+                            <Grid Margin="7,0" VerticalAlignment="Center" Opacity="0.7">
+                                <Ellipse Width="5" Height="5" Fill="{StaticResource TextMutedBrush}"
+                                         HorizontalAlignment="Left"   Margin="-2.5,0,0,0"/>
+                                <Ellipse Width="5" Height="5" Fill="{StaticResource TextMutedBrush}"
+                                         HorizontalAlignment="Center"/>
+                                <Ellipse Width="5" Height="5" Fill="{StaticResource TextMutedBrush}"
+                                         HorizontalAlignment="Right"  Margin="0,0,-2.5,0"/>
+                            </Grid>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource ModeSliderRail}" Command="Slider.DecreaseLarge"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ModeSliderThumb}"/>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource ModeSliderRail}" Command="Slider.IncreaseLarge"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Arrow keys move a stop at a time, so the rail says where the focus is. -->
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Rail" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Rail" Property="Opacity"    Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The stop names under the rail: the one in force in the body text colour, the rest muted — the
+             same "muted until it is the one you are on" the toolbar's buttons use, and readable on any
+             theme because both ends of it are text tokens. -->
+        <Style x:Key="ModeLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        </Style>
+        <Style x:Key="ModeLabelRendered" TargetType="TextBlock" BasedOn="{StaticResource ModeLabel}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ViewMode}" Value="Rendered">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ModeLabelSplit" TargetType="TextBlock" BasedOn="{StaticResource ModeLabel}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ViewMode}" Value="Split">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ModeLabelSource" TargetType="TextBlock" BasedOn="{StaticResource ModeLabel}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ViewMode}" Value="Source">
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
 
@@ -56,14 +187,28 @@
                                          VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </StackPanel>
 
-                <!-- Source-only toggle (default off → rendered + inline editing) -->
-                <ToggleButton Grid.Column="1"
-                              Style="{StaticResource TbToggle}"
-                              Margin="0,0,6,0"
-                              Content="&lt;/&gt; Source"
-                              ToolTip="Edit raw markdown source"
-                              AutomationProperties.AutomationId="Markdown_SourceToggle"
-                              IsChecked="{Binding SourceOnly, Mode=TwoWay}"/>
+                <!-- View mode: the three-stop slider, with the stop names under its rail. Fixed width so the
+                     toolbar's Auto column does not resize as the labels change weight. -->
+                <StackPanel Grid.Column="1" Width="176" Margin="0,0,14,0" VerticalAlignment="Center">
+                    <Slider Style="{StaticResource ModeSlider}"
+                            AutomationProperties.AutomationId="Markdown_ViewMode"
+                            AutomationProperties.Name="View mode"
+                            ToolTip="What to show: the rendered document, both side by side, or the raw markdown source"
+                            Value="{Binding ViewModeIndex, Mode=TwoWay}"/>
+                    <Grid Margin="0,1,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Rendered" HorizontalAlignment="Left"
+                                   Style="{StaticResource ModeLabelRendered}"/>
+                        <TextBlock Grid.Column="1" Text="Split" HorizontalAlignment="Center"
+                                   Style="{StaticResource ModeLabelSplit}"/>
+                        <TextBlock Grid.Column="2" Text="Source" HorizontalAlignment="Right"
+                                   Style="{StaticResource ModeLabelSource}"/>
+                    </Grid>
+                </StackPanel>
 
                 <!-- Save button (greyed out when clean) -->
                 <Button Grid.Column="2"
@@ -81,7 +226,8 @@
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════
-             DOCUMENT — two surfaces over the same text, toggled by SourceOnly (+ minimap match strip)
+             DOCUMENT — two surfaces over the same text, shown one at a time or side by side by the
+             view-mode slider (+ minimap match strip)
              ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1" Background="{StaticResource BgBrush}">
             <Grid.ColumnDefinitions>
@@ -89,37 +235,57 @@
                 <ColumnDefinition Width="14"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Default: rendered markdown with inline editing. The reading inset is ContentPadding, not a
-                 Margin, so the editor's scrollbar sits flush against the minimap (a right margin would gap it). -->
-            <md:InlineMarkdownEditor x:Name="Editor"
-                                     Grid.Column="0"
-                                     ContentPadding="40,24,40,48"
-                                     EditOnDoubleClick="True"
-                                     BaseFontSize="{Binding Zoom.FontSize}"
-                                     AutomationProperties.AutomationId="Markdown_Editor"
-                                     Visibility="{Binding SourceOnly, Converter={StaticResource InvBoolVis}}"
-                                     SingleBlock="{Binding SingleBlock, Mode=OneTime}"
-                                     Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            <!-- Source on the left, rendered on the right — the order the split reads in, and the order the
+                 columns keep when one of them has the pane to itself. A hidden surface's column goes to zero
+                 as well as the surface, so the one showing gets the whole width rather than half of it; the
+                 code-behind sets the three widths and holds the ratio the drag handle was left at. -->
+            <Grid Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="SourceColumn"   Width="0"/>
+                    <ColumnDefinition x:Name="SplitterColumn" Width="0"/>
+                    <ColumnDefinition x:Name="RenderedColumn" Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- Source-only: the whole document as raw markdown -->
-            <TextBox x:Name="SourceBox"
-                     Grid.Column="0"
-                     AutomationProperties.AutomationId="Markdown_SourceBox"
-                     Visibility="{Binding SourceOnly, Converter={StaticResource BoolVis}}"
-                     Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     AcceptsReturn="True"
-                     AcceptsTab="True"
-                     TextWrapping="Wrap"
-                     SpellCheck.IsEnabled="False"
-                     FontFamily="Consolas, Courier New"
-                     FontSize="{Binding Zoom.FontSize}"
-                     Foreground="{StaticResource TextBrush}"
-                     Background="{StaticResource DeepBgBrush}"
-                     CaretBrush="{StaticResource AccentBrush}"
-                     BorderThickness="0"
-                     Padding="40,24,40,48"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Auto"/>
+                <!-- The whole document as raw markdown -->
+                <TextBox x:Name="SourceBox"
+                         Grid.Column="0"
+                         AutomationProperties.AutomationId="Markdown_SourceBox"
+                         Visibility="{Binding ShowSource, Converter={StaticResource BoolVis}}"
+                         Text="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="Wrap"
+                         SpellCheck.IsEnabled="False"
+                         FontFamily="Consolas, Courier New"
+                         FontSize="{Binding Zoom.FontSize}"
+                         Foreground="{StaticResource TextBrush}"
+                         Background="{StaticResource DeepBgBrush}"
+                         CaretBrush="{StaticResource AccentBrush}"
+                         BorderThickness="0"
+                         Padding="40,24,40,48"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"/>
+
+                <!-- Only in the split: drag it to give either half more of the pane. -->
+                <GridSplitter Grid.Column="1"
+                              Width="4"
+                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                              ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"
+                              Background="{StaticResource BorderBrush}"
+                              Visibility="{Binding IsSplit, Converter={StaticResource BoolVis}}"/>
+
+                <!-- Rendered markdown with inline editing. The reading inset is ContentPadding, not a Margin,
+                     so the editor's scrollbar sits flush against the minimap (a right margin would gap it). -->
+                <md:InlineMarkdownEditor x:Name="Editor"
+                                         Grid.Column="2"
+                                         ContentPadding="40,24,40,48"
+                                         EditOnDoubleClick="True"
+                                         BaseFontSize="{Binding Zoom.FontSize}"
+                                         AutomationProperties.AutomationId="Markdown_Editor"
+                                         Visibility="{Binding ShowRendered, Converter={StaticResource BoolVis}}"
+                                         SingleBlock="{Binding SingleBlock, Mode=OneTime}"
+                                         Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            </Grid>
 
             <!-- Minimap match strip: proportional tick marks for the current search's matches -->
             <ed:MiniMapStrip x:Name="MiniMapCanvas"

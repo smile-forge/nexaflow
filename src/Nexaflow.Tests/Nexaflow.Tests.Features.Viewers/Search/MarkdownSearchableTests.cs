@@ -63,7 +63,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     protected override string Snapshot(ISearchable page)
     {
         var vm = (MarkdownViewModel)page;
-        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{vm.SourceOnly}";
+        return $"{vm.SearchMatchCount}|{vm.IsSearchActive}|{vm.CurrentSearchTerm}|{vm.ViewMode}";
     }
 
     // ── Agent (non-display) reads the source, never touches the view ──────────
@@ -72,7 +72,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void AgentSearch_ReadsSource_RegardlessOfViewMode() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = false;   // rendered view is showing
+        vm.ViewMode = MarkdownViewMode.Rendered;   // rendered view is showing
 
         var outcome = await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: false, default);
 
@@ -87,7 +87,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void DisplayingInSourceMode_SelectsInTheSourceBox() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = true;
+        vm.ViewMode = MarkdownViewMode.Source;
 
         (int Offset, int Length)? span = null;
         vm.SourceSelectionRequested += (o, l) => span ??= (o, l);
@@ -96,7 +96,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
 
         Assert.AreEqual(2, vm.SearchMatchCount);
         Assert.IsTrue(vm.IsSearchActive);
-        Assert.IsTrue(vm.SourceOnly, "the search never switches the view");
+        Assert.AreEqual(MarkdownViewMode.Source, vm.ViewMode, "the search never switches the view");
         Assert.IsNotNull(span, "the first match is selected in the source box");
         Assert.AreEqual(LiteralTermInContent, vm.Markdown.Substring(span!.Value.Offset, span.Value.Length),
             "the box is told to select the match itself");
@@ -106,12 +106,12 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void DisplayingSearch_NeverSwitchesTheView() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = false;                        // rendered
+        vm.ViewMode = MarkdownViewMode.Rendered;      // rendered
         vm.FindInRendered = _ => [new RenderedMatch(0, "The alpha42 build fixes the importer.")];
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
 
-        Assert.IsFalse(vm.SourceOnly, "a rendered-mode search stays in the rendered view");
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode, "a rendered-mode search stays in the rendered view");
         Assert.AreEqual(1, vm.SearchMatchCount, "the rendered surface's own match count is used");
     });
 
@@ -121,7 +121,7 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void DisplayingInRenderedMode_DelegatesToTheRenderedSurface() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = false;
+        vm.ViewMode = MarkdownViewMode.Rendered;
 
         TextSearchMatcher? handed = null;
         vm.FindInRendered = m => { handed = m; return [new RenderedMatch(0, "preview")]; };
@@ -136,12 +136,12 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void SwitchingSurfaceWhileSearching_AbandonsTheSearch() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = true;
+        vm.ViewMode = MarkdownViewMode.Source;
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
         Assert.IsTrue(vm.IsSearchActive);
 
-        vm.SourceOnly = false;   // toggled to the rendered view
+        vm.ViewMode = MarkdownViewMode.Rendered;   // slid back to the rendered view
 
         Assert.IsFalse(vm.IsSearchActive, "the search belonged to the surface that is no longer showing");
         Assert.AreEqual(0, vm.SearchMatchCount);
@@ -151,13 +151,13 @@ public sealed class MarkdownSearchableTests : SearchableContentConformanceTests
     public void ClearingSearch_LeavesTheViewModeUntouched() => WithPage(async page =>
     {
         var vm = (MarkdownViewModel)page;
-        vm.SourceOnly = false;
+        vm.ViewMode = MarkdownViewMode.Rendered;
         vm.FindInRendered = _ => [new RenderedMatch(0, "x")];
 
         await vm.SearchAsync(new SearchRequest(LiteralTermInContent), display: true, default);
         vm.ClearSearchCommand.Execute(null);
 
         Assert.IsFalse(vm.IsSearchActive);
-        Assert.IsFalse(vm.SourceOnly, "clearing a search does not change the view mode");
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode, "clearing a search does not change the view mode");
     });
 }

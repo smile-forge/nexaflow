@@ -118,11 +118,11 @@ public class BlockDiagramTests
 
         CollectionAssert.AreEqual(new[] { "a", "c", "e", "g" }, links.Select(link => link.From).ToArray());
         CollectionAssert.AreEqual(new[] { "b", "d", "f", "h" }, links.Select(link => link.To).ToArray());
-        CollectionAssert.AreEqual(new[] { BlockHead.None, BlockHead.Arrow, BlockHead.Arrow, BlockHead.Arrow },
+        CollectionAssert.AreEqual(new[] { MermaidHead.None, MermaidHead.Arrow, MermaidHead.Arrow, MermaidHead.Arrow },
                                   links.Select(link => link.End).ToArray());
-        Assert.IsTrue(links[2].Thick, "a link of equals signs is drawn thick");
-        Assert.IsTrue(links[3].Dotted);
-        Assert.IsFalse(links[1].Dotted);
+        Assert.AreEqual(MermaidLineStyle.Thick, links[2].Style, "a link of equals signs is drawn thick");
+        Assert.AreEqual(MermaidLineStyle.Dotted, links[3].Style);
+        Assert.AreEqual(MermaidLineStyle.Solid, links[1].Style);
     }
 
     [TestMethod]
@@ -130,11 +130,11 @@ public class BlockDiagramTests
     {
         var links = BlockDiagram.Read("block-beta\n  a b c d e f\n  a <--> b\n  c --x d\n  e o--o f").Links;
 
-        Assert.AreEqual(BlockHead.Arrow, links[0].Start);
-        Assert.AreEqual(BlockHead.Arrow, links[0].End);
-        Assert.AreEqual(BlockHead.Cross, links[1].End);
-        Assert.AreEqual(BlockHead.Circle, links[2].Start);
-        Assert.AreEqual(BlockHead.Circle, links[2].End);
+        Assert.AreEqual(MermaidHead.Arrow, links[0].Start);
+        Assert.AreEqual(MermaidHead.Arrow, links[0].End);
+        Assert.AreEqual(MermaidHead.Cross, links[1].End);
+        Assert.AreEqual(MermaidHead.Circle, links[2].Start);
+        Assert.AreEqual(MermaidHead.Circle, links[2].End);
     }
 
     [TestMethod]
@@ -143,7 +143,7 @@ public class BlockDiagramTests
         var link = BlockDiagram.Read("block-beta\n  a space:2 b\n  a -- \"X\" --> b").Links.Single();
 
         Assert.AreEqual("X", link.Said!.Text);
-        Assert.AreEqual(BlockHead.Arrow, link.End);
+        Assert.AreEqual(MermaidHead.Arrow, link.End);
     }
 
     [TestMethod]

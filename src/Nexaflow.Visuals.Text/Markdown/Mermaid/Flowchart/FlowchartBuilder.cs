@@ -1,0 +1,447 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Visuals.Text.Editing;
+
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
+
+/// <summary>The pieces a flowchart's layout is made of — its layers, and what is in them.</summary>
+public static class FlowchartPiece
+{
+    /// <summary>The chart itself: the nodes, and the subgraphs they are gathered into.</summary>
+    public const string Nodes = "Nodes";
+
+    /// <summary>One node, standing for what was written for it.</summary>
+    public const string Node = "Node";
+
+    /// <summary>A subgraph: the box, and the nodes it holds drawn inside its piece.</summary>
+    public const string Group = "Group";
+
+    /// <summary>A subgraph's own box and what is written at the top of it, behind the nodes it holds.</summary>
+    public const string Holding = "Holding";
+
+    /// <summary>The links, drawn over the chart.</summary>
+    public const string Links = "Links";
+
+    /// <inheritdoc cref="Links"/>
+    public const string Link = "Link";
+
+    /// <summary>What is written on a link, over the middle of its line.</summary>
+    public const string Label = "Label";
+}
+
+/// <summary>
+/// Draws a <c>flowchart</c> — or a <c>graph</c>, which Mermaid reads the same way. The nodes are laid out in ranks by how far
+/// along the links reach them (<see cref="DiagramLayers"/>), each rank ordered so as few lines cross as can be managed, and the
+/// whole thing runs the way the header asks: down, up, left or right.
+///
+/// <para>
+/// <strong>A subgraph holds its nodes in the layout.</strong> What is inside one is laid out in its own space — which is what
+/// lets a <c>direction</c> line run it its own way — and drawn inside the subgraph's piece, so pressing a node means that node
+/// and pressing the room round it means the subgraph holding it. A subgraph stands only where its own nodes, and the links drawn
+/// over it, leave it uncovered.
+/// </para>
+/// <para>
+/// <strong>Everything drawn stands for what was written.</strong> A node stands for the node written for it, and what is drawn on
+/// it is the characters written — its label, or its id where nothing else says anything.
+/// </para>
+/// </summary>
+internal sealed class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
+{
+    /// <summary>How big what is written on a node is, and on a link.</summary>
+    private const double TextSize = 13;
+    private const double LabelSize = 11.5;
+
+    /// <summary>The least room a node takes, so a node with little to say is still a node to look at.</summary>
+    private const double Least = 60;
+    private const double Short = 34;
+
+    /// <summary>The clear air inside a node's shape, and inside a subgraph's box.</summary>
+    private const double Pad = 10;
+    private const double Boxed = 14;
+
+    /// <summary>How thick a link written with equals signs is drawn.</summary>
+    private const double Thick = 2.5;
+
+    /// <summary>How solid a subgraph's background is, over the colour its place among the subgraphs gives it.</summary>
+    private const double Wash = 0.14;
+
+    private FlowchartBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
+        : base(state, palette, pixelsPerDip, room, writing) { }
+
+    /// <summary>Lays a flowchart's source out. Never null, and never throws.</summary>
+    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
+    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
+                             bool writing = false) =>
+        new FlowchartBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+
+    /// <inheritdoc/>
+    protected override FlowchartDiagram Of(MermaidBlock block) => FlowchartDiagram.Of(block);
+
+    protected override Size Draw(FlowchartDiagram diagram, LayoutBuilder build)
+    {
+        // A flowchart with nothing written in it is the source: what the reader wants back is their own lines.
+        if (diagram.Nodes.Count == 0 && diagram.Groups.Count == 0) return AsWritten(build);
+
+        var plan = Laid(diagram);
+        var room = Reached(diagram, plan);
+
+        // The links are worked out before anything is drawn, because whatever is under one does not stand where it runs.
+        var routes = Routes(diagram, plan, room);
+        var over = Covered(routes);
+
+        build.Open(FlowchartPiece.Nodes, part: null, stops: Stops.None);
+        foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
+        foreach (var node in diagram.Inside(null)) Drawn(build, plan, room, node, over);
+        build.Close();
+
+        Links(build, routes, diagram.Config);
+
+        return room.Size;
+    }
+
+    // ── Laying it out ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Everything measured and placed: a cell for each node and each subgraph, a join for each link, and the layered layout run
+    /// over the lot of them.
+    /// </summary>
+    private Plan Laid(FlowchartDiagram diagram)
+    {
+        var plan = new Plan();
+        var cells = new List<DiagramCell>();
+
+        // The subgraphs first, outermost in, so a nested one knows the cell it sits inside.
+        foreach (var group in Nested(diagram, null))
+        {
+            var words = Wrapped(group.Said, group.SaidHole, TextSize, Ink.Written(group.Style.Colour) ?? Palette.Text,
+                                diagram.Config.Wrapping);
+            var said = DiagramWords.Taken(words);
+
+            var box = new Box(group, words)
+            {
+                Cell = new DiagramCell(new Size(said.Width + (Boxed * 2), 0))
+                {
+                    Inside = group.Parent is { } parent ? plan.Groups[parent].Cell : null,
+                    Way = group.Way is { } way ? Towards(way) : null,
+                    Pad = Boxed,
+                    Heading = said.Height > 0 ? said.Height + diagram.Config.TitleMargin + (Boxed / 2) : 0,
+                },
+            };
+
+            plan.Groups[group.Key] = box;
+            cells.Add(box.Cell);
+        }
+
+        foreach (var node in diagram.Nodes)
+        {
+            var shape = Shaped(node);
+            var words = Said(node, diagram.Config.Wrapping);
+            var taken = DiagramWords.Taken(words);
+            var around = DiagramShapes.Around(shape, taken, Pad);
+
+            var sized = new Sized(node, words, shape)
+            {
+                Cell = new DiagramCell(new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)))
+                {
+                    Inside = node.Group is { } group && plan.Groups.TryGetValue(group, out var box) ? box.Cell : null,
+                },
+            };
+
+            plan.Nodes.Add(sized);
+            if (node.Id.Length > 0) plan.Named.TryAdd(node.Id, sized);
+            cells.Add(sized.Cell);
+        }
+
+        foreach (var link in diagram.Links)
+        {
+            if (Ended(plan, diagram, link.From) is not { } from || Ended(plan, diagram, link.To) is not { } to) continue;
+
+            var join = new DiagramJoin(from, to, link.Span);
+            plan.Joins[link] = join;
+        }
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], Towards(diagram.Way),
+                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
+
+        return plan;
+    }
+
+    /// <summary>The cell a link's end names: a node, or a subgraph where the id names one of those instead.</summary>
+    private static DiagramCell? Ended(Plan plan, FlowchartDiagram diagram, string id)
+    {
+        if (plan.Named.TryGetValue(id, out var node)) return node.Cell;
+
+        var group = diagram.Groups.FirstOrDefault(held => string.Equals(held.Id, id, StringComparison.Ordinal));
+        return group is not null && plan.Groups.TryGetValue(group.Key, out var box) ? box.Cell : null;
+    }
+
+    /// <summary>The subgraphs, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
+    private static IEnumerable<FlowchartGroup> Nested(FlowchartDiagram diagram, string? inside)
+    {
+        foreach (var group in diagram.Within(inside))
+        {
+            yield return group;
+            foreach (var held in Nested(diagram, group.Key)) yield return held;
+        }
+    }
+
+    /// <summary>
+    /// Everything the chart means to draw, gathered so the whole of it — a link looping out beside a node included — is brought
+    /// inside the box the block takes.
+    /// </summary>
+    private DiagramRoom Reached(FlowchartDiagram diagram, Plan plan)
+    {
+        var room = new DiagramRoom(diagram.Config.Padding);
+
+        room.Reach(new Rect(default, plan.Size));
+        foreach (var node in plan.Nodes) room.Reach(node.Cell.Bounds);
+        foreach (var box in plan.Groups.Values) room.Reach(box.Cell.Bounds);
+
+        foreach (var (link, join) in plan.Joins)
+        {
+            foreach (var at in join.Route) room.Reach(new Rect(at, at));
+
+            if (Says(link) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
+        }
+
+        return room;
+    }
+
+    /// <summary>What is written on a node: its label, or the words an <c>id@{ label: … }</c> line worked out for it.</summary>
+    private IReadOnlyList<DiagramWords> Said(FlowchartNode node, double widest)
+    {
+        var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
+
+        if (node.Worked is { Length: > 0 } worked) return [Worked(worked, node.WorkedPart, TextSize, ink)];
+
+        return node.Said is null && node.SaidHole is null ? [] : Wrapped(node.Said, node.SaidHole, TextSize, ink, widest);
+    }
+
+    /// <summary>What is written on a link, where anything is.</summary>
+    private IReadOnlyList<DiagramWords> Says(FlowchartLink link) =>
+        link.Said is null && link.SaidHole is null
+            ? []
+            : Wrapped(link.Said, link.SaidHole, LabelSize, Ink.Written(link.Written.Colour) ?? Palette.Text, Widest);
+
+    /// <summary>How wide what is written on a link runs before it wraps.</summary>
+    private const double Widest = 160;
+
+    // ── The links ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Where every link runs, once everything is placed: the layout's own route, its ends brought in to the edges of the shapes it
+    /// joins, and the room what is written on it takes over the middle of the line.
+    /// </summary>
+    private List<Route> Routes(FlowchartDiagram diagram, Plan plan, DiagramRoom room)
+    {
+        var routes = new List<Route>();
+
+        foreach (var link in diagram.Links)
+        {
+            if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
+
+            var along = Trimmed(plan, link, join);
+            var placed = along.Select(room.At).ToList();
+            var said = Says(link);
+
+            routes.Add(new Route(link, placed, said, DiagramConnector.Room(placed, said)));
+        }
+
+        return routes;
+    }
+
+    /// <summary>
+    /// A route's ends brought in from the middles of what it joins to their edges, so the line meets the shape rather than running
+    /// into it. A link back to the node it leaves already runs beside it, and is left alone.
+    /// </summary>
+    private static IReadOnlyList<Point> Trimmed(Plan plan, FlowchartLink link, DiagramJoin join)
+    {
+        var points = join.Route.ToList();
+        if (ReferenceEquals(join.From, join.To)) return points;
+
+        points[0] = Edge(plan, join.From, points[1]);
+        points[^1] = Edge(plan, join.To, points[^2]);
+
+        return points;
+    }
+
+    /// <summary>Where a line reaching a cell from <paramref name="toward"/> meets it: the shape's edge, for a node.</summary>
+    private static Point Edge(Plan plan, DiagramCell cell, Point toward)
+    {
+        var shape = plan.Nodes.FirstOrDefault(node => ReferenceEquals(node.Cell, cell))?.Shape ?? DiagramShape.Rounded;
+
+        return DiagramShapes.Edge(shape, cell.Bounds, toward);
+    }
+
+    /// <summary>What the links cover, which whatever is drawn under them does not stand in.</summary>
+    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
+    {
+        var over = new List<Geometry>();
+
+        foreach (var route in routes.Where(route => route.Link.Drawn))
+        {
+            over.Add(DiagramConnector.Band(route.Along, Thick));
+            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
+        }
+
+        return over;
+    }
+
+    /// <summary>The links, drawn over the chart.</summary>
+    private void Links(LayoutBuilder build, IReadOnlyList<Route> routes, FlowchartConfig config)
+    {
+        if (routes.Count == 0) return;
+
+        build.Open(FlowchartPiece.Links, part: null, stops: Stops.None);
+
+        foreach (var route in routes)
+        {
+            // A link of tildes draws nothing at all: it only holds what it joins apart.
+            if (!route.Link.Drawn) continue;
+
+            var written = route.Link.Written;
+            var stroke = DiagramConnector.Stroked(Ink.Written(written.Stroke) ?? Palette.TextMuted, route.Link.Style,
+                                                 written.StrokeWidth ?? 1, Thick, DiagramInk.Dashes(written.Dashes));
+
+            // A link's own metadata says how it is curved, over whatever the front matter asks for every one of them.
+            var curved = route.Link.Curve is { Length: > 0 } curve ? FlowchartConfig.Curving(curve) : config.Curved;
+
+            DiagramConnector.Draw(build, FlowchartPiece.Link, route.Link.Part, route.Along, stroke,
+                                  DiagramConnector.Headed(route.Link.Start), DiagramConnector.Headed(route.Link.End), curved);
+
+            DiagramConnector.Says(build, FlowchartPiece.Label, route.Link.Part, route.Room, route.Said, Palette.CodeBg);
+        }
+
+        build.Close();
+    }
+
+    // ── Drawing it ──────────────────────────────────────────────────────────
+
+    /// <summary>A subgraph: its box, what is written at the top of it, and the nodes it holds drawn inside its piece.</summary>
+    private void Held(LayoutBuilder build, FlowchartDiagram diagram, Plan plan, DiagramRoom room, FlowchartGroup group,
+                      IReadOnlyList<Geometry> over)
+    {
+        var box = plan.Groups[group.Key];
+        var bounds = room.At(box.Cell.Bounds);
+        var said = DiagramWords.Taken(box.Words);
+        var heading = new Rect(bounds.X + Boxed, bounds.Y + (Boxed / 3), Math.Max(0, bounds.Width - (Boxed * 2)), said.Height);
+
+        var covered = DiagramShapes.United(
+        [
+            .. over,
+            .. diagram.Within(group.Key).Select(nested => DiagramShapes.Outline(DiagramShape.Rounded, room.At(plan.Groups[nested.Key].Cell.Bounds))),
+            .. Inside(diagram, plan, group.Key).Select(node => DiagramShapes.Outline(node.Shape, room.At(node.Cell.Bounds))),
+        ]);
+
+        build.Open(FlowchartPiece.Group, group.Part, stops: Stops.None);
+        DiagramShapes.Draw(build, FlowchartPiece.Holding, group.Part, DiagramShape.Rounded, bounds, Fill(group), Stroke(group.Style),
+                           DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered);
+
+        foreach (var nested in diagram.Within(group.Key)) Held(build, diagram, plan, room, nested, over);
+        foreach (var node in diagram.Inside(group.Key)) Drawn(build, plan, room, node, over);
+        build.Close();
+    }
+
+    /// <summary>One node: its shape, and what is written on it inside that shape.</summary>
+    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, FlowchartNode node, IReadOnlyList<Geometry> over)
+    {
+        if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
+
+        var bounds = room.At(sized.Cell.Bounds);
+        var words = DiagramWords.Placed(sized.Words, DiagramShapes.Inside(sized.Shape, bounds), MermaidPiece.Words);
+
+        // A node asked to be words alone is drawn as its words: nothing is filled or stroked round them.
+        var plain = node.Shape == MermaidShape.Text;
+
+        DiagramShapes.Draw(build, FlowchartPiece.Node, node.Part, sized.Shape, bounds,
+                           plain ? null : Fill(node), plain ? null : Stroke(node.Style), words, DiagramShapes.United(over));
+    }
+
+    private static IEnumerable<Sized> Inside(FlowchartDiagram diagram, Plan plan, string? group) =>
+        diagram.Inside(group)
+            .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
+            .OfType<Sized>();
+
+    // ── Colour and shape ────────────────────────────────────────────────────
+
+    /// <summary>What a node is drawn as: the shape its brackets or its metadata say, and a box where nothing says one.</summary>
+    private static DiagramShape Shaped(FlowchartNode node) =>
+        node.Shape is MermaidShape.None or MermaidShape.Text ? DiagramShape.Rectangle : DiagramShapes.For(node.Shape);
+
+    /// <summary>What a node is filled with: what its styling writes, and otherwise the card's own colour.</summary>
+    private Brush Fill(FlowchartNode node)
+    {
+        var fill = Ink.Written(node.Style.Fill) ?? Palette.CodeBg;
+
+        return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
+    }
+
+    /// <summary>
+    /// What a subgraph's box is filled with: what its styling writes, and otherwise a wash of the colour its place among the
+    /// subgraphs gives it, so one opened inside another is told apart from it.
+    /// </summary>
+    private Brush Fill(FlowchartGroup group)
+    {
+        var fill = Ink.Written(group.Style.Fill) ?? DiagramInk.Faded(Ink.Series(group.Order), Wash);
+
+        return group.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
+    }
+
+    private DiagramStroke Stroke(MermaidStyle style) =>
+        new(Ink.Written(style.Stroke) ?? Palette.CodeBorder, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
+
+    private static DiagramWay Towards(FlowchartWay way) => way switch
+    {
+        FlowchartWay.Up => DiagramWay.Up,
+        FlowchartWay.Right => DiagramWay.Right,
+        FlowchartWay.Left => DiagramWay.Left,
+        _ => DiagramWay.Down,
+    };
+
+    // ── What it works with ──────────────────────────────────────────────────
+
+    /// <summary>A node measured: what is written on it, the shape it is drawn as, and the cell the layout placed it in.</summary>
+    private sealed class Sized(FlowchartNode node, IReadOnlyList<DiagramWords> words, DiagramShape shape)
+    {
+        public FlowchartNode Node { get; } = node;
+
+        public IReadOnlyList<DiagramWords> Words { get; } = words;
+
+        public DiagramShape Shape { get; } = shape;
+
+        public required DiagramCell Cell { get; init; }
+    }
+
+    /// <summary>A subgraph measured: what is written at the top of it, and the cell the layout placed it in.</summary>
+    private sealed class Box(FlowchartGroup group, IReadOnlyList<DiagramWords> words)
+    {
+        public FlowchartGroup Group { get; } = group;
+
+        public IReadOnlyList<DiagramWords> Words { get; } = words;
+
+        public required DiagramCell Cell { get; init; }
+    }
+
+    /// <summary>A link worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
+    private sealed record Route(FlowchartLink Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
+
+    /// <summary>Everything the chart was measured and laid out into.</summary>
+    private sealed class Plan
+    {
+        public List<Sized> Nodes { get; } = [];
+
+        public Dictionary<string, Sized> Named { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, Box> Groups { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<FlowchartLink, DiagramJoin> Joins { get; } = [];
+
+        public Size Size { get; set; }
+    }
+}

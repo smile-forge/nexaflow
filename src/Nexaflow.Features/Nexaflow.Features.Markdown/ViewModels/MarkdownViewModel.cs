@@ -20,8 +20,9 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 ///
 /// Holds the whole document as a single markdown string, two-way bound to the
 /// view's editing surface(s). The default surface is the shared
-/// <c>InlineMarkdownEditor</c> (rendered with inline editing); a toolbar toggle
-/// swaps to <see cref="SourceOnly"/> mode (the raw markdown in one text box).
+/// <c>InlineMarkdownEditor</c> (rendered with inline editing); the toolbar's
+/// three-stop slider swaps to the raw markdown in one text box, or shows the two
+/// side by side - see <see cref="MarkdownViewMode"/>.
 /// Both surfaces bind the same <see cref="Markdown"/>, so edits carry across.
 /// </summary>
 public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel, IContextPreview
@@ -58,9 +59,33 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     [ObservableProperty]
     private string _markdown = string.Empty;
 
-    /// <summary>True = show the raw markdown source; false = rendered + inline editing (default).</summary>
+    /// <summary>Which of the three surfaces the tab is showing: the rendered document (the default), both side
+    /// by side, or the raw source.</summary>
     [ObservableProperty]
-    private bool _sourceOnly;
+    [NotifyPropertyChangedFor(nameof(ViewModeIndex))]
+    [NotifyPropertyChangedFor(nameof(ShowRendered))]
+    [NotifyPropertyChangedFor(nameof(ShowSource))]
+    [NotifyPropertyChangedFor(nameof(IsSplit))]
+    private MarkdownViewMode _viewMode;
+
+    /// <summary>The rendered surface is on screen - alone, or as the right half of the split.</summary>
+    public bool ShowRendered => ViewMode is MarkdownViewMode.Rendered or MarkdownViewMode.Split;
+
+    /// <summary>The raw-source surface is on screen - alone, or as the left half of the split.</summary>
+    public bool ShowSource => ViewMode is MarkdownViewMode.Source or MarkdownViewMode.Split;
+
+    /// <summary>Both surfaces are on screen, with a drag handle between them.</summary>
+    public bool IsSplit => ViewMode is MarkdownViewMode.Split;
+
+    /// <summary>
+    /// The mode as the toolbar slider's position, 0 to 2. The slider snaps to whole ticks, so a value between
+    /// two stops only ever arrives mid-drag; it is read as the stop it is nearest.
+    /// </summary>
+    public double ViewModeIndex
+    {
+        get => (double)(int)ViewMode;
+        set => ViewMode = (MarkdownViewMode)Math.Clamp((int)Math.Round(value), 0, 2);
+    }
 
     // ── Footer stats ──────────────────────────────────────────────────────────
 
@@ -111,14 +136,14 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     }
 
     // ── AI surface helpers (used by the client tools) ─────────────────────
-    // Mutating tools run off the UI thread; the Markdown/SourceOnly properties are two-way bound to WPF
+    // Mutating tools run off the UI thread; the Markdown/ViewMode properties are two-way bound to WPF
     // editors, so every write is marshalled through IShellServices.RunOnUiAsync.
 
     /// <summary>Replaces the whole document (marks dirty via <see cref="OnMarkdownChanged"/>).</summary>
     internal Task SetDocumentAsync(string text) => _shell.RunOnUiAsync(() => { Markdown = text; });
 
-    /// <summary>Switches between the raw-source and rendered views (parity with the toolbar toggle).</summary>
-    internal Task SetSourceModeAsync(bool sourceOnly) => _shell.RunOnUiAsync(() => { SourceOnly = sourceOnly; });
+    /// <summary>Switches which surface(s) are showing (parity with the toolbar slider).</summary>
+    internal Task SetViewModeAsync(MarkdownViewMode mode) => _shell.RunOnUiAsync(() => { ViewMode = mode; });
 
     /// <summary>Saves through the same command the toolbar uses; false when there was nothing to save.</summary>
     internal async Task<bool> SaveFromToolAsync()
@@ -160,7 +185,12 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     {
         var src   = Markdown ?? string.Empty;
         var lines = src.Length == 0 ? 0 : src.Count(c => c == '\n') + 1;
-        var mode  = SourceOnly ? "raw source" : "rendered (inline-edit)";
+        var mode  = ViewMode switch
+        {
+            MarkdownViewMode.Source => "raw source",
+            MarkdownViewMode.Split  => "split (raw source beside rendered inline-edit)",
+            _                       => "rendered (inline-edit)",
+        };
         var dirty = IsDirty ? " (unsaved changes)" : string.Empty;
 
         var sb = new StringBuilder();

@@ -28,12 +28,9 @@ public sealed class BlockGrammar : IMermaidGrammar
     public const string BlockWord = "block";
     public const string EndWord = "end";
     public const string SpaceWord = "space";
-    public const string ClassDefWord = "classDef";
-    public const string ClassWord = "class";
-    public const string StyleWord = "style";
 
-    /// <summary>The class a <c>classDef</c> names to style every block at once.</summary>
-    public const string Every = "default";
+    /// <summary>The classDef, class and style lines, which every diagram with them reads the one way.</summary>
+    public static readonly MermaidStyling Styling = new(Bare, BlockRoles.Id, BlockRoles.Class, "block");
 
     /// <summary>
     /// The characters a bare id ends at: everything a label's brackets open or close with, the characters a link is made of, the
@@ -53,23 +50,19 @@ public sealed class BlockGrammar : IMermaidGrammar
     private const string ColumnShape = "A grid is laid out in columns 3, or in columns auto.";
     private const string ArrowShape = "A block arrow says what it says and where it points: id<[\"Label\"]>(right).";
     private const string LinkShape = "A link joins the blocks either side of it: A --> B, or A -- \"X\" --> B.";
-    private const string ClassDefShape = "A classDef names its class, then the style it is: classDef blue fill:#6e6ce6,stroke:#333.";
-    private const string ClassShape = "A class line names the blocks taking a class, then the class: class A,B blue.";
-    private const string StyleShape = "A style line names the blocks it styles, then the style: style A fill:#969,stroke:#333.";
-
     /// <inheritdoc/>
     public ContentNode? Statement(string text)
     {
         var line = MermaidLine.Of(text);
 
-        return MermaidLine.Keyword(line.Written, Bare, ColumnsWord, EndWord, BlockWord, ClassDefWord, ClassWord, StyleWord) switch
+        return MermaidLine.Keyword(line.Written, Bare, [ColumnsWord, EndWord, BlockWord, .. MermaidStyling.Words]) switch
         {
             ColumnsWord => Columns(line),
             EndWord => Ended(line),
             BlockWord => Opens(line),
-            ClassDefWord => Defined(line),
-            ClassWord => Applied(line),
-            StyleWord => Styled(line),
+            MermaidStyling.ClassDefWord => Styling.Defined(line, BlockKinds.ClassDef),
+            MermaidStyling.ClassWord => Styling.Applied(line, BlockKinds.Class),
+            MermaidStyling.StyleWord => Styling.Styled(line, BlockKinds.Style),
             _ => Items(line),
         };
     }
@@ -183,58 +176,6 @@ public sealed class BlockGrammar : IMermaidGrammar
         return line.Read(BlockKinds.Items);
     }
 
-    /// <summary>A class and the style it is: <c>classDef blue fill:#6e6ce6,stroke:#333;</c>.</summary>
-    private static ContentNode Defined(MermaidLine line)
-    {
-        line.Word(ClassDefWord, letter: Bare);
-        line.Room();
-
-        if (!line.Name(BlockRoles.Class, Bare)) return line.Shown(ClassDefShape);
-
-        line.Room();
-        if (!line.Done && !line.Properties(ends: ';')) return line.Shown(ClassDefShape);
-
-        return Closed(line, BlockKinds.ClassDef, ClassDefShape);
-    }
-
-    /// <summary>The blocks taking a class: <c>class A,B blue</c>.</summary>
-    private static ContentNode Applied(MermaidLine line)
-    {
-        line.Word(ClassWord, letter: Bare);
-        line.Room();
-
-        if (!line.Names(Named, BlockRoles.Id, "block")) return line.Shown(ClassShape);
-
-        line.Room();
-        if (!line.Done && !line.Name(BlockRoles.Class, Bare)) return line.Shown(ClassShape);
-
-        return Closed(line, BlockKinds.Class, ClassShape);
-    }
-
-    /// <summary>The blocks taking a style of their own: <c>style A fill:#969,stroke:#333</c>.</summary>
-    private static ContentNode Styled(MermaidLine line)
-    {
-        line.Word(StyleWord, letter: Bare);
-        line.Room();
-
-        if (!line.Names(Named, BlockRoles.Id, "block")) return line.Shown(StyleShape);
-
-        line.Room();
-        if (!line.Done && !line.Properties(ends: ';')) return line.Shown(StyleShape);
-
-        return Closed(line, BlockKinds.Style, StyleShape);
-    }
-
-    /// <summary>A styling line as far as it goes, with the semicolon that may close it.</summary>
-    private static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
-    }
-
     // ── What a line of blocks is made of ────────────────────────────────────
 
     /// <summary>One block: <c>db</c>, <c>A["A wide one"]</c>, <c>id(("DB")):2</c> — or a block arrow, which is a block too.</summary>
@@ -311,7 +252,7 @@ public sealed class BlockGrammar : IMermaidGrammar
     /// <summary>A link, with its label between the opening of the link and the link that closes it where it has one.</summary>
     private static bool Link(MermaidLine line)
     {
-        if (Joining(line.Written, line.At) is not { } link) return false;
+        if (MermaidLinks.At(line.Written, line.At) is not { } link) return false;
 
         var mark = line.Save();
         line.Open();
@@ -329,14 +270,12 @@ public sealed class BlockGrammar : IMermaidGrammar
         if (!line.Quoted(BlockRoles.Label, what: "label")) return Back(line, mark, LinkShape);
 
         line.Space();
-        if (Joining(line.Written, line.At) is not { Whole: true } closing) return Back(line, mark, LinkShape);
+        if (MermaidLinks.At(line.Written, line.At) is not { Whole: true } closing) return Back(line, mark, LinkShape);
 
         line.Token(Drawn(line, closing), BlockRoles.Arrow);
         line.Close(BlockKinds.Link);
         return true;
     }
-
-    private static bool Named(MermaidLine line) => line.Name(BlockRoles.Id, Bare);
 
     private static bool Direction(MermaidLine line) =>
         line.Name(BlockRoles.Direction, Bare,
@@ -356,70 +295,5 @@ public sealed class BlockGrammar : IMermaidGrammar
 
     // ── What a link is made of ──────────────────────────────────────────────
 
-    /// <summary>
-    /// A link written at <paramref name="at"/>: how many characters it takes, and whether it is the whole link or the opening
-    /// of one whose label — and closing — are still to come.
-    /// </summary>
-    private readonly record struct Joined(int Length, bool Whole);
-
-    /// <summary>What is written at <paramref name="at"/> as a link, or null where nothing there is one.</summary>
-    private static Joined? Joining(string text, int at)
-    {
-        var from = at;
-        if (at < text.Length && text[at] is 'x' or 'o' or '<') at++;
-        if (at >= text.Length) return null;
-
-        return text[at] switch
-        {
-            '-' or '=' => Dashed(text, at, from, text[at]),
-            '.' => Dotted(text, at, from, leading: false),
-
-            // A link drawn as nothing at all, which takes no head and so no character before it either.
-            '~' when at == from && Run(text, at, '~') is var tildes and >= 3 => new Joined(tildes, true),
-            _ => null,
-        };
-    }
-
-    /// <summary>
-    /// A link of dashes or of equals signs. Two of them are the opening of a labelled link; more than two, or two and a head,
-    /// are the whole of one.
-    /// </summary>
-    private static Joined? Dashed(string text, int at, int from, char dash)
-    {
-        var run = Run(text, at, dash);
-
-        // A single dash opens the dots of a dotted link, and is nothing else.
-        if (run == 1) return dash == '-' ? Dotted(text, at + 1, from, leading: true) : null;
-
-        var after = at + run;
-        if (after < text.Length && text[after] is 'x' or 'o' or '>') return new Joined(after + 1 - from, true);
-
-        return run > 2 ? new Joined(after - from, true) : new Joined(at + 2 - from, false);
-    }
-
-    /// <summary>A dotted link: the dots with a dash either side of them — <c>-.-</c>, <c>-.-&gt;</c> — or the <c>-.</c> that opens one.</summary>
-    private static Joined? Dotted(string text, int at, int from, bool leading)
-    {
-        var dots = Run(text, at, '.');
-        if (dots == 0) return null;
-
-        var after = at + dots;
-        if (after >= text.Length || text[after] != '-') return leading ? new Joined(at + 1 - from, false) : null;
-
-        after++;
-        if (after < text.Length && text[after] is 'x' or 'o' or '>') after++;
-
-        return new Joined(after - from, true);
-    }
-
-    /// <summary>How many of <paramref name="character"/> are written in a row at <paramref name="at"/>.</summary>
-    private static int Run(string text, int at, char character)
-    {
-        var end = at;
-        while (end < text.Length && text[end] == character) end++;
-
-        return end - at;
-    }
-
-    private static string Drawn(MermaidLine line, Joined link) => line.Written.Substring(line.At, link.Length);
+    private static string Drawn(MermaidLine line, MermaidLinks.Joined link) => line.Written.Substring(line.At, link.Length);
 }
