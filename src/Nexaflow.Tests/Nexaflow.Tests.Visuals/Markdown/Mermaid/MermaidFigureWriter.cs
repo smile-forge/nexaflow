@@ -109,16 +109,19 @@ public class MermaidFigureWriter
         return string.Empty;
     }
 
-    /// <summary>The Markdown feature's help folder, found from wherever the test runs.</summary>
+    /// <summary>
+    /// The Markdown feature's help folder, found from the repo root rather than by looking for the folder itself:
+    /// the build copies the help's images beside the test, so a folder of that name exists under bin/ too, holding
+    /// none of the pages.
+    /// </summary>
     private static string HelpFolder()
     {
         for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
-        {
-            var help = Path.Combine(folder.FullName, "src", "Nexaflow.Features", "Nexaflow.Features.Markdown", "Localization", "en", "help");
-            if (Directory.Exists(help)) return help;
-        }
+            if (File.Exists(Path.Combine(folder.FullName, "Nexaflow.slnx")))
+                return Path.Combine(folder.FullName, "src", "Nexaflow.Features", "Nexaflow.Features.Markdown",
+                                    "Localization", "en", "help");
 
-        Assert.Fail("the Markdown feature's help folder is not above the test's folder");
+        Assert.Fail("the repo root (the folder holding Nexaflow.slnx) is not above the test's folder");
         return string.Empty;
     }
 }
