@@ -474,6 +474,14 @@ public sealed class MermaidLine
     public void Words(string role, string? trouble = null, string? until = null, string? stop = null) =>
         Add(ContentNode.Leaf(MermaidKinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
 
+    /// <summary>
+    /// What is written from here to <paramref name="end"/>, as what it says, less the space before it — where a rule of the
+    /// diagram's own says a word ends rather than any one character doing: a flowchart's id, which a dash carries on or ends
+    /// depending on what is written after it.
+    /// </summary>
+    public void Words(string role, int end, string? trouble = null) =>
+        Add(ContentNode.Leaf(MermaidKinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, trouble));
+
     /// <summary>Everything left on the line, held as written with the reason — the rest of a line whose start could be read.</summary>
     public void Held(string reason) => Add(ContentNode.Shown(Rest, reason));
 

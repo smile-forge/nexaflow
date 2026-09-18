@@ -42,6 +42,7 @@ internal static class MermaidBuilders
         MermaidDiagram.Block => Block.BlockBuilder.Build,
         MermaidDiagram.Architecture => Architecture.ArchitectureBuilder.Build,
         MermaidDiagram.Sankey => Sankey.SankeyBuilder.Build,
+        MermaidDiagram.Flowchart => Flowchart.FlowchartBuilder.Build,
         _ => null,
     };
 

@@ -2282,8 +2282,9 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Flowchart
 
-        `flowchart` / `graph` diagrams are laid out top-down (or `LR`, `RL`, `BT`)
-        by a Sugiyama layout. Edge labels and node shapes are supported.
+        `flowchart` / `graph` diagrams are laid out in ranks, top-down (or `LR`, `RL`, `BT`),
+        by how far along the links reach each node. Node shapes, edge labels, subgraphs with
+        their own direction, and `classDef` / `class` / `style` / `linkStyle` are all supported.
 
         ```mermaid
         flowchart TD
@@ -2405,6 +2406,21 @@ internal sealed class MarkdownSamples : ISampleSet
             A e2@--> C
             e1@{ curve: linear }
             e2@{ curve: natural }
+        ```
+
+        Classes, styles and numbered links
+
+        ```mermaid
+        flowchart TD
+            A[Start]:::chosen --> B{Decide}
+            B -- keep --> C[(Store)]
+            B -- drop --> D>Discard]
+            classDef chosen fill:#6e6ce6,stroke:#333,stroke-width:2px
+            classDef default stroke-dasharray: 4 2
+            class C chosen
+            style D fill:#963,color:#fff
+            linkStyle 0 stroke:#f66,stroke-width:3px
+            click A "https://example.com/start" "Where it begins"
         ```
 
 

@@ -311,15 +311,18 @@ public class ExpandableDiagramTests
     {
         // The dependency walk is asynchronous, so the first render is of an empty diagram. Fitting
         // that must not be mistaken for a viewport the reader chose, or the real diagram arrives and
-        // is "restored" to the empty one's scale instead of being fitted.
-        var host = new SelectableMarkdownView { Markdown = "```mermaid\ngraph LR\n  a --> b\n```" };
+        // is "restored" to the empty one's scale instead of being fitted. The walk declares its expansion
+        // in the front matter, which is what keeps it in the expandable view rather than the shared tree.
+        const string Asking = "```mermaid\n---\nconfig:\n  nexaflow:\n    maxFanOut: 24\n---\ngraph LR\n";
+
+        var host = new SelectableMarkdownView { Markdown = Asking + "  a --> b\n```" };
         host.Measure(new Size(700, 500));
         host.Arrange(new Rect(0, 0, 700, 500));
         host.UpdateLayout();
 
         var small = Descendant<PanZoomSurface>(host)!.View.Scale;
 
-        var big = new System.Text.StringBuilder("```mermaid\ngraph LR\n");
+        var big = new System.Text.StringBuilder(Asking);
         for (int i = 0; i < 60; i++) big.Append($"  root --> c{i}[\"a much longer module name {i}\"]\n");
         big.Append("```");
         host.Markdown = big.ToString();

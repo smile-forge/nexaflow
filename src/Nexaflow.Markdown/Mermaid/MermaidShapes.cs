@@ -52,6 +52,21 @@ public enum MermaidShape
 
     /// <summary><c>[\…/]</c></summary>
     TrapezoidAlt,
+
+    /// <summary>A page with a wavy foot, which only <c>@{ shape: doc }</c> names.</summary>
+    Document,
+
+    /// <summary>A rectangle with a corner folded down, which only <c>@{ shape: card }</c> names.</summary>
+    Card,
+
+    /// <summary>A cloud, which only <c>@{ shape: cloud }</c> names.</summary>
+    Cloud,
+
+    /// <summary>A starburst, which only <c>@{ shape: bang }</c> names.</summary>
+    Bang,
+
+    /// <summary>Words with nothing drawn round them, which only <c>@{ shape: text }</c> names.</summary>
+    Text,
 }
 
 /// <summary>
@@ -97,4 +112,57 @@ public static class MermaidShapes
     /// <summary>The shape a pair of brackets says — <see cref="MermaidShape.None"/> for a pair that says none.</summary>
     public static MermaidShape Of(string? open, string? close) =>
         Nodes.FirstOrDefault(node => node.Open == open && node.Close == close).Shape;
+
+    /// <summary>
+    /// The shape a name written in <c>@{ shape: … }</c> says, with every name Mermaid gives it. Mermaid names some fifty shapes
+    /// there, many of them a rectangle or a circle with a detail of its own; a name this has no drawing of its own for comes to the
+    /// nearest shape it has, so the node is still drawn as the kind of thing it was asked to be.
+    /// </summary>
+    public static MermaidShape Named(string? said) => (said ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "rounded" or "round-rect" or "event" or "curv-trap" or "curved-trapezoid" or "brace" or "brace-l" or "brace-r"
+            or "braces" or "comment" => MermaidShape.Rounded,
+
+        "stadium" or "pill" or "terminal" => MermaidShape.Stadium,
+
+        "subroutine" or "subprocess" or "subproc" or "framed-rectangle" or "fr-rect" or "procs" or "processes"
+            or "st-rect" or "stacked-rectangle" => MermaidShape.Subroutine,
+
+        "cyl" or "cylinder" or "database" or "db" or "disk" or "disk-storage" or "das" or "h-cyl" or "horizontal-cylinder"
+            or "lin-cyl" or "lined-cylinder" or "datastore" or "bucket" => MermaidShape.Cylinder,
+
+        "circle" or "circ" or "sm-circ" or "small-circle" or "start" or "f-circ" or "filled-circle" or "junction"
+            => MermaidShape.Circle,
+
+        "dbl-circ" or "double-circle" or "stop" or "fr-circ" or "framed-circle" or "cross-circ" or "crossed-circle"
+            or "summary" => MermaidShape.DoubleCircle,
+
+        "diam" or "diamond" or "decision" or "question" => MermaidShape.Diamond,
+
+        "hex" or "hexagon" or "prepare" => MermaidShape.Hexagon,
+
+        "lean-r" or "lean-right" or "in-out" => MermaidShape.Parallelogram,
+
+        "lean-l" or "lean-left" or "out-in" => MermaidShape.ParallelogramAlt,
+
+        "trap-b" or "trapezoid-bottom" or "trapezoid" or "priority" => MermaidShape.Trapezoid,
+
+        "trap-t" or "trapezoid-top" or "inv-trapezoid" or "manual" or "manual-operation" => MermaidShape.TrapezoidAlt,
+
+        "doc" or "document" or "docs" or "documents" or "lin-doc" or "lined-document" or "paper-tape" or "tag-doc"
+            or "tagged-document" or "delay" => MermaidShape.Document,
+
+        "card" or "notch-rect" or "notched-rectangle" or "notch-pent" or "loop-limit" or "flip-tri" or "manual-file"
+            => MermaidShape.Card,
+
+        "flag" or "tag-rect" or "tagged-process" or "odd" => MermaidShape.Asymmetric,
+
+        "cloud" => MermaidShape.Cloud,
+
+        "bang" => MermaidShape.Bang,
+
+        "text" => MermaidShape.Text,
+
+        _ => MermaidShape.Rectangle,
+    };
 }

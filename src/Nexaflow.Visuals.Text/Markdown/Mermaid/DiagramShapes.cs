@@ -101,6 +101,10 @@ internal static class DiagramShapes
         MermaidShape.ParallelogramAlt => DiagramShape.ParallelogramAlt,
         MermaidShape.Trapezoid => DiagramShape.Trapezoid,
         MermaidShape.TrapezoidAlt => DiagramShape.TrapezoidAlt,
+        MermaidShape.Document => DiagramShape.Document,
+        MermaidShape.Card => DiagramShape.Card,
+        MermaidShape.Cloud => DiagramShape.Cloud,
+        MermaidShape.Bang => DiagramShape.Bang,
         _ => DiagramShape.Rectangle,
     };
 
