@@ -14,7 +14,8 @@ namespace Nexaflow.Features.Markdown.ViewModels;
 
 /// <summary>
 /// The markdown editor as a searchable page. It searches whatever the page is currently showing: the raw
-/// source when the source box is open, the rendered text otherwise — a "?" search lights up what the user
+/// source when the source box has the tab to itself, the rendered text otherwise (in the split, where
+/// both are up, the rendered half takes it) — a "?" search lights up what the user
 /// is actually looking at, and never switches the view out from under them.
 /// <para>
 /// The rendered highlight is done by the view (it owns the live <c>FlowDocument</c>); the source highlight
@@ -37,9 +38,9 @@ public sealed partial class MarkdownViewModel : ISearchable
 
     partial void OnSearchMatchCountChanged(int value) => OnPropertyChanged(nameof(HasSearchMatches));
 
-    // A live search belongs to the surface it ran against; switching surfaces abandons it rather than
+    // A live search belongs to the surface it ran against; changing the view mode abandons it rather than
     // leaving a stale chip over a view with no highlights.
-    partial void OnSourceOnlyChanged(bool value) { if (IsSearchActive) ClearSearch(); }
+    partial void OnViewModeChanged(MarkdownViewMode value) { if (IsSearchActive) ClearSearch(); }
 
     // ── View collaboration ────────────────────────────────────────────────────
     // The rendered surface's highlighting lives in the view (it holds the FlowDocument); the source box's
@@ -123,7 +124,9 @@ public sealed partial class MarkdownViewModel : ISearchable
         CurrentSearchTerm = SearchSyntax.Format(request);
         IsSearchActive    = true;   // true at zero too: "no matches for X" is a result worth showing
 
-        if (SourceOnly) return ShowInSource(matcher, ct);
+        // In the split both surfaces are up, and the rendered one owns the highlight: it is the half that
+        // can show a match in place, and the chip's next/previous still step through it.
+        if (ViewMode is MarkdownViewMode.Source) return ShowInSource(matcher, ct);
         return ShowInRendered(matcher);
     }
 

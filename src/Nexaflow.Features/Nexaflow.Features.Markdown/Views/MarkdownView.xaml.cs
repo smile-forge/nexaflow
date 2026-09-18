@@ -36,7 +36,7 @@ public partial class MarkdownView : UserControl, IPageView
             new BlockAction("Save", "Markdown_BlockSavePicture", block => _ = SavePictureAsync(block)) { ToolTip = "Save as a PNG picture" },
         ];
 
-        // Move focus to whichever surface the toggle just revealed, so typing works immediately.
+        // Lay the surfaces out for the mode chosen, and move focus to whichever one that reveals.
         viewModel.PropertyChanged += OnViewModelChanged;
 
         // Search collaboration: the rendered surface (the inline editor) owns its own highlighting; the
@@ -105,14 +105,65 @@ public partial class MarkdownView : UserControl, IPageView
         return png.ToArray();
     }
 
+    /// <summary>
+    /// Follows the view-mode slider: lays the surfaces out, then puts the caret where the slider was going.
+    /// Sliding toward Source lands in the raw box and back toward Rendered in the rendered editor — which in
+    /// the split is whichever half just appeared — so typing works the moment the pane arrives.
+    /// </summary>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MarkdownViewModel.SourceOnly)) return;
+        if (e.PropertyName != nameof(MarkdownViewModel.ViewMode)) return;
+
+        var towardsSource = ViewModel.ViewMode > _laidOut;
+        ApplyViewMode();
         Dispatcher.BeginInvoke(() =>
         {
-            if (ViewModel.SourceOnly) SourceBox.Focus();
-            else                      Editor.Focus();
+            if (towardsSource) SourceBox.Focus();
+            else               Editor.Focus();
         });
+    }
+
+    /// <summary>What the columns were last laid out for. The XAML starts them on <see cref="MarkdownViewMode.Rendered"/>.</summary>
+    private MarkdownViewMode _laidOut = MarkdownViewMode.Rendered;
+
+    /// <summary>The split's ratio, kept while it is not showing, so returning to the split lands where the
+    /// drag handle was left rather than back at half and half.</summary>
+    private GridLength _sourceShare   = new(1, GridUnitType.Star);
+    private GridLength _renderedShare = new(1, GridUnitType.Star);
+
+    private static readonly GridLength Gone  = new(0);
+    private static readonly GridLength Whole = new(1, GridUnitType.Star);
+
+    /// <summary>
+    /// Gives the columns the widths the chosen mode wants: one surface filling the pane, or both of them
+    /// either side of the drag handle. A hidden surface's column goes to zero — collapsing the surface alone
+    /// would leave its share of the width behind as a gap.
+    /// </summary>
+    private void ApplyViewMode()
+    {
+        var mode = ViewModel.ViewMode;
+        if (mode == _laidOut) return;
+
+        if (_laidOut is MarkdownViewMode.Split)
+        {
+            _sourceShare   = SourceColumn.Width;
+            _renderedShare = RenderedColumn.Width;
+        }
+        _laidOut = mode;
+
+        SourceColumn.Width = mode switch
+        {
+            MarkdownViewMode.Source => Whole,
+            MarkdownViewMode.Split  => _sourceShare,
+            _                       => Gone,
+        };
+        RenderedColumn.Width = mode switch
+        {
+            MarkdownViewMode.Rendered => Whole,
+            MarkdownViewMode.Split    => _renderedShare,
+            _                         => Gone,
+        };
+        SplitterColumn.Width = mode is MarkdownViewMode.Split ? GridLength.Auto : Gone;
     }
 
     // The rendered surface reports its match positions only after it has laid out, so read them on a queued

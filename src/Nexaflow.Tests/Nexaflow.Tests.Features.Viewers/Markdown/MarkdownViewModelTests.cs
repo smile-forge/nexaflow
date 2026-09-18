@@ -95,29 +95,64 @@ public class MarkdownViewModelTests
     // ── Source / preview toggle (pure state) ──────────────────────────────────
 
     [TestMethod]
-    [CoversNode("markdown-source-toggle")]
-    public void SourceOnly_RoundTrips_OffOnOff()
+    [CoversNode("markdown-view-mode")]
+    public void ViewMode_WalksTheSlidersThreeStops()
     {
         var vm = Make();
 
-        Assert.IsFalse(vm.SourceOnly);            // default: rendered + inline editing
-        vm.SourceOnly = true;
-        Assert.IsTrue(vm.SourceOnly);
-        vm.SourceOnly = false;
-        Assert.IsFalse(vm.SourceOnly);
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode);   // default: rendered + inline editing
+        Assert.IsTrue(vm.ShowRendered);
+        Assert.IsFalse(vm.ShowSource);
+
+        vm.ViewMode = MarkdownViewMode.Split;
+        Assert.IsTrue(vm.IsSplit);
+        Assert.IsTrue(vm.ShowRendered, "the split keeps the rendered half");
+        Assert.IsTrue(vm.ShowSource,   "and puts the source beside it");
+
+        vm.ViewMode = MarkdownViewMode.Source;
+        Assert.IsTrue(vm.ShowSource);
+        Assert.IsFalse(vm.ShowRendered);
+        Assert.IsFalse(vm.IsSplit);
+    }
+
+    /// <summary>The slider binds a number, not the enum, so the number has to be the honest inverse of it.</summary>
+    [TestMethod]
+    [CoversNode("markdown-view-mode")]
+    public void ViewModeIndex_IsTheSlidersPosition_AndReadsAsTheNearestStop()
+    {
+        var vm = Make();
+
+        Assert.AreEqual(0d, vm.ViewModeIndex);
+
+        vm.ViewModeIndex = 1;
+        Assert.AreEqual(MarkdownViewMode.Split, vm.ViewMode);
+
+        // Mid-drag the slider hands over a value between two stops; it reads as the one it is nearest,
+        // and the number reads back as that stop rather than where the thumb happened to be.
+        vm.ViewModeIndex = 1.6;
+        Assert.AreEqual(MarkdownViewMode.Source, vm.ViewMode);
+        Assert.AreEqual(2d, vm.ViewModeIndex);
+
+        // Off either end it is clamped, rather than cast to a mode that does not exist.
+        vm.ViewModeIndex = -3;
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode);
+        vm.ViewModeIndex = 9;
+        Assert.AreEqual(MarkdownViewMode.Source, vm.ViewMode);
     }
 
     [TestMethod]
-    [CoversNode("markdown-source-toggle")]
+    [CoversNode("markdown-view-mode")]
     [CoversNode("markdown-source-box")]
-    public void TogglingSourceOnly_PreservesMarkdownText()
+    public void ChangingTheViewMode_PreservesMarkdownText()
     {
         var vm = Make("# Heading\n\nA paragraph.\n");
         var before = vm.Markdown;
 
-        vm.SourceOnly = true;
+        vm.ViewMode = MarkdownViewMode.Source;
         Assert.AreEqual(before, vm.Markdown);     // same backing text across both surfaces
-        vm.SourceOnly = false;
+        vm.ViewMode = MarkdownViewMode.Split;
+        Assert.AreEqual(before, vm.Markdown);
+        vm.ViewMode = MarkdownViewMode.Rendered;
         Assert.AreEqual(before, vm.Markdown);
     }
 
