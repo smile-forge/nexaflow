@@ -132,9 +132,12 @@ internal sealed class HelpCorpus
             .SelectMany(d => Directory.GetDirectories(d).Prepend(d));
     }
 
-    /// <summary>PascalCase to a readable url: MarkdownDiagrams becomes markdown-diagrams.</summary>
+    /// <summary>
+    /// PascalCase to a readable url: MarkdownDiagrams becomes markdown-diagrams and AIChat becomes ai-chat. A
+    /// digit never starts a new word, so Model3D stays model3d rather than breaking into model3-d.
+    /// </summary>
     public static string Slug(string topic)
-        => Regex.Replace(topic, "(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-").ToLowerInvariant();
+        => Regex.Replace(topic, "(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-").ToLowerInvariant();
 
     /// <summary>
     /// A help page opens with its title and a line saying what the page is for. Both become the page header on the
