@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registry — Nexaflow help</title>
+<meta name="description" content="The Registry page browses the Windows registry and edits keys and values in it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Registry</h1>
+  <p class="lede">The Registry page browses the Windows registry and edits keys and values in it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#browsing-keys-and-values">Browsing keys and values</a></li><li><a href="#changing-keys-and-values">Changing keys and values</a></li><li><a href="#administrator-rights">Administrator rights</a></li><li><a href="#exporting-and-importing">Exporting and importing</a></li><li><a href="#searching">Searching</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="browsing-keys-and-values">Browsing keys and values</h2>
+<ul>
+<li>The Hive box picks the root the tree shows: HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE or HKEY_CLASSES_ROOT. Those three are the only hives this page opens. <span class="locate" title="In the app this points at Registry_RootSelector">Show me</span></li>
+<li>Selecting a key in the tree lists its values and updates the breadcrumbs; a breadcrumb takes you back up. [Show me](locate:Registry_KeyTree, Registry_ValueList)</li>
+<li>Subkeys are read as you expand them, so opening a large hive does not read all of it up front. A key Windows will not let the app read shows an empty value list rather than an error.</li>
+<li>Pinning the tab to the ribbon re-roots the tree at the key you are on, and the ribbon button reopens at that key.</li>
+<li>(Default) is always listed; a key that has not set it shows <code>(value not set)</code>.</li>
+<li>DWORD and QWORD data is shown as hex and decimal, binary as hex bytes, multi-string as its entries separated by commas. Expandable string data is shown as stored, so <code>%VARIABLES%</code> are not resolved.</li>
+</ul>
+<h2 id="changing-keys-and-values">Changing keys and values</h2>
+<p>Right-click in the key tree for New Key…, Rename…, Delete and Export…. <span class="locate" title="In the app this points at Registry_KeyTree">Show me</span></p>
+<ul>
+<li>New Key… asks for a name, creates it under the key you are on, and moves there. Rename… and Delete are refused at the top of a hive.</li>
+<li>Right-click a value row for Modify…, New and Delete. <span class="locate" title="In the app this points at Registry_ValueList">Show me</span></li>
+<li>New creates a String, Expandable String, DWORD, QWORD, Binary or Multi-String value. It starts empty; use Modify… to put data in it.</li>
+<li>Modify…, or double-clicking a row, opens the data for editing. Type DWORD and QWORD data as decimal or 0x hex, binary as hex bytes, multi-string one entry per line. OK writes it; there is no separate save.</li>
+<li>Deleting a key deletes everything under it. Deleting a key or a value asks first, names what it would remove, and cannot be undone. (Default) cannot be deleted, only cleared.</li>
+</ul>
+<h2 id="administrator-rights">Administrator rights</h2>
+<ul>
+<li>Each change is attempted as you first. Only when Windows refuses does the app retry through a separate elevated helper, and Windows then shows its own administrator prompt — for <code>Nexaflow.PrivilegeBridge.exe</code> rather than for Nexaflow itself. Declining leaves the registry unchanged.</li>
+<li>Whether a change needs this depends on the key you are writing to, not on which hive it is in.</li>
+</ul>
+<h2 id="exporting-and-importing">Exporting and importing</h2>
+<ul>
+<li>Export, in the toolbar or in the key's right-click menu, writes the key you are on and everything under it to a .reg file, offering the key's name as the file name.</li>
+<li>Import, in the toolbar, reads a .reg file back. It applies the whole file, wherever the keys in it live — not only under the key you are on — and retries elevated if Windows refuses. Both run Windows' own <code>reg.exe</code>.</li>
+</ul>
+<h2 id="searching">Searching</h2>
+<ul>
+<li>Type <code>?</code> and what you are looking for in the AI bar. The walk covers key names, value names and value data under the key the tab is rooted at, so a tab pinned at a key searches that subtree only.</li>
+<li>Matches are keys: several matching values in one key count once, and going to a match selects the value row that matched.</li>
+<li>Step through the matches and clear the search from the chip in the toolbar. [Show me](locate:Registry_SearchPrevious, Registry_SearchNext, Registry_SearchClear)</li>
+<li>Searching a whole hive can take a while. The walk stops after 100,000 keys or 200 matches; when it stops early the count is shown with a <code>+</code> and is a floor rather than a total.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It can list the subkeys and the values of the key you are on, or of any key below it. It cannot move above that key.</li>
+<li>It can change an existing value and create a new value under the current key. Both ask your approval before writing.</li>
+<li>It cannot create, rename or delete keys, delete values, or export and import.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

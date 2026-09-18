@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON viewer — Nexaflow help</title>
+<meta name="description" content="Shows a JSON file as a tree you can read, edit and search.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>JSON viewer</h1>
+  <p class="lede">Shows a JSON file as a tree you can read, edit and search.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-json-file">Opening a JSON file</a></li><li><a href="#reading-the-tree">Reading the tree</a></li><li><a href="#views">Views</a></li><li><a href="#editing-and-saving">Editing and saving</a></li><li><a href="#large-files">Large files</a></li><li><a href="#searching">Searching</a></li><li><a href="#the-assistant">The assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-json-file">Opening a JSON file</h2>
+<ul>
+<li>Double-click any <code>.json</code> file in the <a href="../file-system/">File System</a> page. The tab takes the file's name.</li>
+<li>Send another extension here with the File System page's <em>Define New</em> file-association wizard, choosing <em>JSON file viewer and editor</em>.</li>
+<li>Comments, trailing commas and a byte-order mark do not stop a file opening. A file that is not valid JSON shows the parser's explanation where the tree would be.</li>
+</ul>
+<h2 id="reading-the-tree">Reading the tree</h2>
+<ul>
+<li>Expand and collapse a node with the toggle at the start of its row. Each object says how many properties it holds, each array how many items.</li>
+<li>Go back to a level: click its crumb in the path bar under the toolbar, which reads like <code>$ / &quot;orders&quot; / [12] / &quot;customer&quot;</code>.</li>
+</ul>
+<h2 id="views">Views</h2>
+<p>The switches at the left of the toolbar change how the <em>selected</em> node is drawn, and Tree is the default. <span class="locate" title="In the app this points at Json_TreeMode, Json_TextMode, Json_TableMode">Show me</span></p>
+<ul>
+<li>Raw JSON puts that node's text into a small editor beneath its row. Edit an object or array there and click away: valid JSON folds back into the document, and text the parser cannot read is left alone, with the node keeping what it had.</li>
+<li>Table turns an array of objects into rows and columns — one column per key, in the order the keys first appear, blanks where an item has no value, and a nested value shown as its own count, such as <code>{ 4 }</code> or <code>[ 12 ]</code>. <span class="locate" title="In the app this points at Json_TableMode">The table switch</span> is available whenever the selected array holds objects; choose it on the root array to table the whole document.</li>
+</ul>
+<h2 id="editing-and-saving">Editing and saving</h2>
+<ul>
+<li>Move a row: drag it onto one of its siblings, above or below depending on which half you drop on. Array indices renumber themselves, and a drop is only accepted beside a sibling.</li>
+<li>Re-indent the whole document: <span class="locate" title="In the app this points at Json_Format">Format</span>. It marks the document modified but does not write to disk — the file changes when you save, and not before.</li>
+<li>Save appears only when there is something to save, alongside a <strong>Modified</strong> flag in the status bar. While any part of a streamed document is still unloaded, Save and Format both decline and say so.</li>
+</ul>
+<h2 id="large-files">Large files</h2>
+<p>Anything over a megabyte streams, and the status bar then carries the file's size, its node count and a <strong>Streaming</strong> badge.</p>
+<ul>
+<li>The first items appear while the rest of the file is still being measured; the count is estimated from the file's ends.</li>
+<li>Placeholder rows stand in for what has not arrived, and batches of fifty load as you scroll, in either direction.</li>
+<li>Three hundred top-level items are held at once. Those furthest from you are released and come back when you scroll to them.</li>
+</ul>
+<h2 id="searching">Searching</h2>
+<ul>
+<li>Go to a node by JSONPath: type it beginning with <code>$</code> — such as <code>$.store.book[0].title</code> — into <span class="locate" title="In the app this points at AiInputBox">the AI bar</span>. The viewer expands to the first match, selects it and scrolls it into view. A path that matches nothing says so, and one that lands outside the loaded part of a streamed file says that.</li>
+<li>Search the whole file, not just the part on screen: type <code>?</code> and a term. Items containing a match are marked, the toolbar counts the hits, and next and previous step between them.</li>
+<li>Several words must all appear in the same item. <code>order*</code> matches a prefix, <code>*order*</code> anything containing it, and anything between slashes — <code>/ERR-[0-9]+/</code> — is a regular expression.</li>
+<li>The search stops after 200 matching items and marks the count as a floor rather than a total. Past 512 MB it declines to search and asks you to narrow the ground with a <code>$</code> path first.</li>
+</ul>
+<h2 id="the-assistant">The assistant</h2>
+<ul>
+<li>It knows the file's name and size, the shape of the root, the node count, the current view, the JSONPath of the selection, whether there are unsaved changes, and whether the file is only loaded in a window.</li>
+<li>It can evaluate a JSONPath and hand back the matching values, read the loaded document including your unsaved edits, re-indent it, and run the same <code>?</code> query you would.</li>
+<li>Nothing it does here changes a value or writes to disk. A re-indent leaves the document modified, waiting on your Save.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

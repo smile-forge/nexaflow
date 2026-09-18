@@ -1,0 +1,44 @@
+# Publishes the GitHub Pages site. It builds NOTHING: site/ is generated on a developer's machine by
+# tools/site/Build-Site.ps1 and committed with the release, because the figures on those pages are drawn by
+# the app's own WPF renderer and a Linux runner cannot draw them. So this only uploads what is already in
+# the tree — which also means a re-deploy never depends on the app still building.
+name: Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one half-way: a cancelled deploy can leave the site part-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Upload and deploy site/
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # No submodules: nothing here compiles, so the external/ sources are dead weight on this job.
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

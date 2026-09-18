@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Environment Variables — Nexaflow help</title>
+<meta name="description" content="Shows the User and Machine environment variables, and lets you change, add and delete them.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Environment Variables</h1>
+  <p class="lede">Shows the User and Machine environment variables, and lets you change, add and delete them.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#choosing-a-scope">Choosing a scope</a></li><li><a href="#editing-a-value">Editing a value</a></li><li><a href="#path-and-other-lists">PATH and other lists</a></li><li><a href="#administrator-rights">Administrator rights</a></li><li><a href="#searching-and-asking">Searching and asking</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="choosing-a-scope">Choosing a scope</h2>
+<ul>
+<li>Scope selects which set you are looking at, User or Machine. One at a time, and the page opens on User.</li>
+<li>The box beside it narrows the list by variable name or by value.</li>
+<li>Switching scope drops whatever the box or a <code>?</code> search had narrowed the list to.</li>
+<li>Values are shown as they are stored, so a <code>%VAR%</code> reference stays written as it is.</li>
+<li>Both scopes are read once in the background when the tab opens, so switching between them does not read them again. Refresh does. <span class="locate" title="In the app this points at TabItem_SystemEnvVars">Show me</span></li>
+</ul>
+<h2 id="editing-a-value">Editing a value</h2>
+<ul>
+<li>Pick a name on the left. Until you do, the value box is read-only and Save and Delete are unavailable.</li>
+<li>What you type is held until you press Save; nothing is written before that.</li>
+<li>Add asks for a name, then creates that variable in the scope on screen with an empty value.</li>
+<li>Delete asks you to confirm, naming the scope and the variable, before it removes anything.</li>
+</ul>
+<h2 id="path-and-other-lists">PATH and other lists</h2>
+<ul>
+<li>When the value contains a <code>;</code>, a list of its parts appears below, headed Entries (one per ';' segment).</li>
+<li>Add entry appends what you typed in the box next to it; the arrows move an entry up or down; the cross removes one.</li>
+<li>Each of those rewrites the value above, and still has to be saved.</li>
+</ul>
+<h2 id="administrator-rights">Administrator rights</h2>
+<ul>
+<li>User-scope changes are written by Nexaflow itself and need no approval.</li>
+<li>Every Machine-scope Save, Delete and Add is carried out by a separate elevated helper, so Windows shows its own User Account Control prompt each time, for that one change.</li>
+<li>Decline that prompt and nothing is written and no error appears; the page is left as it was.</li>
+<li>A program that is already running keeps the environment it started with. Start it again for it to see a change.</li>
+</ul>
+<h2 id="searching-and-asking">Searching and asking</h2>
+<ul>
+<li>Type <code>?</code> and what you are looking for into the input box to search names and values with a quoted phrase, a prefix wildcard or a regular expression. The result drives the same filter box. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>To send the variables with a question, turn on Include page context. <span class="locate" title="In the app this points at AiBar_ContextToggle">Show me</span></li>
+<li><a href="../system-services/">Services</a> is changed through the same elevated helper; <a href="../system-info/">System Info</a> reports the machine itself.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

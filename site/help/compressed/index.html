@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archive inspector — Nexaflow help</title>
+<meta name="description" content="Lists what is inside an archive, and lets you read, test, extract, repack, encrypt and sign it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Archive inspector</h1>
+  <p class="lede">Lists what is inside an archive, and lets you read, test, extract, repack, encrypt and sign it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-an-archive">Opening an archive</a></li><li><a href="#testing-and-extracting">Testing and extracting</a></li><li><a href="#changing-the-archive">Changing the archive</a></li><li><a href="#encrypting-and-signing">Encrypting and signing</a></li><li><a href="#searching">Searching</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-an-archive">Opening an archive</h2>
+<ul>
+<li>Opens zip and the zip-based document formats, 7z, RAR, the tar family, and the single-file codecs gzip, bzip2, xz, lzma, Zstandard and LZ4.</li>
+<li>Double-click an archive on the <a href="../file-system/">File System</a> page to walk into it as if it were a folder.</li>
+<li>A <code>.docx</code>, <code>.odt</code> or <code>.epub</code> is a zip underneath, and can be browsed as one when you ask for that; opening it normally still gives you its usual viewer.</li>
+<li>Double-click a file inside the archive to open it in its own tab, in the viewer that suits it — text in the <a href="../text/">Text viewer</a>, Markdown in the <a href="../markdown/">Markdown page</a>. Nothing is extracted to read it.</li>
+<li>An archive inside an archive opens all the way down.</li>
+<li>The folder part of the breadcrumb goes back to the folder the archive came from. <span class="locate" title="In the app this points at Chrome_BreadcrumbBar">Show me</span></li>
+</ul>
+<h2 id="testing-and-extracting">Testing and extracting</h2>
+<ul>
+<li>Test reads every entry through rather than trusting the headers, and reports what it found, such as <em>OK, 48 entries verified</em> or <em>3 of 48 entries failed</em>.</li>
+<li>Extract asks where to put the files and writes the whole archive there. An entry whose path tries to climb out of the folder you chose is refused.</li>
+<li>Long jobs run in the background, with progress in the status bar, so the tab stays usable. <span class="locate" title="In the app this points at Compressed_Test, Compressed_Extract">Show me</span></li>
+<li>Buttons a format cannot support are dimmed rather than hidden.</li>
+</ul>
+<h2 id="changing-the-archive">Changing the archive</h2>
+<ul>
+<li>Add file puts a file in at the archive's top level. A name already in the archive is replaced; anything else is added. <span class="locate" title="In the app this points at Compressed_AddFile">Show me</span></li>
+<li>Drag files onto the page to add them the same way.</li>
+<li>Edit a file you opened from a zip-family archive and saving writes it back into the archive. 7z, RAR and tar are read-only here and say so. Dropping files onto a read-only format is declined.</li>
+<li>An edit several archives deep is written back outward until the file on disk is rewritten. If any archive on the way is read-only you are told before anything is written.</li>
+<li>Recompress rebuilds the archive at Store, Fast, Optimal or Smallest.</li>
+<li>Convert rewrites it as a zip, a tar, or a compressed tar in gzip, bzip2, Zstandard, LZ4 or Brotli, and offers the single-file codecs when the archive holds exactly one file. Only formats that can actually be written are offered. <span class="locate" title="In the app this points at Compressed_Recompress, Compressed_Convert">Show me</span></li>
+<li>Convert is also the way out of a read-only format: 7z and RAR cannot be changed, but their contents can be written into a zip or tar.</li>
+<li>A conversion is written as a new file beside the original, at a name that is free, so the original is untouched.</li>
+<li>Adding a file, or saving an edited one, is written to a temporary file and swapped in at the end, so a write that fails cannot leave you a half-finished archive.</li>
+<li>On the File System page, Zip It compresses a folder, a file or a selection into one archive beside it, and Unzip here extracts into a new sibling folder with a name of its own. Both run on the file browser's operation queue with progress and a cancel, and run inline where there is no queue.</li>
+</ul>
+<h2 id="encrypting-and-signing">Encrypting and signing</h2>
+<ul>
+<li>Encrypt asks for a password and writes an AES-256 encrypted zip copy beside the original. Decrypt reverses it, and tells you when the password is wrong. <span class="locate" title="In the app this points at Compressed_Encrypt, Compressed_Decrypt">Show me</span></li>
+<li>Dismissing the password prompt, or leaving it empty, leaves the archive as it was.</li>
+<li>Sign hashes the archive and signs it with your own ECDSA P-256 key, created the first time you use it, and writes a detached <code>.sig</code> file beside the archive.</li>
+<li>Sig Check recomputes the hash and verifies it, showing the signer's fingerprint on a match and warning you when it does not match. <span class="locate" title="In the app this points at Compressed_Sign, Compressed_Verify">Show me</span></li>
+</ul>
+<h2 id="searching">Searching</h2>
+<ul>
+<li>Type <code>?</code> and a word in <span class="locate" title="In the app this points at AiInputBox">the AI bar</span> to search every entry at every depth, open folder or not.</li>
+<li>The search matches names and paths: <code>?docs/guide</code> finds what is under <em>docs</em>, and naming a folder gives you that folder with its contents.</li>
+<li>Filename patterns work: <code>?*.md</code> matches on the entry name.</li>
+<li>The tree narrows to the matches, opening the folders above them.</li>
+<li>Clear the search and the tree goes back as you had it, with the same folders open.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>Ask it to list the whole contents, or to filter the list by a path prefix.</li>
+<li>Ask it to read an entry's text without extracting anything.</li>
+<li>Ask it to run the same integrity check that Test runs.</li>
+<li>Ask it to find something and it can narrow the tree to what it found.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

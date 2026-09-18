@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solver — Nexaflow help</title>
+<meta name="description" content="Works out a maths problem you type in, and keeps each answer below it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Solver</h1>
+  <p class="lede">Works out a maths problem you type in, and keeps each answer below it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#typing-the-problem">Typing the problem</a></li><li><a href="#the-palette">The palette</a></li><li><a href="#chips">Chips</a></li><li><a href="#answers">Answers</a></li><li><a href="#settings">Settings</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="typing-the-problem">Typing the problem</h2>
+<ul>
+<li>Pick the editor on the rail: Calc for arithmetic, Latex for a formula, Text for a description. Each keeps its own text for as long as the tab is open. <span class="locate" title="In the app this points at Solver_Mode_Calc, Solver_Mode_Latex, Solver_Mode_Text">Show me</span></li>
+<li>Calc takes written-out maths — <code>2+2*3</code>, <code>sin(45)</code>, <code>sqrt(2)</code>, <code>log(2, 8)</code>, <code>x^2-4</code>. <span class="locate" title="In the app this points at Solver_CalcInput">Show me</span></li>
+<li>Latex holds one formula and typesets it as you type. You do not type the <code>$$</code> — it is already there. <span class="locate" title="In the app this points at Solver_LatexInput">Show me</span></li>
+<li>Text is a markdown document. The maths read out of it is the first <code>$$…$$</code> or <code>$…$</code> formula in it; wording on its own is only passed to the Solve chips.</li>
+<li>On Latex and Text, <code>&lt;/&gt;</code> shows the characters instead of the typeset form, and <code>✕</code> empties the editor. <span class="locate" title="In the app this points at Solver_SourceToggle, Solver_ClearDefinition">Show me</span></li>
+</ul>
+<h2 id="the-palette">The palette</h2>
+<ul>
+<li>The keypad types into Calc and Text. <code>2nd</code> swaps in the inverse and hyperbolic functions, <code>π e</code> swaps in the constants, and pressing the same key again goes back.</li>
+<li>A function key such as <code>sin</code> or <code>√</code> wraps what you have selected. With nothing selected it puts <code>x</code> between the brackets and leaves it selected, so what you type next replaces it.</li>
+<li><code>DEG</code> switches between degrees and radians. <code>C</code> empties the definition, <code>⌫</code> deletes the character before the caret.</li>
+<li>Latex gets the symbol navigator instead of the keypad: categories, then groups, then the symbols themselves, with the path underneath as the way back to any level. Symbols you have used collect beside it and survive a restart.</li>
+<li>Fold the palette away with the chevron between it and the editor. <span class="locate" title="In the app this points at Solver_TogglePalette">Show me</span></li>
+</ul>
+<h2 id="chips">Chips</h2>
+<ul>
+<li>A chip appears for each thing a solver recognises in what you have typed. Press one and its answer is appended below. A half-written formula offers only the Solve chips until it is finished.</li>
+<li><code>=</code> works out the value, keeping an exact form alongside the rounded decimal.</li>
+<li><code>simplify</code> collects like terms, <code>steps</code> shows each identity used to do it, and <code>factor</code> writes a one-variable expression as a product of factors — or a whole number as its primes.</li>
+<li>Calculus gives one <code>d/d</code> chip and one <code>∫ d</code> chip per variable in the expression, each labelled with that variable.</li>
+<li>A list of numbers separated by commas, spaces or new lines offers <code>stats</code>, <code>sum</code>, <code>avg</code>, <code>median</code> and <code>σ</code>.</li>
+<li><code>Solve</code> and <code>Solve by steps</code> hand the whole definition to the AI. They need a model assigned to Problem Solving or Analysis in Manage AI.</li>
+</ul>
+<h2 id="answers">Answers</h2>
+<ul>
+<li>Each answer is a cell carrying the chip it came from, the definition it was asked, and the result as markdown with the maths typeset. <span class="locate" title="In the app this points at Solver_Results, Solver_ResultBody">Show me</span></li>
+<li>The buttons on a cell copy the answer, use it as the next definition, or remove it.</li>
+<li>Answers are not saved. Closing the tab discards them.</li>
+</ul>
+<h2 id="settings">Settings</h2>
+<ul>
+<li>Options → Solver sets Start In, Angles, Decimal Places and Show Palette. Angles and the palette can also be changed on the page, for that tab.</li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<ul>
+<li>The assistant can read the mode, the definition, the chips on offer and every answer so far.</li>
+<li>It can also replace the definition, which it asks you to approve first, and run a chip that is currently on offer.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

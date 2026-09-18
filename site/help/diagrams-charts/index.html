@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown — Diagrams: charts &amp; analysis — Nexaflow help</title>
+<meta name="description" content="Diagrams for proportion, distribution, comparison and cause: pie, XY, radar and quadrant charts, Sankey, Ishikawa, Venn and Cynefin diagrams.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Markdown — Diagrams: charts &amp; analysis</h1>
+  <p class="lede">Diagrams for proportion, distribution, comparison and cause: pie, XY, radar and quadrant charts, Sankey, Ishikawa, Venn and Cynefin diagrams.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#pie-chart">Pie chart</a></li><li><a href="#xy-chart">XY chart</a></li><li><a href="#radar-chart">Radar chart</a></li><li><a href="#quadrant-chart">Quadrant chart</a></li><li><a href="#sankey-diagram">Sankey diagram</a></li><li><a href="#ishikawa-fishbone-diagram">Ishikawa (fishbone) diagram</a></li><li><a href="#venn-diagram">Venn diagram</a></li><li><a href="#cynefin-diagram">Cynefin diagram</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="pie-chart">Pie chart</h2>
+<p>Proportional slices with a title.</p>
+<pre><code class="language-markdown">```mermaid
+pie title Time in Nexaflow
+    &quot;Editing&quot; : 45
+    &quot;Reading docs&quot; : 30
+    &quot;Diagrams&quot; : 25
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-pie.png" alt="A pie chart with three slices" /></p>
+<hr />
+<h2 id="xy-chart">XY chart</h2>
+<p>Bar and line series over a shared axis — combine them, name them for a legend, and weight the
+colours with config.</p>
+<pre><code class="language-markdown">```mermaid
+xychart-beta
+    title &quot;Monthly revenue&quot;
+    x-axis [jan, feb, mar, apr, may, jun]
+    y-axis &quot;Revenue ($k)&quot; 0 --&gt; 60
+    bar [20, 35, 30, 45, 50, 55]
+    line [20, 35, 30, 45, 50, 55]
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-xychart.png" alt="A combined bar and line XY chart" /></p>
+<hr />
+<h2 id="radar-chart">Radar chart</h2>
+<p>Multi-axis comparison (a.k.a. spider chart), with one closed curve per series.</p>
+<pre><code class="language-markdown">```mermaid
+---
+title: &quot;Skill coverage&quot;
+---
+radar-beta
+  axis ui[&quot;UI&quot;], api[&quot;API&quot;], db[&quot;DB&quot;], qa[&quot;QA&quot;], docs[&quot;Docs&quot;]
+  curve alice[&quot;Alice&quot;]{85, 70, 60, 75, 90}
+  curve bob[&quot;Bob&quot;]{70, 85, 80, 60, 65}
+  max 100
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-radar.png" alt="A radar chart comparing two people across five axes" /></p>
+<hr />
+<h2 id="quadrant-chart">Quadrant chart</h2>
+<p>Plot items against two axes, captioned by quadrant.</p>
+<pre><code class="language-markdown">```mermaid
+quadrantChart
+    title Reach and engagement of campaigns
+    x-axis Low Reach --&gt; High Reach
+    y-axis Low Engagement --&gt; High Engagement
+    quadrant-1 Expand
+    quadrant-2 Promote
+    quadrant-3 Re-evaluate
+    quadrant-4 Improve
+    Campaign A: [0.3, 0.6]
+    Campaign B: [0.45, 0.23]
+    Campaign C: [0.57, 0.69]
+    Campaign D: [0.78, 0.34]
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-quadrant.png" alt="A quadrant chart with four labelled quadrants and plotted points" /></p>
+<hr />
+<h2 id="sankey-diagram">Sankey diagram</h2>
+<p>Flows whose ribbon widths are proportional to value, with optional value labels and units.</p>
+<pre><code class="language-markdown">```mermaid
+---
+config:
+  sankey:
+    showValues: true
+    suffix: &quot; TWh&quot;
+---
+sankey
+
+Coal,Electricity,75
+Gas,Electricity,40
+Nuclear,Electricity,90
+Electricity,Industry,80
+Electricity,Homes,75
+Electricity,Losses,50
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-sankey.png" alt="A Sankey diagram of energy flowing from sources to uses" /></p>
+<hr />
+<h2 id="ishikawa-fishbone-diagram">Ishikawa (fishbone) diagram</h2>
+<p>Cause-and-effect / root-cause analysis: an effect on the spine, with categories and nested causes
+branching off it.</p>
+<pre><code class="language-markdown">```mermaid
+ishikawa-beta
+    Slow page load
+    Frontend
+        Large JS bundle
+        No code splitting
+    Backend
+        N+1 queries
+        Missing cache
+    Network
+        No CDN
+        Chatty API
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-ishikawa.png" alt="A fishbone diagram with categories branching off a central spine" /></p>
+<hr />
+<h2 id="venn-diagram">Venn diagram</h2>
+<p>Overlapping sets, sized by weight, with labelled intersections.</p>
+<pre><code class="language-markdown">```mermaid
+venn-beta
+  title &quot;The innovation sweet spot&quot;
+  set Desirable
+  set Feasible
+  set Viable
+  union Desirable,Feasible,Viable[&quot;Innovation&quot;]
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-venn.png" alt="A three-circle Venn diagram with a central intersection" /></p>
+<hr />
+<h2 id="cynefin-diagram">Cynefin diagram</h2>
+<p>Sense-making: what is in hand sorted into the five domains — complex, complicated, chaotic and
+clear in the corners, confusion as disorder in the middle — with the movements between them.</p>
+<pre><code class="language-markdown">```mermaid
+cynefin-beta
+    title Making sense of the incident
+    complex
+        &quot;Run a safe-to-fail experiment&quot;
+    complicated
+        &quot;Consult an expert&quot;
+    clear
+        &quot;Apply the runbook&quot;
+    chaotic
+        &quot;Stop the bleeding&quot;
+    confusion
+        &quot;Unclassified report&quot;
+    chaotic --&gt; complex : &quot;Stabilised&quot;
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-cynefin.png" alt="A Cynefin grid with items in its four domains and a cloud of disorder in the middle" /></p>
+<hr />
+<p>More diagram types in <a href="../markdown-diagrams/">Diagrams</a>. Back to <a href="../markdown/">Markdown</a>.</p>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

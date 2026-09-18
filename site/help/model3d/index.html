@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Model viewer — Nexaflow help</title>
+<meta name="description" content="Opens a 3D model file and lets you turn it, and says what the file holds.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>3D Model viewer</h1>
+  <p class="lede">Opens a 3D model file and lets you turn it, and says what the file holds.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-model">Opening a model</a></li><li><a href="#moving-the-camera">Moving the camera</a></li><li><a href="#wireframe">Wireframe</a></li><li><a href="#colours">Colours</a></li><li><a href="#what-the-file-holds">What the file holds</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-model">Opening a model</h2>
+<ul>
+<li>Double-click a model in the <a href="../file-system/">File System</a> page. STL, OBJ, glTF, FBX, 3MF, Collada and the rest are mapped here; <strong>As 3D Model</strong> is in the file menu too.</li>
+<li>Mesh formats STL, OBJ, 3DS and PLY open, and an OBJ picks up the companion .mtl beside it.</li>
+<li>glTF and GLB open with the whole scene graph evaluated — every node transform applied, every instanced part repeated — and the triangles grouped one mesh per material.</li>
+<li>FBX, 3MF, AMF, Collada, Blender, DirectX, X3D, DXF, LightWave and some fifty extensions in all open too. Faces are triangulated and given smooth normals where the file has none.</li>
+<li>A model inside an archive or a disk image opens like one on disk.</li>
+<li>The file is read in the background, so the rest of Nexaflow stays responsive.</li>
+<li>Each model opens in <span class="locate" title="In the app this points at TabItem_Model3D">a tab of its own</span>, named after the file. A multi-file selection opens the first.</li>
+</ul>
+<h2 id="moving-the-camera">Moving the camera</h2>
+<ul>
+<li>Rotate, zoom and pan with the mouse. A view cube and a coordinate gizmo show the orientation.</li>
+<li>Alt + right-drag spins the model about the green axis.</li>
+<li>The model opens framed to fill the stage. A glTF that carries a camera opens from that viewpoint instead.</li>
+<li><span class="locate" title="In the app this points at Model3D_ResetView">Reset view</span> returns to the opening view — the authored one, or the opening framing.</li>
+</ul>
+<h2 id="wireframe">Wireframe</h2>
+<p><span class="locate" title="In the app this points at Model3D_Wireframe">The Wireframe switch</span> draws the model as edges only, every triangle where it sits in the scene. The edges are built the first time you ask and kept after that.</p>
+<p>Try it: <span class="locate" title="In the app this points at Model3D_Wireframe, Model3D_ResetView">go wireframe, orbit into the model, then jump home</span>.</p>
+<h2 id="colours">Colours</h2>
+<ul>
+<li>Where a file leaves its untextured materials uncoloured, or gives them all the same grey, each one is painted a distinct colour from your theme's swatch palette.</li>
+<li>Where every untextured material already carries a colour of its own, the file's colours are kept as authored.</li>
+<li>A textured material is never re-tinted. Only OBJ files draw their textures; a glTF or FBX texture is shown as its base colour, with the image named in the inspector.</li>
+</ul>
+<h2 id="what-the-file-holds">What the file holds</h2>
+<ul>
+<li>The footer names the format and counts triangles, vertices and meshes, beside the file size.</li>
+<li>The inspector lists every material — its name where the file gives one, a colour swatch, the hex value and any texture it names. It opens by itself when there is something to show, and <span class="locate" title="In the app this points at Model3D_InspectorToggle">the Inspector switch</span> hides it.</li>
+<li>Animations, cameras, lights, skeletal rigs and full PBR texturing are counted and listed but not drawn. A rigged character is shown in its bind pose, and says so.</li>
+<li>A file that cannot be opened, or that parses but holds no mesh, says so in the middle of the stage.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<p>Ask in <span class="locate" title="In the app this points at AiInputBox">the AI bar</span>.</p>
+<ul>
+<li>It knows the model's name and format, its triangle, vertex, mesh and material counts, whether it is solid or wireframe, and what is not rendered.</li>
+<li>It can take a picture of the stage, move the camera — orbit, roll, zoom, pan, reset — and switch wireframe on or off, so it can turn the model over to answer a question about the underside or the back.</li>
+<li>It can give the exact counts, the full material list and everything not rendered.</li>
+<li>None of these touch the file, so none of them needs your approval.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

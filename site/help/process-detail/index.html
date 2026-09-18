@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Process detail — Nexaflow help</title>
+<meta name="description" content="Shows one process — its identity, resource use, threads, modules and open handles.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Process detail</h1>
+  <p class="lede">Shows one process — its identity, resource use, threads, modules and open handles.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#general">General</a></li><li><a href="#performance">Performance</a></li><li><a href="#threads-modules-and-handles">Threads, modules and handles</a></li><li><a href="#priority-and-killing">Priority and killing</a></li><li><a href="#search-and-the-assistant">Search and the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="general">General</h2>
+<ul>
+<li>Read the image name, description, company and file version.</li>
+<li>Copy the full path or the command line it was started with: the <strong>Copy</strong> button beside each.</li>
+<li>Read the user account it runs as, its parent process and PID, its architecture and its start time.</li>
+<li>Copy part of any value: click into the field and select it.</li>
+<li><span class="locate" title="In the app this points at TabItem_ProcessDetail">The tab</span> is named for the process and its PID.</li>
+</ul>
+<h2 id="performance">Performance</h2>
+<ul>
+<li>A sparkline holds sixty CPU samples, with the scale it is drawn to printed above it.</li>
+<li>Private bytes, working set, peak working set, thread count, handle count, GDI objects and USER objects are listed beside it.</li>
+<li>Turn sampling on or off with the <strong>● Live</strong> toggle in the header bar. Live re-samples once a second.</li>
+<li>Take one fresh reading: <strong>↻</strong> beside the toggle.</li>
+<li>Sampling pauses while the tab is in the background or the window is minimised.</li>
+</ul>
+<h2 id="threads-modules-and-handles">Threads, modules and handles</h2>
+<ul>
+<li>Threads lists thread id, state, priority, CPU time and start time, updated each second.</li>
+<li>Modules lists every loaded DLL with its version, size and path. Sort by clicking a header, click again to reverse.</li>
+<li>Handles lists open handles by type, handle, access and name. Reading them needs administrator rights: press <strong>Load handles (admin)</strong> and Windows will prompt.</li>
+<li>Threads and Modules also need administrator rights for some processes; when they are refused, the page says so instead of showing an empty list.</li>
+<li>Copy from a row: right-click it. Modules also offer <strong>Open file location</strong>.</li>
+</ul>
+<h2 id="priority-and-killing">Priority and killing</h2>
+<ul>
+<li>Change the priority: the dropdown on the General tab, which offers Idle, BelowNormal, Normal, AboveNormal, High and RealTime and applies at once.</li>
+<li>End the process: the <strong>Kill</strong> button in the header bar, after a confirmation.</li>
+<li>If your account cannot make the change, Nexaflow retries with administrator rights and Windows shows one prompt.</li>
+<li>When the process exits, the page says so.</li>
+</ul>
+<h2 id="search-and-the-assistant">Search and the assistant</h2>
+<ul>
+<li>Filter the list on the sub-tab you are looking at: type <code>?</code> and a term in the ask box. Threads match on id, modules on name and path, handles on name.</li>
+<li>See or clear the current search: <span class="locate" title="In the app this points at ProcessDetail_SearchStatus, ProcessDetail_SearchClear">the search chip</span> in the header.</li>
+<li>Switching sub-tab drops the search.</li>
+<li>The assistant sees this process's name, PID, description, CPU, private bytes, working set, thread and handle counts, path, start time and user.</li>
+<li><a href="../processes/">Processes</a> opens this tab; <span class="locate" title="In the app this points at CloseTab_ProcessDetail">close it</span> and the list is still there.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>
