@@ -58,6 +58,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("aztec.md",                 Aztec),
         SampleFile.Text("smiles.md",                Smiles),
         SampleFile.Text("wordcloud.md",             WordCloud),
+        SampleFile.Text("plots.md",                 Plots),
     ];
 
     private const string LatexMathSymbols =
@@ -5095,6 +5096,314 @@ internal sealed class MarkdownSamples : ISampleSet
         C(C)(C)(C)(C)C "Five bonds to one carbon"
         c1ccnc1 "Pyrrole without its hydrogen"
         C1CCC "A ring never closed"
+        ```
+        """";
+
+    private const string Plots =
+        """"
+        # Correlation plots
+
+        Four fences draw a table of values against a pair of axes: `scatter`, `bubble`, `heatmap` and
+        `density2d`. They share one grammar, because they differ in what is drawn rather than in what is
+        written — which is the division ggplot2 makes, and the reason a bubble plot is a scatter plot with
+        one more column rather than a language of its own.
+
+        Every line is either a `key: value` setting or a row of the table. The settings are the lines above
+        the table and the first row closes them, so a column headed `size` is a column. A `#` starts a
+        comment.
+
+        ## The smallest plot there is
+
+        Two columns of numbers and nothing else. The first is x, the second is y.
+
+        ```scatter
+        1.2  3.4
+        2.5  5.1
+        3.1  6.8
+        4.4  7.2
+        5.0  9.6
+        ```
+
+        ## Naming the columns
+
+        A first row no cell of which is a number names them, and the names are what the axes are called.
+        Cells are separated by spaces or commas alike, so a table lined up in columns and a table written
+        with commas are the same table.
+
+        ```scatter
+        title: Weight against fuel economy
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg
+        2620    21.0
+        2875    21.0
+        2320    22.8
+        3215    21.4
+        3440    18.7
+        3460    18.1
+        3570    14.3
+        3190    24.4
+        2200    32.4
+        1615    30.4
+        1835    33.9
+        5250    10.4
+        5424    10.4
+        3840    13.3
+        1935    27.3
+        2140    26.0
+        ```
+
+        ## Mapping a column to a channel
+
+        **A setting that names a column maps it; anything else is set for every mark.** So `colour: origin`
+        tells the groups apart and `size: 4` sets the size of all of them, and the two need no separate
+        syntax. A column may feed more than one channel — `colour` and `shape` together is how a chart reads
+        in colour and in print alike.
+
+        ```scatter
+        title: Fuel economy by cylinders
+        colour: cyl
+        shape: cyl
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg   cyl
+        2620    21.0  six
+        2320    22.8  four
+        3440    18.7  eight
+        3570    14.3  eight
+        3190    24.4  four
+        2200    32.4  four
+        1615    30.4  four
+        5250    10.4  eight
+        3170    15.8  eight
+        2770    19.7  six
+        3460    18.1  six
+        1835    33.9  four
+        ```
+
+        ## A bubble plot
+
+        The same grammar; the `bubble` fence simply maps a third column to size. Sizes are spread over area
+        rather than radius, because a circle of twice the radius carries four times the ink.
+
+        ```bubble
+        title: Wealth, longevity and population
+        xTitle: GDP per head
+        yTitle: Life expectancy
+        sizeRange: 5 34
+        colour: region
+        xScale: log
+
+        gdp    life  pop   region
+        1280   52.9  1032  Africa
+        38225  81.7  742   Europe
+        9771   76.5  4545  Asia
+        14103  75.1  648   Americas
+        54225  82.5  41    Oceania
+        2104   64.9  1380  Asia
+        780    59.3  430   Africa
+        22400  78.9  310   Europe
+        ```
+
+        ## Correlation
+
+        `fit:` draws a line through the points — `lm` for least squares, `loess` for a curve that follows
+        them — with the band its own uncertainty makes. `stats:` writes what the points say about each
+        other on the panel: `r`, `r2`, `n` and `p`, by `method: pearson`, `spearman` or `kendall`.
+
+        ```scatter
+        title: How closely they move together
+        fit: lm
+        se: true
+        stats: r r2 n p
+        xTitle: Weight (lb)
+        yTitle: Miles per gallon
+
+        weight  mpg
+        2620    21.0
+        2875    21.0
+        2320    22.8
+        3215    21.4
+        3440    18.7
+        3460    18.1
+        3570    14.3
+        3190    24.4
+        2200    32.4
+        1615    30.4
+        1835    33.9
+        5250    10.4
+        5424    10.4
+        3840    13.3
+        1935    27.3
+        2140    26.0
+        ```
+
+        ## A correlation matrix
+
+        A `heatmap` reads a table down its side as well as across it, where every row is one cell wider than
+        the header — which is how anybody writes a correlation matrix. `midpoint: 0` makes the colour mean
+        the sign.
+
+        ```heatmap
+        title: How the measures move together
+        gradient: rdbu
+        midpoint: 0
+        fillLimits: -1 1
+        labels: true
+
+                mpg    disp    hp     drat   wt     qsec
+        mpg     1.00  -0.85  -0.78   0.68  -0.87   0.42
+        disp   -0.85   1.00   0.79  -0.71   0.89  -0.43
+        hp     -0.78   0.79   1.00  -0.45   0.66  -0.71
+        drat    0.68  -0.71  -0.45   1.00  -0.71   0.09
+        wt     -0.87   0.89   0.66  -0.71   1.00  -0.17
+        qsec    0.42  -0.43  -0.71   0.09  -0.17   1.00
+        ```
+
+        ## A heat map of a long table
+
+        Written the ordinary way round — a row per cell, its third column the value — the same fence draws a
+        grid. An axis of numbers is still read in order.
+
+        ```heatmap
+        title: Sightings by month
+        gradient: viridis
+
+        month  year   count
+        Jan    2023   12
+        Feb    2023   28
+        Mar    2023   45
+        Jan    2024   19
+        Feb    2024   36
+        Mar    2024   61
+        Jan    2025   24
+        Feb    2025   41
+        Mar    2025   77
+        ```
+
+        ## Too many points to draw one by one
+
+        `geom: hex` and `geom: bin2d` count the rows into bins instead, and `bins:` says how many. A
+        hexagonal lattice has no corners two bins share, so no point is counted into a bin further from it
+        than another.
+
+        ```heatmap
+        geom: hex
+        bins: 8
+        gradient: magma
+        xTitle: x
+        yTitle: y
+
+        x     y
+        -1.2  -0.9
+        -0.8  -1.4
+        -1.0  -0.6
+        -0.4  -0.8
+        -1.6  -1.1
+        -0.9  -0.3
+        -1.1  -1.8
+        -0.6  -1.2
+        1.8   1.6
+        1.4   2.1
+        2.0   1.2
+        1.6   1.9
+        2.2   1.7
+        1.2   1.4
+        1.9   2.3
+        1.5   1.1
+        0.2   0.4
+        0.6   0.1
+        -0.2  0.3
+        0.4   0.8
+        ```
+
+        ## How thickly they lie
+
+        A `density2d` fence draws the contours of a kernel density estimate — Silverman's rule for the width
+        of the kernel, as ggplot2 takes it. `contour:` chooses `bands`, `lines` or `raster`, `levels:` how
+        many, and `points: true` shows the rows themselves through it.
+
+        ```density2d
+        title: Where the points really are
+        contour: bands
+        levels: 7
+        gradient: viridis
+        xTitle: x
+        yTitle: y
+
+        x     y
+        -1.2  -0.9
+        -0.8  -1.4
+        -1.0  -0.6
+        -0.4  -0.8
+        -1.6  -1.1
+        -0.9  -0.3
+        -1.1  -1.8
+        -0.6  -1.2
+        -1.4  -0.5
+        -0.7  -1.6
+        1.8   1.6
+        1.4   2.1
+        2.0   1.2
+        1.6   1.9
+        2.2   1.7
+        1.2   1.4
+        1.9   2.3
+        1.5   1.1
+        2.1   1.8
+        1.3   1.5
+        0.2   0.4
+        0.6   0.1
+        -0.2  0.3
+        0.4   0.8
+        ```
+
+        ## Scales and gridlines
+
+        `xScale:` and `yScale:` take `linear`, `log`, `log2`, `ln`, `sqrt` and `reverse`; `xLimits:` and
+        `xBreaks:` say where the axis starts, stops and is marked; `grid:` takes `both`, `x`, `y` or `none`.
+        A value a scale has nowhere to put — nought on a log axis — is waved rather than drawn at the edge.
+
+        ```scatter
+        xScale: log
+        yLimits: 0 100
+        yBreaks: 0 25 50 75 100
+        grid: y
+        xTitle: Budget
+        yTitle: Share reached
+
+        budget  reached
+        120     8
+        450     19
+        1800    34
+        6200    52
+        24000   71
+        90000   88
+        ```
+
+        ## What cannot be read
+
+        A setting given something it cannot take stops the block being a plot, and its lines are shown as
+        they were written — a question about the whole picture. A cell that will not read loses only its own
+        mark, because it is the row somebody is editing.
+
+        ```scatter
+        x: weight
+        y: mpg
+
+        weight  mpg
+        3504    18.0
+        2372    lots
+        1613    35.0
+        ```
+
+        ```scatter
+        width: wide
+
+        1 2
+        3 4
         ```
         """";
 }

@@ -1118,6 +1118,88 @@ that is not a number — stops the block being a cloud at all, and it shows its 
 
 ---
 
+## Correlation plots
+
+Four fenced blocks draw a table of values against a pair of axes: `scatter`, `bubble`, `heatmap` and
+`density2d`. They are written the same way, so anything below works in all four.
+
+**The smallest plot is two columns of numbers.** The first is across, the second is up.
+
+```scatter
+1.2  3.4
+2.5  5.1
+3.1  6.8
+```
+
+**Name the columns** with a first row that is words rather than numbers, and the names become the axis
+titles. Spaces or commas separate cells alike.
+
+```scatter
+weight  mpg
+2620    21.0
+3440    18.7
+1615    30.4
+```
+
+**Settings go above the table**, one `key: value` to a line. The first row of the table closes them, so
+a column headed `size` is still a column. A `#` starts a comment.
+
+**A setting that names a column maps it; anything else applies to every mark.** So `colour: origin` tells
+your groups apart, and `size: 4` sets the size of all of them.
+
+| To | Write |
+|---|---|
+| name it | `title:` `subtitle:` `caption:` `xTitle:` `yTitle:` |
+| say where the marks go | `x:` `y:` |
+| tell groups apart | `colour:` `shape:` — a column name, or a colour or mark name |
+| size the marks | `size:` — a column name, or a number; `sizeRange: 4 28` |
+| draw something else | `geom: point`, `tile`, `bin2d`, `hex`, `density2d` |
+| fit a line through them | `fit: lm` or `loess`, with `se: true` for the band |
+| report the correlation | `stats: r r2 n p`, and `method: pearson`, `spearman` or `kendall` |
+| change an axis | `xScale: log`, `xLimits: 0 100`, `xBreaks: 0 50 100`, `grid: none` |
+| change the colours | `palette:`, `gradient: viridis`, `midpoint: 0`, `legend: bottom` |
+
+**A correlation, with the line and the figures:**
+
+```scatter
+title: Weight against fuel economy
+fit: lm
+stats: r r2 n
+
+weight  mpg
+2620    21.0
+3440    18.7
+5250    10.4
+1615    30.4
+1935    27.3
+```
+
+**A correlation matrix** is a `heatmap` whose rows are each one cell wider than the header — which is how
+you would write one anyway. `midpoint: 0` makes the colour mean the sign.
+
+```heatmap
+gradient: rdbu
+midpoint: 0
+fillLimits: -1 1
+labels: true
+
+       mpg    hp     wt
+mpg    1.00  -0.78  -0.87
+hp    -0.78   1.00   0.66
+wt    -0.87   0.66   1.00
+```
+
+**Too many points to see?** `geom: hex` counts them into bins instead, and a `density2d` block draws the
+shape of the cloud — `contour: bands`, `lines` or `raster`, with `points: true` to show the rows through
+it.
+
+**You can type into it.** A value drawn on a tile is the one you wrote, so clicking into it and typing
+changes the block. Clicking a point selects the row it came from. A number the plot chose — a tick, a
+coefficient — is not something you can type into, and a value that will not read is underlined where it
+stands while the rest of the plot keeps drawing.
+
+---
+
 ## Good to know
 
 - **It's all local.** Diagrams and math render on your machine — nothing is sent anywhere, and the
