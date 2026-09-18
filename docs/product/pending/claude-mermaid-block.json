@@ -103,11 +103,108 @@
           }
         ]
       }
+    },
+    "architecture": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "status": "should",
+          "target": "https://mermaid.ai/open-source/syntax/architecture.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureBuilder.cs",
+          "class": "ArchitectureBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureIcons.cs",
+          "class": "ArchitectureIcons"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ArchitectureBuilderTests.cs",
+            "class": "ArchitectureBuilderTests"
+          }
+        ]
+      }
+    },
+    "architecture-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs",
+          "class": "ArchitectureGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureDiagram.cs",
+          "class": "ArchitectureDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureConfig.cs",
+          "class": "ArchitectureConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/Stages/ResolveArchitecture.cs",
+          "class": "ResolveArchitecture"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Architecture/ArchitectureGrammarTests.cs",
+            "class": "ArchitectureGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Architecture/ArchitectureDiagramTests.cs",
+            "class": "ArchitectureDiagramTests"
+          }
+        ]
+      }
+    },
+    "architecture-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs",
+          "class": "ArchitectureGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ArchitectureEditingTests.cs",
+            "class": "ArchitectureEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 12,
   "touched_nodes": [
+    "architecture",
+    "architecture-ast",
+    "architecture-writing",
     "block",
     "block-ast",
     "block-writing"

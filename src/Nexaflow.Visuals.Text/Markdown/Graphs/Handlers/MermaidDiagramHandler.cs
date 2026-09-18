@@ -38,7 +38,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
-    private static readonly MermaidArchitectureParser ArchitectureParser = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
 
@@ -67,7 +66,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
             MermaidDiagram.Sankey       => RenderSankey(block, palette),
             MermaidDiagram.Er           => RenderEr(block, options),
-            MermaidDiagram.Architecture => RenderArchitecture(block, palette),
+
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
 
             MermaidDiagram.C4           => RenderC4(block, options),
@@ -115,14 +114,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         }
 
         return RenderGraphFamily(graph, block, options, 1100);
-    }
-
-    private static FrameworkElement RenderArchitecture(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = ArchitectureParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = ArchitectureConfigParser.Parse(block.Config);
-        return WpfArchitectureRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderSwimlane(MermaidBlock block, MarkdownPalette palette)

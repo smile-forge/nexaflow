@@ -156,7 +156,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
-| `architecture-beta` | ✅ (grid layout, icon glyphs) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (lane bands) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
@@ -507,21 +507,31 @@ press, and Ctrl+click adds a region, a label or an item to what is chosen. Press
 in it, and pressing where a union's circles overlap chooses the union. **Limitations:** a diagram is drawn in the app's
 theme, so Mermaid's `redux-color` theme, `neo` look and hand-drawn look are not.
 
-**Architecture sub-features** ([`MermaidArchitectureParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidArchitectureParser.cs)
-+ [`WpfArchitectureRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfArchitectureRenderer.cs)).
-An architecture diagram has its own [`ArchitectureDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureDiagram.cs)
-model — groups, the services/junctions inside them, and side-anchored edges — drawn by a **dedicated grid renderer**
-(not the Sugiyama pipeline): services are placed on a grid seeded from the edges' side hints (`A:R -- L:B` puts B to
-the right of A), groups draw as boxes around their members, and edges anchor to the declared `T`/`B`/`L`/`R` side.
-Supported: `group id(icon)[Title]` with nesting (`in parent`); `service id(icon)[Title] in group`; `junction`;
-edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` (all four arrow forms, cross-group `{group}` endpoints); and
-`align row`/`align column`. The five default icons (cloud/database/disk/internet/server) render as **built-in vector
-glyphs**; unknown/custom `pack:name` icons fall back to a caption. **The front-matter `config:` block is applied**
-([`ArchitectureConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/ArchitectureConfigParser.cs) →
-[`ArchitectureConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/ArchitectureConfig.cs)): `nodeSeparation`
-tunes cell spacing; the physics keys (`randomize`/`seed`/`idealEdgeLengthMultiplier`) are parsed but the grid layout
-is deterministic. **Limitations:** placement is a deterministic grid heuristic, not Mermaid's force-directed engine,
-so complex graphs may lay out differently; edges route as straight side-to-side lines.
+**Architecture sub-features** ([`ArchitectureGrammar`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs) →
+[`ArchitectureDiagram`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureDiagram.cs) →
+[`ArchitectureBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureBuilder.cs)).
+**The sides an edge leaves by are what say where things sit**: `db:R -- L:server` puts the server to the right of the
+database, and walking the edges out from each service in turn lays the whole diagram on a grid — which is where Mermaid
+starts too, before handing the result to a force-directed solver to settle. Here the walk is the answer, so the same
+diagram is drawn the same way every time. Supported: `group id(icon)[Title]` nested with `in parent`;
+`service id(icon)[Title] in group`, the icon being words of its own in quotes where it is; `junction`, drawn as the dot
+its edges meet at; edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` with a head at either end or both, the `{group}`
+that reaches the group a service is in, and `-[reads]-` to say what an edge is; `align row` and `align column`; a `title`
+and the accessibility lines. The five icons Mermaid ships — `cloud`, `database`, `disk`, `internet`, `server` — are drawn
+as pictures ([`ArchitectureIcons`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureIcons.cs)), and
+an icon from a pack is written out as what it is called, which says as much as a picture nobody has. **Everything drawn
+stands for what was written** — a group holds its services in the layout, so pressing a service means that service and
+pressing the room round it means the group; what is written under a service is the characters written, or of its id where
+nothing else is, typed into where it is drawn. Enter starts another service with its id to write, and what a bare id
+cannot hold is dropped. **The front matter is applied**
+([`ArchitectureConfig`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureConfig.cs)): `config: architecture:`
+`iconSize`, `fontSize`, `padding`, `nodeSeparation` and `idealEdgeLengthMultiplier`, the last being how far apart two
+services sharing a cell are spread. **Divergences from Mermaid:** Mermaid keeps one neighbour per side of a service, so
+three services reaching a fourth the same way land two deep and `align` exists to pull them apart — here they all land in
+one cell and the cell spreads them, across or down as `align` asks, so nothing is ever drawn on top of anything; Mermaid
+reads three of the four side pairings one way and the fourth the other, so an edge leaving sideways and arriving at a top
+puts that end above rather than below, where here all four read the same way; and `randomize`, `seed`, `numIter` and
+`edgeElasticity` steer a solver this does not run.
 
 **Swimlane sub-features** ([`MermaidSwimlaneParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSwimlaneParser.cs)
 + [`WpfSwimlaneRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSwimlaneRenderer.cs)).

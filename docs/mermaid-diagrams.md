@@ -70,6 +70,7 @@ diagram's own code sits in a folder of its own under each.
 | draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
 | draw a node in the shape Mermaid's brackets say | `DiagramShapes.For` — the drawn shape a `MermaidShape` comes to |
+| say what a piece stands in where other pieces are drawn over it | `build.Occupies` of its shape less theirs, **united** rather than grouped — a line's band is wound the other way round from a rectangle, and either fill rule takes their overlap back out |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |

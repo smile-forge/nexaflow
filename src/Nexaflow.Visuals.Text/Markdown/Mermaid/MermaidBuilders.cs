@@ -40,6 +40,7 @@ internal static class MermaidBuilders
         MermaidDiagram.Journey => Journey.JourneyBuilder.Build,
         MermaidDiagram.GitGraph => Git.GitBuilder.Build,
         MermaidDiagram.Block => Block.BlockBuilder.Build,
+        MermaidDiagram.Architecture => Architecture.ArchitectureBuilder.Build,
         _ => null,
     };
 

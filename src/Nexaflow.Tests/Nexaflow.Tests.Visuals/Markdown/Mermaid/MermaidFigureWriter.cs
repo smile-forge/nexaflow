@@ -38,6 +38,7 @@ public class MermaidFigureWriter
         ("User journey", "mermaid-journey.png"),
         ("Git graph", "mermaid-gitgraph.png"),
         ("Block diagram", "mermaid-block.png"),
+        ("Architecture diagram", "mermaid-architecture.png"),
     ];
 
     [TestMethod]

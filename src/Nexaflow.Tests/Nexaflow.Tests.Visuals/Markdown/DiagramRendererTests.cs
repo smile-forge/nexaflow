@@ -301,54 +301,6 @@ public class DiagramRendererTests
             db:R -- L:server
         """;
 
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidArchitectureParser().Parse(ArchitectureSrc);
-        Assert.IsInstanceOfType(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_DispatchesToGridRendererNotRawText() => UiThread.Run(() =>
-    {
-        // architecture-beta used to fall through to raw source text; it must now route to the grid
-        // renderer: Border → ScrollViewer → Canvas (the raw fallback is Border → TextBlock).
-        var fe = DiagramRenderer.Render("mermaid", ArchitectureSrc, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
-        var sv = ((Border)fe).Child as ScrollViewer;
-        Assert.IsNotNull(sv, "architecture-beta should route to the architecture renderer");
-        Assert.IsInstanceOfType(sv!.Content, typeof(Canvas));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_GroupsIconsAndCrossGroupEdge_Render() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            architecture-beta
-                group public(cloud)[Public]
-                group private(cloud)[Private]
-                service gateway(internet)[Gateway] in public
-                service app(server)[App] in private
-                junction j1 in private
-                gateway:R --> L:app
-                app:B -- T:j1
-                gateway{group}:B --> T:app{group}
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    [CoversNode("architecture")]
-    public void Architecture_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidArchitectureParser().Parse("architecture-beta\n");
-        Assert.IsNotNull(WpfArchitectureRenderer.Render(d, MarkdownPalette.Dark));
-    });
-
     // ── Swimlane diagram ──────────────────────────────────────────────────
 
     private const string SwimlaneSrc =
