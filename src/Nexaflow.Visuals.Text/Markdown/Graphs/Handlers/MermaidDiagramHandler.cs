@@ -23,7 +23,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
 ///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
 ///   • <c>C4Sequence</c>       → <see cref="MermaidC4Parser"/> + <see cref="C4SequenceProjector"/> + <see cref="WpfSequenceDiagramRenderer"/>
-///   • <c>graph / flowchart</c> → <see cref="MermaidFlowchartParser"/>        + Sugiyama + <see cref="WpfGraphRenderer"/>
+///   • <c>graph / flowchart</c> asking for nodes that open and close → <see cref="MermaidFlowchartParser"/> + Sugiyama +
+///     <see cref="WpfGraphRenderer"/>; every other flowchart is drawn on the shared layout tree
 ///   • a header naming no type → <see cref="UnknownDiagramBuilder"/>, the block as written with the reason
 ///
 /// Which keyword names which diagram is <see cref="MermaidDiagrams"/>; adding a type means naming it there and adding
@@ -53,8 +54,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var block = MermaidBlock.Read(source);
         var palette = options.Palette;
 
-        // A diagram drawn on the shared layout tree is shown in an element it can be written in, and never drawn any other way.
-        if (MermaidBuilders.Element(source, block.Diagram, options) is { } shared) return shared;
+        // A diagram drawn on the shared layout tree is shown in an element it can be written in, and never drawn any other way —
+        // unless it asks for nodes that open and close, which only the expandable view draws.
+        if (!Explorable(block) && MermaidBuilders.Element(source, block.Diagram, options) is { } shared) return shared;
 
         return block.Diagram switch
         {
@@ -78,6 +80,14 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     /// <summary>Applies a front-matter title to a chart that doesn't already carry one.</summary>
     private static string Titled(string? existing, MermaidBlock block) =>
         string.IsNullOrWhiteSpace(existing) && block.FrontMatterTitleText is { } frontmatter ? frontmatter : existing ?? string.Empty;
+
+    /// <summary>
+    /// Whether the block asks for nodes that open and close — a <c>config: nexaflow:</c> block with anything in it. The shared
+    /// layout tree draws what was written and nothing else, so a flowchart asking to be explored keeps the expandable graph view;
+    /// this goes when opening and closing a node is something the layout tree can do.
+    /// </summary>
+    private static bool Explorable(MermaidBlock block) =>
+        block.Diagram == MermaidDiagram.Flowchart && !NexaflowConfigParser.Parse(block.Config).IsEmpty;
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
 

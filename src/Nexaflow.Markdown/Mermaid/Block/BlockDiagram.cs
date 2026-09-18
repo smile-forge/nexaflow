@@ -23,15 +23,6 @@ public enum BlockTowards
     Down = 8,
 }
 
-/// <summary>What a link draws at one of its ends.</summary>
-public enum BlockHead
-{
-    None,
-    Arrow,
-    Circle,
-    Cross,
-}
-
 /// <summary>
 /// One block, read: where it was written, what it is called, what is written on it, the shape its brackets say, how many
 /// columns it takes, and — where it is a composite — the grid of blocks inside it.
@@ -76,10 +67,9 @@ public sealed record BlockLink(
     string From,
     string To,
     ContentPart? Said,
-    BlockHead Start,
-    BlockHead End,
-    bool Thick,
-    bool Dotted)
+    MermaidHead Start,
+    MermaidHead End,
+    MermaidLineStyle Style)
 {
     /// <summary>The hole standing where its label goes, where holes were asked for and nothing is written there yet.</summary>
     public ContentPart? SaidHole { get; init; }
@@ -170,21 +160,21 @@ public sealed class BlockDiagram
                     break;
 
                 case BlockKinds.ClassDef:
-                    if (Says(stated, BlockRoles.Class) is { Length: > 0 } declared)
-                        classes[declared] = MermaidStyle.None.With(stated.Inner(MermaidKinds.Properties));
+                    var declared = MermaidStyle.None.With(stated.Inner(MermaidKinds.Properties));
+                    foreach (var name in BlockGrammar.Styling.Classes(stated)) classes[name] = declared;
                     break;
 
                 case BlockKinds.Class:
-                    taken.Add((Named(stated), Says(stated, BlockRoles.Class) ?? string.Empty));
+                    taken.Add((BlockGrammar.Styling.Ids(stated), BlockGrammar.Styling.Given(stated) ?? string.Empty));
                     break;
 
                 case BlockKinds.Style:
-                    written.Add((Named(stated), MermaidStyle.None.With(stated.Inner(MermaidKinds.Properties))));
+                    written.Add((BlockGrammar.Styling.Ids(stated), MermaidStyle.None.With(stated.Inner(MermaidKinds.Properties))));
                     break;
             }
         }
 
-        var styles = Styled(known.Keys, classes, taken, written);
+        var styles = MermaidStyling.Styles(known.Keys, classes, taken, written);
 
         return new BlockDiagram(block, BlockConfig.Read(block.Config), root.Columns,
                                [.. root.Items.Select(item => Frozen(item, styles))], links);
@@ -311,64 +301,15 @@ public sealed class BlockDiagram
     private static BlockLink Linked(ContentPart part, string from, string to)
     {
         var said = part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted);
-        var token = part.Children.FirstOrDefault(child => child.Role == BlockRoles.Arrow)?.Text ?? string.Empty;
-        var drawn = token.Trim();
+        var drawn = MermaidLinks.Of(part.Children.FirstOrDefault(child => child.Role == BlockRoles.Arrow)?.Text);
 
-        return new BlockLink(part, from, to, said.Words(),
-                             Head(drawn.Length > 0 ? drawn[0] : ' ', start: true),
-                             Head(drawn.Length > 0 ? drawn[^1] : ' ', start: false),
-                             drawn.Contains("==", StringComparison.Ordinal),
-                             drawn.Contains(".-", StringComparison.Ordinal))
+        return new BlockLink(part, from, to, said.Words(), drawn.Start, drawn.End, drawn.Style)
         {
             SaidHole = said?.Hole(),
         };
     }
 
-    /// <summary>What a character at one end of a link draws there.</summary>
-    private static BlockHead Head(char character, bool start) => character switch
-    {
-        'x' => BlockHead.Cross,
-        'o' => BlockHead.Circle,
-        '<' when start => BlockHead.Arrow,
-        '>' when !start => BlockHead.Arrow,
-        _ => BlockHead.None,
-    };
-
     // ── The styling ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// What each block is styled with: the <c>default</c> class every block starts from, then the classes it is given, then
-    /// the style written for it — each laid over the one before it, so the nearest thing to the block wins.
-    /// </summary>
-    private static IReadOnlyDictionary<string, MermaidStyle> Styled(
-        IEnumerable<string> blocks, IReadOnlyDictionary<string, MermaidStyle> classes,
-        IReadOnlyList<(IReadOnlyList<string> Ids, string Class)> taken,
-        IReadOnlyList<(IReadOnlyList<string> Ids, MermaidStyle Style)> written)
-    {
-        var every = classes.TryGetValue(BlockGrammar.Every, out var start) ? start : MermaidStyle.None;
-        var styles = blocks.ToDictionary(id => id, _ => every, StringComparer.Ordinal);
-
-        foreach (var (ids, name) in taken)
-            if (classes.TryGetValue(name, out var style))
-                foreach (var id in ids)
-                    styles[id] = style.Over(styles.GetValueOrDefault(id, every));
-
-        foreach (var (ids, style) in written)
-            foreach (var id in ids)
-                styles[id] = style.Over(styles.GetValueOrDefault(id, every));
-
-        return styles;
-    }
-
-    /// <summary>The ids a <c>class</c> or <c>style</c> line names.</summary>
-    private static IReadOnlyList<string> Named(ContentPart stated) =>
-        [.. stated.Inner(MermaidKinds.Names).Named()
-              .Select(name => name.Words()?.Text ?? string.Empty)
-              .Where(id => id.Length > 0)];
-
-    /// <summary>What the part of a line in a role says, or null where nothing is written in it.</summary>
-    private static string? Says(ContentPart stated, string role) =>
-        stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == role)?.Text;
 
     // ── What it comes to ────────────────────────────────────────────────────
 

@@ -99,10 +99,13 @@ public static class MermaidDiagrams
         MermaidDiagram.Block => Blocks,
         MermaidDiagram.Architecture => Architectures,
         MermaidDiagram.Sankey => Sankeys,
+        MermaidDiagram.Flowchart => Flowcharts,
         _ => null,
     };
 
     private static readonly Pie.PieGrammar Pies = new();
+
+    private static readonly Flowchart.FlowchartGrammar Flowcharts = new();
 
     private static readonly Venn.VennGrammar Venns = new();
 

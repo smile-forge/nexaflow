@@ -134,7 +134,7 @@ public class MermaidBlockTests
     [TestMethod]
     public void TheAccessibleTitleAndDescriptionAreRead()
     {
-        var block = MermaidBlock.Read("graph LR\n  accTitle: Decisions\n  accDescr {\n    Bob's stand\n  }\n  a --> b");
+        var block = MermaidBlock.Read("sequenceDiagram\n  accTitle: Decisions\n  accDescr {\n    Bob's stand\n  }\n  a --> b");
 
         Assert.AreEqual("Decisions", block.AccessibleTitle?.Text);
         Assert.AreEqual("Bob's stand", block.AccessibleDescription?.Text);

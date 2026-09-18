@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
@@ -45,5 +46,26 @@ internal sealed class DiagramInk(MarkdownPalette palette)
         faded.Opacity = Math.Max(0, opacity);
         faded.Freeze();
         return faded;
+    }
+
+    /// <summary>
+    /// The dashes a style's <c>stroke-dasharray</c> writes, as the lengths drawn and left — or null where it writes none this can
+    /// read. Any diagram whose styling can ask for a dashed line reads it the same way.
+    /// </summary>
+    public static DoubleCollection? Dashes(string? said)
+    {
+        if (said is not { Length: > 0 }) return null;
+
+        var lengths = said.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)
+            .Select(MermaidNumber.Read)
+            .OfType<double>()
+            .Where(length => length > 0)
+            .ToList();
+
+        if (lengths.Count == 0) return null;
+
+        var dashes = new DoubleCollection(lengths);
+        dashes.Freeze();
+        return dashes;
     }
 }

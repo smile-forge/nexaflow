@@ -418,10 +418,10 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
         foreach (var route in routes)
         {
-            var stroke = new DiagramStroke(Palette.TextMuted, route.Link.Thick ? Thick : 1, route.Link.Dotted ? DiagramStroke.Dotted : null);
+            var stroke = DiagramConnector.Stroked(Palette.TextMuted, route.Link.Style, thick: Thick);
 
             DiagramConnector.Draw(build, BlockPiece.Link, route.Link.Part, route.Along, stroke,
-                                  Headed(route.Link.Start), Headed(route.Link.End));
+                                  DiagramConnector.Headed(route.Link.Start), DiagramConnector.Headed(route.Link.End));
 
             DiagramConnector.Says(build, BlockPiece.Label, route.Link.Part, route.Room, route.Said, Palette.CodeBg);
         }
@@ -431,14 +431,6 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
     /// <summary>A link worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
     private sealed record Route(BlockLink Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
-
-    private static DiagramHead Headed(BlockHead head) => head switch
-    {
-        BlockHead.Arrow => DiagramHead.Arrow,
-        BlockHead.Circle => DiagramHead.Circle,
-        BlockHead.Cross => DiagramHead.Cross,
-        _ => DiagramHead.None,
-    };
 
     private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 
@@ -481,25 +473,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     }
 
     private DiagramStroke Stroke(BlockItem item) =>
-        new(Ink.Written(item.Style.Stroke) ?? Palette.CodeBorder, item.Style.StrokeWidth ?? 1, Dashes(item.Style.Dashes));
-
-    /// <summary>The dashes a style writes, as the lengths drawn and left — or null where it writes none this can read.</summary>
-    private static DoubleCollection? Dashes(string? said)
-    {
-        if (said is not { Length: > 0 }) return null;
-
-        var lengths = said.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)
-            .Select(MermaidNumber.Read)
-            .OfType<double>()
-            .Where(length => length > 0)
-            .ToList();
-
-        if (lengths.Count == 0) return null;
-
-        var dashes = new DoubleCollection(lengths);
-        dashes.Freeze();
-        return dashes;
-    }
+        new(Ink.Written(item.Style.Stroke) ?? Palette.CodeBorder, item.Style.StrokeWidth ?? 1, DiagramInk.Dashes(item.Style.Dashes));
 
     /// <summary>A block measured: what is written on it, the room it needs, and — once its grid is laid out — where it sits.</summary>
     private sealed class Sized(BlockItem item, IReadOnlyList<DiagramWords> words)

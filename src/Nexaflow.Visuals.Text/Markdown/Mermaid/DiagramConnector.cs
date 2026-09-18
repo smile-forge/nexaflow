@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -170,6 +171,24 @@ internal static class DiagramConnector
 
         build.Close();
     }
+
+    /// <summary>What a link written one of Mermaid's ways draws at one of its ends.</summary>
+    public static DiagramHead Headed(MermaidHead head) => head switch
+    {
+        MermaidHead.Arrow => DiagramHead.Arrow,
+        MermaidHead.Circle => DiagramHead.Circle,
+        MermaidHead.Cross => DiagramHead.Cross,
+        _ => DiagramHead.None,
+    };
+
+    /// <summary>
+    /// How the line of a link written one of Mermaid's ways is drawn: thicker where it is written with equals signs, dotted where it
+    /// is written with dots. A link drawn as nothing at all (<see cref="MermaidLineStyle.Invisible"/>) is not drawn by its caller.
+    /// </summary>
+    public static DiagramStroke Stroked(Brush ink, MermaidLineStyle style, double thin = 1, double thick = 2.5,
+                                        DoubleCollection? dashes = null) =>
+        new(ink, style == MermaidLineStyle.Thick ? thick : thin,
+            dashes ?? (style == MermaidLineStyle.Dotted ? DiagramStroke.Dotted : null));
 
     /// <summary>
     /// The band a route stands in — how near a press must be to mean it (<see cref="Reach"/>) — for a shape drawn under one to
