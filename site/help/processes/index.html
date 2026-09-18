@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Processes — Nexaflow help</title>
+<meta name="description" content="Lists the processes running on this machine and lets you inspect or end them.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Processes</h1>
+  <p class="lede">Lists the processes running on this machine and lets you inspect or end them.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#the-list">The list</a></li><li><a href="#tree-flat-and-filtered">Tree, flat and filtered</a></li><li><a href="#refreshing">Refreshing</a></li><li><a href="#right-click-a-row">Right-click a row</a></li><li><a href="#search-and-the-assistant">Search and the assistant</a></li><li><a href="#opening-the-page">Opening the page</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="the-list">The list</h2>
+<ul>
+<li>Sort by a column: click its header, click again to reverse. It opens sorted by CPU, highest first.</li>
+<li>Resize a column: drag the right edge of its header.</li>
+<li>Open one process: double-click its row, or right-click and choose <strong>View details</strong>.</li>
+<li>The title row reads <em>N shown · M total</em>, so you can see how much a filter is hiding.</li>
+</ul>
+<h2 id="tree-flat-and-filtered">Tree, flat and filtered</h2>
+<ul>
+<li>Switch between the tree and a flat list with the <strong>Tree</strong> toggle. In the tree each process nests under the one that started it. <span class="locate" title="In the app this points at Proc_ToggleTree">Show me</span></li>
+<li>Open one branch: click the row's chevron. Rows start collapsed.</li>
+<li>Open or close every branch: <span class="locate" title="In the app this points at Proc_ExpandAll, Proc_CollapseAll">Expand all and Collapse all</span>.</li>
+<li>Filter the list: type in <span class="locate" title="In the app this points at Proc_Filter, Proc_ClearFilter">the search box</span>. It matches name, PID, company, description or image path, any case.</li>
+<li>Clear the filter with the ✕ at the end of the box.</li>
+<li>While the box has text the results are a flat list, whatever the Tree toggle says.</li>
+</ul>
+<h2 id="refreshing">Refreshing</h2>
+<ul>
+<li>Turn sampling on or off with <span class="locate" title="In the app this points at Proc_ToggleLive, Proc_Refresh">the ● Live toggle</span>. Live re-samples once a second; turning it off stops the numbers moving and discards nothing.</li>
+<li>Take one fresh sample: the ↻ button beside it, live or not.</li>
+<li>Two sparklines in the title row show machine-wide CPU and RAM, sixty samples each, with the current percentage.</li>
+<li>Sampling pauses while the tab is in the background or the window is minimised.</li>
+<li>Selection, expanded branches and scroll position survive a refresh.</li>
+</ul>
+<h2 id="right-click-a-row">Right-click a row</h2>
+<ul>
+<li><strong>View details</strong> opens that process in <a href="../process-detail/">its own tab</a>.</li>
+<li><strong>Open file location</strong> opens the program's folder in a <a href="../file-system/">File System</a> tab.</li>
+<li><strong>Copy name</strong>, <strong>Copy PID</strong>, <strong>Copy path</strong> and <strong>Copy details</strong> put those on the clipboard.</li>
+<li><strong>Kill process</strong> ends it after a confirmation naming the process.</li>
+<li><strong>Kill process tree</strong> ends it and every process it started, after its own confirmation.</li>
+<li>If your account cannot end a process, Nexaflow retries with administrator rights and Windows shows one prompt.</li>
+</ul>
+<h2 id="search-and-the-assistant">Search and the assistant</h2>
+<ul>
+<li>Search the same five fields: type <code>?</code> and a term in <span class="locate" title="In the app this points at AiInputBox">the ask box</span>. Quoted phrases, <code>chrome*</code> and <code>/regex/</code> all work. The query appears in the search box; typing over it goes back to a plain filter.</li>
+<li>The assistant sees how many processes are running, machine-wide CPU and memory, and the top three by CPU and by memory.</li>
+<li>It can list processes, rank the top consumers by CPU or memory, read one process's details or loaded modules, and print the parent/child tree, including processes the filter hides.</li>
+<li>Ending a process or a tree and changing a priority need your approval first, and Windows may then ask for administrator rights.</li>
+</ul>
+<h2 id="opening-the-page">Opening the page</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Ribbon_Processes">The Processes button on the ribbon</span>.</li>
+<li><a href="../process-detail/">Process detail</a> adds threads, modules, open handles, the command line and the priority selector for one process.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

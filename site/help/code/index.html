@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code editor — Nexaflow help</title>
+<meta name="description" content="Shows a source file with syntax colouring and an outline of its structure, and lets you edit and save it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Code editor</h1>
+  <p class="lede">Shows a source file with syntax colouring and an outline of its structure, and lets you edit and save it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-files">Opening files</a></li><li><a href="#languages">Languages</a></li><li><a href="#the-code-map">The code map</a></li><li><a href="#editing-and-saving">Editing and saving</a></li><li><a href="#finding-text">Finding text</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-files">Opening files</h2>
+<ul>
+<li>Double-click a <code>.cs</code>, <code>.ts</code>, <code>.py</code>, <code>.rb</code>, <code>.rs</code>, <code>.cpp</code>, <code>.java</code>, <code>.php</code> or <code>.razor</code> file on the <a href="../file-system/">File System</a> page and it opens here. Any other file — a <code>.xaml</code>, a <code>.css</code>, a config file — opens here through the As Code action.</li>
+<li>A file too big to edit opens read-only, with a banner pointing at <a href="../text/">the Text viewer</a> or at splitting the file. The ceiling is a Code Editor setting: 5 MB to 250 MB, 50 MB by default.</li>
+<li>Open a code snaplink on the Product page and the file opens here, scrolled to the declaration the link named.</li>
+</ul>
+<h2 id="languages">Languages</h2>
+<ul>
+<li>Parsed with tree-sitter: C#, JavaScript, TypeScript, Python, Ruby, Rust, C, C++, Java, PHP, JSON, HTML, CSS, ERB, Razor, Jinja, XAML and the XML family, including <code>.props</code>, <code>.targets</code> and WiX sources.</li>
+<li>PowerShell, SQL, TeX and VB get colouring but no outline.</li>
+<li>Fold and unfold blocks from the fold margin. The markers keep up as you type, without a save.</li>
+<li>A colour literal — <code>#FF3B30</code>, an <code>rgb(…)</code>, a name like <code>Tomato</code>, or a <code>{StaticResource AccentBrush}</code> that resolves in the current theme — is drawn with a bar of that colour.</li>
+<li>Embedded code is coloured, folded and mapped with its own grammar: JavaScript and CSS in HTML, Ruby and HTML in an ERB template, the HTML around <code>&lt;?php … ?&gt;</code>, Python in Jinja's <code>{{ … }}</code> and <code>{% … %}</code>, and Ruby heredocs tagged HTML, CSS, JS, JSON or ERB.</li>
+</ul>
+<h2 id="the-code-map">The code map</h2>
+<ul>
+<li>Dependencies lists the file's imports. A relative import that resolves to a file on disk — a JavaScript <code>./util</code>, a Python <code>from .util import x</code>, a Ruby <code>require_relative</code>, a XAML <code>ResourceDictionary</code> source — is a link that opens that file in its own tab.</li>
+<li>The class diagram has a box per type with its members, base classes and interfaces, and embedded code gets its own cluster. Members lists the top-level functions, for languages that have them.</li>
+<li>Click any member row to jump to it. The jump follows the declaration, so it stays right as you edit above it.</li>
+<li>Collapse the map with <span class="locate" title="In the app this points at Code_MapToggle">the chevron in its header</span>, or drag it wider; the width is remembered. A tab on the edge brings it back.</li>
+<li>A <code>.xaml</code> file maps its <code>x:Class</code>, every <code>x:Name</code> and <code>x:Key</code>, its automation ids and its event handlers. The map keeps working while the file does not yet parse.</li>
+</ul>
+<h2 id="editing-and-saving">Editing and saving</h2>
+<ul>
+<li>Save with Ctrl+S, or from the toolbar, where the encoding and line-ending controls sit beside it. <span class="locate" title="In the app this points at Editor_Encoding, Editor_Eol, Editor_Save">Show me</span></li>
+<li>The encoding is detected when the file opens. Change it and the file is re-read, after asking if you have unsaved edits.</li>
+<li>Save keeps the line endings the file had, or writes LF, CRLF or CR throughout. The footer names the current ones, including Mixed.</li>
+<li>A source file opened from inside a ZIP saves back into the archive, not out to a copy.</li>
+<li>Undo back to the state you saved and the unsaved marker clears.</li>
+<li>If the file changes on disk the editor reloads it and says so in a banner, asking first if you have unsaved work. F5 reloads on demand.</li>
+<li>MD5 or SHA-256 of the whole file or of the selection is copied to the clipboard and shown to you. Commands that need a selection appear only when there is one.</li>
+<li>Base64 encodes or decodes the selection in place, and tells you when the selection is not valid Base64.</li>
+<li>Line operations are on <span class="locate" title="In the app this points at Editor_LineCommands">the line counter in the footer</span>: convert line endings for any file, and for prose and data remove empty lines, drop duplicates, or sort A→Z or Z→A. They are hidden for code and markup.</li>
+<li>Turn line numbers on or off with <span class="locate" title="In the app this points at Editor_LineNumbers">one toggle</span>. The footer also shows the file size and line count.</li>
+</ul>
+<h2 id="finding-text">Finding text</h2>
+<ul>
+<li>Type <code>?</code> and a term in the AI bar to search this file.</li>
+<li>Several words match lines that hold all of them, anywhere in the line. Wrap a pattern in slashes — <code>/F[0-9]+/</code> — to search by regular expression.</li>
+<li>Matches are highlighted, and a strip down the right edge marks where they fall in the file.</li>
+<li>The chip counts the matches and steps forwards or back through them, and clears the search.</li>
+<li>Ask the assistant to narrow the set and the count, highlights and stepping follow it.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>Turn on <span class="locate" title="In the app this points at AiBar_ContextToggle">the page-context switch</span> so the assistant can see the file you are editing.</li>
+<li>Ask it to list every declaration with its line range, to read the whole file, or for the parse tree.</li>
+<li>Ask it to edit one declaration: replace a method, change a signature without the body or the body without the signature, rename, append a member, add an import, or substitute a line inside one method. An edit that would break the file is refused, and one that succeeds lands as a single undo step with your caret and scroll position kept.</li>
+<li>Whole-file find and replace, and Save, are there too. Every edit asks you first.</li>
+<li>It waits for the file to finish loading before answering about it.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

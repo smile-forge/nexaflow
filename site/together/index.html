@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>With your AI — Nexaflow</title>
+<meta name="description" content="Not an agent you send away — an assistant looking at the same screen you are.">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../">Nexaflow</a>
+  <nav><a href="../open/">Open anything</a><a href="../author/">Author &amp; draw</a><a href="../system/">Run your machine</a><a href="../track/">Keep track</a><a href="../together/">With your AI</a><a href="../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<header class="page-head">
+  <h1>With your AI</h1>
+  <p class="lede">Not an agent you send away — an assistant looking at the same screen you are.</p>
+</header>
+<article class="prose"><p>Most AI tooling is built for delegation. You describe a goal, something goes away and works
+somewhere you cannot see, and you review what comes back. That is a good shape for a lot of work,
+and the people who build the models are already very good at it.</p>
+<p>Nexaflow is built for the other shape. You are reading the log, turning the 3D model, scrolling the
+DICOM series — and so is the assistant, through the same view-model, holding the same state.
+Neither of you is a proxy for the other.</p>
+<h2 id="it-sees-the-tab-you-are-on">It sees the tab you are on</h2>
+<p>Every page can describe itself. When you ask a question with the page attached, the send waits until
+that page says its context is ready, so the answer is about what is actually on screen rather than a
+guess at what you might be looking at. You do not spend the first half of every request explaining
+where you are.</p>
+<h2 id="it-works-the-same-controls-you-do">It works the same controls you do</h2>
+<p>A page's tools drive the same view-model your keyboard and mouse drive. An edit the assistant makes
+to a document appears in your editor and saves through your save. There is no separate copy to
+reconcile afterwards, because there was never a second copy.</p>
+<p>Some of the tools look rather than read. The assistant can capture the image you are viewing, render
+the SVG, take a picture of a PDF page. On the 3D viewer it can orbit the model and <em>then</em> look at it
+— steer the camera, take the picture, answer the question.</p>
+<h2 id="it-asks-before-it-changes-anything">It asks before it changes anything</h2>
+<p>Reading runs on its own. Anything that writes is approval-gated and shows you what it intends first,
+and deletes go to the Recycle Bin rather than into the void.</p>
+<p>Some of the restraint is deliberate and permanent:</p>
+<ul>
+<li><strong>Git tooling is read-only.</strong> The assistant reads status, log, diff, blame, history and worktrees.
+It does not commit, push, or switch your branch. You do that.</li>
+<li><strong><code>dotnet run</code> is withheld</strong>, because a program that might never exit is not a good thing to hand
+something that cannot see the window.</li>
+<li><strong>File actions stay inside the folder you are in</strong>, apart from one deliberately unconfined mode
+that says so plainly.</li>
+</ul>
+<p>This is not caution for its own sake. A tool that can quietly do anything is a tool you have to
+supervise instead of use.</p>
+<h2 id="your-choice-of-model">Your choice of model</h2>
+<p>Claude, Gemini, OpenAI, or a local model through Ollama — or a combination of them. The AI is
+optional: Nexaflow is a workspace first, and every page in it works with no provider configured at
+all.</p>
+</article>
+<section class="group"><h2>2 pages on this</h2><div class="cards"><a class="card" href="../help/ai-chat/">
+  <h3>AI Chat</h3>
+  <p>Dedicated AI conversation tab — a browser over saved conversations with page-context pinning.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/conversation/">
+  <h3>Conversation</h3>
+  <p>A saved chat with the assistant that can read and act on the pages you pin to it.</p>
+  
+</a></div></section>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

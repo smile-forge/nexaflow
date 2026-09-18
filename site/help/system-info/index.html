@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Info — Nexaflow help</title>
+<meta name="description" content="Reports what this machine is: its Windows build, hardware, displays, disks and security settings.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>System Info</h1>
+  <p class="lede">Reports what this machine is: its Windows build, hardware, displays, disks and security settings.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#the-cards">The cards</a></li><li><a href="#where-the-facts-come-from">Where the facts come from</a></li><li><a href="#refreshing">Refreshing</a></li><li><a href="#searching-the-facts">Searching the facts</a></li><li><a href="#asking-about-this-machine">Asking about this machine</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="the-cards">The cards</h2>
+<ul>
+<li>Facts are grouped into cards, in this order: Operating System, Hardware, Display, Storage, Windows Security.</li>
+<li>A fact the machine will not answer for reads as a dash rather than being left blank.</li>
+<li>A volume with less than 10% free is flagged on the Storage card.</li>
+<li>Windows Security items are marked healthy or worth attention as well as reported: Secure Boot, Virtualization-based Security (VBS), Memory Integrity (HVCI), Credential Guard, Kernel DMA Protection and TPM.</li>
+</ul>
+<h2 id="where-the-facts-come-from">Where the facts come from</h2>
+<ul>
+<li>Most are read from WMI. The Windows display version (24H2 and the like), the build number and the registered owner come from the registry.</li>
+<li>Secure Boot is read from the registry, and the TPM through the TPM Base Services API, so both are reported without administrator rights.</li>
+<li>Graphics memory is read from the display driver's registry key, because the WMI figure caps at 4 GB.</li>
+<li>Where Windows does not report Device Guard at all, VBS and Kernel DMA Protection read Unknown instead of being dropped.</li>
+</ul>
+<h2 id="refreshing">Refreshing</h2>
+<ul>
+<li>The page gathers once when the tab opens. Nothing on it updates by itself afterwards.</li>
+<li>Read everything again with Refresh. <span class="locate" title="In the app this points at SysInfo_Refresh">Show me</span></li>
+<li>Gathering appears next to the title while it runs, and Refresh does nothing until it finishes.</li>
+</ul>
+<h2 id="searching-the-facts">Searching the facts</h2>
+<ul>
+<li>Type <code>?</code> and what you are looking for into the input box. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>Both the label and the value of every fact are matched, and the ones that hit are marked where they sit — no card is hidden and there is nothing to step through.</li>
+<li>Refreshing the page clears the marks.</li>
+</ul>
+<h2 id="asking-about-this-machine">Asking about this machine</h2>
+<ul>
+<li>To send these facts with a question, turn on Include page context and ask in the same box. <span class="locate" title="In the app this points at AiInputBox, AiBar_ContextToggle">Show me</span></li>
+<li>Services and environment variables are separate pages: <a href="../system-services/">Services</a> and <a href="../system-env-vars/">Environment Variables</a>.</li>
+<li>Open either by typing <code>/</code> and the page name into the same box.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

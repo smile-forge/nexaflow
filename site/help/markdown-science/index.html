@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown — Chemistry, word clouds &amp; plots — Nexaflow help</title>
+<meta name="description" content="Chemical structures from SMILES, shaped word clouds, and correlation plots over your own data.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Markdown — Chemistry, word clouds &amp; plots</h1>
+  <p class="lede">Chemical structures from SMILES, shaped word clouds, and correlation plots over your own data.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#chemical-structures">Chemical structures</a></li><li><a href="#word-clouds">Word clouds</a></li><li><a href="#correlation-plots">Correlation plots</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="chemical-structures">Chemical structures</h2>
+<p>A fenced <code>smiles</code> block draws molecules from their SMILES strings — one per line, with an optional
+caption in double quotes. The word <code>chemistry</code> may open the block, and a line starting with <code>#</code> is a
+comment:</p>
+<pre><code class="language-markdown">```smiles
+chemistry
+c1ccccc1 &quot;Benzene&quot;
+CC(=O)O &quot;Acetic acid&quot;
+CCO &quot;Ethanol&quot;
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/smiles.png" alt="Structures drawn from SMILES: benzene, acetic acid, ethanol, aspirin, caffeine and glucose" /></p>
+<p>Structures are drawn the way a chemistry textbook draws them: carbon as the corner where bonds meet,
+every other element as its symbol in its usual colour, with its hydrogens written beside it. Aromatic
+rings get alternating double bonds, and several molecules in a block flow across the page.</p>
+<table>
+<thead>
+<tr>
+<th>You write</th>
+<th>You get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CCO</code></td>
+<td>atoms side by side are bonded; hydrogens are filled in for you</td>
+</tr>
+<tr>
+<td><code>=</code> <code>#</code></td>
+<td>a double or triple bond</td>
+</tr>
+<tr>
+<td><code>CC(C)CO</code></td>
+<td>a branch in round brackets</td>
+</tr>
+<tr>
+<td><code>c1ccccc1</code></td>
+<td>matching digits close a ring; lowercase letters make it aromatic</td>
+</tr>
+<tr>
+<td><code>[NH4+]</code> <code>[13CH4]</code> <code>[Fe+2]</code></td>
+<td>an atom in square brackets with its hydrogens, charge or mass number</td>
+</tr>
+<tr>
+<td><code>N[C@@H](C)C(=O)O</code></td>
+<td>a stereocentre, drawn with a wedge</td>
+</tr>
+<tr>
+<td><code>C/C=C\C</code></td>
+<td>which side of a double bond each end goes on (here, cis)</td>
+</tr>
+<tr>
+<td><code>[Na+].[Cl-]</code></td>
+<td>a dot separates molecules drawn side by side</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cages">Cages</h3>
+<p>Some molecules are closed cages whose rings share several atoms — adamantane, cubane, hexamine,
+phosphorus pentoxide. No flat drawing shows these, so they are drawn the way a textbook draws them: as a
+picture of the solid seen from a slight angle, with a bond at the back broken where it passes behind one
+at the front. A bicycle that reads clearly flat, like norbornane, stays flat.</p>
+<pre><code class="language-markdown">```smiles
+C1C2CC3CC1CC(C2)C3 &quot;Adamantane&quot;
+C12C3C4C1C5C2C3C45 &quot;Cubane&quot;
+O=P12OP3(=O)OP(=O)(O1)OP(=O)(O2)O3 &quot;Phosphorus pentoxide&quot;
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/smiles-cages.png" alt="Cages drawn as solids: adamantane, cubane, hexamine, phosphorus pentoxide and memantine, beside a flat norbornane" /></p>
+<h3 id="when-it-cant-be-drawn">When it can't be drawn</h3>
+<p>A string that cannot be a molecule still draws as much as it can, with the reason in red beneath and a
+wavy line under the atom at fault — a carbon with five bonds, a ring number that never closes, or an
+aromatic ring that cannot alternate. The most common one is a five-membered ring's nitrogen written <code>n</code>
+when it carries a hydrogen: write it <code>[nH]</code>, as in pyrrole, <code>c1cc[nH]c1</code>.</p>
+<p>A structure is read-only on the page, but you can select across it and copy the SMILES it was drawn from.</p>
+<hr />
+<h2 id="word-clouds">Word clouds</h2>
+<p>A fenced <code>wordcloud</code> block packs words into a picture, each set at the size its weight comes to. Every
+line is <code>something: value</code>. Settings go at the top; the first word ends them, and from there every line is
+a word and what it counts for — so a cloud can count <code>shape</code>, <code>scale</code> or <code>colour</code> without losing its
+shape. A line starting with <code>#</code> is a comment:</p>
+<pre><code class="language-markdown">```wordcloud
+WPF: 120
+XAML: 96
+MVVM: 74
+tabs: 61
+terminal: 55
+markdown: 50
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/wordcloud.png" alt="A word cloud of a hundred and twenty design words, the heaviest in the middle" /></p>
+<p>The heaviest word goes in first and takes the middle; the rest fill in around it, each dropping into the
+first gap it fits. Words are fitted by the shape of their letters, not by the box around them, so a short
+word slides under a capital's arm — which is what makes a cloud look like a cloud rather than like a wall.</p>
+<p><strong>A cloud needs words.</strong> A dozen of them is a dozen words with space around them; it takes a hundred or
+more before the packing has anything to pack, and a few hundred before a <code>shape:</code> reads as one.</p>
+<p><strong>The picture is what was drawn.</strong> <code>width:</code> and <code>height:</code> say how much room the packing may use, not how
+big the picture is: it is trimmed to the words, so a handful of them is a small picture rather than a few
+words marooned in the middle of the page. With no <code>width:</code>, the cloud is given the column it sits in.</p>
+<h3 id="shapes-turns-and-colours">Shapes, turns and colours</h3>
+<pre><code class="language-markdown">```wordcloud
+shape: star
+scale: log
+rotate: 0.15
+color: #b5304a #d1793f #3f7fb5 #4f9c6b #7a4fa3
+weather: 1200
+rain: 715
+cloud: 528
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/wordcloud-shapes.png" alt="A star-shaped cloud of nearly three hundred words in five colours, some of them turned" /></p>
+<table>
+<thead>
+<tr>
+<th>You write</th>
+<th>You get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shape: star</code></td>
+<td>the outline the words are packed into: <code>circle</code>, <code>cardioid</code>, <code>diamond</code>, <code>square</code>, <code>triangle</code>, <code>triangle-forward</code>, <code>pentagon</code>, <code>star</code>. Nothing is clipped — the words simply run out where the outline is, so the shape shows best with plenty of words</td>
+</tr>
+<tr>
+<td><code>letters: CLOUD</code></td>
+<td>pack the cloud into the shape of those letters instead</td>
+</tr>
+<tr>
+<td><code>mask: heart.png</code></td>
+<td>pack it into the shape a picture holds — its opaque part if it has transparency, its dark part if it has not. The picture is found beside your document, exactly as <code>![](../_img/Nexaflow.Features.Markdown/heart.png)</code> would find it</td>
+</tr>
+<tr>
+<td><code>rotate: 0.3</code></td>
+<td>the share of the words turned, from <code>0</code> to <code>1</code>. They take any angle between <code>minRotation:</code> and <code>maxRotation:</code> (<code>-90</code> to <code>90</code> by default); <code>rotationSteps: 2</code> gives the tidier look of words either level or on their side, and nothing in between</td>
+</tr>
+<tr>
+<td><code>color: theme</code></td>
+<td>the app's chart colours, taken in turn — so the cloud follows your theme. Write colours instead (<code>#b5304a #3f7fb5</code>) to use those, or <code>random-dark</code> / <code>random-light</code> to scatter them</td>
+</tr>
+<tr>
+<td><code>background: #101010</code></td>
+<td>what the picture is drawn on. Without it, the page shows through</td>
+</tr>
+<tr>
+<td><code>minSize: 12</code> <code>maxSize: 72</code></td>
+<td>the sizes the lightest and heaviest words are set at. Everything between is spread by <code>scale:</code> — <code>sqrt</code> (the default), <code>linear</code> or <code>log</code> for counts spread over orders of magnitude</td>
+</tr>
+<tr>
+<td><code>font: Georgia</code> <code>bold: no</code></td>
+<td>the face the words are set in</td>
+</tr>
+<tr>
+<td><code>gap: 4</code></td>
+<td>clear air kept around every word. <code>gridSize:</code> is how finely the letters are fitted — smaller packs tighter and takes longer</td>
+</tr>
+<tr>
+<td><code>seed: 7</code></td>
+<td>the same block always draws the same cloud; change the seed to shuffle it into a different arrangement</td>
+</tr>
+</tbody>
+</table>
+<p>If the very first word is named like a setting, write it in quotes — that makes a word of it wherever it
+stands:</p>
+<pre><code class="language-markdown">```wordcloud
+shape: circle
+&quot;shape&quot;: 40
+&quot;color&quot;: 34
+```
+</code></pre>
+<h3 id="letters-and-pictures">Letters and pictures</h3>
+<p><code>shape:</code> bends the cloud towards an outline. <code>letters:</code> and <code>mask:</code> do something stronger: they mark out
+where the words may go at all, so the cloud fills a shape rather than merely tending towards one.</p>
+<pre><code class="language-markdown">```wordcloud
+letters: CLOUD
+minSize: 4
+maxSize: 30
+scale: log
+design: 900
+system: 594
+colour: 456
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/wordcloud-letters.png" alt="The word CLOUD spelled out in small words" /></p>
+<p>Keep <code>maxSize:</code> well down when you do this — the words have to be small against the letters, or there is
+nothing left of the shape to read. <code>mask:</code> works the same way with a picture: draw your shape in black on
+white (or as a transparent PNG), put it beside the document, and name it.</p>
+<p><strong>You can type into it.</strong> Click into any word in the picture and edit it where it stands — the block
+follows. The weights are not drawn, so those are edited in the block's source.</p>
+<h3 id="when-it-cant-be-drawn-1">When it can't be drawn</h3>
+<p>A weight that is not a number leaves a wavy line under that line and the rest of the words still draw; so
+does a word there was no room left for, because a word silently missing from a cloud is a word you would
+believe was never counted. A setting given something it cannot take — a shape that does not exist, a width
+that is not a number — stops the block being a cloud at all, and it shows its own lines with the reason.</p>
+<hr />
+<h2 id="correlation-plots">Correlation plots</h2>
+<p>Four fenced blocks draw a table of values against a pair of axes: <code>scatter</code>, <code>bubble</code>, <code>heatmap</code> and
+<code>density2d</code>. They are written the same way, so anything below works in all four.</p>
+<p><strong>The smallest plot is two columns of numbers.</strong> The first is across, the second is up.</p>
+<pre><code class="language-scatter">1.2  3.4
+2.5  5.1
+3.1  6.8
+</code></pre>
+<p><strong>Name the columns</strong> with a first row that is words rather than numbers, and the names become the axis
+titles. Spaces or commas separate cells alike.</p>
+<pre><code class="language-scatter">weight  mpg
+2620    21.0
+3440    18.7
+1615    30.4
+</code></pre>
+<p><strong>Settings go above the table</strong>, one <code>key: value</code> to a line. The first row of the table closes them, so
+a column headed <code>size</code> is still a column. A <code>#</code> starts a comment.</p>
+<p><strong>A setting that names a column maps it; anything else applies to every mark.</strong> So <code>colour: origin</code> tells
+your groups apart, and <code>size: 4</code> sets the size of all of them.</p>
+<table>
+<thead>
+<tr>
+<th>To</th>
+<th>Write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name it</td>
+<td><code>title:</code> <code>subtitle:</code> <code>caption:</code> <code>xTitle:</code> <code>yTitle:</code> <code>legendTitle:</code></td>
+</tr>
+<tr>
+<td>say where the marks go</td>
+<td><code>x:</code> <code>y:</code></td>
+</tr>
+<tr>
+<td>tell groups apart</td>
+<td><code>colour:</code> <code>shape:</code> <code>group:</code> — a column name, or a colour or mark name</td>
+</tr>
+<tr>
+<td>size the marks</td>
+<td><code>size:</code> — a column name, or a number; <code>sizeRange: 4 28</code></td>
+</tr>
+<tr>
+<td>fade or name them</td>
+<td><code>alpha:</code> a column or a number, <code>alphaRange: 0.2 1</code>; <code>label:</code> a column to name each mark</td>
+</tr>
+<tr>
+<td>unstack them</td>
+<td><code>jitter: 0.4</code> — moves marks off their place so equal rows stop hiding each other</td>
+</tr>
+<tr>
+<td>shape the panel</td>
+<td><code>aspect: 1</code> for square, <code>flip: true</code> to swap the axes</td>
+</tr>
+<tr>
+<td>draw something else</td>
+<td><code>geom: point</code>, <code>tile</code>, <code>bin2d</code>, <code>hex</code>, <code>density2d</code>, <code>corr</code></td>
+</tr>
+<tr>
+<td>split it into panels</td>
+<td><code>facet:</code> a column, <code>facetCols: 3</code> for how many across</td>
+</tr>
+<tr>
+<td>fit a line through them</td>
+<td><code>fit: lm</code> or <code>loess</code>, with <code>se: true</code> for the band</td>
+</tr>
+<tr>
+<td>report the correlation</td>
+<td><code>stats: r r2 n p</code>, and <code>method: pearson</code>, <code>spearman</code> or <code>kendall</code></td>
+</tr>
+<tr>
+<td>change an axis</td>
+<td><code>xScale: log</code>, <code>xLimits: 0 100</code>, <code>xBreaks: 0 50 100</code>, <code>grid: none</code></td>
+</tr>
+<tr>
+<td>change the colours</td>
+<td><code>palette:</code>, <code>gradient: viridis</code>, <code>midpoint: 0</code>, <code>legend: bottom</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>A correlation, with the line and the figures:</strong></p>
+<pre><code class="language-scatter">title: Weight against fuel economy
+fit: lm
+stats: r r2 n
+
+weight  mpg
+2620    21.0
+3440    18.7
+5250    10.4
+1615    30.4
+1935    27.3
+</code></pre>
+<p><strong>A correlation matrix</strong> is a <code>heatmap</code> whose rows are each one cell wider than the header — which is how
+you would write one anyway. <code>midpoint: 0</code> makes the colour mean the sign.</p>
+<pre><code class="language-heatmap">gradient: rdbu
+midpoint: 0
+fillLimits: -1 1
+labels: true
+
+       mpg    hp     wt
+mpg    1.00  -0.78  -0.87
+hp    -0.78   1.00   0.66
+wt    -0.87   0.66   1.00
+</code></pre>
+<p><strong>Or let it work the matrix out for you.</strong> Give a <code>heatmap</code> your observations and <code>geom: corr</code>, and every
+numeric column is correlated with every other — <code>method:</code> choosing which coefficient, <code>labels: true</code>
+writing each one on its tile. A tile is worked out rather than written, so it is drawn but not typed
+into; the column names down its two axes are.</p>
+<p><strong>One column too many to read at once?</strong> <code>facet:</code> splits the plot into a panel per value of a column,
+with <code>facetCols:</code> saying how many stand side by side. Every panel is drawn on the same scales, so they
+can be read against one another, and a fit is worked out per panel from that panel's own rows.</p>
+<p><strong>Too many points to see?</strong> <code>geom: hex</code> counts them into bins instead, and a <code>density2d</code> block draws the
+shape of the cloud — <code>contour: bands</code>, <code>lines</code> or <code>raster</code>, with <code>points: true</code> to show the rows through
+it.</p>
+<p><strong>The axis shows everything drawn on it.</strong> Ask for a fitted line with <code>se: true</code> and the axis opens out
+far enough to show the whole confidence band — it is part of the answer, not decoration. Write <code>yLimits:</code>
+and you get exactly the ends you asked for instead. With <code>group:</code> you get a line per group, each with its
+own colour, so you can tell overlapping bands apart.</p>
+<p><strong>You can type into it.</strong> A value drawn on a tile is the one you wrote, so clicking into it and typing
+changes the block. Clicking a point selects the row it came from. A number the plot chose — a tick, a
+coefficient — is not something you can type into, and a value that will not read is underlined where it
+stands while the rest of the plot keeps drawing.</p>
+<hr />
+<p>Back to <a href="../markdown/">Markdown</a>.</p>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

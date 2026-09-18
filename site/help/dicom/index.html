@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DICOM viewer — Nexaflow help</title>
+<meta name="description" content="Opens a DICOM study, scrolls through its images, measures them and lists their tags. It only reads, so nothing on the disc changes.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>DICOM viewer</h1>
+  <p class="lede">Opens a DICOM study, scrolls through its images, measures them and lists their tags. It only reads, so nothing on the disc changes.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-study">Opening a study</a></li><li><a href="#moving-through-the-images">Moving through the images</a></li><li><a href="#brightness-and-contrast">Brightness and contrast</a></li><li><a href="#measuring">Measuring</a></li><li><a href="#tags-and-hiding-patient-details">Tags and hiding patient details</a></li><li><a href="#the-assistant">The assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-study">Opening a study</h2>
+<ul>
+<li>Choose <em>As DICOM</em> on the <a href="../file-system/">File System</a> page for a single <code>.dcm</code>, a selection of files, a folder of loose instances or a DICOMDIR. It all opens as one study in one tab, and the breadcrumb leads back to where the study came from.</li>
+<li>It is offered on any folder holding a DICOMDIR, a <code>.dcm</code> or a <code>.dicom</code>, including a drive root. Files with no extension, such as <code>IM_0001</code>, are recognised by the DICOM marker inside the file rather than by the name.</li>
+<li>A zipped study reads the same as one on disk, and compressed images decode through codecs installed up front. An instance that will not parse is recorded as a warning instead of failing the load, and a DICOMDIR that is damaged or lists nothing falls back to scanning the medium.</li>
+<li>Open a PDF report stored with the study: select it in the tree beside the images. It opens in its own tab with a breadcrumb back to this study, and the extracted copy is deleted when you close the study.</li>
+</ul>
+<h2 id="moving-through-the-images">Moving through the images</h2>
+<ul>
+<li>Jump to an image, series, study or patient: click it in <span class="locate" title="In the app this points at Dicom_ContentTree">the Contents tree</span>, which orders slices by instance number and shows a multi-frame image's frame count. Clicking a patient, study or series goes to its first image.</li>
+<li>Scroll a series with the mouse wheel, one slice per notch, stopping at the first and the last. The tree keeps the current slice in view.</li>
+<li>Zoom with <strong>Ctrl</strong> and the wheel; the point under the cursor stays under the cursor. Pan by dragging with <span class="locate" title="In the app this points at Dicom_Tool_Pan">the Pan tool</span>, which is selected to begin with, or with <em>Probe</em> armed.</li>
+<li>Size the image to the stage or show its true pixels: <span class="locate" title="In the app this points at Dicom_Fit, Dicom_ActualSize">Fit or 1:1</span>.</li>
+<li>A multi-frame image gets a transport bar: play the sequence as a loop, step a frame either way, or scrub with the slider. It pauses while you are in another tab or the window is minimised, and resumes when you return.</li>
+</ul>
+<h2 id="brightness-and-contrast">Brightness and contrast</h2>
+<ul>
+<li>Set the window and level by hand: hold the right mouse button and drag over the image — sideways for width, up and down for level.</li>
+<li>Apply a preset: <span class="locate" title="In the app this points at Dicom_Preset_Bone, Dicom_Preset_Lung, Dicom_Preset_Soft, Dicom_Preset_Brain, Dicom_Preset_Default"><strong>Bone</strong>, <strong>Lung</strong>, <strong>Soft</strong>, <strong>Brain</strong> or <strong>Default</strong></span>, where Default restores the window the image itself declared. They are CT windows in Hounsfield units, and can still be used on any greyscale image. The active preset stops being lit once you drag your own window.</li>
+<li>Show a photographic negative of the frame: <span class="locate" title="In the app this points at Dicom_Invert"><strong>Invert</strong></span>. Window, level and invert hold as you scroll a series, and reset when you move to another.</li>
+</ul>
+<h2 id="measuring">Measuring</h2>
+<ul>
+<li>Pick one of <span class="locate" title="In the app this points at Dicom_Tool_Length, Dicom_Tool_Angle, Dicom_Tool_Rect, Dicom_Tool_Ellipse, Dicom_Tool_Probe">the measuring tools</span> and click on the image. A preview follows the cursor until the shape has all its points.</li>
+<li><strong>Length</strong> takes two clicks — in millimetres when the image records its pixel spacing, and in pixels, labelled as such, when it does not.</li>
+<li><strong>Angle</strong> takes three clicks, two arms and the vertex, and reads in degrees.</li>
+<li><strong>Rectangle</strong> and <strong>ellipse</strong> take two opposite corners and give the area, plus the mean and standard deviation inside where the stored pixel values can be read — in Hounsfield units on CT.</li>
+<li><strong>Probe</strong> is a hover readout rather than an annotation. It reports the stored value and its coordinates, in HU on CT, not the brightness on screen.</li>
+<li>Annotations belong to their frame and are still there when you come back. <strong>Clear</strong> empties only the frame in front of you. Points are held in image coordinates, so an annotation stays on its own pixels however far you zoom.</li>
+</ul>
+<h2 id="tags-and-hiding-patient-details">Tags and hiding patient details</h2>
+<ul>
+<li>Open the tag list for the selected instance: <span class="locate" title="In the app this points at Dicom_TagsToggle, Dicom_TagFilter">the Tags drawer</span>. Sequences are summarised by their item count, and a tag the dictionary does not know is labelled <em>Private / Unknown</em>.</li>
+<li>Filter as you type by tag, name or value: <code>0010</code>, <code>Modality</code> or a fragment of a value all find their row.</li>
+<li>Copy a value, a name, a tag or a whole row from the right-click menu. A row copies tab-separated.</li>
+<li>Widen the drawer by dragging the splitter. It keeps that width when you close and reopen it.</li>
+<li>Take identifying details off the screen: <span class="locate" title="In the app this points at Dicom_HidePatient">Hide patient</span>. The tree shows <em>Patient 1</em> in place of the name and ID, the patient line leaves the image, and a fixed set of tags — name, ID, birth date, sex, age, address, telephone, accession number, referring and performing physicians, operator, institution and patient comments — reads <em>••• (hidden)</em> in the drawer.</li>
+<li>It is a screen mask and only that: the files are untouched, the rest of the header is shown as it stands, and nothing here anonymises a study.</li>
+</ul>
+<h2 id="the-assistant">The assistant</h2>
+<ul>
+<li>It knows the modality, series, body part, size, frame and window of the image on screen. It can list the series, open a particular image, step through frames, read the tags, and capture the frame at the window you have set.</li>
+<li>Whatever <em>Hide patient</em> is set to, the study the assistant sees is always the masked one: what it is told carries no patient details, and the tags it reads come back with the same identifying set hidden.</li>
+<li>Nothing the assistant does here changes a file.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

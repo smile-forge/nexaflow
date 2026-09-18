@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console — Nexaflow help</title>
+<meta name="description" content="Runs a Windows command prompt in a tab, and sends anything that isn&#39;t a command to the assistant.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../system/">Run your machine</a></nav>
+<header class="page-head">
+  <h1>Console</h1>
+  <p class="lede">Runs a Windows command prompt in a tab, and sends anything that isn't a command to the assistant.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#running-commands">Running commands</a></li><li><a href="#with-the-assistant">With the assistant</a></li><li><a href="#the-ai-bar">The AI bar</a></li><li><a href="#files-and-history">Files and history</a></li><li><a href="#environments">Environments</a></li><li><a href="#environment-variables">Environment variables</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="running-commands">Running commands</h2>
+<ul>
+<li>Each Console tab runs its own cmd.exe for as long as the tab is open, with its own folder, history and environment. Open as many as you need.</li>
+<li>Arrow keys, Tab, Home, End, Page Up, Page Down and Ctrl-combinations go to the shell, so interactive programs work as they do in any terminal.</li>
+<li>Ctrl+C stops a command. When a command ignores it, Ctrl+Break force-stops that command and everything it started, and leaves the shell running.</li>
+<li>Ctrl+V pastes into the shell. Right-click Paste puts the clipboard in the AI bar instead, to read over before you run it.</li>
+<li>Ctrl+Shift+C, or right-click and Copy, copies the whole session including the scrollback.</li>
+<li>Open a console on a folder or a whole drive with Cmd Here, in the folder's actions on the <a href="../file-system/">File System</a> page. It starts in that folder.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>At a prompt, Enter runs your line if it starts with a cmd built-in, a program on your PATH or the path of a file that exists. Anything else is taken off the line and sent to the assistant. Answers appear in a banner under the console, which clears when you start typing.</li>
+<li>While a program is running, Enter goes to that program, so a <code>y</code> or a password is never treated as a question.</li>
+<li>The assistant knows the console's folder and that it is cmd.exe, so it uses cmd syntax rather than PowerShell.</li>
+<li>With your approval it can run commands in this console, read the output and carry on. Plain output reaches it as text; a full-screen program reaches it as its screen.</li>
+<li>A command that keeps going is watched in the background, and you are told the result when it finishes. If you have moved to another tab, a notification with an Open button brings you back.</li>
+<li>Ask a follow-up while a command it started is still going and it knows what that command has printed so far.</li>
+<li>A process that will never return to a prompt, such as a web server, is reported as long-running. One waiting for input is answered, or you are asked.</li>
+<li>It can put a suggested command in the AI bar with a <code>&gt;</code> in front, for you to edit and run.</li>
+<li>Type into the console or press Ctrl+C and the background watch stops.</li>
+</ul>
+<h2 id="the-ai-bar">The AI bar</h2>
+<ul>
+<li>Start a line in <span class="locate" title="In the app this points at AiInputBox">the AI bar</span> with <code>&gt;</code> to run it in the console — <code>&gt;git status</code>. A bare line the console recognises as a command runs there too; anything else goes to the assistant.</li>
+<li>With the bar empty or starting with <code>&gt;</code>, Up and Down walk back through your commands, most recent first.</li>
+<li>Drop files onto the bar to insert their paths, quoted where they contain spaces. This works on every tab.</li>
+</ul>
+<h2 id="files-and-history">Files and history</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Console_FilesTab">The Files tab</span> lists the console's current folder and follows the shell as it moves.</li>
+<li>Double-click a folder to change into it.</li>
+<li>Drag an entry onto the console to type its path, or onto the AI bar to use it there. <span class="locate" title="In the app this points at Console_FilesTab, AiInputBox">Show me</span> Files dropped in from elsewhere work the same way.</li>
+<li>Every command you run is listed on the right, newest first. Click one to run it again; it moves back to the top instead of being listed twice.</li>
+</ul>
+<h2 id="environments">Environments</h2>
+<ul>
+<li>An environment is a named shell set-up: a tab title, a command sent as soon as the first prompt appears, and variables applied as the shell starts.</li>
+<li>When you have more than one environment, Cmd Here asks which to use. Tick Always use this environment for this location and that folder stops asking.</li>
+<li><span class="locate" title="In the app this points at TabItem_Console">The tab</span> takes the environment's title.</li>
+<li><span class="locate" title="In the app this points at Console_Configure">The Configure button</span> opens this workspace's environments: add, rename or remove them, see which locations are pinned, and unpin them. Renaming an environment keeps its pinned locations.</li>
+<li>Environments and pins belong to the workspace, so separate workspaces keep separate shells.</li>
+</ul>
+<h2 id="environment-variables">Environment variables</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Console_EnvironmentTab, Console_EnvFilter, Console_AddEnvVar">The Environment tab</span> lists the variables every shell you open inherits, sorted by name, with a filter that matches names and values.</li>
+<li>Right-click one to copy it as <code>NAME=value</code> or to edit it. Add a new one with ＋.</li>
+<li>Saving asks how far the change reaches: Session, this running shell only, gone when the tab closes; User, your Windows user environment, kept, with no elevation; or Machine, every account on the PC, which takes a Windows administrator prompt.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

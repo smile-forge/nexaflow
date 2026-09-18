@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown — Diagrams: planning &amp; time — Nexaflow help</title>
+<meta name="description" content="Diagrams for what happens, in what order, and who it is for: requirements, Gantt charts, git graphs, kanban boards, mindmaps, timelines and user journeys.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Markdown — Diagrams: planning &amp; time</h1>
+  <p class="lede">Diagrams for what happens, in what order, and who it is for: requirements, Gantt charts, git graphs, kanban boards, mindmaps, timelines and user journeys.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#requirement-diagram">Requirement diagram</a></li><li><a href="#gantt-chart">Gantt chart</a></li><li><a href="#git-graph">Git graph</a></li><li><a href="#kanban-board">Kanban board</a></li><li><a href="#mindmap">Mindmap</a></li><li><a href="#timeline">Timeline</a></li><li><a href="#user-journey">User journey</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="requirement-diagram">Requirement diagram</h2>
+<p>SysML-style requirements and elements with their satisfy / verify / derive relationships.</p>
+<pre><code class="language-markdown">```mermaid
+requirementDiagram
+    requirement render_req {
+        id: 1
+        text: Render markdown natively
+        risk: low
+        verifymethod: test
+    }
+    element renderer {
+        type: component
+    }
+    renderer - satisfies -&gt; render_req
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-requirement.png" alt="A requirement diagram linking an element to a requirement" /></p>
+<hr />
+<h2 id="gantt-chart">Gantt chart</h2>
+<p>Project schedules with sections, dependencies (<code>after</code>, <code>until</code>), task states (<code>done</code> / <code>active</code> / <code>crit</code>), milestones,
+vertical markers and excluded days. Task and section names are typed into where they are drawn.</p>
+<pre><code class="language-markdown">```mermaid
+gantt
+    title Project timeline
+    dateFormat YYYY-MM-DD
+    excludes weekends
+    section Design
+    Spec           :done,   des1, 2024-01-01, 2024-01-07
+    Mockups        :active, des2, 2024-01-08, 5d
+    section Build
+    Implementation :crit,   b1, after des2, 10d
+    Testing        :        b2, after b1, 4d
+    Release        :milestone, r1, after b2, 0d
+    Code freeze    :vert,   2024-01-22, 1d
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-gantt.png" alt="A Gantt chart with sections and dependency-timed bars" /></p>
+<hr />
+<h2 id="git-graph">Git graph</h2>
+<p>Commit history across branches, with merges.</p>
+<pre><code class="language-markdown">```mermaid
+gitGraph
+    commit
+    branch develop
+    commit
+    commit
+    checkout main
+    merge develop
+    commit
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-gitgraph.png" alt="A git graph with a branch and a merge" /></p>
+<hr />
+<h2 id="kanban-board">Kanban board</h2>
+<p>Columns of cards with priority, assignee and ticket metadata — drawn as a real board.</p>
+<pre><code class="language-markdown">```mermaid
+kanban
+  Todo
+    [Write the showcase doc]
+    a[Add the Venn diagram]@{ priority: 'High' }
+  [In progress]
+    b[Polish the renderers]@{ assigned: 'team', priority: 'Very High' }
+  Done
+    c[Ship ER diagrams]@{ ticket: NX-42 }
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-kanban.png" alt="A kanban board with priority and ticket chips" /></p>
+<hr />
+<h2 id="mindmap">Mindmap</h2>
+<p>Free-form hierarchies branching out from a central idea.</p>
+<pre><code class="language-markdown">```mermaid
+mindmap
+  root((Nexaflow))
+    Markdown
+      CommonMark
+      Extensions
+      Mermaid
+    Files
+      Explorer
+      Editors
+    AI
+      Chat
+      Tools
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-mindmap.png" alt="A mindmap radiating from a central node" /></p>
+<hr />
+<h2 id="timeline">Timeline</h2>
+<p>Periods along a spine, each with its events stacked beneath; sections band the periods they group.</p>
+<pre><code class="language-markdown">```mermaid
+timeline
+    title History of Social Media Platform
+    2002 : LinkedIn
+    2004 : Facebook
+         : Google
+    2005 : YouTube
+    2006 : Twitter
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-timeline.png" alt="A timeline of periods on a spine with events stacked beneath each" /></p>
+<hr />
+<h2 id="user-journey">User journey</h2>
+<p>Scored steps of a task: a face per score floats higher for a better experience, and each actor gets a colour.</p>
+<pre><code class="language-markdown">```mermaid
+journey
+    title My working day
+    section Go to work
+      Make tea: 5: Me
+      Go upstairs: 3: Me
+      Do work: 1: Me, Cat
+    section Go home
+      Go downstairs: 5: Me
+      Sit down: 5: Me
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/mermaid-journey.png" alt="A user journey with section bands, scored faces and actor dots" /></p>
+<hr />
+<p>More diagram types in <a href="../markdown-diagrams/">Diagrams</a>. Back to <a href="../markdown/">Markdown</a>.</p>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

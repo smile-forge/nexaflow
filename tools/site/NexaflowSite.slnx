@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <!--
+    Release-tooling solution: builds the generator that writes the GitHub Pages site from the help pages the
+    app ships. Kept out of Nexaflow.slnx for the same reason the installer is — it is not part of the app,
+    nothing in the app may reference it, and a normal dev build should never compile it. It is also the
+    reason the architecture and feature-touch-point guards never see it. Build and run with:
+      tools/site/Build-Site.ps1
+  -->
+  <Project Path="Nexaflow.SiteGenerator/Nexaflow.SiteGenerator.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

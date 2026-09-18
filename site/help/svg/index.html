@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVG viewer — Nexaflow help</title>
+<meta name="description" content="Shows an SVG drawing and lets you zoom into it without it going soft.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>SVG viewer</h1>
+  <p class="lede">Shows an SVG drawing and lets you zoom into it without it going soft.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-files">Opening files</a></li><li><a href="#zoom-and-pan">Zoom and pan</a></li><li><a href="#background">Background</a></li><li><a href="#what-the-file-says">What the file says</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-files">Opening files</h2>
+<ul>
+<li>Double-click an <code>.svg</code> or <code>.svgz</code> in the <a href="../file-system/">File System</a> page, or pick <strong>As SVG</strong> from the file's actions.</li>
+<li>One drawing per tab, named after the file, so several variants can sit side by side in <span class="locate" title="In the app this points at TabItem_Svg">their own tabs</span>.</li>
+<li>An SVG inside an archive or a disk image opens like one on disk — see <a href="../compressed/">Archives</a>.</li>
+<li>Compressed files are recognised by their content, not their name, so gzip labelled <code>.svg</code> opens too.</li>
+<li>Parsing and rendering happen off the interface thread, so a busy drawing does not freeze the window.</li>
+<li>Where the drawing would be, you are told if the file could not be read, if it is past 64 MB and will not be rendered, or if it parsed but contains nothing to draw.</li>
+<li>Scripts and animation are shown but never run: interactive content is switched off and the finished drawing is frozen.</li>
+<li>Document type definitions are skipped, external entities are never resolved, entity expansion is capped, and external resource references are ignored, so the file cannot make the viewer fetch anything.</li>
+</ul>
+<h2 id="zoom-and-pan">Zoom and pan</h2>
+<ul>
+<li>The drawing is scaled to fit the tab and centred when it opens.</li>
+<li>Scroll to zoom. The point under the pointer stays put. The range runs from a twentieth of size to sixty-four times it.</li>
+<li>Drag to pan. The drag begins only once the pointer has moved, so a click is still a click.</li>
+<li>Zooming redraws the shapes rather than enlarging pixels, and lettering is drawn as outlines.</li>
+<li><span class="locate" title="In the app this points at Svg_ResetView">Reset view</span> refits the drawing to the window and re-centres it.</li>
+</ul>
+<h2 id="background">Background</h2>
+<ul>
+<li>The canvas starts on a checkerboard, so you can tell which parts of the drawing are transparent.</li>
+<li><span class="locate" title="In the app this points at Svg_Checkerboard">Turn the checkerboard off</span> for a flat backdrop.</li>
+</ul>
+<h2 id="what-the-file-says">What the file says</h2>
+<ul>
+<li>The declared width and height, exactly as authored — <code>512</code>, <code>24px</code>, <code>100%</code>. Where the document gives none, the rendered extent is shown instead.</li>
+<li>The viewBox, verbatim, when the file has one.</li>
+<li>A count of drawable elements: paths, rectangles, circles, ellipses, lines, polylines, polygons, text, images and uses.</li>
+<li>The file size on disk, which for a <code>.svgz</code> is the compressed size.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>Ask in <span class="locate" title="In the app this points at AiInputBox">the AI bar</span>. The assistant already knows the file's name, its dimensions and viewBox, how many drawable elements it holds, and how big it is.</li>
+<li>It can look at the artwork: it renders the whole drawing to an image, backed with white and about a thousand pixels on its long side, and examines that. Ask what a logo shows or which way an arrow points.</li>
+<li>It can report the exact figures, the same ones shown for the file.</li>
+<li>Both only read the drawing already loaded, so neither changes your file and neither waits for your approval.</li>
+<li>Until the file has finished loading the assistant holds back, and it is released even when the load fails.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>
