@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>sankey</c>           → <see cref="MermaidSankeyParser"/>  + <see cref="WpfSankeyRenderer"/>
+
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
 
 ///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
@@ -36,7 +36,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
     private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
-    private static readonly MermaidSankeyParser   SankeyParser   = new();
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
@@ -64,7 +63,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
-            MermaidDiagram.Sankey       => RenderSankey(block, palette),
+
             MermaidDiagram.Er           => RenderEr(block, options),
 
             MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
@@ -87,14 +86,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         var diagram = SequenceParser.Parse(block.Body);
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
-
-    private static FrameworkElement RenderSankey(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = SankeyParser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);   // Sankey has no inline title; a front-matter title shows above.
-        diagram.Config = SankeyConfigParser.Parse(block.Config);
-        return WpfSankeyRenderer.Render(diagram, palette);
     }
 
     private static FrameworkElement RenderEr(MermaidBlock block, DiagramRenderOptions options)

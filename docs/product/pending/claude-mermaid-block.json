@@ -197,16 +197,98 @@
           }
         ]
       }
+    },
+    "sankey": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs",
+          "class": "SankeyBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SankeyBuilderTests.cs",
+            "class": "SankeyBuilderTests"
+          }
+        ]
+      }
+    },
+    "sankey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs",
+          "class": "SankeyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyChart.cs",
+          "class": "SankeyChart"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs",
+          "class": "SankeyConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyGrammarTests.cs",
+            "class": "SankeyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyChartTests.cs",
+            "class": "SankeyChartTests"
+          }
+        ]
+      }
+    },
+    "sankey-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs",
+          "class": "SankeyGrammar",
+          "method": "Escaping"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SankeyEditingTests.cs",
+            "class": "SankeyEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 18,
   "touched_nodes": [
     "architecture",
     "architecture-ast",
     "architecture-writing",
     "block",
     "block-ast",
-    "block-writing"
+    "block-writing",
+    "sankey",
+    "sankey-ast",
+    "sankey-writing"
   ]
 }

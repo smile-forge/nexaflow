@@ -98,6 +98,7 @@ public static class MermaidDiagrams
         MermaidDiagram.GitGraph => Gits,
         MermaidDiagram.Block => Blocks,
         MermaidDiagram.Architecture => Architectures,
+        MermaidDiagram.Sankey => Sankeys,
         _ => null,
     };
 
@@ -130,6 +131,8 @@ public static class MermaidDiagrams
     private static readonly Block.BlockGrammar Blocks = new();
 
     private static readonly Architecture.ArchitectureGrammar Architectures = new();
+
+    private static readonly Sankey.SankeyGrammar Sankeys = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =

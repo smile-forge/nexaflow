@@ -153,7 +153,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + nesting + config (`IshikawaChartTests`) + draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
-| `sankey` | ✅ (flow diagram) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + nodes, flows + config (`SankeyChartTests`) + draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (graph layout) | ✅ parser + config (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
 | `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
@@ -442,20 +442,26 @@ A cause's words wrap onto several lines where they are long, as Mermaid wraps th
 cause's at fifteen — each line typed into as the characters it holds.
 **Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
 **Written in place:** the event is typed into in the head, a cause in its box or beside its bone.
-**Sankey sub-features** ([`MermaidSankeyParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSankeyParser.cs)
-+ [`WpfSankeyRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSankeyRenderer.cs)).
-A flow diagram with its own [`SankeyDiagram`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyDiagram.cs)
-model — nodes inferred from links. After the `sankey` keyword the body is **RFC-4180 CSV**: three columns
-`source,target,value`, one link per row; fields with commas are double-quoted and a literal quote is a doubled `""`;
-blank lines and `%%` comments are skipped. Laid out left→right by longest-path depth (adjusted by `nodeAlignment`),
-nodes sized by throughput and joined by bezier ribbons whose width is the value. **The front-matter `config:` block is
-applied** ([`SankeyConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/SankeyConfigParser.cs) →
-[`SankeyConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SankeyConfig.cs)): `config: sankey`
-`width`/`height`, `linkColor` (`source`/`target`/`gradient`/a fixed colour), `nodeAlignment` (`justify`/`center`/`left`/
-`right`), `showValues` + `prefix`/`suffix`, `nodeWidth`/`nodePadding`, `labelStyle` (`legacy`/`outlined`), and the
-`nodeColors` map (per-node colour overrides). Node/link colours otherwise come from the palette's series bank. A
-front-matter `title:` (Sankey has no inline title keyword) renders above the diagram. **Limitation:** newlines inside
-a quoted CSV field (a record spanning lines) aren't supported — each row is one line.
+**Sankey sub-features** ([`SankeyGrammar`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs) →
+[`SankeyChart`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyChart.cs) →
+[`SankeyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs)).
+A flow to a line, written as the three columns of a CSV row — where it comes from, where it goes, and what it is worth.
+**Nothing declares a node**: the nodes are the names the flows are written between, in the order they are first written,
+which is the order they are stacked in and the colour each takes. A field holds anything but a comma and a quote as it is;
+one given either is written in quotes, and a quote between those is written twice. Each node is drawn as a bar as tall as
+it is worth — whatever flows into it or out of it, whichever is the more — in a column as far along as the longest run of
+flows reaching it, and each flow as a ribbon as thick as it is worth, leaving and arriving stacked in the order the flows
+are written. Every column is drawn to one scale, so the tallest of them fills the height. **Everything drawn stands for
+what was written**: a ribbon for the row it was written on, a bar for the row that first named it, and a name is the
+characters written, typed into where it is drawn — a name given a comma or a quote being put in quotes as it is typed.
+Enter starts another flow with all three of its columns to write. **The front matter is applied**
+([`SankeyConfig`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs)): `config: sankey:` `width`/`height` (the least
+it is drawn at), `linkColor` (`source`, `target`, `gradient` or a colour of its own), `nodeAlignment`
+(`justify`/`center`/`left`/`right`), `showValues` with `prefix`/`suffix`, and this renderer's own `nodeWidth`,
+`nodePadding`, `labelStyle` (`plain`/`outlined`) and `nodeColors` map. A title is the front matter's, Mermaid's sankey
+having no title line of its own. **Divergences from Mermaid:** a row is a line, where RFC 4180 lets a quoted field run
+across two of them; a fourth column is read as part of what the flow is worth, and said to be no number, where Mermaid
+reads three and stops; and `%%` comments are skipped here, which Mermaid's sankey reads as part of a name.
 
 **ER-diagram sub-features** ([`MermaidErParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs)).
 An entity is structurally a UML box, so ER reuses the shared graph model + Sugiyama layout + `WpfGraphRenderer`

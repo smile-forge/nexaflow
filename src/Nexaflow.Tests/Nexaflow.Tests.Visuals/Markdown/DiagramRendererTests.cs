@@ -202,51 +202,6 @@ public class DiagramRendererTests
         Electricity,Homes,55
         """;
 
-    [TestMethod]
-    public void Sankey_RendersBorder() => UiThread.Run(() =>
-    {
-        var d = new MermaidSankeyParser().Parse(SankeySrc);
-        Assert.IsInstanceOfType(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark), typeof(Border));
-    });
-
-    [TestMethod]
-    public void Sankey_DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", SankeySrc, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Sankey_WithFrontMatterConfig_RendersThroughDiagramRenderer() => UiThread.Run(() =>
-    {
-        const string src =
-            """
-            ---
-            config:
-              sankey:
-                showValues: true
-                linkColor: gradient
-                nodeAlignment: left
-                suffix: " TWh"
-                nodeColors:
-                  Electricity: "#4e79a7"
-            ---
-            sankey
-
-            Coal,Electricity,75
-            Gas,Electricity,40
-            Electricity,Industry,60
-            Electricity,Homes,55
-            """;
-        Assert.IsNotNull(DiagramRenderer.Render("mermaid", src, MarkdownPalette.Dark));
-    });
-
-    [TestMethod]
-    public void Sankey_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
-    {
-        var d = new MermaidSankeyParser().Parse("sankey\n");
-        Assert.IsNotNull(WpfSankeyRenderer.Render(d, MarkdownPalette.Dark));
-    });
-
     // ── ER diagram ────────────────────────────────────────────────────────
 
     private const string ErSrc =
