@@ -60,8 +60,11 @@ public class MarkdownAiTests
         StringAssert.Contains(ctx, "Section");
         Assert.IsFalse(ctx.Contains("unsaved"), "a freshly-loaded document is clean");
 
-        vm.SourceOnly = true;
+        vm.ViewMode = MarkdownViewMode.Source;
         StringAssert.Contains(vm.GetContext(), "source");   // mode change reflected
+
+        vm.ViewMode = MarkdownViewMode.Split;
+        StringAssert.Contains(vm.GetContext(), "split");
     }
 
     [TestMethod]
@@ -101,10 +104,14 @@ public class MarkdownAiTests
         StringAssert.Contains(vm.Markdown, "ALPHA");
         Assert.IsTrue(vm.IsDirty);
 
-        // set_view_mode: parity with the toolbar toggle
+        // set_view_mode: parity with the toolbar slider, all three of its stops
         var mode = tools.Single(t => t.Name == "set_view_mode");
         await mode.InvokeAsync(new JsonObject { ["mode"] = "source" }, CancellationToken.None);
-        Assert.IsTrue(vm.SourceOnly);
+        Assert.AreEqual(MarkdownViewMode.Source, vm.ViewMode);
+        await mode.InvokeAsync(new JsonObject { ["mode"] = "split" }, CancellationToken.None);
+        Assert.AreEqual(MarkdownViewMode.Split, vm.ViewMode);
+        await mode.InvokeAsync(new JsonObject { ["mode"] = "rendered" }, CancellationToken.None);
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode);
 
         // set_document: replace the whole document (preserves the trailing newline via ToolArgs.Raw)
         var set = tools.Single(t => t.Name == "set_document");

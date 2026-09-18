@@ -33,13 +33,20 @@ public class MarkdownJourneyTests : UiJourneyTestBase
         CheckPresent("Inline editor", "Markdown_Editor");
         Check("Source box hidden by default", () => WaitForId("Markdown_SourceBox", 1) is null);
 
-        // Source toggle → the raw-source TextBox takes over, and the rendered editor goes away.
-        CheckDoes("Source toggle", "Markdown_SourceToggle", () => WaitForId("Markdown_SourceBox", 3) is not null);
-        Check("Inline editor hidden in source mode", () => WaitForId("Markdown_Editor", 1) is null);
+        // The view-mode slider's three stops, in the order it reads them: Rendered (0), Split (1), Source (2).
+        CheckPresent("View-mode slider", "Markdown_ViewMode");
 
-        // Toggle back → the rendered editor returns and the source box goes away.
-        CheckDoes("Source toggle (back)", "Markdown_SourceToggle", () => WaitForId("Markdown_Editor", 3) is not null);
-        Check("Source box hidden again", () => WaitForId("Markdown_SourceBox", 1) is null);
+        Check("Split shows both surfaces at once", () => SetViewMode(1)
+            && WaitForId("Markdown_SourceBox", 3) is not null
+            && WaitForId("Markdown_Editor", 3) is not null);
+
+        Check("Source hands the pane to the raw-source box", () => SetViewMode(2)
+            && WaitForId("Markdown_SourceBox", 3) is not null
+            && WaitForId("Markdown_Editor", 1) is null);
+
+        Check("Rendered hands it back to the inline editor", () => SetViewMode(0)
+            && WaitForId("Markdown_Editor", 3) is not null
+            && WaitForId("Markdown_SourceBox", 1) is null);
 
         // Zoom, in the footer. The label is a TextBlock with a MouseLeftButtonUp handler rather than a Button,
         // so it supports no Invoke pattern — the base class falls back to a real click, which is what opens the
@@ -65,5 +72,15 @@ public class MarkdownJourneyTests : UiJourneyTestBase
         Check("Save is disabled while the document is clean", () => save is not null && !save.IsEnabled);
 
         AssertJourney();
+    }
+
+    /// <summary>Slides the view-mode slider to one of its stops. It carries no Invoke pattern - a range is
+    /// driven by its value, so the stop is set the way a drag would leave it.</summary>
+    private bool SetViewMode(double stop)
+    {
+        var slider = WaitForId("Markdown_ViewMode", 5);
+        if (slider is null) return false;
+        try { slider.Patterns.RangeValue.Pattern.SetValue(stop); return true; }
+        catch { return false; }
     }
 }

@@ -57,11 +57,11 @@ public class MarkdownViewModelEditingTests
     }
 
     [TestMethod]
-    public void InitialLoad_SourceOnly_DefaultsFalse()
+    public void InitialLoad_ViewMode_DefaultsToRendered()
     {
         var vm = Make(ThreeBlock);
 
-        Assert.IsFalse(vm.SourceOnly);
+        Assert.AreEqual(MarkdownViewMode.Rendered, vm.ViewMode);
     }
 
     [TestMethod]
@@ -98,14 +98,15 @@ public class MarkdownViewModelEditingTests
     }
 
     [TestMethod]
-    public void TogglingSourceOnly_DoesNotMarkDirty()
+    public void ChangingTheViewMode_DoesNotMarkDirty()
     {
         var vm = Make(ThreeBlock);
 
-        vm.SourceOnly = true;
+        vm.ViewMode = MarkdownViewMode.Split;
+        vm.ViewMode = MarkdownViewMode.Source;
 
         Assert.IsFalse(vm.IsDirty);
-        Assert.IsTrue(vm.SourceOnly);
+        Assert.AreEqual(MarkdownViewMode.Source, vm.ViewMode);
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────

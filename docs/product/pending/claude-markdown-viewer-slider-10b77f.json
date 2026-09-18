@@ -1,0 +1,90 @@
+{
+  "branch": "claude/markdown-viewer-slider-10b77f",
+  "nodes": {
+    "markdown-view-mode": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel",
+          "ast": "T:MarkdownViewModel/F:_viewMode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "OnViewModelChanged"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Markdown/MarkdownJourneyTests.cs",
+          "class": "MarkdownJourneyTests"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+          "class": "MarkdownViewModelTests"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "ViewMode_WalksTheSlidersThreeStops"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "ViewModeIndex_IsTheSlidersPosition_AndReadsAsTheNearestStop"
+          }
+        ]
+      }
+    },
+    "markdown-split": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView",
+          "method": "ApplyViewMode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "ViewMode_WalksTheSlidersThreeStops"
+          }
+        ]
+      }
+    },
+    "markdown-source-box": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Markdown/MarkdownViewModelTests.cs",
+            "class": "MarkdownViewModelTests",
+            "method": "ChangingTheViewMode_PreservesMarkdownText"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "markdown-source-box",
+    "markdown-split",
+    "markdown-view-mode"
+  ]
+}

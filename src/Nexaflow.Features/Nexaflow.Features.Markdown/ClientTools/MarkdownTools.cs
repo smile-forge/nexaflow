@@ -10,8 +10,8 @@ namespace Nexaflow.Features.Markdown.ClientTools;
 
 /// <summary>
 /// The AI tool surface for a markdown document: read the whole source, rewrite it or find/replace,
-/// switch between the rendered and raw-source views, and save — the same operations the user has via
-/// the inline/source editors, the toolbar toggle and Save. Every mutating tool funnels through the same
+/// switch between the rendered, split and raw-source views, and save — the same operations the user has via
+/// the inline/source editors, the toolbar's view-mode slider and Save. Every mutating tool funnels through the same
 /// <see cref="MarkdownViewModel.Markdown"/> the user edits, so AI edits show in the editor and persist
 /// through the same save.
 /// </summary>
@@ -35,17 +35,14 @@ internal static class MarkdownTools
 
         new DelegateClientTool(
             "set_view_mode",
-            "Switch the editor between the rendered inline view and the raw markdown source view.",
-            [ new ClientToolParameter("mode", "\"rendered\" (inline) or \"source\" (raw markdown).") ],
+            "Switch the editor between the rendered inline view, the split view and the raw markdown source view.",
+            [ new ClientToolParameter("mode", "\"rendered\" (inline), \"split\" (source beside rendered) or \"source\" (raw markdown).") ],
             ToolSafety.SafeOperation,
             async (args, _) =>
             {
-                var mode = ToolArgs.Str(args, "mode", "view") ?? "rendered";
-                bool source = mode.StartsWith("source", StringComparison.OrdinalIgnoreCase)
-                           || mode.StartsWith("raw", StringComparison.OrdinalIgnoreCase);
-                await vm.SetSourceModeAsync(source);
-                return ToolResult.Ok(source ? "showing source" : "showing rendered",
-                    $"Switched to the {(source ? "raw source" : "rendered inline")} view.");
+                var (mode, summary, said) = ReadMode(ToolArgs.Str(args, "mode", "view"));
+                await vm.SetViewModeAsync(mode);
+                return ToolResult.Ok(summary, said);
             }),
 
         // ── Mutating (approval-gated) ─────────────────────────────────────────
@@ -122,5 +119,24 @@ internal static class MarkdownTools
         if (count == 0) return (src, 0);
         sb.Append(src, prev, src.Length - prev);
         return (sb.ToString(), count);
+    }
+
+    /// <summary>
+    /// Reads what the agent asked for as one of the three view modes, with the words for the answer. Anything
+    /// it does not recognise is the rendered view - the mode a reader who said nothing would expect.
+    /// </summary>
+    private static (MarkdownViewMode Mode, string Summary, string Said) ReadMode(string? asked)
+    {
+        var want = asked ?? string.Empty;
+        bool Says(string word) => want.StartsWith(word, StringComparison.OrdinalIgnoreCase);
+
+        if (Says("source") || Says("raw"))
+            return (MarkdownViewMode.Source, "showing source", "Switched to the raw source view.");
+
+        if (Says("split") || Says("both") || Says("side"))
+            return (MarkdownViewMode.Split, "showing split",
+                "Switched to the split view - raw source on the left, rendered on the right.");
+
+        return (MarkdownViewMode.Rendered, "showing rendered", "Switched to the rendered inline view.");
     }
 }
