@@ -238,6 +238,16 @@ public class FlowchartDiagramTests
     }
 
     [TestMethod]
+    public void MetadataSaysHowALinkOfItsOwnIsCurved()
+    {
+        var links = FlowchartDiagram.Read("flowchart LR\n  A e1@--> B\n  B e2@--> C\n  e1@{ curve: linear }").Links;
+
+        Assert.AreEqual("linear", links[0].Curve);
+        Assert.IsFalse(FlowchartConfig.Curving(links[0].Curve), "a linear curve is the straight line between the points");
+        Assert.IsNull(links[1].Curve, "and a link whose metadata says nothing is curved the way the front matter asks");
+    }
+
+    [TestMethod]
     public void TheFrontMatterIsApplied()
     {
         var diagram = FlowchartDiagram.Read("---\nconfig:\n  flowchart:\n    nodeSpacing: 70\n    rankSpacing: 90\n"

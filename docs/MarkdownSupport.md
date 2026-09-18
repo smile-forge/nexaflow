@@ -192,8 +192,11 @@ anything else curves them), and the shared `markdownAutoWrap`. **Divergences fro
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
 nodes come to; the `@{ shape: … }` names Mermaid draws with a detail of their own — a window pane, a bow tie, a crossed circle —
-come to the nearest shape this has; an `icon:` or `img:` node is drawn as its label, there being no icon pack to fetch; and a
-`click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the source. **A
+come to the nearest shape this has; an `icon:` or `img:` node is drawn as its label, and `fa:fa-…` in a label is drawn as the
+characters written, there being no icon pack to fetch; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
+rather than styled; `interpolate` on a `linkStyle` is read, `linear` against anything else being all that changes how a line is
+drawn; and a `click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the
+source. **A
 flowchart asking for nodes that open and close** — anything in a `config: nexaflow:` block — is drawn by the expandable graph view
 instead (below), which is the one thing the shared layout tree cannot do yet.
 

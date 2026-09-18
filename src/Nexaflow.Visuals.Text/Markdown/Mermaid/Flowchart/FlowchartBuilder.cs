@@ -309,9 +309,11 @@ internal sealed class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             var stroke = DiagramConnector.Stroked(Ink.Written(written.Stroke) ?? Palette.TextMuted, route.Link.Style,
                                                  written.StrokeWidth ?? 1, Thick, DiagramInk.Dashes(written.Dashes));
 
+            // A link's own metadata says how it is curved, over whatever the front matter asks for every one of them.
+            var curved = route.Link.Curve is { Length: > 0 } curve ? FlowchartConfig.Curving(curve) : config.Curved;
+
             DiagramConnector.Draw(build, FlowchartPiece.Link, route.Link.Part, route.Along, stroke,
-                                  DiagramConnector.Headed(route.Link.Start), DiagramConnector.Headed(route.Link.End),
-                                  config.Curved);
+                                  DiagramConnector.Headed(route.Link.Start), DiagramConnector.Headed(route.Link.End), curved);
 
             DiagramConnector.Says(build, FlowchartPiece.Label, route.Link.Part, route.Room, route.Said, Palette.CodeBg);
         }

@@ -83,6 +83,9 @@ public sealed record FlowchartLink(
     /// <summary>The id it was given where it was written, which a later line names it by.</summary>
     public string? Name { get; init; }
 
+    /// <summary>The curve an <c>id@{ curve: … }</c> line asks for it, over whatever the front matter asks for every link.</summary>
+    public string? Curve { get; init; }
+
     /// <summary>Whether it is drawn at all: a link of tildes only holds what it joins apart.</summary>
     public bool Drawn => Style != MermaidLineStyle.Invisible;
 }
@@ -479,6 +482,7 @@ public sealed class FlowchartDiagram
             SaidHole = joined.SaidHole,
             Written = style,
             Name = joined.Name,
+            Curve = joined.Curve,
         };
     }
 

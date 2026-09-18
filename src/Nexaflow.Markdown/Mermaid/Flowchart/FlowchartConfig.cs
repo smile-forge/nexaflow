@@ -66,8 +66,14 @@ public sealed record FlowchartConfig
             Wrapping = chart.Number("wrappingWidth") is { } widest and > 0 ? widest : Widest,
             TitleMargin = chart.Number("subGraphTitleMargin") is { } margin and >= 0 ? margin : 0,
             Curve = curve,
-            Curved = !string.Equals(curve, "linear", StringComparison.OrdinalIgnoreCase),
+            Curved = Curving(curve),
             Wraps = config.Shared.Flag("markdownAutoWrap") ?? true,
         };
     }
+
+    /// <summary>
+    /// Whether a curve named in the front matter, or in a link's own metadata, draws a curved line: every one of Mermaid's but
+    /// <c>linear</c>, which is the straight line between the points the layout gave it.
+    /// </summary>
+    public static bool Curving(string? curve) => !string.Equals(curve, "linear", StringComparison.OrdinalIgnoreCase);
 }
