@@ -5,21 +5,8 @@ using System.Text.RegularExpressions;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
 
-/// <summary>
-/// Parses Mermaid <c>graph</c> / <c>flowchart</c> diagrams into a <see cref="Graph"/>.
-///
-/// Supported:
-///   • Direction keywords: TD TB LR BT RL
-///   • Node shapes: [rect] (rounded) ((circle)) {diamond} {{hex}} ([stadium]) [[sub]] [(cyl)] &gt;asym]
-///   • Edge types: --&gt; --- -.-&gt; ==&gt; --o --x
-///   • Edge labels: --&gt;|label|  and  -- label --&gt;
-///   • &lt;br&gt; / &lt;br/&gt; in labels → rendered as newlines
-///   • Multiple targets: A --&gt; B &amp; C
-///   • Chains: A --&gt; B --&gt; C (each hop becomes its own edge)
-///   • Subgraph blocks, including nested subgraphs (drawn as nested boxes via Subgraph.ParentId)
-///   • classDef / class styling (fill and stroke colours)
-///   • %% line comments, trailing semicolons
-/// </summary>
+/// <summary>Parses Mermaid <c>graph</c> / <c>flowchart</c> diagrams into a <see cref="Graph"/> —
+/// directions, node shapes, edge types/labels/chains, nested subgraphs, classDef styling.</summary>
 public sealed class MermaidFlowchartParser : IGraphParser
 {
     public bool CanParse(string language) =>
@@ -233,16 +220,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
 
     // ── Edge parsing (tokeniser-based) ────────────────────────────────────
 
-    /// <summary>
-    /// Tokenises one line as a Mermaid edge definition.
-    /// Handles:
-    ///   • src --&gt; dst              (direct arrow)
-    ///   • src --&gt;|label| dst       (inline label)
-    ///   • src -- label --&gt; dst     (space-label form)
-    ///   • src --&gt; B &amp; C           (fan-out to several targets)
-    ///   • src --&gt; mid --&gt; dst     (chains — each hop becomes its own edge)
-    ///   • src expression may contain any shape including &gt;..] (asymmetric)
-    /// </summary>
+    /// <summary>Tokenises one line as a Mermaid edge definition: direct/inline-label/space-label
+    /// arrows, fan-out (<c>B &amp; C</c>) and chains (each hop its own edge).</summary>
     private static bool TryParseEdgeLine(string line, Graph graph)
     {
         (int pos, string srcExpr) = ReadNodeExpr(line, 0);
@@ -335,12 +314,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
         return pos;
     }
 
-    /// <summary>
-    /// Matches a flowchart link operator at <paramref name="pos"/>, tolerating arbitrary link length
-    /// (<c>--&gt;</c> … <c>-----&gt;</c>), dotted (<c>-.-&gt;</c>) and thick (<c>==&gt;</c>) lines, plus head
-    /// markers at either end: <c>&gt;</c>/<c>&lt;</c> (arrow), <c>o</c> (circle), <c>x</c> (cross).
-    /// Returns the token length and resolved style/heads, or null when no operator starts here.
-    /// </summary>
+    /// <summary>Matches a flowchart link operator at <paramref name="pos"/> — arbitrary length, dotted
+    /// or thick, with head markers at either end. Null when no operator starts here.</summary>
     private static (int len, EdgeStyle style, EdgeArrow start, EdgeArrow end)? MatchArrow(string s, int pos)
     {
         int i = pos, len = s.Length;
@@ -393,12 +368,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
         return (i - pos, style, start, end);
     }
 
-    /// <summary>
-    /// Reads one Mermaid node expression from <paramref name="s"/> at <paramref name="start"/>.
-    /// A node expression is a node-id followed by an optional shape bracket.
-    /// Bracket content may contain <c>&lt;br&gt;</c> and other arbitrary text; brackets are depth-matched.
-    /// Returns (endPosition, expressionString).  endPosition is -1 on failure.
-    /// </summary>
+    /// <summary>Reads one Mermaid node expression (id + optional shape bracket) from <paramref name="s"/>
+    /// at <paramref name="start"/>. Returns (-1, "") on failure.</summary>
     private static (int end, string expr) ReadNodeExpr(string s, int start)
     {
         int i = start;
@@ -439,10 +410,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
 
     // ── Node expression interpretation ────────────────────────────────────
 
-    /// <summary>
-    /// Interprets a node expression string (as returned by <see cref="ReadNodeExpr"/>),
-    /// updates the graph, and returns the node id.
-    /// </summary>
+    /// <summary>Interprets a node expression (from <see cref="ReadNodeExpr"/>), updates the graph, and
+    /// returns the node id.</summary>
     private static string? ParseNodeExpr(string expr, Graph graph)
     {
         expr = expr.Trim();
@@ -470,10 +439,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
         return id;
     }
 
-    /// <summary>
-    /// Resolves the node shape and the real label text.
-    /// Handles composite openers like <c>([</c>, <c>[(</c>, <c>[/</c>, <c>[\</c>, <c>(((</c>.
-    /// </summary>
+    /// <summary>Resolves the node shape and label text for composite openers like <c>([</c>, <c>[(</c>,
+    /// <c>[/</c>, <c>[\</c>, <c>(((</c>.</summary>
     private static (NodeShape shape, string label) ClassifyComposite(string od, string cd, string rawLbl)
     {
         // (( → Circle already; detect triple (((
@@ -543,10 +510,8 @@ public sealed class MermaidFlowchartParser : IGraphParser
         new(@"^(?<id>[A-Za-z0-9_.\-]+)@\{(?<body>.*)\}\s*$",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
-    /// <summary>
-    /// Parses an <c>id@{ … }</c> metadata line into a node (shape/label).  Returns false when the body
-    /// carries no node keys (e.g. edge metadata like <c>e1@{ curve: linear }</c>), so the caller can skip it.
-    /// </summary>
+    /// <summary>Parses an <c>id@{ … }</c> metadata line into a node. False when the body carries no node
+    /// keys (e.g. edge metadata like <c>e1@{ curve: linear }</c>).</summary>
     private static bool TryParseNodeMeta(string line, Graph graph)
     {
         var m = RxNodeMeta.Match(line);

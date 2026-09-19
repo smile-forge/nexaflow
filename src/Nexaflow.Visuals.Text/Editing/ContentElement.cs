@@ -12,39 +12,16 @@ using System.Windows.Media.Imaging;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// The surface every piece of embedded, rendered, editable content is drawn on: it lays the content out,
-/// paints it, and owns the pointer, the selection and the caret.
-///
+/// Shared surface that lays out, paints and edits any embedded content (formula, tune, barcode, …) via
+/// one <see cref="Laid"/>-producing builder instead of each kind reimplementing caret/selection/drag.
+/// Editing state is <see cref="EditState"/>; content-specific behaviour is the small set of optional
+/// hooks below. Plain-text content overrides the shared tree-walk queries (stops/wash/snap) with direct
+/// string math — a per-keystroke tree walk is free for a formula but O(n) per character for prose.
 /// <para>
-/// <strong>There is one of these, whatever is in it.</strong> A tune, a formula and a barcode were three
-/// elements doing the same work three times — the same wash, the same wave, the same blinking bar, the
-/// same drag grown out to whole constructs — because each had its own idea of what a laid-out thing was.
-/// They no longer do: a builder makes a <see cref="Laid"/>, and everything after that is here.
-/// </para>
-/// <para>
-/// The editing model is <see cref="EditState"/>: source, caret, selection, and the stretch shown as
-/// itself, with every operation over them. Typing is typing regardless of the source, so a note letter
-/// and a backslash arrive by the same road and differ only in what <see cref="Typing"/> makes of them.
-/// </para>
-/// <para>
-/// What a kind of content still gets to say is the short list below — the questions a parse tree can
-/// answer and a layout cannot. Every one declines by default, so content with nothing to say says
-/// nothing and gets the ordinary behaviour.
-/// </para>
-/// <para>
-/// <strong>A plain string may yet want a sibling.</strong> Three of the shared answers are a walk of the
-/// whole tree per keystroke — the caret stops, the rectangles a selection washes, and snapping a range
-/// out to whole things. For a formula that is forty pieces and free; for a paragraph it would be one
-/// piece per character and the walk would be the cost of typing. Where prose arrives, the answer is a
-/// sibling of this that overrides those three with what a string can answer directly — stops are every
-/// offset, the wash is a run measure, and snapping is word boundaries — rather than a flag in here.
-/// </para>
-/// <para>
-/// The gesture is split into <see cref="BeginPointerSelect"/> / <see cref="ExtendPointerSelect"/> /
-/// <see cref="EndPointerSelect"/> rather than being driven from this element's own mouse events, because
-/// content is usually hosted inside a <c>RichTextBox</c>, where an embedded element does <em>not</em>
-/// reliably receive mouse input — the text container attributes the click to itself, to the FlowDocument,
-/// or even to a neighbouring paragraph. The host hit-tests geometrically and drives the three methods.
+/// The pointer gesture is split into <see cref="BeginPointerSelect"/> / <see cref="ExtendPointerSelect"/>
+/// / <see cref="EndPointerSelect"/> rather than driven by this element's own mouse events, because content
+/// hosted inside a <c>RichTextBox</c> does not reliably receive mouse input — the host hit-tests
+/// geometrically and drives these methods instead.
 /// </para>
 /// </summary>
 public class ContentElement : FrameworkElement, IEditableBlock
@@ -94,14 +71,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
     public event EventHandler<BlockExit>? Exited;
 
-    /// <summary>
-    /// Content whose builder is all there is to it — the ordinary case, and the one that makes a new kind of
-    /// content cost a builder and nothing else.
-    /// </summary>
-    /// <param name="lay">
-    /// How to lay the source out. Handed the whole <see cref="EditState"/> rather than the string, because
-    /// what is being typed changes what is drawn.
-    /// </param>
+    /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
+    /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
     public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, double, Laid> lay)
         : this(source, palette, Content.Of(lay)) { }
 
@@ -138,22 +109,11 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     // ── What a kind of content gets to say ──────────────────────────────────
 
-    /// <summary>
-    /// Lays the source out to fit the room it is given.
-    ///
-    /// <para>
-    /// The <em>state</em> rather than the string, because what is being typed changes what is drawn: a
-    /// stretch shown as its own characters is set into the layout rather than painted over it, which is
-    /// the only way the rest of the content can be laid out knowing it is there.
-    /// </para>
-    /// </summary>
+    /// <summary>Lays the source out to fit the room given. Takes the whole state, not just the string, since a stretch shown as its own characters is set into the layout rather than painted over it.</summary>
     private Laid Lay(EditState state, double room, double pixelsPerDip) =>
         _content.Lay(state, room, pixelsPerDip, IsReadOnly);
 
-    /// <summary>
-    /// What is being hosted: the whole chain from source to picture, and what writing into that picture
-    /// means. Everything that differs by kind of content is behind it — see <see cref="IContent"/>.
-    /// </summary>
+    /// <summary>The whole chain from source to picture; everything that differs by kind of content is behind it — see <see cref="IContent"/>.</summary>
     private readonly IContent _content;
 
     /// <summary>Where an edit is landing, for the content to make what it will of it.</summary>
@@ -166,22 +126,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
     private EditState? Typing(EditState state, string text) => _content.Typing(Landing, text);
 
     /// <summary>
-    /// What backspace means behind something drawn from more source than it shows.
-    ///
-    /// <para>
-    /// Behind a construct the reader cannot see the source of — a fraction, a root, a matrix — it un-renders
-    /// it to the characters that spelled it rather than taking a character off the end, which would leave
-    /// LaTeX that no longer parses by removing a brace nobody can see. Behind something atomic — an α is one
-    /// thing on the page however many letters spelled it — there is nothing hidden to go back to, so it is
-    /// simply taken.
-    /// </para>
-    /// <para>
-    /// The thing behind the caret is the piece its place stands against, which is why this is no longer a
-    /// content's business. A row is never it and neither is a box the typesetter made for its own purposes:
-    /// neither declares a stop, so neither can be what a caret is standing at. That used to be two paragraphs
-    /// of exceptions in the formula's own version, aimed at an align block whose body is one box covering two
-    /// equations — backspace un-rendered both.
-    /// </para>
+    /// Backspace behind a construct drawn from more source than it shows (fraction, root, matrix) un-renders
+    /// it to the characters that spelled it, rather than removing a brace nobody can see and leaving LaTeX
+    /// that no longer parses. Behind something atomic (an α) there is nothing hidden, so it is simply taken.
     /// </summary>
     protected virtual EditState? Backspacing(EditState state)
     {
@@ -204,46 +151,20 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// What pointing at a piece means: the first thing above it that names a stretch of source.
-    ///
-    /// <para>
-    /// A bracket is drawn by the fence that holds it, a bar by the fraction, the three glyphs of an operator
-    /// name by the name. None of them names source of its own, and none can be pointed at, taken, carried or
-    /// deleted alone — a bracket without its partner cannot be read at all. So pointing at one means the
-    /// thing it is part of, and where nothing above it names anything, nothing there is selectable.
-    /// </para>
-    /// <para>
-    /// No content declares any of this. It is the second of the two rules the layout runs on, and it is the
-    /// same climb whether what was pressed is a delimiter, a beam or a letter of a word.
-    /// </para>
+    /// What pointing at a piece means: the first ancestor that names a stretch of source. A bracket is drawn
+    /// by the fence that holds it and cannot be selected alone — a bracket without its partner can't be read —
+    /// so pointing at one selects the thing it belongs to.
     /// </summary>
     protected static Piece Pointing(Piece piece) => piece.Selectable();
 
-    /// <summary>
-    /// The places still waiting to be written in, in reading order — what Tab walks.
-    ///
-    /// <para>
-    /// Read off what was drawn rather than off the text, because there is nothing in the text to read: a hole
-    /// covers no characters, which is exactly what makes it one. The builder is the only thing that can say
-    /// so, and it does, and nothing else about a piece needs declaring.
-    /// </para>
-    /// </summary>
+    /// <summary>The places still waiting to be written in, in reading order — what Tab walks. Read off the layout, not the text: a hole covers no characters, so there is nothing in the source to find it by.</summary>
     protected IReadOnlyList<Piece> Holes() => _laid.Holes;
 
     /// <summary>
-    /// What moving the selected stretches to <paramref name="to"/> would produce: they are cut out and put
-    /// back in at the drop, and the whole thing is read again.
-    ///
-    /// <para>
-    /// A rerun of the reading and the building, which is what makes it the same for every kind of content.
-    /// Nothing here knows what is being carried — it is a stretch of source going somewhere else in the same
-    /// source, and whether that lands somewhere sensible is a question about the caret stops, which the
-    /// builder declares.
-    /// </para>
-    /// <para>
-    /// Null when there is nothing to move, or when the drop is inside what is being moved — a term dropped on
-    /// itself has not gone anywhere, and cutting it first would leave nowhere to put it.
-    /// </para>
+    /// What moving the selected stretches to <paramref name="to"/> would produce: cut out, reinserted at the
+    /// drop, and the whole thing read and built again — kind-agnostic since it works on source text only.
+    /// Null when nothing is selected, or when the drop is inside what is being moved (cutting first would
+    /// leave nowhere to put it).
     /// </summary>
     private Moved? Moving(EditState state, int to)
     {
@@ -290,30 +211,16 @@ public class ContentElement : FrameworkElement, IEditableBlock
     // ── Shape and colour ────────────────────────────────────────────────────
 
     /// <summary>
-    /// How large the content is drawn, as a multiple of its natural size.
-    ///
-    /// <para>
-    /// A <em>render</em> scale rather than a bitmap one, which is the whole point: the content is laid out
-    /// into the room a smaller drawing leaves — <c>available / zoom</c> — so zooming out fits more of it on
-    /// a line rather than shrinking a picture of the same line breaks. That is what a reader dragging a
-    /// zoom control expects, and it is why the builder has to be told rather than the painter.
-    /// </para>
+    /// How large the content is drawn, as a multiple of its natural size. A render scale, not a bitmap one:
+    /// the content is laid out into <c>available / zoom</c>, so zooming out re-flows the line breaks rather
+    /// than shrinking a picture of the same ones — which is why the builder has to be told, not the painter.
     /// </summary>
     public double Zoom { get; init; } = 1.0;
 
     /// <summary>The render scale, kept somewhere a reader could plausibly want to be.</summary>
     protected double Scale => Math.Clamp(Zoom, 0.2, 4.0);
 
-    /// <summary>
-    /// How far a selection wash reaches past the ink it marks.
-    ///
-    /// <para>
-    /// A box the exact size of a glyph is a poor way to say "this is picked out". Text does not do it
-    /// either: a selected character is washed over the whole line box, not over its own outline, which is
-    /// why a selected <c>i</c> reads as selected at all. Stated by the content, because it belongs to the
-    /// type size, which is the content's.
-    /// </para>
-    /// </summary>
+    /// <summary>How far a selection wash reaches past the ink it marks — a box the exact size of a glyph reads poorly as "selected" (a selected <c>i</c> needs the wash over the line box, not its own outline).</summary>
     public double WashPad { get; init; } = 2.0;
 
     /// <summary>Whether the caret is shown. A read-only surface still allows selecting and copying.</summary>
@@ -344,15 +251,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     public (int Start, int Length)? ShownAsWritten =>
         _state.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
 
-    /// <summary>
-    /// Whether the caret belongs in this content at all — whether any of what it draws is the source.
-    ///
-    /// <para>
-    /// Asked of the tree rather than declared: a piece that names a stretch of source is a piece somebody
-    /// typed, and content with none of those is content nobody can type into. A barcode that prints a
-    /// number it worked out is the case that needs it, and nothing about the question is barcode-shaped.
-    /// </para>
-    /// </summary>
+    /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
     public bool AcceptsCaret =>
             _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
@@ -409,9 +308,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     public void TakeCaretArriving(CaretArrival arrival)
     {
-        // Nothing drawn here is the source, so there is nowhere in it to stand. The caret is handed
-        // straight on the way it was already going, and the reader arrows over the content as they would
-        // over a word — rather than into it, to find that no key does anything.
+        // Nothing drawn here is source, so the caret passes straight through — arrowed over like a word,
+        // not into content where no key would do anything.
         if (!AcceptsCaret)
         {
             Exited?.Invoke(this, arrival.Edge == BlockExit.Before ? BlockExit.After : BlockExit.Before);
@@ -421,9 +319,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
         var stops = _laid.Stops;
         if (stops.Count == 0)
         {
-            // Empty content is one place — the start of nothing — and it is exactly where the first character
-            // will go, so the caret stands there. It has no stops only because there is nothing yet to stand
-            // against. Content that has something in it and still no stop really has nowhere, and passes it on.
+            // Empty content has no stops only because there is nothing yet to stand against; the caret still
+            // belongs at 0. Non-empty content with no stop really has nowhere, so it's passed on.
             if (_state.Source.Length == 0) TakeCaret(0);
             else Exited?.Invoke(this, arrival.Edge);
             return;
@@ -434,9 +331,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (arrival is { Step: CaretStep.Line, Column: { } column }) { TakeCaret(Nearest(column)); return; }
         if (arrival.Edge == BlockExit.Before) { TakeCaret(stops[0]); return; }
 
-        // Arriving from the text after it, the caret is outside everything in the content — so it takes
-        // the outermost place at the end. Landing on the innermost instead would put it inside a trailing
-        // exponent, raised and half-height, having been walked into from the far side.
+        // Takes the outermost place at the end — landing on the innermost could put it inside a trailing
+        // exponent instead of past it.
         var end = Snap(stops[^1]);
                 TakeCaret(end, _laid.Root.StopAt(end, outermost: true));
     }
@@ -474,10 +370,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         InvalidateVisual();
     }
 
-    /// <summary>
-    /// Blinks the caret, because a still one is easy to lose among the glyphs. It runs only while this
-    /// content holds the caret and is torn down on unload, so a page of them leaves no timers behind.
-    /// </summary>
+    /// <summary>Blinks the caret. Runs only while this content holds the caret and is torn down on unload, so a page of them leaves no timers behind.</summary>
     private void StartBlinking()
     {
         _caretVisible = true;
@@ -510,10 +403,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         _blink?.Start();
     }
 
-    /// <summary>
-    /// Moves the caret one stop. False when it ran off an end, having raised <see cref="Exited"/> — the
-    /// host then takes over.
-    /// </summary>
+    /// <summary>Moves the caret one stop. False when it ran off an end, having raised <see cref="Exited"/> for the host to take over.</summary>
     public bool MoveCaret(bool forward, bool extend = false)
     {
         // A stretch being shown as its characters is text, and moves like text: one character at a time.
@@ -571,14 +461,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// The stretch of source a caret at this offset steps through a character at a time, or nothing where it stands
-    /// among the places the content declared.
-    ///
-    /// <para>
-    /// Two things read alike here and are meant to: the stretch being shown as its own characters while somebody types
-    /// it, and a run of text — a label, a value — which is one piece with a position between any two of its letters.
-    /// Neither has a layout stop per character, and in both the caret goes exactly where it was put.
-    /// </para>
+    /// The stretch of source a caret at this offset steps through a character at a time, or null where it
+    /// stands among the declared places. Covers both a stretch mid-typing and an ordinary run of text — neither
+    /// has a layout stop per character, so in both the caret goes exactly where it was put.
     /// </summary>
     private (int Start, int End)? Typed(int offset)
     {
@@ -623,14 +508,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// Puts what is selected into the hole of <paramref name="template"/> the caret would have gone to,
-    /// filling its other holes with boxes.
-    /// <para>
-    /// Which hole is not a new thing to know: <paramref name="caretBack"/> already says where a key
-    /// expects to be typed next, and that is the same place — a <c>\frac</c> pressed over a selected
-    /// <c>3+7</c> means a fraction <em>of</em> <c>3+7</c>, in its numerator, because the numerator is
-    /// where you would have typed it.
-    /// </para>
+    /// Puts what is selected into the hole of <paramref name="template"/> the caret would have gone to.
+    /// Which hole needs no new information: <paramref name="caretBack"/> already says where a key expects
+    /// to be typed next — a <c>\frac</c> pressed over a selected <c>3+7</c> puts it in the numerator.
     /// </summary>
     private bool WrapSelectionInto(string template, int caretBack)
     {
@@ -653,11 +533,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         Apply(_state.Wrap(before, after), notify: true);
     }
 
-    /// <summary>
-    /// Backspace. Behind something drawn from more source than it shows, this un-renders it rather than
-    /// deleting a character of it. False when there was nothing to delete, which is the host's cue that
-    /// backspace should now remove the content itself.
-    /// </summary>
+    /// <summary>Backspace; un-renders a construct drawn from more source than it shows rather than deleting a character of it. False (nothing to delete) is the host's cue to remove the content itself.</summary>
     public bool Backspace()
     {
         if (IsReadOnly) return false;
@@ -682,14 +558,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>
-    /// Settles whatever is half-written, as space or Enter does — which is to say, writes the character.
-    /// <para>
-    /// There is nothing else to settling: a non-letter after a control word ends it, and that rule lives
-    /// with the content's typing rule where it belongs. A separate "commit" was a second way to say the
-    /// same thing, and the two could disagree.
-    /// </para>
-    /// </summary>
+    /// <summary>Settles whatever is half-written, as space or Enter does — just writes the character; the ending rule lives with the content's typing rule, not here, to avoid two rules disagreeing.</summary>
     bool IEditableBlock.Commit(string text) { if (!IsReadOnly) Settle(text); return true; }
 
     /// <summary>
@@ -699,10 +568,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     protected void Settle(string separator) =>
         Apply(_content.Settle(Landing, separator), notify: true);
 
-    /// <summary>
-    /// Selects the next place still waiting to be written in, so a construct inserted whole can be filled
-    /// by typing and tabbing rather than by aiming at each hole. False when there is none.
-    /// </summary>
+    /// <summary>Selects the next place still waiting to be written in, so an inserted construct can be filled by typing and tabbing. False when there is none.</summary>
     public bool SelectNextPlaceholder(bool forward = true)
     {
         if (IsReadOnly) return false;
@@ -871,14 +737,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// Puts the caret inside a run of text that was pressed, and says whether it did.
-    ///
-    /// <para>
-    /// A run showing something worked out — a value set to two decimal places, a percentage — has nowhere to put a
-    /// caret, because what is drawn is not what was written. Pressing it shows the source instead, and the press is
-    /// then answered against what that put on the page, so the caret lands where the reader pointed rather than at
-    /// the near end of the run.
-    /// </para>
+    /// Puts the caret inside a run of text that was pressed, and says whether it did. A run showing something
+    /// worked out (a rounded value, a percentage) has nowhere to put a caret since what is drawn isn't what
+    /// was written — pressing it reveals the source first, then re-answers the press against that.
     /// </summary>
     private bool Writing(Piece piece, Point at)
     {
@@ -897,10 +758,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>
-    /// How far round something written the pointer still says it can be written in: a little over half the widest gap set
-    /// between two things on a formula's line, so moving along one never flickers to an arrow between them.
-    /// </summary>
+    /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
     private const double PointerReach = 4.0;
 
     /// <summary>What the pointer should be at a point: see <see cref="OnMouseMove"/>.</summary>
@@ -911,13 +769,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     Cursor? IInteractiveBlock.PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
     /// <summary>
-    /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops: inside what it
-    /// covers, and further from either edge than a caret's reach.
-    ///
-    /// <para>
-    /// The reach is a few pixels and never more than a quarter of the piece, so a letter as narrow as an i
-    /// can still be picked in its middle and still has a place at each side.
-    /// </para>
+    /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is
+    /// capped at a quarter of the piece's width so a letter as narrow as an "i" still has a place at each side.
     /// </summary>
     private static bool On(Piece piece, Point at)
     {
@@ -1125,13 +978,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>
-    /// Stops showing a run of text as written once the caret has left it — what a value set to two decimal places goes
-    /// back to saying.
-    ///
-    /// <para>
-    /// Only a stretch that is exactly a run of text. A stretch the content itself opened — a command half typed — is
-    /// the content's own business, and it decides when that stops being shown.
-    /// </para>
+    /// Stops showing a run of text as written once the caret has left it. Only a stretch that is exactly a run
+    /// of text — one the content itself opened (a command half typed) is the content's own business to close.
     /// </summary>
     private EditState Left(EditState next)
     {
@@ -1157,11 +1005,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Lays it out again from the state as it now stands.</summary>
     protected void Rebuild() => _laid = Lay(_state, Room(), _ppd);
 
-    /// <summary>
-    /// What the content looks like, as a picture: everything it draws, at the size and pixel density it is shown at — and
-    /// nothing drawn only for whoever is writing in it: no caret, no selection, no hole standing for what is still to be
-    /// written, no line under what could not be read, nothing shown as the characters it was written as.
-    /// </summary>
+    /// <summary>A picture of the content at its shown size/density, with nothing drawn only for the writer: no caret, selection, hole, trouble squiggle or raw-typed text.</summary>
     /// <param name="ground">What it is drawn on, or null for nothing behind what the content draws.</param>
     public BitmapSource Picture(Brush? ground = null)
     {
@@ -1255,17 +1099,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
     }
 
-    /// <summary>
-    /// Anything the content draws over the shared picture — a strike through a symbol that will not
-    /// encode. Drawn after the ink and the wash, and before the caret.
-    /// </summary>
+    /// <summary>Anything the content draws over the shared picture (e.g. a strike-through on a symbol that won't encode). Drawn after the ink and wash, before the caret.</summary>
     protected virtual void PaintOver(DrawingContext dc) { }
 
-    /// <summary>
-    /// Draws the content as it would read after the drop, with the carried part in the accent colour so
-    /// it can be picked out of something it has already merged into — by then it is set in place, braces
-    /// and spacing and all, and nothing else would distinguish it.
-    /// </summary>
+    /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
     private void PaintPreview(DrawingContext dc, Laid preview)
     {
         LayoutPainter.Paint(dc, preview.Root, Palette.Text);
@@ -1276,10 +1113,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
             LayoutPainter.PaintOne(dc, piece, Palette.Accent);
     }
 
-    /// <summary>
-    /// The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried. Outermost
-    /// so that nothing is painted twice over — a piece and its own children are one drawing.
-    /// </summary>
+    /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
     private IEnumerable<Piece> Carried(Laid preview)
     {
         var (start, end) = _previewMoved;

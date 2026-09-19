@@ -10,39 +10,19 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
 /// <summary>
-/// A laid-out barcode: where every piece of it landed, what it drew, and — for the pieces that are text —
-/// which characters of the value each stands for.
+/// A laid-out barcode: geometry computed directly (module math, not typeset) into an ordinary
+/// <see cref="LayoutTree"/>, so the shared hit-testing/selection queries work without knowing what a
+/// barcode is.
 ///
 /// <para>
-/// The symbol places itself. A barcode's geometry is a module width and a few multiples of it, with
-/// nothing to typeset, so this both computes the geometry and records it, where a formula's layout has to
-/// watch a typesetter to find out. What comes out is an ordinary <see cref="LayoutTree"/>, which is
-/// what lets the shared queries answer where a press landed, what a drag selected and where the caret can
-/// stand, without any of them knowing what a barcode is.
-/// </para>
-/// <para>
-/// <b>This tree is not the shape of <see cref="BarcodePart"/>, and is not meant to be.</b> The bars and
-/// their guards are here and have no part at all — they are how a value is drawn rather than anything it
-/// says. Going the other way, only what the shared queries can safely work in offsets carries one here:
-/// a run of generated text knows in the parse tree that it was worked out from the whole value, and is
-/// given no span here, because a caret would otherwise take its position and height from a piece of
-/// printing nobody can type into.
-/// </para>
-/// <para>
-/// <b>The text is drawn a group at a time and measured a character at a time.</b> One
-/// <see cref="TextMark"/> per printed group is exactly what was drawn before, so the picture is
-/// unchanged; the pieces under it carry bounds and no marks of their own, which is what a caret and a
-/// selection need. Splitting the drawing as finely as the querying would re-space the digits, because a
-/// run of text is not the sum of its characters measured separately.
+/// Bars and guards carry no <see cref="BarcodePart"/> — they draw the value, they are not part of what
+/// was typed, so a generated run gets no caret span. Text is drawn and measured a printed group at a
+/// time (not per character) so spacing matches what was actually drawn.
 /// </para>
 /// </summary>
 internal sealed class BarcodeBuilder : ContentBuilder
 {
-    /// <summary>
-    /// The face the human-readable line is set in. OCR-B is what the retail standards actually specify —
-    /// it is drawn to be unambiguous to a machine as well as to a person — but it ships with no operating
-    /// system, so it is named first and the monospace stack catches the commoner case where it is absent.
-    /// </summary>
+    /// <summary>OCR-B is the retail-standard face; falls back to monospace since it ships with no OS.</summary>
     private static readonly FontFamily LabelFont = new("OCR-B, OCRB, OCR B, Consolas, Menlo, monospace");
 
     /// <summary>How far a guard bar runs past the others, in modules — the standard's figure.</summary>
@@ -79,18 +59,13 @@ internal sealed class BarcodeBuilder : ContentBuilder
         _palette = palette;
         _dpi = pixelsPerDip;
 
-        // Reading the value is the builder's own business, exactly as parsing a formula is. It used to be the
-        // element's: the element encoded, kept the pattern and the reason beside each other, and handed both
-        // back in. That is a second copy of what a builder is for, and it is why "does it encode" had to be
-        // asked twice on every keystroke.
+        // Encoding happens here (not in the element) so "does it encode" isn't computed twice per keystroke.
         if (block.Value.Length == 0) _trouble = "A barcode needs a value.";
         else if (BarcodeEncoder.TryEncode(block.Format, block.Value, out var encoded, out string? error))
             _pattern = encoded;
         else _trouble = error;
 
-        // A valid symbol in the asked-for format, drawn faint behind the error when the real value will not
-        // encode. A barcode-shaped absence reads as "this is a barcode, and it is wrong"; an empty gap reads
-        // as a rendering fault.
+        // Faint stand-in symbol when the value won't encode, so the error reads as "wrong" rather than "broken".
         _drawn = _pattern ?? (BarcodeEncoder.TryEncode(
             block.Format, BarcodeEncoder.SampleValue(block.Format), out var sample, out _) ? sample : null);
     }
@@ -121,18 +96,16 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         protected override Laid Read()
     {
-        // What goes under a real barcode is what was encoded — several of these formats add a check digit,
-        // and the retail ones break the number into groups and set one of them outside the bars. While the
-        // value will not encode there is nothing to show but what was typed.
+        // Several formats add a check digit or move a group outside the bars, so the printed text comes
+        // from the encoded pattern, not the raw value — except when it won't encode, where there's nothing else.
         var text = _pattern?.Text ?? _block.Value;
 
         var groups = _pattern?.TextRuns is { Count: > 0 } runs
             ? runs
             : [new BarcodeTextRun(text, 0, PatternWidth, BarcodeTextPlacement.Below)];
 
-        // A value that will not encode has no symbol to read, so it is read here from what is drawn — which
-        // is the value itself, and is what leaves a broken barcode repairable where it stands. A
-        // publication keeps its caption through that, so it does not lose the one line carrying its number.
+        // No encoded symbol to read when the value is broken, so read the raw value instead — keeps a
+        // publication's caption line even when the number itself won't encode.
         var symbol = _pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken());
 
         var barsWidth = PatternWidth * _block.BarWidth;
@@ -163,9 +136,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         _barsLeft = _block.Margin + (content - (leftPad + barsWidth + rightPad)) / 2 + leftPad;
         _barsTop = _block.Margin + captionHeight;
 
-        // Five modules is the figure the retail standards give, and it is in modules rather than in font
-        // size on purpose: everything else about a symbol's geometry is a multiple of the module, and
-        // tying this to the label instead made the guards grow whenever the text did.
+        // In modules, not font size: tying guard length to the label made guards grow with the text.
         _guardDrop = _block.BarWidth * GuardExtensionModules;
 
         var size = new Size(
@@ -176,16 +147,14 @@ internal sealed class BarcodeBuilder : ContentBuilder
         var build = new LayoutBuilder();
         build.Open(nameof(BarcodeKind.Symbol), part: null);
 
-        // The ground the symbol is printed on. A barcode paints its own light field whatever the theme,
-        // because a scanner needs dark bars on a light one.
+        // Barcode paints its own light background regardless of theme — a scanner needs dark bars on light.
         build.Draw(new RuleMark(new Rect(size), Brush(_block.Background, _palette.BarcodeLight)));
 
         LayBars(build);
 
         if (caption is not null
             && symbol.Children.FirstOrDefault(c => c.Kind == BarcodeKind.Caption) is { } part)
-            // Over the main symbol's middle, not the whole picture's: with an add-on beside it those are
-            // several modules apart, and a title that drifts towards the price reads as belonging to it.
+            // Centred on the main symbol, not the whole picture — an add-on sits apart and shouldn't pull the caption toward it.
             LayCaption(build, part, caption,
                        new Point(_barsLeft + (mainWidth - caption.Width) / 2, _block.Margin), captionSize);
 
@@ -193,17 +162,13 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         build.Close();
 
-        // Reported over the whole value, because that is the span the reader has to change. The wave and
-        // the hover are the host's doing from here — a builder says what is wrong, not how to show it.
+        // Diagnostic spans the whole value — that's what the reader would need to change.
         return new Laid(build.Seal(), size, _trouble is null
             ? []
             : [new Diagnostic(0, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
     }
 
-    /// <summary>
-    /// The caption a publication keeps even when its value will not encode. Only for the schemes that
-    /// print one — asked of the format, because there is no encoded symbol left to ask.
-    /// </summary>
+    /// <summary>The caption a publication keeps even when its value won't encode (ISBN/ISSN/ISMN only).</summary>
     private string? CaptionWhenBroken() =>
         _pattern is null && _block.Format is BarcodeSymbology.Isbn or BarcodeSymbology.Issn
                                           or BarcodeSymbology.Ismn
@@ -218,11 +183,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         return widest;
     }
 
-    /// <summary>
-    /// The size to set the human-readable line at: what the block asked for, reduced until every run fits
-    /// the space its bars leave for it — the wells the guards make. A point size is the wrong thing to
-    /// state that in, because whether it fits depends on the module width and on the face.
-    /// </summary>
+    /// <summary>The label's font size, shrunk from the block's default until every group fits the well its bars leave for it.</summary>
     private double FittedLabelSize(IReadOnlyList<BarcodeTextRun> groups, double barsWidth)
     {
         _labelSize = 0;                       // measure at the asked-for size, then scale
@@ -244,10 +205,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         return Math.Max(_block.FontSize * scale, MinimumLabelSize);
     }
 
-    /// <summary>
-    /// The size to set the caption at. It is a title rather than part of the number, so it is set smaller —
-    /// as it is on a book's cover — and it belongs to the main symbol rather than to the pair.
-    /// </summary>
+    /// <summary>The caption's font size — smaller than the label, scaled to the main symbol's width.</summary>
     private double FittedCaptionSize(string caption, double mainWidth)
     {
         double size = LabelSize * CaptionScale;
@@ -258,10 +216,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         return Math.Max(size, MinimumLabelSize);
     }
 
-    /// <summary>
-    /// How wide the main symbol is, in modules — everything before an add-on, or the lot when there is
-    /// none. The gap belongs to neither, so it is the last ink before the add-on that ends the symbol.
-    /// </summary>
+    /// <summary>Width of the main symbol in modules — everything before an add-on, or all of it if none.</summary>
     private double MainSymbolModules()
     {
         int addOn = AddOnStartModule();
@@ -291,11 +246,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
     private static bool Generated(BarcodePart part) => part.Kind == BarcodeKind.EncodedText;
 
-    /// <summary>
-    /// The bars, which are layout and nothing else: no piece of what the author typed is a bar, so there
-    /// is no part of the parse tree here to project. They stand for nothing in the source, which is what
-    /// keeps the caret out among the digits where a reader can see it.
-    /// </summary>
+    /// <summary>Draws the bars — no <see cref="BarcodePart"/>, since nothing typed is a bar.</summary>
     private void LayBars(LayoutBuilder into)
     {
         if (_drawn is null) return;
@@ -309,14 +260,11 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         
 
-        // Faint when they are a stand-in, so the error reads as the subject and they read as the shape it
-        // would have taken.
+        // Faint when the pattern is a stand-in, so the error reads as the subject.
         var dark = Brush(_block.LineColor, _palette.BarcodeDark);
         var ink = _pattern is null ? Faded(dark) : dark;
 
-        // Dropping the guards past the digits and lifting an add-on clear of its own. Both are what makes
-        // a retail symbol recognisable at a glance: the guards frame the two halves of the number, and the
-        // add-on stands apart and higher so it reads as a second symbol rather than as more of the first.
+        // Guards drop past the digits; an add-on lifts clear of the main bars so it reads as a second symbol.
         double addOnFrom = AddOnStartModule();
         double lift = addOnFrom < int.MaxValue ? LabelSize * 1.35 : 0;
 
@@ -331,10 +279,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
                     new Rect(start * _block.BarWidth, top, length * _block.BarWidth, height), ink));
             }
 
-            // The strike, last so it sits over the bars it is about. A barcode-shaped absence with a line
-            // through it reads as "this is a barcode and it is wrong"; the bars alone read as a real symbol.
-            // It is drawing, so it is a mark here rather than something the element paints afterwards from
-            // its own copy of whether the value encoded.
+            // Strike drawn last so it sits over the bars — a barcode with a line through it reads as "wrong".
             if (_trouble is not null)
                 into.Draw(new RuleMark(
                     new Rect(0,
@@ -346,10 +291,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             into.Close();
     }
 
-    /// <summary>
-    /// The caption, drawn as one line and measured in its pieces — the scheme's name, which nobody typed,
-    /// and the number, which is the value and so is the one half a caret can be in.
-    /// </summary>
+    /// <summary>Draws the caption line and lays its editable pieces (the number, not the scheme name).</summary>
     private void LayCaption(LayoutBuilder into, BarcodePart part, FormattedText glyphs, Point at, double size)
     {
         into.Open(part.Kind.ToString(), part: null, at);
@@ -388,8 +330,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
             placed.Add(new Rect(at.X, at.Y, glyphs.Width, glyphs.Height));
 
-            // One wave under each group of the value, and none under an add-on: it is all of the value
-            // that is wrong, since a format rejects a value entire rather than at a character.
+            // No underline for an add-on — a format rejects the value as a whole, not one character of it.
             if (group.Placement != BarcodeTextPlacement.Above)
                 underlined.Add(new Rect(at.X, at.Y, Math.Max(glyphs.Width, _block.FontSize), glyphs.Height));
 
@@ -397,8 +338,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             if (i >= parts.Count) continue;
             var part = parts[i];
 
-            // Printing that was worked out rather than typed is still ink: it is a digit on the page and a
-            // reader can point at it. It carries no part, which is what keeps it out of the caret's stops.
+            // Generated digits are still drawn, just with no part — keeps them out of the caret's stops.
             into.Open(part.Kind.ToString(), part: null, at);
             into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, _palette.BarcodeDark)));
 
@@ -406,9 +346,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             into.Close();
         }
 
-        // Neither the runs nor their hull are kept. Where the number sits is what the pieces say, and the
-        // wave a broken value wears goes under the characters that carry it — which is the same wave every
-        // other kind of content draws, from the same question asked of the same tree.
+        // underlined/placed are unused — positions and diagnostics come from the pieces themselves.
         _ = underlined;
         _ = placed;
 
@@ -418,11 +356,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
                 : _barsLeft + (bars - glyphs.Width) / 2;
     }
 
-    /// <summary>
-    /// Where each piece of a run begins, measured as a prefix of the whole run rather than on its own: a
-    /// run of text is not the sum of its pieces measured separately, and placing them one at a time would
-    /// drift away from the glyphs actually drawn.
-    /// </summary>
+    /// <summary>Measures each piece as a prefix of the whole run — measuring pieces separately would drift from the glyphs actually drawn.</summary>
     private void LayPieces(LayoutBuilder into, BarcodePart part, double y, double height, double? size)
     {
         var run = part.Printed;
@@ -434,10 +368,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
             consumed += piece.Printed.Length;
             var to = Text(run[..consumed], size).Width;
 
-            // Only a character of the value carries a part. Generated printing knows in the parse tree
-            // that it stands for the whole value, and says so when it is pressed — but a part here
-            // would put it among the caret's stops, and the caret would take its height and position
-            // from a piece of the symbol nobody can type into.
+            // Only a value character carries a part — a part on generated text would give the caret a stop nobody could type into.
             into.Open(piece.Kind.ToString(), piece.IsSource ? piece : null, new Point(from, y));
             into.Covers(new Rect(0, 0, Math.Max(to - from, 0), height));
             into.Close();
@@ -472,10 +403,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         return faded;
     }
 
-    /// <summary>
-    /// How a symbol sets characters it could not lay out at all — the same face its human-readable line
-    /// wears, because a barcode that failed still has to show the value somebody typed.
-    /// </summary>
+    /// <summary>Fallback glyph rendering when layout fails entirely — same face as the label line.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,

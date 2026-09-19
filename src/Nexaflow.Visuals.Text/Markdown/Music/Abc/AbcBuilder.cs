@@ -13,58 +13,35 @@ using Nexaflow.Visuals.Text.Editing;
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 /// <summary>
-/// ABC's reading: a tune's lines, read off its tree as rows of bars of events for the engraver every notation
-/// shares.
-///
-/// <para>
-/// Everything it needs to know about the <em>music</em> has already been worked out by the pipeline — what each
-/// note sounds, how long each event lasts, what is grouped with what, where the bars are — so what is left is
-/// translation: which voice a line belongs to, which bar a key change takes effect at, which syllable of which
-/// verse is sung under which note, and which decoration draws as which mark.
-/// </para>
+/// ABC's reading: turns a tune's lines into rows of bars of events for the shared engraver. The pipeline has
+/// already worked out the music itself (pitches, durations, grouping, bar positions); what's left here is
+/// translation — voice, key/meter changes, lyric alignment, decoration marks.
 /// </summary>
 internal sealed class AbcBuilder : MusicBuilder
 {
     private readonly (int Start, int Length)? _shownAsWritten;
 
-    /// <param name="abc">The tune, as it is written.</param>
-    /// <param name="width">How much room it has to lay itself out in.</param>
-    /// <param name="shownAsWritten">
-    /// A stretch to show as the characters written rather than read as music — the piece being edited,
-    /// which has to be seen exactly as typed while the tune around it stays engraved.
-    /// </param>
-    /// <param name="spacing">
-    /// How much air to leave between things, or null for what the engraver normally uses. A caller passes
-    /// something else only to compare two engravings without the comparison being about this.
-    /// </param>
+    /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
+    /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
     public AbcBuilder(string abc, double width, Brush ink, double pixelsPerDip,
                       (int Start, int Length)? shownAsWritten = null,
                       ScoreSpacing? spacing = null)
         : base(abc, width, ink, pixelsPerDip, spacing) =>
         _shownAsWritten = shownAsWritten;
 
-    /// <summary>
-    /// Reads and engraves a tune in one call — the shape most callers want, since a builder that has laid
-    /// its source out has nothing else to say.
-    /// </summary>
+    /// <summary>Reads and engraves a tune in one call — most callers want nothing else from a laid-out builder.</summary>
     public static Laid Build(string abc, double width, Brush ink, double pixelsPerDip,
                              (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null) =>
         new AbcBuilder(abc, width, ink, pixelsPerDip, shownAsWritten, spacing).Lay();
 
     protected override Tune ReadTune()
     {
-        // One reading, every time, whatever the caret is doing. What cannot be drawn and what is being
-        // typed are both settled before this — they come back as parts that say so, and the engraving sets
-        // them without having to know which of the two it is looking at.
+        // What can't be drawn and what's being typed are both settled before this, returned as parts that say so.
         var reading = ContentReading.Of(AbcPipeline.Read(Source, Draws, _shownAsWritten));
         return new Tune(Rows(reading), AbcHeader.Of(reading), reading);
     }
 
-    /// <summary>
-    /// Whether the engraver has a drawing for a named decoration. Asked of the builder rather than of a
-    /// table, because what can be drawn is a fact about an engraver: asking the tables instead is what once
-    /// put a red wave under a LaTeX command the builder set perfectly well.
-    /// </summary>
+    /// <summary>Whether the engraver can draw a named decoration — asked of the builder, not a table, since drawability is a fact about the engraver.</summary>
     internal static bool Draws(string decoration) => Decorations.Contains(decoration.ToLowerInvariant());
 
     private static readonly HashSet<string> Decorations =
@@ -77,23 +54,13 @@ internal sealed class AbcBuilder : MusicBuilder
     // ── Reading it ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Which piece of its verse each syllable was written as, kept until the verses have been read.
-    ///
-    /// <para>
-    /// A <c>w:</c> line comes <em>after</em> the music it is sung under, so when an event is built its verse
-    /// does not exist yet. The aligning stage already worked out which piece of which verse lands on which
-    /// note, and this holds that index until <see cref="Sung"/> can resolve it.
-    /// </para>
+    /// Which piece of its verse each syllable was written as, held until verses are read — a <c>w:</c> line
+    /// comes after the music it's sung under, so an event's verse doesn't exist yet when it's built.
+    /// See <see cref="Sung"/>.
     /// </summary>
     private readonly Dictionary<Event, int[]> _unsung = new();
 
-    /// <summary>
-    /// The tune as rows of bars of events, read off the parse tree.
-    /// <para>
-    /// A walk rather than a query, because the order matters: what a system holds is the bars in the order
-    /// they were written, and a mid-tune key change belongs to the bar it takes effect at.
-    /// </para>
-    /// </summary>
+    /// <summary>The tune as rows of bars of events. A walk, not a query — order matters: a mid-tune key change belongs to the bar it takes effect at.</summary>
     private List<Row> Rows(ContentReading reading)
     {
         var rows = new List<Row>();
@@ -102,20 +69,14 @@ internal sealed class AbcBuilder : MusicBuilder
         var started = false;
         _unsung.Clear();
 
-        // Whether the tune ever said what its meter is. A reader assumes 4/4 when nothing says
-        // otherwise — every engraver does — but assuming it and *printing* it are different claims, and
-        // printing one nobody wrote puts a time signature on a tune that has none.
+        // Assuming 4/4 by default and *printing* it are different claims — printing one nobody wrote puts a meter on a tune that has none.
         var meterWritten = false;
 
-        // The symbol the tune's *opening* meter asked for, where it asked for one: `C` is common time and
-        // `C|` cut time, and both are drawn as a sign rather than as figures. Kept because working the
-        // meter out throws the question away — `M:C|` and `M:2/2` count the same and are not written the
-        // same, and printing "2/2" over a tune whose writer put `C|` is answering a question nobody asked.
+        // `C`/`C|` draw as a sign, not figures. Kept because computing the meter loses this — `M:C|` and
+        // `M:2/2` count the same but shouldn't print the same.
         int? meterSign = null;
 
-        // How many lines each voice has written. Two voices' n-th lines sound together, which is the whole
-        // of what makes a system a system: ABC writes the parts one after another and leaves the reader to
-        // count.
+        // How many lines each voice has written — two voices' n-th lines sound together, and ABC leaves the reader to count that.
         var lines = new Dictionary<string, int>();
         var names = new Dictionary<string, string>();
         var clefs = new Dictionary<string, ClefKind>();
@@ -123,10 +84,7 @@ internal sealed class AbcBuilder : MusicBuilder
         // The clef a K: asks for, which a voice that names none of its own is written in.
         ClefKind? keyClef = null;
 
-        // The `w:` lines sung under each row, in the order they were written — verse 0 first. Kept so a
-        // syllable can be given the characters it was written with: a syllable is drawn under the note it is
-        // sung on and written in a line of its own, so what joins the two is the index the aligning stage
-        // worked out, resolved once every verse is in.
+        // The `w:` lines sung under each row, verse 0 first — kept so a syllable can later get the characters it was actually written with.
         var verses = new Dictionary<Row, List<ContentPart>>();
 
         // The row a trailing backslash left open, if the line before this one ended with one.
@@ -147,9 +105,7 @@ internal sealed class AbcBuilder : MusicBuilder
                 }
                 var value = line.Part(AbcRoles.Value)?.Node.Text ?? "";
 
-                // What a voice is called and which clef it asks for are settled wherever the V: is written,
-                // which for a part song is in the header — before any music has started. Reading these
-                // under the guard below is how the first voice lost both.
+                // Read unconditionally (not under the `started` guard below) — a part song's V: is in the header, before any music starts.
                 if (name.StartsWith('V'))
                 {
                     var (id, label) = VoiceName(value);
@@ -160,10 +116,8 @@ internal sealed class AbcBuilder : MusicBuilder
 
                 if (name.StartsWith('K') && ClefIn(name, value) is { } keyed) keyClef = keyed;
 
-                // A key or meter written between lines changes what the next system opens with, and the
-                // change is printed at the head of the bar it reaches. Only once the music has started: the
-                // header's own K: and M: are what every system opens with, and printing them again at the
-                // head of the first bar sets the meter twice on the first line of every tune.
+                // A mid-tune key/meter change prints at the head of the bar it reaches — only once music has
+                // started, or the header's own K:/M: would double-print on the first line.
                 if (!started) continue;
 
                 if (name.StartsWith('K')) key = KeyOf(value);
@@ -174,8 +128,7 @@ internal sealed class AbcBuilder : MusicBuilder
 
             if (line.Kind == AbcKinds.LyricLine)
             {
-                // Sung under whichever row was last read — the same pairing the aligning stage made, and
-                // the reason a syllable can be handed the characters it was written with.
+                // Sung under whichever row was last read — the same pairing the aligning stage made.
                 if (line.Part(AbcRoles.Value) is { } sung && sungUnder is not null)
                 {
                     if (!verses.TryGetValue(sungUnder, out var written)) verses[sungUnder] = written = [];
@@ -189,11 +142,8 @@ internal sealed class AbcBuilder : MusicBuilder
 
             var context = ResolveContext.Of(line.Node);
 
-            // A line the one before it left open with a backslash goes on the same row. That is what the
-            // backslash means: the tune carries on, and where the source happened to wrap is not where the
-            // engraver should break. Written out a bar to a line — which real tunebooks do, because it
-            // lines the chord symbols up in the file — it otherwise gives one system per bar, and a page
-            // of forty single-bar staves.
+            // A trailing backslash means the tune carries on — where the source wraps isn't where the
+            // engraver should break, else a bar-per-line tune (to line up chord symbols) becomes forty single-bar staves.
             Row row;
             if (continuing is { } open && open.Voice == context.Voice)
             {
@@ -236,8 +186,7 @@ internal sealed class AbcBuilder : MusicBuilder
                 if (bar.Events.Count > 0 || closed is not null) row.Bars.Add(bar);
             }
 
-            // Held back while the row is still open, so the brackets are worked out over the whole of it
-            // and it is added to the tune exactly once.
+            // Held back while open, so brackets are worked out over the whole row and it's added exactly once.
             if (Continues(line)) { continuing = row; continue; }
 
             continuing = null;
@@ -248,8 +197,7 @@ internal sealed class AbcBuilder : MusicBuilder
 
         Sung(rows, verses);
 
-        // A meter is printed at the head of a line only where the tune wrote one, and as the sign the tune
-        // opened with where it opened with one.
+        // Printed only where the tune wrote a meter, as the sign it opened with.
         foreach (var row in rows)
             row.Meter = meterWritten && row.Meter is { } counted ? (counted.Beats, counted.Unit, meterSign) : null;
 
@@ -257,15 +205,8 @@ internal sealed class AbcBuilder : MusicBuilder
     }
 
     /// <summary>
-    /// Hands every syllable the characters it was written with.
-    ///
-    /// <para>
-    /// It happens here, after the whole tune is read, because a <c>w:</c> line comes <em>after</em> the
-    /// music it is sung under: when an event is built its verses do not exist yet. The aligning stage
-    /// already worked out which piece of which verse lands on which note, so this is only the lookup —
-    /// and the two trees are free to look nothing alike, which is exactly what lets a syllable be drawn
-    /// under a note and written a line away.
-    /// </para>
+    /// Hands every syllable the characters it was written with — done after the whole tune is read, since a
+    /// <c>w:</c> line comes after the music it's sung under and its verses don't exist yet when built.
     /// </summary>
     private void Sung(List<Row> rows, Dictionary<Row, List<ContentPart>> verses)
     {
@@ -299,24 +240,11 @@ internal sealed class AbcBuilder : MusicBuilder
     private static Barline? Line(ContentPart? written) =>
         written is null ? null : new Barline(written.Node.Print(), written);
 
-    /// <summary>
-    /// Whether a music line ends with a backslash, which says the tune carries on into the next one.
-    /// <para>
-    /// It is trivia to the parser — it prints and reads back and means nothing to the notes — and it is the
-    /// engraver it speaks to: it says where a system may <em>not</em> break.
-    /// </para>
-    /// </summary>
+    /// <summary>Whether a music line ends with a backslash — trivia to the parser, but it tells the engraver where a system may not break.</summary>
     private static bool Continues(ContentPart line) =>
         line.SelfAndDescendants().Any(p => p.Kind == AbcKinds.Continuation);
 
-    /// <summary>
-    /// Which bar each repeat bracket opens at.
-    /// <para>
-    /// A number is written straight after a bar line — <c>|1</c> — so it belongs to the bar that line
-    /// opens rather than to the one it closed. Which is a fact about two bars and is settled here, once
-    /// the row is read, rather than by every reader that meets a number.
-    /// </para>
-    /// </summary>
+    /// <summary>Which bar each repeat bracket opens at: a number after a bar line (<c>|1</c>) belongs to the bar it opens, not the one it closed.</summary>
     private static void Brackets(Row row)
     {
         for (var at = 0; at < row.Bars.Count; at++)
@@ -383,8 +311,7 @@ internal sealed class AbcBuilder : MusicBuilder
 
             case AbcKinds.TupletGroup:
             {
-                // The marker is written before the notes and says nothing about where they stop, so what
-                // it covers is only knowable from the group the pipeline made of it.
+                // The marker says nothing about where the notes stop — only the pipeline's group knows.
                 var (notes, _) = GroupTuplets.Of(piece.Node);
                 var from = bar.Events.Count;
 
@@ -504,10 +431,7 @@ internal sealed class AbcBuilder : MusicBuilder
         });
     }
 
-    /// <summary>
-    /// The syllables the aligning stage hung on an event, with where each was written held until the verses
-    /// have been read.
-    /// </summary>
+    /// <summary>The syllables the aligning stage hung on an event; where each was written is held until verses are read.</summary>
     private Event Sings(Event ev, ContentNode node)
     {
         var lyrics = AlignLyrics.Of(node).ToList();
@@ -548,10 +472,7 @@ internal sealed class AbcBuilder : MusicBuilder
     private bool _pendingGraceSlash;
     private int _pendingSlurs;
 
-    /// <summary>
-    /// A double-quoted run: a bare one names a chord, and one led by a placement character is text put
-    /// where that character says.
-    /// </summary>
+    /// <summary>A double-quoted run: bare names a chord; led by a placement character, it's text put where that character says.</summary>
     private void Quoted(ContentPart piece)
     {
         var quoted = piece.Node.Text;
@@ -573,11 +494,7 @@ internal sealed class AbcBuilder : MusicBuilder
         _pendingAnnotations.Add((text[1..], where.Value));
     }
 
-    /// <summary>
-    /// A decoration, sorted by where it goes. An articulation hugs the head on the side away from the
-    /// stem; an ornament, a fermata, a bowing or a navigation sign stacks clear of the staff. Which is a
-    /// fact about the mark rather than about the note, so it is decided once, here.
-    /// </summary>
+    /// <summary>A decoration, sorted by where it goes: articulations hug the head opposite the stem; ornaments, fermatas, bowings and navigation signs stack clear of the staff.</summary>
     private void Decorate(string written)
     {
         var name = written.Length > 2 && written[0] == '!' && written[^1] == '!'
@@ -603,14 +520,10 @@ internal sealed class AbcBuilder : MusicBuilder
         }
     }
 
-    /// <summary>
-    /// The grace notes crushed in before the next event. Their pitches come off the tree the same way a
-    /// real note's does; what makes them grace notes is where they were written, not what they are.
-    /// </summary>
+    /// <summary>The grace notes crushed in before the next event — grace-ness is about where they were written, not what they are.</summary>
     private void Graces(ContentPart group)
     {
-        // Slashed when, and only when, a slash was written. ABC spells the two out — `{g}` is an
-        // appoggiatura and `{/g}` an acciaccatura — so there is nothing here to infer.
+        // ABC spells the two out explicitly: `{g}` appoggiatura, `{/g}` acciaccatura — nothing to infer.
         _pendingGraceSlash = group.Node.Print().StartsWith("{/", StringComparison.Ordinal);
 
         foreach (var member in group.Children)
@@ -640,10 +553,7 @@ internal sealed class AbcBuilder : MusicBuilder
     private static KeySignature? KeyOf(string field) =>
         AbcTheory.Fifths(field) is { } fifths ? KeySignature.FromFifths(fifths) : null;
 
-    /// <summary>
-    /// The clef a line asks for inline, or null where it asks for none — in which case its voice's own
-    /// <c>V:</c> answers, then the <c>K:</c>, and failing both the treble does.
-    /// </summary>
+    /// <summary>The clef a line asks for inline, or null — falling back to the voice's <c>V:</c>, then <c>K:</c>, then treble.</summary>
     private static ClefKind? ClefOf(ContentPart line)
     {
         foreach (var piece in line.SelfAndDescendants())
@@ -656,10 +566,8 @@ internal sealed class AbcBuilder : MusicBuilder
     }
 
     /// <summary>
-    /// The clef a field asks for, or null. A clef is written on a <c>K:</c> or a <c>V:</c>, and the standard makes
-    /// its <c>clef=</c> optional — <c>K:F bass</c> is <c>K:F clef=bass</c> — so on those two a bare clef name counts
-    /// too, past a <c>V:</c>'s first word, which is the voice's id. Anywhere else only a written <c>clef=</c> does:
-    /// a title about a bass is not a clef.
+    /// The clef a field asks for, or null. <c>clef=</c> is optional on <c>K:</c>/<c>V:</c> (<c>K:F bass</c> =
+    /// <c>K:F clef=bass</c>), so a bare name counts there too; elsewhere only an explicit <c>clef=</c> does.
     /// </summary>
     private static ClefKind? ClefIn(string field, string value)
     {

@@ -27,14 +27,10 @@ public enum CaretStep
 }
 
 /// <summary>
-/// The caret crossing into a block from the prose around it.
-/// <para>
-/// It carries how the reader got there, because that is the only thing that makes the crossing
-/// invisible. A block handed nothing but "you have the caret" can only guess, and every guess is a jump
-/// nobody asked for. The two kinds of move want different answers: stepping <em>along</em> the text puts
-/// the caret on the character you stepped onto, so coming back leftwards lands at the block's end, while
-/// stepping <em>onto a line</em> puts it where that line begins, whichever direction you came from.
-/// </para>
+/// The caret crossing into a block from the prose around it. Carries how the reader got there, since a
+/// block handed only "you have the caret" can only guess and every guess is a jump nobody asked for.
+/// Stepping <em>along</em> the text puts the caret on the character stepped onto (so coming back leftwards
+/// lands at the block's end), while stepping <em>onto a line</em> puts it where that line begins.
 /// </summary>
 /// <param name="Edge">
 /// The edge it came in over: <see cref="BlockExit.Before"/> when the caret was in the content ahead of
@@ -52,20 +48,13 @@ public readonly record struct CaretArrival(BlockExit Edge, CaretStep Step, doubl
 /// <summary>
 /// What a piece of rendered content offers the document holding it, beyond owning its own pointer
 /// gestures: its source, its layout, what is selected inside it, what could not be read, a caret that can
-/// be handed in at an edge or handed back out, and the keys that change it.
-/// <para>
-/// This is the whole of the seam between prose and rendered content. A document that can drive it can
-/// select across a formula, arrow into and out of one, type into it, and show what is wrong inside it —
-/// without knowing what a formula is. A barcode implements the same members and is driven by the same
-/// host code unchanged, which is the point of writing it here rather than in the formula.
-/// </para>
-/// <para>
-/// What is declared below rather than assumed is only what is genuinely not shared:
-/// moving between the parts of a fraction, tabbing through the holes of a half-written construct,
-/// settling a command with a space. A block whose content is one run of characters has none of those to
-/// want, so those keys fall back to the document rather than being swallowed by a block with no use
-/// for them.
-/// </para>
+/// be handed in at an edge or handed back out, and the keys that change it. This is the whole of the seam
+/// between prose and rendered content — a document that can drive it can select across a formula, arrow
+/// into and out of one, type into it and show what's wrong inside it without knowing what a formula is; a
+/// barcode implements the same members and is driven by the same host code unchanged. What's declared
+/// below is only what's genuinely not shared (moving between a fraction's parts, tabbing through a
+/// half-written construct's holes, settling a command with a space); a block with none of those wanted
+/// falls back to the document rather than swallowing the key for nothing.
 /// </summary>
 public interface IEditableBlock : IInteractiveBlock
 {
@@ -85,12 +74,10 @@ public interface IEditableBlock : IInteractiveBlock
     IReadOnlyList<Diagnostic> Diagnostics { get; }
 
     /// <summary>
-    /// Raised when the reader's own editing changed <see cref="Source"/>. The host answers by putting the
-    /// new source back into the markdown the block came from — see <see cref="SourceStart"/>.
-    /// <para>
-    /// A block names this whatever its content is called (a formula's <c>LatexChanged</c>, a barcode's
-    /// <c>ValueChanged</c>); this is the seam's name for it, and what the host listens to.
-    /// </para>
+    /// Raised when the reader's own editing changed <see cref="Source"/>. The host answers by putting the new
+    /// source back into the markdown the block came from — see <see cref="SourceStart"/>. A block names this
+    /// whatever its content is called (a formula's <c>LatexChanged</c>, a barcode's <c>ValueChanged</c>); this
+    /// is the seam's name for it, and what the host listens to.
     /// </summary>
     event EventHandler? SourceChanged;
 
@@ -165,14 +152,7 @@ public interface IEditableBlock : IInteractiveBlock
     // for one never has to say so, and
     // the key falls back to the document exactly as it did.
 
-    /// <summary>
-    /// A key the block wants before the shared handling gets it. False leaves it to the host.
-    /// <para>
-    /// Asked first, and asked of every block, so a content type can claim a key nothing else uses — a
-    /// score claims Page Up and Page Down to move a note an octave — without the host learning what a
-    /// note is.
-    /// </para>
-    /// </summary>
+    /// <summary>A key the block wants before the shared handling gets it. False leaves it to the host. Asked of every block first, so a content type can claim a key nothing else uses (a score claims Page Up/Down to move a note an octave) without the host learning what a note is.</summary>
     bool HandleKey(Key key, ModifierKeys modifiers) => false;
 
     /// <summary>Moves the caret onto the row above or below inside the content. False if there is none.</summary>

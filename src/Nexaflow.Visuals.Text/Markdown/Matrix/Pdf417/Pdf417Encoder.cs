@@ -8,11 +8,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
 /// <summary>What the encoder is asked for beyond the text.</summary>
 public sealed record Pdf417Options
 {
-    /// <summary>
-    /// How much of the symbol may be destroyed and still read: 0–8, spending 2^(level+1) codewords on
-    /// parity. Null picks by payload size, which is what the standard recommends and what a reader
-    /// expects to find.
-    /// </summary>
+    /// <summary>How much of the symbol may be destroyed and still read: 0–8, spending 2^(level+1) codewords on parity. Null picks by payload size, per the standard's recommendation.</summary>
     public int? ErrorCorrectionLevel { get; init; }
 
     /// <summary>Data columns, 1–30. Null lets the encoder pick a shape near three-to-one.</summary>
@@ -62,20 +58,10 @@ public sealed class Pdf417Symbol : IModuleMatrix
 }
 
 /// <summary>
-/// Encodes text or bytes as a PDF417 symbol — ISO/IEC 15438.
-///
-/// <para>
-/// A stacked symbology rather than a matrix one: each row is an independent line of bars, and what
-/// makes the stack readable is that every row carries its own indicators saying which row it is, how
-/// many rows and columns the symbol has, and how much parity it holds. A scanner can therefore piece
-/// the symbol together from rows read out of order, or in strips, which is why it survives being
-/// dragged across a moving parcel.
-/// </para>
-/// <para>
-/// Three parts, none of which knows the others: compact the payload into base-929 codewords, protect
-/// the lot with Reed–Solomon over GF(929), and lay the codewords out in rows, choosing the pattern for
-/// each from the cluster its row is drawn in.
-/// </para>
+/// Encodes text or bytes as a PDF417 symbol (ISO/IEC 15438) — a stacked symbology where each row
+/// carries its own row/shape indicators, so a scanner can reassemble it from rows read out of order or
+/// in strips. Compacts the payload into base-929 codewords, protects it with Reed–Solomon over GF(929),
+/// and lays the codewords out in rows.
 /// </summary>
 public static class Pdf417Encoder
 {
@@ -141,10 +127,7 @@ public static class Pdf417Encoder
         return true;
     }
 
-    /// <summary>
-    /// The level the standard recommends for a payload of this size — enough parity to survive ordinary
-    /// handling without spending half the symbol on it.
-    /// </summary>
+    /// <summary>The level the standard recommends for a payload of this size.</summary>
     private static int RecommendedLevel(int codewords) =>
         codewords <= 40 ? 2 : codewords <= 160 ? 3 : codewords <= 320 ? 4 : 5;
 
@@ -194,12 +177,9 @@ public static class Pdf417Encoder
     // ── Compaction ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The payload as base-929 codewords, in whichever compaction is shortest.
-    /// <para>
-    /// Text carries two characters per codeword and is much the densest for prose; numeric packs
-    /// digits denser still; byte carries anything at a cost. The three can be mixed, and a long run of
-    /// digits inside text is worth switching for — which is what <see cref="Runs"/> works out.
-    /// </para>
+    /// The payload as base-929 codewords, in whichever compaction is shortest. Text is densest for
+    /// prose, numeric denser still for digits, byte carries anything at a cost; the three can be mixed,
+    /// and <see cref="Runs"/> decides when a digit run is worth switching for.
     /// </summary>
     private static List<int> Compact(string? text, byte[] bytes, out string compaction)
     {
@@ -308,11 +288,7 @@ public static class Pdf417Encoder
         return places.Count == 0 ? null : places.ToArray();
     }
 
-    /// <summary>
-    /// Text compaction: values 0–29 packed two to a codeword, with latches and shifts between the four
-    /// sub-modes. A shift borrows one character from another sub-mode and comes straight back, which is
-    /// cheaper than latching there and back for a single capital in a word.
-    /// </summary>
+    /// <summary>Text compaction: values 0–29 packed two per codeword, latching or shifting between the four sub-modes. A shift borrows one character and returns — cheaper than latching for a single stray character.</summary>
     private static List<int> TextWords(string text)
     {
         var values = new List<int>();
@@ -442,11 +418,7 @@ public static class Pdf417Encoder
 
     // ── Layout ─────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Lays the codewords out row by row, each row framed by indicators that say where it sits and how
-    /// the symbol is shaped. The three clusters cycle with the row, and a reader uses the cluster to
-    /// tell which row a strip of bars came from.
-    /// </summary>
+    /// <summary>Lays codewords out row by row, each framed by indicators for its position and the symbol's shape. The three clusters cycle with the row so a reader can tell which row a strip came from.</summary>
     private static bool[] Layout(List<int> words, int rows, int columns, int level, bool truncated, out int width)
     {
         // start(17) + left(17) + data(17 × columns) + right(17) + stop(18), or without the last two.
@@ -486,11 +458,7 @@ public static class Pdf417Encoder
         return modules;
     }
 
-    /// <summary>
-    /// The row's two indicator codewords. Between them the three clusters carry the row count, the
-    /// column count and the error-correction level, each appearing twice over a group of three rows so
-    /// a reader that missed a row can still recover the shape.
-    /// </summary>
+    /// <summary>The row's two indicator codewords; across the three clusters the row count, column count and error level each appear twice per group of three rows, so a missed row can still be recovered.</summary>
     private static (int Left, int Right) Indicators(int row, int k, int cluster, int rows, int columns, int level)
         => cluster switch
         {

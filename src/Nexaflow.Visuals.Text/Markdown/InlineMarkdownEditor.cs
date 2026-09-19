@@ -10,36 +10,19 @@ using System.Windows.Threading;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Inline ("as you type") markdown editor built on a single <see cref="RichTextBox"/>.
-/// The note is modelled as a list of block <em>contents</em> (separated by blank lines
-/// in the markdown); the document renders every block via
-/// <see cref="MarkdownFlowDocument"/> except the block the caret is in, which is shown
-/// as its raw markdown source. Because it is one RichTextBox, the caret, selection and
-/// copy are native and span the whole note — rendered blocks, tables and the source
-/// block alike.
-///
-/// There are two editing modes, both keeping the block model authoritative:
-/// <list type="bullet">
-/// <item><b>Word-style (single click + type):</b> plain-text edits applied to the rendered
-/// paragraph in place — no source view, no rebuild, no scroll jump. Typed text inherits the
-/// formatting around the caret but never creates formatting (typed markdown syntax is escaped
-/// to stay literal). After every edit the paragraph is serialized back to markdown
-/// (<see cref="MarkdownInlineSerializer"/>); a session only starts once the pristine paragraph
-/// provably round-trips to the exact block source, so this mode can never corrupt a document.</item>
-/// <item><b>Source mode (double click, or any block Word-style can't serve):</b> the block swaps
-/// to its raw markdown source; input is intercepted and applied to the model, and the document
-/// is rebuilt (which avoids the re-entrancy crash from mutating a RichTextBox inside its own
-/// change block). Caret/selection navigation stays native.</item>
-/// </list>
-///
-/// Editing semantics: Enter = new block (the block you leave renders); Ctrl+Enter = a
-/// markdown hard break inside the current block (source mode); Tab = a tab. Block separators
-/// are NOT part of a block's content, so editing a block never shows or doubles the blank-line
-/// separator.
-///
-/// Offsets within the active block are measured at the run level
-/// (<see cref="TextPointer.GetTextRunLength"/>), NOT via <c>TextRange.Text</c>, because
-/// the latter trims trailing whitespace and would drop spaces (e.g. "## " → "##").
+/// Inline markdown editor on one <see cref="RichTextBox"/>: the note is a list of block contents, each
+/// rendered via <see cref="MarkdownFlowDocument"/> except the block holding the caret, shown as raw markdown
+/// source. One RichTextBox keeps caret/selection/copy native across rendered and source blocks.
+/// <para>
+/// Two edit modes, both keeping the block model authoritative: <b>Word-style</b> (single click + type) edits
+/// the rendered paragraph in place and re-serializes it to markdown after every edit — only entered once the
+/// paragraph provably round-trips to the exact block source, so it can never corrupt a document.
+/// <b>Source mode</b> (double click, or anything Word-style can't serve) swaps the block to raw markdown and
+/// rebuilds the document (a rebuild avoids the re-entrancy crash from mutating the RichTextBox inside its
+/// own change block).
+/// </para>
+/// Block separators are not part of a block's content. In-block offsets are measured at the run level
+/// (<see cref="TextPointer.GetTextRunLength"/>), not <c>TextRange.Text</c>, which trims trailing whitespace.
 /// </summary>
 public partial class InlineMarkdownEditor : UserControl
 {
@@ -98,11 +81,8 @@ public partial class InlineMarkdownEditor : UserControl
         // rendered text doesn't show squiggles.
         SpellCheck.SetIsEnabled(_rtb, false);
 
-        // Whenever this editor has the keyboard and what it holds is one formula, that formula draws
-        // the caret. Its own business rather than a host's: a caret is what "focused and editable"
-        // looks like, and leaving it to whoever put the editor on screen means every host has to
-        // remember, get the timing right, and re-do it on every path that hands focus over. Missing it
-        // showed as no caret at all until the first keystroke, which was quietly doing the adopting.
+        // Whoever holds the keyboard should draw the caret; left to the host this showed as no caret
+        // at all until the first keystroke, since typing was quietly doing the adopting.
         _rtb.GotKeyboardFocus += (_, _) => { if (IsSingleBlock && !EditAsSource) FocusBlockAtCaret(); };
 
         _rtb.PreviewTextInput  += OnPreviewTextInput;
@@ -126,9 +106,8 @@ public partial class InlineMarkdownEditor : UserControl
         _rtb.GotKeyboardFocus  += (_, _) => ScheduleNavigate();
         _rtb.LostKeyboardFocus += OnLostFocus;
 
-        // The prompt turns on whether anyone is writing here, so it has to be reconsidered when that
-        // changes. Nothing did — it was only revisited when the document was rebuilt or the model
-        // pushed, so once hidden while focused it stayed hidden after focus left.
+        // Revisited on focus change too, not just on rebuild/push — otherwise a placeholder hidden while
+        // focused stayed hidden after focus left.
         _rtb.GotKeyboardFocus  += (_, _) => UpdatePlaceholder();
         _rtb.LostKeyboardFocus += (_, _) => UpdatePlaceholder();
         _rtb.ContextMenu = BuildContextMenu();
@@ -147,29 +126,19 @@ public partial class InlineMarkdownEditor : UserControl
         Content    = new Grid { Children = { _rtb, _placeholder } };
         Background = Brushes.Transparent;
 
-        // Focusable, and it passes the focus straight through to the text. It was not, which made
-        // Focus() on this control silently do nothing — so a host asking for the caret to be put in
-        // the editor got no caret and no error, and had to know to reach past it to something private.
-        // Where focus ends up is the same either way; the difference is that asking now works.
-        Focusable = true;
+        Focusable = true;   // without this, Focus() on this control silently did nothing
 
-        // Caret + text brushes. With no explicit Palette the editor is theme-aware, so track the live
-        // theme brushes (the caret was otherwise the default black — invisible on a dark theme).
-        ApplyEditorBrushes();
+        ApplyEditorBrushes();   // theme-aware brushes; the caret was otherwise default black — invisible on a dark theme
 
-        // While hidden (e.g. the markdown viewer's source-only mode swaps this editor out), a bound
-        // Markdown change still fires RenderAll per keystroke — wasted work for a doc with diagrams.
-        // Defer the render and run it once when the editor is shown again with the latest content.
+        // While hidden (e.g. swapped out by the viewer's source-only mode), skip RenderAll per keystroke
+        // (wasted work for a doc with diagrams) and run it once when shown again.
         IsVisibleChanged += (_, _) =>
         {
             if (!IsVisible) return;
             if (_renderPending) { RenderAll(); return; }
 
-            // Shown again without needing a rebuild — a tab switched away from and back, where the
-            // document is still the right one. Nothing else runs here, so this is the only chance to
-            // notice that the keyboard is in an editor whose formula has nobody drawing its caret.
-            // Without it the first keystroke does the adopting, which is why the caret appeared only
-            // once something had been typed.
+            // Shown again with no rebuild needed (tab switched away and back) — still the only chance to
+            // notice the keyboard is in an editor whose formula has nobody drawing its caret.
             if (IsSingleBlock && !EditAsSource && _rtb.IsKeyboardFocusWithin) FocusBlockAtCaret();
         };
 
@@ -217,11 +186,8 @@ public partial class InlineMarkdownEditor : UserControl
         set => SetValue(PaletteProperty, value);
     }
 
-    /// <summary>
-    /// The buttons on the toolbar shown over a rendered block the pointer is on, each handed the block it was pressed on.
-    /// None, and there is no toolbar: what the buttons do — copy the block's picture, save it — is the host's, not the
-    /// editor's.
-    /// </summary>
+    /// <summary>Buttons on the toolbar shown over a rendered block, handed the block pressed on. Empty means no
+    /// toolbar — what the buttons do is the host's business, not the editor's.</summary>
     public IReadOnlyList<BlockAction> BlockActions
     {
         get => _blockActions;
@@ -271,10 +237,8 @@ public partial class InlineMarkdownEditor : UserControl
         return toolbar;
     }
 
-    /// <summary>
-    /// Hides the block toolbar once the pointer is on neither the text box nor the toolbar — asked after the move has
-    /// settled, since leaving one for the other says it has left before it says where it went.
-    /// </summary>
+    /// <summary>Hides the toolbar once the pointer is on neither it nor the text box — deferred, since moving from
+    /// one to the other fires "left" before "entered".</summary>
     private void LeftPointer() =>
         Dispatcher.BeginInvoke(() =>
         {
@@ -325,18 +289,10 @@ public partial class InlineMarkdownEditor : UserControl
         => double.IsNaN(BaseFontSize) ? Nexaflow.Visuals.Common.Theming.TextTypography.BaseFontSize : BaseFontSize;
 
     /// <summary>
-    /// Re-lays the document out at the new size, <em>always</em> — including while the caret is in here.
-    /// <para>
-    /// The palette and base-directory changes above skip a focused editor because they arrive from
-    /// somewhere else while you happen to be typing. A size change is the opposite: it is the gesture you
-    /// just made (Ctrl+wheel, Ctrl+plus, a preset), so the one unacceptable outcome is nothing visibly
-    /// happening. Deferring it until focus left meant exactly that — clicking into a document is enough to
-    /// hold focus, so zoom did nothing at all in the ordinary case.
-    /// </para>
-    /// <para>
-    /// The rebuild costs the current edit session, not any text: <c>RenderAll</c> syncs the model first, and
-    /// pins the focal block, the scroll offset and a formula caret across it.
-    /// </para>
+    /// Re-lays the document out at the new size, even while the caret is in here — unlike the palette/base-directory
+    /// changes above (which skip a focused editor since they arrive from elsewhere), a size change is the gesture
+    /// the reader just made (Ctrl+wheel, a preset) and must be seen immediately. RenderAll pins the focal block,
+    /// scroll offset and any formula caret across the rebuild, so the edit session isn't lost.
     /// </summary>
     private void OnBaseFontSizeChanged()
     {
@@ -359,16 +315,9 @@ public partial class InlineMarkdownEditor : UserControl
     /// then skips opening the OS browser). When null, links open externally.</summary>
     public Func<string, bool>? LinkNavigate { get; set; }
 
-    /// <summary>
-    /// Lets the host claim a drop of rich content (image / file / URL) — the data object plus the drop
-    /// point in the editor's coordinates. Return true if it handled it (typically by calling
-    /// <see cref="InsertMarkdownAt"/>); false falls back to the editor's own text drop.
-    /// <para>
-    /// The same contract as <see cref="ContentPasted"/>, and for the same reason: without a way to say
-    /// "not mine", a host that only cares about images silently swallowed every dropped word. Dragging
-    /// text onto an editor whose host had no drop handler at all did nothing whatsoever.
-    /// </para>
-    /// </summary>
+    /// <summary>Lets the host claim a drop of rich content (image / file / URL). Return true if handled
+    /// (typically via <see cref="InsertMarkdownAt"/>); false falls back to the editor's own text drop — the
+    /// host must be able to say "not mine" or it silently swallows drops it doesn't care about.</summary>
     public Func<IDataObject, Point, bool>? ContentDropped { get; set; }
 
     /// <summary>Lets the host claim a paste of rich content (image / file / URL): return true if it
@@ -403,29 +352,11 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>
-    /// Makes the editor a single block of one language rather than a document — <c>latex</c> for a
-    /// formula, <c>abc</c> for a tune, any fenced language the renderer knows — with
-    /// <see cref="Markdown"/> carrying that language's own text and nothing else. Empty for a document,
-    /// which is the default and what every ordinary markdown surface wants.
-    ///
-    /// <para>
-    /// The fence is the editor's own business here. The host hands it LaTeX, or ABC, and gets the same
-    /// back — the <c>$$</c> or the <c>```abc</c> goes on to have the block rendered and comes off again
-    /// on the way out, so it is never typed, never shown, and never something the host has to remember.
-    /// A host that fences for itself ends up holding two ideas of what the text is and has to keep them
-    /// in step through every keystroke; this is that bookkeeping, done once, where the block model
-    /// already lives.
-    /// </para>
-    /// <para>
-    /// That is also what lets a file <em>be</em> one block. A <c>.abc</c> file is a tune, not a markdown
-    /// document that happens to contain one, so the fence exists for exactly as long as it takes to
-    /// render and the bytes on disk never carry it.
-    /// </para>
-    /// <para>
-    /// Only for a surface that <em>is</em> one block, like the Solver's Latex tab or a tune opened from
-    /// disk. Anything that could hold a document — the Solver's Text tab, a markdown file, the
-    /// scratchpad — leaves this empty and keeps blocks, headings, diagrams and maths of its own.
-    /// </para>
+    /// Makes the editor a single block of one language rather than a document — <c>latex</c>, <c>abc</c>, any
+    /// fenced language the renderer knows — with <see cref="Markdown"/> carrying only that language's own text.
+    /// Empty (the default) for an ordinary document. The fence is added for rendering and stripped again on
+    /// the way out, so the host never sees or has to track it. Only for a surface that IS one block (the
+    /// Solver's Latex tab, a tune opened from disk); a document-holding surface leaves this empty.
     /// </summary>
     public static readonly DependencyProperty SingleBlockProperty =
         DependencyProperty.Register(nameof(SingleBlock), typeof(string), typeof(InlineMarkdownEditor),
@@ -440,14 +371,8 @@ public partial class InlineMarkdownEditor : UserControl
     /// <summary>Whether this editor is one block rather than a document.</summary>
     private bool IsSingleBlock => !string.IsNullOrWhiteSpace(SingleBlock);
 
-    /// <summary>
-    /// What goes either side of the text to make it the block it is.
-    /// <para>
-    /// Maths is the exception in markdown rather than the rule: it is delimited, not fenced, and a
-    /// <c>```latex</c> block is a listing of LaTeX source rather than a formula. Everything else is a
-    /// fence named by its language, which is the same shape a host would write by hand.
-    /// </para>
-    /// </summary>
+    /// <summary>What goes either side of the text to make it the block it is. Maths is delimited (<c>$$</c>),
+    /// not fenced — a <c>```latex</c> block would be a LaTeX source listing, not a formula.</summary>
     private (string Open, string Close) Fence =>
         SingleBlock?.Trim().ToLowerInvariant() switch
         {
@@ -476,21 +401,10 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>
-    /// Holds the block being edited open as the characters that were typed, instead of letting it
-    /// typeset again when the caret leaves it.
-    /// <para>
-    /// The editor already shows exactly one block as source — the one you are in — so this changes
-    /// when that stops rather than what it looks like. For a host whose whole surface is one block
-    /// (the Solver's Latex tab is a single maths block) that is the same thing as a source view.
-    /// </para>
-    /// <para>
-    /// An escape hatch, not a mode the editor is expected to live in: rendering as you type is the
-    /// point of this control. It exists for when the rendering is itself the trouble — a formula that
-    /// will not typeset, and you need to see exactly what you wrote — and for people who would rather
-    /// write markdown than have it interpreted at them. It is the same surface either way, so the
-    /// caret, the undo history, the block model, palette insertions and the clipboard all keep working
-    /// as they already do.
-    /// </para>
+    /// Keeps the block being edited open as raw text instead of letting it typeset when the caret leaves. For a
+    /// single-block host (e.g. the Solver's Latex tab) this is effectively a source view. An escape hatch for
+    /// when the rendering itself is the trouble — a formula that won't typeset — not a mode the editor lives in;
+    /// caret, undo, the block model, palette insertions and the clipboard all keep working as usual.
     /// </summary>
     public static readonly DependencyProperty EditAsSourceProperty =
         DependencyProperty.Register(nameof(EditAsSource), typeof(bool), typeof(InlineMarkdownEditor),
@@ -502,10 +416,8 @@ public partial class InlineMarkdownEditor : UserControl
         set => SetValue(EditAsSourceProperty, value);
     }
 
-    /// <summary>
-    /// Switches the block the caret is in between its two forms, leaving the caret in it — changing how
-    /// the text is shown is not an edit, and landing back at the top of the document would read as one.
-    /// </summary>
+    /// <summary>Switches the block under the caret between its two forms, leaving the caret in it — jumping
+    /// to the top of the document would read as an edit rather than a view change.</summary>
     private void OnEditAsSourceChanged()
     {
         if (!EditAsSource) { CommitEdit(); return; }
@@ -514,10 +426,8 @@ public partial class InlineMarkdownEditor : UserControl
         Activate(Math.Max(block, 0), offset);       // which takes the caret off the formula for us
     }
 
-    /// <summary>Inset applied to the document text (as the FlowDocument's page padding) rather than as a
-    /// control margin. The difference matters at the right edge: a margin pushes the whole control — and its
-    /// vertical scrollbar — inward, leaving an odd gap before anything sitting beside it (e.g. a minimap);
-    /// page padding insets only the text, so the scrollbar stays flush against the control's edge.</summary>
+    /// <summary>Inset applied as the FlowDocument's page padding, not a control margin — a margin would push
+    /// the vertical scrollbar inward too, leaving a gap before anything sitting beside it (e.g. a minimap).</summary>
     public static readonly DependencyProperty ContentPaddingProperty =
         DependencyProperty.Register(nameof(ContentPadding), typeof(Thickness), typeof(InlineMarkdownEditor),
             new PropertyMetadata(default(Thickness), (d, _) => ((InlineMarkdownEditor)d).ApplyContentPadding()));
@@ -591,17 +501,15 @@ public partial class InlineMarkdownEditor : UserControl
         var self = (InlineMarkdownEditor)d;
         if (self._suppress) return;                  // our own push
 
-        // What must never happen is a rebuild for text we already hold: a two-way binding hands our own
-        // push back to us a moment later, and rebuilding then would destroy the block being typed into.
-        // That is a test for *sameness*, though, and it used to be written as a test for focus — which
-        // also threw away every genuine replacement made while the caret was in here, so clearing the
-        // field or letting the AI set it did nothing at all until focus had gone somewhere else.
+        // A two-way binding hands our own push back a moment later; rebuilding then would destroy the
+        // block being typed into. Tested for sameness, not focus — a focus test also discarded genuine
+        // replacements made while the caret was in here (clearing the field, the AI setting it, did nothing
+        // until focus moved away).
         var incoming = (string?)e.NewValue ?? string.Empty;
         if (MarkdownBlocks.Join(self._blocks) == incoming) return;
 
         self.ClearNativeSession();                   // external truth replaces any stale native edit
-        // One formula is one block however many lines it runs to — splitting it on a blank line would
-        // make half of it a paragraph of prose.
+        // One formula is one block regardless of line count — splitting on a blank line would make half of it prose.
         self._blocks = self.IsSingleBlock
             ? [incoming]
             : MarkdownBlocks.Split(incoming);
@@ -610,9 +518,8 @@ public partial class InlineMarkdownEditor : UserControl
         self._undoGroupBlock = -2;
         self.RenderAll();
 
-        // Being held open as source outlives the document it was holding open: a host that swaps the
-        // text (the Solver does exactly that when the fence comes off) asked for a different document,
-        // not for its source view to close behind it.
+        // Being held open as source outlives the document it held open — a host swapping the text (the
+        // Solver does, when the fence comes off) asked for a different document, not to close the source view.
         if (self.EditAsSource) self.Activate(0, self._blocks[0].Length);
     }
 
@@ -622,8 +529,8 @@ public partial class InlineMarkdownEditor : UserControl
         try { SetValue(MarkdownProperty, MarkdownBlocks.Join(_blocks)); }
         finally { _suppress = false; }
 
-        // Every change to the model comes through here, including the ones that rebuild no document —
-        // typing into a formula is one — so this is the only place the prompt can be kept honest.
+        // Every model change comes through here, including ones that rebuild no document (typing into a
+        // formula) — the only place the prompt can be kept honest.
         UpdatePlaceholder();
     }
 
@@ -661,10 +568,9 @@ public partial class InlineMarkdownEditor : UserControl
     /// <summary>Normalised (0–1) vertical positions of the current matches, for a minimap tick strip.</summary>
     public IReadOnlyList<double> SearchMarkPositions() => _search?.Positions() ?? [];
 
-    /// <summary>Scrolls the rendered view so the heading whose <em>ancestor path</em> equals
-    /// <paramref name="titlePath"/> sits at the top — matched on the full heading hierarchy (not a
-    /// document-wide text match), so duplicate heading names under different parents stay distinct. No-op if
-    /// no such heading exists. Deferred to a layout pass so the block rects are measured first.</summary>
+    /// <summary>Scrolls so the heading whose ancestor path equals <paramref name="titlePath"/> sits at the
+    /// top — matched on the full heading hierarchy, so duplicate names under different parents stay distinct.
+    /// No-op if none exists. Deferred to a layout pass so block rects are measured first.</summary>
     public void ScrollToHeading(IReadOnlyList<string>? titlePath)
     {
         int blockIndex = MarkdownBlocks.FindHeadingBlock(_blocks, titlePath);
@@ -677,11 +583,9 @@ public partial class InlineMarkdownEditor : UserControl
         }, DispatcherPriority.Loaded);
     }
 
-    /// <summary>
-    /// Inserts <paramref name="markdown"/> as new block(s) at a drop point: after the block under
-    /// <paramref name="pointInEditor"/>, or appended when dropped in the empty space below the text.
-    /// Any in-progress edit is committed first. Used for drag-and-drop onto a note.
-    /// </summary>
+    /// <summary>Inserts <paramref name="markdown"/> as new block(s) at a drop point: after the block under
+    /// <paramref name="pointInEditor"/>, or appended when dropped below the text. Commits any in-progress
+    /// edit first. Used for drag-and-drop onto a note.</summary>
     public void InsertMarkdownAt(string markdown, Point pointInEditor)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return;
@@ -696,8 +600,7 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>Inserts <paramref name="markdown"/> as new block(s) after the block being edited (or the
-    /// caret's block), committing any in-progress edit first. Used for pasting rich content (image /
-    /// file / URL) while editing.</summary>
+    /// caret's block). Used for pasting rich content (image / file / URL) while editing.</summary>
     public void InsertMarkdownAtCaret(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return;
@@ -707,15 +610,13 @@ public partial class InlineMarkdownEditor : UserControl
 
     private void InsertBlocksAfter(string markdown, int after)
     {
-        // Nothing arrives here as a block when the editor is one formula — it arrives as more of that
-        // formula, wherever the caret is.
+        // In single-block mode nothing arrives as a block — it arrives as more of that formula.
         if (IsSingleBlock)
         {
             if (InsertLatexAtCaret(markdown)) return;   // a formula holds the caret: it types it in
 
-            // No formula to type into — the document has not been built yet, which is where a paste
-            // arriving before the first render lands. It is still exactly one block, so the text goes
-            // on the end of it and the render that follows shows it.
+            // No formula to type into yet — a paste arriving before the first render. Still one block, so
+            // the text goes on the end and the following render shows it.
             if (_active >= 0) { var (at, upTo) = SelectionInActiveBlock(); EditActive(at, upTo, markdown); return; }
 
             _blocks[0] += markdown;
@@ -739,9 +640,8 @@ public partial class InlineMarkdownEditor : UserControl
         RenderAll();
     }
 
-    /// <summary>Swaps the first block whose content equals <paramref name="from"/> for
-    /// <paramref name="to"/> (used to replace a pasted/dropped URL with its fetched preview). No-op if
-    /// the block is gone (e.g. the user deleted it).</summary>
+    /// <summary>Swaps the first block equal to <paramref name="from"/> for <paramref name="to"/> — used to
+    /// replace a pasted/dropped URL with its fetched preview. No-op if the block is gone.</summary>
     public void ReplaceBlock(string from, string to)
     {
         SyncNativeModel();          // a Word-style edit may be in flight — settle the model first
@@ -771,15 +671,9 @@ public partial class InlineMarkdownEditor : UserControl
 
     /// <summary>
     /// A click strictly inside a rendered link follows it. Otherwise behaviour depends on
-    /// <see cref="EditOnDoubleClick"/>:
-    /// <list type="bullet">
-    /// <item>Default (single-click-to-edit): the click is left to WPF (focus + caret) and the block under
-    /// the caret is activated by the deferred <see cref="ScheduleNavigate"/> — after the mouse is released
-    /// so it never disturbs the RichTextBox's mouse capture, skipping activation when a drag selected text.</item>
-    /// <item><see cref="EditOnDoubleClick"/>: a single click only selects/places the caret (and commits any
-    /// in-progress edit when it lands outside the active block); a double click enters edit on the block
-    /// under the cursor.</item>
-    /// </list>
+    /// <see cref="EditOnDoubleClick"/>: by default a single click is left to WPF (focus + caret) and the
+    /// block under it is activated by the deferred <see cref="ScheduleNavigate"/>; with it set, a single
+    /// click only places the caret/selects (committing any edit left behind) and a double click enters edit.
     /// </summary>
     private void OnPreviewMouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
     {
@@ -794,25 +688,21 @@ public partial class InlineMarkdownEditor : UserControl
             && hit.CompareTo(_rtb.Selection.Start) >= 0 && hit.CompareTo(_rtb.Selection.End) <= 0)
             _dragArm = e.GetPosition(_rtb);
 
-        // A single click on a self-handling block (e.g. a music score) belongs to that element — it owns
-        // measure/note selection. The event's source can't be trusted here: the RichTextBox's text container
-        // attributes clicks over an embedded UIElement island to the container — or even to a NEIGHBOURING
-        // Paragraph/Run for parts of the island — so we locate the element with a geometric visual hit-test
-        // instead and drive it directly (it captures the mouse for the drag). Disarm the copy-drag and
-        // suppress the caret/activation so the whole block isn't selected. Double-click still falls through
-        // to enter source-edit mode.
+        // A self-handling block (e.g. a music score) owns its own click/drag — but the event's source can't
+        // be trusted: the RichTextBox attributes clicks over an embedded UIElement to the container, or even
+        // a neighbouring Paragraph/Run, so the element is found by a geometric hit-test instead and driven
+        // directly. Double-click still falls through to enter source-edit mode.
         if (e.ClickCount == 1 && InteractiveBlockAtPoint(e.GetPosition(_rtb)) is { } ib && ib is UIElement uie)
         {
             _pendingClickPoint = null;
             _dragArm = null;                    // a score drag must not become the RTB's copy-drag
             _pointerBlock = ib;
 
-            // A block that can be typed into also takes the caret: unlike a score, it is something you
-            // edit, and the keys have to know where to go. Clicking anything else gives the caret back.
+            // A block that can be typed into also takes the caret; clicking anything else gives it back.
             if (ib is Editing.IEditableBlock editable)
             {
-            // The click is handled here, so nothing else will focus the editor — and without the
-            // keyboard the block would draw a caret that no keystroke ever reached.
+            // Handled here, so nothing else focuses the editor — without the keyboard the block would
+            // draw a caret no keystroke reaches.
             _rtb.Focus();
             Keyboard.Focus(_rtb);
             FocusBlock(editable);
@@ -820,8 +710,8 @@ public partial class InlineMarkdownEditor : UserControl
             else BlurBlock();
 
             ib.BeginPointerSelect(e.GetPosition(uie), Keyboard.Modifiers);
-            // Capture to the RTB so the drag keeps flowing to our move/up handlers even when the pointer
-            // leaves the element or the control (the embedded element itself can't hold capture reliably).
+            // Capture on the RTB, not the element, so the drag keeps flowing to our move/up handlers even
+            // once the pointer leaves the element (an embedded element can't hold capture reliably).
             Mouse.Capture(_rtb);
             e.Handled = true;
             return;
@@ -892,9 +782,8 @@ public partial class InlineMarkdownEditor : UserControl
         return true;
     }
 
-    /// <summary>Enters edit mode for the block under <paramref name="pointInEditor"/>, placing the caret
-    /// at the click. Deferred to Background priority so it runs after the mouse is released and never
-    /// disturbs the RichTextBox's capture (the same reason as <see cref="ScheduleNavigate"/>).</summary>
+    /// <summary>Enters edit mode for the block under <paramref name="pointInEditor"/>, placing the caret at
+    /// the click. Deferred so it runs after the mouse is released, like <see cref="ScheduleNavigate"/>.</summary>
     private void ActivateAtPoint(Point pointInEditor)
     {
         var pos = _rtb.GetPositionFromPoint(pointInEditor, snapToText: true);
@@ -909,8 +798,7 @@ public partial class InlineMarkdownEditor : UserControl
             {
                 if (IsBelowContent(pointInEditor))
                 {
-                    // One formula has no "below it" to start something new in — the click means the end
-                    // of the formula, which is where the caret would have gone anyway.
+                    // One formula has no "below it" — the click means the end of the formula.
                     if (!IsSingleBlock && _blocks[^1].Trim().Length != 0)
                         { _blocks.Add(string.Empty); PushMarkdown(); }
                     block = _blocks.Count - 1; off = _blocks[^1].Length;
@@ -932,11 +820,9 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     // ── Drag-out (copy-only) ──────────────────────────────────────────────
-    // The block model is authoritative and WPF must never edit the document itself. The RichTextBox's
-    // built-in text drag does a MOVE — after the drop it deletes the dragged selection straight from the
-    // document, desyncing the model and crashing on the post-drop cleanup. Pre-empt it: once a press that
-    // landed on the selection (armed in OnPreviewMouseLeftButtonDown) crosses the drag threshold, run our
-    // own COPY drag. The external app still receives the text; the source document is never mutated.
+    // The RichTextBox's built-in text drag does a MOVE, deleting the dragged selection straight from the
+    // document on drop — desyncing the block model and crashing on cleanup. Pre-empted here with our own
+    // COPY drag once a press armed on the selection (OnPreviewMouseLeftButtonDown) crosses the threshold.
     private void OnPreviewMouseLeftButtonUp(object? sender, MouseButtonEventArgs e)
     {
         if (_pointerBlock is null) return;
@@ -990,32 +876,18 @@ public partial class InlineMarkdownEditor : UserControl
         e.Handled  = true;   // suppress the RichTextBox's own drag handling (which rejects files/images)
     }
 
-    /// <summary>
-    /// Takes a drop the host did not claim, which is nearly always text dragged in from another window.
-    /// <para>
-    /// A drop is a paste that names its own insertion point, so it is treated as one: the caret goes
-    /// where the pointer let go, and what lands is decided by the surface it landed on — cleaned LaTeX
-    /// inside a formula, markdown anywhere else. What it must not do is nothing, which is what happened
-    /// for every host that did not handle drops itself: the RichTextBox's own text drop is suppressed
-    /// here (it rejects files and images, and would insert straight into the rendered document), so
-    /// with nothing put in its place the drag simply ended.
-    /// </para>
-    /// </summary>
+    /// <summary>Takes a drop the host did not claim — nearly always text dragged in from another window.
+    /// Treated as a paste that names its own insertion point: the caret goes where the pointer let go, and
+    /// what lands depends on the surface (cleaned LaTeX inside a formula, markdown otherwise). The
+    /// RichTextBox's own text drop is suppressed (it rejects files/images and would insert into the
+    /// rendered document), so this has to stand in for it.</summary>
     private void OnPreviewDrop(object? sender, DragEventArgs e)
     {
         e.Handled = true;
 
-        // A drop does not bring its target to the front — Windows leaves the window the drag started in
-        // as the foreground one — so without this the caret placed below belongs to a window the
-        // keyboard is not going to, and the reader has to click the app before their typing arrives.
-        //
-        // Asking for the foreground is normally refused, and allowed here for the reason the rule exists:
-        // this window has just received the reader's own input. If the system refuses anyway, the worst
-        // of it is a flashing taskbar button and the same reactivation-by-hand as before.
-        //
-        // Deliberately here and not in DropContent: a real drag is a gesture at this window and may take
-        // it, while content handed over in code is not and must not — a control that grabs the foreground
-        // because something inserted text would be intolerable.
+        // Windows leaves the drag's source window in the foreground on drop, so without this the caret
+        // lands in a window the keyboard isn't going to. Deliberately here and not in DropContent: a real
+        // drag is a gesture at this window and may take focus; content inserted in code must not.
         ActivateWindow();
 
         DropContent(e.Data, e.GetPosition(_rtb));
@@ -1028,10 +900,8 @@ public partial class InlineMarkdownEditor : UserControl
         catch { /* a window mid-close refuses; the drop itself is unaffected */ }
     }
 
-    /// <summary>
-    /// Takes content dropped at <paramref name="pointInEditor"/> — from the editor's own surface, or
-    /// forwarded by a host whose chrome surrounds it.
-    /// </summary>
+    /// <summary>Takes content dropped at <paramref name="pointInEditor"/> — from the editor's own surface,
+    /// or forwarded by a host whose chrome surrounds it.</summary>
     public void DropContent(IDataObject data, Point pointInEditor)
     {
         if (data is null) return;
@@ -1040,8 +910,7 @@ public partial class InlineMarkdownEditor : UserControl
         // The caret first, because where it lands is what decides which reading of the data is right.
         TakeCaretAt(pointInEditor);
 
-        // Read now rather than in the deferred insert: a drag's data object is only guaranteed for as
-        // long as the drop is being handled.
+        // Read now, not in the deferred insert: a drag's data object is only guaranteed while the drop is being handled.
         var dropped = PastesIntoBlock
             ? AsFormula(MarkdownClipboard.ReadPlainText(data))
             : MarkdownClipboard.ReadBestMarkdown(data);
@@ -1051,27 +920,21 @@ public partial class InlineMarkdownEditor : UserControl
         {
             InsertPastedText(dropped);
 
-            // The keyboard is claimed here rather than with the caret, because a drag ends by putting
-            // focus back where the system had it — which is the window the drag started in. Taken while
-            // the drop was still being delivered it is handed straight back, and the formula is left
-            // drawing a caret that no keystroke reaches until it is clicked.
+            // Claimed here, not with the caret: a drag ends by returning focus to its source window, so
+            // claiming it mid-drop just hands it straight back.
             _rtb.Focus();
             Keyboard.Focus(_rtb);
         }, DispatcherPriority.Background);
     }
 
-    /// <summary>
-    /// Puts the caret where the pointer is, through whichever block is there — so a drop onto a formula
-    /// lands inside the formula at the character it was let go over, not at the end of whatever the
-    /// caret was doing before.
-    /// </summary>
+    /// <summary>Puts the caret where the pointer is, through whichever block is there — so a drop onto a
+    /// formula lands at the character it was let go over, not wherever the caret was before.</summary>
     private void TakeCaretAt(Point pointInRtb)
     {
         _rtb.Focus();
         Keyboard.Focus(_rtb);
 
-        // A press and a release at that point: an embedded block owns where its own caret goes, and
-        // this is the interface it already answers the pointer through.
+        // A press and release at that point: an embedded block owns where its own caret goes.
         if (InteractiveBlockAtPoint(pointInRtb) is Editing.IEditableBlock editable
         && editable is UIElement element)
         {
@@ -1085,10 +948,8 @@ public partial class InlineMarkdownEditor : UserControl
             _rtb.CaretPosition = position;
     }
 
-    /// <summary>
-    /// Inserts text at the caret the way a paste does — which differs by what the caret is in, not by
-    /// how the text arrived. One method, so a drop and a paste can never disagree about it.
-    /// </summary>
+    /// <summary>Inserts text at the caret the way a paste does, so a drop and a paste can never disagree
+    /// about how it lands.</summary>
     private void InsertPastedText(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
@@ -1097,8 +958,7 @@ public partial class InlineMarkdownEditor : UserControl
         {
         if (PasteIntoFormula(text)) return;
 
-        // Any other block takes it as the characters it is — typed in one at a time, exactly as if the
-        // reader had entered them, so a value that cannot hold them says so the same way either way.
+        // Any other block takes it typed in one character at a time, as if the reader had entered it.
         if (BlockHandlesText(text)) return;
 
         InsertMarkdownAtCaret(text);
@@ -1121,9 +981,9 @@ public partial class InlineMarkdownEditor : UserControl
         => d.GetDataPresent(DataFormats.FileDrop) || d.GetDataPresent(DataFormats.Bitmap)
         || d.GetDataPresent(DataFormats.UnicodeText) || d.GetDataPresent(DataFormats.Text);
 
-    /// <summary>Leaves edit mode: drops transient empty blocks, re-renders, and pushes the markdown.
-    /// When not editing (a render-mode drag-select / Select All), collapses the selection so it doesn't
-    /// stay highlighted after focus moves away (inactive-selection highlight is on).</summary>
+    /// <summary>Leaves edit mode: drops transient empty blocks, re-renders, and pushes the markdown. When
+    /// not editing, collapses a render-mode selection so it doesn't stay highlighted after focus moves away
+    /// (inactive-selection highlight is on).</summary>
     private void CommitEdit()
     {
         if (_active >= 0)
@@ -1131,8 +991,7 @@ public partial class InlineMarkdownEditor : UserControl
             _blocks = MarkdownBlocks.Compact(_blocks);
             _undoGroupBlock = -2;
 
-            // Held open as source: the model still catches up, but the block does not typeset again —
-            // that is the whole of what the caller asked for by setting EditAsSource.
+            // Held open as source: the model catches up but the block does not typeset again — the point of EditAsSource.
             if (EditAsSource) { PushMarkdown(); return; }
 
             _active = -1;
@@ -1141,9 +1000,9 @@ public partial class InlineMarkdownEditor : UserControl
         }
         else if (_nativeBlock >= 0)
         {
-            // A Word-style session ends with a re-render: the model is already synced per edit, but the
-            // rebuild refreshes the runs' SourceSpan tags (stale after native edits) and re-parses typed
-            // markdown syntax as the escaped literal text it was stored as.
+            // A Word-style session ends with a re-render: the model is synced already, but the rebuild
+            // refreshes the runs' stale SourceSpan tags and re-parses typed markdown syntax as the escaped
+            // literal it was stored as.
             SyncNativeModel();
             ClearNativeSession();
             RenderAll();
@@ -1165,14 +1024,10 @@ public partial class InlineMarkdownEditor : UserControl
         return null;
     }
 
-    /// <summary>True when the mouse hit lands on (or within) an <see cref="IInteractiveBlock"/> embedded in the
-    /// document — a block that owns its own click/drag input (e.g. a music score).</summary>
     /// <summary>The <see cref="IInteractiveBlock"/> under <paramref name="pointInRtb"/>, or null. Found by a
     /// geometric visual hit-test rather than the routed event's source: the text container attributes clicks
-    /// over an embedded UIElement island to the <see cref="BlockUIContainer"/> — or even to a neighbouring
-    /// Paragraph/Run for parts of the island — so source-based detection misses regions of the element. The
-    /// hit-test also sees through wrappers (e.g. the score's warnings StackPanel), since it lands on the
-    /// element itself and walks up.</summary>
+    /// over an embedded UIElement island to the <see cref="BlockUIContainer"/>, or a neighbouring Paragraph/Run,
+    /// so source-based detection misses regions of the element.</summary>
     private IInteractiveBlock? InteractiveBlockAtPoint(Point pointInRtb)
     {
         var hit = VisualTreeHelper.HitTest(_rtb, pointInRtb)?.VisualHit;
@@ -1184,11 +1039,8 @@ public partial class InlineMarkdownEditor : UserControl
         return null;
     }
 
-    /// <summary>
-    /// The pointer over an embedded block is the block's to choose. The text box sets a bar over everything inside it, a
-    /// pie's wedges included, and the block never sees the pointer to say otherwise — see <see cref="IInteractiveBlock"/> —
-    /// so it is asked here, once the text box has had its say.
-    /// </summary>
+    /// <summary>The pointer over an embedded block is the block's to choose — the text box otherwise sets a
+    /// bar cursor over everything inside it, so the block (<see cref="IInteractiveBlock"/>) is asked here.</summary>
     private void OnQueryCursor(object sender, QueryCursorEventArgs e)
     {
         if (InteractiveBlockAtPoint(e.GetPosition(_rtb)) is not { } block || block is not UIElement element) return;
@@ -1988,35 +1840,18 @@ public partial class InlineMarkdownEditor : UserControl
         if (block != _active) ScheduleNavigate();
     }
 
-    /// <summary>
-    /// Selects, in full, every embedded block the prose selection has swept over — and unselects the rest.
-    /// <para>
-    /// This is where a selection that runs from text, across a formula, and on into more text becomes one
-    /// selection rather than two unrelated ones. It is whole-block on purpose and could hardly be anything
-    /// else: an embedded element is a single indivisible position in a flow document, so the text model
-    /// has no way to say "half of that formula". A sweep therefore either passes over a block or does not,
-    /// and one it passed over is taken entirely — which is also what a reader expects, a formula clipped
-    /// at whatever pixel the pointer crossed being a selection nobody asked for.
-    /// </para>
-    /// <para>
-    /// Selecting <em>part</em> of a formula is still perfectly possible; it is just not the text model's
-    /// doing. That is a drag that begins or ends inside the formula, which the block owns and drives
-    /// itself.
-    /// </para>
-    /// </summary>
+    /// <summary>Selects, in full, every embedded block the prose selection has swept over, and unselects the
+    /// rest — whole-block because an embedded element is a single indivisible position in a flow document, so
+    /// the text model has no way to say "half of that formula". Selecting part of a formula is still possible;
+    /// that's a drag starting/ending inside it, which the block owns and drives itself.</summary>
     private void SweepBlocks()
     {
         var selection = _rtb.Selection;
         if (_rtb.Document is null) return;
 
-        // One *rendered* formula has no blocks to sweep between, so the document's selection can only
-        // ever say "all of it" — which washes the whole line behind a formula that is already showing
-        // what it has picked out, and turns a click beside the formula into a selection of everything.
-        // The formula owns what is selected here; the document has no second opinion to offer.
-        //
-        // Held open as source there is no formula to have an opinion: the block is the document's own
-        // text, and the document's selection is the only selection there is. Clearing it there is what
-        // made the source view unselectable — every sweep of the pointer was undone as it was made.
+        // One rendered formula has no blocks to sweep between, so the document's selection can only say
+        // "all of it" — the formula owns what is selected. Held open as source there is no formula to
+        // decide, so the document's own selection stands (clearing it made the source view unselectable).
         if (IsSingleBlock && _active < 0) { ClearDocumentSelection(); return; }
 
         foreach (var element in EmbeddedBlocks())
@@ -2058,12 +1893,9 @@ public partial class InlineMarkdownEditor : UserControl
         CommitEdit();
     }
 
-    /// <summary>
-    /// Defers activating the block under the caret until after the current input/navigation completes —
-    /// crucially, after the mouse is released, so it never disturbs the RichTextBox's mouse capture
-    /// (rebuilding the document mid-click leaves capture stuck, which manifested as "needs two clicks").
-    /// Skips activation when a drag left a selection (so drag-select stays in render mode).
-    /// </summary>
+    /// <summary>Defers activating the block under the caret until after the mouse is released, so it never
+    /// disturbs the RichTextBox's mouse capture (rebuilding mid-click left capture stuck — "needs two
+    /// clicks"). Skips activation when a drag left a selection.</summary>
     private void ScheduleNavigate()
     {
         if (_navQueued || _menuOpen) return;
@@ -2143,9 +1975,8 @@ public partial class InlineMarkdownEditor : UserControl
         return -1;
     }
 
-    /// <summary>Counts characters between two pointers — Run text (incl. trailing spaces)
-    /// plus one '\n' per <see cref="LineBreak"/>. Avoids <c>TextRange.Text</c>, which trims
-    /// trailing whitespace and would mis-count.</summary>
+    /// <summary>Counts characters between two pointers — Run text plus one '\n' per <see cref="LineBreak"/>.
+    /// Avoids <c>TextRange.Text</c>, which trims trailing whitespace and would mis-count.</summary>
     private static int CharCount(TextPointer from, TextPointer to)
     {
         if (from.CompareTo(to) >= 0) return 0;
@@ -2185,27 +2016,24 @@ public partial class InlineMarkdownEditor : UserControl
         if (!IsVisible) { _renderPending = true; return; }
         _renderPending = false;
 
-        // The document is about to be rebuilt, so the highlighted ranges from any live search would point
-        // into a stale text container. Drop them first; the feature re-runs the search if it still wants it.
+        // Drop live search highlights before the rebuild — they'd point into a stale text container otherwise.
         _search?.Clear();
         _search = null;
 
         SyncNativeModel();                                  // never drop an in-flight Word-style edit
         ClearNativeSession();                               // the paragraph is about to be replaced
 
-        // The element drawing the caret is about to be replaced by an equivalent one. Where the caret
-        // was is worth more than the object holding it — a rebuild the reader did not ask for (the tab
-        // being shown, the host pushing the same text back) must not look like the caret vanishing.
+        // The element drawing the caret is about to be replaced by an equivalent one; a rebuild the reader
+        // didn't ask for (a tab shown, the host pushing the same text back) must not look like the caret vanishing.
         var caretWas = FocusedContent?.Caret;
         BlurBlock();
 
         int focal     = _active;                            // the block being left — keep it pinned across the rebuild
         double offset = _rtb.VerticalOffset;
         double? focalY = focal >= 0 ? BlockTopY(focal) : null;
-        // Tear the speller down BEFORE swapping the document. WPF's Speller scans on a deferred OnIdle
-        // holding pointers into the current document; replacing the document while it is still attached
-        // lets a queued scan deref a stale text container and NRE (crash.log: Speller.OnIdle). No
-        // squiggles in the fully-rendered view either way.
+        // Tear the speller down before swapping the document: WPF's Speller scans on a deferred OnIdle
+        // holding pointers into the current document, and a queued scan against a replaced document NREs
+        // (crash.log: Speller.OnIdle). No squiggles in the fully-rendered view either way.
         SpellCheck.SetIsEnabled(_rtb, false);
         _suppress = true;
         try
@@ -2221,23 +2049,20 @@ public partial class InlineMarkdownEditor : UserControl
         AnchorScroll(offset, focal, focalY, keepCaretVisible: false);
         UpdatePlaceholder();
 
-        // Hand the caret back to the formula that now stands where the old one did. Also the first
-        // moment a formula exists to hand it to at all: the document is not built until the editor is
-        // shown, which is exactly when a tab switch focuses it and asks for a caret.
+        // Hand the caret back to the formula standing where the old one did — also the first moment one
+        // exists at all, since the document isn't built until the editor is shown.
         if (EditAsSource || !IsSingleBlock) return;
         if (caretWas is null && !_rtb.IsKeyboardFocusWithin) return;
 
         if (FocusFormulaAtCaret() && caretWas is { } at) FocusedContent!.TakeCaret(at);
     }
 
-    /// <param name="anchorTopY">When set (a double-click entering edit), the screen-Y the activated block's
-    /// top should land at — i.e. the mouse position. Otherwise the block is pinned to where it already was.</param>
+    /// <param name="anchorTopY">When set (a double-click entering edit), the screen-Y the block's top should
+    /// land at — the mouse position; otherwise the block is pinned where it already was.</param>
     private void Activate(int index, int caretOffset, double? anchorTopY = null)
     {
-        // One formula, rendered: there is no source paragraph to enter, and dropping into one is the
-        // bug that makes the whole tab feel wrong — clicking a number, or simply focusing the editor,
-        // would replace the typeset maths with its own LaTeX. The caret belongs to the formula, which
-        // is the thing being looked at and typed into. Source is reached by asking for it.
+        // One formula, rendered, has no source paragraph to enter — dropping into one would replace the
+        // typeset maths with its own LaTeX on a mere click or focus. Source is reached by asking for it.
         if (IsSingleBlock && !EditAsSource) { FocusBlockAtCaret(); return; }
 
         SyncNativeModel();                                  // entering source mode commits a Word-style edit
@@ -2248,8 +2073,7 @@ public partial class InlineMarkdownEditor : UserControl
 
         double offset  = _rtb.VerticalOffset;
         double? targetY = anchorTopY ?? BlockTopY(index);   // pin the focal block to the mouse, else to where it is now
-        // Detach the speller before swapping the document (block→block navigation rebuilds while editing),
-        // then re-attach to the new document below — see the note in RenderAll.
+        // Detach the speller before swapping the document (see RenderAll), re-attach below.
         SpellCheck.SetIsEnabled(_rtb, false);
         _suppress = true;
         try
@@ -2296,8 +2120,7 @@ public partial class InlineMarkdownEditor : UserControl
 
     /// <summary>Keeps the focal block visually fixed across a document rebuild (which otherwise jumps to the
     /// top): restores the scroll offset, then scrolls block <paramref name="focalIndex"/> back to
-    /// <paramref name="targetY"/> — so content added/removed elsewhere doesn't bounce the reader, and an
-    /// entered block lands at the mouse. Optionally keeps the caret on screen while typing.</summary>
+    /// <paramref name="targetY"/>. Optionally keeps the caret on screen while typing.</summary>
     private void AnchorScroll(double offset, int focalIndex, double? targetY, bool keepCaretVisible)
     {
         Dispatcher.BeginInvoke(() =>
@@ -2334,8 +2157,7 @@ public partial class InlineMarkdownEditor : UserControl
     {
         var text = SourceToRender(index);
 
-        // An empty formula is not an empty block: it is the formula you are about to write, and it has
-        // to be there for the caret to go into and the first character to be typed at.
+        // An empty formula is the formula you're about to write — it has to be there for the caret to go into.
         if (text.Trim().Length == 0 && !IsSingleBlock)
         {
             // Empty block while it is not being edited: a thin clickable line.
@@ -2369,13 +2191,9 @@ public partial class InlineMarkdownEditor : UserControl
         return p;
     }
 
-    /// <summary>
-    /// WPF trims/collapses leading, trailing and repeated spaces in a Run (even from the
-    /// model), which would drop characters from the source view. Render those spaces as
-    /// non-breaking spaces — they survive layout and stay 1:1 with the real spaces in the
-    /// block content, so caret offsets line up. Single spaces between words stay real so
-    /// the line can still wrap.
-    /// </summary>
+    /// <summary>WPF trims/collapses leading, trailing and repeated spaces in a Run, which would drop
+    /// characters from the source view. Collapsible spaces become non-breaking so caret offsets stay 1:1
+    /// with the block content; single spaces between words stay real so the line can still wrap.</summary>
     private static string PreserveSpaces(string line)
     {
         if (line.Length == 0) return line;
@@ -2422,11 +2240,6 @@ public partial class InlineMarkdownEditor : UserControl
         return p ?? _activePara.ContentEnd;
     }
 
-    /// <summary>
-    /// Shows the prompt only while there is nothing to read and nothing being written. A block holding
-    /// the caret counts as being written in even when the RichTextBox does not have the keyboard —
-    /// a formula draws its own caret, and a prompt sitting behind it reads as text already typed.
-    /// </summary>
     /// <summary>Hands the focus on to the text, so <see cref="UIElement.Focus"/> on this control works.</summary>
     protected override void OnGotFocus(RoutedEventArgs e)
     {
@@ -2434,15 +2247,8 @@ public partial class InlineMarkdownEditor : UserControl
         if (!_rtb.IsKeyboardFocusWithin) _rtb.Focus();
     }
 
-    /// <summary>
-    /// Shows the prompt whenever there is nothing to read — focused or not.
-    /// <para>
-    /// It used to hide on focus, which went unnoticed for as long as nothing focused the editor on the
-    /// way in. Now that something does, hiding on focus means it is never seen at all: the field you
-    /// have just been put into is exactly the one that needs to say what goes in it. What silences it
-    /// is content, which is the only thing it was ever standing in for.
-    /// </para>
-    /// </summary>
+    /// <summary>Shows the prompt whenever there is nothing to read — focused or not; a field just focused
+    /// is exactly the one that needs to say what goes in it, so only content silences it.</summary>
     private void UpdatePlaceholder()
         => _placeholder.Visibility =
             _blocks.All(b => b.Trim().Length == 0) && _placeholder.Text.Length > 0

@@ -7,19 +7,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
 /// <summary>
 /// How the retail symbologies print their number: which digits go where against the bars, and which
-/// bars run down past them.
+/// bars run down past them. Getting this shape wrong (e.g. one centred string) makes a correctly-encoded
+/// EAN-13 read as the wrong barcode.
 ///
 /// <para>
-/// This is not decoration. An EAN-13 is recognised by its shape — one digit out on its own to the left,
-/// two groups of six sitting in the wells the guard bars leave, the guards themselves dropping past the
-/// digits — and printed as one centred string underneath it reads as some other barcode entirely, even
-/// though every module is right. The reference images make the point better than any description: the
-/// bars matched and nothing else did.
-/// </para>
-/// <para>
-/// Worked out here from the symbology and the encoded text rather than threaded back through each
-/// encoder, because it is a property of the format and not of the encoding: every EAN-13 ever printed
-/// breaks in the same two places.
+/// Computed here from symbology + encoded text rather than in each encoder, since the grouping is a
+/// property of the format, not of the encoding — every EAN-13 breaks in the same two places.
 /// </para>
 /// </summary>
 internal static class BarcodeTextLayout
@@ -29,11 +22,7 @@ internal static class BarcodeTextLayout
 
     /// <summary>
     /// Describes <paramref name="text"/> against a symbol <paramref name="modules"/> wide.
-    /// <para>
-    /// Returns nothing for the symbologies that really do print their text as one run underneath, which
-    /// is every one outside the retail family — the caller then falls back to centring it, and no format
-    /// has to be listed here to be drawn correctly.
-    /// </para>
+    /// Returns empty for non-retail formats, which just centre their text — no listing needed here.
     /// </summary>
     /// <param name="value">The value as the author wrote it — where a caption's punctuation comes from.</param>
     internal static (IReadOnlyList<BarcodeTextRun> Runs, IReadOnlyList<(int Start, int Length)> Guards, string? Caption)
@@ -55,10 +44,8 @@ internal static class BarcodeTextLayout
 
             case BarcodeSymbology.Ean2:
             case BarcodeSymbology.Ean5:
-                // Nothing special. An add-on prints its digits above its bars only when it is standing beside a
-                // main symbol, where being above is what separates the two; asked for on its own it is an
-                // ordinary little barcode and prints them underneath like any other. Drawn above regardless,
-                // they landed on top of the bars and made the symbol unreadable.
+                // An add-on only prints above its bars when beside a main symbol; standalone it's an
+                // ordinary barcode — printing above regardless overlapped the digits on the bars.
                 return ([], [], null);
 
             case BarcodeSymbology.Isbn:
@@ -81,12 +68,8 @@ internal static class BarcodeTextLayout
         [(0, GuardWidth), (LeftHalf + HalfWidth, CentreWidth), (RightHalf + HalfWidth, GuardWidth)];
 
     /// <summary>
-    /// EAN-13: the first digit outside the bars, then six under each half.
-    /// <para>
-    /// The digit is outside because there is nothing encoding it — the left half's six symbols carry the
-    /// next six digits, and the thirteenth is carried by which parity pattern those six use. There is no
-    /// stretch of bar it could sit under, so it sits beside them.
-    /// </para>
+    /// EAN-13: the first digit outside the bars, then six under each half. It's outside because it isn't
+    /// separately encoded — it's carried by the parity pattern of the left half's six symbols.
     /// </summary>
     private static IReadOnlyList<BarcodeTextRun> Ean13Runs(string text)
     {
@@ -122,14 +105,8 @@ internal static class BarcodeTextLayout
     }
 
     /// <summary>
-    /// UPC-A: the number system digit outside on the left and the check digit outside on the right, with
-    /// five under each half.
-    /// <para>
-    /// The printed groups are deliberately not the encoded ones. Each half encodes six digits; what is
-    /// printed under it is five of them, because the two on the ends are set outside to mark where the
-    /// number begins and ends. It is the one place where reading the label and reading the bars give
-    /// different groupings of the same twelve digits.
-    /// </para>
+    /// UPC-A: number system digit outside left, check digit outside right, five digits under each half.
+    /// Each half actually encodes six digits — the printed grouping deliberately differs from the encoded one.
     /// </summary>
     private static IReadOnlyList<BarcodeTextRun> UpcRuns(string text)
     {
@@ -164,14 +141,9 @@ internal static class BarcodeTextLayout
     // ── Books, journals and printed music ──────────────────────────────────
 
     /// <summary>
-    /// A publication symbol is an EAN-13, optionally with an add-on beside it, under a caption naming
-    /// the number it stands for.
-    /// <para>
-    /// The caption is taken from what the author wrote rather than rebuilt from the thirteen digits,
-    /// because the hyphens are not derivable: where they fall depends on which registration group and
-    /// which registrant the number belongs to, which is a table nobody should be shipping to print one
-    /// line of text. What was typed is already correct.
-    /// </para>
+    /// A publication symbol is an EAN-13, optionally with an add-on, under a caption naming the number.
+    /// The caption uses the author's own text (not rebuilt from the digits) since where the hyphens fall
+    /// depends on registration-group tables not worth shipping just to reprint one line.
     /// </summary>
     private static (IReadOnlyList<BarcodeTextRun>, IReadOnlyList<(int, int)>, string?)
         Publication(BarcodeSymbology symbology, string value, string text, int modules)
@@ -201,30 +173,17 @@ internal static class BarcodeTextLayout
             _                     => "ISSN",
         };
 
-        // Only the number itself. Whatever followed it on the line is the add-on or an issue variant,
-        // and both are printed elsewhere on the symbol rather than in the caption.
+        // Only the number — an add-on or issue variant that follows it is printed elsewhere on the symbol.
         string number = value.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? value;
         return $"{name} {number}";
     }
 
-    // ── Reading the symbol as a tree ───────────────────────────────────────
-
     // ── Reading the symbol's text ──────────────────────────────────────────
 
     /// <summary>
-    /// What the symbol's text says: the caption, and each printed run of the number, every one of them
-    /// saying which characters of the value it came from.
-    ///
-    /// <para>
-    /// The text only. The bars and their guards are not read into anything, because no piece of what an
-    /// author typed is a guard — the guards are how a value is drawn, not part of what it says — and text
-    /// is the only place where "which characters of the value is this" has an answer at all.
-    /// </para>
-    /// <para>
-    /// Built on top of <see cref="Describe"/> rather than instead of it, because that is where each
-    /// family's structure is already worked out and checked. This only decides where, inside all of that,
-    /// the value itself is.
-    /// </para>
+    /// The symbol's text as a tree, each piece saying which characters of the value it came from. Bars
+    /// and guards are excluded — they draw the value, they aren't part of what it says. Builds on top of
+    /// <see cref="Describe"/>'s grouping rather than duplicating it.
     /// </summary>
     internal static BarcodePart Read(string value, string text,
                                      IReadOnlyList<BarcodeTextRun> runs, string? caption)
@@ -233,27 +192,22 @@ internal static class BarcodeTextLayout
 
         if (caption is { Length: > 0 }) parts.Add(ReadCaption(caption, value));
 
-        // Every format that does not break its number up prints it as one run underneath, which is what
-        // the caller would otherwise have to remember to do for it.
+        // Formats that don't break up their number print it as one run underneath by default.
         IReadOnlyList<BarcodeTextRun> printed = runs.Count > 0
             ? runs
             : [new BarcodeTextRun(text, 0, 0, BarcodeTextPlacement.Below)];
 
-        // Where the value is inside what is printed, found once for the whole number and then cut across
-        // the groups it is drawn in. The groups are where the guard bars fall and not what the number is
-        // made of, so a group can be part typed and part worked out — an EAN-13's last six digits are five
-        // of the reader's and then the check digit.
+        // Located once for the whole value, then cut across the printed groups — a group can be part
+        // typed and part generated, e.g. EAN-13's last six digits are five typed plus a check digit.
         var window = Window(text, value);
 
         var at = 0;
         foreach (var run in printed)
         {
-            // Where the run begins in what is printed. The runs are cut from it in order but not always edge to
-            // edge: a publication joins its add-on on with a space that no run prints.
+            // Runs are cut from the printed text in order but not always edge-to-edge (e.g. the add-on's joining space).
             if (text.IndexOf(run.Text, at, StringComparison.Ordinal) is var found and >= 0) at = found;
 
-            // Failing the value as a whole, a run can still print one word of it exactly as it was written — an
-            // add-on over its own bars, beside a number that went into the digits without its hyphens.
+            // Falls back to matching one word of the value exactly, for a run like the add-on that prints verbatim.
             parts.Add(BarcodePart.Read(
                 run.Placement == BarcodeTextPlacement.Above ? BarcodeRole.AddOn : BarcodeRole.Label,
                 run.Text,
@@ -268,27 +222,17 @@ internal static class BarcodeTextLayout
     }
 
     /// <summary>
-    /// Where the value sits inside a string that was printed from it: where in what is printed, where in the
-    /// value — the start of it — and how long it is. A negative start means it is not in there in one piece,
-    /// which is what taking an ISBN's hyphens out or dropping a Pharmacode's leading zero does.
-    /// <para>
-    /// One <c>IndexOf</c> is the whole of the rule, and it is worth saying why that is enough. Every one
-    /// of these formats either prints the value or prints it with something of its own on an end: a start
-    /// mark, a number system, a check digit. Whatever it adds, the value is still in there in one piece,
-    /// so finding it finds exactly the stretch an edit could be applied to — and a format that rearranges
-    /// its input instead is simply not found, and is treated as printing something worked out, which it is.
-    /// </para>
+    /// Where the value sits inside a printed string: (index in printed, index in value, length). A
+    /// negative index means it isn't there in one piece (e.g. ISBN's hyphens stripped, Pharmacode's
+    /// leading zero dropped) — every format either prints the value untouched or with something added to
+    /// an end, so a single IndexOf is enough; one that rearranges the value is correctly treated as not found.
     /// </summary>
     private static (int At, int From, int Length) Window(string printed, string value) =>
         value.Length == 0
             ? (-1, 0, 0)
             : (printed.IndexOf(value, StringComparison.Ordinal), 0, value.Length);
 
-    /// <summary>
-    /// A run that prints one word of the value exactly as it was written, where the value as a whole is nowhere
-    /// in what is printed. A publication's add-on is that: set over its own bars as typed, while the number
-    /// beside it lost its hyphens on the way into the digits.
-    /// </summary>
+    /// <summary>Matches a run against one word of the value verbatim, e.g. a publication's add-on printed as typed.</summary>
     private static (int At, int From, int Length) Word(string run, int at, string value)
     {
         foreach (var (word, from) in Words(value))
@@ -312,18 +256,10 @@ internal static class BarcodeTextLayout
     }
 
     /// <summary>
-    /// The caption, read the same way as anything else printed: a scheme's name that nobody typed, and
-    /// then the number as the author wrote it, hyphens and all.
-    /// <para>
-    /// It is the one place a publication's number appears as itself. The digits under the bars are that
-    /// number with the hyphens taken out and a check digit added, so they are a rendering of it, and the
-    /// caption is the thing to edit.
-    /// </para>
-    /// <para>
-    /// The number, not the whole value. Whatever followed it — an add-on, an issue variant — is printed
-    /// elsewhere on the symbol, and a caption asked to hold all of the value found none of it, which left an
-    /// ISBN with an add-on with nothing on it anybody could select.
-    /// </para>
+    /// The caption: a generated scheme name plus the number as the author wrote it (hyphens and all) — the
+    /// one place a publication's number appears as itself, since the digits under the bars are a rendering
+    /// of it. Matches only the number, not the whole value, so an add-on after it stays selectable there
+    /// instead of being wrongly claimed by the caption.
     /// </summary>
     private static BarcodePart ReadCaption(string caption, string value)
     {

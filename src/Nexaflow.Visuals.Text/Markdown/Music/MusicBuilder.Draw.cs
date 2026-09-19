@@ -17,15 +17,15 @@ namespace Nexaflow.Visuals.Text.Markdown.Music;
 /// and what belongs with what.
 ///
 /// <para>
-/// Everything above this has already decided where things go — <see cref="Justify"/> settles every
-/// <c>ev.X</c> and <see cref="Stack"/> every <c>StaffTop</c> — so this places nothing and only records.
-/// It goes on working in page coordinates, because that is what an engraver thinks in; what the tree
-/// stores is relative, and <see cref="LayoutBuilder.Anchor"/> is the one subtraction between the two.
+/// Placement is already decided by <see cref="Justify"/> (<c>ev.X</c>) and <see cref="Stack"/>
+/// (<c>StaffTop</c>) — this only records. It works in page coordinates, because that's what an engraver
+/// thinks in; the tree stores relative coordinates, and <see cref="LayoutBuilder.Anchor"/> is the one
+/// subtraction between the two.
 /// </para>
 /// <para>
-/// <strong>A piece is finished when it is closed.</strong> That is what changed, and it is why the beam
-/// is worked out before the notes under it are drawn rather than laid over them afterwards, and why the
-/// curves are paired before anything is drawn rather than gathering finished notes at the end.
+/// <strong>A piece is finished when it is closed</strong> — so a beam is worked out before the notes
+/// under it are drawn, and curves are paired before anything is drawn, rather than laid over finished
+/// output afterwards.
 /// </para>
 /// </summary>
 internal abstract partial class MusicBuilder
@@ -34,11 +34,8 @@ internal abstract partial class MusicBuilder
 
     /// <summary>
     /// What was drawn where, kept while a tune is engraved so the orderings can be declared once it is.
-    ///
-    /// <para>
-    /// Gathered rather than linked as it goes because an ordering is a run: it is only complete when the
-    /// last system is, and a lyric's run does not stop at a system's edge. See <see cref="Order"/>.
-    /// </para>
+    /// Gathered rather than linked as it goes: an ordering is a run that's only complete once the last
+    /// system is, and a lyric's run doesn't stop at a system edge. See <see cref="Order"/>.
     /// </summary>
     private readonly List<(Event Event, int At)> _heads = [];
     private readonly List<(Event Event, int At)> _chords = [];
@@ -46,19 +43,15 @@ internal abstract partial class MusicBuilder
     private readonly List<int> _sections = [];
 
     /// <summary>
-    /// Everything on the staff a drag passes along, in the order it was engraved: the notes, the rests, and the
-    /// bar lines between them. A bar line belongs on the run because it is on the staff — left off it, a drag
-    /// along the notes that reached one fell back to everything written between, and took the chord over the
-    /// next bar.
+    /// Everything on the staff a drag passes along, in engraved order: notes, rests, and the bar lines
+    /// between them. A bar line is on this run because it's on the staff — left off, a drag reaching one
+    /// fell back to everything written between it and took the chord over the next bar.
     /// </summary>
     private readonly List<int> _staff = [];
 
     // ── Page coordinates in, frames out ─────────────────────────────────────
 
-    /// <summary>
-    /// Opens a piece at a point on the page. Nothing for <paramref name="at"/> means the piece begins
-    /// where whatever holds it begins, which is what every part of another thing's drawing wants.
-    /// </summary>
+    /// <summary>Opens a piece at a page point; null <paramref name="at"/> starts it where its holder begins.</summary>
     private int Open(string kind, ISourcePart? part = null, Point? at = null) =>
         _build.Open(kind, part, at is { } page ? In(page) : default);
 
@@ -89,14 +82,10 @@ internal abstract partial class MusicBuilder
 
         if (systems.Count > 0) Justify(systems, width);
 
-        // The words are set to the width the music actually took rather than to the page it was offered. A
-        // tune shorter than the window is engraved narrower than it, and a title centred on the window would
-        // sit off to one side of the music it names.
-        //
-        // Asked of where the systems were justified to rather than of the ink they turned out to make. It
-        // is the same number to within an overhanging slur, and it is available before anything is drawn —
-        // which it has to be, because the heading is what the music starts under and a piece's anchor is
-        // fixed when it opens.
+        // Set to the width the music actually took, not the page offered — else a tune shorter than the
+        // window engraves narrower than it and a title centred on the window sits off to one side of the
+        // music it names. Taken from where systems were justified to (known before anything is drawn,
+        // which it must be — a piece's anchor is fixed when it opens) rather than the ink they made.
         var header = tune.Header;
         var paper = systems.Count == 0 ? width : systems.Max(s => s.Right) + RightMargin;
 
@@ -104,8 +93,7 @@ internal abstract partial class MusicBuilder
 
         var top = Heading(header, paper);
 
-        // …and the music is stacked below the heading rather than laid out and moved down afterwards.
-        // `Stack` already took the offset to start from; nothing else had ever passed it one.
+        // Music is stacked below the heading rather than laid out then moved down; `Stack` takes the offset directly.
         if (systems.Count > 0) Stack(systems, top);
 
         _build.Open("music");
@@ -115,8 +103,7 @@ internal abstract partial class MusicBuilder
             Pair(systems);
             foreach (var system in systems) Draw(system);
 
-            // A bracket joins staves that are already placed — it cannot be drawn until every staff has
-            // landed, which is why it comes after the loop rather than inside it.
+            // A bracket joins already-placed staves, so it can't be drawn until every staff has landed.
             Brackets(systems);
         }
 
@@ -156,8 +143,7 @@ internal abstract partial class MusicBuilder
 
         Voltas(system);
 
-        // The curves that reach further than any one bar, drawn on the line — which is the smallest thing
-        // that can hold both their ends.
+        // Curves reaching further than one bar are drawn on the line, the smallest thing holding both their ends.
         Hanging(system);
 
         Close();
@@ -218,15 +204,14 @@ internal abstract partial class MusicBuilder
 
     private void Meter(System system, double x, int beats, int unit, int? sign)
     {
-        // A sign where the tune wrote one — `M:C` and `M:C|` are asking for the symbol rather than for
-        // the figures they happen to count as.
+        // `M:C` / `M:C|` ask for the symbol, not the figures they happen to count as.
         if (sign is { } symbol)
         {
             Glyph("meter", symbol, new Point(x, Y(system, 4)));
             return;
         }
 
-        // Otherwise figures, one above the other, centred on the third and first spaces.
+        // Figures, one above the other, centred on the third and first spaces.
         var top = Digits(beats);
         var bottom = Digits(unit);
         var width = Math.Max(Width(top), Width(bottom));
@@ -251,10 +236,7 @@ internal abstract partial class MusicBuilder
 
     // ── A bar ───────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// The children of a bar that stand for events: a beamed run is one of them, and anything else is one
-    /// of its own. What a curve's ends are counted in when it gathers two of them.
-    /// </summary>
+    /// <summary>The bar's children as drawn: a beamed run counts as one, anything else stands alone.</summary>
     private static List<(ISourcePart? Beam, List<Event> Events)> Runs(Bar bar)
     {
         var runs = new List<(ISourcePart? Beam, List<Event> Events)>();
@@ -291,8 +273,7 @@ internal abstract partial class MusicBuilder
 
             var (beam, events) = runs[slot];
 
-            // Beamed runs are pieces of their own: the beam is drawn on the group and the notes it joins
-            // hang under it. Everything else hangs straight off the bar.
+            // Beamed runs are pieces of their own — the beam is drawn on the group, notes hang under it.
             if (beam is not null)
             {
                 Open("beam", Notes(events) ?? beam, new Point(events[0].X, system.StaffTop));
@@ -308,22 +289,12 @@ internal abstract partial class MusicBuilder
             foreach (var curve in Closing(sets, slot)) { Arced(curve); Close(); }
         }
 
-        // The chord named over a note and the words sung under it hang off the bar, beside the note
-        // rather than inside it. None of the three is drawn within another - a chord symbol sits in the
-        // air above the staff and a syllable in the lyric row below - and containment is supposed to say
-        // where ink went and how much room it takes. Hung off the note they made it a piece with children,
-        // which a pointer descends straight past, so half the notes in a tune could not be clicked at all
-        // and the press landed on the bar.
-        //
-        // Nor are the three wrapped in a box of their own. That box would have to live inside the beam
-        // group when the note is beamed, and it would drag the group's rectangle down through the lyric
-        // row - a beam that reports itself as seventy pixels tall because of a word. What groups the three
-        // is the moment `Order` declares, which is a way to step between them and not a thing anybody
-        // draws.
-        //
-        // In a pass of their own because a note may be inside a beam group when it is drawn and these are
-        // never inside one. A piece is finished when it is closed, so there is no writing back into the
-        // bar from within something it holds.
+        // Chord symbols and lyrics hang off the bar, beside the note rather than inside it — containment
+        // says where ink went and how much room it takes, and nesting them under the note would make
+        // pointer hit-testing descend straight past them to the note (unclickable) and would drag a beam
+        // group's reported height down through the lyric row. `Order` groups the three logically without
+        // drawing a container. Run as a separate pass because a note may sit inside a beam group when
+        // drawn, and a piece is finished (unwritable) once closed.
         foreach (var ev in bar.Events)
         {
             if (!ev.Invisible)
@@ -345,17 +316,10 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// A beamed run: the beam worked out first, then the notes drawn with their stems already reaching it.
-    ///
-    /// <para>
-    /// The order is the whole of what changed. A beam laid over finished notes has to write a stem back
-    /// into each of them, and a note is finished when it is closed — so the group's direction, slope and
-    /// height are settled before the first head goes down, which is what an engraver does anyway.
-    /// </para>
-    /// <para>
-    /// A curve joining two notes of this group is gathered here, among them, rather than at the bar: they
+    /// A beamed run: the beam is worked out first, then notes are drawn with stems already reaching it — a
+    /// note is finished once closed, so a beam laid over finished notes couldn't write a stem back into
+    /// each. A curve joining two notes of this group is gathered here rather than at the bar, since they
     /// share this parent and nothing else can span them without lifting them out of it.
-    /// </para>
     /// </summary>
     private void Beamed(System system, StaffGeometry geometry, Bar bar, ISourcePart beam, List<Event> events)
     {
@@ -391,13 +355,9 @@ internal abstract partial class MusicBuilder
     private sealed record BeamPlan(bool Down, double Reach, double Slope, IReadOnlyList<double> Xs, int Levels);
 
     /// <summary>
-    /// The beam over a written group.
-    /// <para>
-    /// One direction for the whole group — the note reaching furthest from the middle line decides — and a
-    /// slope that only leans where the group's contour genuinely leans. A run that climbs, falls and climbs
-    /// again beams flat, because a first-to-last slope drawn through a zig-zag asserts a direction the music
-    /// does not have.
-    /// </para>
+    /// The beam over a written group: one direction for the whole group (the note furthest from the middle
+    /// line decides), and a slope that only leans where the contour genuinely leans — a run that climbs,
+    /// falls and climbs again beams flat rather than asserting a direction via a first-to-last slope.
     /// </summary>
     private BeamPlan? Plan(System system, StaffGeometry geometry, List<Event> events)
     {
@@ -422,7 +382,7 @@ internal abstract partial class MusicBuilder
 
         var slope = Engraving.BeamSlope(xs, outer);
 
-        // The beam has to clear every stem in the group, so it is placed against the note that needs it most.
+        // Placed against the note that needs it most, since the beam must clear every stem in the group.
         var reach = down ? double.MinValue : double.MaxValue;
         for (var i = 0; i < events.Count; i++)
         {
@@ -465,10 +425,7 @@ internal abstract partial class MusicBuilder
         }
     }
 
-    /// <summary>
-    /// Which notes each level of beam runs between. The primary beam spans the whole group; a secondary one
-    /// runs only where both neighbours are short enough, and a lone short note gets a stub.
-    /// </summary>
+    /// <summary>Which notes each beam level spans: the primary spans the whole group; a secondary runs only where both neighbours are short enough, and a lone short note gets a stub.</summary>
     private static List<(int From, int To)> SpanOf(List<Event> events, int level)
     {
         if (level == 0) return [(0, events.Count - 1)];
@@ -493,16 +450,9 @@ internal abstract partial class MusicBuilder
     // ── An event ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// One event, as a note (or a rest) with its drawing hanging under it: the head, the accidental, the
-    /// ledger lines, the dots, the stem.
-    ///
-    /// <para>
-    /// Each of those is a piece rather than a mark on the note, which is what makes the note a
-    /// <em>parent</em>. A pointer lands on whichever piece it is over and climbs to the first thing the
-    /// source named - so a press on a stem or a ledger line means the note, said once rather than
-    /// special-cased. It is also the unit a drag would move: one piece, and its whole drawing with it,
-    /// because everything inside is measured from the note's own anchor.
-    /// </para>
+    /// One event as a note (or rest), with head, accidental, ledger lines, dots and stem each drawn as a
+    /// child piece rather than a mark — making the note a parent: a pointer over any child climbs to the
+    /// source part the note names, so a press on a stem or ledger line means the note without special-casing.
     /// </summary>
     private void Note(System system, StaffGeometry geometry, Event ev, bool flags,
                       double? toY = null, bool? stemsDown = null)
@@ -564,11 +514,8 @@ internal abstract partial class MusicBuilder
 
     /// <summary>
     /// Grace notes: cue-size heads crushed in before the main one, beamed where there are several and
-    /// slashed for an acciaccatura.
-    /// <para>
-    /// They belong to the note they precede — which is why they hang off its piece of layout rather than
-    /// standing beside it. Selecting the note takes them with it, which is what a reader means.
-    /// </para>
+    /// slashed for an acciaccatura. They hang off the main note's layout piece (not beside it), so
+    /// selecting the note takes them with it.
     /// </summary>
     private void Graces(System system, StaffGeometry geometry, Event ev)
     {
@@ -580,10 +527,8 @@ internal abstract partial class MusicBuilder
         var step = width + GraceStep;
         var x = ev.X - ev.AccidentalWidth - ev.GraceWidth + GraceGap;
 
-        // Where the beam sits, settled before anything is drawn: every stem in a beamed group has to
-        // reach the same line, so the highest note in the group decides for all of them. Drawing each
-        // stem to its own length and then laying a beam over the shortest left the others hanging short
-        // of it, which is why the group came out unattached.
+        // Settled before anything is drawn: every stem in the group must reach the same line, so the
+        // highest note decides for all of them.
         var heads = ev.Graces
             .Select(g => geometry.HalfSpacesAbove(g.Half))
             .Select(half => (Half: half, Y: Y(system, half)))
@@ -602,8 +547,7 @@ internal abstract partial class MusicBuilder
             for (var line = 10; line <= half; line += 2) Ledger(system, x, line, width);
             for (var line = -2; line >= half; line -= 2) Ledger(system, x, line, width);
 
-            // A grace note always stems up, whatever it sits on: the group is read as an ornament of the
-            // note after it rather than as music of its own, and a run of them reads as one gesture.
+            // A grace note always stems up, whatever it sits on — it's read as an ornament, not music of its own.
             var stemTop = beamed ? top : y - (StemLen * GraceScale);
             var stemX = x + width - (StemThick / 2);
             Rule(stemX - (StemThick / 2), stemTop, StemThick, y - stemTop);
@@ -618,16 +562,14 @@ internal abstract partial class MusicBuilder
         if (beamed && firstStem is { } from && lastStem is { } to)
             Rule(from, top, to - from, BeamThick * GraceScale);
 
-        // …and the slur to the note it ornaments, which is what says the two are one gesture rather than
-        // a very short note followed by another.
-        // From the middle of the group, not its last note: what the slur joins to the main note is the
-        // ornament as a whole.
+        // Slur to the note it ornaments, from the middle of the group (not the last note) since it joins
+        // the ornament as a whole to the main note.
         var middle = (firstStem ?? lastHead) + (((lastHead + width) - (firstStem ?? lastHead)) / 2);
         GraceSlur(system, geometry, ev, middle, heads.Max(h => h.Y));
 
         if (ev.GraceSlashed && firstStem is { } slashAt)
         {
-            // The slash of an acciaccatura, through the stem of the first grace note.
+            // The acciaccatura slash, through the first grace note's stem.
             var one = In(new Point(slashAt - (0.5 * S), top + (0.9 * S)));
             var other = In(new Point(slashAt + (0.5 * S), top - (0.2 * S)));
 
@@ -640,12 +582,8 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The marks on an event: the ones that hug the head, and the ones that stack clear of the staff.
-    /// <para>
-    /// Two rules rather than one, because they answer different questions. A staccato dot means <em>this
-    /// note</em> and so sits against it, on the side the stem is not; a fermata means <em>this moment</em>
-    /// and so sits above the staff whatever the note is doing, where the eye reads it along the line.
-    /// </para>
+    /// The marks on an event: head marks (staccato, tenuto — hug the head, opposite the stem, meaning
+    /// "this note") and staff marks (fermata — stack clear of the staff, meaning "this moment").
     /// </summary>
     private void Marks(System system, StaffGeometry geometry, Event ev)
     {
@@ -667,13 +605,10 @@ internal abstract partial class MusicBuilder
             at += down ? 2 : -2;
         }
 
-        // Above the staff and above whatever the notation already reached, so a run of high notes pushes
-        // its fermatas up with it rather than colliding.
-        //
-        // `Above` is the room the whole system reserved, so the row this lands on clears the highest note
-        // on the line — but a mark sits over *its own* note, and on a line with one high note everything
-        // else was being lifted to clear a note nowhere near it while the high note's own mark sat on the
-        // head. Taking the higher of the two is what makes a mark clear the note it belongs to.
+        // Above the staff and above whatever's already been reached, so a run of high notes pushes its
+        // fermatas up rather than colliding. `Above` is room reserved for the whole system's highest note,
+        // which over-lifts marks on notes nowhere near it — taking the higher of the two makes a mark
+        // clear the note it actually belongs to.
         var over = ev.Heads.Length == 0
             ? system.StaffTop
             : Y(system, geometry.HalfSpacesAbove(ev.Heads.Max())) - MarkRow;
@@ -721,14 +656,13 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The stem, and a flag when the note is not beamed. Stems point away from the middle line; a note
-    /// sitting on it stems up, which is what ABC engravers do.
+    /// The stem, and a flag when the note is not beamed. Stems point away from the middle line; a note on
+    /// it stems up (ABC convention).
     /// </summary>
     /// <param name="stemsDown">
-    /// Which way the whole group points, where this note is in one. <strong>A beamed note does not get to
-    /// decide for itself.</strong> The note reaching furthest from the middle line decides for all of them,
-    /// and a note that worked its own direction out would attach its stem to the other side of its head and
-    /// run it away from the beam — which draws as a stray line across the staff and is how this was found.
+    /// The whole beamed group's direction, where this note is in one — <strong>a beamed note never picks its
+    /// own</strong>. Letting it do so attaches the stem to the wrong side of the head and draws as a stray
+    /// line off the beam.
     /// </param>
     private void Stem(System system, StaffGeometry geometry, Event ev, bool flags,
                       double? toY = null, bool? stemsDown = null)
@@ -787,7 +721,7 @@ internal abstract partial class MusicBuilder
 
     private void Dots(System system, double x, int half, int dots)
     {
-        // A dot never sits on a line: a note on one takes its dots in the space above.
+        // A dot never sits on a line — a note on one takes its dots in the space above.
         var at = half % 2 == 0 ? half + 1 : half;
         var cursor = x + DotGap;
 
@@ -805,9 +739,7 @@ internal abstract partial class MusicBuilder
         var glyphs = ScoreText.Chord(text, ChordSize, _ppd);
         var at = new Point(ev.X, system.StaffTop - system.Above);
 
-        // Its own piece, naming the `"Am"` that was typed. A chord is a thing a reader picks out on its
-        // own — to read down the changes, to copy them, to retype one — and it cannot be any of that while
-        // it is a mark drawn on the note underneath it.
+        // Its own piece rather than a mark on the note, since a chord symbol is something a reader picks out on its own.
         var chord = Open("chord", ev.ChordPart, at);
         var (top, height) = Letters(ScoreText.Chord("Hg", ChordSize, _ppd));
         _build.Reserves(top, height);
@@ -818,15 +750,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The words under one note, and the line under a word held across it.
-    ///
-    /// <para>
-    /// A held syllable — ABC's <c>_</c>, and what a tie means for the words — is not sung again on the
-    /// next note, so what belongs under that note is not a syllable but the fact that the last one is
-    /// still going. Engravers draw that as a rule running from the end of the word to the note that ends
-    /// the hold. Drawn a note at a time, from the one before to this one, so a run of held notes comes
-    /// out as one unbroken line without anything needing to know how long the run is.
-    /// </para>
+    /// The words under one note, and the line under a word held across it. A held syllable (ABC's <c>_</c>,
+    /// or a tie) isn't re-sung, so it's drawn as a rule from the word's end to the holding note — a note at
+    /// a time, so a run of held notes comes out as one unbroken line without knowing the run's length.
     /// </summary>
     private void Lyrics(System system, Event ev, Event? before)
     {
@@ -845,9 +771,8 @@ internal abstract partial class MusicBuilder
             var glyphs = ScoreText.Build(hyphen ? text + "-" : text, LyricSize, _ppd);
             var at = new Point(ev.X + (_noteHead / 2) - (glyphs.Width / 2), y);
 
-            // Drawn under the note and written a line away, and the layout says the first while the part
-            // says the second. The two trees are free to look nothing alike, which is the only reason a
-            // syllable can be picked out of a verse without the note coming with it.
+            // Layout position (under the note) and source part (written a line away) deliberately diverge —
+            // that's what lets a syllable be picked out of a verse without the note coming with it.
             var sung = Open("syllable", part, at);
             var (top, height) = Letters(ScoreText.Build("Hg", LyricSize, _ppd));
             _build.Reserves(top, height);
@@ -863,9 +788,8 @@ internal abstract partial class MusicBuilder
     {
         var to = ev.X + (_noteHead / 2);
 
-        // From where the word it is holding actually ended, so the line starts clear of the letters
-        // rather than through them. A held note with nothing before it on this line — the run carried
-        // over a system break — starts at the head.
+        // Starts where the held word actually ended, clear of its letters. A run carried over a system
+        // break has nothing before it on this line, so it starts at the head instead.
         var from = before is null ? ev.X : (before.X + (_noteHead / 2));
         if (before?.Lyrics.FirstOrDefault(l => l.Verse == verse) is { Text.Length: > 0 } sung)
             from += (ScoreText.Width(sung.Text, LyricSize, _ppd) / 2) + (0.3 * S);
@@ -881,17 +805,8 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The slur from a grace group to the note it ornaments.
-    ///
-    /// <para>
-    /// Without it a grace is a small note standing beside a big one and nothing on the page says the two
-    /// belong together — which is the whole meaning of the notation.
-    /// </para>
-    /// <para>
-    /// It hangs below, from the underside of the grace head to the underside of the head it runs to.
-    /// Above is where the stems are — a grace always stems up — so a curve drawn over the top crosses
-    /// them, which is why it read as upside down.
-    /// </para>
+    /// The slur from a grace group to the note it ornaments — without it nothing on the page says the two
+    /// belong together. Hangs below, since a grace always stems up and a curve above would cross the stems.
     /// </summary>
     private void GraceSlur(System system, StaffGeometry geometry, Event ev, double from, double fromY)
     {
@@ -900,18 +815,14 @@ internal abstract partial class MusicBuilder
         var to = ev.X + (_noteHead / 2);
         if (to - from < 0.3 * S) return;
 
-        // The lowest head at each end, because the curve hangs under both.
+        // The lowest head at each end, since the curve hangs under both.
         var toY = Y(system, geometry.HalfSpacesAbove(ev.Heads.Min())) + CurveClear;
         Arc(new Point(from, fromY + CurveClear), new Point(to, toY), above: false, "grace-slur");
     }
 
     /// <summary>
-    /// The number over a tuplet, centred on the notes it covers.
-    /// <para>
-    /// Without it a triplet is three eighths that do not add up, and a reader has no way to know the tune
-    /// is not simply wrong. It goes on the side the stems point, clear of the beam — which is where a
-    /// reader looks for it, and is the opposite of where a mark on a head goes.
-    /// </para>
+    /// The number over a tuplet, centred on the notes it covers — without it a triplet reads as three
+    /// eighths that don't add up. Placed on the stem side, clear of the beam.
     /// </summary>
     private void Tuplets(System system, StaffGeometry geometry, Bar bar)
     {
@@ -952,10 +863,7 @@ internal abstract partial class MusicBuilder
         }
     }
 
-    /// <summary>
-    /// The line that closes a bar. It carries a part, because somebody wrote it: a reader can point at one,
-    /// and a selection of every note in a bar has to cover it before it can grow into the bar.
-    /// </summary>
+    /// <summary>The line closing a bar. Carries a part since somebody wrote it — a selection covering every note in a bar must include it before growing into the bar.</summary>
     private void DrawBarline(System system, Bar bar)
     {
         if (bar.Closed is null) return;
@@ -972,8 +880,7 @@ internal abstract partial class MusicBuilder
 
         var piece = Open("barline", line.Part, new Point(from, top));
 
-        // On the staff's run only where somebody wrote it: a line the meter implied names nothing, and a run is
-        // what a drag selects along.
+        // Only on the staff's run where somebody wrote it — a meter-implied line names nothing.
         if (line.Part is not null) _staff.Add(piece);
 
         foreach (var mark in written)
@@ -992,7 +899,7 @@ internal abstract partial class MusicBuilder
                     continue;
 
                 case ':':
-                    // The two dots of a repeat, in the second and third spaces.
+                    // Repeat dots, in the second and third spaces.
                     Dot(x, Y(system, 3));
                     Dot(x, Y(system, 5));
                     x += (0.5 * S) + (0.22 * S);
@@ -1017,15 +924,10 @@ internal abstract partial class MusicBuilder
     // ── Bracketed systems ───────────────────────────────────────────────────
 
     /// <summary>
-    /// What says two staves are played together rather than one after another: a bracket down their left,
-    /// and bar lines running through the gap between them.
-    ///
-    /// <para>
-    /// Both are drawn after every staff has been placed, because both are about the space <em>between</em>
-    /// two staves and neither exists until both have a position. The bar lines are taken off the topmost
-    /// staff of the group, which is only correct because the group shares one bar grid — where the voices
-    /// disagreed about where the bars are, nothing was bracketed and nothing is drawn.
-    /// </para>
+    /// What says two staves play together rather than one after another: a bracket down their left, and
+    /// bar lines through the gap between them. Both drawn after every staff is placed, since both concern
+    /// the space between two staves. Bar lines are taken off the topmost staff, which only works because
+    /// the group shares one bar grid — if the voices disagreed on bar positions, nothing is bracketed.
     /// </summary>
     private void Brackets(List<System> systems)
     {
@@ -1043,16 +945,14 @@ internal abstract partial class MusicBuilder
             var top = systems[at].StaffTop;
             var bottom = systems[last].StaffTop + StaffHeight;
 
-            // Clamped to the left edge rather than placed a bracket's width outside it: the margin is two
-            // pixels, so a bracket drawn where it belongs is half off the page.
+            // Clamped to the left edge: the margin is only two pixels, so a correctly-placed bracket would be half off the page.
             var x = Math.Max(0, LeftMargin - BracketWidth);
 
             Open("bracket", at: new Point(x, top));
 
             Rule(x, top, BracketWidth, bottom - top);
 
-            // A short hook at each end, which is what tells the eye the line is a bracket and not the
-            // start of a bar.
+            // A short hook at each end tells the eye this is a bracket, not a bar line.
             Rule(x, top, BracketWidth * 2, StaffLineThick * 2);
             Rule(x, bottom - (StaffLineThick * 2), BracketWidth * 2, StaffLineThick * 2);
 
@@ -1081,12 +981,8 @@ internal abstract partial class MusicBuilder
     // ── Repeat brackets ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// The numbered bracket over a repeat: <c>|1 … :|2 …</c>.
-    /// <para>
-    /// It runs from the bar the number was written on to the bar that ends the repeat, or to the next
-    /// number, or to the end of the system — whichever comes first. Which is three answers to one
-    /// question and is why this is worked out here rather than drawn bar by bar.
-    /// </para>
+    /// The numbered bracket over a repeat: <c>|1 … :|2 …</c>. Runs from the bar the number was written on
+    /// to whichever comes first of: the repeat's end, the next number, or the system's end.
     /// </summary>
     private void Voltas(System system)
     {
@@ -1108,8 +1004,7 @@ internal abstract partial class MusicBuilder
             Rule(left, y, right - left, StaffLineThick * 1.6);
             Rule(left, y, StaffLineThick * 1.6, VoltaTick);
 
-            // Closed on the right where what it covers stops — a repeat end, or a line that ends the
-            // music. Left open otherwise, which is how a bracket says it carries on into the next line.
+            // Closed on the right where it covers a repeat end or the music's end; open otherwise, meaning it carries into the next line.
             if (system.Bars[last].EndsRepeat || Closes(system.Bars[last].Closed))
                 Rule(right - (StaffLineThick * 1.6), y, StaffLineThick * 1.6, VoltaTick);
 
@@ -1134,18 +1029,14 @@ internal abstract partial class MusicBuilder
         Close();
     }
 
-    /// <summary>
-    /// Records a glyph on the piece being built. Drawn as a filled outline rather than as text,
-    /// deliberately: WPF's text pipeline gamma-corrects glyph coverage and visibly fattens a music font's
-    /// thin strokes.
-    /// </summary>
+    /// <summary>Records a glyph as a filled outline, not text — WPF's text pipeline gamma-corrects glyph coverage and visibly fattens a music font's thin strokes.</summary>
     private void Mark(int codepoint, Point baseline, double scale = 1.0)
     {
         var at = In(baseline);
 
         if (Smufl.Outline(codepoint, at, S, scale) is not { } outline)
         {
-            // No font. A hollow head of about the right size keeps the tune readable rather than blank.
+            // No font: a hollow head of about the right size keeps the tune readable rather than blank.
             var fallback = new EllipseGeometry(new Point(at.X + (_noteHead / 2), at.Y),
                                                _noteHead / 2, S * 0.35);
             fallback.Freeze();
@@ -1159,14 +1050,10 @@ internal abstract partial class MusicBuilder
     // ── Ties and slurs ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// A tie or a slur, and where its two ends can be gathered — worked out before anything is drawn.
-    ///
-    /// <para>
-    /// It has to be worked out first now. A piece is finished when it is closed, so a set cannot gather
-    /// notes that have already been drawn: it is opened around them as they are emitted. Everything the
-    /// pairing needs — which events, on which systems, in which bars — is settled by
-    /// <see cref="Justify"/> and <see cref="Stack"/>, both of which run before the tree is touched.
-    /// </para>
+    /// A tie or a slur, and where its two ends can be gathered — worked out before anything is drawn,
+    /// because a piece is finished once closed: a set can't gather notes already drawn, only be opened
+    /// around them as they're emitted. What pairing needs is settled by <see cref="Justify"/> and
+    /// <see cref="Stack"/>, both of which run before the tree is touched.
     /// </summary>
     private sealed class Curve
     {
@@ -1176,13 +1063,10 @@ internal abstract partial class MusicBuilder
         public required System ToSystem;
         public required string Kind;
 
-        /// <summary>
-        /// Which side it bows on — settled when the pair is made, because it is a fact about the stems it
-        /// has to clear rather than about either note.
-        /// </summary>
+        /// <summary>Which side it bows on — a fact about the stems it must clear, not about either note.</summary>
         public bool Above;
 
-        /// <summary>How many curves it encloses, so an outer one is drawn clear of the ones inside it.</summary>
+        /// <summary>How many curves it encloses, so an outer curve draws clear of those inside it.</summary>
         public int Nesting;
 
         /// <summary>The bar whose children it gathers, or null for one drawn on the line.</summary>
@@ -1211,8 +1095,7 @@ internal abstract partial class MusicBuilder
         for (var at = 0; at < placed.Count - 1; at++)
             if (placed[at].Event.TieStart) Joined(placed, at, at + 1, "tie");
 
-        // Slurs are matched with a stack because ABC allows them to nest: `((AA)A)` is two slurs, and the
-        // one that closes first is the one that opened last.
+        // A stack, since ABC allows slurs to nest: `((AA)A)` is two slurs, and the one that closes first opened last.
         var open = new Stack<int>();
 
         for (var at = 0; at < placed.Count; at++)
@@ -1230,14 +1113,8 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// One curve, and the smallest thing that can hold both its ends.
-    ///
-    /// <para>
-    /// Two notes of one beamed group are gathered inside it; two things in one bar are gathered there.
-    /// Anything reaching further — across a bar line, or across a system break, where it is not one curve
-    /// at all but two — is drawn on the line, which is what the re-parenting version fell back to when it
-    /// found no common ground.
-    /// </para>
+    /// One curve, and the smallest thing that can hold both its ends: a beamed group, or a bar. Anything
+    /// reaching further — across a bar line or a system break (two curves, not one) — is drawn on the line.
     /// </summary>
     private void Joined(List<(Event Event, System System, Bar Bar)> placed, int from, int to, string kind)
     {
@@ -1252,9 +1129,7 @@ internal abstract partial class MusicBuilder
             ToSystem = other.System,
             Kind = kind,
 
-                // Opposite the stems, which is the whole rule: a stem leaving the head upward is what the curve
-                // has to keep clear of, so it bows underneath, and the other way round for a down stem. Where
-                // the two ends disagree it goes above, which is the side with room.
+                // Opposite the stems: a curve bows away from wherever the stem leaves the head. Where the two ends disagree it goes above, the side with room.
                 Above = Engraving.StemDown(Stems(one)) || Engraving.StemDown(Stems(other)),
             };
 
@@ -1281,14 +1156,8 @@ internal abstract partial class MusicBuilder
 
     /// <summary>
     /// The half-spaces a curve's end has to clear: its beamed group's, where it is in one.
-    ///
-    /// <para>
-    /// <strong>The group decides, not the note.</strong> A beamed note does not choose its own stem
-    /// direction — the one reaching furthest from the middle line decides for all of them — and what a
-    /// curve keeps clear of is the stem that was actually drawn. Asking the note alone put the slur of
-    /// <c>(AB)</c> above a group whose stems went up: B sits on the middle line, and a note there stems
-    /// down when it is on its own.
-    /// </para>
+    /// <strong>The group decides, not the note</strong> — a beamed note doesn't choose its own stem
+    /// direction, so a curve keeps clear of the stem actually drawn, not the one the note alone would pick.
     /// </summary>
     private static List<int> Stems((Event Event, System System, Bar Bar) at)
     {
@@ -1298,7 +1167,7 @@ internal abstract partial class MusicBuilder
             ? at.Bar.Events.Where(e => ReferenceEquals(e.Beam, beam) && e.Beamable).ToList()
             : [];
 
-        // The same test the beam itself makes: fewer than two and every note stems for itself.
+        // The same test the beam makes: fewer than two, and every note stems for itself.
         var events = run.Count > 1 && run.Contains(at.Event) ? run : [at.Event];
         var halves = events.SelectMany(e => e.Heads.Select(geometry.HalfSpacesAbove)).ToList();
 
@@ -1326,13 +1195,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// Which of the pairs can actually be a piece, and which have to hang on the line.
-    ///
-    /// <para>
-    /// A set is a parent, and two parents cannot each hold half of the other's children — so where two
-    /// curves overlap without one containing the other, the second one drawn hangs instead. Widest first,
-    /// so a slur covering another gathers it rather than colliding with it.
-    /// </para>
+    /// Which pairs can be a piece, and which have to hang on the line. A set is a parent, and two parents
+    /// can't each hold half the other's children — so where two curves overlap without containment, the
+    /// second drawn hangs instead. Widest first, so a slur covering another gathers it.
     /// </summary>
     private void Nest()
     {
@@ -1353,8 +1218,7 @@ internal abstract partial class MusicBuilder
                 taken.Add(curve);
                     }
 
-                    // How many each one encloses, so an outer curve is drawn clear of the curves inside it rather
-                    // than along the same arc. Two slurs at the same rise read as one thick slur.
+                    // How many each encloses, so an outer curve draws clear of those inside it rather than at the same rise.
                     foreach (var curve in taken)
                         curve.Nesting = taken.Count(inner => !ReferenceEquals(inner, curve)
                                                              && inner.First >= curve.First && inner.Last <= curve.Last);
@@ -1390,14 +1254,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The curves that reach further than a bar, each on the line it is drawn on.
-    ///
-    /// <para>
-    /// A curve that crosses a break is two curves — out to the right edge, and in from the left of the
-    /// next — which is what an engraver does. That the two halves are one thing is a fact about what was
-    /// written, and the parse tree is where that fact lives; on the page they are two arcs on two lines,
-    /// and the layout is a picture of the page.
-    /// </para>
+    /// The curves that reach further than a bar, each drawn on its own line. A curve crossing a system
+    /// break is two arcs — out to the right edge, in from the left of the next — since the layout is a
+    /// picture of the page; that the two halves are one thing is a fact the parse tree keeps instead.
     /// </summary>
     private void Hanging(System system)
     {
@@ -1435,10 +1294,7 @@ internal abstract partial class MusicBuilder
         }
     }
 
-    /// <summary>
-    /// Where a curve leaves a note: clear of the head, on the side away from the stems, and clear again of
-    /// whatever it encloses.
-    /// </summary>
+    /// <summary>Where a curve leaves a note: clear of the head, opposite the stems, clear again of whatever it encloses.</summary>
     private static double Springs(Event ev, System system, bool above, double clear = 0)
     {
         var halves = Halves(ev, system);
@@ -1457,17 +1313,10 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The crescent itself: two Béziers with the same ends, bowing by different amounts, so it is thin
-    /// where it meets a head and thickest in the middle. A stroked arc of even thickness reads as a
-    /// drawing of a slur rather than as one.
-    ///
-    /// <para>
-    /// <strong>It carries no part.</strong> Nobody typed it — the <c>-</c> and the <c>(</c> that asked for
-    /// it are marks on the notes either side, and the arc between them is how those are drawn. Giving it
-    /// one looked tempting and is wrong twice over: it would offer itself as a caret stop spanning both
-    /// notes, and being shallower than either it would win, so the caret would take the whole arc's height
-    /// wherever a tie began.
-    /// </para>
+    /// The crescent itself: two Béziers with the same ends, bowing by different amounts so it's thin at
+    /// the heads and thickest in the middle — an evenly-stroked arc reads as a drawing of a slur, not one.
+    /// <strong>It carries no part.</strong> Nobody typed it directly; giving it one would offer a shallow
+    /// caret stop spanning both notes that wins over the actual notes wherever a tie begins.
     /// </summary>
     private void Arc(Point from, Point to, bool above, string kind, double clear = 0)
     {
@@ -1498,37 +1347,24 @@ internal abstract partial class MusicBuilder
     // ── What belongs with what ──────────────────────────────────────────────
 
     /// <summary>
-    /// Declares what selection may step through: each layer along its own length, and everything sounding
-    /// at one moment as a stack.
+    /// Declares what selection may step through: each layer along its own length (notes, chords, each
+    /// verse), and everything sounding at one moment as a stack (chord, note, syllables — top to bottom).
     ///
     /// <para>
-    /// <strong>The layers run the length of the tune, not of a system.</strong> A verse carries on across
-    /// a line break — that is what a verse <em>is</em> — and so does the music. Stopping a run at the edge
-    /// of a system would be describing the page rather than the piece.
+    /// <strong>Layers run the length of the tune, not of a system</strong> — a verse (and the music)
+    /// carries on across a line break, so stopping a run at a system edge would describe the page rather
+    /// than the piece.
     /// </para>
     /// <para>
-    /// The stack is what sounds together: the chord named over a note, the note, and the syllables sung on
-    /// it, top to bottom as they are drawn. Between them the two orderings say everything a reader means
-    /// by dragging — along a verse, down through the parts at a moment, or a block of both.
-    /// </para>
-    /// <para>
-    /// It is also, deliberately, the structure an animation would need. Notes appearing as they are
-    /// played is the note layer in order; notes then words then chords is the layers in turn; a bar at a
-    /// time with all three is the bars, each with its stacks. All three are walks over what is declared
-    /// here, so none of them would need this rebuilt.
+    /// Also, deliberately, the structure a playback animation would need — notes in order, layers in turn,
+    /// or bar by bar with stacks — all walks over what's declared here.
     /// </para>
     /// </summary>
     private void Order()
     {
-        // Along each layer, in the order they were engraved — which is the order they are read.
-        //
-        // A run is the layout's own order with the lines ignored, and that is the whole of what declaring
-        // one adds. Containment already puts the notes of a bar in order and the bars of a line in order,
-        // and stepping off the end of one falls into the next by itself. What containment cannot say is
-        // that the last note of a line and the first of the next are neighbours — a line break is a fact
-        // about the paper rather than about the tune. The chords and the verses are that same order with
-        // everything that is not a chord, or not a syllable of that verse, left out. The staff's own run keeps
-        // its rests and bar lines: they are on the staff, and a drag along it passes over them.
+        // Along each layer, in engraved (= read) order. A run adds what containment can't say: that the
+        // last note of a line and the first of the next are neighbours, since a line break is a fact about
+        // the paper, not the tune. The staff's run keeps its rests and bar lines too, since a drag along it passes over them.
         _build.Runs(_sections, vertical: false);
         _build.Runs(_staff, vertical: false);
         _build.Runs([.. _chords.Select(c => c.At)], vertical: false);
@@ -1536,7 +1372,7 @@ internal abstract partial class MusicBuilder
         foreach (var verse in _sung.GroupBy(s => s.Verse).OrderBy(g => g.Key))
             _build.Runs([.. verse.Select(v => v.At)], vertical: false);
 
-        // …and down through everything that sounds at one moment.
+        // Down through everything that sounds at one moment.
         var chords = _chords.ToDictionary(c => c.Event, c => c.At);
         var sung = _sung.GroupBy(s => s.Event).ToDictionary(g => g.Key, g => g.OrderBy(s => s.Verse).ToList());
 
@@ -1552,9 +1388,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// Where a line of text's letters actually are inside the box it is laid out in — from the top of a
-    /// capital to the bottom of a descender. The box also holds the line's leading, and a wash or a caret that
-    /// took the whole box reached into the line above and the line below, lyrics set as close as they are.
+    /// Where a text line's letters actually sit inside its layout box — top of a capital to bottom of a
+    /// descender, excluding leading. Needed because a wash or caret using the whole box reaches into the
+    /// line above/below given how tightly lyrics are set.
     /// </summary>
     private static (double Top, double Height) Letters(FormattedText sample)
     {
@@ -1563,9 +1399,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// What a beamed run names: its notes, from the first to the last. Not the group as it was read, which
-    /// begins at a chord symbol written before its first note — <c>"D"GFGA</c> — so selecting the notes of a
-    /// run took the chord above them with it the moment a drag along the staff reached the run.
+    /// What a beamed run names: its notes, first to last — not the group as read, which can begin at a
+    /// chord symbol before the first note (<c>"D"GFGA</c>) and would otherwise drag the chord into a
+    /// note-only selection.
     /// </summary>
     private static ISourcePart? Notes(List<Event> events)
     {

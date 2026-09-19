@@ -12,7 +12,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Qr;
 /// <para>
 /// This is where nearly all the value of the block lives. A QR code carries text and nothing else; a
 /// phone knows to offer "join this network" or "add this contact" only because the text follows a
-/// convention ΓÇö <c>WIFI:</c>, a vCard, <c>SMSTO:</c>, a BIP-21 URI. Getting the escaping and the field
+/// convention — <c>WIFI:</c>, a vCard, <c>SMSTO:</c>, a BIP-21 URI. Getting the escaping and the field
 /// order right is the difference between a code that does something and one that shows a wall of
 /// punctuation, so each builder here is written against the convention its scanners expect rather
 /// than being glued together from the fields in source order.
@@ -143,7 +143,7 @@ internal static class QrPayload
         }
     }
 
-    // ΓöÇΓöÇ Builders ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Builders ───────────────────────────────────────────────────────────
 
     private static string BuildMailto(string address, string? subject, string? body)
     {
@@ -161,8 +161,8 @@ internal static class QrPayload
     /// <para>
     /// A colon on its own is not enough to tell: <c>example.com:8080</c> is a host and a port, and
     /// treating it as a scheme would leave a code that scans as plain text and opens nothing. So a colon
-    /// followed by a digit reads as a port, and anything else after a well-formed scheme name ΓÇö the
-    /// <c>mailto:</c>, <c>tel:</c> and <c>bitcoin:</c> a URL block may reasonably carry ΓÇö reads as a scheme.
+    /// followed by a digit reads as a port, and anything else after a well-formed scheme name — the
+    /// <c>mailto:</c>, <c>tel:</c> and <c>bitcoin:</c> a URL block may reasonably carry — reads as a scheme.
     /// </para>
     /// </summary>
     private static bool HasScheme(string url)
@@ -256,7 +256,7 @@ internal static class QrPayload
         }
 
         // Wrapped in a VCALENDAR rather than emitted as a bare VEVENT. Some readers take the bare form,
-        // but the wrapper is what every calendar app accepts ΓÇö and PRODID and VERSION are what make this
+        // but the wrapper is what every calendar app accepts — and PRODID and VERSION are what make this
         // a valid iCalendar object rather than one that happens to be tolerated.
         var sb = new StringBuilder();
         void Line(string s) => sb.Append(s).Append("\r\n");
@@ -278,7 +278,7 @@ internal static class QrPayload
 
     private static string BuildCrypto(string coin, string address, string? amount)
     {
-        // BIP-21 and the schemes modelled on it: <coin>:<address>[?amount=ΓÇª].
+        // BIP-21 and the schemes modelled on it: <coin>:<address>[?amount=…].
         string scheme = coin.Trim().ToLowerInvariant() switch
         {
             "btc"  => "bitcoin",
@@ -295,7 +295,7 @@ internal static class QrPayload
     }
 
     /// <summary>
-    /// An EPC069-12 credit transfer ΓÇö the "GiroCode" printed on European invoices. Twelve line-separated
+    /// An EPC069-12 credit transfer — the "GiroCode" printed on European invoices. Twelve line-separated
     /// elements in a fixed order, of which the trailing empty ones may be dropped.
     /// <para>
     /// Version 002 is emitted rather than 001 because it makes the BIC optional, which for an IBAN inside
@@ -312,7 +312,7 @@ internal static class QrPayload
         string account = iban.Replace(" ", string.Empty).ToUpperInvariant();
         if (!IsValidIban(account))
         {
-            error = $"`iban: {iban}` is not a valid IBAN ΓÇö the check digits do not match. "
+            error = $"`iban: {iban}` is not a valid IBAN — the check digits do not match. "
                   + "A typo here produces a code the bank rejects, so it is caught before the code is drawn.";
             return false;
         }
@@ -358,7 +358,7 @@ internal static class QrPayload
         string[] lines =
         [
             "BCD",                      // service tag
-            "002",                      // version ΓÇö 002 makes the BIC optional
+            "002",                      // version — 002 makes the BIC optional
             "1",                        // character set: UTF-8
             "SCT",                      // SEPA credit transfer
             bic       ?? string.Empty,
@@ -412,7 +412,7 @@ internal static class QrPayload
     }
 
     /// <summary>
-    /// DENSO Wave's MECARD ΓÇö the compact contact format, one line, fewer fields than a vCard and a much
+    /// DENSO Wave's MECARD — the compact contact format, one line, fewer fields than a vCard and a much
     /// smaller symbol for it. Kept beside <c>vcard</c> rather than replacing it because the two are a real
     /// trade: vCard carries the organisation and job title, MECARD scans faster and older readers know it.
     /// </summary>
@@ -421,7 +421,7 @@ internal static class QrPayload
     {
         var sb = new StringBuilder("MECARD:");
 
-        // N takes "last,first" ΓÇö the comma is a separator, so each half is escaped on its own and joined
+        // N takes "last,first" — the comma is a separator, so each half is escaped on its own and joined
         // with a raw one.
         int split = name.LastIndexOf(' ');
         string family = split > 0 ? name[(split + 1)..] : name;
@@ -452,7 +452,7 @@ internal static class QrPayload
         return sb.ToString();
     }
 
-    // ΓöÇΓöÇ Escaping and parsing helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Escaping and parsing helpers ───────────────────────────────────────
 
     /// <summary>Backslash-escapes the characters that would otherwise end a WIFI: field.</summary>
     private static string EscapeWifi(string value)

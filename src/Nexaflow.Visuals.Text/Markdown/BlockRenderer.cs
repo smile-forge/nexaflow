@@ -25,15 +25,9 @@ using WpfInline      = System.Windows.Documents.Inline;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
-/// <summary>
-/// Converts a single Markdig <see cref="MdBlock"/> into a WPF
-/// <see cref="FrameworkElement"/>.  Pure rendering — no editor coupling.
-///
-/// Colours and the link-navigation hook come from a
-/// <see cref="MarkdownRenderContext"/> (a <see cref="MarkdownPalette"/> converts
-/// implicitly; defaults to <see cref="MarkdownPalette.Dark"/>). Fonts and sizes
-/// are theme-independent.
-/// </summary>
+/// <summary>Converts a single Markdig <see cref="MdBlock"/> into a WPF <see cref="FrameworkElement"/>. Pure
+/// rendering — no editor coupling. Colours and the link-navigation hook come from a
+/// <see cref="MarkdownRenderContext"/> (defaults to <see cref="MarkdownPalette.Dark"/>).</summary>
 public static class BlockRenderer
 {
     // ── Theme-independent typography ──────────────────────────────────────
@@ -41,12 +35,9 @@ public static class BlockRenderer
     internal static readonly FontFamily BodyFont = new("Segoe UI");
     internal static readonly FontFamily MonoFont = new("Consolas, Courier New");
 
-    /// <summary>
-    /// The body size this document's typography was drawn at. Not what anything renders at — that is
-    /// <see cref="MarkdownRenderContext.BaseFontSize"/>, which the shell's text size and a viewer's zoom
-    /// both move. It survives as the denominator of the ratios below, so the proportions stay the ones
-    /// that were designed rather than becoming whatever the current setting happens to be.
-    /// </summary>
+    /// <summary>The body size this document's typography was drawn at — not what anything renders at (that's
+    /// <see cref="MarkdownRenderContext.BaseFontSize"/>). Kept as the denominator of the ratios below so
+    /// proportions stay as designed regardless of the current setting.</summary>
     internal const double DesignBodySize = 13.5;
 
     /// <summary>h1–h6 as multiples of body. Levels beyond six clamp onto the last.</summary>
@@ -56,8 +47,8 @@ public static class BlockRenderer
         16 / DesignBodySize, 14.5 / DesignBodySize, 1.0,
     ];
 
-    /// <summary>Monospace runs — code blocks, inline code, a formula shown as its source. Slightly under
-    /// body, because a monospace face reads larger than a proportional one at the same point size.</summary>
+    /// <summary>Monospace runs. Slightly under body because a monospace face reads larger than a
+    /// proportional one at the same point size.</summary>
     private const double CodeRatio = 12 / DesignBodySize;
 
     /// <summary>Figure captions and footers — secondary text, set down from body.</summary>
@@ -97,10 +88,8 @@ public static class BlockRenderer
 
     // ── Public entry point ────────────────────────────────────────────────
 
-    /// <param name="rawMarkdown">
-    /// The raw markdown source for this block.  Required for accurate math
-    /// formula extraction; ignored by all other block types.
-    /// </param>
+    /// <param name="rawMarkdown">The raw markdown source for this block. Required for accurate math formula
+    /// extraction; ignored by all other block types.</param>
     /// <param name="context">Colours + link hook; defaults to <see cref="MarkdownPalette.Dark"/>.</param>
     public static FrameworkElement Render(MdBlock block, string rawMarkdown = "", MarkdownRenderContext? context = null)
     {
@@ -200,8 +189,8 @@ public static class BlockRenderer
 
     // ── Nothing (suppressed blocks: YAML front matter) ────────────────────
 
-    /// <summary>A zero-size, collapsed placeholder for blocks that are parsed but deliberately not
-    /// drawn (e.g. YAML front matter). Keeps the single-element render contract without taking layout space.</summary>
+    /// <summary>Zero-size, collapsed placeholder for parsed-but-not-drawn blocks (e.g. YAML front matter) —
+    /// keeps the single-element render contract without taking layout space.</summary>
     private static FrameworkElement RenderNothing() =>
         new Grid { Visibility = Visibility.Collapsed, Height = 0, Margin = new Thickness(0) };
 
@@ -255,9 +244,9 @@ public static class BlockRenderer
         };
     }
 
-    /// <summary>Maps an alert kind to its accent brush + title-cased label. The five GitHub kinds
-    /// get distinct semantic colours; any other kind falls back to the accent colour. Shared with
-    /// <see cref="MarkdownFlowDocument"/>'s native (text-selectable) alert rendering.</summary>
+    /// <summary>Maps an alert kind to its accent brush + title-cased label. The five GitHub kinds get
+    /// distinct semantic colours; others fall back to the accent colour. Shared with
+    /// <see cref="MarkdownFlowDocument"/>'s native alert rendering.</summary>
     internal static (Brush accent, string label) AlertStyle(string kind, MarkdownPalette p) =>
         kind.Trim().ToUpperInvariant() switch
         {
@@ -400,9 +389,9 @@ public static class BlockRenderer
                     ? table.ColumnDefinitions[colIdx].Alignment ?? TableColumnAlign.Left
                     : TableColumnAlign.Left;
 
-                // A single-paragraph cell (every pipe-table cell, most grid cells) keeps the styled,
-                // aligned text fast-path. Cells with block content (grid tables: lists, multiple
-                // paragraphs) render every child block so nothing is silently dropped.
+                // A single-paragraph cell (every pipe-table cell, most grid cells) keeps the styled fast
+                // path; a cell with block content (grid tables: lists, multiple paragraphs) renders every
+                // child block instead.
                 FrameworkElement content;
                 if (cell.Count == 1 && cell[0] is ParagraphBlock pb)
                 {
@@ -552,12 +541,9 @@ public static class BlockRenderer
 
     // ── Math block ($$ ... $$) ────────────────────────────────────────────
 
-    /// <summary>
-    /// Places a rendered sub-block across the column — see
-    /// <see cref="MarkdownRenderContext.SubblockAlignment"/>. Applied here rather than inside each
-    /// renderer so a formula, a score and a diagram on one surface cannot disagree about where they
-    /// sit; each keeps its own default when the surface has no opinion.
-    /// </summary>
+    /// <summary>Places a rendered sub-block per <see cref="MarkdownRenderContext.SubblockAlignment"/>.
+    /// Applied here, not inside each renderer, so a formula/score/diagram on one surface can't disagree
+    /// about where they sit.</summary>
     private static FrameworkElement Aligned(FrameworkElement element, MarkdownRenderContext ctx)
     {
         if (ctx.SubblockAlignment is { } alignment) element.HorizontalAlignment = alignment;
@@ -567,8 +553,7 @@ public static class BlockRenderer
     private static FrameworkElement RenderMathBlock(MathBlock mb, string rawMarkdown, MarkdownRenderContext ctx)
     {
         var p = ctx.Palette;
-        // Prefer raw-text extraction (strip the $$ fence lines) so that we are
-        // not affected by any Markdig version quirks in StringLineGroup.ToString().
+        // Prefer raw-text extraction (strip the $$ fence lines) to avoid Markdig version quirks in StringLineGroup.ToString().
         string latex;
         if (!string.IsNullOrWhiteSpace(rawMarkdown))
         {
@@ -577,10 +562,8 @@ public static class BlockRenderer
             int first = 1;
             int last  = raw.Length - 1;
             while (last > first && raw[last].Trim() is "" or "$$") last--;
-            // Not trimmed. The space after a control word is what tells LaTeX where the name stopped,
-            // so trimming one off the end quietly turns "\alpha " into "\alpha" — and the next thing
-            // typed into it into "\alphax". The fence lines are already excluded by the slice; what is
-            // left is what was written, and TeX ignores the whitespace that does not mean anything.
+            // Not trimmed: the space after a control word tells LaTeX where the name stopped, so trimming
+            // it quietly turns "\alpha " into "\alpha" — and typing into it into "\alphax".
             latex = (last >= first) ? string.Join('\n', raw[first..(last + 1)]) : string.Empty;
         }
         else
@@ -588,9 +571,8 @@ public static class BlockRenderer
             latex = mb.Lines.ToString().Trim();
         }
 
-        // An empty block is built too: an empty maths block is an empty formula, which is what a caret
-        // goes into and a first character is typed at. Refusing it would make "start writing a formula"
-        // the one thing the editor could not do.
+        // An empty maths block is an empty formula that a caret goes into and types the first character at —
+        // refusing it would make "start writing a formula" the one thing the editor couldn't do.
         try
         {
             var formula = new FormulaElement(latex, p, Body(ctx) * DisplayFormulaRatio)
@@ -599,12 +581,10 @@ public static class BlockRenderer
                 Margin              = new Thickness(0, 8, 0, 8)
             };
 
-            // A formula with something wrong in it still typesets. Editable maths is invalid most of
-            // the time — every command is unreadable until its last letter is typed — so "it does not
-            // parse" cannot mean "show the source in a box": the parser recovers, draws what it could
-            // read, shows the rest as the characters actually written, and waves under them. Even
-            // when none of it could be laid out the element is still the better answer, because it
-            // shows that same source and stays something the caret can go into and repair.
+            // A formula with something wrong in it still typesets: editable maths is invalid most of the
+            // time (every command is unreadable until its last letter is typed), so "does not parse" can't
+            // mean "show the source in a box" — the parser recovers, draws what it could, and waves under
+            // the rest, staying something the caret can go into and repair.
             return formula;
         }
         catch { }
@@ -672,7 +652,6 @@ public static class BlockRenderer
         switch (inline)
         {
             case TaskList tl:
-                // Render task list checkbox
                 target.Add(new Run(tl.Checked ? "☑ " : "☐ ")
                 {
                     Foreground = tl.Checked ? p.Accent : p.TextMuted
@@ -689,7 +668,7 @@ public static class BlockRenderer
                 break;
 
             case EmphasisInline ei when ei.DelimiterChar == '"':
-                // Citation (""text"") — Markdig's UseCitations delimiter; rendered as smaller raised text in a distinct colour
+                // Citation (""text"") — Markdig's UseCitations delimiter
                 var citeSpan = new Span
                 {
                     Foreground = p.Citation,
@@ -701,8 +680,7 @@ public static class BlockRenderer
                 break;
 
             case EmphasisInline ei when ei.DelimiterChar is '~' or '^' or '=' or '+':
-                // Emphasis-extras (UseEmphasisExtras): strikethrough ~~x~~, subscript ~x~,
-                // superscript ^x^, marked ==x==, inserted ++x++.
+                // Emphasis-extras (UseEmphasisExtras)
                 Span extraSpan = ei.DelimiterChar switch
                 {
                     '~' when ei.DelimiterCount >= 2 => new Span { TextDecorations = TextDecorations.Strikethrough },
@@ -716,7 +694,6 @@ public static class BlockRenderer
                 break;
 
             case EmphasisInline ei:
-                // Bold / italic (and strong)
                 Span emphSpan;
                 if (ei.DelimiterCount >= 2)
                     emphSpan = new Span { FontWeight = FontWeights.Bold };
@@ -740,8 +717,7 @@ public static class BlockRenderer
             case LinkInline link when link.IsImage:
                 if (TryRenderImage(link.Url, ctx) is { } image)
                     target.Add(image);
-                else
-                    // Unresolved/remote image → show its alt text so nothing is silently lost.
+                else   // unresolved/remote image → show its alt text so nothing is silently lost
                     foreach (var child in link) AddInlines(target, child, ctx);
                 break;
 
@@ -753,7 +729,7 @@ public static class BlockRenderer
                 break;
 
             case AutolinkInline auto:
-                // CommonMark <https://…> / <user@host> — a distinct inline from LinkInline; the URL is also the label.
+                // CommonMark <https://…> / <user@host> — the URL is also the label
                 var autoLink = NewHyperlink(auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
                 autoLink.Inlines.Add(new Run(auto.Url) { Tag = auto.Span });
                 Decorate(autoLink, auto.IsEmail ? $"mailto:{auto.Url}" : auto.Url, ctx);
@@ -761,8 +737,6 @@ public static class BlockRenderer
                 break;
 
             case AbbreviationInline abbr:
-                // *[HTML]: HyperText… — an occurrence of a defined abbreviation; the label shows
-                // with a dotted underline and the definition appears as a hover tooltip.
                 target.Add(MakeAbbreviation(abbr, p));
                 break;
 
@@ -774,8 +748,8 @@ public static class BlockRenderer
                 var miLatex = mi.Content.ToString();
                 try
                 {
-                    // Carry where the LaTeX sits in the block's source (delimiters excluded), so an
-                    // editing host can splice a change back into the sentence it came from.
+                    // SourceStart/Length carry where the LaTeX sits in the block's source (delimiters
+                    // excluded), so an editing host can splice a change back into the sentence.
                     var ctrl = new FormulaElement(miLatex, p, Body(ctx), inline: true)
                     {
                         SourceStart  = mi.Content.Start,
@@ -805,32 +779,29 @@ public static class BlockRenderer
         }
     }
 
-    /// <summary>
-    /// Builds a navigable <see cref="Hyperlink"/> (shared by inline links and autolinks): the in-app
-    /// <see cref="MarkdownRenderContext.OnNavigate"/> hook wins, otherwise the OS browser opens the URL.
-    /// </summary>
+    /// <summary>Builds a navigable <see cref="Hyperlink"/> (shared by inline links and autolinks): the
+    /// in-app <see cref="MarkdownRenderContext.OnNavigate"/> hook wins, otherwise the OS browser opens the URL.</summary>
     private static Hyperlink NewHyperlink(string? url, MarkdownRenderContext ctx)
     {
         var hyper = new Hyperlink
         {
             Foreground      = ctx.Palette.Accent,
             TextDecorations = TextDecorations.Underline,
-            Cursor          = System.Windows.Input.Cursors.Hand,   // signal the link is clickable
-            // An absolute URL, or an in-page #anchor (relative, but it names a place in this very document, which
-            // the surface resolves — see MarkdownAnchors). Any other relative link stays inert.
+            Cursor          = System.Windows.Input.Cursors.Hand,
+            // Absolute URL, or an in-page #anchor (resolved by the surface — see MarkdownAnchors); any
+            // other relative link stays inert.
             NavigateUri     = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri
                             : MarkdownAnchors.IsInPage(url, out _) ? new Uri(url!, UriKind.Relative)
                             : null,
-            Tag             = url,   // raw source URL — NavigateUri normalizes (trailing slash, casing),
-                                     // and MarkdownInlineSerializer needs the exact original to round-trip
+            Tag             = url,   // raw source URL — NavigateUri normalizes it, and the serializer needs
+                                     // the exact original to round-trip
         };
         var onNavigate = ctx.OnNavigate;
         hyper.RequestNavigate += (_, e) =>
         {
             var nav = e.Uri.ToString();
             e.Handled = true;
-            // In-app handler wins; otherwise fall back to the OS browser — never for a relative link, which names
-            // nothing the browser could open.
+            // In-app handler wins; otherwise fall back to the OS browser — never for a relative link.
             if (onNavigate is not null && onNavigate(nav)) return;
             if (!e.Uri.IsAbsoluteUri) return;
             try { Process.Start(new ProcessStartInfo(nav) { UseShellExecute = true }); }
@@ -847,11 +818,9 @@ public static class BlockRenderer
         catch { }   // a decoration is a flourish: losing it must not cost the document
     }
 
-    /// <summary>
-    /// Builds the inline for an <see cref="AbbreviationInline"/>: the abbreviation label drawn with a
-    /// dotted underline + help cursor, carrying the definition as a hover tooltip. The tooltip is an
-    /// explicit <see cref="TextBlock"/> (a bare string would inherit the host's text alignment).
-    /// </summary>
+    /// <summary>Builds the inline for an <see cref="AbbreviationInline"/>: the label drawn with a dotted
+    /// underline + help cursor, carrying the definition as a hover tooltip. The tooltip is an explicit
+    /// <see cref="TextBlock"/> — a bare string would inherit the host's text alignment.</summary>
     private static WpfInline MakeAbbreviation(AbbreviationInline abbr, MarkdownPalette p)
     {
         var title = abbr.Abbreviation.Text.ToString().Trim();
@@ -877,18 +846,15 @@ public static class BlockRenderer
 
     // ── Image rendering (local files only) ────────────────────────────────
 
-    /// <summary>
-    /// Renders a markdown image, or returns null so the caller shows the alt text. The host's
-    /// <see cref="MarkdownRenderContext.ImageResolver"/> is asked first — that is how a document read from somewhere
-    /// other than disk brings its pictures along. A null answer falls through to a LOCAL file: an absolute path, a
-    /// <c>file:</c> URI, or a name relative to <see cref="MarkdownRenderContext.BaseDirectory"/>. Remote
-    /// <c>http(s)</c> sources are never fetched.
-    /// </summary>
+    /// <summary>Renders a markdown image, or returns null so the caller shows the alt text. The host's
+    /// <see cref="MarkdownRenderContext.ImageResolver"/> is asked first (how a document read from elsewhere
+    /// than disk brings its pictures along); a null answer falls through to a local file. Remote
+    /// <c>http(s)</c> sources are never fetched.</summary>
     private static WpfInline? TryRenderImage(string? src, MarkdownRenderContext ctx)
     {
         if (string.IsNullOrWhiteSpace(src)) return null;
 
-        // A resolver that throws is a host bug, not a reason to lose the document: the picture becomes its alt text.
+        // A resolver that throws is a host bug, not a reason to lose the document — falls back to alt text.
         ImageSource? source = null;
         if (ctx.ImageResolver is { } resolve)
         {
@@ -900,8 +866,8 @@ public static class BlockRenderer
         return source is null ? null : ImageInline(source);
     }
 
-    /// <summary>Loads a local image file with <see cref="System.Windows.Media.Imaging.BitmapCacheOption.OnLoad"/>, so
-    /// the renderer holds no file handle, and freezes it. Null when there is no path or it will not decode.</summary>
+    /// <summary>Loads a local image with <see cref="System.Windows.Media.Imaging.BitmapCacheOption.OnLoad"/>
+    /// (so the renderer holds no file handle) and freezes it. Null when there is no path or it won't decode.</summary>
     private static ImageSource? LoadLocalBitmap(string? path)
     {
         if (path is null) return null;
@@ -937,11 +903,9 @@ public static class BlockRenderer
         return new InlineUIContainer(img) { BaselineAlignment = BaselineAlignment.Bottom };
     }
 
-    /// <summary>
-    /// Resolves a markdown image src to a local file path that exists, or null. Handles
-    /// <c>file:</c> URIs, rooted paths, and names relative to <paramref name="baseDir"/>.
-    /// Returns null for remote schemes and missing files.
-    /// </summary>
+    /// <summary>Resolves a markdown image src to a local file path that exists, or null. Handles
+    /// <c>file:</c> URIs, rooted paths, and names relative to <paramref name="baseDir"/>; null for remote
+    /// schemes and missing files.</summary>
     private static string? ResolveLocalImagePath(string? src, string? baseDir)
     {
         if (string.IsNullOrWhiteSpace(src)) return null;
@@ -961,15 +925,9 @@ public static class BlockRenderer
 
     // ── Fenced-content extraction ─────────────────────────────────────────
 
-    /// <summary>
-    /// Renders a fenced block whose info string names a diagram language.
-    ///
-    /// <para>
-    /// The content is extracted once and its place in the block worked out from it, because a renderer
-    /// producing something editable needs both: an offset into the content is not an offset into the block
-    /// an editing host splices back into, and the fence lines between them are known only here.
-    /// </para>
-    /// </summary>
+    /// <summary>Renders a fenced block whose info string names a diagram language. The content is extracted
+    /// once and its place in the block worked out from it, since an offset into the content is not an
+    /// offset into the block an editing host splices back into.</summary>
     private static FrameworkElement RenderDiagramBlock(FencedCodeBlock fc, string rawMarkdown, MarkdownRenderContext ctx)
     {
         var content = ExtractFencedContent(fc, rawMarkdown);
@@ -990,11 +948,8 @@ public static class BlockRenderer
         });
     }
 
-    /// <summary>
-    /// A picture named inside a block, found exactly as one named by an <c>![](…)</c> is: the host's
-    /// resolver, then the document's own folder. A resolver that throws is a host bug rather than a reason to
-    /// lose the block, so it falls through to the file.
-    /// </summary>
+    /// <summary>A picture named inside a block, found exactly as one named by an <c>![](…)</c> is: the
+    /// host's resolver, then the document's own folder. A resolver that throws falls through to the file.</summary>
     private static ImageSource? Picture(string src, MarkdownRenderContext ctx)
     {
         if (ctx.ImageResolver is { } resolve)
@@ -1003,19 +958,14 @@ public static class BlockRenderer
             {
                 if (resolve(src) is { } supplied) return supplied;
             }
-            catch
-            {
-                // fall through to the file
-            }
+            catch { /* fall through to the file */ }
         }
 
         return LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
     }
 
-    /// <summary>
-    /// A <c>#% … #%</c> block, which is a fenced <c>abc</c> or <c>lilypond</c> block spelled another way — and so is
-    /// rendered by the same handler, onto the same page, and edited the same way.
-    /// </summary>
+    /// <summary>A <c>#% … #%</c> block is a fenced <c>abc</c> or <c>lilypond</c> block spelled another way,
+    /// so it's rendered by the same handler and edited the same way.</summary>
     private static FrameworkElement RenderMusicBlock(Music.MusicBlock mus, string rawMarkdown, MarkdownRenderContext ctx)
     {
         var content = ExtractFencedContent(rawMarkdown, mus.Source);
@@ -1029,15 +979,9 @@ public static class BlockRenderer
             });
     }
 
-    /// <summary>
-    /// Where the extracted content begins inside the raw block — the opening fence line, plus whatever the
-    /// trim took off the front.
-    /// <para>
-    /// Found by searching rather than counted, so it stays right however the extraction is written. Zero
-    /// when the content is empty or cannot be located, which puts an edit at the start of the block instead
-    /// of somewhere invented.
-    /// </para>
-    /// </summary>
+    /// <summary>Where the extracted content begins inside the raw block. Found by searching rather than
+    /// counted, so it stays right however the extraction is written; zero when the content is empty or
+    /// can't be located, putting an edit at the start of the block rather than somewhere invented.</summary>
     private static int FencedContentOffset(string rawMarkdown, string content)
     {
         if (string.IsNullOrEmpty(rawMarkdown) || string.IsNullOrEmpty(content)) return 0;
@@ -1046,18 +990,13 @@ public static class BlockRenderer
         return at < 0 ? 0 : at;
     }
 
-    /// <summary>
-    /// Extracts the content lines of a fenced code block from the raw markdown
-    /// (strips the opening and closing fence lines).  Falls back to
-    /// <see cref="FencedCodeBlock.Lines"/> if raw text is unavailable.
-    /// </summary>
+    /// <summary>Extracts the content lines of a fenced code block from the raw markdown (strips the fence
+    /// lines). Falls back to <see cref="FencedCodeBlock.Lines"/> if raw text is unavailable.</summary>
     private static string ExtractFencedContent(FencedCodeBlock fc, string rawMarkdown) =>
         ExtractFencedContent(rawMarkdown, fc.Lines.ToString());
 
-    /// <summary>
-    /// The lines between a block's opening and closing fence, whichever way it is fenced — or
-    /// <paramref name="fallback"/> where the raw text is not to hand.
-    /// </summary>
+    /// <summary>The lines between a block's opening and closing fence, whichever way it is fenced — or
+    /// <paramref name="fallback"/> where the raw text is not to hand.</summary>
     private static string ExtractFencedContent(string rawMarkdown, string fallback)
     {
         if (!string.IsNullOrWhiteSpace(rawMarkdown))

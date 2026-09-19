@@ -32,14 +32,10 @@ public static class SugiyamaLayout
 
     // ── Public entry ──────────────────────────────────────────────────────
 
-    /// <param name="preferredMaxWidth">
-    /// When &gt; 0 and the layout is not horizontal, a layer wider than this wraps onto further rows,
-    /// and failing that GapX is reduced (down to <see cref="GapXMin"/>) to keep the diagram within it.
-    /// </param>
-    /// <param name="preferredMaxHeight">
-    /// The same for the secondary axis of a horizontal (LR/RL) graph, where a wide fan-out stacks
-    /// vertically. Zero leaves a horizontal layout unwrapped however tall it grows.
-    /// </param>
+    /// <param name="preferredMaxWidth">Non-horizontal: a layer wider than this wraps onto further rows,
+    /// then reduces GapX (down to <see cref="GapXMin"/>) to fit.</param>
+    /// <param name="preferredMaxHeight">Same, for the secondary axis of a horizontal (LR/RL) graph. Zero
+    /// leaves it unwrapped.</param>
     public static LayoutedGraph Compute(Graph graph, double preferredMaxWidth = 0, double preferredMaxHeight = 0)
     {
         if (graph.Nodes.Count == 0)
@@ -57,13 +53,8 @@ public static class SugiyamaLayout
         return result;
     }
 
-    /// <summary>
-    /// Cleans up edge endpoints so overlapping lines read clearly: first fans every edge sharing a
-    /// node face out across distinct ports (so a lone edge never overlaps a coupled pair leaving the
-    /// same node), then for parallel/antiparallel groups (a state-diagram <c>A --&gt; B</c> /
-    /// <c>B --&gt; A</c> couple) adds an outward bow + staggered labels so the pair draws as a clean
-    /// lens with non-colliding labels.
-    /// </summary>
+    /// <summary>Fans shared-node-face edges across distinct ports, then bows parallel/antiparallel
+    /// pairs (e.g. state-diagram A→B / B→A) outward into a lens with staggered labels.</summary>
     private static void SeparateParallelEdges(List<LayoutEdge> edges, bool horizontal)
     {
         DistributePorts(edges, horizontal);
@@ -113,12 +104,8 @@ public static class SugiyamaLayout
         }
     }
 
-    /// <summary>
-    /// Fans the edges attached to each node face out across distinct ports instead of all meeting at
-    /// the face centre, so lines leaving/entering the same node don't overlap. Stubs are ordered by
-    /// the direction they head (left-bound edges take left ports) and spread within the node's width
-    /// (or height, for left-right graphs).
-    /// </summary>
+    /// <summary>Spreads edges leaving/entering the same node face across distinct ports, ordered by
+    /// the direction each stub heads, instead of bunching them at the face centre.</summary>
     private static void DistributePorts(List<LayoutEdge> edges, bool horizontal)
     {
         const double Pad = 8.0, MaxStep = 26.0;
@@ -198,14 +185,8 @@ public static class SugiyamaLayout
     private static double HeaderH(Subgraph sg) =>
         sg.Style?.SubLabel is { Length: > 0 } ? ClusterLabelH + ClusterSubLabelH : ClusterLabelH;
 
-    /// <summary>
-    /// Lays out a graph with subgraphs by recursively collapsing each subgraph (and its nested
-    /// children) to a sized super-node, laying out one level at a time, then expanding each
-    /// super-node back into its internally-laid-out members + box. Nesting is driven by
-    /// <see cref="Subgraph.ParentId"/>: flowchart subgraphs (no parent) form a single level,
-    /// state composites nest arbitrarily deep. Edges attach to whichever entity owns each endpoint
-    /// at the level being laid out.
-    /// </summary>
+    /// <summary>Recursively collapses each subgraph to a sized super-node, lays out one level at a
+    /// time, then expands each back into its members + box.</summary>
     private static LayoutedGraph ComputeClustered(Graph graph, double preferredMaxWidth, double wrapLimit)
     {
         // Each node → the subgraph that directly owns it (the parser lists innermost first; first wins).
@@ -558,13 +539,8 @@ public static class SugiyamaLayout
         return layer;
     }
 
-    /// <summary>
-    /// Pulls each source (no incoming edge) down to sit just above its nearest successor. Longest-path
-    /// layering pins every source at layer 0, so a source whose only target is deep in the graph
-    /// otherwise stretches a long edge clear across the diagram (e.g. an element that only
-    /// <c>verifies</c> a leaf requirement). A source has no in-edges, so moving it down can only shorten
-    /// its out-edges — never reorders the rest. Empty layers it leaves behind are compacted away.
-    /// </summary>
+    /// <summary>Pulls each source down to just above its nearest successor — longest-path layering
+    /// pins every source at layer 0, which otherwise stretches a long edge across the whole diagram.</summary>
     private static void TightenSources(List<string> nodeIds, List<WorkEdge> edges, Dictionary<string, int> layer)
     {
         var succ        = new Dictionary<string, List<string>>();
@@ -595,16 +571,8 @@ public static class SugiyamaLayout
     /// wider than its panel — below this the wrapping is more of an obstacle than the width was.</summary>
     private const double LabelCapFloor = 150;
 
-    /// <summary>
-    /// How wide a node's label may make it, given the space the whole diagram has.
-    /// <para>
-    /// Without this a long label sets the width of its entire layer, and a graph of long labels comes
-    /// out several thousand pixels wide and a few hundred tall — all the reading on one axis while
-    /// the other sits empty. Deriving the cap from the space available means a diagram spends its
-    /// height rather than growing sideways forever. It only ever binds on labels long enough to be
-    /// the cause, so a diagram that already fits is untouched.
-    /// </para>
-    /// </summary>
+    /// <summary>How wide a node's label may make it. Without a cap a long label sets its whole layer's
+    /// width, so a graph of long labels grows thousands of pixels wide instead of spending height.</summary>
     private static double LabelWidthCap(Dictionary<string, int> layerOf, bool horizontal, double preferredMaxWidth)
     {
         if (preferredMaxWidth <= 0 || layerOf.Count == 0) return NodeLabelMetrics.MaxWidth;
@@ -734,16 +702,9 @@ public static class SugiyamaLayout
         return (fwd, back);
     }
 
-    /// <summary>
-    /// Orders each layer to minimise edge crossings.
-    /// <para>
-    /// Barycenter alone is a heuristic that can wander: a sweep sometimes ends worse than it started,
-    /// and nothing in it notices. So each sweep is scored by actually counting crossings, the best
-    /// ordering seen is kept, and the sweeps alternate barycenter with median (they fail on different
-    /// shapes) and finish with adjacent-swap transposition, which picks up the local crossings an
-    /// averaging heuristic cannot see.
-    /// </para>
-    /// </summary>
+    /// <summary>Orders each layer to minimise edge crossings. Barycenter alone can make a sweep end
+    /// worse than it started, so each sweep is scored and the best seen is kept; passes alternate
+    /// barycenter with median and finish with adjacent-swap transposition.</summary>
     private static void CrossingMinimise(
         List<List<LayoutNode>> layers,
         Dictionary<LayoutNode, List<LayoutNode>> fwd,
@@ -902,12 +863,8 @@ public static class SugiyamaLayout
 
     // ── 4b: Secondary-axis straightening ──────────────────────────────────
 
-    /// <summary>
-    /// Moves each node toward the median of its neighbours on the secondary axis while keeping the
-    /// layer's order and separation, sweeping down then up a few times. Layers that were wrapped onto
-    /// several rows are skipped: their order is two-dimensional, and packing them back along one line
-    /// would undo the wrap.
-    /// </summary>
+    /// <summary>Moves each node toward the median of its neighbours on the secondary axis, keeping
+    /// layer order and separation. Wrapped layers are skipped — straightening would undo the wrap.</summary>
     private static void Straighten(
         List<List<LayoutNode>> layers, bool[] wrapped,
         Dictionary<LayoutNode, List<LayoutNode>> fwd,
@@ -961,12 +918,7 @@ public static class SugiyamaLayout
 
     // ── 5a: Post-layout layer centering ──────────────────────────────────
 
-    /// <summary>
-    /// After coordinates are assigned, centres each layer on the secondary axis
-    /// relative to the overall secondary-axis extent of the widest layer.
-    /// For TD graphs this horizontally centres narrow layers; for LR graphs it
-    /// vertically centres short layers.
-    /// </summary>
+    /// <summary>Centres each layer on the secondary axis relative to the widest layer's extent.</summary>
     private static void CenterLayers(List<List<LayoutNode>> layers, bool horizontal)
     {
         if (layers.Count == 0) return;
@@ -1070,16 +1022,8 @@ public static class SugiyamaLayout
         return wrapped;
     }
 
-    /// <summary>
-    /// How many rows a layer breaks into so it stays inside <paramref name="limit"/> on the secondary
-    /// axis. This is the answer to one node with a hundred children: a single row of them is a mile
-    /// of diagram nobody can follow, whereas a block of rows is scannable and — unlike collapsing
-    /// them — still shows every one.
-    /// <para>
-    /// A layer holding a dummy node is never wrapped: dummies are the bend points of edges passing
-    /// through the layer, and moving one onto another row bends its edge into the wrap.
-    /// </para>
-    /// </summary>
+    /// <summary>How many rows a layer breaks into to stay inside <paramref name="limit"/>. Never wraps
+    /// a layer holding a dummy — moving one onto another row would bend its edge into the wrap.</summary>
     private static int WrapRows(List<LayoutNode> layer, double gap, double limit, bool horizontal)
     {
         if (limit <= 0 || layer.Count < 4) return 1;

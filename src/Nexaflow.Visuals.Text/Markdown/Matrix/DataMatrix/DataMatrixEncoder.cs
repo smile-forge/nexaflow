@@ -99,25 +99,10 @@ public readonly record struct DataMatrixSize(
 }
 
 /// <summary>
-/// Encodes text as a Data Matrix symbol — ISO/IEC 16022, the ECC 200 kind that everything since 1995
-/// has meant by the name.
-///
-/// <para>
-/// The work is in three parts, none of which knows the others: turn the text into codewords in the
-/// encodation that makes them fewest, choose the smallest symbol they fit, and lay them into it. The
-/// last is the part that looks like magic in the standard — Annex F's "utah" shapes — and is copied
-/// here as it is written there, because it is a placement rule with no derivation to reconstruct and
-/// every other implementation is a transcription of the same annex.
-/// </para>
-/// <para>
-/// Two encodations are used: ASCII, which carries anything and pairs digits, and C40, which packs three
-/// upper-case characters into two codewords and is what lets a Royal Mail Mailmark's ninety characters
-/// fit the 32×32 symbol the spec mandates for them. Whichever produces fewer codewords wins; a reader
-/// decodes either, so choosing between them is a matter of size and nothing else.
-/// </para>
-/// <para>
-/// Text outside ASCII is written as UTF-8 under ECI 26, which is how a reader is told the encoding.
-/// </para>
+/// Encodes text as a Data Matrix symbol (ISO/IEC 16022, ECC 200). Picks whichever of ASCII or C40
+/// encodation produces fewer codewords, the smallest symbol they fit, and places them per Annex F's
+/// "utah" placement (transcribed as written — no derivation to reconstruct). Non-ASCII text is written
+/// as UTF-8 under ECI 26.
 /// </summary>
 public static class DataMatrixEncoder
 {
@@ -242,11 +227,7 @@ public static class DataMatrixEncoder
 
     // ── ASCII encodation ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// Every byte as itself plus one, digit pairs as one codeword, and bytes above 127 behind an upper
-    /// shift. The one encodation that can carry anything, so it is the baseline the other is measured
-    /// against.
-    /// </summary>
+    /// <summary>ASCII encodation: byte+1, digit pairs as one codeword, bytes ≥128 via an upper shift. Can carry anything, so it's the baseline C40 is measured against.</summary>
     internal static List<int> EncodeAscii(ReadOnlySpan<byte> bytes, bool gs1)
     {
         var words = new List<int>(bytes.Length);
@@ -276,12 +257,7 @@ public static class DataMatrixEncoder
 
     // ── C40 encodation ─────────────────────────────────────────────────────
 
-    /// <summary>
-    /// A text as C40 values: three values into two codewords, for text that is mostly capitals and
-    /// digits. Anything else is reached through a shift — a lower-case letter costs two values, a
-    /// punctuation mark two — so the saving only exists on text that rarely needs one, which is exactly
-    /// the text the industrial formats that mandate this encodation are made of.
-    /// </summary>
+    /// <summary>C40: three values per two codewords, for mostly upper-case/digit text. A shift (lower case, punctuation) costs an extra value, so it only pays off when shifts are rare.</summary>
     private sealed class C40Text
     {
         private readonly byte[] _bytes;
@@ -326,10 +302,7 @@ public static class DataMatrixEncoder
             foreach (int v in values) { _values.Add(v); _byteOf.Add(byteIndex); }
         }
 
-        /// <summary>
-        /// A codeword count to compare against ASCII's, with the ending taken at its longest — unlatch and
-        /// the leftovers in ASCII — because the exact ending is not known until the symbol is.
-        /// </summary>
+        /// <summary>Codeword count for comparison against ASCII, with a pessimistic ending (unlatch + ASCII tail) since the real ending depends on the symbol's size.</summary>
         public List<int> Estimate()
         {
             var words = new List<int> { LatchC40 };
@@ -343,14 +316,10 @@ public static class DataMatrixEncoder
         }
 
         /// <summary>
-        /// The body with its ending written for a symbol with <paramref name="room"/> data codewords
-        /// to spare after the prefix.
-        /// <para>
-        /// The standard's end-of-data rules exist to save a codeword at the edge of the symbol: two values
-        /// left with exactly two codewords of room are packed with a pad and need no unlatch; one value
-        /// with one codeword of room is written in ASCII with the unlatch implied. Everything else
-        /// unlatches and finishes in ASCII.
-        /// </para>
+        /// Writes the body's ending for a symbol with <paramref name="room"/> codewords left after the
+        /// prefix. Two leftover values with exactly two codewords of room skip the unlatch; one value
+        /// with one codeword is written in ASCII with the unlatch implied; otherwise unlatch and finish
+        /// in ASCII.
         /// </summary>
         public List<int> Finish(int room)
         {
@@ -474,10 +443,7 @@ public static class DataMatrixEncoder
         }
     }
 
-    /// <summary>
-    /// Appends the parity. A symbol with more than one block interleaves them: block i takes every
-    /// i-th data codeword, works out its own parity, and the parities are interleaved back the same way.
-    /// </summary>
+    /// <summary>Appends parity. Multi-block symbols interleave: block i takes every i-th codeword, and its parity is interleaved back the same way.</summary>
     private static int[] AddParity(List<int> data, DataMatrixSize size)
     {
         int blocks  = size.Blocks;
@@ -503,12 +469,8 @@ public static class DataMatrixEncoder
     // ── Placement (ISO/IEC 16022 Annex F) ──────────────────────────────────
 
     /// <summary>
-    /// Lays the codewords into the symbol, region by region, with the finder pattern around each.
-    /// <para>
-    /// The mapping is worked out over all the data modules as one grid, ignoring the finder borders
-    /// between regions, and the finished grid is then cut up and each piece framed. That is how the
-    /// standard describes it, and it is what makes a multi-region symbol read as one.
-    /// </para>
+    /// Lays codewords into the symbol region by region: the mapping is computed as one grid across all
+    /// regions (finder borders excluded), then cut apart and each piece framed — per the standard.
     /// </summary>
     private static bool[] Place(int[] codewords, DataMatrixSize size)
     {

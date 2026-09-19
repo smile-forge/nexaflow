@@ -13,23 +13,12 @@ using System.Windows.Media;
 
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
-/// <summary>
-/// The live surface for a graph-family diagram (flowchart, state, class, ER, requirement): it holds
-/// the parsed graph and re-derives the picture whenever what should be visible changes.
-/// <para>
-/// Everything downstream of it stays a pure function — <see cref="GraphExpansion"/> derives the
-/// visible graph, <see cref="SugiyamaLayout"/> places it, <see cref="WpfGraphRenderer"/> draws it —
-/// so "the user opened a node" and "the panel got wider" are the same event here: re-derive and
-/// re-render. That is what makes expansion cheap enough to be a property of every diagram rather
-/// than a feature one host had to build for itself.
-/// </para>
-/// <para>
-/// It implements <see cref="IInteractiveBlock"/> because a diagram embedded in a text container gets
-/// its mouse events attributed to the container, the document, or a neighbouring paragraph. The host
-/// hit-tests geometrically and hands the gesture here, and this class decides from the hit whether
-/// the click landed on a region with an action (a node, a chip) or on empty canvas (a pan).
-/// </para>
-/// </summary>
+/// <summary>The live surface for a graph-family diagram: holds the parsed graph and re-derives the
+/// picture whenever what should be visible changes — <see cref="GraphExpansion"/>, then
+/// <see cref="SugiyamaLayout"/>, then <see cref="WpfGraphRenderer"/>, all pure functions, so expansion
+/// is just re-derive-and-render. Implements <see cref="IInteractiveBlock"/> because a diagram embedded
+/// in a text container gets its mouse events attributed elsewhere; the host hit-tests and hands the
+/// gesture here.</summary>
 public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
 {
     /// <summary>Height a diagram is given on the page. Past this it is a window onto itself rather
@@ -77,10 +66,8 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
         Rebuild();
     }
 
-    /// <summary>The height a diagram is given here — the host's, when it knows better than the default.
-    /// Deliberately not named <c>MaxHeight</c>: that is a <see cref="FrameworkElement"/> property, and a
-    /// private one of the same name hides it — so a host setting MaxHeight on the control would be
-    /// silently ignored by the layout below, which reads this.</summary>
+    /// <summary>The height budget for this diagram. Not named <c>MaxHeight</c> — that's a
+    /// <see cref="FrameworkElement"/> property a same-named private one would silently shadow.</summary>
     private double DiagramHeightBudget => _options.MaxHeight > 0 ? _options.MaxHeight : MaxDiagramHeight;
 
     /// <summary>
@@ -122,13 +109,9 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
 
     private string KeyOf(Node node) => node.ExpandKey ?? _config.KeyFor(node.Id);
 
-    /// <summary>
-    /// The body of a node was clicked. Selecting is always the first thing it means — that is what
-    /// picks the node and its edges out of a dense diagram, which is most of what makes one
-    /// followable. Whether it <i>also</i> opens depends on the surface: where opening a node costs
-    /// something (the PE inspector spawns a whole tab) the host asks for double-click instead, so a
-    /// single click can be spent on looking.
-    /// </summary>
+    /// <summary>The body of a node was clicked. Selecting is always the first thing it means; whether
+    /// it also opens depends on the surface — a host where opening is costly asks for double-click
+    /// instead, so a single click can be spent on looking.</summary>
     private bool ClickNode(string nodeId)
     {
         // Clicking the selected node again lets it go: the node is the thing the selection is about,
@@ -243,12 +226,8 @@ public sealed class GraphDiagramView : ContentControl, IInteractiveBlock
             : _layout.AllNodes.Where(n => !n.IsDummy)
                      .Select(n => new MiniMapItem(n.X - n.Width / 2, n.Y - n.Height / 2, n.Width, n.Height));
 
-    /// <summary>
-    /// A chip was clicked. The host gets first refusal — a generated diagram (the PE inspector's
-    /// import tree) answers by walking further and re-emitting its markdown, which no renderer could
-    /// do for it. Only when nobody claims it does the diagram open the node itself, which is what
-    /// makes an ordinary markdown flowchart with an <c>expandDepth</c> explorable for free.
-    /// </summary>
+    /// <summary>A chip was clicked. The host gets first refusal (a generated diagram may need to walk
+    /// further and re-emit its markdown); only when nobody claims it does the diagram expand itself.</summary>
     private bool Toggle(string nodeId)
     {
         var shown   = _visible?.FindNode(nodeId);

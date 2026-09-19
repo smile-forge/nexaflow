@@ -6,14 +6,10 @@ namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
 /// What a drag from one piece of content to another selected: a set of whole pieces, and the source ranges
-/// they stand for.
-/// <para>
-/// A set rather than a range, and more than one range, because a selection is not always a run of text. A
-/// column of a matrix is three cells that are nowhere near each other in the source, and it is a perfectly
-/// ordinary thing to want. Whole pieces rather than offsets, because a piece's range is what the parser
-/// built it from — so what you copy, replace or drag away is well formed by construction rather than by
-/// counting braces afterwards.
-/// </para>
+/// they stand for. A set with possibly several ranges, since a selection is not always a run of text — a
+/// column of a matrix is three cells nowhere near each other in the source. Whole pieces rather than
+/// offsets, since a piece's range is what the parser built it from, so what you copy/replace/drag away is
+/// well formed by construction rather than by counting braces afterwards.
 /// </summary>
 public sealed class ContentSelection
 {
@@ -35,13 +31,10 @@ public sealed class ContentSelection
     public static ContentSelection None { get; } = new([]);
 
     /// <summary>
-    /// What was selected by dragging from <paramref name="anchor"/> to <paramref name="focus"/>.
-    /// <para>
-    /// Along one run the answer is the things between the two. Between two runs it is the block they span,
-    /// so down a column gives the column, across gives the row, and corner to corner gives everything
-    /// between, exactly as it would if the pieces were cells of a sheet. Failing both it is the plain
-    /// stretch of source from one to the other, grown out to whole constructs.
-    /// </para>
+    /// What was selected by dragging from <paramref name="anchor"/> to <paramref name="focus"/>. Along one run
+    /// the answer is the things between the two; between two runs it is the block they span (down a column
+    /// gives the column, across gives the row, corner to corner gives everything between, as if the pieces
+    /// were cells of a sheet); failing both, it's the plain stretch of source grown out to whole constructs.
     /// </summary>
     public static ContentSelection Between(Piece root, Piece anchor, Piece focus)
     {
@@ -67,19 +60,10 @@ public sealed class ContentSelection
 
     /// <summary>
     /// The piece a selection steps from: the first thing on a run of its own, and failing that the first
-    /// thing the source named.
-    ///
-    /// <para>
-    /// Two climbs, because a run is not always declared on the thing that names source. A note declares its
-    /// own — it is a note that belongs with the other notes — while a matrix cell is a box the typesetter
-    /// made around whatever was written in it, so the cell carries the run and the letters inside it carry
-    /// the source. Climbing to the run first is what lets one drag mean "the next cell" and a shorter one
-    /// inside a cell mean "the next term".
-    /// </para>
-    /// <para>
-    /// Where nothing declares a run at all this is exactly <see cref="LayoutQuery.Selectable"/>, which is
-    /// what everything selected by before any of this existed.
-    /// </para>
+    /// thing the source named. Two separate climbs, since a run is not always declared on the thing that
+    /// names source — a matrix cell carries the run while the letters inside it carry the source, so climbing
+    /// to the run first is what lets one drag mean "the next cell" and a shorter one mean "the next term".
+    /// Falls back to <see cref="LayoutQuery.Selectable"/> where nothing declares a run at all.
     /// </summary>
     private static Piece Stepping(Piece piece)
     {
@@ -91,19 +75,10 @@ public sealed class ContentSelection
 
     /// <summary>
     /// What a drag from one piece to another means when the builder put them on a run — the things between
-    /// the two, taken a step at a time.
-    ///
-    /// <para>
-    /// It walks rather than indexes, which is the whole of why this works outside a grid. Nothing has to
-    /// hold what the run <em>is</em>: a lyric carries on across every system of a tune, a maths block
-    /// stops at its own edge, and a diagram stays inside its subtree, and all three come out of the same
-    /// four lines because each only ever answers "what is next to me".
-    /// </para>
-    /// <para>
-    /// Both axes and both directions are tried, and the first that reaches the other end wins. Nothing
-    /// reaching it means the two are not on a common run at all, which is the caller's cue to read the
-    /// drag as an ordinary stretch of source.
-    /// </para>
+    /// the two, taken a step at a time. Walks rather than indexes, which is why this works outside a grid:
+    /// nothing has to hold what the run <em>is</em>, since each step only ever answers "what is next to me".
+    /// Both axes and both directions are tried, and the first that reaches the other end wins; nothing
+    /// reaching it means the two share no run, the caller's cue to read the drag as an ordinary stretch.
     /// </summary>
     private static ContentSelection? Along(Piece root, Piece anchor, Piece focus)
     {
@@ -149,21 +124,11 @@ public sealed class ContentSelection
     }
 
     /// <summary>
-    /// What a set of chosen things covers in the source: their own stretches, with a gap closed only
-    /// where nothing else on the page was written in it.
-    ///
-    /// <para>
-    /// One span from the first to the last was the old answer, and it is right exactly half the time.
-    /// Two syllables of a verse are separated by a space that belongs to neither and to both, and a
-    /// selection that leaves it out reads as three selected words with the gaps between them
-    /// conspicuously unselected. Two notes may have a chord symbol, a bar line or an entire line of
-    /// words between them, and a selection that swallows those has taken things the reader never
-    /// pointed at - which is what lit up the rows above and below a drag along the notes.
-    /// </para>
-    /// <para>
-    /// So the gap decides, not the axis: it closes when nothing was drawn from it. That is a question
-    /// about the page, and the page is what is being dragged over.
-    /// </para>
+    /// What a set of chosen things covers in the source: their own stretches, with a gap closed only where
+    /// nothing else on the page was written in it. One span from first to last was the old answer, right
+    /// only half the time: two notes may have a chord symbol or a whole line of words between them, and
+    /// swallowing those took things the reader never pointed at. So the gap decides, not the axis — it
+    /// closes only when nothing was drawn from it.
     /// </summary>
     private static IReadOnlyList<(int Start, int Length)> Joined(Piece root, IReadOnlyList<Piece> chosen)
     {
@@ -200,22 +165,12 @@ public sealed class ContentSelection
     }
 
     /// <summary>
-    /// What a drag between two different runs means: the block of things between them, one column at a
-    /// time.
-    ///
-    /// <para>
-    /// Walked on both axes rather than indexed on either, which is what makes it work on a score. The
-    /// columns come from stepping along the anchor's own run until the step lands in the same stack as
-    /// the focus; the rows come from each of those stacks separately, by looking in it for the two runs
-    /// the drag is between. Nothing needs a global numbering of rows or of columns, and nothing needs the
-    /// runs to be the same length - which is just as well, because they never are: the note layer has a
-    /// member at every moment of a tune and a verse only at the moments something is sung.
-    /// </para>
-    /// <para>
-    /// Indexing was the previous answer and it could not survive that. A row was a position within one
-    /// stack, so "row 1" meant the note where a chord was named above it and the syllable where none was,
-    /// and a drag from a note down to a word came back as a row of notes.
-    /// </para>
+    /// What a drag between two different runs means: the block of things between them, one column at a time.
+    /// Walked on both axes rather than indexed on either, which is what makes it work on a score: columns come
+    /// from stepping along the anchor's own run until it lands in the same stack as the focus, and rows come
+    /// from each stack separately by looking for the drag's two runs in it. Nothing needs a global row/column
+    /// numbering or equal-length runs — just as well, since a note layer has a member every moment of a tune
+    /// and a verse only where something is sung, and indexing by row position broke on exactly that mismatch.
     /// </summary>
     private static ContentSelection? Stacked(Piece root, Piece anchor, Piece focus)
     {
@@ -309,14 +264,7 @@ public sealed class ContentSelection
         return null;
     }
 
-    /// <summary>
-    /// Whether the focus's run sits below the anchor's, asked of a stack that holds both. Null when
-    /// neither end's stack holds both, which means the two are not stacked together at all.
-    /// <para>
-    /// Only needed for the stacks that hold one of the two, to say which end of them the block reaches
-    /// to. The stacks that hold both answer for themselves.
-    /// </para>
-    /// </summary>
+    /// <summary>Whether the focus's run sits below the anchor's, asked of a stack that holds both. Null when neither end's stack holds both, meaning the two are not stacked together at all.</summary>
     private static bool? Downward(Piece from, Piece to)
     {
         foreach (var end in new[] { from, to })

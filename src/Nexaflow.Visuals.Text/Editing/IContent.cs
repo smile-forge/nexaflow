@@ -2,117 +2,34 @@ using System;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
-/// <summary>
-/// What an edit lands in: the text as it stands, what is drawn, and which of the places the caret is
-/// standing at.
-/// </summary>
+/// <summary>Where an edit landed: state, layout, and which place the caret sits at.</summary>
 /// <param name="State">Source, caret, selection, and the stretch shown as its own characters.</param>
 /// <param name="Laid">What the builder made of it — the tree every question about the picture is asked of.</param>
 /// <param name="At">The caret's place, or -1 where it is standing at none of them.</param>
 public readonly record struct Landing(EditState State, Laid Laid, int At)
 {
-    /// <summary>
-    /// Whether the caret is at the innermost place at its offset — inside whatever ends there, rather
-    /// than stepped out past it.
-    ///
-    /// <para>
-    /// The one thing a place says that an offset cannot, and the reason an edit is handed where it landed
-    /// rather than only what it says: a 3 typed just inside the exponent of <c>x^2</c> makes it
-    /// twenty-three, and the same keystroke one mark to the right follows the whole script.
-    /// </para>
-    /// </summary>
+    /// <summary>True when the caret sits inside whatever ends at its offset, not stepped out past it — a 3 typed just inside the exponent of <c>x^2</c> makes it twenty-three; one mark to the right, it doesn't.</summary>
     public bool Innermost => At < 0 || At == Laid.Root.StopAt(State.Caret);
 }
 
-/// <summary>
-/// A kind of content, whole: how source becomes a picture, and what writing into that picture means.
-///
-/// <para>
-/// <strong>One thing owns the chain.</strong> Reading the source, whatever passes are made over the
-/// parse, engraving or typesetting it into a tree, and how an edit is transformed by what it lands in —
-/// these are all the same knowledge, and they need each other's working. The formula's on-edit handler
-/// asks the parse tree the layout was built from; asking a freshly read one would answer about pieces
-/// that merely look right, because parts are matched by identity. So the chain is held together here and
-/// each part is called with what it needs.
-/// </para>
-/// <para>
-/// <strong>The element is not in it.</strong> An element measures, paints, hit-tests, holds a caret and a
-/// selection, and forwards keys — none of which changes with the kind of content, and none of which has
-/// any bearing on where a control word's name stops. Everything that differs is behind this interface,
-/// which is what makes a thing nobody has thought of yet — notes inside a formula, drawn under a
-/// barcode — cost one implementation and no other change.
-/// </para>
-/// <para>
-/// Only <see cref="Lay"/> has to be written. Most content is typed into exactly as it reads, so both
-/// writing rules have an ordinary answer already; a barcode and a tune take neither.
-/// </para>
-/// </summary>
+/// <summary>A content kind, end to end: how its source becomes a picture and how writing into that picture is interpreted. One interface owns the whole chain because the parts share state by identity — e.g. a formula's on-edit handler needs the exact parse tree its layout was built from, not a fresh reparse. The element itself (measuring, painting, hit-testing, caret, selection, keys) never changes with content kind. Only <see cref="Lay"/> must be implemented; the rest default to ordinary text-editing behavior.</summary>
 public interface IContent
 {
-    /// <summary>
-    /// Lays the source out to fit the room it is given.
-    ///
-    /// <para>
-    /// The <em>state</em> rather than the string, because what is being typed changes what is drawn: a
-    /// stretch shown as its own characters is set into the layout rather than painted over it, which is
-    /// the only way the rest of the content can be laid out knowing it is there.
-    /// </para>
-    /// </summary>
-    /// <param name="readOnly">
-    /// Whether anybody can type into this. Content that offers a place to write — a formula's empty
-    /// argument, waiting to be filled — only draws one where there is a reader to fill it.
-    /// </param>
+    /// <summary>Lays the source out to fit the given room. Takes the full edit state rather than a string because a stretch shown as its own characters must be set into the layout, not painted over it.</summary>
+    /// <param name="readOnly">Whether writable placeholders (e.g. a formula's empty argument) should be drawn.</param>
     Laid Lay(EditState state, double room, double pixelsPerDip, bool readOnly);
 
-    /// <summary>
-    /// What writing <paramref name="text"/> means here. Null leaves it to the element, which splices the
-    /// characters in where the caret is.
-    ///
-    /// <para>
-    /// An edit does not reach the source directly: it passes through here, where it can be transformed by
-    /// the context it arrives in. A backslash opens a command and letters extend it; a 3 lands inside the
-    /// exponent it was typed into.
-    /// </para>
-    /// <para>
-    /// <strong>Not a pass over the source.</strong> A pass runs on every render, so it would rewrite a
-    /// document nobody had edited — source arriving from a file included — and by the time it ran the
-    /// caret would be gone, taking with it the only evidence of what was meant. What is in the source and
-    /// what an edit meant are different questions.
-    /// </para>
-    /// </summary>
+    /// <summary>What writing <paramref name="text"/> means here; null leaves it to the element, which splices at the caret. Routed through here rather than a background pass over the source, so context can transform it in place (a backslash opens a command, letters extend it) without losing the caret or touching unedited source.</summary>
     EditState? Typing(Landing landing, string text) => null;
 
-    /// <summary>
-    /// What ending whatever is half-written means — space and Enter both arrive here.
-    ///
-    /// <para>
-    /// Separate from <see cref="Typing"/> because it is a different edit rather than another way of
-    /// saying the same one: Enter carries no character at all, so folding the two together would have it
-    /// type a space. The ordinary answer writes the separator, which is what a space has always meant.
-    /// </para>
-    /// </summary>
+    /// <summary>What ending whatever is half-written means — Space and Enter both arrive here. Kept separate from <see cref="Typing"/> because Enter carries no character; folding them together would type a space for Enter.</summary>
     EditState Settle(Landing landing, string separator) => landing.State.Write(separator);
 
-    /// <summary>
-    /// What taking back the character on one side of the caret means here — the one before it for backspace, the one after
-    /// it for delete. Null leaves it to the element, which takes one character, or the whole of a thing several characters
-    /// drew.
-    ///
-    /// <para>
-    /// Where there is nothing on that side to take — a hole, standing for what is still to be written, or the end of a word
-    /// whose next character is the quote that closes it — the ordinary answer takes whatever holds the writing together
-    /// instead, and a construct comes apart under the reader. Content that knows what its words are written inside says
-    /// what the key means there.
-    /// </para>
-    /// </summary>
-    /// <param name="forward">Delete rather than backspace: the character after the caret rather than the one before.</param>
+    /// <summary>What taking back the character on one side of the caret means (before it for backspace, after it for delete); null leaves it to the element, which takes one character or a whole construct. Where there's nothing to take on that side — an empty placeholder, or just before the quote that closes a word — the ordinary answer takes the surrounding construct instead.</summary>
+    /// <param name="forward">Delete rather than backspace.</param>
     EditState? Erasing(Landing landing, bool forward) => null;
 
-    /// <summary>
-    /// What an edit comes to once the content has said what else it changes — a name renamed where it is declared renamed
-    /// wherever it is used. Asked of every edit a reader makes, however it was made: typed, erased, pasted or dragged. The
-    /// edit as it is, where it changes nothing else.
-    /// </summary>
+    /// <summary>Final pass over an edit once the content has applied its own side effects (e.g. a rename propagated to every use). Called for every edit regardless of how it was made — typed, erased, pasted, or dragged.</summary>
     /// <param name="before">The state the edit was made to.</param>
     /// <param name="after">The state it made.</param>
     EditState Edited(EditState before, EditState after) => after;

@@ -13,19 +13,9 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 namespace Nexaflow.Visuals.Text.Markdown.Plot;
 
 /// <summary>
-/// Draws a plot block on the shared layout tree.
-///
-/// <para>
-/// Almost none of the drawing is here. Marks are <see cref="DiagramShapes"/>, axes and their numbers are
-/// <see cref="DiagramAxis"/> and <see cref="DiagramScale"/>, colour is <see cref="DiagramInk"/> and the
-/// key is <see cref="DiagramLegend"/> — the same kit every Mermaid diagram is built from, which is why a
-/// plot looks like the rest of the app without being told to. What is left is the arithmetic of turning
-/// a value into a place, and the order the layers go down in.
-/// </para>
-/// <para>
-/// Every mark carries the part it was drawn from, so a press means the row it came from and a drag
-/// through the numbers picks out the characters somebody typed.
-/// </para>
+/// Draws a plot block on the shared layout tree, reusing the Mermaid diagram kit (<see cref="DiagramShapes"/>,
+/// <see cref="DiagramAxis"/>, <see cref="DiagramInk"/>, <see cref="DiagramLegend"/>) for marks, axes, colour
+/// and the key. Every mark carries the source part it was drawn from, so it stays editable.
 /// </summary>
 internal sealed class PlotBuilder : ContentBuilder
 {
@@ -40,12 +30,7 @@ internal sealed class PlotBuilder : ContentBuilder
     private const double LabelSize = 11.5;
     private const double TitleSize = 15;
 
-    /// <summary>
-    /// How big a mark is drawn where the rows are shown <em>over</em> something else — a density or a
-    /// binning. Small and faint on purpose: a row over a cloud is there to say the cloud is made of rows,
-    /// and at the number of rows that make a cloud worth drawing, marks at their usual size are a solid
-    /// field with the cloud nowhere to be seen under it.
-    /// </summary>
+    /// <summary>Mark radius when drawn over a density/binning layer — small so the cloud stays visible.</summary>
     private const double Over = 1.6;
 
     /// <summary>And how much of what is under one shows through it.</summary>
@@ -104,18 +89,13 @@ internal sealed class PlotBuilder : ContentBuilder
 
     // ── Turning a value into a place ────────────────────────────────────────
 
-    /// <summary>
-    /// Where a channel's values go along one axis: what it is marked with, where a value lands from nought
-    /// at the axis's start to one at its end, and how wide one slot is where the axis is slotted.
-    /// </summary>
-    /// <param name="Of">Where a bare name lands, for marks that were worked out rather than written.</param>
+    /// <summary>Where a channel's values land along one axis, from 0 at the start to 1 at the end.</summary>
+    /// <param name="Of">Where a bare name lands, for marks worked out rather than written.</param>
     private sealed record Placing(PlotAesthetic Channel, IReadOnlyList<DiagramTick> Ticks,
                                   Func<PlotValue?, double?> At, double Slot, Func<string, double?>? Of = null);
 
-    /// <summary>
-    /// How a channel is laid along its axis: numbered where its values are numbers, and a slot per name
-    /// where they are names — the same division ggplot2 makes between a continuous and a discrete scale.
-    /// </summary>
+    /// <summary>Lays a channel along its axis: numbered for continuous values, one slot per name for discrete
+    /// ones (ggplot2's continuous/discrete split).</summary>
     private Placing Along(PlotChart chart, PlotAesthetic channel, PlotScale scale,
                           (double Min, double Max)? limits, IReadOnlyList<double>? breaks, bool slots,
                           (double Min, double Max)? widened = null)
@@ -141,11 +121,8 @@ internal sealed class PlotBuilder : ContentBuilder
     return this.Slotted(channel, slots ? chart.Slots(channel) : chart.Named(channel));
 }
 
-/// <summary>
-/// An axis of named slots rather than a run of numbers. A value stands in the middle of its own slot,
-/// so the first and last are inside the panel rather than on its edges — and the slot is exactly how
-/// wide a tile is drawn, so a row of them fills the panel once and no more.
-/// </summary>
+/// <summary>Axis of named slots: a value sits mid-slot so first/last stay inside the panel, and slot width
+/// equals tile width.</summary>
 private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 {
     if (names.Count == 0) return new Placing(channel, [], _ => null, 1);
@@ -192,10 +169,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         _ => DiagramTransform.Linear,
     };
 
-    /// <summary>
-    /// Which mark a point is drawn as: the glyph its group takes where a column feeds shape, the one the
-    /// block named where it named one, and a circle otherwise.
-    /// </summary>
+    /// <summary>Glyph for a point: shape-column mapping, else the block-named shape, else a circle.</summary>
     private DiagramGlyph Glyph(PlotChart chart, PlotMark mark, IReadOnlyDictionary<string, int> shapes)
     {
         if (shapes.Count == 0) return DiagramGlyphs.Named(chart.Settings.Shape) ?? DiagramGlyph.Circle;
@@ -205,11 +179,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             : DiagramGlyph.Circle;
     }
 
-    /// <summary>
-    /// How big a mark is drawn. Spread over area rather than radius, because a circle of twice the radius
-    /// carries four times the ink and it is the ink a reader reads — which is what ggplot2's own size
-    /// scale does.
-    /// </summary>
+    /// <summary>Mark radius, scaled by area not radius — matches ggplot2's size scale, since ink read is
+    /// what matters, not radius.</summary>
     private static double Radius(PlotChart chart, PlotMark mark)
     {
         if (!chart.Counts(PlotAesthetic.Size)
@@ -225,10 +196,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return Math.Sqrt((min * min) + (share * ((max * max) - (min * min))));
     }
 
-    /// <summary>
-    /// How see-through a mark is drawn: spread over the alpha channel where a column feeds it, and the
-    /// plainest where none does.
-    /// </summary>
+    /// <summary>Mark alpha: mapped from the alpha channel if fed by a column, else the plain default.</summary>
     private static double Clearness(PlotChart chart, PlotMark mark, bool over)
     {
         var it = chart.Settings;
@@ -245,14 +213,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return it.MinAlpha + (share * (it.MaxAlpha - it.MinAlpha));
     }
 
-    /// <summary>
-    /// How far a mark is moved off its place, so rows landing on the same value stop hiding one another.
-    ///
-    /// <para>
-    /// Thrown from where the row was written rather than from the clock, so the same block always draws
-    /// the same picture — the rule a word cloud's packing keeps, for the same reason.
-    /// </para>
-    /// </summary>
+    /// <summary>Jitter offset for overlapping marks, seeded from the row's source position (not the clock)
+    /// so the same block always renders identically.</summary>
     private static (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
                                                     Placing across, Placing up)
     {
@@ -266,10 +228,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return (((throws.NextDouble() * 2) - 1) * wide / 2, ((throws.NextDouble() * 2) - 1) * tall / 2);
     }
 
-    /// <summary>
-    /// How the marks are coloured: which channel says so, and whether it says it by naming a group or by
-    /// standing somewhere along a run of colours.
-    /// </summary>
+    /// <summary>How marks are coloured: which channel, and whether by group name or along a colour ramp.</summary>
     private sealed record Painting(PlotAesthetic Channel,
                                    IReadOnlyList<string> Groups,
                                    IReadOnlyDictionary<string, int> Order,
@@ -280,10 +239,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         public bool Counts => this.Span is not null;
     }
 
-    /// <summary>
-    /// What colours this chart: fill where anything feeds it, colour otherwise — and along a run of colours
-    /// where that channel carries numbers.
-    /// </summary>
+    /// <summary>Picks the colour channel (fill if mapped, else colour) and whether it runs along a ramp or
+    /// by group.</summary>
     private Painting Paint(PlotChart chart, List<Diagnostic> trouble)
     {
         var it = chart.Settings;
@@ -292,14 +249,11 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             ? PlotAesthetic.Fill
             : PlotAesthetic.Colour;
 
-    // A binned plot colours by how many rows fell in each bin. That is a quantity whatever the columns
-            // say — there may be no third column at all — so it always gets a run of colours, and which counts
-            // it runs over is settled once the bins are cut.
+        // Binned plots colour by count regardless of columns — the count range is settled once bins are cut.
         if (it.Geom is PlotGeom.Bin2d or PlotGeom.Hex or PlotGeom.Density2d)
             return new Painting(channel, [], Ordered([]), DiagramSpan.Of(1, 2, widen: false), this.Ramp(it, trouble));
 
-        // A coefficient runs from minus one to one about a nought that means something, so the run is
-        // diverging and even about the middle whether or not the block said any of that.
+        // A correlation coefficient runs -1..1 about a meaningful zero, so the ramp is always diverging and centred.
         if (it.Geom == PlotGeom.Corr)
         {
             var (least, most) = it.FillLimits ?? (-1.0, 1.0);
@@ -316,9 +270,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         var reach = it.FillLimits ?? chart.Reach(channel) ?? (Min: 0.0, Max: 1.0);
 
-        // A middle written says the number has a meaningful nought — a correlation, a change, a difference —
-        // so the run is made even about it. Otherwise the middle colour would land wherever the values
-        // happened to average, and the sign would stop being what the colour means.
+        // An explicit midpoint means the number has a meaningful zero, so the ramp centres on it rather than
+        // the data average.
         if (it.Midpoint is { } middle)
         {
             var reaches = Math.Max(Math.Abs(reach.Min - middle), Math.Abs(reach.Max - middle));
@@ -380,15 +333,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return _ink.Series(order, Swatch(chart.Settings.Palette, order));
     }
 
-    /// <summary>
-    /// Draws the rows as counts in bins rather than as marks of their own.
-    ///
-    /// <para>
-    /// A bin stands for no one row, so it carries no part and nothing in it takes a caret — the same as a
-    /// gridline, and for the same reason: nobody typed it. What it is <em>about</em> is how many rows fell
-    /// there, which is what its colour says.
-    /// </para>
-    /// </summary>
+    /// <summary>Draws rows as counts in bins. A bin has no source part — like a gridline, nobody typed it —
+    /// its colour is the count.</summary>
     private DiagramSpan? Binned(PlotChart chart, LayoutBuilder build, Rect plot,
                                 Placing across, Placing up, IReadOnlyList<Color> stops,
                                 List<Diagnostic> trouble)
@@ -409,8 +355,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                 continue;
             }
 
-            // Binned on the panel rather than in the values' own space, so a hexagon comes out regular
-            // whatever the axes happen to span.
+            // Binned in panel space (not value space) so hexagons stay regular regardless of axis scale.
             points.Add((x.Value * plot.Width, (1 - y.Value) * plot.Height));
         }
 
@@ -446,15 +391,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return span;
     }
 
-    /// <summary>
-    /// Draws how thickly the rows lie rather than the rows themselves: the contours of a kernel density
-    /// estimate, filled between levels, drawn as lines, or coloured crossing by crossing.
-    ///
-    /// <para>
-    /// Like a bin, a contour stands for no one row — nobody typed it — so nothing in it takes a caret.
-    /// Where <c>points:</c> asks for them, the rows are drawn over it as marks that do.
-    /// </para>
-    /// </summary>
+    /// <summary>Draws a kernel density estimate as filled or line contours. Like a bin, a contour has no
+    /// source part.</summary>
     private DiagramSpan? Clouded(PlotChart chart, LayoutBuilder build, Rect plot,
                                  Placing across, Placing up, IReadOnlyList<Color> stops,
                                  List<Diagnostic> trouble)
@@ -529,10 +467,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             }
     }
 
-    /// <summary>
-    /// The contours themselves: filled from the thinnest level up, so each lies over the one below it and a
-    /// reader sees the cloud thicken; or drawn as lines where the rows beneath are what matters.
-    /// </summary>
+    /// <summary>Draws contours filled thinnest-first (so the cloud appears to thicken) or as lines.</summary>
     private void Ringed(LayoutBuilder build, Rect plot, PlotField field, DiagramSpan span,
                         IReadOnlyList<Color> stops, PlotSettings it)
     {
@@ -561,14 +496,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         }
     }
 
-    /// <summary>
-    /// Draws a mark per row: a point, a bubble or a tile, wherever its values put it.
-    ///
-    /// <para>
-    /// Hands back the values to be written on the marks, rather than writing them here, so every label is
-    /// set in one layer over every mark — a value half under the next tile would be a value nobody can read.
-    /// </para>
-    /// </summary>
+    /// <summary>Draws a mark per row. Returns labels rather than drawing them, so all labels land in one
+    /// layer above every mark — avoids a label being covered by the next tile.</summary>
     private List<(DiagramWords Words, Point At)> Drawn(PlotChart chart, LayoutBuilder build, Rect plot,
                                                        Placing across, Placing up, Painting paint,
                                                        IReadOnlyDictionary<string, int> shapes, bool tiles,
@@ -586,9 +515,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
             if (x is null || y is null)
             {
-                // A row that says nothing this can place is waved where it stands, and the rest are still
-                // a plot. It is the row somebody is editing, and it is wrong every time they are halfway
-                // through changing it.
+                // Skip rows with no placeable value (e.g. mid-edit) — the rest still renders as a plot.
                 trouble.Add(new Diagnostic(mark.Part.Start, Math.Max(1, mark.Part.Length),
                                            DiagnosticSeverity.Warning,
                                            "This row has no place: it takes a value across and a value up."));
@@ -597,8 +524,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
             var (shakeAcross, shakeUp) = Shake(chart, mark, plot, across, up);
 
-                    // Held inside the panel, because a mark shaken past the axis is a mark standing at a value the
-                            // axis says is not there.
+                    // Clamp jitter to the panel so a shaken mark never lands past what the axis shows.
                             var at = new Point(Math.Clamp(plot.Left + (x.Value * plot.Width) + shakeAcross, plot.Left, plot.Right),
                                                Math.Clamp(plot.Bottom - (y.Value * plot.Height) + shakeUp, plot.Top, plot.Bottom));
 
@@ -620,8 +546,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             build.Occupies(outline);
             build.Close();
 
-            // A value written on its own tile, which a small heat map has room for and a big one has not.
-    // A column mapped to label names each mark; `labels: true` writes the value the colour stands for.
+            // `labels: true` writes the colour's value; a label column overrides it per mark.
             var naming = mark[PlotAesthetic.Label] ?? (it.Labels ? mark[paint.Channel] : null);
             if (naming is not { } said) continue;
 
@@ -638,13 +563,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return labels;
     }
 
-    /// <summary>
-    /// A tile per pair of columns, coloured by the coefficient the pipeline worked out between them.
-    /// </summary>
-    /// <remarks>
-    /// A tile stands for nothing written: no cell of the table holds the number it is drawn from, so there
-    /// is nowhere for a caret to go. The names down its axes are the header cells, which are.
-    /// </remarks>
+    /// <summary>A tile per column pair, coloured by their correlation coefficient. No source part — the
+    /// coefficient isn't a written cell — but the axis names are.</summary>
     private List<(DiagramWords Words, Point At)> Correlated(PlotChart chart, LayoutBuilder build, Rect plot,
                                                             Placing across, Placing up, Painting paint)
     {
@@ -684,15 +604,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     /// <summary>A fitted line and what it is drawn in — its group's colour, so overlapping bands are told apart.</summary>
     private sealed record Fitting(PlotLine Line, Brush Ink);
 
-    /// <summary>
-    /// The lines fitted through the points, worked out but not yet drawn.
-    ///
-    /// <para>
-    /// Fitted on the panel, so a line follows a log axis where there is one and can simply be drawn. What
-    /// the points say about each other is worked out from the values instead, because down the page is the
-    /// way a screen counts and not the way a number does.
-    /// </para>
-    /// </summary>
+    /// <summary>Fits lines through the points. Fitted in panel space so it follows a log axis directly;
+    /// statistics are computed from the raw values since screen-down and number-down disagree.</summary>
     private IReadOnlyList<Fitting> Fits(PlotChart chart, Rect plot, Placing across, Placing up, Painting paint)
     {
         var it = chart.Settings;
@@ -723,29 +636,18 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
             if (line is null) continue;
 
-            // One fit through everything is the accent's; a fit per group takes that group's own colour, so
-            // two bands lying over each other still say which is which.
+            // A single fit uses the accent colour; per-group fits use the group's own colour so overlapping
+            // bands stay distinguishable.
             lines.Add(new Fitting(line, grouped ? inks[group[0]] : _palette.Accent));
         }
 
         return lines;
     }
 
-    /// <summary>
-    /// How far up and down the fitted bands reach, in the values' own terms — so the axis can be opened out
-    /// to show all of them.
-    ///
-    /// <para>
-    /// <strong>A band is part of the answer, not decoration over it.</strong> Cropping one to the panel
-    /// leaves a plot that says the fit stops where the axis happens to, which is not what the arithmetic
-    /// said; ggplot2 trains its scale on every layer for the same reason. Where the block wrote the ends
-    /// itself, they are the ends it asked for and this is not consulted.
-    /// </para>
-    /// <para>
-    /// Worked out in the axis's own reading rather than on the panel, because the panel is not laid out yet
-    /// — and a fit down a logarithmic axis is a fit through the logarithms either way.
-    /// </para>
-    /// </summary>
+    /// <summary>Vertical reach of the fitted confidence bands, in axis units, so the axis can widen to show
+    /// them fully — a band is part of the answer, not decoration cropped to the panel (ggplot2 does the
+    /// same). Skipped when the block set explicit limits. Computed in the axis's own transform since the
+    /// panel isn't laid out yet.</summary>
     private (double Min, double Max)? Banding(PlotChart chart, PlotAesthetic acrossChannel,
                                               PlotAesthetic upChannel, DiagramSpan across, DiagramSpan up)
     {
@@ -781,10 +683,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return (up.Value(least.Value), up.Value(most.Value));
     }
 
-    /// <summary>
-    /// What the points say about each other, written on the panel — from the values themselves, because
-    /// down the page is the way a screen counts and not the way a number does.
-    /// </summary>
+    /// <summary>Computes and writes the correlation statistics from the raw values (not panel coordinates).</summary>
     private void Reported(PlotChart chart, LayoutBuilder build, Rect plot)
     {
         var it = chart.Settings;
@@ -799,15 +698,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         if (PlotFits.Of(it.Method, values) is { } said) this.Reported(build, plot, it, said);
     }
 
-    /// <summary>
-    /// The band a fit's own uncertainty makes, under the marks.
-    ///
-    /// <para>
-    /// Under, because a band is context and the rows are the subject: drawn over them it greys out the very
-    /// points it is about. And clipped to the panel, because a fit through four points has a band wider than
-    /// anything the axes cover, and a band reaching past them says the plot extends where it does not.
-    /// </para>
-    /// </summary>
+    /// <summary>Draws the fit's confidence band under the marks (so it doesn't grey out the points it's
+    /// about), clipped to the panel.</summary>
     private void Banded(LayoutBuilder build, IReadOnlyList<Fitting> lines, Rect plot)
     {
         foreach (var fitting in lines)
@@ -840,15 +732,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return kept;
     }
 
-    /// <summary>
-    /// Which rows belong together for the purpose of a fit, as their places in the order they were read.
-    ///
-    /// <para>
-    /// Indices rather than the points themselves, so a caller can find whatever else it holds about the
-    /// same rows — their colours, say. Handing back the points alone left the colours to be matched up by
-    /// counting, and a dictionary does not hand its groups back in the order they were written.
-    /// </para>
-    /// </summary>
+    /// <summary>Groups row indices by fit group — indices not points, so callers can look up other per-row
+    /// data like colour — preserving first-seen order.</summary>
     private static IReadOnlyList<IReadOnlyList<int>> Split(PlotChart chart, int count)
     {
         var named = chart.Marks.Where(mark => mark[PlotAesthetic.X] is not null).ToList();
@@ -893,10 +778,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         }
     }
 
-    /// <summary>
-    /// The figures written at the top left of the panel, where a correlation plot puts them and where the
-    /// points of one rarely are.
-    /// </summary>
+    /// <summary>Writes the stats figures top-left, where a correlation plot's points rarely land.</summary>
     private void Reported(LayoutBuilder build, Rect plot, PlotSettings it, PlotCorrelation said)
     {
         var parts = new List<string>();
@@ -928,14 +810,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     /// <summary>A coefficient as a reader wants it: two decimals, which is all one is worth.</summary>
     private static string Figure(double value) => value.ToString("0.00", CultureInfo.CurrentCulture);
 
-    /// <summary>
-    /// Where each name stands in the order the groups were first written.
-    ///
-    /// <para>
-    /// A map rather than a search, because this is asked once per mark: a scatter of four thousand rows
-    /// against a dozen groups walked the list four thousand times to answer the same twelve questions.
-    /// </para>
-    /// </summary>
+    /// <summary>Maps each name to its first-seen order. A dictionary, not a linear search, since this is
+    /// looked up once per mark.</summary>
     private static IReadOnlyDictionary<string, int> Ordered(IReadOnlyList<string> names)
     {
         var order = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -957,15 +833,9 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                                     DiagramStroke Faint,
                                     bool Tiles, bool Bins, bool Cloud, bool Corr);
 
-    /// <summary>
-    /// Everything drawn inside one panel: its gridlines, its marks, and the fit and the figures worked out
-    /// from the rows that fell in it.
-    /// </summary>
-    /// <remarks>
-    /// Faceted, this runs once per panel over that panel's own rows, while <paramref name="how"/> stays the
-    /// whole plot's — which is what makes the panels readable against one another rather than each against
-    /// itself.
-    /// </remarks>
+    /// <summary>Draws one panel: gridlines, marks, fit, and stats for the rows that fell in it.
+    /// <paramref name="how"/> stays plot-wide across facets so panels read consistently against each
+    /// other.</summary>
     private (List<(DiagramWords Words, Point At)> Labels, DiagramSpan? Counts) Inside(
         PlotChart chart, LayoutBuilder build, Rect panel, Panelling how, List<Diagnostic> trouble)
     {
@@ -980,8 +850,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         if (!how.Tiles && !how.Corr && it.Grid is PlotGrid.Both or PlotGrid.X)
             DiagramGrid.Draw(build, PlotPiece.Grid, panel, how.Across.Ticks, upright: false, how.Faint);
 
-        // Under the marks: a band is context and the rows are the subject, so drawn over them it greys out
-        // the very points it is about.
+        // Bands go under the marks so they don't grey out the points they explain.
         IReadOnlyList<Fitting> fits = how.Bins || how.Cloud || how.Corr
             ? []
             : this.Fits(chart, panel, how.Across, how.Up, how.Paint);
@@ -1058,17 +927,15 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         var cloud = it.Geom == PlotGeom.Density2d;
         var corr = it.Geom == PlotGeom.Corr;
 
-        // A correlation matrix's axes are the columns themselves, both of them, so neither is read off the
-        // rows. Down the side they run the other way, which puts the diagonal where a reader looks for it:
-        // from the top left.
+        // Correlation matrix axes are the columns themselves; the vertical axis is reversed so the diagonal
+        // runs from the top-left.
         var pairs = corr ? chart.Correlations.Select(pair => pair.Across).Distinct().ToList() : [];
 
         // A panel per value the facet column takes. One value is no division at all, so it is left alone.
         var levels = it.Facet is null || corr ? [] : chart.Named(PlotAesthetic.Facet);
         var faceted = levels.Count > 1;
 
-        // Flipped, the axes swap: what was read across is read up. Everything after this is told which is
-        // which, so nothing else has to know.
+        // it.Flip swaps which channel reads across vs up; downstream code just uses acrossChannel/upChannel.
         var acrossChannel = it.Flip ? PlotAesthetic.Y : PlotAesthetic.X;
         var upChannel = it.Flip ? PlotAesthetic.X : PlotAesthetic.Y;
 
@@ -1076,8 +943,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             ? this.Slotted(acrossChannel, pairs)
             : this.Along(chart, acrossChannel, it.XScale, it.XLimits, it.XBreaks, tiles);
 
-        // A band is part of the answer, so the axis opens out to show all of it — unless the block wrote the
-        // ends itself, in which case they are the ends it asked for.
+        // Axis opens out to show the full confidence band, unless the block set explicit limits.
         var banding = tiles || bins || cloud || corr || it.YLimits is not null
             ? null
             : this.Banding(chart, acrossChannel, upChannel,
@@ -1101,14 +967,12 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);
         var caption = it.Caption is null ? null : this.Worked(it.Caption, null, LabelSize, _palette.TextMuted);
 
-        // A title follows its own channel rather than its side of the panel: `xTitle:` names what `x:` maps,
-        // and flipping carries both of them up the page together. Naming the side instead put the weight
-        // title under an axis of miles per gallon.
+        // Titles follow their channel (xTitle: labels whatever x: maps), not their screen side, so flip
+        // carries both together.
         var xTitle = this.AxisTitle(chart, acrossChannel, it.Flip ? it.YTitle : it.XTitle);
         var yTitle = this.AxisTitle(chart, upChannel, it.Flip ? it.XTitle : it.YTitle);
 
-        // What a binned plot's colours run over is the counts, and there is no knowing them until the bins
-        // are cut — so it takes the room a bar needs now and is given its numbers once they are counted.
+        // Bin counts aren't known until bins are cut, so reserve bar-key room now and fill in numbers later.
         var key = bins || cloud
             ? this.Counting(DiagramSpan.Of(1, 2, widen: false), paint.Stops)
             : corr && paint.Span is { } coefficients
@@ -1176,8 +1040,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                 var (said, _) = this.Inside(only, build, panel, how, trouble);
                 labels.AddRange(said);
 
-                // The numbers go round the outside alone: down the first column and along the bottom row,
-                // which is where a reader looks for them and is the only place they are not between panels.
+                // Axis numbers only on the outside (first column, bottom row) — elsewhere they'd sit between panels.
                 this.Axes(build, panel, across, up, rule,
                           side: at % cols == 0,
                           foot: at + cols >= levels.Count);
@@ -1242,10 +1105,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         _ => new Point(Math.Max(plot.Right + (Gap * 2), wide - key.Width), plot.Top),
     };
 
-    /// <summary>
-    /// The key, whichever kind this chart needs: a row per group where the colour names one, and a bar of
-    /// the colours themselves where it is a quantity.
-    /// </summary>
+    /// <summary>The key: a row per group for categorical colour, a colour bar for a quantity.</summary>
     private sealed record Chart(DiagramLegend? Rows, DiagramBar? Bar, DiagramWords? Heading = null)
     {
         private const double Apart = 4;
@@ -1264,8 +1124,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         public void Draw(LayoutBuilder build, Point at)
         {
-            // Words rather than a row of the key: a row with no swatch is drawn as an empty outlined
-            // square, which reads as a colour nobody chose rather than as a heading.
+            // Drawn as plain words, not a key row — a swatch-less row would read as "no colour chosen", not
+            // a heading.
             if (this.Heading is { } heading)
             {
                 heading.Set(build, at, PlotPiece.Name);
@@ -1284,8 +1144,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         if (paint.Span is { } span)
         {
-            // Three numbers is what a bar needs to be read: where it starts, where it ends, and the middle
-            // — which is the value the colour turns about where one was written.
+            // Bar labels: start, end, and midpoint (the value the colour ramp centres on, if any).
             var marks = new[] { 0.0, 0.5, 1.0 }
                 .Select(at => (At: at, Value: span.Min + (at * (span.Max - span.Min))))
                 .Select(mark => (mark.At, Words: this.Worked(DiagramScale.Plain(Rounded(mark.Value)), null, LabelSize, _palette.Text)))
@@ -1326,10 +1185,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return new Chart(null, new DiagramBar(stops, marks, _palette.CodeBorder));
     }
 
-    /// <summary>
-    /// A number on a colour bar: whole where the bar runs over counts, and to two decimals where it runs
-    /// over a coefficient, which is nought to three digits either way.
-    /// </summary>
+    /// <summary>Rounds a colour-bar number: whole for counts, two decimals for a coefficient.</summary>
     private static double Round(double value, bool whole) =>
         whole ? Math.Round(value) : Math.Round(value, 2);
 
@@ -1361,15 +1217,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         new(this.Text(says, size, ink), part, null, this.Text("x", size, ink), ink,
             maps: false, writes: false);
 
-    /// <summary>
-    /// Words that are the characters somebody typed, drawn where they were written.
-    ///
-    /// <para>
-    /// What makes a plot editable: a caret stands inside one of these, a drag through it picks out its
-    /// digits, and typing into the picture edits the block. A value the plot worked out rather than read —
-    /// a tick's number, a coefficient — is <see cref="Worked"/> instead, and stepping never stops in one.
-    /// </para>
-    /// </summary>
+    /// <summary>Words backed by source characters — what makes the plot editable (caret, drag-select,
+    /// type-to-edit). A computed value like a tick number uses <see cref="Worked"/> instead.</summary>
     private DiagramWords Written(ContentPart part, double size, Brush ink) =>
         new(this.Text(part.Text, size, ink), part, null, this.Text("x", size, ink), ink,
             maps: true, writes: true);

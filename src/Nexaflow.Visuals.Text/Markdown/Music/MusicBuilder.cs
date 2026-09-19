@@ -13,32 +13,19 @@ using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 namespace Nexaflow.Visuals.Text.Markdown.Music;
 
 /// <summary>
-/// The engraver every notation shares: handed a tune as rows of bars of events, it decides where every piece
-/// of it goes and lays it into a tree.
+/// The engraver every notation shares: turns a tune (rows of bars of events) into a laid-out tree. A
+/// notation's builder is only its reading — ABC and LilyPond bar themselves very differently but both
+/// resolve to events with heads, lengths and marks, in bars, on staves; everything past that is here, once.
 ///
 /// <para>
-/// A notation's own builder is only its reading. ABC and LilyPond write the same music very differently — one
-/// bars itself with the lines it types, the other with its meter — but what they amount to is the same:
-/// events with heads, lengths and marks, in bars, on staves. Each builder turns its own tree into that, and
-/// everything from there to the page is here, once.
-/// </para>
-/// <para>
-/// <strong>It never names a point in the source.</strong> Every event, bar line and syllable carries the part it
-/// was drawn from, and where that part is written is the reading's to answer. What nobody wrote — a bar line
-/// the meter implied — carries nothing, and is drawn without being selectable.
-/// </para>
-/// <para>
-/// The judgement calls are not here either. Stem direction, beam slope and note spacing live in
-/// <see cref="Engraving"/> and <see cref="ScoreMetrics"/>, where they can be asserted rather than eyeballed.
+/// Every event, bar line and syllable carries the source part it was drawn from; a bar line nobody wrote
+/// carries none and can't be selected. Stem direction, beam slope and spacing live in
+/// <see cref="Engraving"/> and <see cref="ScoreMetrics"/>, not here.
 /// </para>
 /// </summary>
 internal abstract partial class MusicBuilder : ContentBuilder
 {
-    /// <summary>
-    /// How big to set source that could not be engraved at all. A fixed size rather than one derived from
-    /// the staff, because in that case there is no staff — this is the fallback for an engraver that threw,
-    /// so nothing it would have measured can be trusted.
-    /// </summary>
+    /// <summary>Fallback size for source that couldn't be engraved — fixed, since in that case there's no staff to derive it from.</summary>
     private const double SourceSize = 13;
 
     private readonly double _width;
@@ -48,12 +35,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
     /// <summary>How much air this engraving puts between things — see <see cref="ScoreSpacing"/>.</summary>
     private readonly ScoreSpacing _spacing;
 
-    /// <param name="source">The music, as it is written.</param>
-    /// <param name="width">How much room it has to lay itself out in.</param>
-    /// <param name="spacing">
-    /// How much air to leave between things, or null for what the engraver normally uses. A caller passes
-    /// something else only to compare two engravings without the comparison being about this.
-    /// </param>
+    /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
     protected MusicBuilder(string source, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
         : base(source)
     {
@@ -63,28 +45,19 @@ internal abstract partial class MusicBuilder : ContentBuilder
         _spacing = spacing ?? ScoreSpacing.Current;
     }
 
-    /// <summary>
-    /// What a notation's reading hands the engraver: the rows to set, the prose around them, and the reading
-    /// they came from — which is where whatever could not be read says so.
-    /// </summary>
+    /// <summary>What a notation's reading hands the engraver, including where anything unreadable is reported.</summary>
     protected sealed record Tune(List<Row> Rows, MusicHeader Header, ContentReading Reading);
 
     /// <summary>Reads the source into rows of bars of events. The one thing each notation writes for itself.</summary>
     protected abstract Tune ReadTune();
 
-    /// <summary>
-    /// Reads the music and engraves it to fit, and hands back nothing music-shaped: a tree of pieces, how
-    /// much room it wants, and whatever could not be read.
-    /// </summary>
+    /// <summary>Reads and engraves the tune, returning the laid-out tree, its size, and anything unreadable.</summary>
     protected sealed override Laid? Read()
     {
         var tune = ReadTune();
         var (tree, size) = Engrave(tune, _width);
 
-        // Asked of the reading rather than collected on the way through it. A piece that could not be read
-        // carries the reason, so there is one place the answer lives and no second list to fall out of step
-        // with it — and a piece being typed carries nothing, which is how it draws without being complained
-        // about.
+        // Derived from the reading tree rather than collected separately, so trouble can't drift out of sync with it.
         var trouble = tune.Reading.Root.SelfAndDescendants()
             .Where(part => part.Trouble is not null && part.Length > 0)
             .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Warning, part.Trouble!)
@@ -96,10 +69,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
         return new Laid(tree, size, trouble);
     }
 
-    /// <summary>
-    /// How music sets characters it could not engrave: monospaced, so a reader can count the bar lines in
-    /// what they wrote.
-    /// </summary>
+    /// <summary>Unengraveable source is set monospaced, so a reader can count bar lines in it.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
@@ -130,10 +100,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
         public bool WholeBar;
         public double Quarters;
 
-        /// <summary>
-        /// The beam this was written into, if any — the group a click selects first. Its identity is what
-        /// says two events share one, so every event of a group holds the same one.
-        /// </summary>
+        /// <summary>The beam this event belongs to, if any; identity (not value) is what says two events share a group.</summary>
         public ISourcePart? Beam;
 
         /// <summary>The tuplet this was written into, and the number printed over it.</summary>
@@ -145,10 +112,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
         /// <summary>What named the chord printed over it — what selecting the chord selects.</summary>
         public ISourcePart? ChordPart;
 
-        /// <summary>
-        /// The syllables sung on this event: which verse, what it says, and the characters it was written with
-        /// — which are wherever the words were written, usually nowhere near the note.
-        /// </summary>
+        /// <summary>Syllables sung on this event; the source part is wherever the words were written, usually far from the note.</summary>
         public List<(int Verse, string Text, bool Hyphen, bool Melisma, ISourcePart? Part)> Lyrics = [];
 
         /// <summary>Marks that hug the head, on the side the stem is not: staccato, tenuto, accent.</summary>
@@ -183,16 +147,9 @@ internal abstract partial class MusicBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// A bar line: how it is drawn, and what wrote it.
-    ///
-    /// <para>
-    /// Drawn from ABC's spelling, which says what a bar line looks like mark by mark — <c>|</c> a thin line,
-    /// <c>[</c> and <c>]</c> a thick one, <c>:</c> the dots of a repeat — so <c>|:</c> is a start repeat and
-    /// <c>|]</c> the end. A notation that spells its bar lines otherwise says what it means in this spelling.
-    /// </para>
-    /// <para>
-    /// The part is null for a line nobody wrote. It is drawn all the same, and cannot be selected.
-    /// </para>
+    /// A bar line: how it's drawn — from ABC's spelling, mark by mark (<c>|</c> thin, <c>[</c>/<c>]</c> thick,
+    /// <c>:</c> repeat dots; a notation spelling bar lines otherwise says what it means in this spelling) —
+    /// and what wrote it. Part is null for a line nobody wrote; still drawn, never selectable.
     /// </summary>
     protected sealed record Barline(string Drawn, ISourcePart? Part);
 
@@ -213,13 +170,8 @@ internal abstract partial class MusicBuilder : ContentBuilder
         public KeySignature? KeyChange;
 
         /// <summary>
-        /// The meter this bar changes to, and the sign it was written as where it was written as one.
-        ///
-        /// <para>
-        /// The sign travels with the change rather than sitting on the builder. A tune may write several
-        /// meters — <c>C</c> then <c>C|</c> then <c>6/8</c> — and one field holding "the sign" ends up holding
-        /// the last one, which is the wrong answer for every bar including the last.
-        /// </para>
+        /// The meter this bar changes to, with its own sign — per-bar because a tune may write several meters
+        /// (<c>C</c> then <c>C|</c> then <c>6/8</c>), and a single builder-level field would only hold the last.
         /// </summary>
         public (int Beats, int Unit, int? Sign)? MeterChange;
 
@@ -231,10 +183,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
         public bool EndsRepeat;
 
 
-        /// <summary>
-        /// True where a repeat bracket stops without the music going back — the last of a set of numbered endings,
-        /// which LilyPond closes where the ending closes rather than at the end of the line.
-        /// </summary>
+        /// <summary>True at the last of a set of numbered endings — LilyPond closes the bracket there, not at line end.</summary>
         public bool EndsBracket;
     }
 
@@ -247,36 +196,22 @@ internal abstract partial class MusicBuilder : ContentBuilder
         /// <summary>The key it opens in, as sharps (positive) or flats (negative).</summary>
         public int Fifths;
 
-        /// <summary>
-        /// The meter printed at its head, and the sign it was written as where it was written as one — or
-        /// null where none is printed, because none was written or the music keeps no meter.
-        /// </summary>
+        /// <summary>The meter printed at its head and its sign, or null when nothing is printed.</summary>
         public (int Beats, int Unit, int? Sign)? Meter;
 
-        /// <summary>
-        /// Which voice wrote it, and how many of that voice's lines came before it. The n-th lines of every
-        /// voice sound together, which is the whole of what makes a system a system.
-        /// </summary>
+        /// <summary>Which voice wrote it and its index among that voice's lines — the n-th lines of every voice sound together as one system.</summary>
         public string Voice = "";
         public int Index;
 
 
-        /// <summary>
-        /// Which piece of music it belongs to, where one source holds several: LilyPond engraves each music
-        /// expression written at the top of a file as a score of its own. Rows of different pieces are never set
-        /// as one system, whatever else they share.
-        /// </summary>
+        /// <summary>Which piece it belongs to, where one source holds several (LilyPond scores each top-level music expression separately). Rows of different pieces never share a system.</summary>
         public int Piece;
 
         /// <summary>What to print at the left of the first system, where a voice has a name.</summary>
         public string? Name;
     }
 
-    /// <summary>
-    /// A written note value and its dots, from a length in quarter notes. Chosen rather than computed,
-    /// because notation has a fixed set of shapes and a length that is not one of them has to be drawn as
-    /// the nearest that is.
-    /// </summary>
+    /// <summary>The written value and dots nearest a length in quarter notes — chosen, since notation has a fixed set of shapes.</summary>
     protected static (int Value, int Dots) Value(double quarters)
     {
         if (quarters <= 0) return (4, 0);

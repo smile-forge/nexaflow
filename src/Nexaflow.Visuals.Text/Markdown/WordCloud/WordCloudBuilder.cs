@@ -22,23 +22,12 @@ public static class WordCloudPiece
 }
 
 /// <summary>
-/// Lays a <c>wordcloud</c> block out: the words set at the size their weights come to, packed outwards from
-/// the middle by <see cref="WordCloudBoard"/>, and drawn where they landed.
-///
-/// <para>
-/// The division of labour is the whole design. <em>Where</em> a word goes is worked out in
-/// <c>Nexaflow.Markdown</c>, against a grid of cells and nothing else, so the packing can be tested without a
-/// desktop; but <em>what shape</em> a word is, only a type engine knows, and that is what this contributes.
-/// It sets each word, asks the engine for the outlines of its letters, fills them onto the grid, and hands
-/// the result to the packing — which is <c>wordcloud2.js</c>'s canvas-and-pixels step done with outlines
-/// instead of pixels.
-/// </para>
-/// <para>
-/// <strong>Every word is a run of text with its own part.</strong> A word is what somebody typed, so the
-/// caret stands in it, a drag picks out its letters and typing into it edits the line it came from — the
-/// same seam a formula and a barcode are edited through, for nothing but saying which characters each run
-/// was drawn from. The weights are drawn nowhere and are edited in the source.
-/// </para>
+/// Lays a <c>wordcloud</c> block out: words sized by weight, packed outwards from the middle by
+/// <see cref="WordCloudBoard"/>. Placement (<c>Nexaflow.Markdown</c>, grid-only, desktop-free) and glyph
+/// shape (only a type engine knows) are split apart; this side sets each word, gets its letter outlines from
+/// the type engine, fills them onto the grid and hands the result to the packer — <c>wordcloud2.js</c>'s
+/// canvas-and-pixels step done with outlines instead of pixels. Every word keeps its own source part so it
+/// stays editable; weights are edited in the source, not drawn.
 /// </summary>
 internal sealed class WordCloudBuilder : ContentBuilder
 {
@@ -146,9 +135,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         var stencil = Stencil(room, fall, out var lost);
         if (lost is not null) return Stopped(lost);
 
-        // A stencil decides the picture's proportions: it is fitted inside the room without stretching, so the
-        // letters of `letters:` are the letters somebody asked for rather than the same letters pulled out to
-        // the shape of the column. What that leaves empty is trimmed away at the end in any case.
+        // Fitted without stretching so `letters:` keeps its own proportions rather than the column's; empty
+        // room is trimmed away at the end regardless.
         var width = room;
         var height = fall;
 
@@ -159,12 +147,11 @@ internal sealed class WordCloudBuilder : ContentBuilder
             else height = room / aspect;
         }
 
-        // Two throws rather than one, so that turning the shuffling off does not also change every angle —
-        // a setting should change the one thing it names.
+        // Separate RNG from the packing's, so toggling shuffling doesn't also change every word's angle.
         var angles = new WordCloudRandom(_settings.Seed);
 
-        // Inside a stencil the rings have to reach every corner of it, so the shape and the squash that would
-        // pull them in are set aside: the stencil is the shape now.
+        // The stencil is the shape now, so the usual shape/ellipticity squash is set aside — rings must reach
+        // every corner of it.
         var packing = stencil is null
             ? _settings
             : _settings with { Shape = WordCloudShape.Circle, Ellipticity = 1 };
@@ -173,9 +160,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
         var trouble = new List<Diagnostic>();
 
-        // A line that says nothing a cloud can draw is waved under where it stands, and the rest of the
-        // words are still a cloud. It is the part somebody is editing, and it is wrong every time they are
-        // halfway through changing it.
+        // Unparseable lines (e.g. mid-edit) are flagged in place; the rest of the cloud still renders.
         foreach (var word in chart.Words)
             if (word.Trouble is { } reason)
                 trouble.Add(Say(word.Number ?? word.Word, reason, DiagnosticSeverity.Error));
@@ -193,9 +178,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
                                  DiagnosticSeverity.Warning));
         }
 
-        // The picture is what was drawn, not the room the packing was given. The room is a bound — how far
-        // out the words may go — and a cloud of a dozen words given a wide column would otherwise be a dozen
-        // words in the middle of a field of nothing, pushing the prose either side of it apart.
+        // Sized to what was actually drawn, not the room offered — else a small cloud in a wide column would
+        // reserve the whole column's width.
         var drawn = placed.Count == 0 ? new Rect(0, 0, width, height) : Covered(placed);
         var shift = new Vector(-drawn.X, -drawn.Y);
 
@@ -215,12 +199,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         return new Laid(build.Seal(), drawn.Size, trouble);
     }
 
-    /// <summary>
-    /// Sets one word and finds it a place, smaller and smaller until it fits or is too small to read, and
-    /// hands back what to draw — or null where the picture has no room left for it. The shrinking is
-    /// <c>wordcloud2.js</c>'s <c>shrinkToFit</c>, and it is what stops one long word at the top of the list
-    /// from being the one word missing from the picture.
-    /// </summary>
+    /// <summary>Places a word, shrinking it step by step until it fits or hits MinSize (null if it never
+    /// fits) — <c>wordcloud2.js</c>'s <c>shrinkToFit</c>.</summary>
     private Placement? Place(WordCloudBoard board, WordCloudEntry word, double size, double turn, Brush ink)
     {
         for (var at = size; at >= _settings.MinSize; at *= Shrink)
@@ -251,10 +231,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         return all;
     }
 
-    /// <summary>
-    /// The shape the cloud is packed into, or null for the whole picture — and the reason where one was asked
-    /// for and could not be had, which stops the block rather than quietly drawing a cloud of the wrong shape.
-    /// </summary>
+    /// <summary>The packing shape (null for the whole picture), or the reason it couldn't be built — stops
+    /// the block rather than silently drawing the wrong shape.</summary>
     private WordCloudStencil? Stencil(double width, double height, out string? trouble)
     {
         trouble = null;
@@ -265,11 +243,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         return null;
     }
 
-    /// <summary>
-    /// Letters filled as a shape to pack into. Set at a size that fills the room they are given, and filled
-    /// at a pixel to the cell — finer than the board's own grid, because a letter is mostly curves and the
-    /// board samples what it is given.
-    /// </summary>
+    /// <summary>Letters filled as a packing shape, sampled a pixel to the cell — finer than the board's own
+    /// grid since a letter is mostly curves.</summary>
     private WordCloudStencil? FromLetters(string letters, double width, double height, out string? trouble)
     {
         trouble = null;
@@ -292,11 +267,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
         return stencil;
     }
 
-    /// <summary>
-    /// A picture's silhouette. Which part of it is the shape is the picture's own to say: one drawn with
-    /// transparency means the part that is there, and one without means the part that is dark — between them
-    /// that is every mask anybody actually draws, and neither needs a setting to choose it.
-    /// </summary>
+    /// <summary>A picture's silhouette: the opaque part if it has transparency, else the dark part — covers
+    /// every mask anybody actually draws, with no setting needed to pick between them.</summary>
     private WordCloudStencil? FromPicture(string named, out string? trouble)
     {
         trouble = null;
@@ -323,8 +295,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
             return null;
         }
 
-        // A photograph would be a million cells to fill and to sample, and the shape it holds is the same one
-        // at a tenth of the size.
+        // Downscaled: the silhouette is the same at a tenth of the size, and a full photo is too many cells.
         if (picture.PixelWidth > StencilPixels)
             picture = new TransformedBitmap(picture,
                 new ScaleTransform(StencilPixels / (double)picture.PixelWidth,
@@ -358,10 +329,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
         return stencil;
     }
 
-    /// <summary>
-    /// The outlines of the word's letters, turned to the angle it is set at — closed figures in pixels from
-    /// where the word is set, which is what the mask is filled from.
-    /// </summary>
+    /// <summary>The word's letter outlines, rotated to its set angle, as closed pixel figures for the mask.</summary>
     private static IReadOnlyList<IReadOnlyList<(double X, double Y)>> Outline(FormattedText text, double turn, double scale = 1)
     {
         var figures = new List<IReadOnlyList<(double X, double Y)>>();
@@ -416,10 +384,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
     private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) =>
         new(part.Start, Math.Max(part.Length, 1), severity, reason);
 
-    /// <summary>
-    /// The block shown as its own characters with the reason above the wave — what a block that is not a
-    /// cloud at all comes to. Its lines are all a reader has left to work with, so they are what is shown.
-    /// </summary>
+    /// <summary>Shows the block as-typed with the error above it, for a block that isn't a cloud at all.</summary>
     private Laid Stopped(string reason) =>
         LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source),
                          [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)]);

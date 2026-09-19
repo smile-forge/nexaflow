@@ -8,29 +8,16 @@ namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
 /// A laid-out piece of content, as it is stored: where it is anchored inside whatever holds it, how big
-/// it turned out, how far its subtree runs, and where its drawing is. Nothing else.
-///
-/// <para>
-/// <strong>Two pieces of geometry, and both are needed.</strong> <see cref="Offset"/> is the anchor —
-/// where this piece's own frame begins, relative to its parent's — and it is what children and marks are
-/// measured from. <see cref="Box"/> is how far the piece actually reaches, relative to that same anchor,
-/// and it may begin at a negative offset: an accidental is drawn before the note head it belongs to, and
-/// a beam above the stems it joins. One rectangle cannot be both, and making it try means moving the
-/// anchor once the contents are known — which would shift every child and every mark already recorded.
-/// The anchor is fixed when the piece is opened and never moves; only the box is learnt at the end.
-/// </para>
-/// <para>
-/// No absolute rectangle is kept. It would be a second copy of what the tree already says, and it would
-/// have to be rewritten every time a subtree moved or was reused — which is the per-piece work this whole
-/// shape exists to avoid. Absolute position is accumulated by whatever is walking, which is already
-/// descending and so gets it for nothing. A piece never knows the size of the scene it lands in.
-/// </para>
-/// <para>
-/// Everything <em>editing</em> needs — what a piece was drawn from, what kind of thing it is, what it
-/// reads along and stacks with — is kept beside the pieces rather than in them, in
-/// <see cref="LayoutTree"/>. Most pieces are a stem or a letter that nobody will ever select, and
-/// carrying two object references through the painter's loop for all of them is waste.
-/// </para>
+/// it turned out, how far its subtree runs, and where its drawing is. Nothing else. Two pieces of geometry,
+/// both needed: <see cref="Offset"/> is the anchor (fixed when opened, never moves) that children and marks
+/// are measured from, while <see cref="Box"/> is how far the piece actually reaches relative to that anchor
+/// and may begin at a negative offset (an accidental drawn before its note head). One rectangle can't be
+/// both without moving the anchor once contents are known, which would shift every child and mark already
+/// recorded. No absolute rectangle is kept — it would be a second copy of what the tree already says,
+/// rewritten on every move or reuse — since absolute position is free to accumulate while descending.
+/// Everything editing needs (what a piece was drawn from, its kind, what it reads along) lives beside the
+/// pieces in <see cref="LayoutTree"/> instead, since most pieces are a stem or letter nobody will ever
+/// select, and carrying two object references per piece through the painter's loop would be waste.
 /// </summary>
 internal readonly record struct Stored
 {
@@ -64,19 +51,11 @@ internal readonly record struct Stored
 
 /// <summary>
 /// A whole laid-out thing: its pieces in one array, its drawing in another, and the few facts about
-/// pieces that only selection cares about beside them.
-///
-/// <para>
-/// The pieces are in <strong>pre-order</strong>, so a piece's subtree is the slice starting at it and
-/// running for its extent. Descending is arithmetic, taking a piece and everything in it is a range
-/// rather than a walk, and lifting a subtree out to reuse it somewhere else is a block copy with one
-/// index changed.
-/// </para>
-/// <para>
-/// Nothing in here is content-specific and nothing ever will be: a bar of music, a formula and a barcode
-/// are all pieces that drew marks, and everything that hit-tests, selects, measures or paints one has
-/// never needed to know which it was looking at.
-/// </para>
+/// pieces that only selection cares about beside them. Pieces are pre-order, so a piece's subtree is the
+/// slice starting at it running for its extent — descending is arithmetic, taking a subtree is a range not
+/// a walk, and lifting one out to reuse elsewhere is a block copy with one index changed. Nothing in here
+/// is content-specific and nothing ever will be: a bar of music, a formula and a barcode are all just
+/// pieces that drew marks.
 /// </summary>
 public sealed class LayoutTree
 {
@@ -137,19 +116,11 @@ public sealed class LayoutTree
     internal ISourcePart? PartOf(int at) => _parts[at];
 
     /// <summary>
-    /// Everywhere a caret may rest in this tree, in the order the right arrow visits them.
-    ///
-    /// <para>
-    /// It belongs here, with the part links, because that is what it is made of: only a piece naming a part
-    /// has stops, since a stop is somewhere text can be written and there is nothing to write into
-    /// otherwise. Worked out on the first ask rather than at seal time — a tree is settled onto the origin
-    /// after it is sealed, and a place is a mark on the page.
-    /// </para>
-    /// <para>
-    /// Once, not per question. Stepping the caret, snapping an offset to a stop and deciding what a press
-    /// means are all this same list read three ways, and rebuilding it for each was a walk of every piece
-    /// and a sort, per keystroke.
-    /// </para>
+    /// Everywhere a caret may rest in this tree, in the order the right arrow visits them. Worked out on the
+    /// first ask rather than at seal time, since a place is a mark on the page and a tree is settled onto the
+    /// origin only after it's sealed. Cached, not recomputed per question — stepping the caret, snapping an
+    /// offset to a stop, and deciding what a press means all read this same list, and rebuilding it per
+    /// keystroke was a walk of every piece plus a sort.
     /// </summary>
     public IReadOnlyList<CaretPlace> Places => _places ??= LayoutQuery.PlacesIn(Root);
 
@@ -190,14 +161,10 @@ public sealed class LayoutTree
     }
 
     /// <summary>
-    /// Where a piece sits in the content as a whole.
-    ///
-    /// <para>
-    /// Worked out rather than stored, which is what keeps a subtree meaningful wherever it is put down.
-    /// It is a short climb up an array — a page is about ten deep — and anything asking about many
-    /// pieces at once should be descending with <see cref="Within"/> instead, which carries the anchor
-    /// down and pays nothing at all.
-    /// </para>
+    /// Where a piece sits in the content as a whole. Worked out rather than stored, which is what keeps a
+    /// subtree meaningful wherever it's put down — a short climb up an array (a page is about ten deep).
+    /// Anything asking about many pieces at once should use <see cref="Within"/> instead, which carries the
+    /// anchor down for free.
     /// </summary>
     internal Rect WhereIs(int at)
     {
@@ -210,14 +177,9 @@ public sealed class LayoutTree
 
     /// <summary>
     /// Every piece of a subtree, with where each one sits — the walk to use when the question is about
-    /// more than one piece, because the anchor comes down with it rather than being climbed to each time.
-    ///
-    /// <para>
+    /// more than one piece, since the anchor comes down with it rather than being climbed to each time.
     /// Pre-order means a piece is always reached after the one holding it, so the running anchor is only
-    /// ever pushed and popped: a piece with anything inside it becomes the frame those pieces are
-    /// measured from, and leaving its subtree is a comparison against where that subtree ends. Nothing is
-    /// searched for and nothing is climbed.
-    /// </para>
+    /// pushed and popped, never searched for or climbed.
     /// </summary>
     internal IEnumerable<(int At, Rect Where)> Within(int from)
     {
@@ -251,14 +213,10 @@ public sealed class LayoutTree
     // ── What it belongs with ────────────────────────────────────────────────
 
     /// <summary>
-    /// The piece one step along a run from this one, or -1 at either end and for a piece on no run.
-    ///
-    /// <para>
-    /// A run is a list of pieces that read together — a verse of lyrics, the notes of a tune, a row of a
-    /// matrix — and it is deliberately only ever asked "what is next to this". It is not a group anybody
-    /// belongs to and nothing draws it, which is why it is a list of indices here rather than a piece
-    /// pretending to be a parent.
-    /// </para>
+    /// The piece one step along a run from this one, or -1 at either end and for a piece on no run. A run
+    /// (a verse of lyrics, the notes of a tune, a row of a matrix) is deliberately only ever asked "what is
+    /// next to this" — it's not a group anybody belongs to and nothing draws it, which is why it's a list of
+    /// indices rather than a piece pretending to be a parent.
     /// </summary>
     internal int Along(int at, bool vertical, bool forward)
     {
@@ -280,18 +238,11 @@ public sealed class LayoutTree
     internal int RunCount => _runs.Count;
 
     /// <summary>
-    /// Declares that these pieces read together, in this order — a row of a matrix, a column of one.
-    ///
-    /// <para>
-    /// <strong>After the tree is sealed, which is the one thing a run can do that a parent cannot.</strong>
-    /// A typeset formula only learns its tables once the parse tree's grids are matched against finished
-    /// ink: which piece stands for a cell is a question about what was drawn, so it cannot be asked while
-    /// the drawing is still going on. Nothing about a piece changes here — a run is a list of indices
-    /// beside the pieces, so saying two things read together moves neither of them.
-    /// </para>
-    /// <para>
-    /// Two members at least: one thing on a run has nothing to step to.
-    /// </para>
+    /// Declares that these pieces read together, in this order — a row of a matrix, a column of one. Callable
+    /// after the tree is sealed, which a parent cannot be: a typeset formula only learns its tables once the
+    /// parse tree's grids are matched against finished ink, so which piece stands for a cell can't be asked
+    /// while drawing is still going on. A run is just a list of indices beside the pieces, so declaring one
+    /// moves nothing. Two members minimum: one thing on a run has nothing to step to.
     /// </summary>
     public void Runs(IReadOnlyList<Piece> members, bool vertical)
     {
@@ -313,15 +264,11 @@ public sealed class LayoutTree
     }
 
     /// <summary>
-    /// Moves the whole tree, by moving the one anchor nothing is measured from.
-    ///
-    /// <para>
-    /// The root's own anchor is the single number every piece under it is relative to, so shifting it
-    /// shifts all of them and touches nothing else — which is what relative geometry makes free, and the
-    /// reason this can be said after the fact when no other anchor can. Content that only learns where it
-    /// sits once it is laid out uses it: a typeset formula can be built above and left of where the pen
-    /// started, and a tree with negative coordinates would put the caret outside the control drawing it.
-    /// </para>
+    /// Moves the whole tree, by moving the one anchor nothing is measured from — shifting the root's anchor
+    /// shifts every piece under it and touches nothing else, which relative geometry makes free. Content that
+    /// only learns where it sits once laid out uses this: a typeset formula can be built above and left of
+    /// where the pen started, and a tree with negative coordinates would put the caret outside the control
+    /// drawing it.
     /// </summary>
     public void Settle(Vector by)
     {
