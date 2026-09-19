@@ -34,13 +34,10 @@ public enum NodeShape
 
     // ── Class-diagram ─────────────────────────────────────────────────────────
     ClassBox,          // a UML class: «stereotype» + name + attribute/method compartments (see Node.Class)
-
-    // ── C4 ────────────────────────────────────────────────────────────────────
-    C4Element,         // a C4 element card: title + [Kind: technology] + description (see Node.C4)
 }
 
 /// <summary>Optional styling for a <see cref="Subgraph"/> box. Null draws the default accent-tinted
-/// dashed box; C4 boundaries set it for their own colours and a <c>[type]</c> sub-label.</summary>
+/// dashed box.</summary>
 public sealed class SubgraphStyle
 {
     /// <summary>A smaller second line under the box's title, e.g. <c>[Container]</c>.</summary>
@@ -57,16 +54,6 @@ public sealed class SubgraphStyle
         TextColor = TextColor, BorderStyle = BorderStyle,
     };
 }
-
-/// <summary>One row of a diagram legend. <see cref="Kind"/> and <see cref="External"/> travel
-/// alongside <see cref="FillColor"/> so the swatch matches the colour the cards were drawn in.</summary>
-public sealed record GraphLegendEntry(
-    string Label,
-    string? FillColor,
-    string? StrokeColor,
-    C4ElementShape? Shape,
-    C4ElementKind? Kind = null,
-    bool External = false);
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
 
@@ -151,10 +138,6 @@ public sealed class Node
     /// (stereotype + attribute/method compartments). Null for every other shape.</summary>
     public ClassInfo? Class    { get; set; }
 
-    /// <summary>Set only on <see cref="NodeShape.C4Element"/> nodes — the C4 card's kind, shape,
-    /// technology and description. Null for every other shape.</summary>
-    public C4ElementInfo? C4  { get; set; }
-
     /// <summary>Where a click on this node goes, from a mermaid <c>click</c> directive. Lives on the
     /// graph model, not one renderer, so every diagram type gets it for free.</summary>
     public string? Href { get; set; }
@@ -187,7 +170,6 @@ public sealed class Node
         TextColor   = TextColor,
         Classifier  = Classifier,
         Class       = Class,
-        C4          = C4,
         Href        = Href,
         Tooltip     = Tooltip,
         Expansion   = Expansion,
@@ -264,20 +246,12 @@ public sealed class Graph
     public List<Edge>     Edges     { get; } = [];
     public List<Subgraph> Subgraphs { get; } = [];
 
-    /// <summary>Rows for a legend drawn below the diagram, or null for no legend (the default).</summary>
-    public List<GraphLegendEntry>? Legend { get; set; }
-
-    /// <summary>How much each legend row says — a C4 <c>SHOW_LEGEND($details)</c>.</summary>
-    public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
-
     /// <summary>The document-level properties with none of the content — what a derived view or
     /// per-level rebuild starts from before filling in its own nodes and edges.</summary>
     public Graph CopyShell() => new()
     {
         Title         = Title,
         Direction     = Direction,
-        Legend        = Legend,
-        LegendDetails = LegendDetails,
     };
 
     public Node? FindNode(string id) =>

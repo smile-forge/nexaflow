@@ -165,8 +165,8 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
-| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
-| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4GrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
+| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StructureTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
+| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -797,15 +797,21 @@ diagram and neither does this, so a title is the front matter's; a block whose s
 drawn to the end of that row rather than outside the grid; a label written with no id before it reads as a block still being
 written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block being drawn at the size its blocks come to.
 
-**C4 sub-features** ([`MermaidC4Parser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs)
-+ [`C4GraphProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs)
-+ [`C4ElementPainter`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs)).
-A C4 diagram is a node-and-edge graph with richer boxes, so it is **projected onto the shared graph pipeline** — the same
-Sugiyama layout, `WpfGraphRenderer`, viewport, panning, selection and expandable nodes as a flowchart — rather than
-getting a layout engine of its own. Elements become `NodeShape.C4Element` nodes carrying a
-[`C4ElementInfo`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/C4Element.cs) card (bold title, a `[Kind: technology]`
-stereotype, a wrapped description), boundaries and deployment nodes become nested styled subgraph boxes with a `[type]`
-line under their title, and relationships become edges whose second label line is the `[technology]`.
+**C4 sub-features** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
+[`C4Structure`](../src/Nexaflow.Markdown/Mermaid/C4/C4Structure.cs),
+[`C4Builder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs)).
+A C4 diagram **is** a graph with richer boxes, so it is drawn on the **shared layout tree** with the same layered layout
+([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs)) a class diagram and a flowchart use,
+rather than getting a layout engine of its own. Every element is a card — its label, the `[Kind: technology]` stereotype
+worked out from what it is, and the sentence under that — drawn as a person, a cylinder, a queue or a box
+([`DiagramCard`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramCard.cs)); boundaries and deployment nodes are
+boxes holding boxes, nested as deep as they are written, each with a `[type]` line under its name; and a relationship is
+a line carrying what it is done with and what it is for under what it says.
+
+**The drawing nests where the source does not.** A boundary's piece *holds* the cards inside it and the relationships
+that only exist inside it, so a press on one means the thing pressed and a boundary is sized from everything it holds.
+A relationship that crosses out of a boundary belongs to whatever holds both its ends, and what is written on it is set
+clear of the band each boundary keeps for its own name.
 
 **The body is C4-PlantUML's macro set, not Mermaid's subset** — Mermaid supports a fraction of what people write, the two
 agree wherever Mermaid has an opinion, so accepting the larger language rejects far less. Supported: the headers
@@ -815,17 +821,23 @@ and `Deployment_Node`/`Node`/`Node_L`/`Node_R`, nested by braces or closed with 
 `_U`/`_D`/`_L`/`_R`/`_Neighbor`/`_Back`/`BiRel` variants and `RelIndex`; `$techn`, `$descr`, `$tags`, `$link` and
 `$index=Index()`/`LastIndex()`/`SetIndex()`/`increment()`; `UpdateElementStyle` (by element *type* as C4-PlantUML writes
 it **or** by *alias* as Mermaid does), `AddElementTag`/`AddBoundaryTag`/`AddRelTag` with `UpdateRelStyle` and
-`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its edge in both the structural and the sequence renderers; `SHOW_LEGEND($hideStereotype, $details)` — which, as in C4-PlantUML, **hides the stereotypes by default**, since the legend then carries what they said, and whose `$details` (`None()`/`Small()`/`Normal()`) sizes the legend rows; `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
+`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its line in both the structural
+diagram and the sequence; `SHOW_LEGEND($hideStereotype, $details)` — which, as in C4-PlantUML, **hides the stereotypes by
+default**, since the key then carries what they said; `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`, the
 `SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
 PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
 is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
-theme can retune it (see [theming.md](theming.md) → *Diagram tokens*). **The front-matter `config:` block is applied**
-([`C4ConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4ConfigParser.cs) →
-[`C4Config`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs)): `config: c4` `wrap`, `width`, `height`,
-with `c4ShapeInRow`/`c4BoundaryInRow` recorded but not obeyed. **Limitations:** `Lay_*`, the `_U`/`_D`/`_L`/`_R`
-direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed and ignored — they exist to nudge
-graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle
-(it has no geometry for the person and cylinder outlines) though it does write all three of the card's text rows.
+theme can retune it ([`C4Grading`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Grading.cs) over the kit's
+[`DiagramTone`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTone.cs); see [theming.md](theming.md) →
+*Diagram tokens*). **The front-matter `config: c4:` block is applied**
+([`C4Config`](../src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs)): `wrap`, `width`, `height`, `c4ShapeMargin`,
+`c4ShapePadding`, `boxMargin`, `diagramMarginX` and `diagramMarginY`, on Mermaid's own defaults.
+
+**Divergences:** `Lay_*`, the `_U`/`_D`/`_L`/`_R` direction suffixes, `$sprite`, `c4ShapeInRow`/`c4BoundaryInRow` and
+`UpdateRelStyle`'s pixel offsets are read and change nothing — they nudge a grid pack and a graphviz placement, and what
+stands beside what here is worked out from what is joined to what. `SHOW_PERSON_OUTLINE` and `SHOW_PERSON_PORTRAIT` are
+read and a person is one card either way. An element's own name is never drawn — its label is — so it is renamed in the
+source rather than in the drawing, where every macro naming it is in view.
 
 **C4 sequence** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
 [`C4Sequence`](../src/Nexaflow.Markdown/Mermaid/C4/C4Sequence.cs),
@@ -840,8 +852,9 @@ plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping ove
 bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into its card — hidden by default, because a
 lifeline head is a column header and a paragraph in every column only pushes the columns apart.
 
-`SHOW_LEGEND()` works here too, drawn below the timeline by the same painter and built from the same rows as a
-structural diagram's.
+`SHOW_LEGEND()` works here too, drawn below the timeline and built from the same rows as a structural diagram's — both
+read by [`C4Said`](../src/Nexaflow.Markdown/Mermaid/C4/C4Said.cs), which is the pass that settles what a whole block is
+switched to show and what everything in it is styled with.
 
 **Native sequence syntax works inside it.** Any line the C4 grammar does not claim is read by
 [`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) itself, and any line

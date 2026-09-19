@@ -108,11 +108,11 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                 Words = words,
                 Links = [.. one.Links.Select(link => (link, Naming(link, config)))],
                 Carded = carded,
-                Width = Math.Max(taken.Width + (Air * 2) + (carded is { } wide ? SequenceGlyphs.Wider(wide) : 0),
+                Width = Math.Max(taken.Width + (Air * 2) + (carded is { } wide ? DiagramCard.Wider(SequenceGlyphs.Carded(wide)) : 0),
                                  figured ? SequenceGlyphs.Size + Air : Air * 4),
                 Deep = figured
                     ? SequenceGlyphs.Size + taken.Height + Air
-                    : taken.Height + (Air * 2) + (carded is { } deep ? SequenceGlyphs.Allowed(deep) : 0),
+                    : taken.Height + (Air * 2) + (carded is { } deep ? DiagramCard.Deeper(SequenceGlyphs.Carded(deep)) : 0),
                 Figured = figured,
             };
 
@@ -134,13 +134,20 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     }
 
     /// <summary>
+    /// What a participant's card is painted with, where the diagram grades its cards by what each one is — a C4 sequence does,
+    /// by the abstraction each element sits at. Null where the diagram grades nothing, and the theme's own surface is the answer.
+    /// </summary>
+    protected virtual (Brush Fill, Brush Stroke, Brush Ink, Brush Muted)? Toned(SequenceCard card) => null;
+
+    /// <summary>
     /// What is written in a participant's box: its name, and — where the diagram writes a card rather than a plain box — the
     /// line saying what kind of thing it is and the sentence saying what it does, each smaller than the name above it.
     /// </summary>
     private IReadOnlyList<DiagramWords> Naming(SequenceParticipant one, SequenceConfig config)
     {
         var room = Math.Max(20, config.Widest - (Air * 2));
-        var ink = Ink.Written(one.Card?.Ink) ?? Palette.Text;
+        var painted = one.Card is { } graded ? Toned(graded) : null;
+        var ink = painted?.Ink ?? Ink.Written(one.Card?.Ink) ?? Palette.Text;
         var name = Wrapped(one.Said, one.SaidHole, config.NameText, ink, room,
                            one.Card is null ? null : FontWeights.SemiBold);
 
@@ -151,7 +158,8 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         // The stereotype is worked out from several things written, so it is pressed rather than typed into — and a press on it
         // means what it was worked out from.
         if (card.Stereotype is { Length: > 0 } says)
-            rows.Add(Worked(says, card.Technology ?? one.Part, Math.Max(8, config.NameText - 3), Palette.TextMuted));
+            rows.Add(Worked(says, card.Technology ?? one.Part, Math.Max(8, config.NameText - 3),
+                            painted?.Muted ?? Palette.TextMuted));
 
         if (card.Said is { Length: > 0 })
             rows.AddRange(Wrapped(card.Said, null, Math.Max(8, config.NameText - 2), ink, room));
@@ -457,13 +465,17 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
             plan.Frames[opening.Key] = new Rect(left, row.Top, Math.Max(0, right - left), Math.Max(0, bottom - row.Top));
         }
 
+        var deepest = diagram.Boxes.Count == 0 ? 0 : diagram.Boxes.Max(box => Deep(diagram, box));
+
         foreach (var box in diagram.Boxes)
         {
             var held = Holding(diagram, plan, box).ToList();
             if (held.Count == 0) continue;
 
+            // The air a box keeps outside what it holds falls away as the boxes nest, so a box inside another is drawn
+            // inside it: the outer one holds everything the inner does and keeps a band more air round it.
             var depth = Deep(diagram, box);
-            var air = config.Framed * (depth + 1);
+            var air = config.Framed * (deepest - depth + 1);
             var left = held.Min(column => column.Centre - (column.Width / 2)) - air;
             var right = held.Max(column => column.Centre + (column.Width / 2)) + air;
 
@@ -565,7 +577,9 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         foreach (var column in plan.Columns)
         {
-            var top = column.Born + plan.HeadDeep;
+            // A lifeline runs from the foot of its own head rather than from the foot of the band they all stand in: the
+            // heads are set in the middle of that band, so a shallower one would otherwise hang above its own line.
+            var top = Head(column, column.Born, plan.HeadDeep).Bottom;
             var ends = Math.Max(top, column.Ends);
 
             build.Open(SequencePiece.Lifeline, column.One.Part, stops: Stops.None);
@@ -577,8 +591,8 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
             if (column.One.Destroyed) Crossed(build, column.Centre, ends);
             build.Close();
 
-            Standing(build, column, column.Born);
-            if (config.Mirrored && !column.One.Destroyed) Standing(build, column, plan.FootTop);
+            Standing(build, column, column.Born, plan.HeadDeep);
+            if (config.Mirrored && !column.One.Destroyed) Standing(build, column, plan.FootTop, plan.HeadDeep);
 
             foreach (var bar in plan.Bars)
                 if (string.Equals(bar.Id, column.One.Id, StringComparison.Ordinal)) Barred(build, config, column, bar);
@@ -590,16 +604,33 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         build.Close();
     }
 
-    /// <summary>One participant's own box or figure, with its name in it or under it.</summary>
-    private void Standing(LayoutBuilder build, Column column, double top)
+    /// <summary>
+    /// Where a participant's head stands in the band they all stand in. The heads are set in the middle of the band the
+    /// deepest of them makes, and what a card is above its words is taken off — so a person's card, a plain box and a
+    /// cylinder line up on their boxes rather than all hanging from the same top edge with their heads and caps pushing
+    /// them about.
+    /// </summary>
+    private static Rect Head(Column column, double from, double band)
     {
-        var bounds = new Rect(column.Centre - (column.Width / 2), top, column.Width, column.Deep);
+        var outline = column.Carded is { } drawn ? SequenceGlyphs.Carded(drawn) : (DiagramCardShape?)null;
+        var over = outline is { } which ? DiagramCard.Above(which) : 0;
+        var under = outline is { } held ? DiagramCard.Deeper(held) - DiagramCard.Above(held) : 0;
+
+        var top = from + ((band - column.Deep) / 2) + ((under - over) / 2);
+
+        return new Rect(column.Centre - (column.Width / 2), top, column.Width, column.Deep);
+    }
+
+    /// <summary>One participant's own box or figure, with its name in it or under it.</summary>
+    private void Standing(LayoutBuilder build, Column column, double from, double band)
+    {
+        var bounds = Head(column, from, band);
 
         build.Open(SequencePiece.Head, column.One.Part, stops: Stops.None);
 
         if (column.Figured)
         {
-            var glyph = new Rect(column.Centre - (SequenceGlyphs.Size / 2), top, SequenceGlyphs.Size, SequenceGlyphs.Size);
+            var glyph = new Rect(column.Centre - (SequenceGlyphs.Size / 2), bounds.Y, SequenceGlyphs.Size, SequenceGlyphs.Size);
             var room = new Rect(bounds.X, glyph.Bottom, bounds.Width, Math.Max(0, bounds.Bottom - glyph.Bottom));
             var placed = DiagramWords.Placed(column.Words, room, MermaidPiece.Words);
 
@@ -613,18 +644,20 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         else
         {
             var shape = column.Carded is { } carded
-                ? SequenceGlyphs.Carded(carded, bounds)
+                ? DiagramCard.Outline(SequenceGlyphs.Carded(carded), bounds)
                 : SequenceGlyphs.Shape(column.One.Kind, bounds);
 
             var room = column.Carded is { } inner
-                ? SequenceGlyphs.Inside(inner, bounds)
+                ? DiagramCard.Inside(SequenceGlyphs.Carded(inner), bounds)
                 : SequenceGlyphs.Inside(column.One.Kind, bounds);
 
             var placed = DiagramWords.Placed(column.Words, room, MermaidPiece.Words);
 
+            var painted = column.One.Card is { } graded ? Toned(graded) : null;
+
             build.Open(MermaidPiece.Shape, column.One.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, Ink.Written(column.One.Card?.Fill) ?? Palette.CodeBg,
-                                        Ink.Written(column.One.Card?.Border) ?? Palette.CodeBorder, Thick));
+            build.Draw(new GeometryMark(shape, painted?.Fill ?? Ink.Written(column.One.Card?.Fill) ?? Palette.CodeBg,
+                                        painted?.Stroke ?? Ink.Written(column.One.Card?.Border) ?? Palette.CodeBorder, Thick));
             build.Occupies(Less(shape, placed));
             build.Close();
 

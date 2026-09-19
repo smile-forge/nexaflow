@@ -134,7 +134,8 @@ public class MermaidBlockTests
     [TestMethod]
     public void TheAccessibleTitleAndDescriptionAreRead()
     {
-        var block = MermaidBlock.Read("C4Context\n  accTitle: Decisions\n  accDescr {\n    Bob's stand\n  }\n  a --> b");
+        // A diagram nothing reads, so its own line stays whole and the accessibility lines are all that is read out of it.
+        var block = MermaidBlock.Read("wibble\n  accTitle: Decisions\n  accDescr {\n    Bob's stand\n  }\n  a --> b");
 
         Assert.AreEqual("Decisions", block.AccessibleTitle?.Text);
         Assert.AreEqual("Bob's stand", block.AccessibleDescription?.Text);

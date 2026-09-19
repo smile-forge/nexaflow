@@ -6,7 +6,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 [TestClass]
 [TestCategory("Desktop")]
 [DoNotParallelize]
-[CoversNode("c4-sequence")]
+[CoversNode("c4-sequence-writing")]
 public class C4SequenceEditingTests : MermaidEditing
 {
     /// <inheritdoc/>

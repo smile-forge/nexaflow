@@ -143,7 +143,7 @@ public class MermaidParserTests
     [TestMethod]
     public void EveryLineAfterTheHeaderIsAStatement_UnlessEveryDiagramReadsIt()
     {
-        var tree = MermaidParser.Parse("C4Context\n  A --> B\n  %% a comment\n\n  B --> C");
+        var tree = MermaidParser.Parse("wibble\n  A --> B\n  %% a comment\n\n  B --> C");
 
         CollectionAssert.AreEqual(new[] { "A --> B", "B --> C" }, Nodes(tree, MermaidKinds.Statement).Select(node => node.Text).ToArray());
     }
@@ -187,7 +187,7 @@ public class MermaidParserTests
     [TestMethod]
     public void ADescriptionInBracesIsOnePiece_HoweverManyLinesItTakes()
     {
-        var tree = MermaidParser.Parse("C4Context\n  accDescr {\n    Several\n    lines\n  }\n  a --> b");
+        var tree = MermaidParser.Parse("wibble\n  accDescr {\n    Several\n    lines\n  }\n  a --> b");
 
         var description = Nodes(tree, MermaidKinds.Accessibility).Single();
         Assert.AreEqual("Several\n    lines", description.Part(MermaidRoles.Value)?.Text);
@@ -197,7 +197,7 @@ public class MermaidParserTests
     [TestMethod]
     public void AWordThatOnlyStartsLikeAnAccessibilityLineIsTheDiagrams()
     {
-        var tree = MermaidParser.Parse("C4Context\n  accTitleX --> b\n  accTitle\n  acctitle: lower");
+        var tree = MermaidParser.Parse("wibble\n  accTitleX --> b\n  accTitle\n  acctitle: lower");
 
         Assert.IsFalse(Nodes(tree, MermaidKinds.Accessibility).Any(), "Mermaid's keywords are case-sensitive");
         Assert.AreEqual(3, Nodes(tree, MermaidKinds.Statement).Count());

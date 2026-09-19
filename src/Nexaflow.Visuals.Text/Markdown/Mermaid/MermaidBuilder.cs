@@ -190,7 +190,9 @@ internal abstract class MermaidBuilder : ContentBuilder
             top += title.Height + TitleGap;
         }
 
-        build.Graft(diagram.Seal(), new Point(Pad, top));
+        // Set in the middle of whatever the block came to be: a diagram narrower than its own title sits under the middle
+        // of it rather than off to one side of it.
+        build.Graft(diagram.Seal(), new Point(Pad + Math.Max(0, (width - body.Width) / 2), top));
         top += body.Height;
 
         foreach (var reason in trouble.Select(diagnostic => diagnostic.Message).Distinct())

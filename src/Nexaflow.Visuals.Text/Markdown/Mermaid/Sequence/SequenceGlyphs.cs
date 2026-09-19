@@ -24,7 +24,7 @@ internal static class SequenceGlyphs
     {
         SequenceKind.Database => DiagramShapes.Outline(DiagramShape.Cylinder, bounds),
         SequenceKind.Collections => Collected(bounds),
-        SequenceKind.Queue => Queued(bounds),
+        SequenceKind.Queue => DiagramCard.Queued(bounds),
         _ => Frozen(new RectangleGeometry(bounds, Corner, Corner)),
     };
 
@@ -47,48 +47,17 @@ internal static class SequenceGlyphs
         _ => Standing(bounds),
     };
 
-    /// <summary>How much of a person's card is the head drawn above it.</summary>
-    public const double Heading = 14;
-
-    /// <summary>How much deeper a cylinder is than what is written in it, for the cap at each end.</summary>
-    private const double Capping = 8;
-
-    /// <summary>The outline a participant's card is drawn with, where a diagram draws one rather than a plain box.</summary>
-    public static Geometry Carded(SequenceCardShape shape, Rect bounds) => shape switch
+    /// <summary>
+    /// The card a participant is drawn as, where a diagram draws one rather than a plain box — which is <see cref="DiagramCard"/>'s,
+    /// since a structural C4 diagram draws the very same card as a box of its graph.
+    /// </summary>
+    public static DiagramCardShape Carded(SequenceCardShape shape) => shape switch
     {
-        SequenceCardShape.Database => DiagramShapes.Outline(DiagramShape.Cylinder, bounds),
-        SequenceCardShape.Queue => Queued(bounds),
-        SequenceCardShape.Person => Headed(bounds),
-        _ => Frozen(new RectangleGeometry(bounds, Corner, Corner)),
+        SequenceCardShape.Database => DiagramCardShape.Database,
+        SequenceCardShape.Queue => DiagramCardShape.Queue,
+        SequenceCardShape.Person => DiagramCardShape.Person,
+        _ => DiagramCardShape.Box,
     };
-
-    /// <summary>The room a card of that shape leaves for what is written in it.</summary>
-    public static Rect Inside(SequenceCardShape shape, Rect bounds) => shape switch
-    {
-        SequenceCardShape.Database => DiagramShapes.Inside(DiagramShape.Cylinder, bounds),
-        SequenceCardShape.Queue => new Rect(bounds.X, bounds.Y, Math.Max(0, bounds.Width - (bounds.Height / 2)), bounds.Height),
-        SequenceCardShape.Person => new Rect(bounds.X, bounds.Y + Heading, bounds.Width, Math.Max(0, bounds.Height - Heading)),
-        _ => bounds,
-    };
-
-    /// <summary>How much deeper and wider a card of that shape is than the words in it.</summary>
-    public static double Allowed(SequenceCardShape shape) => shape switch
-    {
-        SequenceCardShape.Person => Heading,
-        SequenceCardShape.Database => Capping * 2,
-        _ => 0,
-    };
-
-    public static double Wider(SequenceCardShape shape) => shape == SequenceCardShape.Queue ? Capping * 2 : 0;
-
-    /// <summary>A person's card: a head above the box holding what it is called.</summary>
-    private static Geometry Headed(Rect bounds)
-    {
-        var body = new Rect(bounds.X, bounds.Y + Heading, bounds.Width, Math.Max(1, bounds.Height - Heading));
-        var head = new EllipseGeometry(new Point(bounds.X + (bounds.Width / 2), body.Y), Heading, Heading);
-
-        return Frozen(new CombinedGeometry(GeometryCombineMode.Union, head, new RectangleGeometry(body, Corner, Corner)));
-    }
 
     /// <summary>How round the corner of a plain participant is.</summary>
     private const double Corner = 4;
@@ -174,23 +143,7 @@ internal static class SequenceGlyphs
         return Frozen(group);
     }
 
-    /// <summary>A queue: a box with one end open, drawn as a half-round.</summary>
-    private static Geometry Queued(Rect bounds)
-    {
-        var radius = bounds.Height / 2;
-        var right = Math.Max(bounds.X, bounds.Right - radius);
 
-        var figure = new PathFigure { StartPoint = new Point(bounds.X, bounds.Y), IsClosed = true, IsFilled = true };
-        figure.Segments.Add(new LineSegment(new Point(right, bounds.Y), true));
-        figure.Segments.Add(new ArcSegment(new Point(right, bounds.Bottom), new System.Windows.Size(radius, radius), 0,
-                                           false, SweepDirection.Clockwise, true));
-        figure.Segments.Add(new LineSegment(new Point(bounds.X, bounds.Bottom), true));
-
-        var path = new PathGeometry();
-        path.Figures.Add(figure);
-
-        return Frozen(path);
-    }
 
     private static Geometry Frozen(Geometry geometry)
     {

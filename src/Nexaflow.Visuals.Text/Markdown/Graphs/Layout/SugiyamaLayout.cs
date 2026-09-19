@@ -622,10 +622,7 @@ public static class SugiyamaLayout
             if (n.Shape == NodeShape.ClassBox && n.Class is not null)
                 (w, h) = ClassBoxMetrics.Measure(n.Label, n.Class);
 
-            // A C4 element card the same way — one metrics class shared with the painter, so the
-            // footprint reserved here is exactly the one drawn into.
-            if (n.Shape == NodeShape.C4Element && n.C4 is not null)
-                (w, h) = C4ElementMetrics.Measure(n.Label, n.C4);
+
 
             // State-diagram pseudostates have no label and a fixed footprint.
             if (n.Shape is NodeShape.StateStart or NodeShape.StateEnd) { w = h = 20; }

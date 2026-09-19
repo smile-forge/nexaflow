@@ -230,8 +230,9 @@ architecture-beta
 ## C4 diagrams
 
 Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
-Elements are cards carrying their kind, technology and description; boundaries nest; relationships name the protocol
-they run over.
+Elements are cards carrying their kind, technology and description, graded so the deeper the colour the higher the
+abstraction; boundaries nest and hold what is written inside them; relationships name the protocol they run over. A
+card's label and a boundary's name are typed into where they are drawn.
 
 ````markdown
 ```mermaid
@@ -255,8 +256,8 @@ Rel(api, db, "Reads from and writes to", "JDBC")
 ![A C4 container diagram with a system boundary, element cards and technology-labelled relationships](images/markdown/mermaid-c4.png)
 
 The body accepts the fuller [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro vocabulary — `$tags`
-with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering — not just
-Mermaid's subset.
+with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering,
+`LAYOUT_LEFT_RIGHT` — not just Mermaid's subset. `C4Dynamic` numbers its relationships without being asked.
 
 ---
 

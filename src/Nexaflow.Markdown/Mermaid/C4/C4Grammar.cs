@@ -1,34 +1,37 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Mermaid.C4.Stages;
 using Nexaflow.Markdown.Mermaid.Sequence;
-using Nexaflow.Markdown.Mermaid.Sequence.Stages;
+
 using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.C4;
 
 /// <summary>
-/// What a <c>C4Sequence</c> block says. The header is Mermaid's; the body is C4-PlantUML's macro set, which is one shape
-/// throughout — a name, its arguments between brackets, and the brace that may open a block after them:
+/// What a C4 block says. The header is Mermaid's; the body is C4-PlantUML's macro set, which is one shape throughout — a
+/// name, its arguments between brackets, and the brace that may open a block after them:
 ///
 /// <code>
 /// Person(customer, "Banking Customer", "A customer of the bank", $tags="v1")
-/// Boundary(b, "API Application", "Container")
+/// System_Boundary(c1, "Internet Banking", "System") {
 /// Rel(customer, spa, "Submits credentials", "HTTPS", $index=Index())
-/// Boundary_End()
+/// }
 /// </code>
 ///
 /// <para>
-/// <strong>What a macro means is the model's.</strong> Every call reads the same way, so this says only what a line is —
-/// a macro, a boundary opening one, the line closing one, a line a pasted diagram brought with it — and which of the
-/// arguments name an element, which is what lets a rename carry.
+/// <strong>This says only what a line is.</strong> A macro, a boundary opening one, the line closing one, a line a pasted
+/// diagram brought with it — and which of the arguments name an element, which is what lets a rename carry. What a macro
+/// <em>means</em> is the model's: <see cref="C4Structure"/> for a diagram laid out as a graph, <see cref="C4Sequence"/> for
+/// one laid out as a timeline.
 /// </para>
 ///
 /// <para>
-/// <strong>Anything that is not a macro is a sequence diagram's own line.</strong> <c>alt</c>, <c>loop</c>,
-/// <c>note over</c> and <c>activate</c> are handed to <see cref="SequenceGrammar"/> itself rather than a second copy of
-/// it, which is what lets them nest round the macros correctly.
+/// <strong>A C4 diagram may be written in two languages at once.</strong> A <c>C4Sequence</c> takes <c>alt</c>,
+/// <c>note over</c> and <c>activate</c> among its macros, so <see cref="C4SequenceGrammar"/> names the sequence diagram's
+/// own grammar as the one every line that is not a macro belongs to. A structural diagram names none, and a line that is
+/// not a macro is a line nobody meant to write.
 /// </para>
 /// </summary>
-public sealed class C4Grammar : IMermaidGrammar
+public class C4Grammar : IMermaidGrammar
 {
     /// <summary>The macros that open a boundary round everything written until the line closing it.</summary>
     public static readonly string[] Boundaries =
@@ -47,16 +50,19 @@ public sealed class C4Grammar : IMermaidGrammar
     private const string MacroShape = "A macro is written Person(alias, \"Label\"), with its arguments between brackets.";
     private const string ShutShape = "A boundary is closed by } or by Boundary_End().";
 
-    private static readonly SequenceGrammar Sequences = new();
+    /// <summary>
+    /// The language every line that is not a macro belongs to, or null where a C4 diagram is written in C4's words alone.
+    /// </summary>
+    protected virtual IMermaidGrammar? Within => null;
 
     /// <inheritdoc/>
-    /// <remarks>Nothing follows the keyword: everything a C4 sequence says, it says on a line of its own.</remarks>
+    /// <remarks>Nothing follows the keyword: everything a C4 diagram says, it says on a line of its own.</remarks>
     public ContentNode? Header(string arguments)
     {
         var line = MermaidLine.Of(arguments);
         if (line.Done) return null;
 
-        return ContentNode.Shown(arguments, "Nothing follows C4Sequence — it is written on a line of its own.",
+        return ContentNode.Shown(arguments, "Nothing follows a C4 header — it is written on a line of its own.",
                                  MermaidRoles.Arguments);
     }
 
@@ -77,7 +83,9 @@ public sealed class C4Grammar : IMermaidGrammar
         if (read.Written.Trim() is "}" or "})") return Shutting(read);
         if (Heads(read.Written) is { } name) return Called(read, name);
 
-        return Sequences.Statement(text);
+        if (this.Within is { } within) return within.Statement(text);
+
+        return read.Done ? null : read.Shown(MacroShape);
     }
 
     /// <inheritdoc/>
@@ -85,12 +93,14 @@ public sealed class C4Grammar : IMermaidGrammar
     public IEnumerable<MermaidStretch> Stretches => [];
 
     /// <inheritdoc/>
-    /// <remarks>Under a macro, a relationship — the rest is a sequence diagram's own.</remarks>
+    /// <remarks>Under a macro, a relationship — which is what most of a C4 diagram is.</remarks>
     public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
     {
-        C4Kinds.Macro or C4Kinds.Boundary or C4Kinds.Aside => ("Rel(, , \"\")", 4),
-        _ => Sequences.Blank(above),
+        C4Kinds.Macro or C4Kinds.Boundary or C4Kinds.Aside => Relationship,
+        _ => this.Within is { } within ? within.Blank(above) : Relationship,
     };
+
+    private static (string Text, int Caret) Relationship => ("Rel(, , \"\")", 4);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -114,12 +124,25 @@ public sealed class C4Grammar : IMermaidGrammar
         // the same name is used in both, and it has to read in each.
         if (role is C4Roles.Alias or SequenceRoles.Id) return MermaidWriting.Only(caret, text, Bare);
 
-        return Sequences.Escaping(part, caret, text);
+        return this.Within?.Escaping(part, caret, text);
     }
 
     /// <inheritdoc/>
-    /// <remarks>An element is named by the macro declaring it and used by every relationship, note and bar naming it.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block) => Sequences.Names(block);
+    /// <remarks>An element is named by the macro declaring it and used by every relationship and boundary naming it.</remarks>
+    public IReadOnlyList<MermaidName> Names(ContentPart block)
+    {
+        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
+
+        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
+        {
+            if (name.Words() is not { Role: SequenceRoles.Id, Length: > 0 } words) continue;
+
+            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
+            places.Add(name);
+        }
+
+        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
+    }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -129,20 +152,13 @@ public sealed class C4Grammar : IMermaidGrammar
     public string Naming(string name) => new([.. name.Where(Bare)]);
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// The same stages a sequence diagram runs, with a boundary counted among the things that open a box — a boundary and a
-    /// frame are closed by one stack, since <c>}</c> and <c>end</c> both close whichever was opened last.
-    /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) =>
-    [
-        new ResolveFrames([C4Kinds.Boundary], [C4Kinds.Macro, C4Kinds.Aside]),
-        new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered),
-    ];
+    /// <remarks>Which boundary each line is written inside, which is a fact about the whole block rather than about a line.</remarks>
+    public virtual IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveBoundaries()];
 
     /// <inheritdoc/>
-    /// <remarks>Between an argument's quotes, and wherever a sequence diagram's own line has one.</remarks>
+    /// <remarks>Between an argument's quotes, and wherever a line of the other language has one.</remarks>
     public bool Holds(ContentNode? holder, ContentNode node) =>
-        node.Kind == MermaidKinds.Quoted || Sequences.Holds(holder, node);
+        node.Kind == MermaidKinds.Quoted || (this.Within?.Holds(holder, node) ?? false);
 
     /// <summary>The name of the macro a line calls, or null where it calls none.</summary>
     public static string? Heads(string written)
@@ -206,14 +222,14 @@ public sealed class C4Grammar : IMermaidGrammar
         line.Token("}", Roles.Close);
         line.Token(")", Roles.Close);
 
-        return line.Closed(SequenceKinds.Ends, ShutShape);
+        return line.Closed(C4Kinds.Ends, ShutShape);
     }
 
     /// <summary>One macro call: its name, its arguments, and the brace that may open a block after them.</summary>
     private static ContentNode Called(MermaidLine line, string name)
     {
         var kind = Boundaries.Contains(name, StringComparer.OrdinalIgnoreCase) ? C4Kinds.Boundary
-                 : string.Equals(name, Shutter, StringComparison.OrdinalIgnoreCase) ? SequenceKinds.Ends
+                 : string.Equals(name, Shutter, StringComparison.OrdinalIgnoreCase) ? C4Kinds.Ends
                  : C4Kinds.Macro;
 
         var aliases = Aliased(name);

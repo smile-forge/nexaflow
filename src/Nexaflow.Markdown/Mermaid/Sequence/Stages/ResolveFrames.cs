@@ -16,12 +16,14 @@ namespace Nexaflow.Markdown.Mermaid.Sequence.Stages;
 /// </summary>
 /// <param name="opens">What else opens a box, beyond a sequence diagram's own.</param>
 /// <param name="joins">And what else goes inside one.</param>
-public sealed class ResolveFrames(IReadOnlyList<string>? opens = null, IReadOnlyList<string>? joins = null) : IAstStage
+/// <param name="ends">And what else closes one, beyond <c>end</c>.</param>
+public sealed class ResolveFrames(IReadOnlyList<string>? opens = null, IReadOnlyList<string>? joins = null,
+                                  IReadOnlyList<string>? ends = null) : IAstStage
 {
     public string Name => "sequence:frames";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, [SequenceKinds.Frame, SequenceKinds.Box, .. opens ?? []], SequenceKinds.Ends,
+        MermaidNesting.Inside(tree, [SequenceKinds.Frame, SequenceKinds.Box, .. opens ?? []], [SequenceKinds.Ends, .. ends ?? []],
                               [SequenceKinds.Participant, SequenceKinds.Created, SequenceKinds.Destroyed,
                                SequenceKinds.Message, SequenceKinds.Note, SequenceKinds.Activation,
                                SequenceKinds.Numbering, SequenceKinds.Section, SequenceKinds.Link, SequenceKinds.Menu,

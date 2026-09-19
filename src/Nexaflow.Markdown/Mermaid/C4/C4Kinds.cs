@@ -1,9 +1,14 @@
 namespace Nexaflow.Markdown.Mermaid.C4;
 
 /// <summary>
-/// What a line of a C4 diagram says beyond the lines every diagram shares, and beyond the sequence diagram's own — a C4
-/// sequence says what a sequence says in C4-PlantUML's words, so most of what it writes is read into
-/// <see cref="Sequence.SequenceKinds"/> and only the macro call itself is here.
+/// What a line of a C4 diagram says. The macro set is one shape throughout, so there are few kinds: a call, a call that opens
+/// a boundary, the line closing one, and a line a pasted diagram brought with it.
+///
+/// <para>
+/// A <c>C4Sequence</c> is written in two languages at once, and everything in it that is a sequence diagram's own is read
+/// into <see cref="Sequence.SequenceKinds"/> — which is why a boundary's <c>}</c> is a kind of C4's own rather than the
+/// sequence diagram's <c>end</c>: one nesting closes on both words, and each language keeps its own.
+/// </para>
 /// </summary>
 public static class C4Kinds
 {
@@ -13,8 +18,14 @@ public static class C4Kinds
     /// <summary>A macro that opens a boundary round everything written until the line that closes it.</summary>
     public const string Boundary = "c4-boundary";
 
+    /// <summary>The line closing a boundary — a <c>}</c>, a <c>})</c>, or a <c>Boundary_End()</c>.</summary>
+    public const string Ends = "c4-end";
+
     /// <summary>A line a diagram pasted from PlantUML brings with it — <c>@startuml</c>, <c>!include</c> — read and drawn as nothing.</summary>
     public const string Aside = "c4-aside";
+
+    /// <summary>What a line is told about the whole block it is in: which boundary it is written inside, and which it opens.</summary>
+    public const string Fact = "c4-fact";
 }
 
 /// <summary>What a piece of a C4 line is to the piece holding it.</summary>
@@ -34,4 +45,10 @@ public static class C4Roles
 
     /// <summary>A line read and drawn as nothing.</summary>
     public const string Aside = "c4-aside-text";
+
+    /// <summary>The boundary a line is written inside, named by where that boundary was opened.</summary>
+    public const string Inside = "c4-inside";
+
+    /// <summary>And the boundary a line opens.</summary>
+    public const string Opened = "c4-opened";
 }

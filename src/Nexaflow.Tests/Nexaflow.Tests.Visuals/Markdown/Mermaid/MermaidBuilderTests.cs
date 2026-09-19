@@ -108,13 +108,18 @@ public class MermaidBuilderTests
     [TestMethod]
     public void AKnownDiagramNeverReachesTheUnknownBuilder() => UiThread.Run(() =>
     {
-        // A C4 diagram has no builder of its own yet, so it is drawn by its renderer rather than shown as source.
-        Assert.IsNotInstanceOfType(DiagramRenderer.Render("mermaid", "%%{\n  init: {}\n}%%\nC4Context\n  Person(a, \"A\")", MarkdownPalette.Dark),
-                                   typeof(ContentElement));
+        // A flowchart asking for nodes that open and close has no builder, so it is drawn by the graph view it needs.
+        Assert.IsNotInstanceOfType(
+            DiagramRenderer.Render("mermaid", "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
+                                   MarkdownPalette.Dark),
+            typeof(ContentElement));
 
-        // A pie is drawn on the shared layout tree, so it is a ContentElement — but a chart, not its own characters.
-        var pie = (ContentElement)DiagramRenderer.Render("mermaid", "pie\n  \"A\" : 1", MarkdownPalette.Dark);
-        Assert.IsFalse(pie.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind));
+        // Everything else is drawn on the shared layout tree, so it is a ContentElement — a drawing, not its own characters.
+        foreach (var source in new[] { "pie\n  \"A\" : 1", "C4Context\n  Person(a, \"A\")" })
+        {
+            var drawn = (ContentElement)DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark);
+            Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), source);
+        }
     });
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>

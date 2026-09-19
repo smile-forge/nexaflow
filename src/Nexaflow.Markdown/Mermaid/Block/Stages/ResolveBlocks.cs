@@ -13,7 +13,7 @@ public sealed class ResolveBlocks : IAstStage
     public string Name => "block:nesting";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, [BlockKinds.Opens], BlockKinds.Ends, [BlockKinds.Items, BlockKinds.Columns],
+        MermaidNesting.Inside(tree, [BlockKinds.Opens], [BlockKinds.Ends], [BlockKinds.Items, BlockKinds.Columns],
                               BlockKinds.Fact, BlockRoles.Inside, BlockRoles.Opened,
                               stray: "This end closes a composite, and none is open here.",
                               unclosed: "This composite is never closed: end closes it.");

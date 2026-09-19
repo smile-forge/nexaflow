@@ -203,8 +203,9 @@ public class C4SequenceTests
             "C4Sequence\nSHOW_LEGEND()\nAddElementTag(\"v1\", $bgColor=\"#1168bd\", $legendText=\"Version one\")\n"
             + "Person(a, \"A\")\nSystem(b, \"B\")\nSystemDb(c, \"C\")\nRel(a, b, \"x\")");
 
-        CollectionAssert.AreEqual(new[] { "Person", "Software System", "Version one" },
-                                  diagram.Legend.Select(row => row.Says).ToArray());
+        CollectionAssert.AreEqual(new[] { "Person", "Software System", "Software System (database)", "Version one" },
+                                  diagram.Legend.Select(row => row.Says).ToArray(),
+                                  "a store is its own row: the key describes what was written, and a cylinder is not a box");
     }
 
     [TestMethod]

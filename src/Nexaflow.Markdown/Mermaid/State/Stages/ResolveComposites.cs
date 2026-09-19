@@ -13,7 +13,7 @@ public sealed class ResolveComposites : IAstStage
     public string Name => "state:composites";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, [StateKinds.Opens], StateKinds.Ends,
+        MermaidNesting.Inside(tree, [StateKinds.Opens], [StateKinds.Ends],
                               [StateKinds.State, StateKinds.Transition, StateKinds.Direction, StateKinds.Concurrent,
                                StateKinds.Note, StateKinds.NoteOpens, StateKinds.ClassDef, StateKinds.Class, StateKinds.Style],
                               StateKinds.Fact, StateRoles.Inside, StateRoles.Opened,

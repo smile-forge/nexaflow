@@ -165,20 +165,25 @@ internal static class DiagramConnector
         return Rect.Inflate(new Rect(at.X - (taken.Width / 2), at.Y - (taken.Height / 2), taken.Width, taken.Height), Air, Air / 2);
     }
 
+    /// <summary>How round the corner of an outlined label is.</summary>
+    private const double Rounded = 3;
+
     /// <summary>
     /// What is written on a connector, in the room <see cref="Room"/> gave it: the words on a patch of <paramref name="backing"/>,
     /// so the line does not run through them and a press there means the connector rather than whatever is under it.
     /// </summary>
     public static void Says(LayoutBuilder build, string kind, ISourcePart? part, Rect room, IReadOnlyList<DiagramWords> said,
-                            Brush backing, string wordsKind = MermaidPiece.Words)
+                            Brush backing, string wordsKind = MermaidPiece.Words, Brush? outline = null)
     {
         if (room.IsEmpty) return;
 
-        var patch = new RectangleGeometry(room);
+        // Rounded and outlined where a diagram asks for it: what is written on a line reads better held off the line than
+        // sitting on it, and the edge is what says where the words stop and the drawing starts again.
+        var patch = outline is null ? new RectangleGeometry(room) : new RectangleGeometry(room, Rounded, Rounded);
         patch.Freeze();
 
         build.Open(kind, part, stops: Stops.None);
-        build.Draw(new GeometryMark(patch, backing, null, 0));
+        build.Draw(new GeometryMark(patch, backing, outline, outline is null ? 0 : 1));
         build.Occupies(patch);
 
         foreach (var (words, at, said_kind) in DiagramWords.Placed(said, Rect.Inflate(room, -Air, -Air / 2), wordsKind))

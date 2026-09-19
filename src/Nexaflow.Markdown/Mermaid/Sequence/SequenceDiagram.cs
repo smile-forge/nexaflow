@@ -119,6 +119,12 @@ public sealed record SequenceCard
 
     public SequenceCardShape Shape { get; init; }
 
+    /// <summary>
+    /// Which band of the diagram's own grading the card takes, where a diagram grades its cards — a C4 sequence does, by the
+    /// abstraction each element sits at. Null where the diagram grades nothing, and the theme's own surface is the answer.
+    /// </summary>
+    public int? Tone { get; init; }
+
     /// <summary>What it is filled, written in and outlined with, where anything says — otherwise the theme's own.</summary>
     public string? Fill { get; init; }
     public string? Ink { get; init; }
@@ -126,7 +132,11 @@ public sealed record SequenceCard
 }
 
 /// <summary>One row of the key drawn under a diagram that asks for one: what it says, and the colours it stands for.</summary>
-public sealed record SequenceLegend(string Says, string? Fill, string? Border);
+public sealed record SequenceLegend(string Says, string? Fill, string? Border)
+{
+    /// <summary>Which band of the diagram's own grading the row's swatch takes, where nothing is written for it.</summary>
+    public int? Tone { get; init; }
+}
 
 /// <summary>Somewhere a participant leads, from a <c>link</c> line or one of the several a <c>links</c> line gives.</summary>
 /// <param name="Part">What it was written as, which is what a press on it means.</param>

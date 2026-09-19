@@ -4020,8 +4020,8 @@ internal sealed class MarkdownSamples : ISampleSet
         `C4Deployment` headers are Mermaid's, but the body accepts the fuller
         [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro set: `$techn` and `$descr`
         on elements and relationships, `$tags` with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`
-        and the `SHOW_PERSON_*` shape variants. Elements are laid out by the shared graph engine, so a
-        C4 diagram pans, zooms and selects like a flowchart.
+        and the `SHOW_PERSON_*` shape variants. Elements are laid out in ranks by what is joined to what,
+        and a card's label is typed into where it is drawn.
 
         ## System context
 
