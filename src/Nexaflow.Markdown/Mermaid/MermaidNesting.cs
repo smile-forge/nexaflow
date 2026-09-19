@@ -21,7 +21,8 @@ public static class MermaidNesting
     public const string Outermost = "";
 
     /// <summary>Says what each line of <paramref name="tree"/> is inside, and what each line opening a group opens.</summary>
-    /// <param name="opens">The kind of line opening a group.</param>
+    /// <param name="opens">The kinds of line opening a group — several where a diagram has more than one kind of group and
+    /// one word closes them all, as a sequence diagram's box and its fragments both end with <c>end</c>.</param>
     /// <param name="ends">The kind of line ending the group it is in.</param>
     /// <param name="joins">The kinds of line that go inside a group, besides the lines that open one.</param>
     /// <param name="kind">The kind the facts are hung as.</param>
@@ -29,7 +30,7 @@ public static class MermaidNesting
     /// <param name="opened">The role naming the group a line opens.</param>
     /// <param name="stray">What is wrong with a line ending a group when none is open — or null where a diagram allows it.</param>
     /// <param name="unclosed">What is wrong with a group nothing ends — or null where a diagram allows it.</param>
-    public static ContentNode Inside(ContentNode tree, string opens, string ends, IReadOnlyList<string> joins, string kind,
+    public static ContentNode Inside(ContentNode tree, IReadOnlyList<string> opens, string ends, IReadOnlyList<string> joins, string kind,
                                      string inside, string opened, string? stray = null, string? unclosed = null)
     {
         var said = new Dictionary<ContentNode, (string Inside, string? Opened)>();
@@ -51,7 +52,7 @@ public static class MermaidNesting
 
             var holder = open.Count > 0 ? open.Peek().Key : Outermost;
 
-            if (stated.Kind == opens)
+            if (opens.Contains(stated.Kind))
             {
                 var key = count++.ToString(CultureInfo.InvariantCulture);
                 said[stated] = (holder, key);

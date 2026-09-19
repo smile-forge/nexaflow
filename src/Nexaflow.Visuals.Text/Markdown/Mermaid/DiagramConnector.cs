@@ -56,6 +56,18 @@ internal enum DiagramHead
     /// <summary>A cross in a circle: SysML's composite containment, at the end holding the other.</summary>
     CrossCircle,
 
+    /// <summary>Half a filled triangle, above the line: a sequence diagram's <c>-|\</c>.</summary>
+    HalfTop,
+
+    /// <summary>And below it: <c>-|/</c>.</summary>
+    HalfBottom,
+
+    /// <summary>One stroke back from the tip, above the line: a sequence diagram's <c>-\\</c>.</summary>
+    StickTop,
+
+    /// <summary>And below it: <c>-//</c>.</summary>
+    StickBottom,
+
     /// <summary>An ER diagram's zero or one: <c>|o</c>.</summary>
     ZeroOrOne,
 
@@ -283,6 +295,17 @@ internal static class DiagramConnector
                 lines.Children.Add(new LineGeometry(held - (along * half), held + (along * half)));
                 lines.Children.Add(new LineGeometry(held - (across * half), held + (across * half)));
                 return tip - (along * half * 2);
+
+            // Half a head is the half of one on the side the characters draw it: -|\ above the line, -|/ below it.
+            case DiagramHead.HalfTop or DiagramHead.HalfBottom:
+                var barb = head == DiagramHead.HalfTop ? -across : across;
+                solid.Children.Add(Polygon(tip, back + (barb * half), back));
+                return back;
+
+            case DiagramHead.StickTop or DiagramHead.StickBottom:
+                var stroke = head == DiagramHead.StickTop ? -across : across;
+                lines.Children.Add(new LineGeometry(tip, back + (stroke * half)));
+                return tip;
 
             case DiagramHead.ZeroOrOne:
                 Bar(tip - (along * 6), across, half, lines);

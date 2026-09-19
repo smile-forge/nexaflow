@@ -108,8 +108,8 @@ public class MermaidBuilderTests
     [TestMethod]
     public void AKnownDiagramNeverReachesTheUnknownBuilder() => UiThread.Run(() =>
     {
-        // A sequence diagram has no builder of its own yet, so it is drawn by its renderer rather than shown as source.
-        Assert.IsNotInstanceOfType(DiagramRenderer.Render("mermaid", "%%{\n  init: {}\n}%%\nsequenceDiagram\n  A->>B: hi", MarkdownPalette.Dark),
+        // A C4 diagram has no builder of its own yet, so it is drawn by its renderer rather than shown as source.
+        Assert.IsNotInstanceOfType(DiagramRenderer.Render("mermaid", "%%{\n  init: {}\n}%%\nC4Context\n  Person(a, \"A\")", MarkdownPalette.Dark),
                                    typeof(ContentElement));
 
         // A pie is drawn on the shared layout tree, so it is a ContentElement — but a chart, not its own characters.

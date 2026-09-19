@@ -2513,7 +2513,8 @@ internal sealed class MarkdownSamples : ISampleSet
 
         A `sequenceDiagram` draws participant lifelines with messages flowing
         top-to-bottom. Arrow forms set the line and head: `->>` solid, `-->>`
-        dashed, `-)` async, `-x` cross, and a self-message loops back.
+        dashed, `-)` async, `-x` cross, `<<->>` both ways at once, half a head
+        either side of the line, and a self-message loops back.
 
         ```mermaid
         sequenceDiagram
@@ -2790,6 +2791,74 @@ internal sealed class MarkdownSamples : ISampleSet
             John-->>Alice: Great!
             John->>Bob: How about you?
             Bob-->>John: Jolly good!
+        ```
+
+        Numbering from where it says, and turned off partway
+
+        ```mermaid
+        sequenceDiagram
+            autonumber 10 10
+            Alice->>John: One
+            Alice->>John: Two
+            autonumber off
+            Alice->>John: Unnumbered
+        ```
+
+        Half arrows and sticks
+
+        ```mermaid
+        sequenceDiagram
+            Alice-|\John: Top half
+            Alice-|/John: Bottom half
+            Alice/|-John: Top half, the other way round
+            Alice\|-John: Bottom half, the other way round
+            Alice-\\John: Top stick
+            Alice-//John: Bottom stick
+            Alice//-John: Top stick, the other way round
+            Alice\\-John: Bottom stick, the other way round
+        ```
+
+        Critical regions
+
+        ```mermaid
+        sequenceDiagram
+            critical Establish a connection to the DB
+                Service-->DB: connect
+            option Network timeout
+                Service-->Service: Log error
+            option Credentials rejected
+                Service-->Service: Log different error
+            end
+        ```
+
+        Actor menus
+
+        ```mermaid
+        sequenceDiagram
+            participant Alice
+            participant John
+            link Alice: Dashboard @ https://dashboard.contoso.com/alice
+            link Alice: Wiki @ https://wiki.contoso.com/alice
+            links John: {"Dashboard": "https://dashboard.contoso.com/john", "Wiki": "https://wiki.contoso.com/john"}
+            Alice->>John: Great!
+        ```
+
+        The front matter's own settings
+
+        ```mermaid
+        ---
+        config:
+          sequence:
+            mirrorActors: false
+            hideUnusedParticipants: true
+            actorMargin: 90
+            wrap: true
+        ---
+        sequenceDiagram
+            participant Alice
+            participant John
+            participant Nobody
+            Alice->>John: A long message that is wrapped because the front matter asked for it
         ```
 
 
