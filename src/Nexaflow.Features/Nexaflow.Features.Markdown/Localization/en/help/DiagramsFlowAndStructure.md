@@ -63,23 +63,28 @@ swimlane-beta LR
 
 ## Sequence diagram
 
-Participants and the messages between them, including notes and async arrows.
+Participants and the messages between them: notes, numbering, the bar saying one is working, and the frames — `alt`,
+`opt`, `loop`, `par`, `critical`, `break` — that hold a run of messages under a condition.
 
 ````markdown
 ```mermaid
 sequenceDiagram
-    participant U as User
+    autonumber
+    actor U as User
     participant N as Nexaflow
     participant R as Renderer
-    U->>N: Open notes.md
-    N->>R: Parse + render blocks
-    R-->>N: WPF elements
-    N-->>U: Rendered document
-    Note over R: Diagrams drawn natively
+    U->>+N: Open notes.md
+    N->>+R: Parse and render the blocks
+    loop every block
+        R->>R: Draw it on the layout tree
+    end
+    R-->>-N: The elements to show
+    N-->>-U: The rendered document
+    Note over R: Diagrams are drawn natively
 ```
 ````
 
-![A sequence diagram with three participants and a note](images/markdown/mermaid-sequence.png)
+![A sequence diagram: a user and two services, their messages numbered, a loop frame round a message one of them sends itself, bars saying which is working, and a note](images/markdown/mermaid-sequence.png)
 
 ---
 

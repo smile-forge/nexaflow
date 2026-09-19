@@ -374,7 +374,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         if (!line.Token("\"", Roles.Close)) return line.Shown(CssClassShape);
 
         line.Room();
-        if (!line.Done && !line.Name(ClassRoles.Class, Bare)) return line.Shown(CssClassShape);
+        if (!line.Done && !line.Names(Classed, ClassRoles.Class, "class")) return line.Shown(CssClassShape);
 
         return line.Closed(ClassKinds.CssClass, CssClassShape);
     }
@@ -460,7 +460,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         if (line.Sees(Given))
         {
             line.Token(Given);
-            if (!line.Name(ClassRoles.Class, Bare)) return line.Undo(mark);
+            if (!line.Names(Classed, ClassRoles.Class, "class")) return line.Undo(mark);
         }
 
         line.Close(ClassKinds.Named, ClassRoles.Id);
@@ -485,6 +485,9 @@ public sealed class ClassGrammar : IMermaidGrammar
 
         return true;
     }
+
+    /// <summary>One of the classes a line gives something, which may be given several at once.</summary>
+    private static bool Classed(MermaidLine line) => line.Name(ClassRoles.Class, Bare);
 
     /// <summary>How many of the class at this end of a relation the other has, where a number is written there.</summary>
     private static bool Counted(MermaidLine line) => line.Next != '"' || line.Quoted(ClassRoles.Count);

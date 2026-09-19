@@ -423,7 +423,8 @@ public sealed class ClassDiagram
                     break;
 
                 case ClassKinds.CssClass:
-                    taken.Add((ClassGrammar.Styling.Ids(stated), ClassGrammar.Styling.Given(stated) ?? string.Empty));
+                    foreach (var given in ClassGrammar.Styling.Givens(stated))
+                        taken.Add((ClassGrammar.Styling.Ids(stated), given));
                     break;
 
                 case ClassKinds.Style:
@@ -566,7 +567,9 @@ public sealed class ClassDiagram
 
         made.Generic ??= Worded(named, ClassRoles.Generic)?.Text;
 
-        if (named.Children.Where(child => child.Kind == MermaidKinds.Name).Skip(1).FirstOrDefault()?.Words() is { } given)
+        foreach (var given in named.SelfAndDescendants()
+                                   .Where(part => part.Kind == MermaidKinds.Words
+                                                  && part.Role == ClassRoles.Class && part.Length > 0))
             made.Classes.Add(given.Text);
 
         return made;

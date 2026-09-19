@@ -133,6 +133,8 @@ public class ClassGrammarTests : MermaidGrammarContract
         ("a class named in backticks", "classDiagram\n  class `Odd Name!`\n  `Odd Name!` --> Other"),
         ("a class with type parameters", "classDiagram\n  class Box~T~"),
         ("a class given a class", "classDiagram\n  class Alone:::blue\n  classDef blue fill:#00f"),
+        ("a class given two at once",
+         "classDiagram\n  class Alone:::blue,bold\n  classDef blue fill:#00f\n  classDef bold stroke-width:2px"),
         ("a member after a colon", "classDiagram\n  Alone : +int age"),
         ("a member with nothing after the colon", "classDiagram\n  Alone : "),
         ("members between braces", "classDiagram\n  class Alone {\n    +int age\n    +grow()\n  }"),
@@ -155,6 +157,9 @@ public class ClassGrammarTests : MermaidGrammarContract
         ("the way it is laid out", "classDiagram\n  direction LR\n  A --> B"),
         ("a class taking a class", "classDiagram\n  class A\n  classDef blue fill:#00f\n  cssClass \"A\" blue"),
         ("several classes taking one", "classDiagram\n  class A\n  class B\n  classDef blue fill:#00f\n  cssClass \"A,B\" blue"),
+        ("several classes taking two",
+         "classDiagram\n  class A\n  class B\n  classDef blue fill:#00f\n  classDef bold stroke-width:2px\n"
+         + "  cssClass \"A,B\" blue,bold"),
         ("a class styled on its own", "classDiagram\n  class A\n  style A fill:#f9f,stroke:#333"),
         ("where pressing a class leads", "classDiagram\n  class A\n  click A href \"https://example.com\" \"Go there\""),
         ("a link with a target", "classDiagram\n  class A\n  link A \"https://example.com\" \"Go there\" _blank"),

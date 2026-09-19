@@ -151,15 +151,27 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         foreach (var relation in diagram.Relations)
         {
-            if (!plan.Named.TryGetValue(relation.From, out var from) || !plan.Named.TryGetValue(relation.To, out var to)) continue;
+            if (Joined(plan, relation.From, relation.FromBox) is not { } from) continue;
+            if (Joined(plan, relation.To, relation.ToBox) is not { } to) continue;
 
-            plan.Joins[relation] = new DiagramJoin(from.Cell, to.Cell);
+            // A subgraph joined to something inside itself has nowhere to run to, so the line is left undrawn.
+            if (ReferenceEquals(from, to) && relation.FromBox != relation.ToBox) continue;
+
+            plan.Joins[relation] = new DiagramJoin(from, to);
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], Towards(diagram.Way),
                                       diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
 
         return plan;
+    }
+
+    /// <summary>The cell one end of a relationship is drawn from: an entity's box, or a subgraph's own.</summary>
+    private static DiagramCell? Joined(Plan plan, string id, bool box)
+    {
+        if (box) return plan.Groups.TryGetValue(id, out var held) ? held.Cell : null;
+
+        return plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null;
     }
 
     private DiagramRoom Reached(ErDiagram diagram, Plan plan) =>
@@ -207,12 +219,15 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// The keys an attribute is: the one written, where it is the only one, and otherwise what they say together — which nobody
     /// writes as one run, and so is pressed rather than typed into.
     /// </summary>
-    private DiagramWords? Keyed(ErAttribute attribute, Brush ink, ErConfig config) => attribute.Keys.Count switch
+    private DiagramWords? Keyed(ErAttribute attribute, Brush ink, ErConfig config)
     {
-        0 => null,
-        1 => Written(attribute.Keys[0], null, config.TextSize, ink),
-        _ => Worked(attribute.Keyed, attribute.Part, config.TextSize, ink),
-    };
+        if (attribute.Keyed is not { Length: > 0 } keyed) return null;
+
+        // The one key written is the characters written; anything else — several of them, or the PK a star says — is worked out.
+        return attribute.Keys.Count == 1 && keyed == attribute.Keys[0].Text
+            ? Written(attribute.Keys[0], null, config.TextSize, ink)
+            : Worked(keyed, attribute.Part, config.TextSize, ink);
+    }
 
     // ── The relationships ───────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@ public sealed class ResolveNamespaces : IAstStage
     public string Name => "class:namespaces";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, ClassKinds.Namespace, ClassKinds.Ends,
+        MermaidNesting.Inside(tree, [ClassKinds.Namespace], ClassKinds.Ends,
                               [ClassKinds.Class, ClassKinds.Body, ClassKinds.Says, ClassKinds.Relation, ClassKinds.Annotation,
                                ClassKinds.Note, ClassKinds.Direction, ClassKinds.CssClass, ClassKinds.ClassDef, ClassKinds.Style,
                                ClassKinds.Click],
