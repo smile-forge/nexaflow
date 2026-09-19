@@ -5,66 +5,6 @@ using System.Windows;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
-/// <summary>Which way a layered layout runs: where a line drawn from one cell to the next points.</summary>
-internal enum DiagramWay
-{
-    Down,
-    Up,
-    Right,
-    Left,
-}
-
-/// <summary>A node, or a box holding other cells. A box is laid out in its own space first, then sized to what it holds and its cells moved into place.</summary>
-internal sealed class DiagramCell(Size size)
-{
-    /// <summary>How much room it takes. For a box, the most of what it was given and what it turned out to hold.</summary>
-    public Size Size { get; set; } = size;
-
-    /// <summary>The box it is in, or null for one at the outermost level.</summary>
-    public DiagramCell? Inside { get; init; }
-
-    /// <summary>The way what is inside it runs, where it is a box laid out its own way rather than the chart's.</summary>
-    public DiagramWay? Way { get; init; }
-
-    /// <summary>The clear air a box keeps between its edge and what is inside it.</summary>
-    public double Pad { get; init; }
-
-    /// <summary>The room a box keeps at the top of it for what is written there.</summary>
-    public double Heading { get; init; }
-
-    /// <summary>The lane band it's confined to, numbered from one; 0 for no lane.</summary>
-    public int Lane { get; init; }
-
-    /// <summary>Where it ended up — in the space of the box it is in until that box is placed, and absolute after.</summary>
-    public Rect Bounds { get; set; }
-}
-
-/// <summary>One line a layered layout draws between two cells, and the way it ended up running.</summary>
-/// <param name="span">
-/// How many ranks it reaches over at the least, which is how far apart it holds what it joins. Nought holds them in the same rank,
-/// side by side — a note written beside the thing it is about rather than after it — and nothing need be drawn for it.
-/// </param>
-internal sealed class DiagramJoin(DiagramCell from, DiagramCell to, int span = 1)
-{
-    public DiagramCell From { get; } = from;
-
-    public DiagramCell To { get; } = to;
-
-    public int Span { get; } = Math.Max(0, span);
-
-    /// <summary>Where it runs, from the middle of what it leaves to the middle of what it reaches, bending on the way.</summary>
-    public IReadOnlyList<Point> Route { get; set; } = [];
-
-    /// <summary>Where it bends, in the space of the box it was laid out in — <see cref="DiagramLayers"/>' own bookkeeping.</summary>
-    internal IReadOnlyList<Point> Bends { get; set; } = [];
-
-    /// <summary>The box it was laid out in, which is the space <see cref="Bends"/> are in.</summary>
-    internal DiagramCell? Level { get; set; }
-
-    /// <summary>Which way the level it was laid out in runs, which is the way it leaves and arrives.</summary>
-    internal DiagramWay Towards { get; set; }
-}
-
 /// <summary>
 /// Sugiyama layered layout for flowcharts, state charts and class diagrams: cells ranked by link distance, each rank ordered to
 /// minimize crossings, then spread across the rank beside what it joins.
@@ -87,6 +27,15 @@ internal static class DiagramLayers
     /// <summary>How far apart the lines joining one pair of cells are bowed, so none is drawn on top of another.</summary>
     private const double Bows = 12;
 
+    /// <summary>And how far where the ends are spread as well — the wider the couple opens, the more of each line shows.</summary>
+    private const double Opened = 22;
+
+    /// <summary>How much of a shape's edge is kept clear at each end when the lines meeting it are spread along it.</summary>
+    private const double Ports = 8;
+
+    /// <summary>And the furthest apart two of those ends are set.</summary>
+    private const double Stepping = 26;
+
     /// <summary>
     /// Lays every cell out, hands each its <see cref="DiagramCell.Bounds"/> and each join its <see cref="DiagramJoin.Route"/>,
     /// and says how much room it all came to.
@@ -94,8 +43,18 @@ internal static class DiagramLayers
     /// <param name="between">How far apart two cells in the same rank are set.</param>
     /// <param name="along">How far apart one rank is set from the next.</param>
     /// <param name="laning">The swimlane bands to lay out in, or null for none. See <see cref="DiagramLanes"/>.</param>
+    /// <param name="ports">
+    /// Whether every line meets what it joins at its own place along that shape's edge, rather than all of them meeting it
+    /// at its middle — which is what makes a fan read as a fan and a couple open into a lens.
+    ///
+    /// <para>
+    /// A diagram asks for it once what it writes on its lines has somewhere to go. Lines that were one line to the eye had
+    /// one label to the eye as well, and parting them parts those: a diagram whose words are placed by its route's own
+    /// middle needs the gaps between its ranks sized for them first, or what was hidden becomes what is overlapping.
+    /// </para>
+    /// </param>
     public static Size Lay(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way,
-                           double between, double along, DiagramLanes? laning = null)
+                           double between, double along, DiagramLanes? laning = null, bool ports = false)
     {
         // Innermost boxes first: a box is the size of what it holds, so what it holds is arranged before the box is placed.
         foreach (var box in Boxes(cells).OrderByDescending(Deep))
@@ -113,7 +72,7 @@ internal static class DiagramLayers
         foreach (var box in Boxes(cells).OrderBy(Deep)) Moved(cells, joins, box);
 
         foreach (var join in joins) join.Route = Routed(join, way);
-        Parted(cells, joins);
+        Parted(cells, joins, way, ports);
 
         return whole;
     }
@@ -618,7 +577,7 @@ internal static class DiagramLayers
     /// the same pair) share the same route and would hide one another. Ends stay put — that's where the line meets its shape —
     /// only the middle moves, by the line's position among the ones sharing its pair.
     /// </summary>
-    private static void Parted(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins)
+    private static void Parted(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way, bool ports)
     {
         var at = new Dictionary<DiagramCell, int>(cells.Count);
         for (var cell = 0; cell < cells.Count; cell++) at[cells[cell]] = cell;
@@ -628,17 +587,132 @@ internal static class DiagramLayers
             .Where(join => at.ContainsKey(join.From) && at.ContainsKey(join.To))
             .GroupBy(join => (Math.Min(at[join.From], at[join.To]), Math.Max(at[join.From], at[join.To])));
 
+        // The ends first, then the middles. Every line meeting a shape meets it at its own place along that shape's edge —
+        // a fan of them leaving one node reads as a fan, and two that leave and arrive at the same point would be one line
+        // to the eye however far they bow apart in between.
+        if (ports) Ported(joins, way);
+
         foreach (var pair in shared)
         {
             var many = pair.ToList();
             if (many.Count < 2) continue;
 
-            for (var one = 0; one < many.Count; one++)
-            {
-                var aside = (one - ((many.Count - 1) / 2.0)) * Bows;
-                if (Math.Abs(aside) > 1e-9) many[one].Route = Bowing(many[one].Route, aside);
-            }
+            Coupled(many, way, ports);
         }
+    }
+
+    /// <summary>
+    /// The lines of a couple, opened into a lens.
+    ///
+    /// <para>
+    /// Each of them meets both of the things it joins the same distance off their middles — <em>the same</em> distance at
+    /// both ends, or the two would cross in the middle instead of opening — and then bows further out on that same side.
+    /// The bow has to be worked out in the page's terms rather than the line's: <see cref="Bowing"/> works across the way a
+    /// line runs, and the line of a couple that runs back the other way runs across the other way too, so following the
+    /// line would fold the pair together rather than open it.
+    /// </para>
+    /// </summary>
+    private static void Coupled(IReadOnlyList<DiagramJoin> many, DiagramWay way, bool ports)
+    {
+        var sideways = way is DiagramWay.Down or DiagramWay.Up;
+
+        for (var one = 0; one < many.Count; one++)
+        {
+            var join = many[one];
+            if (join.Route.Count < 2) continue;
+
+            var step = (one - ((many.Count - 1) / 2.0));
+
+            if (ports)
+            {
+                var offset = step * Stepping;
+                var route = join.Route.ToList();
+
+                route[0] = Aside(route[0], join.From, offset, sideways);
+                route[^1] = Aside(route[^1], join.To, offset, sideways);
+                join.Route = route;
+            }
+
+            var bow = ports ? Math.Sign(step) * Opened : step * Bows;
+            if (Math.Abs(bow) < 1e-9) continue;
+
+            var along = join.Route[^1] - join.Route[0];
+            var aside = sideways
+                ? (along.Y >= 0 ? -bow : bow)
+                : (along.X >= 0 ? bow : -bow);
+
+            join.Route = Bowing(join.Route, ports ? aside : bow);
+        }
+    }
+
+    /// <summary>A line's end moved that far off the middle of the shape it meets, across the way the layout runs.</summary>
+    private static Point Aside(Point at, DiagramCell cell, double offset, bool sideways)
+    {
+        var bounds = cell.Bounds;
+
+        return sideways
+            ? new Point(bounds.X + (bounds.Width / 2) + offset, at.Y)
+            : new Point(at.X, bounds.Y + (bounds.Height / 2) + offset);
+    }
+
+    /// <summary>
+    /// Spreads the end every line has at the shape it meets across that shape's edge, in the order they head off in, so a
+    /// fan of them reads as a fan rather than piling up on the shape's middle.
+    /// </summary>
+    private static void Ported(IReadOnlyList<DiagramJoin> joins, DiagramWay way)
+    {
+        var meeting = new Dictionary<DiagramCell, List<(DiagramJoin Join, int At)>>();
+
+        foreach (var join in joins.Where(join => join.Route.Count >= 2 && !ReferenceEquals(join.From, join.To)))
+        {
+            Meeting(meeting, join.From, join, at: 0);
+            Meeting(meeting, join.To, join, at: join.Route.Count - 1);
+        }
+
+        foreach (var (cell, ends) in meeting) Ported(cell, ends, way);
+    }
+
+    private static void Meeting(Dictionary<DiagramCell, List<(DiagramJoin, int)>> meeting, DiagramCell cell,
+                                DiagramJoin join, int at)
+    {
+        if (!meeting.TryGetValue(cell, out var ends)) meeting[cell] = ends = [];
+        ends.Add((join, at));
+    }
+
+    private static void Ported(DiagramCell cell, List<(DiagramJoin Join, int At)> ends, DiagramWay way)
+    {
+        if (ends.Count < 2) return;
+
+        var across = way is DiagramWay.Down or DiagramWay.Up;
+        var bounds = cell.Bounds;
+
+        var span = Math.Max(0, (across ? bounds.Width : bounds.Height) - (Ports * 2));
+        var step = Math.Min(Stepping, span / (ends.Count - 1));
+        if (step <= 0) return;
+
+        var middle = across ? bounds.X + (bounds.Width / 2) : bounds.Y + (bounds.Height / 2);
+        var first = middle - (step * (ends.Count - 1) / 2);
+
+        // In the order they head off in, so the lines of a fan keep out of one another's way.
+        ends.Sort((one, other) => Heading(one.Join, one.At, across).CompareTo(Heading(other.Join, other.At, across)));
+
+        for (var one = 0; one < ends.Count; one++)
+        {
+            var (join, at) = ends[one];
+            var route = join.Route.ToList();
+            var was = route[at];
+
+            route[at] = across ? new Point(first + (one * step), was.Y) : new Point(was.X, first + (one * step));
+            join.Route = route;
+        }
+    }
+
+    /// <summary>Where a line is heading from one of its ends, which is the order its end takes along the shape's edge.</summary>
+    private static double Heading(DiagramJoin join, int at, bool across)
+    {
+        var toward = join.Route[at == 0 ? 1 : ^2];
+
+        return across ? toward.X : toward.Y;
     }
 
     /// <summary>A route moved aside from the straight run between its ends, which stay where they meet what they join.</summary>

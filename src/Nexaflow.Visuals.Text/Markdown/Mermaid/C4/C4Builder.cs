@@ -72,8 +72,14 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// <summary>Air inside a boundary, between its edge and its name.</summary>
     private const double Boxed = 14;
 
-    /// <summary>Clear air either side of what is written between two ranks, so the line it is written on still shows.</summary>
-    private const double Clear = 36;
+    /// <summary>
+    /// Clear air either side of what is written between two ranks, so the line it is written on still shows, and enough of
+    /// it runs straight for a bend in it to be a curve rather than a corner.
+    /// </summary>
+    private const double Clear = 40;
+
+    /// <summary>And the air kept between two things written in the same gap, so neither reads as running into the other.</summary>
+    private const double Apart = 10;
 
 
 
@@ -198,7 +204,8 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             if (stacked > 0) plan.Along = Math.Max(plan.Along, stacked + Clear);
         }
 
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart, plan.Along);
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart + Apart, plan.Along,
+                                      ports: true);
 
         return plan;
     }
@@ -297,6 +304,11 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         var routes = new List<Route>();
         var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
 
+        // Several lines between the same two things are a couple, and each of them is told which of the couple it is.
+        var coupled = diagram.Links
+            .GroupBy(Pairing)
+            .ToDictionary(pair => pair.Key, pair => pair.ToList());
+
         foreach (var link in diagram.Links)
         {
             if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
@@ -305,10 +317,11 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             var placed = along.Select(room.At).ToList();
             var said = plan.Said[link];
             var group = Grouped(diagram, link);
+            var couple = coupled[Pairing(link)];
 
             routes.Add(new Route(link, placed, said)
             {
-                Room = Written(plan, room, link, group, placed, said, way),
+                Room = Written(plan, room, link, group, placed, said, way, couple.IndexOf(link), couple.Count),
                 Group = group,
             });
         }
@@ -343,16 +356,69 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// </para>
     /// </summary>
     private static Rect Written(Plan plan, DiagramRoom room, C4Link link, string? group, IReadOnlyList<Point> along,
-                                IReadOnlyList<DiagramWords> said, DiagramWay way)
+                                IReadOnlyList<DiagramWords> said, DiagramWay way, int one, int couple)
     {
         var size = DiagramConnector.Room(along, said);
         if (size.IsEmpty) return size;
+
+        // One of a couple is written along its own line rather than in the middle of the gap, a quarter to three quarters
+        // of the way down it, and set out to the side that line bows to. Staggered along tells them apart at a glance;
+        // held out to its own side says which of the two each of them belongs to. The share is measured from the same end
+        // of the couple for all of them, since a line written the other way round runs the other way.
+        if (couple > 1)
+        {
+            var mine = Portion(along, Shared(link, 0.26 + (0.48 * (one / (double)(couple - 1)))));
+            var bias = Bowed(along, way) * ((way is DiagramWay.Down or DiagramWay.Up ? size.Width : size.Height) / 2);
+
+            var out0 = way is DiagramWay.Down or DiagramWay.Up
+                ? new Point(mine.X + bias, mine.Y)
+                : new Point(mine.X, mine.Y + bias);
+
+            return new Rect(out0.X - (size.Width / 2), out0.Y - (size.Height / 2), size.Width, size.Height);
+        }
 
         var at = Between(plan, link, group) is { } ends
             ? Crossing(along, room.At(ends.From.Bounds), room.At(ends.To.Bounds), way)
             : Middle(along);
 
         return new Rect(at.X - (size.Width / 2), at.Y - (size.Height / 2), size.Width, size.Height);
+    }
+
+    /// <summary>The point that far along a route, as a share of its whole length.</summary>
+    private static Point Portion(IReadOnlyList<Point> along, double share)
+    {
+        var whole = 0d;
+        for (var at = 1; at < along.Count; at++) whole += (along[at] - along[at - 1]).Length;
+
+        var run = whole * share;
+
+        for (var at = 1; at < along.Count; at++)
+        {
+            var step = along[at] - along[at - 1];
+            if (step.Length <= 0) continue;
+            if (step.Length >= run) return along[at - 1] + (step * (run / step.Length));
+
+            run -= step.Length;
+        }
+
+        return along[^1];
+    }
+
+    /// <summary>A share along a couple, turned round for the line of it that runs the other way.</summary>
+    private static double Shared(C4Link link, double share) =>
+        string.CompareOrdinal(link.From, link.To) <= 0 ? share : 1 - share;
+
+    /// <summary>
+    /// Which side of its own straight run a line bows to — minus one, nought or one — which is the side its words are set
+    /// out towards. Read off the line itself rather than passed down, since the layout is what decided it.
+    /// </summary>
+    private static double Bowed(IReadOnlyList<Point> along, DiagramWay way)
+    {
+        var bowed = Portion(along, 0.5);
+        var straight = new Point((along[0].X + along[^1].X) / 2, (along[0].Y + along[^1].Y) / 2);
+        var off = way is DiagramWay.Down or DiagramWay.Up ? bowed.X - straight.X : bowed.Y - straight.Y;
+
+        return Math.Abs(off) < 0.5 ? 0 : Math.Sign(off);
     }
 
     /// <summary>
@@ -446,28 +512,31 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
                     var (first, second) = (routes[one], routes[two]);
                     if (first.Room.IsEmpty || second.Room.IsEmpty) continue;
 
-                    var over = Rect.Intersect(first.Room, second.Room);
+                    // A couple is staggered along its own lines already, and nudging those would take each off the line it
+                    // belongs to. This is for words of different lines that happen to land on one another.
+                    if (Pairing(first.Link) == Pairing(second.Link)) continue;
+
+                    var over = Rect.Intersect(Rect.Inflate(first.Room, Apart / 2, Apart / 2), second.Room);
                     if (over.IsEmpty) continue;
 
-                    // Two lines between the same two things write one under the other, in the room the gap was widened to hold
-                    // both. Two between different things go side by side instead — moving those along would push one of them
-                    // out of its own gap and onto a card.
-                    var sideways = down ^ (Pairing(first.Link) == Pairing(second.Link));
+                    // Which of them goes back is settled by where each line is heading rather than by where its words have got
+                    // to: two lines leaving the same card have not parted yet where they are written on, so going by the words
+                    // would as likely put each over the other's line as its own.
+                    var step = ((down ? over.Width : over.Height) / 2) + 1;
+                    var back = Leaning(first, down) <= Leaning(second, down);
 
-                    // Half a step each, so neither is favoured and a run of them settles evenly about where they started.
-                    var step = ((sideways ? over.Width : over.Height) / 2) + 1;
-                    var back = sideways
-                        ? first.Room.X + (first.Room.Width / 2) <= second.Room.X + (second.Room.Width / 2)
-                        : first.Room.Y + (first.Room.Height / 2) <= second.Room.Y + (second.Room.Height / 2);
-
-                    first.Room = Shifted(first.Room, sideways, back ? -step : step);
-                    second.Room = Shifted(second.Room, sideways, back ? step : -step);
+                    first.Room = Shifted(first.Room, down, back ? -step : step);
+                    second.Room = Shifted(second.Room, down, back ? step : -step);
                     moved = true;
                 }
 
             if (!moved) return;
         }
     }
+
+    /// <summary>Where a line is heading — the end it runs to, which is what says which side of another line's words its own go.</summary>
+    private static double Leaning(Route route, bool sideways) =>
+        sideways ? route.Along[^1].X : route.Along[^1].Y;
 
     /// <summary>The two ends a relationship runs between, whichever way round it runs — two lines between the same pair.</summary>
     private static (string, string) Pairing(C4Link link) =>
@@ -498,6 +567,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
         build.Open(C4Piece.Relations, part: null, stops: Stops.None);
 
+        // Every line first, then everything written on them — one line drawn after another's words would run over them.
         foreach (var route in held)
         {
             var stroke = new DiagramStroke(Ink.Written(route.Link.Ink) ?? Palette.TextMuted, Thick,
@@ -506,12 +576,13 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             // A relationship runs from the first end to the second; a BiRel draws a head at each.
             DiagramConnector.Draw(build, C4Piece.Relation, route.Link.Part, route.Along, stroke,
                                   route.Link.Both ? DiagramHead.Arrow : DiagramHead.None, DiagramHead.Arrow, curved: true);
+        }
 
-            // Held off the line in a box of its own: what is written on a relationship has a diagram running under it, and
-            // an edge is what says where the words stop and the drawing starts again.
+        // Held off the line in a box of its own: what is written on a relationship has a diagram running under it, and an
+        // edge is what says where the words stop and the drawing starts again.
+        foreach (var route in held)
             DiagramConnector.Says(build, C4Piece.Label, route.Link.Part, route.Room, route.Said, Ink.Surface,
                                   outline: Palette.CodeBorder);
-        }
 
         build.Close();
     }
