@@ -22,21 +22,14 @@ public enum BarcodeKind
     Character,
 
     /// <summary>
-    /// Printed characters worked out from the value rather than taken from it: a check digit, a Codabar
-    /// start or stop mark, a scheme's name, a number with its hyphens stripped.
-    /// <para>
-    /// It carries the stretch of the value it was worked out from, so a reader can point at it, be told
-    /// what it stands for, and copy that. It has no characters of its own to point at separately, which
-    /// is what keeps a caret out of it.
-    /// </para>
+    /// Printed characters worked out from the value rather than taken from it (a check digit, a Codabar
+    /// start/stop mark, a scheme name, hyphens stripped). Carries the value stretch it was derived from,
+    /// but no characters of its own — keeps it out of the caret's stops.
     /// </summary>
     EncodedText,
 }
 
-/// <summary>
-/// What a part of a symbol is to the thing holding it. Open string constants rather than an enum, so a
-/// new symbology can name a piece without editing a type every reader switches over.
-/// </summary>
+/// <summary>What a part of a symbol is to the thing holding it. String constants, not an enum, so a new symbology can name a piece without editing a type every reader switches over.</summary>
 public static class BarcodeRole
 {
     public const string Element = "element";
@@ -46,23 +39,16 @@ public static class BarcodeRole
 }
 
 /// <summary>
-/// One piece of a barcode's text as it is understood: what it prints, and which characters of the value
-/// it came from.
+/// One piece of a barcode's text: what it prints, and which characters of the value it came from. Deliberately
+/// smaller than the layout — bars/guards carry no part, since drawing is the layout's business and text is
+/// the only place "which characters of the value is this" has an answer.
 ///
 /// <para>
-/// This is what the symbol <em>says</em>, not what it looks like. <b>It is deliberately much smaller than
-/// the layout built from it.</b> The bars and their guard patterns have no part here at all — no piece of
-/// what an author typed is a guard; the guards are how the value is drawn, and drawing is the layout's
-/// business. What is here is the text, because text is the only part of a barcode where the question
-/// "which characters of the value is this" has an answer.
-/// </para>
-/// <para>
-/// <b>Positions are into the value</b> — what an author typed, and what an edit would splice back — never
-/// into the encoded text and never into pixels. A piece that prints something the value does not contain
-/// is <see cref="BarcodeKind.EncodedText"/>, and says which stretch of the value produced it rather than
-/// claiming characters it has not got. That distinction is the whole point of the type: for most of these
-/// formats what is drawn and what was written are different strings, and a piece that pretends otherwise
-/// is a piece an edit cannot round-trip through.
+/// Positions are into the value (what an edit would splice back), never into the encoded text or pixels.
+/// A piece printing something the value doesn't contain is <see cref="BarcodeKind.EncodedText"/>, tagged
+/// with the value stretch it was derived from rather than claiming characters it hasn't got — for most
+/// formats, drawn text and written text are different strings, and a piece that pretends otherwise can't
+/// round-trip an edit.
 /// </para>
 /// </summary>
 public sealed class BarcodePart : ISourcePart
@@ -89,11 +75,7 @@ public sealed class BarcodePart : ISourcePart
     /// <summary>Where it begins in the value.</summary>
     public int Start { get; }
 
-    /// <summary>
-    /// How many characters of the value it covers. For <see cref="BarcodeKind.EncodedText"/> that is the
-    /// stretch it was <em>worked out from</em> rather than the stretch it prints, which is the honest
-    /// answer to "what would I be editing, if I could edit this".
-    /// </summary>
+    /// <summary>How many characters of the value it covers. For <see cref="BarcodeKind.EncodedText"/> this is the stretch it was worked out from, not the stretch it prints.</summary>
     public int Length { get; }
 
     public BarcodePart? Parent { get; private set; }
@@ -122,11 +104,7 @@ public sealed class BarcodePart : ISourcePart
                 yield return deeper;
     }
 
-    /// <summary>
-    /// The value as this tree accounts for it: every character it claims came from the source, in order.
-    /// Where that is not the whole value, the rest was not printed — an ISBN's hyphens — or was printed as
-    /// something worked out instead.
-    /// </summary>
+    /// <summary>The value as this tree accounts for it — every character claimed as source, in order. Falls short of the whole value where characters (e.g. ISBN hyphens) weren't printed, or were printed as something worked out instead.</summary>
     public string Written() =>
         string.Concat(SelfAndDescendants().Where(p => p.IsSource).OrderBy(p => p.Start).Select(p => p.Text));
 
@@ -140,8 +118,7 @@ public sealed class BarcodePart : ISourcePart
     {
         var inside = children.ToList();
 
-        // Its span is its children's, taken together. One holding nothing that came from the source covers
-        // nothing, rather than covering the gap where its children would have been.
+        // A branch with no source-derived children covers nothing, not the gap where they'd have been.
         var claimed = inside.Where(c => c.Length > 0).ToList();
         var start = claimed.Count == 0 ? 0 : claimed.Min(c => c.Start);
         var length = claimed.Count == 0 ? 0 : claimed.Max(c => c.End) - start;
@@ -160,31 +137,18 @@ public sealed class BarcodePart : ISourcePart
     }
 
     /// <summary>
-    /// Reads one printed run against the value, given where a stretch of the value was found in what is printed.
-    ///
-    /// <para>
-    /// Most of these formats print the value with something of their own on one end or both: Codabar puts
-    /// a start and a stop mark around it, a UPC-E given six digits puts a number system in front and works
-    /// out a check digit to go behind, an EAN-13 given twelve adds the thirteenth. What is printed is then
-    /// one string to look at and three to reason about — a piece nobody typed, the value, and another
-    /// piece nobody typed — and only the middle one is a thing an edit can be applied to.
-    /// </para>
-    /// <para>
-    /// So a run is cut against that window rather than judged whole. A run inside it is characters of the
-    /// value; one outside it is <see cref="BarcodeKind.EncodedText"/>; and one that straddles an edge —
-    /// an EAN-13's last group, which is five typed digits and then the check digit — becomes both, in the
-    /// order they are printed.
-    /// </para>
+    /// Reads one printed run against the value's window (where a stretch of the value was found in what's printed).
+    /// Most formats add something of their own to one or both ends (a Codabar start/stop mark, UPC-E's
+    /// number system digit, EAN-13's check digit), so a run is cut against the window: characters inside
+    /// it are <see cref="BarcodeKind.Character"/>, outside it <see cref="BarcodeKind.EncodedText"/>, and
+    /// one straddling an edge (e.g. EAN-13's last group: five typed digits then the check digit) becomes both.
     /// </summary>
     /// <param name="run">What this run prints.</param>
     /// <param name="at">Where the run begins in the whole printed number.</param>
     /// <param name="window">
     /// Where a stretch of the value sits in the printed number (<c>At</c>), where it begins in the value
-    /// (<c>From</c>), and how long it is. Usually that is the whole value from its first character; for a
-    /// publication it is one word of it — the caption prints the number and the add-on is printed over its own
-    /// bars, while the rest went into the digits. <c>At</c> is negative when none of the value is in it — an
-    /// ISBN's de-hyphenated digits, a Pharmacode's dropped leading zero — and then nothing printed is the value,
-    /// though what is printed still stands for the whole of it.
+    /// (<c>From</c>), and its length. <c>At</c> is negative when none of the value is in it (e.g. ISBN's
+    /// stripped hyphens, Pharmacode's dropped leading zero).
     /// </param>
     /// <param name="whole">How long the whole value is — what a piece nobody typed was worked out from.</param>
     public static BarcodePart Read(string role, string run, int at, (int At, int From, int Length) window, int whole)
@@ -202,8 +166,7 @@ public sealed class BarcodePart : ISourcePart
 
         Generated(at, from);
 
-        // The value's own characters. One node each, because a character of the value is the smallest
-        // thing a caret can stand beside and a selection can take.
+        // One node per character — the smallest thing a caret can stand beside.
         for (var p = from; p < to; p++)
             pieces.Add(Leaf(BarcodeKind.Character, BarcodeRole.Element, run[p - at].ToString(),
                             window.From + (p - window.At), 1));
@@ -212,9 +175,7 @@ public sealed class BarcodePart : ISourcePart
 
         return Branch(BarcodeKind.Group, role, pieces);
 
-        // A stretch of the run that nobody typed. It stands for the whole value, because that is what it
-        // was worked out from — a check digit is a fact about all of the digits, not about the one it
-        // happens to be printed next to.
+        // Generated text stands for the whole value (e.g. a check digit is a fact about all the digits).
         void Generated(int start, int end)
         {
             if (end <= start) return;

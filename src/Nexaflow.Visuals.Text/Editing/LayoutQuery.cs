@@ -8,24 +8,13 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// What a pointer, a caret and a selection mean, answered by descending a layout tree.
-/// <para>
-/// Every one of these was previously inferred from a flattened list of rectangles and source ranges —
-/// "is this a container", "what encloses this", "are these cells a row", "is this selection well
-/// formed" — and each inference was a fact the tree already had. Asking the tree is both simpler and
-/// right; the guessing is what produced a caret that jumped rows and a selection that closed a brace it
-/// never opened.
-/// </para>
-/// <para>
-/// Pure arithmetic over a tree. <see cref="Rect"/> and <see cref="Point"/> come from WindowsBase and need
-/// no STA thread, no fonts and no desktop, so all of this is exercised against built trees.
-/// </para>
-/// <para>
-/// Anything asking about <em>every</em> piece descends with <see cref="Piece.Placed"/> rather than
-/// reading <see cref="Piece.Bounds"/> in a loop. Geometry is relative, so a piece's place on the page is
-/// a climb to the root; taken once per piece that is the one way to make relative geometry cost
-/// something, and taken on the way down it is free.
-/// </para>
+/// What a pointer, a caret and a selection mean, answered by descending the layout tree rather than
+/// inferring it from a flattened list of rectangles and source ranges (the old source of a caret that
+/// jumped rows, a selection that closed a brace it never opened). Pure arithmetic — <see cref="Rect"/>
+/// and <see cref="Point"/> need no STA thread, fonts or desktop, so this is testable against built trees
+/// alone. Anything visiting every piece descends with <see cref="Piece.Placed"/> rather than reading
+/// <see cref="Piece.Bounds"/> in a loop, since geometry is relative and a climb-to-root per piece is free
+/// on the way down but costly done after the fact.
 /// </summary>
 public static class LayoutQuery
 {
@@ -47,14 +36,10 @@ public static class LayoutQuery
 
     /// <summary>
     /// Whether a press at <paramref name="point"/> would be writing — on something a caret stands in, or in the gap between
-    /// two letters of a line — rather than on drawing nobody types into, or on empty space.
-    ///
-    /// <para>
-    /// What the pointer shows, so it answers for what is under it rather than for what a press would reach for: a press on
-    /// empty space still finds the nearest thing, but a bar there would say the space itself can be written in. The gap is
-    /// allowed for because the letters of a formula are set a hair apart, and a pointer flickering to an arrow between every
-    /// two of them would say nothing true.
-    /// </para>
+    /// two letters of a line — rather than on drawing nobody types into, or on empty space. Answers for what is under the
+    /// point, not what a press would reach for: empty space still finds the nearest thing, but a pointer there should not
+    /// say the space itself is writable. The gap tolerance keeps a pointer moving along tightly-set formula letters from
+    /// flickering to an arrow between every pair.
     /// </summary>
     /// <param name="reach">The least distance round something written that still counts as writing.</param>
     public static bool Writable(this Piece root, Point point, double reach)
@@ -124,15 +109,11 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The drawn thing under the point. Only leaves are candidates — they are what actually put ink on the
-    /// page — and blank space inside a container belongs to nobody, which is what stops a press in the gap
-    /// between two terms coming back with the start of the whole line.
-    /// <para>
-    /// Containers are not used to narrow the search, and must not be. A container's extent is a
-    /// typesetting measurement — the height and depth it reserves on its line — not a bounding box of what
-    /// it draws, so a subscript hanging below its operator or an accent riding above its letter sits
-    /// outside the very piece that holds it, and gating descent on the parent lost every one of those.
-    /// </para>
+    /// The drawn thing under the point. Only leaves are candidates, since blank space inside a container
+    /// belongs to nobody — a press in the gap between two terms should not fall back to the start of the
+    /// whole line. Containers are never used to narrow the search: a container's extent is a typesetting
+    /// measurement (the height/depth it reserves on its line), not a bounding box of what it draws, so a
+    /// subscript below its operator can sit outside the very piece that holds it.
     /// </summary>
     private static Piece Deepest(Piece root, Point point)
     {
@@ -166,15 +147,9 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The first thing a selection could hold, climbing from here: this piece if the source named it, and
-    /// otherwise the nearest thing above it that it did.
-    ///
-    /// <para>
-    /// Where selection starts, every time. What a reader points at is a glyph, a stem, a syllable — most
-    /// of which name nothing on their own — and what they mean by pointing at it is the smallest written
-    /// thing it is part of. Climbing is the only way to get from one to the other, and it is why nothing
-    /// here ever needs to know what a piece contains.
-    /// </para>
+    /// The first thing a selection could hold, climbing from here: this piece if the source named it,
+    /// otherwise the nearest ancestor it did. What a reader points at (a glyph, a stem) usually names
+    /// nothing on its own; what they mean is the smallest written thing it is part of.
     /// </summary>
     public static Piece Selectable(this Piece piece) =>
         piece.Part is { Length: > 0 } ? piece : NamedAncestor(piece);
@@ -212,26 +187,12 @@ public static class LayoutQuery
 
     /// <summary>
     /// One step from here along an axis — the next thing to select when a selection grows that way, or
-    /// nothing when there is nothing that way.
-    ///
-    /// <para>
-    /// The step is taken on the run that orders this piece (see <see cref="Piece.Along"/>), and what comes
-    /// back is climbed to the first thing the source named — usually itself, and not always.
-    /// </para>
-    /// <para>
-    /// <strong>A piece on no run still steps</strong>, on the tree that draws it: sideways to the next
-    /// thing its parent holds, and vertically to the nearest thing on the row above or below. A run is how
-    /// a builder says something the drawing does not — that a syllable belongs with the other syllables of
-    /// its verse rather than with the note above it — and where there is nothing to correct, where a thing
-    /// is drawn is a perfectly good account of what is beside it. So this is not a feature only declared
-    /// content gets; it is the ordinary behaviour, which a run overrides.
-    /// </para>
-    /// <para>
-    /// Deliberately one step and no more. A run is walked by taking them, so nothing has to hold what the
-    /// run <em>is</em> — which is what lets a lyric carry on across systems, a maths block stop at its own
-    /// edge, and a diagram stay inside its subtree, all from the same code and without any of them being
-    /// asked to pretend it is a row.
-    /// </para>
+    /// nothing when there is nothing that way. Taken on the run that orders this piece (<see cref="Piece.Along"/>)
+    /// when it's on one; a piece on no run steps on the tree that draws it instead (sideways to the next
+    /// sibling, vertically to the nearest thing on the row above/below) — a run only overrides what the
+    /// drawing would otherwise say, e.g. that a syllable belongs with its verse rather than the note above it.
+    /// Deliberately one step and no more, so nothing has to hold what a run <em>is</em> — a lyric can carry
+    /// on across systems, a maths block stop at its own edge, a diagram stay inside its subtree.
     /// </summary>
     public static Piece Step(this Piece piece, bool vertical, bool forward)
     {
@@ -315,24 +276,12 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The ink nearest the point, for a press that landed on nothing: between two note heads, in the air
-    /// over a bar, past the last note on a line.
-    ///
-    /// <para>
-    /// <strong>Something that holds selectable things of its own is the last resort, not the first.</strong>
-    /// A beamed group's rectangle covers the notes it joins, so a press in the gap between two heads is
-    /// nought away from the group and a little way from either note — and the group won. Dragging along a
-    /// run of notes flickered between two notes and the whole group, every time the pointer crossed a gap.
-    /// A group is something a reader gets by covering it, not by aiming between its members.
-    /// </para>
-    /// <para>
-    /// This is the fallback only. A press that actually lands on a construct's own drawing — a fraction's
-    /// bar, a radical's sign — still means that construct, because there the reader really did point at it.
-    /// </para>
-    /// <para>
-    /// The deeper wins a tie among equals, which is what makes a press inside a bar mean the note it landed
-    /// on rather than the bar: both contain it, so both are nought away, and document order was deciding.
-    /// </para>
+    /// The ink nearest the point, for a press that landed on nothing: between two note heads, in the air over
+    /// a bar, past the last note on a line. Something holding selectable things of its own (a beamed group) is
+    /// the last resort, not the first — its rectangle covers the notes it joins, so a press between two heads
+    /// would otherwise tie with the group and dragging along a run flickered between note and group at every
+    /// gap. A group is gotten by covering it, not by aiming between its members. Ties among equals go to the
+    /// deeper piece, so a press inside a bar means the note it landed on rather than the bar around it.
     /// </summary>
     private static Piece Nearest(Piece root, Point point)
     {
@@ -396,13 +345,10 @@ public static class LayoutQuery
     // ── Selection ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Grows a set of pieces to the largest whole constructs it covers: wherever every piece of ink under
-    /// one is selected, that one is selected instead.
-    /// <para>
-    /// This is where well-formedness comes from. The result is a set of pieces, and a piece's source range
-    /// is what the parser built it from — so a selection can be a fraction or a matrix row, but never a
+    /// Grows a set of pieces to the largest whole constructs it covers: wherever every piece of ink under one
+    /// is selected, that one is selected instead. This is where well-formedness comes from — a piece's source
+    /// range is what the parser built it from, so a selection can be a fraction or a matrix row but never a
     /// numerator plus a stray closing brace.
-    /// </para>
     /// </summary>
     public static IReadOnlyList<Piece> Promote(IEnumerable<Piece> pieces)
     {
@@ -474,27 +420,13 @@ public static class LayoutQuery
     // ── Caret ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Works out everywhere a caret may rest, in the order the right arrow visits them. Asked once per
-    /// tree: <see cref="LayoutTree.Places"/> keeps the answer, beside the part links the stops ride on.
-    ///
-    /// <para>
-    /// Read off what the builders declared, and nothing else. A piece says which of its edges a caret may
-    /// stand against (<see cref="Piece.Stops"/>) and the tree is honoured: a script inside a term finishes
-    /// where the term finishes, so both declare a stop at that character and the reader gets both — one
-    /// raised and half height, one back on the line. That is why a place is a piece rather than an offset.
-    /// </para>
-    /// <para>
-    /// This used to be a list of bars per offset, with a walk out through anything flagged as an enclosure
-    /// bolted on to recover the places nobody had declared. The flag has gone with the walk: a run declares
-    /// no stops of its own — its ends are its contents' ends, which is what makes it a run — and once that
-    /// is said in the builder, every place left is one somebody meant.
-    /// </para>
-    /// <para>
-    /// Innermost first at each offset, and trailing edges before leading ones: against the thing that ends
-    /// here, out through whatever else ends here, then against the thing that starts here. Where two would
-    /// be drawn as the one mark there is one place, so the reader never presses an arrow twice for a caret
-    /// that does not appear to move.
-    /// </para>
+    /// Works out everywhere a caret may rest, in the order the right arrow visits them. Asked once per tree
+    /// (<see cref="LayoutTree.Places"/> keeps the answer). Read off what the builders declared and nothing
+    /// else — a piece says which of its edges a caret may stand against (<see cref="Piece.Stops"/>), so a
+    /// script finishing where its term finishes gets both a raised half-height place and a back-on-the-line
+    /// one; that's why a place is a piece rather than a bare offset. Ordered innermost-first at each offset,
+    /// trailing edges before leading ones, with places that would draw as the same mark collapsed to one —
+    /// so the reader never presses an arrow twice for a caret that doesn't appear to move.
     /// </summary>
     internal static IReadOnlyList<CaretPlace> PlacesIn(Piece root)
     {
@@ -528,16 +460,11 @@ public static class LayoutQuery
 
     /// <summary>
     /// Whether a place would be drawn as the mark already standing there, and so is not a second place.
-    ///
-    /// <para>
-    /// Two rules, because two different things put places at one offset. Trailing edges nest — a script
-    /// inside a term inside a row all finish at the same character — and height is the only thing telling
-    /// them apart, so every number has to agree. A leading edge is the far side of a boundary between two
-    /// things set beside each other, and there the caret is the same mark whether it takes this letter's
-    /// height or the last one's: the column is all that says anything. Without the split, <c>12g</c> would
-    /// offer two places between the 2 and the g, drawn one on top of the other, because the g has a
-    /// descender.
-    /// </para>
+    /// Two rules for two different causes of two places at one offset: trailing edges nest (a script inside
+    /// a term inside a row all finish at the same character, and height is what tells them apart, so it must
+    /// match exactly), while a leading edge is a boundary between siblings where only the column matters —
+    /// without the split, <c>12g</c> would offer two overlapping places between the 2 and the g, since the g
+    /// has a descender.
     /// </summary>
     private static bool Drawn(CaretPlace already, CaretPlace next)
     {
@@ -661,14 +588,10 @@ public static class LayoutQuery
 
 
     /// <summary>
-    /// The first stop past an offset, or -1 at the edge — which is the host's cue to move the caret out of
-    /// this content and into whatever surrounds it.
-    ///
-    /// <para>
-    /// For a caret standing where no stop is, which a stretch shown as its own characters leaves behind: the
-    /// reader arrows through it a character at a time and then has to rejoin the places the builder declared.
-    /// A caret that is already at one steps by index instead, and needs none of this.
-    /// </para>
+    /// The first stop past an offset, or -1 at the edge — the host's cue to move the caret out of this content
+    /// and into whatever surrounds it. For a caret standing where no stop is (left behind by a stretch shown as
+    /// its own characters): it arrows through a character at a time and then has to rejoin the declared places.
+    /// A caret already at one steps by index instead, and needs none of this.
     /// </summary>
     public static int StopPast(this Piece root, int offset, bool forward)
     {
@@ -689,12 +612,10 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The caret stop on the row above or below — how it crosses a fraction bar or leaves a script.
-    /// <para>
-    /// Structural, not geometric. By pixels alone a <c>+</c> beside a fraction starts fractionally lower
-    /// than the numerator and so beats the denominator the reader meant; asking which of my ancestors has
-    /// rows, and stepping within it, gives the answer the reader expects.
-    /// </para>
+    /// The caret stop on the row above or below — how it crosses a fraction bar or leaves a script. Structural,
+    /// not geometric: by pixels alone a <c>+</c> beside a fraction starts fractionally lower than the numerator
+    /// and would beat the denominator the reader meant, so this walks up to the nearest ancestor with rows and
+    /// steps within it instead.
     /// </summary>
     public static int? StepVertical(this Piece root, int offset, bool up)
     {
@@ -886,27 +807,13 @@ public static class LayoutQuery
     // ── What a source range covers ──────────────────────────────────────────
 
     /// <summary>
-    /// What washing a stretch of source covers: what each whole thing inside it drew, one rectangle per thing.
-    ///
-    /// <para>
-    /// What each thing drew, and the room it stands in. A note reserves the staff it stands on and draws a head
-    /// and a stem that reach past it, so its wash is the note and its staff: the ink alone left the top line
-    /// showing over a low note. A word reserves the height of its letters, not the line box it is set in, so its
-    /// wash stops short of the verse above. <see cref="Wash"/> joins the rectangles across the gaps between.
-    /// </para>
-    /// <para>
-    /// And only the ink of what was chosen. A thing can hold something written somewhere else — the words sung
-    /// under a bar hang off the bar, though they are written on a line of their own — so a bar whose notes are
-    /// all chosen is not a bar whose words are, and a leaf is washed only when what it belongs to is inside the
-    /// stretch.
-    /// </para>
-    /// <para>
-    /// Which is why this asks whether a piece <em>stands</em> for a place rather than whether it covers any
-    /// characters. A hole covers none by definition, so a selection sweeping across a half-written fraction
-    /// would otherwise wash everything except the part still missing — the one piece the reader most needs to
-    /// see they have picked up. A fraction's bar and a radical's hook are leaves of the piece they belong to,
-    /// so its ink includes them.
-    /// </para>
+    /// What washing a stretch of source covers: what each whole thing inside it drew (its ink plus the room it
+    /// stands in, e.g. a note plus the staff line under it — ink alone would leave the staff showing over a low
+    /// note), one rectangle per thing; <see cref="Wash"/> joins them across the gaps. Only the ink of what was
+    /// chosen: a leaf washes only when what it belongs to is inside the stretch, so words hanging off a bar
+    /// don't wash just because the bar's notes are chosen. Asks whether a piece <em>stands</em> for a place
+    /// rather than whether it covers characters, since a hole covers none by definition — otherwise a selection
+    /// across a half-written fraction would wash everything except the part still missing.
     /// </summary>
     public static IReadOnlyList<Rect> RangeRects(this Piece root, int start, int length)
     {
@@ -998,14 +905,9 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// Rectangles that touch once each has grown by <paramref name="reach"/>, joined into one — and returned
-    /// grown. Letters set against each other become a single run, the glue around an operator is closed because
-    /// the wash's reach is chosen to span it, and two notes with air between them stay two washes.
-    ///
-    /// <para>
-    /// This replaced joining everything that shared a vertical band, which closed every horizontal gap and so
-    /// washed a staff from the highest note selected down to the lowest.
-    /// </para>
+    /// Rectangles that touch once each has grown by <paramref name="reach"/>, joined into one and returned
+    /// grown — so letters set against each other become a single run and two notes with air between them stay
+    /// two washes, rather than joining by shared vertical band (which washed a whole staff top to bottom).
     /// </summary>
     public static List<Rect> Clusters(IEnumerable<Rect> rects, double reach)
     {
@@ -1040,22 +942,13 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The wash over a selection, as one shape: what each stretch drew, gathered where it touches, and joined
-    /// across the gaps between — along each row, and down between rows — so a selection reads as one continuous
-    /// thing rather than a scatter of boxes, while still following what it holds rather than boxing the lot.
-    ///
-    /// <para>
-    /// A gap is spanned only when nothing a reader could pick lies in it unchosen. Along a staff that is the
-    /// spacing between notes and any bar line the drag took with them; between two rows it can be a third —
-    /// the words sung under a line of music — and washing across that would claim words nobody selected.
-    /// </para>
-    /// <para>
-    /// A join is made between any two things that face each other with nothing else of the wash between, so a
-    /// patch standing in two rows at once — a stem reaching down to the words sung under it — joins along both.
-    /// The joins are square: along a row as tall as both sides are, so a taller one stands up out of the band the
-    /// way a capital does from a line of text. All of it is one shape winding one way, so the fill paints each
-    /// point once wherever the parts overlap, and no seam shows where they meet.
-    /// </para>
+    /// The wash over a selection, as one shape: what each stretch drew, gathered where it touches and joined
+    /// across the gaps between (along each row, and down between rows), so a selection reads as one continuous
+    /// shape rather than a scatter of boxes while still following what it holds rather than boxing the lot. A
+    /// gap is spanned only when nothing a reader could pick lies in it unchosen — otherwise, e.g., words sung
+    /// under a line of music would be claimed by washing across to a neighbouring row nobody selected. Joins
+    /// are made between things that face each other with nothing else of the wash between and are square, so a
+    /// taller side stands up out of the band the way a capital does from a line of text.
     /// </summary>
     public static Geometry Wash(this Piece root, IReadOnlyList<EditRange> selection, double pad)
     {
@@ -1185,15 +1078,10 @@ public static class LayoutQuery
     }
 
     /// <summary>
-    /// The whole things a raw range covers, as a source range. Dragging across <c>x^2</c> selects the script
-    /// rather than stopping mid-command at <c>x^{2</c>, and dragging from a fraction's numerator to its
-    /// denominator selects the fraction rather than the <c>1}{x</c> the offsets alone would give.
-    ///
-    /// <para>
-    /// Both fall out of promotion: the answer is made of whole pieces, and a piece's source range is what it
-    /// was built from, so it cannot be a half-open brace. Nothing here knows what a brace is, which is why
-    /// the same call snaps a drag over half a beam group to the group.
-    /// </para>
+    /// The whole things a raw range covers, as a source range: dragging across <c>x^2</c> selects the script
+    /// rather than stopping mid-command at <c>x^{2</c>. Falls out of promotion — the answer is made of whole
+    /// pieces, so it can never be a half-open brace, and the same call snaps a drag over half a beam group to
+    /// the group without knowing what a brace or a beam is.
     /// </summary>
     public static (int Start, int Length) Snap(this Piece root, int start, int length)
     {

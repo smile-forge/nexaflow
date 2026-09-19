@@ -7,50 +7,28 @@ using System.Linq;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
-/// Words as pieces of a layout tree.
-///
-/// <para>
-/// This is not about music, maths or diagrams, which is the whole point of it being here. A layout tree
-/// is a canvas of things that were drawn, each naming the source it was drawn from, and what kind of
-/// thing it is has never mattered to anything that selects, hit-tests or measures. So a title over a
-/// tune, a caption under a diagram and the prose between two formulae are one job done once.
-/// </para>
-/// <para>
-/// It arrived the other way round, which is worth remembering. The first version of this lived inside
-/// the score builder, as a music engraver that had learnt to draw a title. Everything in it that was
-/// really about music — where a title goes relative to a staff, that verses set in two columns — stayed
-/// there; everything else was general and had no business being in one content type.
-/// </para>
+/// Words as pieces of a layout tree. Deliberately not about music, maths or diagrams: a layout tree is a
+/// canvas of things that were drawn, each naming the source it was drawn from, and what kind of thing it
+/// is has never mattered to anything that selects, hit-tests or measures — so a title over a tune, a
+/// caption under a diagram and the prose between two formulae are one job done once.
 /// </summary>
 public static class LayoutText
 {
     /// <summary>
-    /// Places one run of text into <paramref name="into"/> and hands back where the piece went.
-    ///
-    /// <para>
-    /// The text is aligned within <paramref name="room"/> by the type engine, which is also what breaks a
-    /// long run into lines — a title too wide for its page is a paragraph, and how much room it takes is
-    /// not known until it has been broken. But the <em>piece</em> is the letters rather than the column
-    /// they were aligned in: its extent comes from the mark, which reports where the words actually
-    /// landed. That is what a reader drags across and what a wash covers, and a centred title whose
-    /// extent was the whole page would highlight the margins either side of itself.
-    /// </para>
+    /// Places one run of text into <paramref name="into"/> and hands back where the piece went. The text is
+    /// aligned within <paramref name="room"/> by the type engine, which also breaks a long run into lines, so
+    /// how much room it takes isn't known until broken. The <em>piece</em>'s extent is the letters, not the
+    /// column they were aligned in — it comes from the mark, which reports where the words actually landed —
+    /// since that's what a reader drags across and a wash covers; a centred title extending to the whole page
+    /// would highlight the margins beside itself.
     /// </summary>
     /// <param name="at">Where the column begins, in the frame of whatever is open.</param>
-    /// <param name="part">
-    /// The source this text was written in. Without one the piece is drawn and cannot be selected, which
-    /// is the right answer for a label the content invented and the wrong one for anything a reader typed.
-    /// </param>
+    /// <param name="part">The source this text was written in; without one the piece is drawn but can't be selected (right for an invented label, wrong for anything a reader typed).</param>
     /// <param name="letters">
-    /// Where each character of the text was written, so that words select the way words select — a letter,
-    /// a word, a phrase — rather than all or nothing. There is nothing special about prose here: a typeset
-    /// formula has a piece per glyph and always has, which is why its letters could be picked out one by
-    /// one while a title could not.
-    /// <para>
-    /// Handed in rather than worked out. Whether the nth character of what is drawn is the nth character of
-    /// what was written is a fact about the content — a label with a prefix, or two fields set as one line,
-    /// is neither — and nothing here is in a position to know it. Null draws the run as one piece.
-    /// </para>
+    /// Where each character was written, so words select the way words select (letter, word, phrase) rather
+    /// than all-or-nothing. Handed in rather than worked out: whether the nth character drawn is the nth
+    /// character written is a fact about the content (a label with a prefix isn't), which nothing here can
+    /// know. Null draws the run as one piece.
     /// </param>
     public static int Place(LayoutBuilder into, FormattedText text, Point at, double room,
                             TextAlignment align, ISourcePart? part, string kind,
@@ -73,13 +51,9 @@ public static class LayoutText
 
     /// <summary>
     /// Places a run of text as one piece with a caret position between any two of its letters, and hands back where the
-    /// piece went — see <see cref="LayoutWords"/>.
-    ///
-    /// <para>
-    /// What <see cref="Place"/> does with a letter per character, for content whose text is a string rather than a
-    /// sequence of separately placed glyphs: a label, a value, a caption. The run answers where inside it a position
-    /// is, so nothing is stored per character.
-    /// </para>
+    /// piece went — see <see cref="LayoutWords"/>. What <see cref="Place"/> does with a letter per character, but for
+    /// content whose text is a string rather than separately placed glyphs (a label, a value, a caption): the run
+    /// answers where inside it a position is, so nothing is stored per character.
     /// </summary>
     /// <param name="degrees">
     /// How far the run is turned about where it starts — nought for the ordinary case. A turned run reaches where its letters
@@ -124,14 +98,9 @@ public static class LayoutText
 
     /// <summary>
     /// Places a hole: the hollow box standing where something is still to be written, which a formula draws in an argument
-    /// left empty.
-    ///
-    /// <para>
-    /// It stands for no characters — its part is empty, and sits where they will go — so it is somewhere to put the caret,
-    /// and what is typed at it lands where it stands. As tall as a small letter and resting on the line, so it reads as a
-    /// letter still to come rather than a box drawn over the words, and as tall as the line to anything asking where a caret
-    /// in it goes.
-    /// </para>
+    /// left empty. Stands for no characters — its part is empty, sitting where they will go — so it's somewhere to put
+    /// the caret, and what is typed at it lands where it stands. As tall as a small letter and resting on the line, so it
+    /// reads as a letter still to come rather than a box drawn over the words.
     /// </summary>
     /// <param name="hole">The place in the source it stands at.</param>
     /// <param name="letter">A small letter in the type it stands among: its ink is how tall the box is, and its baseline where it sits.</param>
@@ -152,15 +121,7 @@ public static class LayoutText
         return piece;
     }
 
-    /// <summary>
-    /// One piece per character, so the run can be selected through rather than only as a whole.
-    ///
-    /// <para>
-    /// They draw nothing — the run drew all of it in one go, which is what keeps the type engine's kerning
-    /// and line breaking intact. These are geometry and a place in the source, which is all a selection
-    /// ever asks of a piece.
-    /// </para>
-    /// </summary>
+    /// <summary>One piece per character, so the run can be selected through rather than only as a whole. These draw nothing themselves (the run drew it all in one go, keeping the type engine's kerning and line breaking intact) — just geometry and a place in the source, which is all a selection ever asks of a piece.</summary>
     private static void Letters(LayoutBuilder into, FormattedText text,
                                 IReadOnlyList<ISourcePart>? letters, string kind)
     {
@@ -184,18 +145,11 @@ public static class LayoutText
 
     /// <summary>
     /// The source itself, laid out as the characters it is written with — what a builder hands back when it
-    /// cannot read what it was given.
-    ///
-    /// <para>
-    /// A whole layout rather than a special case, which is the point. The caret, the selection, the hit
-    /// test and the painter all work on it unchanged, because it is a tree of pieces naming source like any
-    /// other — so nothing hosting content needs a second path for content that would not read, and a reader
-    /// can go on typing in the very thing that is broken until it is not.
-    /// </para>
-    /// <para>
-    /// One piece per character, so a selection can take part of it. That is the same treatment prose gets
-    /// and it matters more here: unreadable source is exactly what somebody is in the middle of fixing.
-    /// </para>
+    /// cannot read what it was given. A whole layout rather than a special case: caret, selection, hit-test
+    /// and painter all work on it unchanged, since it is a tree of pieces naming source like any other, so
+    /// nothing hosting content needs a second path for content that would not read and a reader can keep
+    /// typing in the very thing that is broken. One piece per character, so a selection can take part of it —
+    /// unreadable source is exactly what somebody is in the middle of fixing.
     /// </summary>
     /// <param name="source">
     /// The characters the content was asked to read. Empty is allowed and is not an error — it is what an

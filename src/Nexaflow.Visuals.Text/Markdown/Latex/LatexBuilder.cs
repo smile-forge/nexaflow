@@ -13,20 +13,8 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// The one thing that knows a formula is a formula.
-///
-/// <para>
-/// It reads LaTeX, typesets it, and lays the result out as pieces. Everything after that — painting,
-/// hit-testing, where a caret goes, what a drag took, what a selection washes — is the same code a tune
-/// and a barcode run, over the <see cref="Laid"/> this hands back. That is the whole of the arrangement:
-/// a builder per kind of content, and nothing per kind of content anywhere else.
-/// </para>
-/// <para>
-/// There is deliberately no <c>LatexLayout</c> any more. It held a tree, forwarded the size and the
-/// source to it, and offered a <c>Paint</c> that was the shared painter with a default argument — three
-/// objects wrapping one, and the outer two are why a formula could not be hosted by the same element as
-/// a score.
-/// </para>
+/// Reads LaTeX, typesets it, and lays it out as pieces; painting, hit-testing and selection run over the
+/// shared <see cref="Laid"/> this hands back, the same code a tune or a barcode uses.
 /// </summary>
 public sealed partial class LatexBuilder : ContentBuilder
 {
@@ -52,45 +40,22 @@ public sealed partial class LatexBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// Typesets <paramref name="latex"/> and records where every piece landed.
-    ///
-    /// <para>
-    /// <strong>Always a formula.</strong> Source that will not read comes back as its own characters with
-    /// a wave under it, and so does source that made the typesetter throw; empty source comes back as an
-    /// empty line with somewhere to put the caret. There is no answer meaning "there is nothing here",
-    /// because a caller given one has to grow a second way of being a formula — which is exactly what the
-    /// element used to have, in ten <c>is null</c> guards and a render path of its own.
-    /// </para>
+    /// Typesets <paramref name="latex"/> and records where every piece landed. Unreadable or throwing source
+    /// comes back as its own characters with a wave under it rather than null, so a caller never needs a
+    /// second "not a formula" case.
     /// </summary>
     /// <param name="shownAsWritten">
-    /// A stretch to set as the characters written rather than read as maths — the piece being edited,
-    /// which has to be seen exactly as typed while the formula around it stays typeset.
-    /// <para>
-    /// It goes through the typesetter rather than being painted over the top afterwards, which is the
-    /// only way the rest of the formula can be laid out knowing it is there. Painted over, a stretch of
-    /// any length in the middle of a formula simply covered whatever followed it.
-    /// </para>
+    /// The stretch being edited, shown as typed rather than typeset. Goes through the typesetter itself
+    /// (rather than painted over afterwards) so the rest of the formula lays out around it correctly.
     /// </param>
-    /// <param name="placeholders">
-    /// Whether an argument or table cell left empty is given a hole to stand in it. Asked for by a
-    /// surface being written on, where the hole is how the reader sees there is something still to
-    /// write and how they aim at it. Off by default, because a box in the middle of a formula that is
-    /// only being read would simply be wrong, and reading is the commoner case.
-    /// </param>
-    /// <param name="block">
-    /// How wide the block is that a display formula is set in, or nothing where it has none. Only a formula with
-    /// a number asks, because the number stands against the block's right edge — see <see cref="Numbered"/>.
-    /// </param>
+    /// <param name="placeholders">Show a hole for an empty argument/cell, for a surface being written on. Off by default since reading is the common case.</param>
+    /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
     public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
                              RawZone? shownAsWritten = null, bool placeholders = false,
                              double pixelsPerDip = 1.0, double block = 0) =>
         new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip, block).Lay();
 
-    /// <summary>
-    /// Whether the typesetter has a drawing for a named command — a fact about the engine, and the one thing
-    /// anything reading LaTeX has to ask it. Handed to <see cref="LatexTree"/> as a function, so that asking
-    /// a formula questions still needs no fonts and no desktop.
-    /// </summary>
+    /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>
         Draws(name, WpfTeXFormulaParser.Instance);
 
@@ -99,22 +64,15 @@ public sealed partial class LatexBuilder : ContentBuilder
     {
         if (Source.Length == 0) return null;
 
-        // The tables, not the reader. Everything below builds from our own reading; what this is
-        // asked for is what a name means to a typesetter — which symbol, which face, which command
-        // it has a drawing for.
+        // The typesetter's own tables, not our reading — what a name means to it.
         var knowledge = WpfTeXFormulaParser.Instance;
 
         var editing = _shownAsWritten is { } zone && zone.Length > 0
             ? (zone.Start, zone.Length)
             : ((int, int)?)null;
 
-        // One reading, every time, whatever the caret is doing. What cannot be drawn and what is
-        // being typed are both settled before this — they come back as pieces that say they are to
-        // be shown rather than read, and the builder sets them as characters without having to know
-        // which of the two it is looking at.
-        // Asked of the builder, because the builder is what draws. It was asked of the tables, which
-        // describe what the engine's own parser could read — and being a different question, it came back
-        // a different answer: a `\ ` the builder sets directly was shown as its own characters in red.
+        // Draws() is asked of the builder rather than the tables: the tables describe what the engine's own
+        // parser could read, a different question — asking them instead once showed `\ ` in red as unreadable.
         var read = TexPipeline.Read(Source, Draws, editing, _placeholders);
         var reading = ContentReading.Of(read);
 
@@ -125,17 +83,14 @@ public sealed partial class LatexBuilder : ContentBuilder
 
         var formula = Formula(reading.Root, environment, knowledge);
 
-        // Laying it also settles the tree onto the origin. A shifted or transformed box can land above or left
-        // of where the pen started, and a tree with negative coordinates would put the caret outside the
-        // control that draws it — one number now, because everything in it is relative to the root.
+        // Also settles the tree onto the origin: negative coordinates would put the caret outside the control
+        // that draws it.
         var placed = LayFormula(formula, reading);
         if (placed.Tree is not { } laid) return null;
 
 
-        // Asked of what was read and what was laid rather than collected on the way through either. A part
-        // that could not be read carries the reason it could not, and a piece set as its characters because
-        // nothing draws it says so as it is laid — and a piece being typed carries nothing, which is how it
-        // draws without being complained about.
+        // Gathered after the fact rather than collected during read/lay, so a part being typed can pass
+        // through without complaint.
         var trouble = reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
             .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
@@ -145,8 +100,7 @@ public sealed partial class LatexBuilder : ContentBuilder
                 "This was read, and nothing here knows how to draw it.")))
             .ToList();
 
-        // An equation's number, where one was written, set against the right edge of the block the formula is
-        // displayed in — see Numbered.
+        // An equation's \tag number, set against the block's right edge — see Numbered.
         var (tree, size) = Number(reading.Root, environment) is { } number
             ? Numbered(placed, number, reading)
             : (laid, placed.Size);
@@ -160,15 +114,9 @@ public sealed partial class LatexBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// The formula and its number as one block: the formula in the middle of it, where a display puts it, and the
-    /// number against its right edge on the formula's baseline — which is where LaTeX puts an equation's number,
-    /// wherever the <c>\tag</c> was written.
-    ///
-    /// <para>
-    /// Two layouts put down together rather than one. The typesetter sets a row from left to right and knows
-    /// nothing of a block, so given the number as part of the formula it put it straight after the last term.
-    /// Which side of the block a thing stands against is the layout's to say — see <see cref="Side"/>.
-    /// </para>
+    /// The formula and its <c>\tag</c> number as one block, number against the right edge on the formula's
+    /// baseline — as LaTeX places it. Grafted rather than set inline, since the typesetter's own row layout
+    /// knows nothing of a block edge to stand against.
     /// </summary>
     private (LayoutTree Tree, System.Windows.Size Size) Numbered(Placed formula, Set number, ContentReading reading)
     {
@@ -193,10 +141,7 @@ public sealed partial class LatexBuilder : ContentBuilder
         return (tree, new System.Windows.Size(block > 0 ? System.Math.Max(block, covers.Right) : covers.Width, covers.Height));
     }
 
-    /// <summary>
-    /// How a formula sets characters it could not read: a monospaced face, so that what is on the page is
-    /// unmistakably the source rather than a poorly typeset formula, and a reader can count the braces.
-    /// </summary>
+    /// <summary>Unreadable source shown in a monospaced face, so it reads as source rather than a poorly typeset formula.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
@@ -207,26 +152,10 @@ public sealed partial class LatexBuilder : ContentBuilder
             _pixelsPerDip);
 
     /// <summary>
-    /// Declares which cells of a matrix read across and which read down, so a drag over one means what it
-    /// does on a sheet.
-    ///
-    /// <para>
-    /// The shape comes from the parse tree, which knows a matrix is a table and says which row and column
-    /// every cell is in. Nothing here clusters rectangles into bands or counts separators — the previous
-    /// answer did exactly that, and it only ever worked for a matrix because a matrix is the one thing
-    /// whose rows all hold the same number of things.
-    /// </para>
-    /// <para>
-    /// Said to the tree after it was sealed, which a run can do and a parent cannot: which piece stands for
-    /// a cell is a question about what was drawn, so it cannot be asked while the drawing is going on. It is
-    /// the builder's, because a run is layout — a way of taking a step through what was drawn — and the
-    /// thing that draws is the only thing that can say so.
-    /// </para>
-    /// <para>
-    /// The ink is gathered once and only when there is a table to gather it for. A formula with no matrix
-    /// walks nothing, and one with a matrix walks its tree once rather than once per cell — which is a
-    /// difference of nine walks on the smallest interesting case and rather more on a real one.
-    /// </para>
+    /// Declares which cells of a matrix read across/down, so a drag over one behaves like a spreadsheet
+    /// selection. Shape comes from the parse tree, not from clustering rectangles — the previous approach
+    /// only worked because a matrix's rows are all the same length. Called after the tree is sealed, since
+    /// "which piece is a cell" is a question about what was drawn.
     /// </summary>
     private static void Order(ContentReading reading, Piece root)
     {
@@ -248,23 +177,12 @@ public sealed partial class LatexBuilder : ContentBuilder
                 Declare(Enumerable.Range(0, grid.RowCount).Select(at => cells[at, column]), vertical: true);
         }
 
-        // A cell that drew nothing is left out rather than standing as a gap: a run is a way to take a
-        // step, and there is nothing to step to at an empty cell.
+        // An empty cell is left out rather than standing as a gap: there is nothing to step to.
         void Declare(IEnumerable<Piece> cells, bool vertical) =>
             tree.Runs([.. cells.Where(cell => cell.Exists).Distinct()], vertical);
     }
 
-    /// <summary>
-    /// The piece standing for one cell: the lowest one holding every piece of ink written inside it, or
-    /// nothing for a cell that drew nothing — one squared off so that "the third column" means the same in
-    /// every row.
-    ///
-    /// <para>
-    /// Found by what it <em>contains</em> rather than by what it says, because most cells say nothing: the
-    /// typesetter makes a box per cell and the box names no source. For a cell holding one letter the
-    /// answer is that letter; for one holding <c>4b^{2}+3</c> it is the box around the five of them.
-    /// </para>
-    /// </summary>
+    /// <summary>The lowest piece holding all the ink in a cell — found by containment, not by name, since the typesetter's per-cell boxes name no source.</summary>
     private static Piece Holding(List<Piece> ink, TexCell cell)
     {
         var lowest = default(Piece);

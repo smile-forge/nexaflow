@@ -39,11 +39,8 @@ public enum NodeShape
     C4Element,         // a C4 element card: title + [Kind: technology] + description (see Node.C4)
 }
 
-/// <summary>
-/// Optional styling for a <see cref="Subgraph"/> box. Null — the default — draws the accent-tinted
-/// dashed box every flowchart and state diagram has always drawn, byte for byte. C4 boundaries set
-/// it to carry their <c>[type]</c> sub-label and their own colours.
-/// </summary>
+/// <summary>Optional styling for a <see cref="Subgraph"/> box. Null draws the default accent-tinted
+/// dashed box; C4 boundaries set it for their own colours and a <c>[type]</c> sub-label.</summary>
 public sealed class SubgraphStyle
 {
     /// <summary>A smaller second line under the box's title, e.g. <c>[Container]</c>.</summary>
@@ -61,12 +58,8 @@ public sealed class SubgraphStyle
     };
 }
 
-/// <summary>
-/// One row of a diagram legend: a swatch and what it means. <see cref="Kind"/> and
-/// <see cref="External"/> travel alongside any literal <see cref="FillColor"/> so the painter can
-/// resolve the swatch to the very colour the cards were drawn in — a legend whose colours are not
-/// the diagram's colours is worse than none.
-/// </summary>
+/// <summary>One row of a diagram legend. <see cref="Kind"/> and <see cref="External"/> travel
+/// alongside <see cref="FillColor"/> so the swatch matches the colour the cards were drawn in.</summary>
 public sealed record GraphLegendEntry(
     string Label,
     string? FillColor,
@@ -77,16 +70,8 @@ public sealed record GraphLegendEntry(
 
 public enum EdgeStyle { Solid, Dashed, Dotted, Thick }
 
-/// <summary>
-/// Whether a node hides a subtree behind it, and whether that subtree is currently shown.
-/// <para>
-/// Expansion is modelled on the node rather than smuggled into its label, because "there is more
-/// behind this" is a fact about the graph — a generated diagram, a depth-limited one and a
-/// fan-out-collapsed one all mean the same thing by it, and every renderer should draw the same
-/// affordance for it. <see cref="Leaf"/> is the default, so a diagram that never mentions expansion
-/// carries no chips and renders exactly as it always did.
-/// </para>
-/// </summary>
+/// <summary>Whether a node hides a subtree, and whether that subtree is shown. Modelled on the node
+/// rather than its label so every renderer draws the same affordance for it.</summary>
 public enum NodeExpansion
 {
     /// <summary>Nothing is hidden behind this node — no chip is drawn.</summary>
@@ -134,11 +119,8 @@ public sealed class Subgraph
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string?      Tooltip  { get; set; }
 
-    /// <summary>
-    /// A copy carrying every property, optionally with a different membership list. Every place that
-    /// rebuilds a graph goes through this rather than listing fields by hand, so a property added
-    /// here travels by construction instead of being dropped by whichever site forgot it.
-    /// </summary>
+    /// <summary>A copy carrying every property, optionally with a different membership list — keeps a
+    /// property added here from being dropped by some site's hand-written field list.</summary>
     public Subgraph Copy(IEnumerable<string>? nodeIds = null)
     {
         var copy = new Subgraph
@@ -173,22 +155,15 @@ public sealed class Node
     /// technology and description. Null for every other shape.</summary>
     public C4ElementInfo? C4  { get; set; }
 
-    /// <summary>
-    /// Where a click on this node goes, from a mermaid <c>click</c> directive. Interaction lives on
-    /// the graph model rather than in one renderer so every diagram type that goes through the
-    /// shared layout gets it — a flowchart node, a state, an entity and a requirement are all just
-    /// nodes here.
-    /// </summary>
+    /// <summary>Where a click on this node goes, from a mermaid <c>click</c> directive. Lives on the
+    /// graph model, not one renderer, so every diagram type gets it for free.</summary>
     public string? Href { get; set; }
 
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string? Tooltip { get; set; }
 
-    /// <summary>
-    /// Whether this node hides a subtree, and whether that subtree is currently shown. Drawn as a
-    /// chip on the node's corner — a second hit region, independent of <see cref="Href"/>, so a node
-    /// can both navigate somewhere and open up in place.
-    /// </summary>
+    /// <summary>Whether this node hides a subtree, and whether it's shown — drawn as a corner chip,
+    /// independent of <see cref="Href"/>, so a node can both navigate and expand in place.</summary>
     public NodeExpansion Expansion { get; set; } = NodeExpansion.Leaf;
 
     /// <summary>How many nodes sit behind a <see cref="NodeExpansion.Collapsed"/> node, when that is
@@ -196,10 +171,8 @@ public sealed class Node
     /// has not walked what is behind it.</summary>
     public int HiddenCount { get; set; }
 
-    /// <summary>
-    /// The producer's own name for this node, echoed back on an expand/collapse request so a host
-    /// can act without keeping a side table of mermaid ids. Null → the request carries the id.
-    /// </summary>
+    /// <summary>The producer's own name for this node, echoed back on expand/collapse so a host
+    /// needs no side table of mermaid ids. Null → the request carries the id.</summary>
     public string? ExpandKey { get; set; }
 
     /// <summary>A copy carrying every property. Used when a view of the graph is derived (expansion
@@ -258,12 +231,8 @@ public sealed class Edge
     /// <summary>Tooltip for the link; falls back to the href.</summary>
     public string? Tooltip { get; set; }
 
-    /// <summary>
-    /// A copy carrying every property, optionally re-pointed at different endpoints — the clustered
-    /// layout rebuilds each edge against whichever entity represents it at that nesting level. Same
-    /// contract as <see cref="Node.Copy"/> and <see cref="Subgraph.Copy"/>, for the same reason:
-    /// this was several hand-written field lists, and each had forgotten something different.
-    /// </summary>
+    /// <summary>A copy carrying every property, optionally re-pointed at different endpoints — the
+    /// clustered layout rebuilds each edge against whichever entity represents it at that level.</summary>
     public Edge Copy(string? sourceId = null, string? targetId = null) => new()
     {
         SourceId   = sourceId ?? SourceId,
@@ -301,10 +270,8 @@ public sealed class Graph
     /// <summary>How much each legend row says — a C4 <c>SHOW_LEGEND($details)</c>.</summary>
     public C4LegendDetails LegendDetails { get; set; } = C4LegendDetails.Small;
 
-    /// <summary>
-    /// The document-level properties with none of the content — what a derived view (expansion) or a
-    /// per-level rebuild (clustering) starts from before filling in its own nodes and edges.
-    /// </summary>
+    /// <summary>The document-level properties with none of the content — what a derived view or
+    /// per-level rebuild starts from before filling in its own nodes and edges.</summary>
     public Graph CopyShell() => new()
     {
         Title         = Title,
@@ -347,10 +314,7 @@ public sealed class Graph
 
 // ── Parser contract ───────────────────────────────────────────────────────────
 
-/// <summary>
-/// Implemented by each diagram-language parser.  Parsers are stateless and
-/// produce a <see cref="Graph"/> from a raw source string.
-/// </summary>
+/// <summary>Implemented by each diagram-language parser. Parsers are stateless.</summary>
 public interface IGraphParser
 {
     /// <summary>Returns true when this parser handles <paramref name="language"/>.</summary>

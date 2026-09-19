@@ -269,12 +269,8 @@ public static class WpfGraphRenderer
         DrawExpandChip(canvas, ln, options);
     }
 
-    /// <summary>
-    /// What clicking the body of a node does. With an <see cref="GraphRenderOptions.OnNodeClick"/>
-    /// hook every node is clickable and the host decides what a click means (select it, open it, or
-    /// both); without one it falls back to following the node's <c>href</c>, which is what a diagram
-    /// rendered outside an interactive view has always done.
-    /// </summary>
+    /// <summary>What clicking a node's body does: <see cref="GraphRenderOptions.OnNodeClick"/> if set
+    /// (host decides), else falls back to following the node's <c>href</c>.</summary>
     private static DiagramTarget? BodyTarget(LayoutNode ln, GraphRenderOptions options)
     {
         if (ln.Source is not { } node) return null;
@@ -305,16 +301,9 @@ public static class WpfGraphRenderer
 
     private const double ChipSize = 15;
 
-    /// <summary>
-    /// The <c>[+]</c> / <c>[−]</c> chip on a node that hides (or has opened) a subtree.
-    /// <para>
-    /// It straddles the node's top-right corner — the one place clear of both the incoming face
-    /// (top / left) and the outgoing one (bottom / right) whichever way the graph flows, so it never
-    /// collides with an edge. Drawn as its own element with its own action, which is the whole point:
-    /// the body of the node keeps its own click, and expansion is a second target rather than a
-    /// second meaning smuggled into the first.
-    /// </para>
-    /// </summary>
+    /// <summary>The <c>[+]</c> / <c>[−]</c> chip on a node that hides (or has opened) a subtree. Sits at
+    /// the top-right corner, clear of edges whichever way the graph flows, as its own click target
+    /// separate from the node body.</summary>
     private static void DrawExpandChip(Canvas canvas, LayoutNode ln, GraphRenderOptions options)
     {
         if (options.OnToggleExpand is null) return;
@@ -381,11 +370,8 @@ public static class WpfGraphRenderer
             : NodeText;
     }
 
-    /// <summary>
-    /// A colour from a mermaid <c>style</c>/<c>classDef</c> declaration.  Unlike
-    /// <see cref="DiagramBrushes.ParseCss"/> this never fails: an unparseable colour falls back to
-    /// the graph's own accent, because a node with a broken fill should still be drawn.
-    /// </summary>
+    /// <summary>Unlike <see cref="DiagramBrushes.ParseCss"/> this never fails — an unparseable colour
+    /// falls back to the graph's accent so a broken fill still draws.</summary>
     private static Color ParseColor(string hex) =>
         DiagramBrushes.ParseCss(hex) ?? Color.FromRgb(0x4F, 0x8E, 0xF7);
 
@@ -913,11 +899,8 @@ public static class WpfGraphRenderer
     /// the band <c>SugiyamaLayout.HeaderH</c> reserves for the same case.</summary>
     private const double SubgraphSubLabelH = 14;
 
-    /// <summary>
-    /// Draws one subgraph box. With no <see cref="Subgraph.Style"/> this is the accent-tinted dashed
-    /// box every flowchart and state diagram has always drawn; a C4 boundary supplies its own
-    /// colours, border style and a <c>[type]</c> line under the title.
-    /// </summary>
+    /// <summary>Draws one subgraph box: accent-tinted dashed by default, or a C4 boundary's own
+    /// colours/border style with a <c>[type]</c> line under the title.</summary>
     private static void DrawSubgraphBox(Canvas canvas, SubgraphBox box)
     {
         var style  = box.Source?.Style;
@@ -1098,11 +1081,8 @@ public static class WpfGraphRenderer
         }
     }
 
-    /// <summary>
-    /// Builds a smooth cubic-bezier path through <paramref name="pts"/>. Returns the path plus the
-    /// bezier control points nearest the start and end tips — the tangents used to orient arrowheads
-    /// so a head stays aligned with a curved edge rather than its straight chord.
-    /// </summary>
+    /// <summary>Builds a smooth cubic-bezier path through <paramref name="pts"/>, plus the tangents
+    /// nearest each tip so arrowheads stay aligned with a curved edge, not its straight chord.</summary>
     private static (Path path, Point startTangent, Point endTangent) BuildBezierPath(IList<Point> pts, bool horizontal)
     {
         var figure  = new PathFigure { StartPoint = pts[0], IsFilled = false };
@@ -1142,11 +1122,8 @@ public static class WpfGraphRenderer
         return (new Path { Data = new PathGeometry([figure]) }, firstCp1, lastCp2);
     }
 
-    /// <summary>
-    /// The floating label box on an edge. <paramref name="subLabel"/> adds a smaller muted second
-    /// line — a C4 relationship's <c>[technology]</c>. The box is sized from the measured text
-    /// rather than from layout, so a label carrying <c>\n</c> is measured as the block it is.
-    /// </summary>
+    /// <summary>The floating label box on an edge. <paramref name="subLabel"/> adds a smaller muted
+    /// second line (a C4 relationship's <c>[technology]</c>).</summary>
     private static void DrawEdgeLabel(Canvas canvas, string text, string? subLabel, string? textColor, Point mid)
     {
         const double labelFont = 10.5;

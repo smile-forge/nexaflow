@@ -5,7 +5,7 @@ using System.Windows;
 namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 
 /// <summary>
-/// Handles <c>qr</c> fenced code blocks ΓÇö the QR-code generator described at
+/// Handles <c>qr</c> fenced code blocks — the QR-code generator described at
 /// <see href="https://markdown.org/tools/diagrams/qr/"/>.
 ///
 /// <para>

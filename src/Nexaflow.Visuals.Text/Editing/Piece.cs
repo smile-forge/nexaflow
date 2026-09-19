@@ -9,20 +9,12 @@ namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
 /// One piece of laid-out content, seen: where it was drawn, what it was drawn from, and what it belongs
-/// with.
-///
-/// <para>
-/// A handle — the tree it is in and its place in that tree — rather than an object of its own. Identity
-/// is the index, which is what lets a piece be a value: two handles are the same piece when they name the
-/// same place in the same tree, and a piece left over from a layout that has since been rebuilt can say
-/// so instead of quietly pointing at something abandoned.
-/// </para>
-/// <para>
-/// This is the shape every kind of embedded, rendered, editable content shares. Each keeps its own model
-/// of what it is — a score knows about clefs and lyric rows, and should — and builds <em>into</em> a
-/// <see cref="LayoutTree"/>, so the machinery that decides what a click means, what a drag selected and
-/// where the caret goes is written once and never asks what it is looking at.
-/// </para>
+/// with. A handle (the tree and an index) rather than an object of its own — identity is the index, so
+/// two handles are the same piece when they name the same place in the same tree, and one left over from
+/// a since-rebuilt layout can say so instead of quietly pointing at something abandoned. This is the shape
+/// every kind of embedded, rendered, editable content shares: each keeps its own model of what it is (a
+/// score knows about clefs and lyric rows) and builds <em>into</em> a <see cref="LayoutTree"/>, so click,
+/// drag-select and caret logic is written once and never asks what it's looking at.
 /// </summary>
 public readonly record struct Piece
 {
@@ -60,15 +52,10 @@ public readonly record struct Piece
     public int At => _at;
 
     /// <summary>
-    /// The part that places this piece in the source: its own, or — where it was drawn from nothing
-    /// anybody wrote — the one belonging to whatever it was drawn inside.
-    ///
-    /// <para>
-    /// The only route from a piece of layout to a position, and deliberately indirect. The layout is
-    /// geometry: where a thing was drawn and what it drew. Where it was <em>written</em> is a fact about
-    /// the parse tree, so it is asked of the parse tree every time rather than copied onto the picture,
-    /// where it would go stale the moment anything is edited.
-    /// </para>
+    /// The part that places this piece in the source: its own, or — where it was drawn from nothing anybody
+    /// wrote — the one belonging to whatever it was drawn inside. The only route from a piece of layout to a
+    /// position, and deliberately indirect: where a thing was <em>written</em> is asked of the parse tree
+    /// every time rather than copied onto the picture, where it would go stale the moment anything is edited.
     /// </summary>
     public ISourcePart? Naming()
     {
@@ -78,27 +65,19 @@ public readonly record struct Piece
         return null;
     }
 
-    /// <summary>
-    /// Whether this piece stands for a place in the source. Drawing is a different question: a bracket, a
-        /// fraction bar and the three glyphs of an operator name are all drawn and none of them stands for a
-        /// place of its own.
-        /// <para>
-        /// Naming a part is enough; the part need not cover any characters. An argument nobody has written
-        /// yet is a place with nothing in it, which is exactly somewhere a caret can go and text can land —
-        /// and is otherwise no different from a letter, being one thing the builder drew.
-        /// </para>
-    /// </summary>
+/// <summary>
+/// Whether this piece stands for a place in the source. Drawing is a different question: a bracket, a
+/// fraction bar and the three glyphs of an operator name are all drawn and none of them stands for a
+/// place of its own. Naming a part is enough — the part need not cover any characters, so an argument
+/// nobody has written yet is still a place with nothing in it, exactly where a caret can go and text land.
+/// </summary>
     public bool Stands() => Part is not null;
 
     /// <summary>
-    /// Where this piece sits in the source.
-    ///
-    /// <para>
-    /// A piece drawn from a part is that part's stretch of it. A piece drawn from nothing anybody wrote — a
-    /// fraction's bar, a barcode's guard pattern, a hole waiting to be typed into — is a <em>point</em>, at
-    /// the start of whatever it was drawn inside: it stands somewhere without standing for anything, and
-    /// that distinction is what the caret turns on.
-    /// </para>
+    /// Where this piece sits in the source. A piece drawn from a part is that part's stretch of it; one drawn
+    /// from nothing anybody wrote (a fraction's bar, a hole waiting to be typed into) is a <em>point</em> at
+    /// the start of whatever it was drawn inside — it stands somewhere without standing for anything, which
+    /// is the distinction the caret turns on.
     /// </summary>
     public SourcePlace Sits() =>
         Part is { } part ? new SourcePlace(part.Start, part.Length)
@@ -167,19 +146,10 @@ public readonly record struct Piece
     }
 
     /// <summary>
-    /// Everything drawn inside this piece — the leaves.
-    ///
-    /// <para>
-    /// A leaf <em>is</em> the drawing: a piece with nothing inside it exists because something was put on the
-    /// page there, and a builder that would produce one drawing nothing does not produce it. So there is no
-    /// flag to consult and nothing to keep in step — which there was, and the two builders had already
-    /// drifted into meaning different things by it.
-    /// </para>
-    /// <para>
-    /// Drawn is not the same as selectable, and the two used to share a flag. What a press <em>means</em> is
-    /// the first thing above the leaf that names a stretch of source — see <see cref="LayoutQuery.Selectable"/>
-    /// — and where nothing above it names one, nothing there is selectable.
-    /// </para>
+    /// Everything drawn inside this piece — the leaves. A leaf <em>is</em> the drawing: a piece with nothing
+    /// inside it exists because something was put on the page there, so there is no separate flag to consult.
+    /// Drawn is not the same as selectable — what a press <em>means</em> is the first ancestor that names a
+    /// stretch of source, see <see cref="LayoutQuery.Selectable"/>.
     /// </summary>
     public IEnumerable<Piece> Leaves()
     {
@@ -187,28 +157,16 @@ public readonly record struct Piece
             if (piece.IsLeaf) yield return piece;
     }
 
-    /// <summary>
-    /// Whether this is the drawing itself rather than a group holding it: nothing inside it, and something
-    /// on the page.
-    /// <para>
-    /// Spacing never gets one: a builder places things at the offsets they belong at, and the gap between
-        /// them is the gap. So a piece with nothing inside it is the drawing, with nothing further to ask.
-    /// </para>
-    /// </summary>
+/// <summary>Whether this is the drawing itself rather than a group holding it: nothing inside it, and something on the page. Spacing never gets one — a builder places things at the offsets they belong at, and the gap between them is just the gap.</summary>
     public bool IsLeaf => Children.Count == 0;
 
     /// <summary>How many pieces hold it. Nought at the root.</summary>
     public int Depth => _tree is null ? 0 : _tree.DepthOf(_at);
 
     /// <summary>
-    /// It and everything inside it, each with where it sits — the walk to use whenever the question is
-    /// about more than one piece.
-    ///
-    /// <para>
-    /// <see cref="Bounds"/> climbs to the root, so asking it of every piece in turn is the one way to make
-    /// relative geometry cost something. This descends instead, carrying the anchor down with it, and pays
-    /// nothing per piece.
-    /// </para>
+    /// It and everything inside it, each with where it sits — the walk to use whenever the question is about
+    /// more than one piece. <see cref="Bounds"/> climbs to the root, so asking it per piece is what makes
+    /// relative geometry cost something; this descends instead, carrying the anchor down for free.
     /// </summary>
     public IEnumerable<(Piece Piece, Rect Where)> Placed()
     {

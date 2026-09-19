@@ -13,57 +13,33 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
 /// The setting half: a formula's reading turned into measured pieces, each construct set the way TeX sets it.
-///
-/// <para>
-/// Handed the reading and never the string, so nothing here can name a point in the source. What a piece came
-/// from is its part; where that part is written is the reading's to answer.
-/// </para>
-/// <para>
-/// A construct is set as it is reached, in the environment its parent chose, and comes back a <see cref="Set"/>: the
-/// room it takes and a way to draw it once its parent has decided where. Anything nothing here has a drawing for is
-/// set as the characters it was written with, so a formula comes back whole whatever it holds.
-/// </para>
-/// <para>
-/// <b>Space that was typed is not built; space that was asked for is.</b> TeX takes the gaps between symbols from
-/// their classes, not from what was typed, so <c>a+b</c> and <c>a + b</c> are set identically. <c>\,</c>,
-/// <c>\quad</c> and the rest are the writer overriding that, so they are: most as macros expanded while the formula is
-/// read, and the handful that are a length in mu with no LaTeX spelling by <see cref="PrimitiveItem"/>.
-/// </para>
+/// Handed the reading and never the string, so nothing here can name a point in the source — what a piece came
+/// from is its part, and where that part is written is the reading's to answer. Anything nothing here has a
+/// drawing for is set as the characters it was written with, so a formula comes back whole whatever it holds.
+/// <b>Space that was typed is not built; space that was asked for is</b> — TeX takes gaps between symbols from
+/// their classes, not from what was typed, so <c>a+b</c> and <c>a + b</c> set identically; <c>\,</c>, <c>\quad</c>
+/// and the rest are the writer overriding that.
 /// </summary>
 public sealed partial class LatexBuilder
 {
     /// <summary>
-    /// Whether the handful of disagreements parked for review are declined — which is what parking one
-    /// means, and the default.
-    /// <para>
-    /// Turned off to look at one. A decline is never exercised, so it goes stale without anything saying
-    /// so: *a script on `\overline`* sat on the list for weeks describing a difference that was not the
-    /// difference, over ten times as many formulas as recorded, and it stayed there because looking took
-    /// an edit to this file. It takes a line now.
-    /// </para>
-    /// <para>
-    /// It changes what the builder draws, so it is not a thing to leave off. Nothing but a diagnostic
-    /// sets it.
-    /// </para>
+    /// Whether the handful of disagreements parked for review are declined — the default. Turn off only to look at
+    /// one: a decline is never exercised, so it goes stale silently otherwise — a script on `\overline` once sat on
+    /// the list for weeks describing a difference that was not the difference. Changes what the builder draws, so
+    /// nothing but a diagnostic sets it.
     /// </summary>
     internal static bool DeclineUnsettled = true;
 
     /// <summary>
-    /// An equation's number — the <c>\tag</c> written in the reading — as a formula of its own, or null where there is
-    /// none.
-    ///
-    /// <para>
-    /// Not part of what <see cref="Build"/> makes, and not carried on it. LaTeX sets the number against the right edge
-    /// of the block the equation is displayed in, wherever the <c>\tag</c> was written, and where that edge is belongs to
-    /// whatever lays the block out — so the number is handed over on its own, for that to place.
-    /// </para>
+    /// An equation's number — the <c>\tag</c> written in the reading — as a formula of its own, or null. Not part of
+    /// what <see cref="Build"/> makes: where the block's right edge is (which is where the number is set) belongs to
+    /// whatever lays the block out, so the number is handed over on its own for that to place.
     /// </summary>
     internal static Set? Number(ContentPart root, TexEnvironment environment)
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
-        // The last one written. A second \tag in one equation is an error to LaTeX, and there is no second place to
-        // put it.
+        // The last one written — a second \tag in one equation is an error to LaTeX.
         if (root.SelfAndDescendants().LastOrDefault(IsTag) is not { } tag
             || tag.Part(TexRole.Argument) is not { } written)
             return null;
@@ -76,12 +52,8 @@ public sealed partial class LatexBuilder
     // ── Setting ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A formula's reading set in the environment it is displayed in — measured, and ready to lay.
-    /// <para>
-    /// Always something, even where nothing in the reading draws — a lone <c>\label</c> — so the formula still has a place
-    /// for a caret. What was set as its characters because nothing here draws it says so on the piece, as
-    /// <see cref="Set.Undrawn"/>, so the complaint is asked of what was laid rather than kept beside it.
-    /// </para>
+    /// A formula's reading set in the environment it is displayed in — measured, and ready to lay. Always something,
+    /// even where nothing in the reading draws (a lone <c>\label</c>), so the formula still has a place for a caret.
     /// </summary>
     internal static Set Formula(ContentPart root, TexEnvironment environment, TexFormulaParser knowledge)
     {
@@ -91,14 +63,9 @@ public sealed partial class LatexBuilder
     }
 
     /// <summary>
-    /// One piece of a run before it is set: its TeX class at either end, and how to set it once the run knows what came
-    /// before it.
-    /// <para>
-    /// The class is known before anything is measured, which is what lets a run decide its spacing: TeX turns a binary
-    /// operator into an ordinary atom by looking at its neighbours, and the gaps between atoms come from their classes.
-    /// <see cref="Glyph"/> is the character a piece is, where it is one — a run asks it whether two letters kern or join
-    /// into a ligature, and a script how far to tuck under its lean.
-    /// </para>
+    /// One piece of a run before it is set: its TeX class at either end, and how to set it once the run knows what
+    /// came before it. The class is known before anything is measured, which is what lets a run decide its spacing:
+    /// TeX turns a binary operator into an ordinary atom by looking at its neighbours.
     /// </summary>
     private sealed record Item(TexAtomType Left, TexAtomType Right, Glyph? Glyph, System.Func<TexEnvironment, Previous?, Set> Make)
     {
@@ -119,17 +86,10 @@ public sealed partial class LatexBuilder
         /// <summary>What a row would take in place of this piece, where it is itself a row.</summary>
         public IReadOnlyList<Item>? Elements { get; init; }
 
-        /// <summary>
-        /// Whether this is a piece retyped as a class of its own — a group, <c>\mathop</c> and its family. Claimed by
-        /// something else, it hands the claim on to what it holds wherever that names nothing, or only the zero-length
-        /// part of an expansion: it is how a macro that expands to one comes to be pointable at all.
-        /// </summary>
+        /// <summary>Whether this is a piece retyped as a class of its own — a group, <c>\mathop</c> and its family — which hands a claim on to what it holds where that names nothing, letting a macro expanding to one be pointable.</summary>
         public bool Retyped { get; init; }
 
-        /// <summary>
-        /// Where this is a big operator, its sign and how it asked to wear limits — so a script arriving later builds
-        /// the operator again round the same sign rather than nesting an operator inside one.
-        /// </summary>
+        /// <summary>Where this is a big operator, its sign and how it asked to wear limits — so a later script rebuilds the operator around the same sign rather than nesting one inside another.</summary>
         public (Item? Sign, bool? Vertical)? Operator { get; init; }
     }
 
@@ -196,10 +156,7 @@ public sealed partial class LatexBuilder
             _ => null,
         };
 
-    /// <summary>
-    /// A braced group, as <see cref="Group"/>: an ordinary atom whatever it holds, because braces change a class. What
-    /// it holds is set as it would be anywhere, and names the group where it names nothing of its own.
-    /// </summary>
+    /// <summary>A braced group: an ordinary atom whatever it holds, because braces change a class.</summary>
     private static Item? Grouped(ContentPart part, string? style, TexFormulaParser knowledge)
     {
         if (Sequence(part.Parts, part, style, knowledge) is not { } inner) return null;
@@ -242,10 +199,7 @@ public sealed partial class LatexBuilder
             Nucleus = glyph,
         };
 
-    /// <summary>
-    /// Room of a width and height measured in a unit — or, with no unit, an inter-word space in the current font. A kern:
-    /// it takes no part in the spacing rules around it.
-    /// </summary>
+    /// <summary>Room of a width/height measured in a unit, or (with no unit) an inter-word space in the current font — a kern, taking no part in the spacing rules around it.</summary>
     private static Item SpaceItem(TexUnit? unit, double width, double height = 0, double depth = 0) =>
         new(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) => Room(unit, width, height, depth, environment))
         {
@@ -480,12 +434,9 @@ public sealed partial class LatexBuilder
          TexAtomType.Opening, TexAtomType.Closing, TexAtomType.Punctuation];
 
     /// <summary>
-    /// A row: each piece set in turn, TeX's glue between them by class, a kern or a ligature between two letters that
-    /// have one.
-    /// <para>
-    /// <paramref name="outer"/> is what stood before the row in the row holding it. It decides whether the row's first
-    /// piece is a binary operator or an ordinary atom, and nothing else — the first piece never gets glue in front of it.
-    /// </para>
+    /// A row: each piece set in turn, TeX's glue between them by class, a kern or ligature between two letters that
+    /// have one. <paramref name="outer"/> — what stood before the row in the row holding it — only decides whether
+    /// the row's first piece is a binary operator or an ordinary atom; the first piece never gets glue in front of it.
     /// </summary>
     private static Set Row(IReadOnlyList<Item> items, ContentPart? whole, TexEnvironment environment, Previous? outer)
     {
@@ -605,11 +556,7 @@ public sealed partial class LatexBuilder
         Spacing = true,
     };
 
-    /// <summary>
-    /// Pieces stacked top to bottom, each moved right by its own shift. The stack starts as tall as its first piece and
-    /// deepens by each piece after it; a caller that knows better states its height and depth outright, which is how
-    /// TeX pins a stack's baseline.
-    /// </summary>
+    /// <summary>Pieces stacked top to bottom, each moved right by its own shift. Stack height/depth follow the first piece and grow by each after it, unless a caller states them outright to pin the baseline as TeX does.</summary>
     private static Set Vertical(
         List<Set> children, double? height = null, double? depth = null, string kind = "VerticalBox",
         IReadOnlyList<double>? measuredShifts = null)
@@ -721,8 +668,7 @@ public sealed partial class LatexBuilder
             return Sequenced([carried, on], part);
         }
 
-        // The marks first, and separately: all of them make one superscript on the base, and whatever is written after
-        // them goes on the whole of that.
+        // The marks first: all of them make one superscript on the base, and anything written after goes on the whole of that.
         var marks = part.Children.Where(child => child.Role == TexRole.Mark).ToList();
 
         if (marks.Count > 0)
@@ -749,9 +695,8 @@ public sealed partial class LatexBuilder
             _ => (bool?)null,
         };
 
-        // Scripts on a big operator are its limits — over and under it, or beside it as scripts, by style and by what
-        // was asked for — and so are scripts on anything typed as one.
-
+        // Scripts on a big operator are its limits (over/under or beside it, by style and by \limits/\nolimits), and
+        // so are scripts on anything typed as one.
 
         if (on.Operator is { } made)
             return Operator(made.Sign, subscript, superscript, asked ?? made.Vertical, part);
@@ -2263,18 +2208,9 @@ public sealed partial class LatexBuilder
         part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text == @"\hline";
 
     /// <summary>
-    /// The row boundaries carrying a rule, numbered from 0 above the first row.
-    ///
-    /// <para>
-    /// <c>\hline</c> is written inside the first cell of the row it sits above, which is where the reading
-    /// leaves it — so this is a question to ask of the grid and never of a cell. A row holding nothing but
-    /// rules is not a row at all: it is the line under the last one, and it names the boundary past the
-    /// end rather than adding an empty line to the table.
-    /// </para>
-    /// <para>
-    /// The builder used to hand <see cref="ArrayCommandParser.Assemble"/> a null here, so an array asking
-    /// for rules got none and the <c>\hline</c> itself was shown as its own characters.
-    /// </para>
+    /// The row boundaries carrying a rule, numbered from 0 above the first row. <c>\hline</c> is written inside the
+    /// first cell of the row it sits above, so this is a question for the grid, never a cell. A row holding nothing
+    /// but rules is not a row: it names the boundary past the end rather than adding an empty line.
     /// </summary>
     private static List<int> Ruled(ContentPart environment)
     {
@@ -2288,8 +2224,7 @@ public sealed partial class LatexBuilder
             var cells = row.Children.Where(child => child.Role == Roles.Cell).ToList();
             if (cells.Any(cell => cell.Parts.Any(IsRule))) rules.Add(at);
 
-            // A row of rules and nothing else does not become a line of the table, so the rows after it
-            // are not pushed down by one.
+        // A row of rules alone does not become a line of the table, so rows after it are not pushed down.
             var written = cells.Any(cell => cell.Parts.Any(piece => !IsRule(piece) && piece.Kind != Kinds.Space));
             if (written) at++;
         }
@@ -2298,26 +2233,16 @@ public sealed partial class LatexBuilder
     }
 
     /// <summary>
-    /// Whether these braces were written by the reader as part of the formula, rather than being how a
-    /// command's argument was delimited.
-    ///
-    /// <para>
-    /// The distinction decides whether the group becomes an atom of its own, and it is not the same as
-    /// what the group is called. `{x}` standing in a run was written; so was the `{\gamma}` of
-    /// <c>{\gamma}^2</c>, which is a script's base and got its script afterwards. But the `{q}` of
-    /// <c>\dot{q}</c> is *also* a base, and it was not written — it is where <c>\dot</c>'s argument
-    /// stops. Only what holds the group can tell those two apart.
-    /// </para>
+    /// Whether these braces were written by the reader as part of the formula, rather than delimiting a command's
+    /// argument — this decides whether the group becomes an atom of its own. Not decidable from the group's role
+    /// alone: the `{q}` of <c>\dot{q}</c> is also a script's base but was not written; only what holds the group can
+    /// tell the two apart.
     /// </summary>
     private static bool Written(ContentPart group) =>
         group.Role == Roles.Element
         || (group.Role == TexRole.Base && group.Parent?.Kind == TexKinds.Script);
 
-    /// <summary>
-    /// What this part switches, when it is a switch standing in a run rather than a command with an
-    /// argument. Which of the two it is comes from the engine's own table — the same table the parser
-    /// reads, so neither of us can come to think <c>\bf</c> takes an argument while the other does not.
-    /// </summary>
+    /// <summary>What this part switches, when it is a switch standing in a run rather than a command with an argument. Read from the same table the parser uses, so the two can't disagree on which a name is.</summary>
     private static (string? TextStyle, TexStyle? Style)? Switch(ContentPart part)
     {
         if (part.Kind != TexKinds.Command || part.Parts.Any()) return null;
@@ -2329,20 +2254,12 @@ public sealed partial class LatexBuilder
     }
 
     /// <summary>
-    /// The commands this sets itself, rather than by asking the symbol tables for a glyph.
-    ///
-    /// <para>
-    /// One list, beside the switch that acts on it, because the alternative was two. What can be drawn is
-    /// something the <em>reading</em> has to know — it marks whatever cannot be, before anything is built,
-    /// which is what lets the builder set the tree it is handed without arguing with it. The reading was
-    /// asking a table describing a parser that has since been deleted, and that table had never heard of
-    /// <c>\ </c>: a written space came out underlined in red because two statements of one fact were free
-    /// to disagree.
-    /// </para>
-    /// <para>
-    /// <c>BuilderSetsWhatItSaysItSets</c> holds this to the switch below, so a case added without a name
-    /// added here fails rather than quietly reddening itself.
-    /// </para>
+    /// The commands this sets itself, rather than by asking the symbol tables for a glyph. What can be drawn is
+    /// something the <em>reading</em> has to know (it marks whatever cannot be, before anything is built), and this
+    /// list is the single source of truth for that — the reading once asked a since-deleted parser's own table
+    /// instead, which had never heard of <c>\ </c>, so a written space came out underlined in red. The
+    /// <c>BuilderSetsWhatItSaysItSets</c> test holds this to the switch below, so a case added without a name here
+    /// fails rather than quietly reddening.
     /// </summary>
     internal static readonly IReadOnlySet<string> Handles = new HashSet<string>(System.StringComparer.Ordinal)
     {
@@ -2351,16 +2268,11 @@ public sealed partial class LatexBuilder
     };
 
     /// <summary>
-    /// The commands this takes as structure rather than drawing: they say something about what is around
-    /// them and make no mark of their own.
-    ///
-    /// <para>
-    /// Separate from <see cref="Handles"/> because they are a different claim. A name in Handles has a
-    /// case in the switch below and turns into an atom; one here is read off the tree and consumed —
-    /// <c>\hline</c> becomes a rule the grid draws, <c>\limits</c> becomes the way an operator wears its
-    /// scripts. Both must answer yes to <see cref="Draws"/>, or the reading marks them undrawable and
-    /// shows them as their own characters; only the first kind can be checked against the switch.
-    /// </para>
+    /// The commands this takes as structure rather than drawing: they say something about what is around them and
+    /// make no mark of their own — separate from <see cref="Handles"/> because they're a different claim. A name in
+    /// Handles turns into an atom via the switch below; one here is read off the tree and consumed (<c>\hline</c>
+    /// becomes a grid rule, <c>\limits</c> becomes how an operator wears its scripts). Both must answer yes to
+    /// <see cref="Draws"/> or the reading marks them undrawable.
     /// </summary>
     internal static readonly IReadOnlySet<string> Absorbs = new HashSet<string>(System.StringComparer.Ordinal)
     {
@@ -2368,13 +2280,9 @@ public sealed partial class LatexBuilder
     };
 
     /// <summary>
-    /// Whether anything here can set this command, given its name as written, backslash and all.
-    ///
-    /// <para>
-    /// What the reading asks before it decides to show something as its own characters. The answer is
-    /// this builder's to give — it is what does the setting — and it is either something set here by name
-    /// or something the tables have a glyph, an expansion or a face for.
-    /// </para>
+    /// Whether anything here can set this command, given its name as written, backslash and all. What the reading
+    /// asks before showing something as its own characters — either set here by name, or something the tables have
+    /// a glyph, expansion or face for.
     /// </summary>
     public static bool Draws(string written, TexFormulaParser knowledge) =>
         Handles.Contains(written)
@@ -2389,10 +2297,7 @@ public sealed partial class LatexBuilder
         && part.Part(Roles.Name)?.Text is { } name
         && StandardCommands.IsDiscarded(name[1..]);
 
-    /// <summary>
-    /// What a braced argument holds, as it was written — the braces themselves left off, and everything
-    /// else, spaces and all, exactly as typed.
-    /// </summary>
+    /// <summary>What a braced argument holds as written — braces left off, everything else (spaces included) exactly as typed.</summary>
     private static string Inside(ContentPart argument)
     {
         if (argument.Children.Count == 0) return argument.Node.Print();
@@ -2416,19 +2321,9 @@ public sealed partial class LatexBuilder
     }
 
     /// <summary>
-    /// The whole part behind the read-only view — the one place the narrowing is undone.
-    ///
-    /// <para>
-    /// Everything in this file holds parts as <see cref="ContentPart"/>, so nothing here can read a position
-    /// while it builds. What gets <em>stored</em> is the whole part, because the thing that follows the
-    /// link afterwards is an editor and an editor needs to know where things are. Both halves are wanted,
-    /// and the seam between them is worth having in exactly one place rather than at each handoff.
-    /// </para>
-    /// <para>
-    /// <see cref="ContentPart"/> is the only reading of a formula there is and it is sealed, so this cannot
-    /// fail; if it ever could, a part that is not one is not part of any formula and failing loudly is
-    /// the right answer.
-    /// </para>
+    /// The whole part behind the read-only view — the one place the narrowing is undone, so an editor following the
+    /// stored link afterwards can know where things are. <see cref="ContentPart"/> is the only reading of a formula
+    /// and it is sealed, so this cannot fail.
     /// </summary>
     private static ContentPart Whole(ContentPart part) => (ContentPart)part;
 }

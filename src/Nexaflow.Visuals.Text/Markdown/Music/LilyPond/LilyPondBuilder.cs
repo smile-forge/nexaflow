@@ -12,31 +12,21 @@ using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
 /// <summary>
-/// LilyPond's reading: the music played through, staff by staff, as rows of bars of events for the engraver
-/// every notation shares.
-///
+/// LilyPond's reading: the music played through, staff by staff, as rows of bars of events for the shared
+/// engraver.
 /// <para>
-/// More is left to do here than ABC leaves its builder, and not by choice. ABC writes its bar lines and its
-/// beams; LilyPond implies both from the meter, and implies which accidentals print from the key and the bar.
-/// All three depend on where a note is <em>played</em> — a definition's notes are played wherever it is used,
-/// in whatever meter that place is in — so they cannot be hung on the tree, which holds one copy of the notes.
-/// They are worked out here, as the music is played through, which is when they are known.
-/// </para>
-/// <para>
-/// What is the same wherever a note is played — how long it lasts, what it sounds — the pipeline has already
-/// hung on it, and this only reads it off.
+/// More is worked out here than ABC's builder does, not by choice: LilyPond implies bar lines, beams and
+/// accidentals from the meter and key rather than writing them, and all three depend on where a note is
+/// <em>played</em> — a definition's notes play wherever it's used, in whatever meter that is — so they can't
+/// be hung on the tree (which holds one copy of the notes) and are worked out here as the music plays through.
+/// What's the same wherever a note is played (duration, pitch) the pipeline has already hung on it.
 /// </para>
 /// </summary>
 internal sealed partial class LilyPondBuilder : MusicBuilder
 {
     private readonly (int Start, int Length)? _shownAsWritten;
 
-    /// <param name="ly">The music, as it is written.</param>
-    /// <param name="width">How much room it has to lay itself out in.</param>
-    /// <param name="shownAsWritten">
-    /// A stretch to show as the characters written rather than read as music — the piece being edited.
-    /// </param>
-    /// <param name="spacing">How much air to leave between things, or null for what the engraver normally uses.</param>
+    /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
     public LilyPondBuilder(string ly, double width, Brush ink, double pixelsPerDip,
                            (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null)
         : base(ly, width, ink, pixelsPerDip, spacing) =>
@@ -156,10 +146,7 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
 
     // ── The pieces, and their staves ────────────────────────────────────────
 
-    /// <summary>
-    /// Finds what the source holds: its definitions first — one may be used above where it is written — then the
-    /// music written at the top of it, each a piece, each played through staff by staff.
-    /// </summary>
+    /// <summary>Finds what the source holds: definitions first (one may be used above where it's written), then each top-level piece, played through staff by staff.</summary>
     private void Pieces(ContentPart root)
     {
         foreach (var item in root.Children)
@@ -199,8 +186,7 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
             }
         }
 
-        // A file of definitions and no music is a fragment meant to be included somewhere. What a reader of it
-        // is looking at is the definition with the most music in it — the melody, not the settings block.
+        // A file of definitions and no music is meant to be included elsewhere — show the definition with the most music, not the settings block.
         if (pieces.Count == 0 && Richest() is { } richest) pieces.Add(richest);
 
         Stave? last = null;
@@ -224,11 +210,7 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
         }
     }
 
-    /// <summary>
-    /// Walks the scaffolding around the music — scores, staff groups, <c>&lt;&lt; &gt;&gt;</c>, definitions that
-    /// hold staves — making a staff of every <c>\new Staff</c> it finds. It goes no further into a staff than
-    /// that: <see cref="Play(ContentPart, Stave, HashSet{string})"/> does.
-    /// </summary>
+    /// <summary>Walks the scaffolding around the music (scores, staff groups, definitions) making a staff of every <c>\new Staff</c> found; <see cref="Play(ContentPart, Stave, HashSet{string})"/> goes further into each.</summary>
     private void Structure(ContentPart part, HashSet<string> active)
     {
         if (part.Kind is LilyPondKinds.Sequential or LilyPondKinds.Simultaneous)
@@ -461,10 +443,7 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
         return Prose(args[1])?.Text;
     }
 
-    /// <summary>
-    /// The stretch of source a run of parts covers, as one part in its own right — which is also what makes a
-    /// beam or a bar something the whole of can be selected.
-    /// </summary>
+    /// <summary>The stretch of source a run of parts covers, as one part — what makes a beam or bar selectable as a whole.</summary>
     private static ISourcePart? Across(IEnumerable<ISourcePart> parts)
     {
         var start = int.MaxValue;

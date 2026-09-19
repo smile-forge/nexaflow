@@ -8,20 +8,12 @@ namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
 /// How a <see cref="LayoutTree"/> is made: open a piece, draw into it, put pieces inside it, close it.
-///
-/// <para>
-/// <strong>A piece is finished when it is closed, and never touched again.</strong> Its anchor is fixed
-/// when it opens, because everything inside is measured from that; how far it reaches is worked out when
-/// it closes, from what it turned out to hold. That is the whole difference from what came before, where
-/// a bar existed before its notes and grew as they arrived — and it is what makes a subtree a thing that
-/// can be lifted out and put down somewhere else, because nothing in it refers to where it used to be.
-/// </para>
-/// <para>
-/// The pieces come out in pre-order with each one knowing how far its subtree runs, which is the shape
-/// that makes descending arithmetic and reuse a block copy. Getting that from a builder that meets
-/// parents first is a matter of claiming the piece's slot as it opens and filling it in as it closes —
-/// the children have landed in between, immediately after it, exactly where they belong.
-/// </para>
+/// A piece is finished when closed and never touched again — its anchor is fixed on open (everything
+/// inside measures from it) and its reach is worked out on close, from what it turned out to hold. That
+/// is what makes a subtree relocatable: nothing in it refers to where it used to be. Pieces come out in
+/// pre-order with each knowing how far its subtree runs (so descent is arithmetic and reuse is a block
+/// copy), achieved by claiming the piece's slot as it opens and filling it in as it closes — its children
+/// land in between, immediately after it.
 /// </summary>
 public sealed class LayoutBuilder
 {
@@ -49,14 +41,10 @@ public sealed class LayoutBuilder
     private readonly Stack<Frame> _spare = new();
 
     /// <summary>
-    /// A piece being built: where it is, what it has drawn so far, and how far that reaches.
-    ///
-    /// <para>
-    /// The marks are held here rather than appended straight to the tree because a piece's drawing has to
-    /// end up contiguous, and a piece that draws, puts something inside itself, then draws again would
-    /// otherwise have its own marks split around its child's. Frames are pooled, so a page of ten
-    /// thousand pieces makes about ten of these.
-    /// </para>
+    /// A piece being built: where it is, what it has drawn so far, and how far that reaches. Marks are held
+    /// here rather than appended straight to the tree because a piece's drawing must end up contiguous — a
+    /// piece that draws, nests a child, then draws again would otherwise have its marks split around the
+    /// child's. Frames are pooled, so a page of ten thousand pieces makes about ten of these.
     /// </summary>
     private sealed class Frame
     {
@@ -91,33 +79,19 @@ public sealed class LayoutBuilder
         }
     }
 
-    /// <param name="isInk">
-    /// Whether a reader can point at it. Unstated it follows the part, which is the ordinary convention —
-    /// something a reader typed is something they can point at, and a beam or a guard pattern the drawing
-    /// invented is not. Stated, the content knows better: a hole waiting to be typed into is pointable and
-    /// covers nothing, and a printed check digit nobody wrote is still a digit on the page.
-    /// </param>
-
-    /// <param name="gathers">
-    /// Whether this piece's extent is what it turned out to hold. True for content whose containers are
-    /// bounding boxes — a bar of music is as tall as what is in it — and false where a container's rectangle
-    /// means something else: a typeset box is the height and depth it reserves on its line, so a subscript
-    /// hangs below the very piece that holds it and growing to fit would be wrong. A piece that gathers
-    /// nothing states its extent with <see cref="Covers"/> instead.
-    /// </param>
-    /// <param name="paints">
-    /// How it is drawn beyond its marks — turned, or snapped to a pixel grid. Null for nearly everything.
-    /// </param>
-
     /// <summary>
     /// Opens a piece anchored at <paramref name="at"/> inside whatever is already open, and gives back
     /// where it will live. Everything drawn or opened until the matching <see cref="Close"/> belongs to
     /// it and is measured from its anchor.
     /// </summary>
-    /// <param name="part">
-    /// What it was drawn from. A piece with one can be pointed at and selected; a stem, a beam or a
-    /// ledger line has none, because nobody wrote it.
+    /// <param name="part">What it was drawn from; a piece with none (a stem, a beam, a ledger line) can't be pointed at or selected.</param>
+    /// <param name="gathers">
+    /// Whether this piece's extent is what it turned out to hold — true for containers that are bounding
+    /// boxes, false where the rectangle means something else (a typeset box reserves height/depth on its
+    /// line, so a subscript can hang below it without growing it). A piece that gathers nothing states its
+    /// extent with <see cref="Covers"/> instead.
     /// </param>
+    /// <param name="paints">How it is drawn beyond its marks — turned, or snapped to a pixel grid. Null for nearly everything.</param>
     public int Open(string kind, ISourcePart? part = null, Point at = default,
                 Stops stops = Stops.Both,
                 bool gathers = true,
@@ -152,21 +126,11 @@ public sealed class LayoutBuilder
 
     /// <summary>
     /// Where the piece being built is anchored, with every anchor above it added — the frame its marks are
-    /// measured in.
-    ///
-    /// <para>
-    /// For content that works in page coordinates, which is most of it: an engraver decides where a note
-    /// goes on a line and a typesetter reports where a glyph landed, and neither is going to be rewritten
-    /// to think in frames. Subtracting this turns one into the other, and it means the right thing at both
-    /// moments it is asked. When a piece is opened the top of the stack is still its parent, so
-    /// <c>at - Anchor</c> is where the new piece sits inside it; once it is open this is the piece's own
-    /// anchor, which is what its drawing is measured from.
-    /// </para>
-    /// <para>
-    /// So a builder converts in one place per drawing helper rather than at every call, and what it stores
-    /// is relative — which is the whole point, because that is what makes a subtree mean the same thing
-    /// wherever it is put down.
-    /// </para>
+    /// measured in. Lets content that thinks in page coordinates (an engraver deciding where a note goes, a
+    /// typesetter reporting where a glyph landed) subtract this to get frame-relative marks without being
+    /// rewritten: before <see cref="Open"/>, the stack top is still the parent, so <c>at - Anchor</c> is
+    /// where the new piece sits inside it; after, it's the piece's own anchor. What's stored stays relative,
+    /// which is what makes a subtree mean the same thing wherever it's put down.
     /// </summary>
     public Vector Anchor
     {
@@ -180,12 +144,8 @@ public sealed class LayoutBuilder
 
     /// <summary>
     /// How far the piece being built has reached so far, in its own frame — what its extent would be if it
-    /// were closed now.
-    ///
-    /// <para>
-    /// For the one thing a builder legitimately has to ask part-way through: where to put what comes next.
-    /// Verses go under the music, and how far down that is depends on what the music turned out to be.
-    /// </para>
+    /// were closed now. For the one thing a builder legitimately asks part-way through: where to put what
+    /// comes next (verses go under the music, and how far down depends on what the music turned out to be).
     /// </summary>
     public Rect Reached => _open.Count == 0 ? Rect.Empty : _open.Peek().Box;
 
@@ -208,47 +168,28 @@ public sealed class LayoutBuilder
 
     /// <summary>
     /// Says the piece being built stands in exactly this shape, in its own frame, rather than in its box: what a press
-    /// has to land inside to mean it, what a marquee has to reach, and what a selection washes.
-    ///
-    /// <para>
-    /// For drawing whose box badly overstates it. A wedge of a pie is a sliver of the square that holds it, and its
-    /// neighbours' squares overlap it, so its box would hand a press on one slice to the next and wash the slices either
-    /// side of the one chosen.
-    /// </para>
-    /// <para>
-    /// <strong>Said by the builder, not read off the marks</strong>, because the shape drawn is not always the shape meant:
-    /// a note head is drawn as an outline, and a press between its strokes still means the note.
-    /// </para>
-    /// <para>
-    /// Asked of the piece that draws — a leaf. Its box is still what it drew, so anything that only wants to know
-    /// roughly where a piece is goes on asking that.
-    /// </para>
+    /// has to land inside to mean it, what a marquee has to reach, and what a selection washes. For drawing whose box
+    /// badly overstates it — a wedge of a pie is a sliver of the square that holds it, and neighbouring squares overlap
+    /// it, so its box alone would hand a press on one slice to the next. Said by the builder, not read off the marks,
+    /// since the shape drawn isn't always the shape meant (a note head is drawn as an outline, but a press between its
+    /// strokes still means the note). Asked of the piece that draws — a leaf — whose box is still what it drew.
     /// </summary>
     public void Occupies(Geometry region) =>
         _regions[_open.Peek().At] = region.IsFrozen ? region : (Geometry)region.GetAsFrozen();
 
     /// <summary>
     /// Says the piece being built is a run of text, with a caret position between any two of its letters — see
-    /// <see cref="LayoutWords"/>.
-    ///
-    /// <para>
-    /// One piece for the run, rather than one per letter: the type engine shapes and kerns the whole string at once,
-    /// and where each letter landed is a question it can answer whenever it is asked.
-    /// </para>
+    /// <see cref="LayoutWords"/>. One piece for the run rather than one per letter: the type engine shapes and
+    /// kerns the whole string at once, and where each letter landed is answered on demand.
     /// </summary>
     public void Words(LayoutWords words) => _words[_open.Peek().At] = words;
 
     /// <summary>
     /// Says the piece being built reserves exactly this much of its line, vertically, whatever it draws above
-    /// or below — the staff a note stands on, the height of a word's letters on its line. Its width is still
-    /// whatever it drew.
-    ///
-    /// <para>
-    /// The piece's own rectangle takes the room, and it is what a caret is drawn from: a caret stands in the
-    /// room a thing reserves on its line. Whatever holds the piece still grows to cover everything it drew, so
-    /// a measure stays as tall as its lyrics while every note in it is exactly the staff — and the wash, which
-    /// covers what was drawn, never uses the room at all.
-    /// </para>
+    /// or below — the staff a note stands on, the height of a word's letters on its line. Width is still whatever
+    /// it drew. The piece's own rectangle takes the room, and a caret is drawn from that — but whatever holds the
+    /// piece still grows to cover everything actually drawn, so a measure stays as tall as its lyrics while every
+    /// note in it is exactly the staff, and the wash (which covers what was drawn) never uses the room at all.
     /// </summary>
     public void Reserves(double top, double height) => _open.Peek().Room = (top, height);
 
@@ -262,12 +203,9 @@ public sealed class LayoutBuilder
     /// <summary>
     /// Puts a finished tree down inside whatever is open, anchored at <paramref name="at"/>, and gives back where
     /// its root now lives — one layout set into another, the way a formula is set into a block beside its number.
-    ///
-    /// <para>
-    /// A copy of a block, which is what the shape was made for: the pieces are in pre-order with their subtrees
-    /// contiguous, so every index moves by the same amount and nothing inside is measured from anywhere but its
-    /// own anchor. The runs it declared come with it, renumbered.
-    /// </para>
+    /// A copy of a block, which is what the shape was made for: pieces are pre-order with contiguous subtrees, so
+    /// every index moves by the same amount and nothing inside is measured from anywhere but its own anchor. The
+    /// runs it declared come with it, renumbered.
     /// </summary>
     /// <param name="against">Which side of the block it stands against, if it stands against one.</param>
     /// <param name="clear">How much room it keeps from anything else it sits beside.</param>
@@ -371,12 +309,8 @@ public sealed class LayoutBuilder
 
     /// <summary>
     /// Declares that these pieces read together, in this order — a verse of lyrics, the notes of a tune,
-    /// a row of a matrix.
-    ///
-    /// <para>
-    /// Said after they are built, because a run is only complete when its last member is, and a run does
-    /// not stop where a line does. Two members at least: one thing on a run has nothing to step to.
-    /// </para>
+    /// a row of a matrix. Said after they're built, since a run is only complete once its last member is
+    /// and doesn't stop where a line does. Two members minimum: one thing on a run has nothing to step to.
     /// </summary>
     public void Runs(IReadOnlyList<int> members, bool vertical)
     {
@@ -428,13 +362,9 @@ public sealed class LayoutBuilder
     /// <summary>
     /// Puts every piece that said which side of the block it stands against onto that side. The block is the frame
     /// of whatever holds the piece, from its left edge to <paramref name="block"/>; with no width to go by, a piece
-    /// against the right follows everything else and one in the centre stays where it is.
-    ///
-    /// <para>
-    /// The left and the centre first, so the right knows where they ended up. And a piece against the right keeps
-    /// clear of everything beside it: where the block is too narrow for both on one line it goes under them, still
-    /// against the right — which is what LaTeX does with an equation's number.
-    /// </para>
+    /// against the right follows everything else and one in the centre stays where it is. Left and centre resolve
+    /// first, so the right knows where they ended up, and a right-aligned piece keeps clear of what's beside it —
+    /// dropping under it when the block is too narrow for both, as LaTeX does with an equation's number.
     /// </summary>
     private void Align(double block)
     {

@@ -199,19 +199,9 @@ internal static class StandardCommands
     }
 
     /// <summary>
-    /// <c>\genfrac{l}{r}{thickness}{style}{numerator}{denominator}</c> — the general fraction that every
-    /// other one in amsmath is spelled with.
-    ///
-    /// <para>
-    /// Assembled from arguments already built, like every other command here. It used to be read instead:
-    /// a command parser that walked the source itself, which meant it worked only for the engine's own
-    /// reader and set nothing at all once that reader stopped drawing. It was believed done, and the test
-    /// that said so was asking the old reader.
-    /// </para>
-    /// <para>
-    /// An empty delimiter argument means no delimiter that side, and an empty thickness means the default
-    /// rule — which is the one place a fraction's bar is written as a length rather than implied.
-    /// </para>
+    /// <c>\genfrac{l}{r}{thickness}{style}{numerator}{denominator}</c> — the general fraction every other one in
+    /// amsmath is spelled with. An empty delimiter argument means no delimiter that side, and an empty thickness
+    /// means the default rule — the one place a fraction's bar is written as a length rather than implied.
     /// </summary>
     internal sealed class GenFracCommand
     {
@@ -379,12 +369,7 @@ internal static class StandardCommands
     // The starred form takes its limits above and below in display style, as \sum does.
     internal sealed class OperatorNameCommand
     {
-        /// <param name="starred">
-        /// Whether this is the <c>*</c> form, whose limits go wherever the style puts them rather than
-        /// always beside the name. Reading from source finds the star for itself; a reading that arrives
-        /// with its arguments already built cannot, so the table registers the two spellings separately
-        /// and this is how they differ.
-        /// </param>
+        /// <param name="starred">The <c>*</c> form, whose limits go wherever the style puts them rather than always beside the name.</param>
         public OperatorNameCommand(bool starred = false) => this._starred = starred;
 
         private readonly bool _starred;
@@ -412,19 +397,10 @@ internal static class StandardCommands
 
     /// <summary>
     /// The braket package's Dirac notation: <c>\bra{A}</c> is ⟨A|, <c>\ket{B}</c> is |B⟩, and
-    /// <c>\braket{A|B}</c> is ⟨A|B⟩.
-    /// <para>
-    /// A fence, like every other bracketed thing, so the delimiters grow with what is between them and
-    /// the editor already knows how to select, carry and un-render one. The capitalised forms are the
-    /// package's "always stretch" variants, which is what a fence does anyway — they exist so that
-    /// copied source keeps working rather than to render differently.
-    /// </para>
-    /// <para>
-    /// The bar in <c>\braket{A|B}</c> is left where it is, as the character it already is. Splitting on
-    /// it to name the two halves would be a better parse — a bra and a ket are parts in the sense a
-    /// numerator is — but it is not what makes the notation render, and a divider that is sometimes a
-    /// separator and sometimes an ordinary bar is worth getting right on purpose rather than in passing.
-    /// </para>
+    /// <c>\braket{A|B}</c> is ⟨A|B⟩. Set as a fence, like every other bracketed thing, so the delimiters grow and
+    /// the editor already knows how to select/carry/un-render one. The capitalised forms are the package's "always
+    /// stretch" variants — a fence does that anyway, so they exist only so copied source keeps working. The bar in
+    /// <c>\braket{A|B}</c> is left as the plain character it is rather than split out as a separator.
     /// </summary>
     internal sealed class BraketCommand
     {
@@ -461,10 +437,7 @@ internal static class StandardCommands
         internal StrokeMode Mode => _strokeBoxMode;
     }
 
-    /// <summary>
-    /// This command will parse the remaining part of an input string, and add it onto a new line of a formula. The
-    /// new line is created as a <see cref="MatrixAtom"/>; the command will try to reuse existing atoms if possible.
-    /// </summary>
+    /// <summary>Parses the rest of the input as a new line of the formula.</summary>
     private class NewLineCommand
     {
     }
@@ -538,11 +511,7 @@ internal static class StandardCommands
     // 2.95 em - an arithmetic progression, since both the struts and the rule are linear in the size.
     // Those lengths are absolute in TeX, so unlike almost everything else here they do not shrink
     // with the style: \big( is the same delimiter inside a subscript as outside one.
-    /// <summary>
-    /// Whether this command draws nothing at all — its effect belongs to a page rather than to a formula,
-    /// as <c>\tag</c> and <c>\nonumber</c> do. Asked so that a second reading discards exactly what this
-    /// one discards, rather than keeping its own list of which those are.
-    /// </summary>
+    /// <summary>Whether this command draws nothing at all — its effect belongs to a page rather than a formula, as <c>\tag</c> and <c>\nonumber</c> do.</summary>
     internal static bool IsDiscarded(string command) =>
         Dictionary.TryGetValue(command, out var parser) && parser is DiscardedCommand;
 
@@ -571,12 +540,7 @@ internal static class StandardCommands
         public static HDotsForCommand Instance { get; } = new();
     }
 
-    /// <summary>
-    /// A document-level command - numbering, cross references, page breaks - read and dropped. A
-    /// formula here stands alone: there is no page to break, nothing to number and nothing to refer
-    /// to, so the command has no work left to do. Rejecting it would only make a formula lifted out
-    /// of a paper unrenderable over a detail that could never have shown up anyway.
-    /// </summary>
+    /// <summary>A document-level command (numbering, cross references, page breaks), read and dropped: a formula stands alone, so it has no page to affect.</summary>
     private sealed class DiscardedCommand
     {
         public static DiscardedCommand Bare { get; } = new(0, optional: false);
@@ -775,13 +739,9 @@ internal static class StandardCommands
 
     /// <summary>
     /// What this command switches, when it is a switch rather than a command — <c>\cal</c>, <c>\bf</c>,
-    /// <c>\displaystyle</c> and their kin.
-    /// <para>
-    /// The distinction is not decoration. A command takes an argument; a switch takes <em>the rest of the
-    /// group it stands in</em>, so <c>{\cal L}</c> and <c>{\cal L M}</c> differ in what is affected and
-    /// nothing in either says where the scope ends except the closing brace. Anything building a formula
-    /// out of its own reading has to know which it is holding, and this is where that is written down.
-    /// </para>
+    /// <c>\displaystyle</c> and their kin. A command takes an argument; a switch takes <em>the rest of the group it
+    /// stands in</em> (nothing but the closing brace says where the scope ends), so a builder working from its own
+    /// reading has to know which it is holding — this is where that is written down.
     /// </summary>
     /// <param name="textStyle">The alphabet it switches to, or null.</param>
     /// <param name="style">The size it switches to, or null — including for a switch that changes neither.</param>
@@ -840,14 +800,9 @@ internal static class StandardCommands
         };
 
     /// <summary>
-    /// Written-down space, in mu — eighteenths of a quad.
-    ///
-    /// <para>
-    /// These are not macros and never were, whatever table they used to live in. A macro stands for
-    /// something somebody could have written out longhand; a strut of four mu stands for nothing but
-    /// itself, because LaTeX has no way of saying it. So it belongs here, with the symbols, which are
-    /// the other thing the typesetter knows how to draw and the reader cannot spell.
-    /// </para>
+    /// Written-down space, in mu — eighteenths of a quad. Not macros: a macro stands for something that could be
+    /// written out longhand, but a strut of four mu stands for nothing but itself, since LaTeX has no way of
+    /// saying it — so it belongs here with the symbols, the other thing the reader cannot spell.
     /// </summary>
     private static readonly Dictionary<string, double> Struts = new(StringComparer.Ordinal)
     {

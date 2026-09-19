@@ -18,7 +18,7 @@ public sealed class QrMatrix : Matrix.IModuleMatrix
         _modules        = modules;
     }
 
-    /// <summary>1ΓÇô40. Each step up adds four modules to the side.</summary>
+    /// <summary>1–40. Each step up adds four modules to the side.</summary>
     public int Version { get; }
 
     /// <summary>Modules per side, <c>4 ├ù Version + 17</c>. Excludes the quiet zone, which is the
@@ -31,7 +31,7 @@ public sealed class QrMatrix : Matrix.IModuleMatrix
     public int Width => Size;
     public int Height => Size;
 
-    /// <summary>The mask pattern (0ΓÇô7) chosen for this symbol by the penalty rules.</summary>
+    /// <summary>The mask pattern (0–7) chosen for this symbol by the penalty rules.</summary>
     public int Mask { get; }
 
     /// <summary>True where the module is dark. Origin is the top-left corner.</summary>

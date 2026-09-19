@@ -62,22 +62,11 @@ internal sealed class DiagramJoin(DiagramCell from, DiagramCell to, int span = 1
     internal DiagramWay Towards { get; set; }
 }
 
-/// <summary>
-/// The layered layout every diagram whose nodes are joined by lines is drawn with — a flowchart, a state chart, a class diagram.
-/// Sugiyama's: the cells are put in ranks by how far along the links reach them, each rank is ordered so as few lines cross as
-/// can be managed, and each cell is then set across its rank beside the ones it joins.
-///
-/// <para>
-/// <strong>A box is laid out in its own space first.</strong> What is inside a subgraph is arranged on its own, which is what
-/// lets it run its own way; the box is then a cell like any other in its parent's arrangement, and what it holds is moved inside
-/// it once it is placed. A link between cells in different boxes is arranged where the two of them meet — between the boxes at
-/// that level — and drawn from the cell it really leaves to the one it really reaches.
-/// </para>
-/// <para>
-/// <strong>Links that reach over more than one rank bend.</strong> Each rank a link passes through keeps a place of its own for
-/// it, so it is ordered along with everything else and the line goes round what is in the way rather than through it.
-/// </para>
-/// </summary>
+/// <summary>Sugiyama-style layered layout for diagrams whose nodes are joined by lines: cells are
+/// ranked by how far the links reach them, each rank ordered to minimise crossings, then set across
+/// its rank beside what it joins. A box is laid out in its own space first, then moved into place as a
+/// cell of its parent's; a link spanning more than one rank keeps a place in each rank it passes
+/// through, so it bends round what's in the way.</summary>
 internal static class DiagramLayers
 {
     /// <summary>How many times the order of each rank, and then the place of everything in it, is settled.</summary>
@@ -86,10 +75,8 @@ internal static class DiagramLayers
     /// <summary>How far a link back to the cell it leaves reaches out beside it.</summary>
     private const double Loops = 18;
 
-    /// <summary>
-    /// Lays every cell out, hands each its <see cref="DiagramCell.Bounds"/> and each join its <see cref="DiagramJoin.Route"/>,
-    /// and says how much room it all came to.
-    /// </summary>
+    /// <summary>Lays every cell out, hands each its <see cref="DiagramCell.Bounds"/> and each join its
+    /// <see cref="DiagramJoin.Route"/>, and returns the room it all took.</summary>
     /// <param name="between">How far apart two cells in the same rank are set.</param>
     /// <param name="along">How far apart one rank is set from the next.</param>
     public static Size Lay(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way,
@@ -143,10 +130,8 @@ internal static class DiagramLayers
             join.Bends = [.. join.Bends.Select(bend => bend + origin)];
     }
 
-    /// <summary>
-    /// The joins to arrange at one level: each one between the cells at that level that hold its ends. A join whose ends are held
-    /// by the same cell is arranged inside that one instead, and one reaching outside the box is none of this level's business.
-    /// </summary>
+    /// <summary>The joins to arrange at one level: each one between the cells at that level that hold its
+    /// ends. Same-cell joins are arranged inside that cell instead.</summary>
     private static List<Joined> Joining(IReadOnlyList<DiagramJoin> joins, DiagramCell? box)
     {
         var edges = new List<Joined>();
@@ -171,10 +156,8 @@ internal static class DiagramLayers
 
     // ── One level of it ─────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Lays one level out: the cells in ranks, each rank ordered and then set across, and every join given the places it bends
-    /// at. Hands back the room it all took.
-    /// </summary>
+    /// <summary>Lays one level out: cells in ranks, each rank ordered then set across, every join given
+    /// its bend points. Returns the room it took.</summary>
     private static Size Arrange(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Joined> edges, DiagramWay way,
                                 double between, double along)
     {
@@ -207,10 +190,8 @@ internal static class DiagramLayers
         return whole;
     }
 
-    /// <summary>
-    /// Turns round every link that goes back to something already on the way down, so the ranks can be worked out at all. The
-    /// line is still drawn the way it was written; only the ranking sees it the other way about.
-    /// </summary>
+    /// <summary>Turns round every link that goes back to something already on the way down, so ranks can
+    /// be worked out at all. Only the ranking sees it reversed — the line still draws as written.</summary>
     private static void Turned(int count, IReadOnlyList<Link> links)
     {
         var leaving = new List<int>[count];
@@ -240,10 +221,7 @@ internal static class DiagramLayers
         }
     }
 
-    /// <summary>
-    /// Which rank each cell is in: as far along as the longest run of links reaching it, every link reaching at least as far as
-    /// it was written long.
-    /// </summary>
+    /// <summary>Which rank each cell is in: as far along as the longest run of links reaching it.</summary>
     private static int[] Ranked(int count, IReadOnlyList<Link> links)
     {
         var ranks = new int[count];
@@ -267,10 +245,8 @@ internal static class DiagramLayers
         return ranks;
     }
 
-    /// <summary>
-    /// The places every rank holds: one for each cell in it, and one for every link passing through it — which is what gives a
-    /// long link somewhere to bend and a place in the order of its own.
-    /// </summary>
+    /// <summary>The places every rank holds: one for each cell in it, plus one for every link passing
+    /// through — giving a long link somewhere to bend and a place in the order.</summary>
     private static List<List<Place>> Rowed(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Link> links, int[] ranks,
                                            DiagramWay way, out Place[] placed, out Dictionary<Link, List<Place>> chains)
     {
@@ -321,10 +297,8 @@ internal static class DiagramLayers
         below.Above.Add(above);
     }
 
-    /// <summary>
-    /// What order each rank is in: as written to start with, then settled so everything sits near what it joins in the rank
-    /// beside it — which is what keeps the lines between two ranks from crossing.
-    /// </summary>
+    /// <summary>Settles each rank's order so everything sits near what it joins in the neighbouring
+    /// rank, keeping crossings down.</summary>
     private static void Ordered(List<List<Place>> rows)
     {
         Numbered(rows);
@@ -363,10 +337,8 @@ internal static class DiagramLayers
         return near.Count == 0 ? fallback : near.Average(other => (double)other.Order);
     }
 
-    /// <summary>
-    /// Where everything sits across its rank: beside what it joins in the rank beside it, then pushed apart until nothing
-    /// overlaps, and the rank put back where it wanted to be so the ranks stay lined up with each other.
-    /// </summary>
+    /// <summary>Where everything sits across its rank: beside what it joins in the neighbouring rank,
+    /// pushed apart until nothing overlaps, then shifted back to keep ranks lined up.</summary>
     private static void Spread(List<List<Place>> rows, double between)
     {
         foreach (var row in rows) Apart(row, between);
@@ -474,11 +446,9 @@ internal static class DiagramLayers
 
     // ── Where a line runs ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// Where a join runs once everything is placed: from the middle of what it leaves, through wherever it bends, to the middle
-    /// of what it reaches. A join across one rank bends halfway between the two, so it leaves and arrives square rather than
-    /// slanting across; a join back to the cell it leaves goes round beside it.
-    /// </summary>
+    /// <summary>Where a join runs once everything is placed: from the middle of what it leaves, through
+    /// any bends, to the middle of what it reaches. A one-rank join bends halfway so it leaves and
+    /// arrives square rather than slanting; a self-join loops round beside the cell.</summary>
     private static IReadOnlyList<Point> Routed(DiagramJoin join, DiagramWay way)
     {
         if (ReferenceEquals(join.From, join.To)) return Loop(join.From.Bounds, join.Towards);

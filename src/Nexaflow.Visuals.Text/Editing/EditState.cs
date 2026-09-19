@@ -30,17 +30,10 @@ public readonly record struct EditRange(int Start, int Length)
 
 /// <summary>
 /// The editable state of one formula, as a value: its source, where the caret is, what is selected, and
-/// which part (if any) is being shown raw.
-/// <para>
-/// Every editing rule the user meets lives here and nowhere else — what typing does, when a half-written
-/// command stops being raw, what backspace behind a rendered symbol means. Keeping it a pure value with
-/// no control, no layout and no WPF is what makes those rules testable as rules, rather than only
-/// reachable by driving a control and looking at pixels.
-/// </para>
-/// <para>
-/// Two things it deliberately does not know: whether a given source typesets, and what was drawn where.
-/// Both are the typesetter's business, so the caller passes in the answers.
-/// </para>
+/// which part (if any) is being shown raw. Every editing rule the user meets lives here and nowhere else —
+/// a pure value with no control, no layout and no WPF, so those rules are testable directly rather than
+/// only by driving a control and looking at pixels. Deliberately does not know whether a source typesets
+/// or what was drawn where; both are the typesetter's business, and the caller passes in the answers.
 /// </summary>
 /// <param name="Source">The source. Always the truth — the raw zone is a presentation concern.</param>
 /// <param name="Caret">Where the caret sits, as an offset into <paramref name="Source"/>.</param>
@@ -56,13 +49,10 @@ public sealed record EditState(
     RawZone? Raw = null)
 {
     /// <summary>
-    /// What is selected: in order, never overlapping, never empty-length.
-    /// <para>
-    /// A pass-through rather than something computed here, deliberately. A record's <c>with</c> copies
-    /// backing fields and does not re-run property initialisers, so anything tidied on the way in would
-    /// go stale the moment a copy set the ranges. <see cref="Select(IReadOnlyList{EditRange})"/> is the
-    /// one door in, and it tidies.
-    /// </para>
+    /// What is selected: in order, never overlapping, never empty-length. A pass-through, not computed here:
+    /// a record's <c>with</c> copies backing fields without re-running property initialisers, so anything
+    /// tidied here would go stale the moment a copy set the ranges. <see cref="Select(IReadOnlyList{EditRange})"/>
+    /// is the one door in, and it tidies.
     /// </summary>
     public IReadOnlyList<EditRange> Selection => Selected ?? [];
 
@@ -119,26 +109,18 @@ public sealed record EditState(
     // ── Typing ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Types one character: it replaces whatever is selected and lands at the caret.
-    ///
-    /// <para>
-    /// Content with a rule of its own about how it is written gets first refusal before this — see
-    /// <see cref="IContent.Type"/>. LaTeX has one: a backslash opens a stretch shown as itself and letters
-    /// extend it, which is what makes <c>\alpha</c> show as itself while it is being written instead of
-    /// flickering through four failed parses. That is a rule about LaTeX, so it is written where LaTeX is.
-    /// </para>
+    /// Types one character: it replaces whatever is selected and lands at the caret. Content with its own
+    /// typing rule gets first refusal before this — see <see cref="IContent.Type"/>. LaTeX's own rule (a
+    /// backslash opens a raw stretch, letters extend it) lives with LaTeX, not here, which is what makes
+    /// <c>\alpha</c> show as itself while being typed instead of flickering through four failed parses.
     /// </summary>
     public EditState Type(char character) => Write(character.ToString());
 
     /// <summary>
-    /// Writes text at the caret, replacing whatever is selected, and optionally shows a stretch of the
-    /// result as itself rather than as what it means.
-    ///
-    /// <para>
-    /// The one door a content's own typing rule needs, and the reason it needs no others: everything else
-    /// about typing — what a selection is, what replacing it means, where the caret lands — is the same
+    /// Writes text at the caret, replacing whatever is selected, and optionally shows a stretch of the result
+    /// as itself rather than as what it means. The one door a content's own typing rule needs, since everything
+    /// else about typing — what a selection is, what replacing it means, where the caret lands — is the same
     /// question whatever is being written.
-    /// </para>
     /// </summary>
     public EditState Write(string text, RawZone? shown = null) =>
         (HasSelection ? DeleteSelection() : this).Splice(text, shown);
@@ -199,13 +181,10 @@ public sealed record EditState(
     // ── Deleting ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Backspace.
-    /// <para>
-    /// Behind a rendered command it un-renders rather than deletes: the caret sits after an <c>α</c>
-    /// that six characters of source produced, and removing one of those six would leave <c>\alph</c> —
-    /// a broken formula the reader never asked for. Showing <c>\alpha</c> raw puts them back in front of
-    /// what they actually wrote, and a second backspace then deletes a character of it.
-    /// </para>
+    /// Backspace. Behind a rendered command it un-renders rather than deletes: the caret sits after an
+    /// <c>α</c> that six characters of source produced, and removing one of those six would leave a broken
+    /// <c>\alph</c> the reader never asked for. Showing <c>\alpha</c> raw puts them back in front of what
+    /// they actually wrote, and a second backspace then deletes a character of it.
     /// </summary>
     /// <param name="renderedBefore">
     /// The construct drawn immediately before the caret, when more than one character produced it. The

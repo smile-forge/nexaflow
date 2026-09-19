@@ -30,10 +30,7 @@ internal abstract partial class MusicBuilder
         /// <summary>Where the first line of words sits — under the music, with air between.</summary>
         public double LyricTop;
 
-        /// <summary>
-        /// The last event drawn on this line, which is what a held syllable draws its rule back to. Kept
-        /// on the system rather than the bar because a word held across a bar line is still one word.
-        /// </summary>
+        /// <summary>The last event drawn on this line — what a held syllable's rule draws back to; kept on the system since a word held across a bar line is still one word.</summary>
         public Event? LastDrawn;
         public double HeadWidth;     // clef, key signature and meter at the left
         public double Right;
@@ -45,11 +42,7 @@ internal abstract partial class MusicBuilder
         public int MarksAbove;
         public int TextBelow;
 
-        /// <summary>The piece of layout this system was drawn into, for the curves drawn over it after.</summary>
-        /// <summary>
-        /// Which bracketed system this staff belongs to. Staves sharing one are simultaneous: they get one
-        /// bar grid, a bracket down the left, and bar lines running through them.
-        /// </summary>
+        /// <summary>Which bracketed system this staff belongs to — staves sharing one sound together: one bar grid, a bracket down the left, bar lines through them.</summary>
         public int Bracket;
 
         public bool FirstOfBracket;
@@ -58,30 +51,19 @@ internal abstract partial class MusicBuilder
         /// <summary>Whether this staff prints its voice's name at the left — the first system does.</summary>
         public bool ShowName;
 
-        // The time signature belongs to the start of the music rather than to the start of a line: an
-        // engraver draws it once and then only where it changes, which a bar carries for itself.
+        // Drawn once at the music's start, then only where it changes — a bar carries that for itself.
         public bool ShowMeter;
     }
 
     private double _noteHead;
 
-    /// <summary>
-    /// What was drawn where, kept while a tune is engraved so the orderings can be declared once it is.
-    ///
-    /// <para>
-    /// Gathered rather than linked as it goes because an ordering is a run: it is only complete when the
-    /// last system is, and a lyric's run does not stop at a system's edge. See <see cref="Order"/>.
-    /// </para>
-    /// </summary>
     // ── The whole of it ─────────────────────────────────────────────────────
 
     // ── How much room everything takes ──────────────────────────────────────
 
     /// <summary>
-    /// The horizontal room an event wants: the classical proportional-but-compressed curve, so a whole note
-    /// is about three times an eighth rather than eight times it, with a floor of a note head plus air so a
-    /// septuplet's heads cannot touch. An accidental and any dots are extra, because they are drawn beside
-    /// the head rather than instead of it.
+    /// The horizontal room an event wants: proportional-but-compressed (a whole note is ~3x an eighth, not
+    /// 8x), with a floor of a note head plus air so a septuplet's heads can't touch. Accidentals and dots add on top.
     /// </summary>
     private void Measure(Event ev, bool grouped)
     {
@@ -89,8 +71,7 @@ internal abstract partial class MusicBuilder
             ? Smufl.Advance(Glyph(ev.Accidentals.First(a => a is not null)!.Value), S) + AccGap
             : 0;
 
-        // Grace notes are crushed in before the head, in room of their own: they take no time and still
-        // take space, which is the one place notation and arithmetic disagree.
+        // Grace notes take no time but still take space — the one place notation and arithmetic disagree.
         ev.GraceWidth = ev.Graces.Count == 0
             ? 0
             : GraceGap + (ev.Graces.Count * ((_noteHead * GraceScale) + GraceStep));
@@ -105,28 +86,23 @@ internal abstract partial class MusicBuilder
         // What must physically fit: the head, and whatever is crushed in beside it.
         var fits = _noteHead + SlotFloor + ev.AccidentalWidth + ev.GraceWidth + dots;
 
-        // <strong>The length decides the spacing.</strong> Two quavers take the same room as each other
-        // however they are written — that is what makes a line of them read as even — so an accidental or
-        // a grace raises a floor rather than being added on top. Adding it made the note after a sharpened
-        // one sit further away than its neighbours for a reason nobody reading the music can see.
+        // Length decides spacing: two quavers take the same room however written. An accidental or grace
+        // raises the floor rather than adding on top, or the note after it drifts visibly further away.
         ev.SlotWidth = Math.Max(natural, fits);
 
-        // Text put beside a note rather than over it has to be paid for in the line, or it prints on top
-        // of the next note along.
+        // Text beside a note (not over it) has to be paid for in the line, or it prints over the next note.
         foreach (var (text, where) in ev.Annotations)
         {
             if (where is not (AnnotationPlacement.Left or AnnotationPlacement.Right)) continue;
             ev.SlotWidth = Math.Max(ev.SlotWidth, fits + ScoreText.Width(text, ChordSize, _ppd) + (0.4 * S));
         }
 
-        // A chord symbol has to clear the next one along, which nothing was paying for: a wide name over a
-        // short note printed straight through the note after it.
+        // A wide chord name over a short note must still clear the next note along.
         if (ev.ChordSymbol is { Length: > 0 } chord)
             ev.SlotWidth = Math.Max(ev.SlotWidth,
                                     ScoreText.Chord(chord, ChordSize, _ppd).Width + (0.5 * S));
 
-        // A syllable is centred under its head and so charges the note only half of itself — the other half
-        // is its neighbour's problem. Charging the full width made a line of long and short words lurch.
+        // Centred under its head, so it charges the note only half its width — full width made lines of long/short words lurch.
         foreach (var (_, text, _, _, _) in ev.Lyrics)
         {
             if (text.Length == 0) continue;
@@ -155,36 +131,19 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The air either side of a bar line — after it before the first note, and after the last note before
-    /// the next one.
-    ///
-    /// <para>
-    /// Without it a note sits against the line and reads as attached to it, which is the single clearest
-    /// difference between our page and an engraver's. Fixed amounts rather than part of a note's slot,
-    /// because what they separate the note from is the <em>line</em> rather than the note before or after,
-    /// and a slot that grew with the note's length would put the most air around a semibreve, which needs
-    /// it least.
-    /// </para>
-    /// <para>
-    /// The lead-in is the larger of the two. A bar line is read left to right, so the eye needs the gap
-    /// after it more than before it — and the note before a bar line usually has a stem the line would
-    /// otherwise crowd.
-    /// </para>
+    /// The air either side of a bar line, so a note doesn't read as attached to it. Fixed rather than part
+    /// of a note's slot, since it separates the note from the <em>line</em>, not from its neighbour — a
+    /// slot that grew with note length would give a semibreve the most air when it needs it least.
+    /// Lead-in is the larger of the two: the eye reads left to right, and the note before a bar line
+    /// usually has a stem the line would otherwise crowd.
     /// </summary>
     private double BarLeadIn => _spacing.BarLeadIn;
 
     private double BarLeadOut => _spacing.BarLeadOut;
 
     /// <summary>
-    /// The extra air either side of a bar line that stops the music rather than just counting it — a double
-    /// bar, a repeat, the end.
-    ///
-    /// <para>
-    /// A plain <c>|</c> is punctuation inside a phrase and wants no more than the lead-in. A <c>:||:</c> is
-    /// a full stop and the start of a new sentence, and the eye needs to see that before it reads on. Ours
-    /// gave both the same room, so a rest landing straight after a repeat sat against it and read as part
-    /// of the barline rather than as the silence it is.
-    /// </para>
+    /// Extra air around a bar line that stops the music (double bar, repeat, end) rather than just counting
+    /// it — without it a rest right after a repeat sat against the line and read as part of it.
     /// </summary>
     private double SectionAir => _spacing.SectionAir;
 
@@ -214,14 +173,9 @@ internal abstract partial class MusicBuilder
     private const int StemHalfSpaces = 7;
 
     /// <summary>
-    /// How far the notation on a system actually reaches above the top line and below the bottom one, in
-    /// half-spaces — heads and the stems they carry, on the side those stems point.
-    ///
-    /// <para>
-    /// Asked per beam group rather than per note, because a group's stems all point the same way and that
-    /// way is decided by the group. A note high in the staff whose group stems up still has a stem going
-    /// up, and reserving for the note alone would let it through the chord symbols.
-    /// </para>
+    /// How far the notation reaches above/below the staff, in half-spaces. Asked per beam group, not per
+    /// note, since a group's stems all point the direction the group decided — reserving per-note would let
+    /// a high note in an up-stemmed group poke through the chord symbols.
     /// </summary>
     private static (int Above, int Below) Reach(System system)
     {
@@ -252,17 +206,12 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// The room the clef, key signature and — on the first system only — the meter take at the head.
-    /// <para>
-    /// Two answers rather than one, because a later system draws no time signature and must not leave a
-    /// gap where one would have gone. Successive systems are free to differ; it is the staves *within* a
-    /// system that have to agree, and they all ask this the same way.
-    /// </para>
+    /// The room the clef, key signature and — first system only — meter take at the head. Two answers
+    /// (with/without meter), since a later system draws no time signature and shouldn't leave a gap for one.
     /// </summary>
     private double HeadWidth(Row row, bool meter)
     {
-        // A voice's name is printed to the left of its clef, so it has to be paid for before the clef is
-        // placed — otherwise every staff in a part song starts at a different x and the grid is gone.
+        // Paid for before the clef is placed, or every staff in a part song starts at a different x.
         var named = row is { Index: 0, Name: { Length: > 0 } name }
             ? ScoreText.Width(name, CreditSize, _ppd) + (0.6 * S)
             : 0;
@@ -272,24 +221,20 @@ internal abstract partial class MusicBuilder
         if (width > 0) width += 0.4 * S;
         if (meter && row.Meter is { } shown) width += MeterWidth(shown.Sign);
 
-        // The same air whether or not a meter was printed. Hanging it off the meter meant a tune without
-        // one opened with its first note against the key signature.
+        // Same air whether or not a meter printed — else a tune without one opened with its first note against the key signature.
         return width + HeadGap;
     }
 
     // ── Breaking into systems ───────────────────────────────────────────────
 
     /// <summary>
-    /// The bars packed into systems. A source line break is honoured first — it is what ABC means by one —
-    /// and a line too wide for the page is broken again at a bar line rather than being squeezed.
-    ///
+    /// The bars packed into systems. A source line break is honoured first; a line too wide for the page is
+    /// broken again at a bar line rather than squeezed.
     /// <para>
-    /// <strong>Balanced rather than greedy, and that is not a refinement.</strong> Filling each system to
-    /// the brim and letting the remainder fall onto the next leaves a line holding one bar, and one bar
-    /// cannot be justified to the width of four without spacing its notes absurdly — so it is left short,
-    /// and the block gains a ragged edge in the middle of itself. Working out how many lines the row needs
-    /// and dividing it evenly gives every system about the same amount to hold, which is what makes the
-    /// justification below able to fill them all.
+    /// <strong>Balanced rather than greedy.</strong> Filling each system to the brim and dropping the
+    /// remainder onto the next can leave a line holding one bar that can't be justified to the width of
+    /// four without absurd spacing. Dividing the row's bars evenly across the lines it needs gives every
+    /// system about the same amount, which is what lets justification fill them all.
     /// </para>
     /// </summary>
     private List<System> Wrap(List<Row> rows, double width)
@@ -298,8 +243,7 @@ internal abstract partial class MusicBuilder
         var available = width - RightMargin;
         var bracket = 0;
 
-        // The parts that sound together, in the order they were written. ABC writes one voice's line after
-        // another and leaves the reader to count, so this is the counting.
+        // The parts that sound together — ABC writes one voice's line after another and leaves the reader to count; this is the counting.
         foreach (var together in rows.GroupBy(r => (r.Piece, r.Voice.Length == 0 ? "" : "v", r.Index))
                                      .OrderBy(g => rows.IndexOf(g.First())))
         {
@@ -314,8 +258,7 @@ internal abstract partial class MusicBuilder
 
             foreach (var row in parts) Break(systems, row, opening, later, available, bracket);
 
-            // Only what shares a bar grid is bracketed. A bracket drawn over voices that disagree about
-            // where the bars are would run a line through music that is not simultaneous.
+            // Only bracketed where voices share a bar grid, or the bracket would run through non-simultaneous music.
             if (shared) Bracketed(systems, from, parts.Count);
             bracket++;
         }
@@ -324,13 +267,9 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// One bar grid for the whole bracket: bar <em>n</em> is as wide as the widest voice's bar
-    /// <em>n</em>, so the lines run straight down and a reader can read across the parts.
-    /// <para>
-    /// Only where the voices agree about where the bars are. Where they do not — which real tunebooks do,
-    /// and which is nobody's mistake — they are left at their own widths and stack honestly rather than
-    /// being forced into a grid that would misalign every bar after the first difference.
-    /// </para>
+    /// One bar grid for the whole bracket: bar <em>n</em> is as wide as the widest voice's bar <em>n</em>,
+    /// so lines run straight and a reader reads across the parts. Only where voices agree on bar positions —
+    /// where they don't (real tunebooks do), each keeps its own width rather than being forced misaligned.
     /// </summary>
     private static bool Share(List<Row> parts)
     {
@@ -351,8 +290,7 @@ internal abstract partial class MusicBuilder
     /// <summary>Marks the run of staves just laid out as one bracketed system.</summary>
     private static void Bracketed(List<System> systems, int from, int voices)
     {
-        // Only where every voice broke the same way. A bracket that joined staves holding different bars
-        // would draw a line through music that is not simultaneous.
+        // Only where every voice broke the same way, or the bracket would join non-simultaneous bars.
         var made = systems.Count - from;
         if (voices < 2 || made % voices != 0) return;
 
@@ -367,8 +305,7 @@ internal abstract partial class MusicBuilder
                 systems[at].LastOfBracket = voice == voices - 1;
             }
 
-        // Staves that sound together have to be drawn together, which means ordering them line by line
-        // rather than voice by voice.
+        // Ordered line by line, not voice by voice, since staves sounding together must be drawn together.
         var reordered = new List<System>(made);
         for (var line = 0; line < lines; line++)
             for (var voice = 0; voice < voices; voice++)
@@ -404,11 +341,9 @@ internal abstract partial class MusicBuilder
 
                 var balanced = used + (bar.Width / 2) > each && left > linesLeft - 1;
 
-                // …and always once it will not fit, whatever the balancing thinks. `lines` is an estimate
-                // made before any bar was placed, and when it comes out too large every break is suppressed
-                // by the clause above — there are always fewer bars left than lines to fill. The system then
-                // runs off the page, because justification will compress a line but not by an unbounded
-                // amount. Fitting is not something a balance is allowed to trade away.
+                // Always break once it won't fit, regardless of balance: `lines` is an estimate made before
+                // any bar was placed, and an overestimate suppresses every balanced break above, running the
+                // system off the page since justification only compresses so far.
                 var overflows = used + bar.Width > room;
 
                 if (current.Bars.Count > 0 && (balanced || overflows))
@@ -550,12 +485,8 @@ internal abstract partial class MusicBuilder
     }
 
     /// <summary>
-    /// Stacks the systems down the page, giving each the room its own notation asks for.
-    /// <para>
-    /// Measured from the notation rather than fixed: how far the ledger heads, stems and beams actually
-    /// reach is what decides, and everything that lives outside the staff is placed against that. A chord
-    /// symbol belongs above the music, and how high that is depends on how high the music went.
-    /// </para>
+    /// Stacks systems down the page, giving each the room its own notation needs — measured from how far
+    /// the heads, stems and beams actually reach, since a chord symbol's height depends on the music's.
     /// </summary>
     private void Stack(List<System> systems, double below)
     {
@@ -591,17 +522,12 @@ internal abstract partial class MusicBuilder
 
             system.HasVoltaRow = system.Bars.Any(b => b.Volta is not null);
 
-            // A stem reaches about three and a half spaces past the head it is on — but only on the side
-            // it points, which is what this used to ignore. Adding it to both sides reserved a whole stem's
-            // length above a system whose stems all point down, and the chord symbols sat on top of the
-            // room nothing was using.
+            // Only on the side the stem points — reserving both sides wasted a whole stem's room where all stems pointed one way.
             var (reaches, sinks) = Reach(system);
             system.Above = Math.Max(0, (Math.Max(highest, reaches) - 8) * (S / 2));
             system.Below = Math.Max(0, -Math.Min(lowest, sinks) * (S / 2));
 
-            // Everything outside the staff is measured from the notation rather than from a fixed pad: a
-            // chord symbol belongs above the music, and how high that is depends on how high the music
-            // went. Stacked in the order they are read outward from the staff.
+            // Stacked outward from the staff in reading order.
             system.Above += system.MarksAbove * MarkRow;
             if (system.HasChordRow) system.Above += TextRow;
             if (system.HasVoltaRow) system.Above += VoltaRow;
@@ -610,14 +536,11 @@ internal abstract partial class MusicBuilder
 
             system.StaffTop = y + system.Above;
 
-            // Clear of whatever the music reached down to, which is why it is measured from Below rather
-            // than from the staff: a phrase of low notes pushes its words down with it.
+            // Measured from Below, not the staff, so a phrase of low notes pushes its lyrics down with it.
             system.LyricTop = system.StaffTop + StaffHeight + system.Below
                               + (system.LyricVerses > 0 ? LyricClear : 0);
 
-            // A staff that sounds with the next one is set close to it; a new system gets a full gap. The
-            // difference is what tells a reader whether two lines are played together or one after another,
-            // and it is the only thing that does.
+            // Close gap for staves sounding together, full gap otherwise — the only cue telling the two apart.
             var gap = system.Bracket > 0 && !system.LastOfBracket ? StaffGap : SystemGap;
             y = system.LyricTop + (system.LyricVerses * LyricRow) + gap;
         }
@@ -626,23 +549,10 @@ internal abstract partial class MusicBuilder
     // ── Drawing it ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// The bars of a line, grouped into the sections a musician would name: the A part, the B part, the
-    /// bars inside a repeat.
-    ///
-    /// <para>
-    /// A level between the bar and the line, because it is a level a reader thinks in. Selection grows
-    /// outward through whatever the tree holds, so a tune whose layout goes note, bar, line can be
-    /// widened from a note to a bar and then to a whole line - skipping the unit anybody would actually
-    /// want, which is the section. Nothing has to teach selection about it: it is a node with a stretch
-    /// of source, and growing to the nearest thing that covers what is chosen is what selection already
-    /// does.
-    /// </para>
-    /// <para>
-    /// A plain <c>|</c> divides bars and nothing else; everything heavier - a double bar, a final bar, a
-    /// repeat either way round - is where the music turns, and is what this breaks on. A line whose bars
-    /// are all divided by plain bar lines is one section, which is the honest answer rather than a level
-    /// that appears only sometimes.
-    /// </para>
+    /// The bars of a line, grouped into sections a musician would name (the A part, inside a repeat) — a
+    /// level between bar and line that a reader thinks in, so selection can widen note → bar → section →
+    /// line instead of skipping straight to the whole line. A plain <c>|</c> divides bars only; anything
+    /// heavier (double bar, repeat) is where the music turns and where this breaks.
     /// </summary>
     private static List<List<Bar>> Sections(List<Bar> bars)
     {
@@ -674,10 +584,7 @@ internal abstract partial class MusicBuilder
     private static bool Heavier(Barline? line) =>
         line is not null && line.Drawn.Trim() is not ("|" or "");
 
-    /// <summary>
-    /// The stretch of source a run of bars covers, from the first character anything in it was written with to
-    /// the last — or nothing, where nothing in it was written at all.
-    /// </summary>
+    /// <summary>The stretch of source a run of bars covers, start to end — or null if none of it was written.</summary>
     private static ISourcePart? Spanning(List<Bar> bars)
     {
         var start = int.MaxValue;
@@ -765,11 +672,7 @@ internal abstract partial class MusicBuilder
         _ => Smufl.AccidentalNatural,
     };
 
-    /// <summary>
-    /// One row of words above or below the staff — chord names, and text put above or below a note: tall enough
-    /// for a line of either face set in it, with air before the staff. A fixed height undercut the words it held;
-    /// the row was shorter than a line of the body face, so text over the staff sat on its top line.
-    /// </summary>
+    /// <summary>One row of words above/below the staff, tall enough for either face plus air — a fixed height had text sitting on the staff's top line.</summary>
     private double TextRow => _textRow ??= Math.Max(ChordRow,
         Math.Max(ScoreText.Build("Hg", ChordSize, _ppd).Height, ScoreText.Chord("Hg", ChordSize, _ppd).Height) + (0.5 * S));
 

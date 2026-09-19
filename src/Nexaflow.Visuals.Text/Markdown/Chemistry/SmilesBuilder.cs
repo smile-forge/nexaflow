@@ -13,46 +13,28 @@ using Nexaflow.Visuals.Text.Editing;
 namespace Nexaflow.Visuals.Text.Markdown.Chemistry;
 
 /// <summary>
-/// Lays a <c>smiles</c> block out: each molecule drawn as a skeletal structure with its caption beneath, the
-/// entries flowing left to right and wrapping to the room they are given.
-///
-/// <para>
-/// <b>Where everything goes is not decided here.</b> The pipeline has said what the molecule is — which atom each
-/// ring closure reaches, how many hydrogens each atom carries, where the double bonds of an aromatic ring go — and
-/// <see cref="StructureLayout"/> has said where every atom sits. What is decided here is how a chemist draws that:
-/// carbon as the corner where bonds meet, every other element as its symbol with its hydrogens tucked on the side
-/// away from its bonds, a ring's double bond as a second line inside the ring, a bond coloured half and half where
-/// it joins two elements, and a wedge for a stereocentre.
-/// </para>
-/// <para>
-/// <b>Every atom and every written bond is a piece carrying the part it was drawn from</b>, so selecting across a
-/// structure yields its SMILES, and a wave goes under the atom that has too many bonds rather than under the whole
-/// block. A bond between two atoms written side by side carries nothing, because nobody typed it.
-/// </para>
-/// <para>
-/// <b>It always draws.</b> A molecule with trouble in it draws as much of itself as reads, with the reason in red
-/// beneath its caption; a string with no atom in it that reads is shown as its own characters, struck through.
-/// </para>
+/// Lays a <c>smiles</c> block out: each molecule as a skeletal structure with its caption beneath, flowing left to
+/// right and wrapping to the room given. <see cref="StructureLayout"/> decides atom positions; this decides how a
+/// chemist draws them (bare-corner carbon, half-and-half bond colouring, wedges for stereocentres). Every atom and
+/// bond is a piece carrying the source it was drawn from, so selection yields SMILES text and errors underline the
+/// offending atom. A molecule with trouble still draws as much of itself as reads, with the reason in red beneath
+/// its caption; unparseable source falls back to its own characters, struck through.
 /// </summary>
 internal sealed class SmilesBuilder : ContentBuilder
 {
     private static readonly FontFamily LabelFont = new("Segoe UI, Arial, sans-serif");
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
 
-    /// <summary>A bond's length at full size, in element pixels.</summary>
     private const double BondLength = 28;
 
     private const double LabelSize = 14;
     private const double CaptionSize = 12.5;
     private const double ReasonSize = 12;
 
-    /// <summary>How thick a bond's line is, as a share of its length.</summary>
     private const double StrokeShare = 0.062;
 
-    /// <summary>How far a double bond's second line sits from its first, as a share of the bond's length.</summary>
     private const double GapShare = 0.2;
 
-    /// <summary>How much shorter a ring's inner line is at each end, as a share of the bond's length.</summary>
     private const double InsetShare = 0.14;
 
     /// <summary>Clear space between two entries across a row, and between two rows.</summary>
@@ -83,17 +65,13 @@ internal sealed class SmilesBuilder : ContentBuilder
     public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity) =>
         new SmilesBuilder(source, palette, pixelsPerDip, room).Lay();
 
-    /// <summary>
-    /// The element a block is shown in: read-only, because a structure is not typed into — but selectable, since
-    /// every atom carries the characters it was written as.
-    /// </summary>
+    /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         new(source, options.Palette, (state, room, pixelsPerDip) => Build(state.Source, options.Palette, pixelsPerDip, room))
         {
             IsReadOnly = true,
 
-            // Where the molecules sit inside the fence, so the host never mistakes the block for one that is its
-            // content and nothing else.
+            // Where the molecules sit inside the fence, not just the block's own content.
             SourceStart = options.SourceOffset,
             SourceLength = source.Length,
 
@@ -187,10 +165,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     private const double SourceSize = 13;
 
-    /// <summary>
-    /// Puts the entries down in rows: left to right while they fit, a new row when the next would not. Within a row
-    /// the structures are centred on one line and their captions share the line beneath the tallest.
-    /// </summary>
+    /// <summary>Rows entries left to right, wrapping when the next won't fit; captions share the line beneath the tallest.</summary>
     private Size Flow(LayoutBuilder build, List<Sketched> entries)
     {
         var rows = new List<List<Sketched>>();
@@ -278,10 +253,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     // ── One structure ───────────────────────────────────────────────────────
 
-    /// <summary>
-    /// A molecule worked out and measured: where every atom lands on the page, what its label says and where each
-    /// bond starts and stops — ready to be laid down at any point.
-    /// </summary>
+    /// <summary>A molecule worked out and measured — atom positions, labels, bond endpoints — ready to lay down.</summary>
     private sealed class Drawing
     {
         private readonly SmilesBuilder _owner;
@@ -370,8 +342,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                 }
                 else
                 {
-                    // An unlabelled atom still has somewhere to be pointed at, and a dot the bonds' width fills the
-                    // notch square line ends leave where they meet.
+                    // An unlabelled atom still needs a point to aim at; the dot fills the notch square line ends leave.
                     var half = Stroke / 2;
                     build.Draw(GeometryMark.Filled(Frozen(new EllipseGeometry(_at[i], half, half)), _owner.Ink(0)));
                     build.Covers(new Rect(_at[i].X - Length * 0.18, _at[i].Y - Length * 0.18, Length * 0.36, Length * 0.36));
@@ -381,11 +352,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             }
         }
 
-        /// <summary>
-        /// Where each bond of a cage drawn as a solid passes behind another. Two bonds that cross on the page are at
-        /// different depths where they cross, and the one further from the reader is the one broken — the convention every
-        /// drawing of adamantane uses to say which bridge is at the back.
-        /// </summary>
+        /// <summary>Where crossing bonds of a solid pass behind one another — the far bond is broken, the usual convention for drawing a bridged cage (e.g. adamantane).</summary>
         private Dictionary<int, List<Point>> Gaps()
         {
             var gaps = new Dictionary<int, List<Point>>();
@@ -421,10 +388,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             return gaps;
         }
 
-        /// <summary>
-        /// The stretches of the line from <paramref name="a"/> to <paramref name="b"/> that are drawn, as fractions along
-        /// it: all of it, less a short break round every place the bond passes behind another.
-        /// </summary>
+        /// <summary>Fractions of [a,b] that are drawn: the whole line, minus a break where it passes behind another bond.</summary>
         private IEnumerable<(double From, double To)> Drawn(MoleculeBond bond, Point a, Point b)
         {
             var along = b - a;
@@ -454,12 +418,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             if (at < 1) yield return (at, 1);
         }
 
-        /// <summary>
-        /// How much the bonds have to lengthen for no two symbols to run into each other. A label is about half a bond wide
-        /// at the ordinary size, so a structure made of them — a cage of phosphorus and oxygen seen in perspective, where
-        /// atoms that are not bonded land close on the page — is drawn with longer bonds, while the lettering stays the size
-        /// of every other structure's.
-        /// </summary>
+        /// <summary>How much to lengthen bonds so labels don't collide — needed when unbonded atoms land close together, as in a cage drawn in perspective.</summary>
         private static double Spread(Nexaflow.Markdown.Chemistry.Molecule molecule, IReadOnlyList<Vec> at)
         {
             static bool Labelled(MoleculeAtom atom) => atom.Number != 6 || atom.Charge != 0;
@@ -479,7 +438,6 @@ internal sealed class SmilesBuilder : ContentBuilder
             return Math.Min(spread, LongestSpread);
         }
 
-        /// <summary>What a bond was written as — its symbol, or the ring closure that made it — or nothing.</summary>
         private ContentPart? PartOf(MoleculeBond bond)
         {
             if (bond.Node is null) return null;
@@ -525,10 +483,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             }
         }
 
-        /// <summary>
-        /// A double bond: its second line inside the ring it is in, or on the side of the bond more of its neighbours
-        /// are on — and the two lines either side of the axis where one end is a lone atom, as a carbonyl is drawn.
-        /// </summary>
+        /// <summary>Second line goes inside the smaller ring, or toward the side with more neighbours; straddles the axis when one end is a lone atom (e.g. a carbonyl).</summary>
         private void DrawDouble(LayoutBuilder build, MoleculeBond bond, Point from, Point to, Vector across, double gap, bool dashed)
         {
             var side = Inside(bond);
@@ -549,10 +504,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             Line(build, bond, a, b, dashed);
         }
 
-        /// <summary>
-        /// Which side of the bond, as seen along it, its second line goes on: +1 or -1, or 0 for either side of the
-        /// axis. Inside the smallest ring it is in; otherwise towards the side more of its neighbours are on.
-        /// </summary>
+        /// <summary>Which side the double bond's second line goes on: +1/-1, or 0 to straddle the axis.</summary>
         private int Inside(MoleculeBond bond)
         {
             var p = _at[bond.From];
@@ -590,10 +542,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             return i >= 0 && (ring[(i + 1) % ring.Length] == b || ring[(i + ring.Length - 1) % ring.Length] == b);
         }
 
-        /// <summary>
-        /// A wedge from a stereocentre to its neighbour: filled, towards the reader, or hashed, away — narrow at the
-        /// centre and a quarter of a bond wide at the far end.
-        /// </summary>
+        /// <summary>Wedge from a stereocentre: solid toward the reader, hashed away.</summary>
         private void DrawWedge(LayoutBuilder build, Point narrow, Point wide, Wedge kind, Brush? near, Brush? far)
         {
             var along = wide - narrow;
@@ -626,7 +575,6 @@ internal sealed class SmilesBuilder : ContentBuilder
             }
         }
 
-        /// <summary>One line of a bond, coloured half and half by its atoms.</summary>
         private void Line(LayoutBuilder build, MoleculeBond bond, Point a, Point b, bool dashed = false)
         {
             var near = _owner.Ink(_molecule.Atoms[bond.From].Number);
@@ -699,10 +647,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     // ── Atom labels ─────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// What an atom's label says and where each run of it sits: the symbol centred on the atom, its hydrogens beside
-    /// it on whichever side its bonds are not, a charge raised after and a mass number raised before.
-    /// </summary>
+    /// <summary>An atom's label runs: symbol centred on the atom, hydrogens on the side clear of its bonds, charge after, mass number before.</summary>
     private sealed class Label
     {
         private readonly List<(FormattedText Text, Point At)> _runs = [];
@@ -711,7 +656,6 @@ internal sealed class SmilesBuilder : ContentBuilder
 
         private Label(Brush? ink) => _ink = ink;
 
-        /// <summary>The whole label's extent.</summary>
         public Rect Bounds { get; private set; }
 
         public static Label? For(SmilesBuilder owner, Nexaflow.Markdown.Chemistry.Molecule molecule, MoleculeAtom atom, Point[] at, double scale)
@@ -752,8 +696,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                 Point hAt;
                 if (degree > 1 && Math.Abs(leaving.X) < 0.3 && Math.Abs(leaving.Y) > 0.5)
                 {
-                    // Bonds that leave together straight up or down — a ring's NH — put the hydrogens on the far
-                    // side, under or over the symbol. A lone OH on an upright bond still reads left to right.
+                    // Bonds leaving straight up/down (e.g. a ring's NH) put hydrogens on the far side, not left-right.
                     var y = leaving.Y > 0 ? symbolAt.Y - symbol.Height * 0.85 : symbolAt.Y + symbol.Height * 0.85;
                     hAt = new Point(centre.X - groupWidth / 2, y);
                 }
@@ -807,10 +750,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             foreach (var (text, at) in _runs) build.Draw(new TextMark(text, at, _ink));
         }
 
-        /// <summary>
-        /// Where a line from <paramref name="inside"/> towards <paramref name="outside"/> leaves the symbol, with a
-        /// little air — so a bond stops short of the letter rather than running into it.
-        /// </summary>
+        /// <summary>Where a line from inside to outside leaves the symbol, with a little air so a bond stops short of the letter.</summary>
         public Point Clip(Point inside, Point outside)
         {
             var box = _symbol;

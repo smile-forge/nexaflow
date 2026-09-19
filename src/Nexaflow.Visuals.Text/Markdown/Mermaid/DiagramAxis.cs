@@ -61,11 +61,8 @@ internal static class DiagramScale
         return value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.CurrentCulture);
     }
 
-    /// <summary>
-    /// A number with as many decimals as it needs and no more — how a log tick, a break a block wrote, or
-    /// a number beside a colour bar is written, where <see cref="Label"/>'s decimals-from-the-step does not
-    /// apply because there is no even step to take them from.
-    /// </summary>
+    /// <summary>A number with as many decimals as it needs and no more — used where <see cref="Label"/>'s
+    /// decimals-from-the-step doesn't apply because there's no even step to take them from.</summary>
     public static string Plain(double value) => value.ToString("0.############", CultureInfo.CurrentCulture);
 }
 
@@ -84,22 +81,10 @@ internal enum DiagramTransform
     Reverse,
 }
 
-/// <summary>
-/// A range and how it is read: where a value stands along it, where its ticks go, and what each says.
-///
-/// <para>
-/// <see cref="DiagramScale"/> answers those for a plain range and is what every chart drawn so far
-/// needs. This wraps it so an axis can also be logarithmic, square-rooted or reversed — which is what
-/// a scatter plot of anything spanning orders of magnitude needs, and what ggplot2 spells
-/// <c>scale_x_log10</c>.
-/// </para>
-/// <para>
-/// <strong>A value with no place returns null rather than nought.</strong> Nought is a real place on an
-/// axis, and a log scale has nothing whatever to say about a value of nought or less — so the two have
-/// to be different answers, and the caller decides whether that is a mark left out or a block that will
-/// not draw.
-/// </para>
-/// </summary>
+/// <summary>A range and how it is read: where a value stands along it, where its ticks go, and what
+/// each says. Wraps <see cref="DiagramScale"/> so an axis can also be logarithmic, square-rooted or
+/// reversed. A value with no place (nought or less on a log scale) returns null rather than nought,
+/// since nought is itself a real place on an axis.</summary>
 internal sealed record DiagramSpan
 {
     private DiagramSpan(double min, double max, DiagramTransform transform)
@@ -115,13 +100,9 @@ internal sealed record DiagramSpan
 
     public DiagramTransform Transform { get; }
 
-    /// <summary>
-    /// The span covering <paramref name="min"/> to <paramref name="max"/>.
-    /// </summary>
-    /// <param name="widen">
-    /// Whether the range is opened out to round numbers so its ends are ticks. False where the block
-    /// wrote the ends itself, which is a reader asking for exactly those.
-    /// </param>
+    /// <summary>The span covering <paramref name="min"/> to <paramref name="max"/>.</summary>
+    /// <param name="widen">Whether the range is opened out to round numbers so its ends are ticks. False
+    /// when the block wrote the ends itself.</param>
     public static DiagramSpan Of(double min, double max, DiagramTransform transform = DiagramTransform.Linear,
                                  bool widen = true)
     {
@@ -170,16 +151,11 @@ internal sealed record DiagramSpan
         return this.Transform == DiagramTransform.Reverse ? 1 - at : at;
     }
 
-    /// <summary>
-    /// The value as this span reads it — the number anything worked out <em>over</em> the axis is worked
-    /// out from, so a fit down a logarithmic axis is a fit through the logarithms.
-    /// </summary>
+    /// <summary>The value as this span reads it — so a fit down a logarithmic axis is a fit through the
+    /// logarithms.</summary>
     public double? Reading(double value) => this.Forward(value);
 
-    /// <summary>
-    /// The value a reading came from: <see cref="Reading"/> turned about, so what was worked out in the
-    /// axis's own terms can be said in the reader's again.
-    /// </summary>
+    /// <summary>The value a reading came from: <see cref="Reading"/> turned about.</summary>
     public double Value(double reading) => this.Transform switch
     {
         DiagramTransform.Log10 => Math.Pow(10, reading),
@@ -189,11 +165,8 @@ internal sealed record DiagramSpan
         _ => reading,
     };
 
-    /// <summary>
-    /// The ticks along the span: each value, where it stands, and what it is written as. Round numbers
-    /// on a plain axis, and a step of the base on a logarithmic one — 1, 10, 100, which is the only
-    /// numbering of a log axis anybody reads.
-    /// </summary>
+    /// <summary>The ticks along the span: each value, where it stands, and what it's written as. Round
+    /// numbers on a plain axis, a step of the base (1, 10, 100) on a logarithmic one.</summary>
     public IReadOnlyList<(double Value, double At, string Says)> Ticks(int count = 5)
     {
         var marks = new List<(double Value, double At, string Says)>();
@@ -244,25 +217,14 @@ internal sealed record DiagramSpan
     };
 }
 
-/// <summary>
-/// The lines across a panel at each of an axis's ticks.
-///
-/// <para>
-/// Its own piece rather than a long tick on the axis: a tick is drawn <em>outward</em>, away from what
-/// the axis is measuring, so lengthening one reaches out into the margin rather than back across the
-/// panel. They are also drawn before everything else and stand for nothing anybody wrote, which a tick
-/// does not.
-/// </para>
-/// </summary>
+/// <summary>The lines across a panel at each of an axis's ticks. A separate piece from the axis's own
+/// ticks (which are drawn outward, into the margin) — these stand for nothing anybody wrote.</summary>
 internal static class DiagramGrid
 {
-    /// <summary>
-    /// The lines across <paramref name="panel"/> at each of <paramref name="ticks"/>, added to a shape of their own so a
-    /// diagram drawing more than one set of them draws them all as one.
-    /// </summary>
-    /// <param name="upright">
-    /// Whether the ticks belong to the axis running up the page, whose lines therefore run across.
-    /// </param>
+    /// <summary>The lines across <paramref name="panel"/> at each of <paramref name="ticks"/>, added to a
+    /// shape of their own so several sets draw as one.</summary>
+    /// <param name="upright">Whether the ticks belong to the axis running up the page, whose lines
+    /// therefore run across.</param>
     public static void Lines(GeometryGroup into, Rect panel, IReadOnlyList<DiagramTick> ticks, bool upright)
     {
         foreach (var mark in ticks)
@@ -273,12 +235,9 @@ internal static class DiagramGrid
                                    new Point(panel.Left + (mark.At * panel.Width), panel.Bottom)));
     }
 
-    /// <summary>
-    /// Draws a line across <paramref name="panel"/> at each of <paramref name="ticks"/>.
-    /// </summary>
-    /// <param name="upright">
-    /// Whether the ticks belong to the axis running up the page, whose lines therefore run across.
-    /// </param>
+    /// <summary>Draws a line across <paramref name="panel"/> at each of <paramref name="ticks"/>.</summary>
+    /// <param name="upright">Whether the ticks belong to the axis running up the page, whose lines
+    /// therefore run across.</param>
     public static void Draw(LayoutBuilder build, string kind, Rect panel, IReadOnlyList<DiagramTick> ticks,
                             bool upright, DiagramStroke stroke)
     {
@@ -295,16 +254,9 @@ internal static class DiagramGrid
     }
 }
 
-/// <summary>
-/// An axis: a line, a tick at each mark along it, and the words beside each tick — a chart's values up its side, its
-/// categories along its foot, a timeline's dates.
-///
-/// <para>
-/// A tick's words are whatever they are (<see cref="DiagramWords"/>): a category somebody wrote is typed into where it
-/// stands under its tick, and a number the axis worked out is only pressed. The axis is one piece standing for what it
-/// was written as — an <c>x-axis</c> line — so pressing the line means that line.
-/// </para>
-/// </summary>
+/// <summary>An axis: a line, a tick at each mark along it, and the words beside each tick — a chart's
+/// values up its side, its categories along its foot, a timeline's dates. The axis is one piece
+/// standing for what it was written as (an <c>x-axis</c> line), so pressing the line means that line.</summary>
 internal static class DiagramAxis
 {
     /// <summary>How long a tick is, and the clear air between it and its words.</summary>
@@ -312,17 +264,14 @@ internal static class DiagramAxis
     public const double Gap = 4;
 
     /// <summary>How far past the line an axis's ticks and words reach — the room to leave for them beside a chart.</summary>
-    /// <param name="upright">Whether the axis runs up the page, which is what makes its words' width the room they take.</param>
+    /// <param name="upright">Whether the axis runs up the page, so its words' width is the room they take.</param>
     /// <param name="tick">How long its ticks are drawn — nought for none.</param>
     public static double Room(IReadOnlyList<DiagramTick> ticks, bool upright, double tick = TickLength) =>
         tick + Gap + ticks.Select(mark => mark.Words is null ? 0 : upright ? mark.Words.Width : mark.Words.Height).DefaultIfEmpty(0).Max();
 
-    /// <summary>
-    /// Draws an axis from <paramref name="from"/> to <paramref name="to"/> as a piece of <paramref name="kind"/> standing for
-    /// <paramref name="part"/>: the line, a tick at each of <paramref name="ticks"/>, and each tick's words as a piece of
-    /// <paramref name="tickKind"/> — beside the tick on the side <paramref name="after"/> says: under or right of the line
-    /// where it is true, over or left of it where it is false.
-    /// </summary>
+    /// <summary>Draws an axis from <paramref name="from"/> to <paramref name="to"/>: the line, a tick at
+    /// each of <paramref name="ticks"/>, and each tick's words — beside the tick on the side
+    /// <paramref name="after"/> says (under/right if true, over/left if false).</summary>
     /// <param name="line">Whether the line itself is drawn, or only its ticks and words.</param>
     /// <param name="tick">How long the ticks are drawn — nought for none, the words then sitting against the line.</param>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, Point from, Point to, IReadOnlyList<DiagramTick> ticks,

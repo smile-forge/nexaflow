@@ -6,22 +6,12 @@ using Nexaflow.Visuals.Text.Markdown.Matrix;
 namespace Nexaflow.Visuals.Text.Markdown.Qr;
 
 /// <summary>
-/// Encodes a string into a QR symbol (ISO/IEC 18004 model 2) ΓÇö versions 1ΓÇô40, every error-correction
-/// level, and the numeric / alphanumeric / byte modes.
-///
-/// <para>
-/// Written here rather than taken from a package because the whole job is arithmetic over a byte
-/// array: no IO, no platform, nothing to keep current. It is deliberately free of WPF so a matrix can
-/// be produced and asserted on without a UI thread ΓÇö <see cref="QrBuilder"/> is the only thing that
-/// knows how to lay one out.
-/// </para>
-///
-/// <para>
-/// The pipeline is the standard one: choose a mode for the text, pick the smallest version whose data
-/// capacity holds it, pad to that capacity, split into blocks and append ReedΓÇôSolomon codewords,
-/// interleave the blocks, lay the bits into the grid around the function patterns, then try all eight
-/// masks and keep whichever one the penalty rules like best.
-/// </para>
+/// Encodes a string into a QR symbol (ISO/IEC 18004 model 2): versions 1-40, every error-correction level,
+/// and the numeric/alphanumeric/byte modes. Written here rather than taken from a package because the whole
+/// job is arithmetic over a byte array with no IO or platform dependency, and is kept free of WPF so a
+/// matrix can be produced and asserted on without a UI thread (<see cref="QrBuilder"/> does the layout).
+/// Pipeline: pick a mode and the smallest version that fits, pad, split into blocks with Reed-Solomon ECC,
+/// interleave, lay the bits into the grid, then try all eight masks and keep the one the penalty rules like best.
 /// </summary>
 public static class QrEncoder
 {
@@ -31,7 +21,7 @@ public static class QrEncoder
     /// <summary>Characters encodable in alphanumeric mode, in their code order.</summary>
     private const string AlphanumericCharset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 
-    // ΓöÇΓöÇ Public API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Public API ─────────────────────────────────────────────────────────
 
     /// <summary>Encodes <paramref name="text"/>, choosing the smallest version that fits.</summary>
     /// <exception cref="ArgumentException">The text is too long for a version-40 symbol at this level.</exception>
@@ -40,10 +30,7 @@ public static class QrEncoder
             ? matrix!
             : throw new ArgumentException(error, nameof(text));
 
-    /// <summary>
-    /// The non-throwing form. Returns false with a reader-facing <paramref name="error"/> when the
-    /// payload cannot be encoded ΓÇö which for a QR code means only one thing: it does not fit.
-    /// </summary>
+    /// <summary>The non-throwing form; false with a reader-facing <paramref name="error"/> when the payload doesn't fit.</summary>
     public static bool TryEncode(string text, QrErrorCorrection ecl, out QrMatrix? matrix, out string? error)
     {
         matrix = null;
@@ -93,15 +80,11 @@ public static class QrEncoder
         return true;
     }
 
-    // ΓöÇΓöÇ Mode selection and data encoding ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Mode selection and data encoding ───────────────────────────────────
 
     private enum Mode { Numeric, Alphanumeric, Byte }
 
-    /// <summary>
-    /// The narrowest mode that covers the whole string. Splitting a string into per-mode segments can
-    /// occasionally shave a version off, but only for mixed text; every payload this block builds is
-    /// uniform enough that the extra machinery would not pay for itself.
-    /// </summary>
+    /// <summary>The narrowest mode that covers the whole string — per-mode segmentation could shave a version off mixed text, but isn't worth the machinery here.</summary>
     private static Mode ModeFor(string text)
     {
         if (text.Length == 0) return Mode.Byte;
@@ -177,12 +160,9 @@ public static class QrEncoder
             bits.Add(((value >>> i) & 1) != 0);
     }
 
-    // ΓöÇΓöÇ Capacity ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Capacity ───────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Data modules available at this version ΓÇö the whole grid less the function patterns, which grow
-    /// with it (one more alignment ring every seven versions, and version information from 7 up).
-    /// </summary>
+    /// <summary>Data modules available at this version — the grid less the function patterns (an alignment ring every 7 versions, version info from 7 up).</summary>
     private static int RawDataModules(int version)
     {
         int result = (16 * version + 128) * version + 64;
@@ -200,13 +180,8 @@ public static class QrEncoder
         - EccCodewordsPerBlock[(int)ecl][version - 1] * NumEccBlocks[(int)ecl][version - 1];
 
     /// <summary>
-    /// How this version and level split their codewords: the total, the number of blocks the data is
-    /// spread over, and each block's ECC length.
-    /// <para>
-    /// Internal for the tests, which read a finished symbol back and need the same de-interleaving that
-    /// produced it. The block tables themselves are checked from the outside instead — the published
-    /// capacity of a version tells you whether both of them are right.
-    /// </para>
+    /// Total codewords, block count and each block's ECC length for this version/level. Internal for the
+    /// tests, which de-interleave a finished symbol the same way it was built.
     /// </summary>
     internal static (int TotalCodewords, int Blocks, int EccPerBlock) BlockLayout(int version, QrErrorCorrection ecl) =>
     (RawDataModules(version) / 8,
@@ -216,12 +191,9 @@ public static class QrEncoder
     /// <summary>Data codewords available at this version and level — what a payload is measured against.</summary>
     internal static int DataCodewords(int version, QrErrorCorrection ecl) => NumDataCodewords(version, ecl);
 
-    // ΓöÇΓöÇ ReedΓÇôSolomon over GF(256), primitive polynomial 0x11D ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Reed–Solomon over GF(256), primitive polynomial 0x11D ──────────────
 
-    /// <summary>
-    /// Splits the data into blocks, appends each block's ECC codewords, then interleaves the lot.
-    /// Interleaving is what makes a burst of damage land across many blocks instead of destroying one.
-    /// </summary>
+    /// <summary>Splits data into blocks, appends each block's ECC codewords, then interleaves — so burst damage lands across many blocks instead of destroying one.</summary>
     private static byte[] AddEccAndInterleave(byte[] data, int version, QrErrorCorrection ecl)
     {
         int numBlocks    = NumEccBlocks[(int)ecl][version - 1];
@@ -273,7 +245,7 @@ public static class QrEncoder
         return result;
     }
 
-    // ΓöÇΓöÇ Grid construction ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Grid construction ──────────────────────────────────────────────────
 
     /// <summary>The grid under construction: the modules, and which of them data may not overwrite.</summary>
     private sealed class Grid
@@ -387,7 +359,7 @@ public static class QrEncoder
                 grid.SetFunction(cx + dx, cy + dy, Math.Max(Math.Abs(dx), Math.Abs(dy)) != 1);
     }
 
-    /// <summary>Row/column centres of the alignment patterns ΓÇö evenly spaced, always spanning 6 to sizeΓêÆ7.</summary>
+    /// <summary>Row/column centres of the alignment patterns — evenly spaced, always spanning 6 to size−7.</summary>
     private static List<int> AlignmentPatternPositions(int version)
     {
         if (version == 1) return [];
@@ -405,7 +377,7 @@ public static class QrEncoder
     }
 
     /// <summary>
-    /// The 15-bit format information ΓÇö error-correction level and mask ΓÇö protected by a BCH(15,5) code
+    /// The 15-bit format information — error-correction level and mask — protected by a BCH(15,5) code
     /// and masked with 0x5412 so it is never all zeros. Written twice, so losing one corner survives.
     /// </summary>
     private static void DrawFormatBits(Grid grid, QrErrorCorrection ecl, int mask)
@@ -455,10 +427,7 @@ public static class QrEncoder
 
     private static bool Bit(int value, int index) => ((value >>> index) & 1) != 0;
 
-    /// <summary>
-    /// Lays the codeword bits into the grid: upward then downward through two-module-wide columns,
-    /// right to left, stepping over function modules and the vertical timing column.
-    /// </summary>
+    /// <summary>Lays codeword bits into the grid in a boustrophedon over two-module-wide columns, right to left, stepping over function modules and the timing column.</summary>
     private static void DrawCodewords(Grid grid, byte[] codewords)
     {
         int size = grid.Size;
@@ -481,7 +450,7 @@ public static class QrEncoder
                         grid.Set(x, y, Bit(codewords[i >> 3], 7 - (i & 7)));
                         i++;
                     }
-                    // Anything left over stays light ΓÇö the spec's remainder bits.
+                    // Anything left over stays light — the spec's remainder bits.
                 }
             }
         }
@@ -512,7 +481,7 @@ public static class QrEncoder
         }
     }
 
-    // ΓöÇΓöÇ Mask penalty rules ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Mask penalty rules ─────────────────────────────────────────────────
 
     private const int PenaltyRun     = 3;    // a run of five same-coloured modules, +1 for each extra
     private const int PenaltyBlock   = 3;    // a 2├ù2 block of one colour
@@ -613,9 +582,9 @@ public static class QrEncoder
         return CountFinderLikePatterns(history);
     }
 
-    // ΓöÇΓöÇ Specification tables (ISO/IEC 18004), indexed [level][version ΓêÆ 1] ΓöÇ
+    // ── Specification tables (ISO/IEC 18004), indexed [level][version − 1] ─
 
-    /// <summary>Format-information bits for L / M / Q / H ΓÇö deliberately not the enum's own order.</summary>
+    /// <summary>Format-information bits for L / M / Q / H — deliberately not the enum's own order.</summary>
     private static readonly int[] FormatBits = [1, 0, 3, 2];
 
     private static readonly int[][] EccCodewordsPerBlock =

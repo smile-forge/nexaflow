@@ -13,30 +13,20 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// The seam between the document and the rendered content embedded in it: which block holds the caret,
 /// where its keys come from, and how an edit to it gets back into the block model.
 /// <para>
-/// Rendered content is the part of the document that is not text — so the caret has to be able to cross
-/// into it and back out, and typing has to reach it. None of it can take focus (a focusable element
-/// inside a <c>RichTextBox</c> faults its caret reconciliation), so the editor keeps focus and forwards
-/// the keys itself. Mouse input already arrives through <see cref="IInteractiveBlock"/>.
-/// </para>
-/// <para>
-/// Everything here is written against <see cref="IEditableBlock"/> and knows nothing about what it is
-/// driving. Where a key means something only one kind of content can offer — moving between the halves
-/// of a fraction, tabbing through the holes of a half-written construct — the test is explicit and
-/// narrow, and anything that fails it hands the key back to the document rather than swallowing it.
+/// Rendered content can't take focus (a focusable element inside a <c>RichTextBox</c> faults its caret
+/// reconciliation), so the editor keeps focus and forwards keys itself. Everything here is written against
+/// <see cref="IEditableBlock"/> and knows nothing about what it drives; a key only one kind of content can
+/// use (moving between the halves of a fraction, tabbing through a construct's holes) is tested explicitly
+/// and handed back to the document when it doesn't apply.
 /// </para>
 /// </summary>
 public partial class InlineMarkdownEditor
 {
     private IEditableBlock? _caretBlock;
 
-    /// <summary>
-    /// How long the focused block's run in <c>_blocks[index]</c> is right now.
-    /// <para>
-    /// Tracked here rather than asked of the block, because the block cannot know it: by the time it
-    /// says its source changed, <see cref="IEditableBlock.Source"/> is already the new text and the
-    /// length needed to splice it in is the one from before the keystroke.
-    /// </para>
-    /// </summary>
+    /// <summary>How long the focused block's run in <c>_blocks[index]</c> is right now. Tracked here, not
+    /// asked of the block: by the time it says its source changed, <see cref="IEditableBlock.Source"/> is
+    /// already the new text, and the splice needs the length from before the keystroke.</summary>
     private int _caretRun;
 
     /// <summary>
@@ -50,11 +40,8 @@ public partial class InlineMarkdownEditor
     /// </summary>
     internal IEditableBlock? FocusedBlock => _caretBlock;
 
-    /// <summary>
-    /// Hands the caret to <paramref name="block"/>, taking it off whichever one had it. Called when a
-    /// click lands inside a block that takes a caret, and when the caret arrows in from the text beside
-    /// it.
-    /// </summary>
+    /// <summary>Hands the caret to <paramref name="block"/>, taking it off whichever one had it — on a click
+    /// inside a caret-taking block, and when the caret arrows in from the text beside it.</summary>
     private void FocusBlock(IEditableBlock block)
     {
         if (ReferenceEquals(_caretBlock, block)) return;
@@ -65,14 +52,12 @@ public partial class InlineMarkdownEditor
         block.SourceChanged += OnBlockSourceChanged;
         block.Exited        += OnBlockExited;
 
-        // There is one caret, and the block is now drawing it. The RichTextBox keeps a caret of its own
-        // at whatever text position the block occupies, and left visible it blinks beside the real one —
-        // two carets, neither of which the keys are going to.
+        // There is one caret; the block draws it now. Left visible, the RTB's own caret (at the block's
+        // text position) would blink beside it — two carets, neither reached by the keys.
         _rtb.CaretBrush = Brushes.Transparent;
 
-        // Same for the selection. The document selects an embedded element whole — it has no way to say
-        // "part of that" — so the block wash sits under the block's own, and the reader sees the piece
-        // they picked highlighted inside a highlighted line.
+        // Same for selection: the document can only select an embedded element whole, so its wash would
+        // sit under the block's own and double-highlight the piece the reader picked.
         ClearDocumentSelection();
     }
 
@@ -96,20 +81,13 @@ public partial class InlineMarkdownEditor
         block.Exited        -= OnBlockExited;
         block.ReleaseCaret();
 
-        // The document draws the caret again — through the same call that decided how it looks, so it
-        // comes back theme-aware or palette-frozen exactly as it was.
+        // Reuses the call that decided how the caret looks, so it comes back theme-aware or palette-frozen as before.
         ApplyEditorBrushes();
     }
 
-    /// <summary>
-    /// What is selected inside the focused block, or null when nothing is.
-    /// <para>
-    /// The document's own selection is empty while a block holds one — a flow document can only select an
-    /// embedded element whole, so the block is the only thing that knows which part of itself the reader
-    /// picked. Cut and copy have to ask it, or they act on the whole note instead of on the selection the
-    /// reader can see.
-    /// </para>
-    /// </summary>
+    /// <summary>What is selected inside the focused block, or null when nothing is. The document's own
+    /// selection is empty while a block holds one (a flow document selects an embedded element only whole),
+    /// so cut/copy have to ask the block or they'd act on the whole note instead.</summary>
     private string? SelectionInBlock()
     {
         if (_caretBlock is not { } block || block.Selection.Count == 0) return null;
@@ -128,24 +106,13 @@ public partial class InlineMarkdownEditor
         SelectionInBlock() is not null && _caretBlock!.Backspace();
 
     /// <summary>
-    /// The caret-taking element rendered for one block of the model, whatever kind it is — the seam an
-    /// arrow key crosses into.
-    /// </summary>
-    /// <summary>
-    /// Makes sure the block the caret is over holds it, whatever kind of block that is — a formula, a
-    /// tune, anything that takes a caret of its own.
-    ///
-    /// <para>
-    /// The formula-only version of this is why a single block of any other language rendered and then
-    /// could not be typed into: the editor adopted a <c>FormulaElement</c> or nothing, so a tune drew a
-    /// caret no keystroke ever reached. Adopting by the <see cref="IEditableBlock"/> seam instead is the
-    /// same behaviour for maths and the only thing that makes the rest of them editable at all.
-    /// </para>
+    /// Makes sure the block the caret is over holds it, whatever kind it is — a formula, a tune, anything
+    /// that takes a caret of its own. Adopting through the <see cref="IEditableBlock"/> seam rather than a
+    /// formula-only path is what makes a tune (or anything else) editable at all, not just maths.
     /// </summary>
     public bool FocusBlockAtCaret()
     {
-        // Without the keyboard the block would draw a caret no keystroke ever reached, which is a worse
-        // lie than no caret at all.
+        // Without the keyboard the block draws a caret no keystroke reaches, worse than no caret at all.
         if (!_rtb.IsKeyboardFocusWithin) { _rtb.Focus(); Keyboard.Focus(_rtb); }
         if (_caretBlock is not null) return true;
 
@@ -155,9 +122,8 @@ public partial class InlineMarkdownEditor
 
         FocusBlock(found);
 
-        // Told the caret arrived from the end, which is what the document does when it arrows in from
-        // the text beside it. There is never a reason for the container to want to know whether what it
-        // is talking to is a formula, a tune or a barcode — they answer this the same way.
+        // Told the caret arrived from the end, as the document does arrowing in from adjacent text — every
+        // kind of block answers this the same way.
         found.TakeCaretArriving(new CaretArrival(BlockExit.After, CaretStep.Character, null));
 
         return true;
@@ -183,10 +149,8 @@ public partial class InlineMarkdownEditor
         return null;
     }
 
-    /// <summary>
-    /// The editable content in block <paramref name="index"/> that starts at <paramref name="start"/>, or the block's first
-    /// where none does — a paragraph can hold several formulas, and only one of them was being written in.
-    /// </summary>
+    /// <summary>The editable content in block <paramref name="index"/> starting at <paramref name="start"/>,
+    /// or the block's first where none does — a paragraph can hold several formulas, only one being written in.</summary>
     private IEditableBlock? ContentIn(int index, int start)
     {
         var held = new List<IEditableBlock>();
@@ -206,24 +170,18 @@ public partial class InlineMarkdownEditor
     }
 
     /// <summary>
-    /// Steps the caret out of the text and into the block on the other side of it, when an arrow key
-    /// would otherwise skip straight over that block.
-    /// <para>
-    /// An embedded element is a single indivisible position to a flow document, so left-arrowing back
-    /// along a line hops the whole thing as if it were one character. Crossing into it deliberately —
-    /// and at the place the reader was coming from — is what makes the boundary invisible: right into
-    /// its start, left into its end, and down into whatever sits under the column the caret was already
-    /// in.
-    /// </para>
-    /// Returns true when the caret was handed over and the document's own handling should stand down.
+    /// Steps the caret into the block on the other side when an arrow key would otherwise skip straight
+    /// over it — an embedded element is a single indivisible position to a flow document, so arrowing past
+    /// it would hop the whole thing as if it were one character. Returns true when the caret was handed
+    /// over and the document's own handling should stand down.
     /// </summary>
     private bool ArrowCrossesIntoBlock(KeyEventArgs e)
     {
         if (_caretBlock is not null) return false;   // already inside something; its keys, not ours
         if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return false;
 
-        // Shift is extending a selection across the block and Ctrl is a word/document jump; neither is
-        // "step into this thing", and a selection sweeping over a block is handled whole (see SweepBlocks).
+        // Shift extends a selection and Ctrl is a word/document jump; neither is "step into this thing"
+        // (a selection sweeping over a block is handled whole — see SweepBlocks).
         if ((Keyboard.Modifiers & (ModifierKeys.Shift | ModifierKeys.Control)) != 0) return false;
 
         var forward = e.Key is Key.Right or Key.Down;
@@ -234,7 +192,7 @@ public partial class InlineMarkdownEditor
 
         if (EditableInBlock(block + (forward ? 1 : -1)) is not { } target) return false;
 
-        // Coming in forward means entering over the block's leading edge, and vice versa.
+        // Forward enters over the block's leading edge, backward over its trailing edge.
         var edge = forward ? BlockExit.Before : BlockExit.After;
         var step = vertical ? CaretStep.Line : CaretStep.Character;
         var column = vertical && target is UIElement element ? CaretColumnIn(element) : null;
@@ -245,11 +203,9 @@ public partial class InlineMarkdownEditor
         return true;
     }
 
-    /// <summary>
-    /// Whether the caret is against the edge the key is pushing at — the far end of the block for a
-    /// sideways move, its first or last line for a vertical one, since those are the only positions
-    /// from which the next step leaves the block at all.
-    /// </summary>
+    /// <summary>Whether the caret is against the edge the key is pushing at — the far end for a sideways
+    /// move, the first/last line for a vertical one — the only positions from which the next step leaves
+    /// the block.</summary>
     private bool AtBlockEdge(int block, int offset, bool forward, bool vertical)
     {
         if (block < 0 || block >= _blocks.Count) return false;
@@ -267,10 +223,8 @@ public partial class InlineMarkdownEditor
         return firstLine < 0 || offset <= firstLine;
     }
 
-    /// <summary>
-    /// Where the document's caret sits horizontally, in <paramref name="target"/>'s own coordinates —
-    /// the column a vertical step has to keep.
-    /// </summary>
+    /// <summary>Where the document's caret sits horizontally, in <paramref name="target"/>'s own coordinates
+    /// — the column a vertical step has to keep.</summary>
     private double? CaretColumnIn(UIElement target)
     {
         try
@@ -297,16 +251,9 @@ public partial class InlineMarkdownEditor
         return null;
     }
 
-    /// <summary>
-    /// The editable block <paramref name="element"/> is, or the one it holds.
-    /// <para>
-    /// Not always the container's own child. A block rendered from a fence is wrapped for layout before
-    /// it is embedded — fitted to the column in a <c>Viewbox</c>, given a scroller, given a border — and
-    /// looking only one level down found a formula (which is embedded bare) while missing everything
-    /// else. The walk is the logical tree rather than the visual one, so it answers before the document
-    /// has been laid out.
-    /// </para>
-    /// </summary>
+    /// <summary>The editable block <paramref name="element"/> is, or the one it holds — not always the
+    /// container's own child, since a fenced block is wrapped for layout (Viewbox, scroller, border) before
+    /// being embedded. Walks the logical tree, not the visual one, so it answers before layout runs.</summary>
     private static IEditableBlock? EditableWithin(DependencyObject element)
     {
         if (element is IEditableBlock editable) return editable;
@@ -317,16 +264,9 @@ public partial class InlineMarkdownEditor
         return null;
     }
 
-    /// <summary>
-    /// Routes a keystroke to the block holding the caret. Returns true when it dealt with the key and
-    /// the editor's own text handling should stand down.
-    /// <para>
-    /// Most of this is the same whatever is being typed into. What differs is what the content has to
-    /// offer: a formula has lines to move between, half-written commands to settle and holes to tab
-    /// through; content that is one run of characters on one line has none of those, so those keys fall
-    /// back to the document rather than being swallowed by a block with no use for them.
-    /// </para>
-    /// </summary>
+    /// <summary>Routes a keystroke to the block holding the caret. Returns true when it dealt with the key
+    /// and the editor's own text handling should stand down. Content with no use for a key (e.g. one-line
+    /// content and a formula's line/hole navigation) falls back to the document instead of swallowing it.</summary>
     private bool BlockHandlesKey(KeyEventArgs e)
     {
         if (_caretBlock is not { } block) return false;
@@ -335,36 +275,29 @@ public partial class InlineMarkdownEditor
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
 
-        // Paste keeps the caret where it is. The text itself arrives later, through DataObject.Pasting,
-        // and goes into the block — so giving the caret back here would hand it to the document a beat
-        // before the paste landed, and what was pasted would appear beside the block being edited rather
-        // than in it. Every other shortcut is still the editor's.
+        // Paste keeps the caret where it is: the text arrives later via DataObject.Pasting, and blurring
+        // here would hand the caret to the document a beat before the paste landed.
         if (ctrl && e.Key is Key.V) return false;
         if (shift && e.Key is Key.Insert) return false;
-        // Copy and cut act on what the block has selected, so they must not blur it first — the
-        // selection would be thrown away a moment before the command came looking for it.
+        // Copy/cut act on what the block has selected — blurring first would throw the selection away.
         if (ctrl && e.Key is Key.C or Key.X) return false;
         if (ctrl) { BlurBlock(); return false; }
 
-        // Whatever the block wants for itself, before any of the shared handling. A score claims Page Up
-        // and Page Down for an octave and the sharpen/flatten and lengthen/shorten keys; a formula claims
-        // none of them. Asked of the seam rather than of the type, so the host never learns what a note is.
+        // Whatever the block wants for itself, before any shared handling (e.g. a score claims Page Up/Down
+        // for an octave) — asked of the seam, not the type, so the host never learns what a note is.
         if (block.HandleKey(e.Key, Keyboard.Modifiers)) return true;
 
         switch (e.Key)
         {
             case Key.Left:
             case Key.Right:
-                // Running off an end raises Exited, which puts the caret in the text beside the block.
-                block.MoveCaret(forward: e.Key == Key.Right, extend: shift);
+                block.MoveCaret(forward: e.Key == Key.Right, extend: shift);   // running off an end raises Exited
                 return true;
 
             case Key.Up:
             case Key.Down:
-                // Inside a fraction or a script there is somewhere to go; otherwise let the editor move
-                // the caret to another line, which means leaving the block.
                 if (block.MoveCaretVertically(up: e.Key == Key.Up, extend: shift)) return true;
-                BlurBlock();
+                BlurBlock();   // nowhere to go inside it — leaving the block
                 return false;
 
             case Key.Back:
@@ -378,34 +311,26 @@ public partial class InlineMarkdownEditor
                 return false;
 
             case Key.Space:
-                // Settles a half-written command in a formula. Anywhere else a space is a character like
-                // any other and is typed here rather than left to arrive as text input: handing the key
-                // back sent it to the document, which put the space in the next paragraph it could find
-                // and took the caret there with it.
+                // Settles a half-written formula command; typed here rather than left to the document,
+                // which would insert the space into the next paragraph it could find.
                 if (block.Commit(" ")) return true;
                 block.Type(' ');
                 return true;
 
             case Key.Home:
             case Key.End:
-                // The ends of this content, not of the line it sits on. A line has other things on it.
+                // The ends of this content, not of the line it sits on.
                 block.TakeCaretArriving(new CaretArrival(
                     e.Key == Key.Home ? BlockExit.Before : BlockExit.After, CaretStep.Character, null));
                 return true;
 
             case Key.Enter:
-                // The key's own character, so content made of lines can start another one — a diagram's next slice,
-                // a tune's next line. What it settles and whether it writes anything is the content's own rule.
                 if (block.Commit("\n")) return true;
-                // Never a block split: the caret is inside one piece of content, not between two
-                // paragraphs — and content that is one line has no second line to start, so this does
-                // nothing at all rather than tearing the document in half behind it.
+                // Never a block split — the caret is inside one piece of content, not between paragraphs.
                 return true;
 
             case Key.Tab:
-                // Through the holes of whatever was just inserted, so a construct is filled by typing
-                // and tabbing. Only while there are holes left; otherwise Tab is the document's.
-                return block.SelectNextPlaceholder(forward: !shift);
+                return block.SelectNextPlaceholder(forward: !shift);   // through the construct's holes while any remain
 
             case Key.Escape:
                 BlurBlock();
@@ -424,8 +349,7 @@ public partial class InlineMarkdownEditor
 
         foreach (var character in text)
         {
-            // A newline settles a formula's half-written command, and means nothing to a one-line value.
-            if (character is '\r' or '\n')
+            if (character is '\r' or '\n')   // settles a formula's half-written command; nothing to a one-line value
             {
                 block.Commit(" ");
                 continue;
@@ -436,10 +360,8 @@ public partial class InlineMarkdownEditor
         return true;
     }
 
-    /// <summary>
-    /// Puts a block's edit back into the markdown it came from, without re-rendering: rebuilding the
-    /// document on every keystroke would destroy the very element being typed into.
-    /// </summary>
+    /// <summary>Puts a block's edit back into the markdown it came from, without re-rendering — a rebuild
+    /// per keystroke would destroy the very element being typed into.</summary>
     private void OnBlockSourceChanged(object? sender, EventArgs e)
     {
         if (sender is not IEditableBlock block) return;
@@ -448,28 +370,23 @@ public partial class InlineMarkdownEditor
         var index = BlockIndexOf(element);
         if (index < 0 || index >= _blocks.Count) return;
 
-        // Before the model changes, so Ctrl+Z has somewhere to go back to. Typing into a block never
-        // recorded one — the source-mode and Word-style paths both snapshot, and this third path was
-        // added beside them without it, so an edit made inside a formula or a barcode was the one kind
-        // of edit undo could not see. Coalesced by block, so a value typed in one go is one step.
+        // Before the model changes, so Ctrl+Z has somewhere to go back to — the one kind of edit that used
+        // to have no snapshot at all (unlike the source-mode and Word-style paths). Coalesced by block, so
+        // a value typed in one go is one undo step.
         SnapshotAt(index, _caretBefore, content: block.SourceStart);
 
         if (block.SourceStart < 0)
         {
-            // The whole markdown block is this content, which today only a $$…$$ formula can be — and
-            // the delimiters have to go back on. Bare when the editor owns the fence: it puts one back
-            // to typeset, and a fence stored here as well would be re-fenced on every keystroke until
-            // the block was nothing but $$.
+            // The whole markdown block is this content — today only a $$…$$ formula — so the delimiters go
+            // back on. Bare when the editor owns the fence, which adds its own to typeset.
             _blocks[index] = IsSingleBlock ? block.Source : $"$$\n{block.Source}\n$$";
         }
         else
         {
-            // Everything else occupies a run inside its block — a formula among prose, a barcode's value
-            // inside its fence — and the edit goes back exactly where that run was.
-            // A block that names where it sits names it inside what it was rendered from — which, when
-            // this editor owns the fence, is longer at the front than what is stored. Rebasing here is
-            // what keeps the two the same string: without it every edit to a fenced single block splices
-            // at the offset of its own opening fence and eats the first few characters of the content.
+            // Everything else occupies a run inside its block, and the edit goes back where that run was.
+            // A block names its position inside what it was rendered from, which (when the editor owns the
+            // fence) is longer at the front than what is stored — rebasing here keeps the two in step;
+            // without it every edit to a fenced single block eats the first few characters of the content.
             var source = _blocks[index];
             var start  = Math.Clamp(block.SourceStart - (IsSingleBlock ? Fence.Open.Length : 0), 0, source.Length);
             var length = Math.Clamp(_caretRun, 0, source.Length - start);
@@ -489,14 +406,13 @@ public partial class InlineMarkdownEditor
     {
         if (sender is not IEditableBlock block) return;
 
-        // When one block is the whole editor there is nowhere to step out to. Handing the caret to
-        // the document anyway let the RichTextBox take it somewhere of its own choosing — the start of
-        // the line, then off the right-hand edge, then down — for a key that should have done nothing.
+        // In single-block mode there's nowhere to step out to; handing the caret to the document let the
+        // RichTextBox take it somewhere of its own choosing for a key that should have done nothing.
         if (IsSingleBlock)
         {
-            // Handed straight back — but only once. A block with nowhere to stand raises Exited again from
-            // inside TakeCaretArriving, and answering that by handing it back once more is a loop only a stack
-            // overflow ends: an empty formula did exactly that the moment it was focused.
+            // Handed straight back, but only once — a block with nowhere to stand raises Exited again from
+            // TakeCaretArriving, and answering that with another hand-back loops until stack overflow (an
+            // empty formula did exactly this the moment it was focused).
             if (_handingBack) return;
             _handingBack = true;
             try { block.TakeCaretArriving(new CaretArrival(side, CaretStep.Character, null)); }
@@ -524,8 +440,7 @@ public partial class InlineMarkdownEditor
         for (DependencyObject? d = element; d is not null; d = LogicalTreeHelper.GetParent(d))
             if (d is TextElement { Tag: int index }) return index;
 
-        // An inline element sits in an InlineUIContainer whose logical parent chain reaches the
-        // paragraph; a block one sits in a BlockUIContainer. Either way the pointer route is a backstop.
+        // Backstop via the pointer route when the logical-parent walk doesn't find a tagged element.
         var container = ContainerOf(element);
         return container is null ? -1 : BlockIndexAtPointer(container.ContentStart);
     }
