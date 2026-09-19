@@ -942,6 +942,25 @@ internal sealed class MarkdownSamples : ISampleSet
             MANUFACTURER only one to zero or more CAR : makes
         ```
 
+        ## Subgraphs, and a relationship that names one
+
+        ```mermaid
+        erDiagram
+            subgraph sales ["Sales"]
+                CUSTOMER ||--o{ ORDER : places
+                ORDER {
+                    int id PK
+                    date placedAt
+                }
+            end
+            subgraph stock ["Stock"]
+                PRODUCT
+                WAREHOUSE
+            end
+            ORDER }|--|{ PRODUCT : holds
+            SUPPLIER ||--o{ stock : supplies
+        ```
+
         ## Word-alias cardinality and non-identifying relationships
 
         ```mermaid

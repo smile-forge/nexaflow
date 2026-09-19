@@ -151,15 +151,27 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         foreach (var relation in diagram.Relations)
         {
-            if (!plan.Named.TryGetValue(relation.From, out var from) || !plan.Named.TryGetValue(relation.To, out var to)) continue;
+            if (Joined(plan, relation.From, relation.FromBox) is not { } from) continue;
+            if (Joined(plan, relation.To, relation.ToBox) is not { } to) continue;
 
-            plan.Joins[relation] = new DiagramJoin(from.Cell, to.Cell);
+            // A subgraph joined to something inside itself has nowhere to run to, so the line is left undrawn.
+            if (ReferenceEquals(from, to) && relation.FromBox != relation.ToBox) continue;
+
+            plan.Joins[relation] = new DiagramJoin(from, to);
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], Towards(diagram.Way),
                                       diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
 
         return plan;
+    }
+
+    /// <summary>The cell one end of a relationship is drawn from: an entity's box, or a subgraph's own.</summary>
+    private static DiagramCell? Joined(Plan plan, string id, bool box)
+    {
+        if (box) return plan.Groups.TryGetValue(id, out var held) ? held.Cell : null;
+
+        return plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null;
     }
 
     private DiagramRoom Reached(ErDiagram diagram, Plan plan) =>

@@ -95,4 +95,7 @@ public static class ErRoles
 
     /// <summary>The subgraph a <c>subgraph</c> line opens.</summary>
     public const string Opened = "er-opened";
+
+    /// <summary>The subgraph an end of a relationship names, where it names one rather than an entity.</summary>
+    public const string Boxed = "er-boxed";
 }

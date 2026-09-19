@@ -274,7 +274,8 @@ how many of each class the other has in quotes at that end (`A "1" --> "*" B`) a
 its name beside it — a decoration on the class, neither a class of its own nor a line; `namespace N { … }`, nested as
 deep as it is written and **nesting by the dots in its name** (`namespace A.B.C` boxes `C` in `B` in `A`), with a label
 `namespace N["The name"]`; notes `note "…"` and `note for A "…"`, with `<br>` breaking a line; `direction`;
-`classDef`, `cssClass "A,B" name`, `:::` and `style`; `click`, `link` and `callback` with a URL, a tooltip and a target;
+`classDef`, `cssClass "A,B" blue,bold`, `:::` and `style`, several classes given at once; `click`, `link` and `callback` with
+a URL, a tooltip and a target;
 `accTitle`/`accDescr`; comments; and a title from the front matter. **A class is three compartments in one box** — its
 name, its fields, then its methods — with a rule the width of the box between them, and **a namespace holds its classes
 in the layout**, so pressing a class means that class and pressing the room round it means the namespace, which stands
@@ -554,7 +555,8 @@ is (`PK`, `FK`, `UK`, comma-separated) and what it says it is for in quotes, wit
 (`string[]`, `string(99)`, `string?`); the whole relationship set in **both** the symbol form (`||--o{`, `}o..o{`, either
 spelling at either end, even with no space round it) and the **word-alias** form (`one to zero or more`,
 `many(0) optionally to 0+`), `--`/`to` identifying against `..`/`-.`/`.-`/`optionally to` not, with `: what it is called`;
-`subgraph … end` boxes, nested as deep as they are written and labelled `subgraph id ["The title"]`; `direction`;
+`subgraph … end` boxes, nested as deep as they are written, labelled `subgraph id ["The title"]` and joined by a relationship
+naming one by its id, written above the subgraph or below it; `direction`;
 `classDef`, `class A,B blue,bold`, `:::` (several classes at once) and `style`; `accTitle`/`accDescr`; comments; and a title
 from the front matter. **An entity is its name over its attributes**, a rule the width of the box between them, and the
 attributes are **set in columns** so they read down as well as across, which is how Mermaid sets them. **A subgraph holds its
@@ -568,9 +570,8 @@ name ends at the punctuation a relationship is drawn with, so one holding anythi
 drops what a bare name cannot hold, since a `style` line names one bare; what a relationship is called is read to the end of
 its line, where Mermaid reads one word unless it is quoted; a name and a comment are drawn as the characters written, where
 Mermaid renders markdown in them; an attribute name written `*id` is drawn as written, where Mermaid reads the star as
-another way of saying `PK`; a relationship names an entity, so naming a subgraph writes an entity called that rather than
-joining the box; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a renderer, a
-drawing style and a layout engine.
+another way of saying `PK`; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a
+renderer, a drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
 its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs) and [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) →

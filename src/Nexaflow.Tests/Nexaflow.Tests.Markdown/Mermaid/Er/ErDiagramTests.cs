@@ -130,6 +130,28 @@ public class ErDiagramTests
     }
 
     [TestMethod, TestCategory("Unit")]
+    public void ARelationshipMayNameASubgraphRatherThanAnEntity()
+    {
+        var diagram = ErDiagram.Read("erDiagram\n  subgraph stock\n    PRODUCT\n  end\n  SUPPLIER ||--o{ stock : supplies");
+        var relation = diagram.Relations.Single();
+
+        CollectionAssert.AreEqual(new[] { "PRODUCT", "SUPPLIER" }, diagram.Entities.Select(entity => entity.Id).ToArray(),
+                                  "naming the subgraph writes no entity called that");
+
+        Assert.AreEqual(diagram.Groups.Single().Key, relation.To);
+        Assert.AreEqual((false, true), (relation.FromBox, relation.ToBox));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void ASubgraphIsNamedWhetherItIsWrittenAboveTheRelationshipOrBelowIt()
+    {
+        var under = ErDiagram.Read("erDiagram\n  SUPPLIER ||--o{ stock : supplies\n  subgraph stock\n    PRODUCT\n  end");
+
+        Assert.IsTrue(under.Relations.Single().ToBox, "every subgraph is read before the relationships are");
+        CollectionAssert.AreEqual(new[] { "SUPPLIER", "PRODUCT" }, under.Entities.Select(entity => entity.Id).ToArray());
+    }
+
+    [TestMethod, TestCategory("Unit")]
     public void AStyleLineAndAClassLineBothReachTheEntityTheyName()
     {
         var diagram = ErDiagram.Read(

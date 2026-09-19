@@ -50,6 +50,8 @@ public class ErBuilderTests : MermaidBuilderContract
         ("an entity named in quotes", "erDiagram\n  \"Two words\" ||--|| ORDER : places"),
         ("subgraphs", "erDiagram\n  subgraph Sales\n    A ||--o{ B : x\n  end\n  subgraph Stock\n    C\n  end\n  B ||--|| C : y"),
         ("subgraphs nested", "erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end"),
+        ("a relationship naming a subgraph",
+         "erDiagram\n  subgraph stock\n    PRODUCT\n    WAREHOUSE\n  end\n  SUPPLIER ||--o{ stock : supplies"),
         ("a ring of them", "erDiagram\n  A ||--|| B : x\n  B ||--|| C : y\n  C ||--|| A : z"),
         ("one joined to itself", "erDiagram\n  A ||--|| A : x\n  A ||--|| B : y"),
         ("classes and styles",
@@ -115,6 +117,23 @@ public class ErBuilderTests : MermaidBuilderContract
 
         foreach (var (name, bounds) in Boxes(source, laid))
             Assert.IsTrue(Holds(box, bounds), $"{name} is inside the subgraph: {bounds} in {box}");
+    });
+
+    [TestMethod]
+    public void ARelationshipNamingASubgraphRunsToTheBoxItself() => UiThread.Run(() =>
+    {
+        const string source = "erDiagram\n  subgraph stock\n    PRODUCT\n  end\n  SUPPLIER ||--o{ stock : supplies";
+        var laid = Lay(source);
+
+        var boxes = Boxes(source, laid);
+        CollectionAssert.AreEqual(new[] { "PRODUCT", "SUPPLIER" }, boxes.Keys.OrderBy(name => name).ToArray(),
+                                  "nothing is drawn for the subgraph as though it were an entity");
+
+        var group = Pieces(laid, ErPiece.Group).Single().Bounds;
+        var line = Pieces(laid, ErPiece.Relation).Single().Bounds;
+
+        Assert.IsTrue(line.Bottom >= group.Top - 1 && line.Top <= group.Top + 1,
+                      $"the line reaches the edge of the box: {line} against {group}");
     });
 
     [TestMethod]

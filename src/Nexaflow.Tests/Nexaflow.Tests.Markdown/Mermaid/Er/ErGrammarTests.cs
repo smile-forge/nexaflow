@@ -112,6 +112,8 @@ public class ErGrammarTests : MermaidGrammarContract
         ("a subgraph", "erDiagram\n  subgraph Sales\n    A ||--|| B : x\n  end"),
         ("a subgraph with a label", "erDiagram\n  subgraph s [\"The sales\"]\n    A ||--|| B : x\n  end"),
         ("a subgraph inside one", "erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end"),
+        ("a relationship naming a subgraph", "erDiagram\n  subgraph stock\n    PRODUCT\n  end\n  SUPPLIER ||--o{ stock : supplies"),
+        ("one naming a subgraph written under it", "erDiagram\n  SUPPLIER ||--o{ stock : supplies\n  subgraph stock\n    PRODUCT\n  end"),
         ("an entity styled on its own", "erDiagram\n  A ||--|| B : x\n  style A fill:#f9f"),
         ("the front matter's own sizes",
          "---\nconfig:\n  er:\n    minEntityWidth: 140\n    entityPadding: 6\n    layoutDirection: LR\n---\n"
