@@ -47,6 +47,7 @@ internal static class MermaidBuilders
         MermaidDiagram.State => State.StateBuilder.Build,
         MermaidDiagram.Class => Class.ClassBuilder.Build,
         MermaidDiagram.Requirement => Requirement.RequirementBuilder.Build,
+        MermaidDiagram.Er => Er.ErBuilder.Build,
         _ => null,
     };
 

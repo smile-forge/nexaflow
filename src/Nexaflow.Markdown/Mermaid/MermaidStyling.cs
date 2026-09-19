@@ -55,7 +55,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         if (!line.Names(Id, idRole, named)) return line.Shown(AppliedShape);
 
         line.Room();
-        if (!line.Done && !line.Name(classRole, bare)) return line.Shown(AppliedShape);
+        if (!line.Done && !line.Names(Class, classRole, "class")) return line.Shown(AppliedShape);
 
         return Closed(line, kind, AppliedShape);
     }
@@ -90,8 +90,11 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// <summary>The ids a <c>class</c> or <c>style</c> line names.</summary>
     public IReadOnlyList<string> Ids(ContentPart stated) => Said(stated, idRole);
 
-    /// <summary>The one class a <c>class</c> line gives what it names, or null where none is written yet.</summary>
+    /// <summary>The first class a <c>class</c> line gives what it names, or null where none is written yet.</summary>
     public string? Given(ContentPart stated) => Said(stated, classRole).FirstOrDefault();
+
+    /// <summary>Every class it gives them, in the order written, so the last one written wins where they disagree.</summary>
+    public IReadOnlyList<string> Givens(ContentPart stated) => Said(stated, classRole);
 
     /// <summary>
     /// What each thing the diagram draws is styled with: the <see cref="Every"/> class it starts from, then the classes it is

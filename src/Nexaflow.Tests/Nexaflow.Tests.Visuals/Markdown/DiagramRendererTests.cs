@@ -185,9 +185,16 @@ public class DiagramRendererTests
         """;
 
     [TestMethod]
-    public void Er_RoutesToGraphRenderer() => UiThread.Run(() =>
-        // ER reuses the graph renderer, and is no longer raw source text.
-        AssertGraphDiagram(DiagramRenderer.Render("mermaid", ErSrc, MarkdownPalette.Dark), "an erDiagram"));
+    public void Er_RendersOnTheSharedTreeNotSourceText() => UiThread.Run(() =>
+    {
+        var content = DiagramRenderer.Render("mermaid", ErSrc, MarkdownPalette.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+
+        Assert.IsNotNull(content, "an ER diagram is drawn on the shared layout tree");
+        content!.Measure(new Size(900, double.PositiveInfinity));
+
+        Assert.IsTrue(content.Laid.Tree.Count > 0, "and it drew something");
+        Assert.AreEqual(0, content.Diagnostics.Count, "with nothing wrong in it");
+    });
 
     [TestMethod]
     public void Er_WordCardinalityAndConfig_Render() => UiThread.Run(() =>

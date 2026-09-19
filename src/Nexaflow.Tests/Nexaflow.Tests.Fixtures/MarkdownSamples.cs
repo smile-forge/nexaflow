@@ -882,11 +882,13 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Entity Relationship diagram
 
-        An `erDiagram` models entities and their relationships. Cardinality uses crow's-foot notation —
-        either the symbol form (`||--o{`, `}o..o{`) or word aliases (`one to zero or more`); `--` is an
-        identifying (solid) relationship, `..` a non-identifying (dashed) one. Entities can carry an
-        attribute block (`type name [PK|FK|UK] ["comment"]`). Front-matter `config: er:` (`layoutDirection`,
-        `fill`, `stroke`, …) is honoured.
+        An `erDiagram` draws entities and what holds between them. An entity is its name over its attributes
+        (`type name [PK|FK|UK] ["comment"]`), set in columns so they read down as well as across. How many of
+        each entity the other has is drawn as crow's feet, written either as symbols (`||--o{`, `}o..o{`) or
+        in words (`one to zero or more`); `--` identifies what it reaches and is drawn solid, `..` does not
+        and is drawn dotted. A `subgraph … end` boxes what is written inside it. Front-matter `config: er:`
+        (`minEntityWidth`, `fontSize`, `layoutDirection`, `fill`, `stroke`, …) is honoured. It is drawn on the
+        shared layout tree, so every word is the characters written and the caret goes into them.
 
         ## Order example with attributes
 

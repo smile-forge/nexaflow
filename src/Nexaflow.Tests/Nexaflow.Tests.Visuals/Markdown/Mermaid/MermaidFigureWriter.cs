@@ -34,6 +34,7 @@ public class MermaidFigureWriter
         ("XY chart", "mermaid-xychart.png"),
         ("Quadrant chart", "mermaid-quadrant.png"),
         ("Ishikawa (fishbone) diagram", "mermaid-ishikawa.png"),
+        ("Entity-relationship diagram", "mermaid-er.png"),
         ("Requirement diagram", "mermaid-requirement.png"),
         ("Gantt chart", "mermaid-gantt.png"),
         ("Kanban board", "mermaid-kanban.png"),
