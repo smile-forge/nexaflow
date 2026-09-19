@@ -72,8 +72,8 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// <summary>Air inside a boundary, between its edge and its name.</summary>
     private const double Boxed = 14;
 
-    /// <summary>Clear air either side of what is written between two ranks.</summary>
-    private const double Clear = 16;
+    /// <summary>Clear air either side of what is written between two ranks, so the line it is written on still shows.</summary>
+    private const double Clear = 36;
 
 
 
@@ -180,15 +180,22 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
         var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
 
-        // The ranks are held far enough apart for what is written between them. What a relationship says is set in the gap
-        // it leaves its first end by, so a gap narrower than the widest of those words would put them over a card — and the
-        // words are measured already, so the room they need is known before anything is placed.
+        // The ranks are held far enough apart for everything written between them, which is known before anything is placed
+        // because the words are measured already. Several lines between the same two things write one under another, so it
+        // is what they come to together that the gap has to hold — and the air either side of that is what leaves the lines
+        // themselves visible rather than papered over by what is written on them.
         plan.Along = diagram.Config.Apart;
 
-        foreach (var said in plan.Said.Values.Where(said => said.Count > 0))
+        foreach (var pair in diagram.Links.GroupBy(Pairing))
         {
-            var taken = DiagramWords.Taken(said);
-            plan.Along = Math.Max(plan.Along, (way is DiagramWay.Right or DiagramWay.Left ? taken.Width : taken.Height) + Clear);
+            var stacked = pair
+                .Select(link => plan.Said[link])
+                .Where(said => said.Count > 0)
+                .Sum(said => way is DiagramWay.Right or DiagramWay.Left
+                    ? DiagramWords.Taken(said).Width
+                    : DiagramWords.Taken(said).Height);
+
+            if (stacked > 0) plan.Along = Math.Max(plan.Along, stacked + Clear);
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart, plan.Along);
@@ -427,7 +434,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// </summary>
     private static void Spread(IReadOnlyList<Route> routes, DiagramWay way)
     {
-        var sideways = way is DiagramWay.Down or DiagramWay.Up;
+        var down = way is DiagramWay.Down or DiagramWay.Up;
 
         for (var pass = 0; pass < 8; pass++)
         {
@@ -442,7 +449,12 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
                     var over = Rect.Intersect(first.Room, second.Room);
                     if (over.IsEmpty) continue;
 
-                    // Half a step each, so neither is favoured and a row of them settles evenly about where they started.
+                    // Two lines between the same two things write one under the other, in the room the gap was widened to hold
+                    // both. Two between different things go side by side instead — moving those along would push one of them
+                    // out of its own gap and onto a card.
+                    var sideways = down ^ (Pairing(first.Link) == Pairing(second.Link));
+
+                    // Half a step each, so neither is favoured and a run of them settles evenly about where they started.
                     var step = ((sideways ? over.Width : over.Height) / 2) + 1;
                     var back = sideways
                         ? first.Room.X + (first.Room.Width / 2) <= second.Room.X + (second.Room.Width / 2)
@@ -456,6 +468,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             if (!moved) return;
         }
     }
+
+    /// <summary>The two ends a relationship runs between, whichever way round it runs — two lines between the same pair.</summary>
+    private static (string, string) Pairing(C4Link link) =>
+        string.CompareOrdinal(link.From, link.To) <= 0 ? (link.From, link.To) : (link.To, link.From);
 
     private static Rect Shifted(Rect room, bool sideways, double by) =>
         sideways ? Rect.Offset(room, by, 0) : Rect.Offset(room, 0, by);
