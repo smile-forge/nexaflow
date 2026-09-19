@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hex Editor — Nexaflow help</title>
+<meta name="description" content="Shows the bytes in a file and lets you change them.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Hex Editor</h1>
+  <p class="lede">Shows the bytes in a file and lets you change them.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#moving-around">Moving around</a></li><li><a href="#reading-the-text">Reading the text</a></li><li><a href="#editing">Editing</a></li><li><a href="#saving">Saving</a></li><li><a href="#opening-files">Opening files</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="moving-around">Moving around</h2>
+<ul>
+<li>Go to an offset: type it into the Go to box in hex, with or without <code>0x</code>, and press Enter. Ctrl+G puts you in the box. <span class="locate" title="In the app this points at Hex_Goto, Hex_GotoGo">Show me</span></li>
+<li>Type something that isn't hex and it is read as decimal. An offset past the end of the file lands on the last byte.</li>
+<li>Move by byte or row with the arrow keys, by screen with Page Up and Page Down, and to either end of a row with Home and End. Hold Shift to select as you go.</li>
+<li>Click to place the cursor, drag to select, Shift+click to extend a selection. Click an address to jump to the first byte of that row.</li>
+<li>Zoom with Ctrl+mouse wheel, Ctrl+plus or Ctrl+minus, or by clicking the percentage in the status bar. Ctrl+0 resets it.</li>
+<li>The status bar shows the file size and the cursor offset in hex and decimal, or, with a selection, its size, start and end.</li>
+</ul>
+<h2 id="reading-the-text">Reading the text</h2>
+<ul>
+<li>Auto decoding reads the byte-order mark — UTF-8, or UTF-16 either way round — and otherwise uses ASCII. Pick ASCII, UTF-8 or UTF-16 in the toolbar to choose yourself.</li>
+<li>Bytes that have no printable character show as a dot.</li>
+<li>Show or hide the text evaluation pane with the ¶ button, or drag the splitter to resize it. <span class="locate" title="In the app this points at Hex_EvalPane">Show me</span></li>
+</ul>
+<h2 id="editing">Editing</h2>
+<ul>
+<li>Files open read-only. To edit, pick INS or OVR. <span class="locate" title="In the app this points at Hex_ModeReadOnly, Hex_EditMode, Hex_ModeOverwrite">Show me</span></li>
+<li>Type two hex digits to set a byte.</li>
+<li>OVR replaces bytes and keeps the file the same size. INS pushes the rest of the file along. Delete and Backspace remove bytes.</li>
+<li>Undo with Ctrl+Z, redo with Ctrl+Y. <span class="locate" title="In the app this points at Hex_Undo, Hex_Redo">Show me</span></li>
+<li>Undo every edit and the file counts as unchanged again.</li>
+</ul>
+<h2 id="saving">Saving</h2>
+<ul>
+<li>Nothing is written to the file until you save.</li>
+<li>Save with Ctrl+S. It is available only once there is something to save, and the arrow beside it offers Save As… to write a copy under a new name. <span class="locate" title="In the app this points at Hex_Save">Show me</span></li>
+<li>Saving over the original writes a complete new copy first and swaps it in only once it is whole. If that fails you are told, the part-written copy is removed, and the original is left as it was.</li>
+</ul>
+<h2 id="opening-files">Opening files</h2>
+<ul>
+<li>In the <a href="../file-system/">File System</a> page, As Hex is in every file's actions, and it is what opens a file no other viewer claims.</li>
+<li>In the <a href="../executable/">PE inspector</a>, View in hex opens the file here with those bytes selected and in view.</li>
+<li>A file inside a zip archive opens like any other, and Save rebuilds the zip around your change.</li>
+<li>A very large file opens without being read into memory whole.</li>
+<li>Opening the same file again re-points <span class="locate" title="In the app this points at TabItem_Hex">this tab</span> rather than adding another, and unsaved edits stay put.</li>
+<li>If a read fails you are told why — the file was moved, renamed or deleted, Windows refused access, another program has it open and won't share it, or it stopped returning data part-way — and offered Retry or Close tab.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>Ask it to read a range anywhere in the file, on screen or not, a few kilobytes at a time, or to read the bytes you have selected.</li>
+<li>Ask it to find a signature such as <code>DE AD BE EF</code>, or a piece of text.</li>
+<li>Ask it to move the cursor, select a range, or change the decoding.</li>
+<li>With your approval it can overwrite bytes in place, never changing the file's length, and save. Its edits join your undo history, and nothing is written until a save you make or approve.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

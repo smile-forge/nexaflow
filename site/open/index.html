@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open anything — Nexaflow</title>
+<meta name="description" content="One window that already knows what a file is.">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../">Nexaflow</a>
+  <nav><a href="../open/">Open anything</a><a href="../author/">Author &amp; draw</a><a href="../system/">Run your machine</a><a href="../track/">Keep track</a><a href="../together/">With your AI</a><a href="../themes/">Themes</a><a href="../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<header class="page-head">
+  <h1>Open anything</h1>
+  <p class="lede">One window that already knows what a file is.</p>
+</header>
+<article class="prose"><p>Double-click and it lands in the right tool — not a generic preview, but a viewer that understands the
+format. A DICOM study opens as a study, with its series and its window/level. An executable opens as
+headers, sections, imports and exports. An archive opens as a folder you can walk into, open files
+inside, edit, and write back.</p>
+<p>Type <code>?</code> in the input bar and you search whatever you are looking at — a log, a spreadsheet, a registry
+hive, your processes — each page answering in the way that suits it, and <code>?/pattern/</code> is a regular
+expression across all of them.</p>
+</article>
+<section class="group"><h2>22 pages on this</h2><div class="cards"><a class="card" href="../help/model3d/">
+  <h3>3D Model viewer</h3>
+  <p>Interactive 3D model viewer tab (HelixToolkit viewport): loads STL/OBJ/3DS/PLY, glTF/glb and a wide range of formats via Assimp (FBX/3MF/AMF/Collada/…), with mouse rotate/zoom/pan, a wireframe toggle, an…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/compressed/">
+  <h3>Archive inspector</h3>
+  <p>Inspect, browse, extract, edit and rebuild archives. A process-wide VirtualFileSystem makes any registered format browsable like a folder; the inspector tab adds metadata, an action bar…</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/audio/">
+  <h3>Audio player</h3>
+  <p>Audio player tab — NAudio playback with transport, a folder play-queue/playlist, spectrum + waveform visuals, scrolling .lrc lyrics, and an ID3 tag editor with album art. Opens single files, multi-selections…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/code/">
+  <h3>Code editor</h3>
+  <p>The &#39;As Code&#39; editor tab: a syntax-highlighted, foldable, editable code editor with a structure (code map / class diagram) side panel, opened on a file via the As Code file action.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/dicom/">
+  <h3>DICOM viewer</h3>
+  <p>Viewer-only DICOM (medical imaging) tab: lists a DICOMDIR/folder/single-file container as a Patient&gt;Study&gt;Series&gt;Instance tree and views images in-page with zoom/pan, window/level, cine and measurement…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/email/">
+  <h3>Email viewer</h3>
+  <p>Viewer for .eml (MimeKit) and .msg (MsgReader) files: envelope headers (raw list collapsed), body rendered/plain/HTML-source, and attachments opened through the archive VFS.</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/executable/">
+  <h3>Executable Inspector</h3>
+  <p>PE inspector for .exe/.dll/.sys: headers and sections, imports/exports, dependency graph, resources, decoded manifest, .NET metadata, embedded strings, and a signature/entropy/antivirus analysis. Opened by the…</p>
+  
+</a><a class="card" href="../help/file-system/">
+  <h3>File System</h3>
+  <p>Browses the drives and folders on this PC and acts on the files in them.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/font/">
+  <h3>Font viewer</h3>
+  <p>Font viewer / comparison tab: an editable preview string rendered simultaneously across a list of chosen fonts (16pt preview + a small alphabet/digits/symbols specimen) with a size slider, a details panel of…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/hex/">
+  <h3>Hex Editor</h3>
+  <p>Shows the bytes in a file and lets you change them.</p>
+  
+</a><a class="card" href="../help/images/">
+  <h3>Images</h3>
+  <p>Tabbed image viewer: opens one image, a selection, or a whole folder with four display modes, slideshow auto-advance, rotate/fit/full-screen tools, navigation and per-image delete.</p>
+  
+</a><a class="card" href="../help/json/">
+  <h3>JSON viewer</h3>
+  <p>Shows a JSON file as a tree you can read, edit and search.</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/logs/">
+  <h3>Log viewer</h3>
+  <p>Reads a log file, starting at the newest lines, and keeps up as the file grows. Nothing here writes to the file.</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/notebook/">
+  <h3>Notebook</h3>
+  <p>Jupyter .ipynb viewer tab: parses nbformat JSON into ordered cells rendered in place — markdown cells as rendered markdown, code cells syntax-highlighted per the detected kernel language with an In[n]…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/pdf/">
+  <h3>PDF reader</h3>
+  <p>Reading PDFs in Nexaflow: a reader tab that renders the document through the shared browser host with none of a browser&#39;s framing, a side panel of the document&#39;s own properties and table of contents, an AI…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/search/">
+  <h3>Search</h3>
+  <p>A Windows Search results tab driven from the file explorer: a parsed query (globs, quoted phrases, +/- prefixes, property/size/date filters) is run against the SystemIndex via OLE DB, scoped to a folder root…</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/svg/">
+  <h3>SVG viewer</h3>
+  <p>SVG vector image viewer (.svg/.svgz): crisp WPF vector rendering, pan/zoom, transparency checkerboard, AI tools</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a><a class="card" href="../help/tabular/">
+  <h3>Tabular</h3>
+  <p>Opens a delimited text file as a grid. Nothing you do here writes to the file.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/text/">
+  <h3>Text viewer</h3>
+  <p>Opens a text file of any size, and can search it, edit it and split it into smaller files.</p>
+  <p class="badges"><span class="badge ai">AI Ready</span><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/video/">
+  <h3>Video player</h3>
+  <p>Embedded libVLC-4 video player tab: decodes into a WPF bitmap (no native-window airspace), with a transport bar, click-to-pause, a codec/metadata panel, a keyframe scene-strip, fullscreen, and an AI…</p>
+  
+</a><a class="card" href="../help/virtual-disk/">
+  <h3>Virtual Disk</h3>
+  <p>Shows what is inside a disk image — its volumes and the files they hold — without writing to it.</p>
+  <p class="badges"><span class="badge">Answers <code>?</code></span></p>
+</a><a class="card" href="../help/html/">
+  <h3>Web browser</h3>
+  <p>WebView2 browser tab — embeds Edge to render http(s) URLs and local .html/.url files, with navigation chrome, a runtime-missing fallback, and AI page-context tools. Ships and works today (the prior &#39;faulted&#39;…</p>
+  <p class="badges"><span class="badge ai">AI Ready</span></p>
+</a></div></section>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

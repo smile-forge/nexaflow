@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Font viewer — Nexaflow help</title>
+<meta name="description" content="Sets your own text in several fonts at once, and shows what each font contains.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Font viewer</h1>
+  <p class="lede">Sets your own text in several fonts at once, and shows what each font contains.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#preview-text-and-size">Preview text and size</a></li><li><a href="#adding-and-removing-fonts">Adding and removing fonts</a></li><li><a href="#faces">Faces</a></li><li><a href="#font-details">Font details</a></li><li><a href="#glyph-map">Glyph map</a></li><li><a href="#elsewhere-in-the-app">Elsewhere in the app</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="preview-text-and-size">Preview text and size</h2>
+<ul>
+<li>Type the text every row is set in: replace the sentence in the preview box. Rows redraw as you type. <span class="locate" title="In the app this points at FontPreviewInput, FontSizeSlider">Show me</span></li>
+<li>Change the size for all rows with the size slider: 8 to 120 pt in whole points, starting at 16.</li>
+<li>Each row also sets a short line of letters, digits and symbols under your text.</li>
+</ul>
+<h2 id="adding-and-removing-fonts">Adding and removing fonts</h2>
+<ul>
+<li>Add an installed family: <strong>Add font</strong>, then pick from the list. Type to narrow it. <span class="locate" title="In the app this points at FontAddButton">Show me</span></li>
+<li>Add a font file: <strong>Add font</strong>, then <strong>Load from file…</strong>, and choose a <code>.ttf</code>, <code>.otf</code>, <code>.ttc</code> or <code>.woff</code>.</li>
+<li>Nothing is installed and nothing is uninstalled. The page never writes to the Windows font store; a font file is read where it sits, and the remove control on a row only drops that row from the comparison. <span class="locate" title="In the app this points at FontRemoveButton">Show me</span></li>
+<li>A <code>.ttc</code> holding several families adds one row per family.</li>
+<li>A <code>.woff</code> is decoded to an ordinary font first and labelled <em>WOFF → decoded</em>. The decoded copy is deleted when the tab closes.</li>
+<li>A font inside an archive or a disk image is copied to a real file first, then opened.</li>
+<li>A file that will not load stays in the list with the reason in place of its preview.</li>
+</ul>
+<h2 id="faces">Faces</h2>
+<ul>
+<li>Pick a face for a row — Regular, Bold, Italic, Condensed, or whatever else the family ships — by clicking its chip. The row, the details and the glyph map all switch to it.</li>
+<li>Each row keeps its own face, so you can compare one family's bold with another's italic.</li>
+<li>Only faces that are in the file are offered; there is no fake bold or fake slant.</li>
+</ul>
+<h2 id="font-details">Font details</h2>
+<p>The details panel shows the selected face. <span class="locate" title="In the app this points at FontDetailsPanel">Show me</span></p>
+<ul>
+<li>Identity: family, face, source, format, how many faces the file holds, and the designer's sample text if the font carries one.</li>
+<li>Style and metrics: weight with its OpenType number, style, stretch, whether it is a symbol font, glyph and mapped-character counts, and cap height, x-height, baseline, underline and strikethrough in ems.</li>
+<li>Legal and licensing: copyright, trademark, licence text, embedding rights, and manufacturer, designer and vendor links.</li>
+<li>Technical: version, file location and description.</li>
+<li>Copy either identifier with <strong>Copy name</strong> or <strong>Copy path</strong>. Copy path appears only for fonts that came from a file.</li>
+</ul>
+<h2 id="glyph-map">Glyph map</h2>
+<ul>
+<li>See every character the face maps: expand the glyph map under the details. <span class="locate" title="In the app this points at FontGlyphMap">Show me</span></li>
+<li>Page through with Prev and Next; 500 characters a page, with the range and total shown.</li>
+<li>Copy a character: right-click its glyph. Control codes and surrogate halves are not listed.</li>
+</ul>
+<h2 id="elsewhere-in-the-app">Elsewhere in the app</h2>
+<ul>
+<li>Open a font from your files: double-click a <code>.ttf</code>, <code>.otf</code>, <code>.ttc</code> or <code>.woff</code> in the <a href="../file-system/">File System</a> page, or choose <strong>As Font</strong> from the file's actions. Select several and they open in one tab.</li>
+<li>Find a font in your list by name: type <code>?</code> and a word in the ask box. Matches are highlighted and the selection steps through them from a counter beside the size slider. No rows are hidden.</li>
+<li>The assistant knows every font in the list, which is selected, and your preview text and size. It can read any listed font's details and render any of them to an image, and it highlights the fonts it refers to.</li>
+<li>Pin the tab to a conversation and the chip shows each font's identity rows above a sample.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

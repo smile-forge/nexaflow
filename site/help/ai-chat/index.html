@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Chat — Nexaflow help</title>
+<meta name="description" content="Lists your saved conversations with the assistant, and starts new ones.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../together/">With your AI</a></nav>
+<header class="page-head">
+  <h1>AI Chat</h1>
+  <p class="lede">Lists your saved conversations with the assistant, and starts new ones.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-conversation">Opening a conversation</a></li><li><a href="#analysis">Analysis</a></li><li><a href="#searching">Searching</a></li><li><a href="#keeping-and-removing">Keeping and removing</a></li><li><a href="#where-conversations-start">Where conversations start</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-conversation">Opening a conversation</h2>
+<ul>
+<li>Open a conversation to bring back its messages and the pages that were pinned to it. <span class="locate" title="In the app this points at AiChat_OpenConversation">Show me</span></li>
+<li>Start an empty one with New conversation. It is saved once you send a first message. <span class="locate" title="In the app this points at AiChat_NewConversation">Show me</span></li>
+<li>Each one opens as a <a href="../conversation/">Conversation</a> tab.</li>
+<li>The list is ordered by when a conversation was last used.</li>
+<li>A conversation's name is generated from your first message, so search rather than the name is how you find one again.</li>
+<li>Conversations belong to the workspace you are in. Switch workspace and you get that workspace's conversations.</li>
+</ul>
+<h2 id="analysis">Analysis</h2>
+<ul>
+<li>Close a conversation after chatting and it is analysed in the background. The same happens to an older one you open and close that has no analysis yet. The row's summary fills in when it arrives.</li>
+<li>Read the analysis for a conversation: summary, topic and tone, what it understood about you and about the assistant, key decisions, important facts, and the attachments that mattered. <span class="locate" title="In the app this points at AiChat_ShowAnalysis">Show me</span></li>
+<li>Reopen the conversation later and the analysis stands in for the messages it covers.</li>
+<li>Turn the write-ups off with <em>Automatic Conversation Analysis</em> in Options.</li>
+</ul>
+<h2 id="searching">Searching</h2>
+<ul>
+<li>Search every message in every conversation, yours and the assistant's: type <code>?</code> and a few words in the AI bar. <span class="locate" title="In the app this points at AiInputBox">Show me</span></li>
+<li>Wrap a term in slashes — <code>?/retr(y|ies)/</code> — to search with a regular expression.</li>
+<li>Search ignores the date filter, so it covers every saved conversation.</li>
+<li>The chip beside the filter counts the matches. Clear it and the date range applies again.</li>
+<li>Ask the assistant to find something and it runs the same search, then narrows the list to what it picks out.</li>
+</ul>
+<h2 id="keeping-and-removing">Keeping and removing</h2>
+<ul>
+<li>Filter by today, the last 7 days, this month or this year. The filter goes by when a conversation was last used.</li>
+<li>Delete a conversation. You are asked to confirm, and it is then removed from disk. <span class="locate" title="In the app this points at AiChat_DeleteConversation">Show me</span></li>
+<li>Set how long conversations are kept with <em>Keep Conversations For</em> in Options: a week, a month, a year, five years or forever. The default is a year. Older ones are cleared when this page opens, again by last use.</li>
+<li>Export every conversation in a workspace as markdown, one file each, from that workspace's Configure Workspace page.</li>
+</ul>
+<h2 id="where-conversations-start">Where conversations start</h2>
+<ul>
+<li>New conversation on this page.</li>
+<li><em>Continue as Conversation</em> on a reply, which saves that exchange, pins the page you asked from, and attaches any files the assistant touched.</li>
+<li><em>Task to AI</em> and <em>Plan with AI</em> in Projects, which pin the project folder and send the task.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

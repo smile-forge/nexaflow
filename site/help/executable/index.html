@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executable Inspector — Nexaflow help</title>
+<meta name="description" content="Shows what is inside a Windows .exe, .dll or .sys file and how it was signed.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Executable Inspector</h1>
+  <p class="lede">Shows what is inside a Windows <code>.exe</code>, <code>.dll</code> or <code>.sys</code> file and how it was signed.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-files">Opening files</a></li><li><a href="#overview">Overview</a></li><li><a href="#imports-and-dependencies">Imports and dependencies</a></li><li><a href="#strings">Strings</a></li><li><a href="#signing-and-analysis">Signing and analysis</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-files">Opening files</h2>
+<ul>
+<li>Select an <code>.exe</code>, <code>.dll</code> or <code>.sys</code> in <a href="../file-system/">File System</a> and choose <strong>Inspect</strong> from the action strip. Double-clicking a program still runs it.</li>
+<li>A damaged or malformed file still opens. Whatever could not be read is listed under <strong>Parse diagnostics</strong>, with offsets where they are known.</li>
+<li>The dependency walk, the string sweep and the signature check start when you open their tab, and run in the background.</li>
+</ul>
+<h2 id="overview">Overview</h2>
+<ul>
+<li><strong>Version info</strong>: company, description, product and copyright, with debug and pre-release builds flagged. <strong>Fingerprints</strong>: SHA-256, MD5 and the import hash (ImpHash).</li>
+<li><strong>Headers</strong>: the DOS, COFF and optional header fields, and every data directory the file carries. A reproducible build's timestamp is reported as a content hash, not as a build time.</li>
+<li>Permissions, addresses, sizes, entropy and a hash for each section, in <span class="locate" title="In the app this points at Executable_Tab_Overview, Executable_SectionTree">the section tree</span>.</li>
+<li>Right-click a row to copy it, or to open the bytes it points at in the <a href="../hex/">hex viewer</a>. A hex tab already showing the file moves to the new offset instead of a second one opening.</li>
+<li><strong>Resources</strong> lists every entry by type, name, language and size. Right-click to extract one — an icon group comes out as a rebuilt <code>.ico</code>. <strong>Extract all…</strong> saves the raw entries to a folder you choose.</li>
+<li><strong>Manifest</strong> decodes the UAC level it asks for (<code>requireAdministrator</code> is flagged), <code>uiAccess</code>, the Windows versions it declares and whether compatibility shims apply, DPI awareness, long-path support, dependent assemblies and registration-free COM. Anything not decoded is still listed, and <strong>Show raw XML</strong> gives you the original.</li>
+<li>A managed binary gets a <strong>.NET</strong> tab: runtime and metadata versions, whether it is pure IL, strong-name signing, assembly identity, target framework, referenced assemblies and Windows Runtime metadata.</li>
+</ul>
+<h2 id="imports-and-dependencies">Imports and dependencies</h2>
+<ul>
+<li><span class="locate" title="In the app this points at Executable_Tab_ImportsExports, Executable_ImportTree">The import tree</span> separates ordinary, delay-loaded and bound imports, with each function's hint and import-address slot, and API sets marked. Exports show addresses, ordinals and forwarders, and a self-registering COM server or embedded type library is named.</li>
+<li><strong>Dependencies</strong> starts from the direct imports. The <strong>+</strong> chip on a module expands it in place.</li>
+<li>Modules are resolved the way Windows resolves them: KnownDLLs from System32 first, then the importing module's own folder, System32, Windows and <code>PATH</code>.</li>
+<li>A module that cannot be found is drawn as a hexagon, an API set as a rounded stadium, and a delay-loaded link is dashed. A module already on the map is marked ↩ rather than drawn again, and imports beyond what the diagram can show fold behind one chip.</li>
+<li>Select a module on the diagram or in the tree and the side pane lists which functions its importer uses from it. Open a module in its own inspector tab from its body on the diagram, or by double-clicking it in the tree — a double-click expands a module that is not yet expanded.</li>
+<li>The mouse wheel zooms the diagram. <span class="locate" title="In the app this points at Executable_Tab_Dependencies, Executable_DependencyTreeToggle, Executable_CollapseDependencies">Switch to the tree, or collapse everything back</span>.</li>
+<li><strong>Locate</strong>, in the side pane or on a module's right-click menu in either tree, opens the folder the module would load from.</li>
+</ul>
+<h2 id="strings">Strings</h2>
+<ul>
+<li><strong>Strings</strong> lists every readable ASCII and UTF-16 run with its offset, encoding and section. Right-click one to open it in the hex viewer.</li>
+<li>Change <span class="locate" title="In the app this points at Executable_Tab_Strings, Executable_StringLength, Executable_RescanStrings">the minimum length and rescan</span>. It starts at six characters.</li>
+<li>Type <code>?</code> and a word in the AI bar to cut the list down to matching strings.</li>
+<li>A long run is shortened in its row; copy it and you get every character. A file with more runs than the list can carry is capped, and the count says so.</li>
+</ul>
+<h2 id="signing-and-analysis">Signing and analysis</h2>
+<ul>
+<li><strong>Signature</strong>: valid, unsigned, untrusted, expired, revoked or malformed, with signer, issuer, thumbprint, validity dates, timestamp and every certificate in the chain. A file signed through a security catalogue is recognised and the catalogue named.</li>
+<li><span class="locate" title="In the app this points at Executable_Tab_Analysis, Executable_EntropyHeatmap">The entropy strip</span> plots the file from start to end with a line at the packing threshold. Hover for the exact value, click to open those bytes in hex. An executable section at 7 bits per byte or more is flagged.</li>
+<li><strong>Hardening</strong>: ASLR, DEP, Control Flow Guard, SEH and high-entropy ASLR, with anything missing flagged, plus any section that is both writable and executable.</li>
+<li><strong>Debug and TLS</strong>: the PDB path, flagged when it gives away the build machine's folders, embedded symbols, and TLS callbacks, which run before the entry point.</li>
+<li>The antivirus products registered with Windows Security Center are named with their status, and <span class="locate" title="In the app this points at Executable_Tab_Analysis, Executable_ScanButton">Scan this file</span> asks the installed engine through AMSI. A file too large for one AMSI call is scanned as far as that reaches and says so; when nothing could scan it at all it says so, and never calls that clean. The same scan is offered for any file on the File System page, and takes a whole selection at once.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It is given a summary of the binary — format, version, hashes, sections and their entropy, imports and exports, manifest, .NET identity, signature and TLS callbacks — and every name and string from inside the file is treated as data, never as an instruction.</li>
+<li><code>?</code> and a word in the AI bar searches the tab you are looking at: matches are highlighted, collapsed branches open to reveal them, and the search chip steps through them.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Disk — Nexaflow help</title>
+<meta name="description" content="Shows what is inside a disk image — its volumes and the files they hold — without writing to it.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Virtual Disk</h1>
+  <p class="lede">Shows what is inside a disk image — its volumes and the files they hold — without writing to it.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#what-opens-here">What opens here</a></li><li><a href="#the-image-and-its-volumes">The image and its volumes</a></li><li><a href="#browsing-the-contents">Browsing the contents</a></li><li><a href="#extract">Extract</a></li><li><a href="#mount">Mount</a></li><li><a href="#searching-inside-the-image">Searching inside the image</a></li><li><a href="#asking-the-assistant">Asking the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="what-opens-here">What opens here</h2>
+<ul>
+<li>Image formats: <code>.vhd</code>, <code>.vhdx</code>, <code>.vdi</code>, <code>.vmdk</code>, <code>.dmg</code>, <code>.img</code> and <code>.iso</code>.</li>
+<li>Filesystems read inside them: NTFS, FAT, exFAT, ext, HFS+, btrfs, XFS, SquashFS, and ISO 9660 or UDF in an <code>.iso</code>.</li>
+<li>The image file is opened read-only. Nothing on this page changes it.</li>
+<li>Open an image from the file browser with <strong>As Disk</strong>. Each image gets its own tab, titled with the file name. <span class="locate" title="In the app this points at TabItem_VirtualDisk, VirtualDiskView">Show me</span></li>
+<li>An image that cannot be opened says so instead of showing blanks: &quot;No readable filesystem found in this image.&quot;, or &quot;Couldn't read image:&quot; with the reason.</li>
+<li>Nothing here asks for a password, so an encrypted volume reads as unreadable rather than prompting.</li>
+</ul>
+<h2 id="the-image-and-its-volumes">The image and its volumes</h2>
+<ul>
+<li>The left pane names the format, then CAPACITY, PARTITIONS (GPT, MBR or None) and VOLUMES.</li>
+<li>Each volume gets a row with its filesystem, label, and used of total size.</li>
+</ul>
+<h2 id="browsing-the-contents">Browsing the contents</h2>
+<ul>
+<li>Double-click a folder, or click its chevron, to expand it. A folder's children are read the first time it is opened.</li>
+<li>An image with more than one volume lists <code>Volume 1</code>, <code>Volume 2</code> and so on at the top level; everything under that is inside the volume you opened.</li>
+<li>Double-clicking a file does nothing. This tab inspects the image and never launches anything out of it.</li>
+<li>To open a file that is inside the image, double-click the image in the file browser instead — it walks into the image like a folder, and files open in their usual viewers.</li>
+<li>The status line under the list says what the tab is doing — reading a directory, extracting — and carries the reason when one of those fails.</li>
+</ul>
+<h2 id="extract">Extract</h2>
+<ul>
+<li><strong>Extract</strong> writes the whole image out to a folder you pick. The status line then says where it went.</li>
+<li>Cancelling the folder picker extracts nothing.</li>
+<li>Extract is disabled until the image has been recognised.</li>
+</ul>
+<h2 id="mount">Mount</h2>
+<ul>
+<li><strong>Mount</strong> attaches the image as a real Windows drive letter. It is offered only for <code>.iso</code>, <code>.vhd</code> and <code>.vhdx</code>; the other formats can be browsed and inspected here but not mounted.</li>
+<li>Mounting a <code>.vhd</code> or <code>.vhdx</code> needs administrator approval, and nothing happens if you decline it. An <code>.iso</code> mounts without it.</li>
+<li>When the mount succeeds you are told which drive letter the image was given.</li>
+<li><strong>Unmount</strong> is offered on the drive in the file browser, and only on drives an image was mounted to from here.</li>
+</ul>
+<h2 id="searching-inside-the-image">Searching inside the image</h2>
+<ul>
+<li>A <code>?</code> search over this page searches the files and folders inside the image, by name or by path within it. A filename glob such as <code>?*.dll</code> is matched against the name.</li>
+<li>The search walks the image itself, not just the folders you have opened, so a result does not depend on where you had browsed to.</li>
+<li>A long walk stops at a limit and marks its count with <code>+</code>, meaning there may be more. <span class="locate" title="In the app this points at VirtualDisk_SearchMatchCount, VirtualDisk_SearchStatus">Show me</span></li>
+<li>Results replace the list with the matches and the folders they sit in, expanded. Clearing the search re-reads the image root. <span class="locate" title="In the app this points at VirtualDisk_SearchClear">Show me</span></li>
+</ul>
+<h2 id="asking-the-assistant">Asking the assistant</h2>
+<ul>
+<li>The assistant can list the volumes, list the entries in one in-disk folder, and read the text of one file inside the image. All three read through the image without extracting it.</li>
+<li>It cannot extract or mount — those are yours to run.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

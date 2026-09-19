@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects — Nexaflow help</title>
+<meta name="description" content="Lists the project folders you keep, and opens one.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../track/">Keep track</a></nav>
+<header class="page-head">
+  <h1>Projects</h1>
+  <p class="lede">Lists the project folders you keep, and opens one.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#what-a-project-is">What a project is</a></li><li><a href="#the-list">The list</a></li><li><a href="#opening-a-project">Opening a project</a></li><li><a href="#moving-a-project">Moving a project</a></li><li><a href="#finding-a-project">Finding a project</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="what-a-project-is">What a project is</h2>
+<ul>
+<li>A project is a folder. Every folder directly under the Project folder is listed here, whether or not it has been given any project detail.</li>
+<li>Its name, description, completion criteria and backlog are stored in a <code>.project</code> file inside the folder. A folder without one is listed under its folder name.</li>
+<li>Projects, Shelf and Archives read three separate folders. <span class="locate" title="In the app this points at Projects_BucketProjects, Projects_BucketShelf, Projects_BucketArchive">Show me</span></li>
+<li>Those three folders, the backlog statuses, and whether Projects is on at all are set per workspace, under Projects in Options.</li>
+</ul>
+<h2 id="the-list">The list</h2>
+<ul>
+<li>A row shows the project's name, the first two lines of its description, and how many backlog items it has. <span class="locate" title="In the app this points at Projects_List">Show me</span></li>
+<li>Selecting a row shows, on the right, a pie chart of its backlog by status, its description, and when the project was last changed.</li>
+<li>Nothing here watches the disk. Read the folders again with the refresh button. <span class="locate" title="In the app this points at Projects_Refresh">Show me</span></li>
+<li>There is no button that makes a project. Create the folder yourself, then open it here and fill in the detail.</li>
+</ul>
+<h2 id="opening-a-project">Opening a project</h2>
+<ul>
+<li>Open Project opens the project's own page. Open Files opens its folder in the File System page. <span class="locate" title="In the app this points at Projects_OpenProject, Projects_OpenFiles">Show me</span></li>
+<li>Everything you can change about a project is on its <a href="../project-detail/">project page</a>.</li>
+<li>In the File System page, a folder holding a <code>.project</code> shows a backlog breakdown and an Open project shortcut.</li>
+</ul>
+<h2 id="moving-a-project">Moving a project</h2>
+<ul>
+<li>Archive and Shelf move the selected project's folder into the Archive folder or the Shelf folder. <span class="locate" title="In the app this points at Projects_Archive, Projects_Shelf">Show me</span></li>
+<li>Reactivate, offered in Shelf and Archives, moves the folder back to the Project folder.</li>
+<li>The folder itself is moved on disk. The detail pane is replaced while that runs, and the list is read again afterwards.</li>
+</ul>
+<h2 id="finding-a-project">Finding a project</h2>
+<ul>
+<li>Type <code>?</code> and a word in the AI bar to narrow the list to projects whose name, folder name or description match.</li>
+<li>The search covers the bucket you are on, and switching bucket drops it.</li>
+<li>Filename filters have nothing to match here — a project is a folder with a name, not a file.</li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It can list every project in the bucket you are on, with folder name, backlog count and last-modified time.</li>
+<li>It can read one project in full — description, completion criteria and every backlog item — named by folder name or display name, or the one you have selected.</li>
+<li>It reads; it does not change projects.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

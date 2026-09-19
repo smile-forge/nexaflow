@@ -8,10 +8,11 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Core.Unit;
 
 /// <summary>
-/// Keeps the language packs' sources honest where the build cannot. Every help page names a page kind its own project
-/// registers — a typo, or a page kind that moved feature, would otherwise leave a help page nothing ever opens. Core
-/// alone owns the index. Every picture a help page shows is in the pack. Every UI string the code asks for exists in
-/// English, under the area of the project asking. And no translation carries a key or a page English lacks.
+/// Keeps the language packs' sources honest where the build cannot. Every help page can be reached — it names a page
+/// kind its own project registers, or a page that can be reached links to it — because a typo, or a page kind that
+/// moved feature, would otherwise leave a help page nothing ever opens. Core alone owns the index. Every picture a
+/// help page shows is in the pack. Every UI string the code asks for exists in English, under the area of the project
+/// asking. And no translation carries a key or a page English lacks.
 /// </summary>
 [TestClass]
 [NoCoverage("repo guard over the language-pack sources, not a product behaviour")]
@@ -19,19 +20,68 @@ public partial class LocalizationContentGuardTests
 {
     private const string CoreProject = "Nexaflow.Core";
 
+    /// <summary>
+    /// Every help page can be opened: it either names a page kind its own project registers, or a page that can be
+    /// opened links to it. A page in neither set is one nothing ever reaches — a typo, or a page kind that moved feature.
+    /// </summary>
     [TestMethod]
-    public void EveryHelpPage_NamesAPageKindItsOwnProjectRegisters()
+    public void EveryHelpPage_NamesAPageKind_OrIsLinkedToFromOneThatDoes()
     {
         var registered = RegisteredPageKinds();
-        var problems = HelpPages()
-            .Where(p => p.Topic != "index")
-            .Where(p => !registered.TryGetValue(p.Project, out var kinds) || !kinds.Contains(p.Topic))
-            .Select(p => $"{p.Path}: '{p.Topic}' is not a page kind {p.Project} registers " +
-                         $"(it registers: {string.Join(", ", registered.GetValueOrDefault(p.Project) ?? [])})")
-            .ToList();
+        var problems = ReachableTopics() is var reachable
+            ? HelpPages()
+                .Where(p => !reachable.Contains((p.Project, p.Language, p.Topic)))
+                .Select(p => $"{p.Path}: '{p.Topic}' is not a page kind {p.Project} registers " +
+                             $"(it registers: {string.Join(", ", registered.GetValueOrDefault(p.Project) ?? [])}), " +
+                             "and no help page links to it")
+                .ToList()
+            : [];
 
         Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
     }
+
+    // Every help page there is a way into: the ones a project registers as a page kind, and Core's index, plus
+    // everything those link on to, followed as far as it goes. That is how a topic too big for one page — Markdown's
+    // diagrams, codes and chemistry — reaches its sub-pages without each of them having to be a page kind of its own.
+    private static HashSet<(string Project, string Language, string Topic)> ReachableTopics()
+    {
+        var registered = RegisteredPageKinds();
+        var pages = HelpPages().ToDictionary(p => (p.Project, p.Language, p.Topic));
+
+        var reached = new HashSet<(string Project, string Language, string Topic)>(
+            pages.Keys.Where(k => k.Topic == "index" || (registered.GetValueOrDefault(k.Project)?.Contains(k.Topic) ?? false)));
+
+        var queue = new Queue<(string Project, string Language, string Topic)>(reached);
+        while (queue.Count > 0)
+        {
+            var from = queue.Dequeue();
+            foreach (var topic in LinksOn(pages[from].Path))
+            {
+                var next = (from.Project, from.Language, topic);
+                if (pages.ContainsKey(next) && reached.Add(next)) queue.Enqueue(next);
+            }
+        }
+
+        return reached;
+    }
+
+    // The topics a help page links to, read as HelpLibrary.TopicFromLink reads them: help:Topic, or a plain Topic.md
+    // beside it. Fenced samples are skipped, so a page showing the syntax is not a link.
+    private static IEnumerable<string> LinksOn(string path)
+    {
+        foreach (Match match in HelpLinks().Matches(OutsideCode(File.ReadAllText(path))))
+        {
+            var target = match.Groups[1].Value;
+            if (target.StartsWith("help:", StringComparison.OrdinalIgnoreCase)) target = target[5..];
+
+            target = target.Split('#')[0].Trim().Replace('\\', '/').Split('/')[^1];
+            if (target.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) target = target[..^3];
+            if (target.Length > 0) yield return target;
+        }
+    }
+
+    [GeneratedRegex(@"\]\(\s*<?(help:[^)\s>]+|[^)\s>:]+\.md)", RegexOptions.IgnoreCase)]
+    private static partial Regex HelpLinks();
 
     [TestMethod]
     public void OnlyCoreShipsAnIndex_AndNoLanguageHasATopicTwice()

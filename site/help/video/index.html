@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video player — Nexaflow help</title>
+<meta name="description" content="Plays a video file in a tab.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../open/">Open anything</a></nav>
+<header class="page-head">
+  <h1>Video player</h1>
+  <p class="lede">Plays a video file in a tab.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#opening-a-video">Opening a video</a></li><li><a href="#playback-controls">Playback controls</a></li><li><a href="#subtitles-and-scenes">Subtitles and scenes</a></li><li><a href="#file-details">File details</a></li><li><a href="#fullscreen">Fullscreen</a></li><li><a href="#the-assistant">The assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="opening-a-video">Opening a video</h2>
+<ul>
+<li>Choose <strong>Play Video</strong> on a video file in the File System page. Common video extensions also open here on a double-click.</li>
+<li>The tab opens with a <em>Loading…</em> placeholder while the file is read in the background.</li>
+<li>A file inside an archive or a disk image is extracted once to a temporary copy, and that copy is reused for everything else.</li>
+<li>Nothing plays until you press the large play button on the still that covers the picture. <span class="locate" title="In the app this points at Video_BigPlay">Show me</span></li>
+<li>If the file will not open, the reason is shown on the picture. An engine failure it cannot recover from closes the tab with a notification.</li>
+<li>Options → Video has one setting: hardware-accelerated decoding, off by default. Turn it on for smoother playback of very large video; it applies to videos you open from then on.</li>
+</ul>
+<h2 id="playback-controls">Playback controls</h2>
+<ul>
+<li>Play and pause. Clicking anywhere on the picture does the same. <span class="locate" title="In the app this points at Video_PlayPause">Show me</span></li>
+<li>Skip back or forward five seconds at a time. <span class="locate" title="In the app this points at Video_StepBack, Video_StepForward">Show me</span></li>
+<li>Scrub with the timeline. Elapsed time is on its left, total on its right. <span class="locate" title="In the app this points at Video_SeekBar">Show me</span></li>
+<li>Mute <span class="locate" title="In the app this points at Video_Mute">Show me</span>, or set the level on a 0–100 volume slider <span class="locate" title="In the app this points at Video_Volume">Show me</span>. The two are separate.</li>
+<li>Choose 1×, 1.25×, 1.5× or 2× speed. The button shows the rate you are on. <span class="locate" title="In the app this points at Video_Speed">Show me</span></li>
+<li>Switching to another tab pauses the video. Press play again when you come back.</li>
+</ul>
+<h2 id="subtitles-and-scenes">Subtitles and scenes</h2>
+<ul>
+<li>If the file carries text tracks, a <strong>CC</strong> button appears on the bar. It lists every subtitle track the file declares — named from the track's own name, description or language — plus <strong>Off</strong>. A file with no text tracks does not show the button. <span class="locate" title="In the app this points at Video_Subtitles">Show me</span></li>
+<li>The scene strip is 32 thumbnails sampled evenly across the clip, each stamped with the time it came from. Click one to jump there. Click one before you have started the video and it starts and lands on that point once the first frame is up. <span class="locate" title="In the app this points at Video_SceneStripToggle">Show me</span></li>
+<li>Sampling runs on a second, short-lived decoder, so building the strip does not disturb what you are watching. The first thumbnail is the still you see before pressing play.</li>
+</ul>
+<h2 id="file-details">File details</h2>
+<ul>
+<li>Open the info panel to see what the player read out of the media. Rows appear only when the file reports them. <span class="locate" title="In the app this points at Video_InfoToggle">Show me</span></li>
+<li>File: name, container, size on disk and duration.</li>
+<li>Video: codec, resolution, frame rate and bitrate.</li>
+<li>Audio: codec, channel layout, sample rate and language.</li>
+<li>Subtitles: one entry per text track, with its language.</li>
+</ul>
+<h2 id="fullscreen">Fullscreen</h2>
+<ul>
+<li>Open a borderless window over the whole display, with the same transport bar driving the same playback. <span class="locate" title="In the app this points at Video_Fullscreen">Show me</span></li>
+<li>Esc returns you to the tab, and Space toggles playback while you are there.</li>
+</ul>
+<h2 id="the-assistant">The assistant</h2>
+<ul>
+<li>It knows which video is open, what the media is, and where the playhead is.</li>
+<li>Ask what is on screen and it captures the frame you are on and receives it as an image. The frame goes into the conversation and is not written to disk.</li>
+<li>Ask for the media details: container, duration, position, state, speed, volume and, once the file is read, the codec, resolution and track rows from the info panel.</li>
+<li>Ask it to move the playhead to a timestamp. That asks your approval first, because it changes what you are watching.</li>
+<li>Two video tabs pinned into one conversation stay separate, so it does not confuse one clip's tools for another's.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

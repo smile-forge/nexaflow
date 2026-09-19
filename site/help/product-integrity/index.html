@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrity — Nexaflow help</title>
+<meta name="description" content="Lists every snaplink whose target no longer exists, and lets you repair each one here.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../track/">Keep track</a></nav>
+<header class="page-head">
+  <h1>Integrity</h1>
+  <p class="lede">Lists every snaplink whose target no longer exists, and lets you repair each one here.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#what-a-scan-checks">What a scan checks</a></li><li><a href="#what-a-scan-does-not-check">What a scan does not check</a></li><li><a href="#issues-and-advisories">Issues and advisories</a></li><li><a href="#repairing-a-link">Repairing a link</a></li><li><a href="#going-to-the-source">Going to the source</a></li><li><a href="#with-the-assistant">With the assistant</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="what-a-scan-checks">What a scan checks</h2>
+<ul>
+<li>A snaplink is a link from a node in the product tree to something outside it: a file, a heading in a markdown file, a class or method, a URL, or another node.</li>
+<li>The checks are that the file exists, the heading path still resolves, the class and method are still declared, a URL is a well-formed absolute address, and a node id is still in the tree.</li>
+<li>A link that names only a file is checked for existence and nothing else — that was its whole claim.</li>
+<li>A link whose path goes through a linked git worktree is reported broken even though the file is there, and the detail names the repo path to use instead.</li>
+<li>A scan parses every file the links name, so it takes seconds and runs in the background. The page opens on the last saved result and swaps in the new one when it lands.</li>
+<li>Re-validate runs it again. The counts say how many links are broken, how many suggestions there are, and how many snaplinks across how many nodes were scanned; the line under them says when the tree was last validated.</li>
+</ul>
+<h2 id="what-a-scan-does-not-check">What a scan does not check</h2>
+<ul>
+<li>A file with no grammar for its type, or one that cannot be read, leaves a class or method target unproven. It is left alone rather than called broken.</li>
+<li>The <code>ast</code> field on a link is never counted as broken. Nothing validated it before, so it holds prose as often as a path, and it is raised as an advisory instead.</li>
+<li>Nothing else about a node is checked — not its status, not its concerns. Only its links.</li>
+</ul>
+<h2 id="issues-and-advisories">Issues and advisories</h2>
+<ul>
+<li>An issue is a link the scan proved broken. Those are the ones that fail a release build.</li>
+<li>An advisory is a suggestion. It never fails anything, and there are two kinds.</li>
+<li>A coverage suggestion is a test that declares with <code>[CoversNode]</code> that it covers a node the tree has not linked to it. If the id it names is not in the tree at all, the attribute is the stale part and the fix belongs on the test.</li>
+<li>A stale ast is a link whose file and class are fine but whose finer <code>ast</code> target no longer resolves.</li>
+<li>The box under the counts filters the list by node, scope, kind or detail.</li>
+</ul>
+<h2 id="repairing-a-link">Repairing a link</h2>
+<ul>
+<li>Select a row and edit the fields for that kind of link: document path, class and method, heading path, or URL.</li>
+<li>Moved? offers same-named files elsewhere under the product root. Pick offers the classes, methods or headings the named file actually has. Choosing from either fills the fields in and saves nothing.</li>
+<li>Apply fix writes the edited link to the tree and re-checks that one link, so you are told straight away whether it is sound, cannot be checked, or is still broken and why.</li>
+<li>Remove snaplink deletes the link from the node or concern it hangs off and saves the tree.</li>
+<li>Add link, on a coverage suggestion, writes that test onto the node's tests concern, and marks the concern done if it was not already.</li>
+<li>A stale ast shows one button, not both: Re-point ast writes the path the scan found, and Clear ast empties the field and leaves the link's file and class as they are. <span class="locate" title="In the app this points at Integrity_RepointAst, Integrity_ClearAst">Show me</span></li>
+<li>A row left over from an older scan is read-only until you re-validate.</li>
+</ul>
+<h2 id="going-to-the-source">Going to the source</h2>
+<ul>
+<li>Open target file opens the file the link names beside this page.</li>
+<li>Open node in Product opens the <a href="../product-manager/">Product</a> tree beside this page, on the node the link belongs to.</li>
+<li>Open this page from the Product tree with ⋮ → Validate snaplinks, or from the root's integrity tile. Its tab is named for the folder being validated. <span class="locate" title="In the app this points at TabItem_ProductIntegrity">Show me</span></li>
+<li>Closing the tab undoes nothing — every repair was written to the tree when you applied it. <span class="locate" title="In the app this points at CloseTab_ProductIntegrity">Show me</span></li>
+</ul>
+<h2 id="with-the-assistant">With the assistant</h2>
+<ul>
+<li>It can read what the scan found and say what is wrong with each link.</li>
+<li>It has the same product tools as the <a href="../product-manager/">Product</a> page, so it can re-point or remove a link and re-run the validation.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

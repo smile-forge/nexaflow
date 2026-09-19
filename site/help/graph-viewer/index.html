@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph — Nexaflow help</title>
+<meta name="description" content="Draws the product tree joined to the code its snaplinks reach, and lets you walk it a node at a time.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../track/">Keep track</a></nav>
+<header class="page-head">
+  <h1>Graph</h1>
+  <p class="lede">Draws the product tree joined to the code its snaplinks reach, and lets you walk it a node at a time.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#what-is-on-the-canvas">What is on the canvas</a></li><li><a href="#moving-around">Moving around</a></li><li><a href="#how-much-is-drawn-at-once">How much is drawn at once</a></li><li><a href="#segments">Segments</a></li><li><a href="#the-panel-on-the-right">The panel on the right</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="what-is-on-the-canvas">What is on the canvas</h2>
+<ul>
+<li>Nodes come in five kinds: product nodes from the tree, and files, types, members and externals from the code. An external is a library or base type the build could not resolve to a file.</li>
+<li>Lines are relationships between two nodes — contains, extends, implements, imports, calls, references, instantiates, tests, documents, depends_on, and the XAML ones (view_of, handles, binds_to, uses_resource).</li>
+<li>A solid line was read straight out of the source. A dashed, fainter one was inferred by matching names, and the fainter it is the less certain it is.</li>
+<li>A hyperedge joins more than two nodes at once — a call with its arguments, a member with its return and parameters, an attribute with its named arguments. It is drawn as a dot with a spoke to each end.</li>
+<li>Only the neighbourhood around one focused node is drawn, never the whole graph.</li>
+</ul>
+<h2 id="moving-around">Moving around</h2>
+<ul>
+<li>Drag the canvas to pan. The wheel zooms, keeping whatever is under the pointer where it is. There are no keyboard shortcuts on this page.</li>
+<li>Zoom out and the finer nodes drop away — members first, then types and externals, then files. Product nodes are always drawn, and a line disappears with either of its ends.</li>
+<li>Click a node to select it. That also re-centres the view on it and redraws the neighbourhood around it, so clicking is how you travel.</li>
+<li>Depth is how many edges out from the focused node to draw, from 1 to 10. <span class="locate" title="In the app this points at Graph_Depth">Show me</span></li>
+<li>Conf ≥ hides inferred edges below that confidence; at 0 every edge is drawn. <span class="locate" title="In the app this points at Graph_MinConfidence">Show me</span></li>
+<li>Back returns to the node you were focused on before, and Root re-centres on the top of the product tree. <span class="locate" title="In the app this points at Graph_Back, Graph_ResetFocus">Show me</span></li>
+<li>Reset view fits what is currently drawn to the window without changing the focus. <span class="locate" title="In the app this points at Graph_ResetView">Show me</span></li>
+</ul>
+<h2 id="how-much-is-drawn-at-once">How much is drawn at once</h2>
+<ul>
+<li>At most 700 nodes are drawn. When more are in range, the nearest are kept — by hop distance, then by kind — and the focused node is always one of them.</li>
+<li>The rest are counted in the toolbar as a &quot;+N more&quot; note. Lower Depth, or focus on a node closer to what you want, to bring the count under that limit.</li>
+</ul>
+<h2 id="segments">Segments</h2>
+<ul>
+<li>The rail on the left lists the segments in view: the clusters the graph build found, one row each, in the colour their nodes are drawn in and with how many there are.</li>
+<li>Clear a row's box to hide that segment's nodes; they stay hidden as you move to other nodes. All brings every segment back. <span class="locate" title="In the app this points at Graph_ShowAllSegments">Show me</span></li>
+<li>Hyperedges draws the hyperedges or leaves them out. It is there only when the graph has some.</li>
+<li>The chevron collapses the list to its header.</li>
+</ul>
+<h2 id="the-panel-on-the-right">The panel on the right</h2>
+<ul>
+<li>Selecting a node shows its label, kind and id, and the file, language and confidence recorded for it, followed by anything else the build stored.</li>
+<li>Open in Code opens that file in the code or markdown editor, on the declaration when one was recorded. It is there only for a node that has a file.</li>
+<li>Nothing here changes the graph or the tree — it is a view over what was built.</li>
+<li>To pick up code that has changed since, use ⋮ → Regenerate graph on the <a href="../product-manager/">Product</a> tree; Open graph reopens the last one built without rebuilding it.</li>
+</ul>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

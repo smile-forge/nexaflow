@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown — QR codes &amp; barcodes — Nexaflow help</title>
+<meta name="description" content="Machine-readable codes drawn from a fenced block: QR, linear barcodes, Data Matrix, PDF417 and Aztec.">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+<header class="site">
+  <a class="wordmark" href="../../">Nexaflow</a>
+  <nav><a href="../../open/">Open anything</a><a href="../../author/">Author &amp; draw</a><a href="../../system/">Run your machine</a><a href="../../track/">Keep track</a><a href="../../together/">With your AI</a><a href="../../themes/">Themes</a><a href="../../help/">Reference</a><a href="https://github.com/smile-forge/nexaflow/releases/latest">Download</a></nav>
+</header>
+<main>
+<p class="unreleased">These pages describe Nexaflow as it stands <b>after v1.6.0</b>, so some
+of what they cover is not in the current download yet. The latest release is
+<a href="https://github.com/smile-forge/nexaflow/releases/latest">v1.6.0</a>.</p>
+<nav class="crumbs"><a href="../">Reference</a> <span>/</span> <a href="../../author/">Author &amp; draw</a></nav>
+<header class="page-head">
+  <h1>Markdown — QR codes &amp; barcodes</h1>
+  <p class="lede">Machine-readable codes drawn from a fenced block: QR, linear barcodes, Data Matrix, PDF417 and Aztec.</p>
+</header>
+<nav class="topics"><h2>Topics</h2><ul><li><a href="#qr-codes">QR codes</a></li><li><a href="#barcodes">Barcodes</a></li><li><a href="#data-matrix">Data Matrix</a></li><li><a href="#pdf417">PDF417</a></li><li><a href="#aztec-code">Aztec Code</a></li></ul></nav>
+<article class="prose"><hr />
+<h2 id="qr-codes">QR codes</h2>
+<p>A fenced <code>qr</code> block becomes a scannable QR code, generated on your machine like everything else here.
+The body is a flat list of <code>key: value</code> lines — a <code>type:</code>, then the fields that type needs:</p>
+<pre><code class="language-markdown">```qr
+type: url
+url: https://markdown.org
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/qr-codes.png" alt="Three QR codes: a link, a Wi-Fi network and a contact card" /></p>
+<p>The point of the <code>type:</code> is that a QR code only carries text — a phone offers to <em>join this network</em>
+or <em>add this contact</em> because the text follows a convention. Writing the convention by hand is
+miserable, so the block writes it for you:</p>
+<table>
+<thead>
+<tr>
+<th><code>type:</code></th>
+<th>Fields</th>
+<th>What a scanner offers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td><code>text</code></td>
+<td>Plain text</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td><code>url</code></td>
+<td>Open the link (a missing <code>https://</code> is filled in)</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td><code>email</code>, <code>subject</code>, <code>body</code></td>
+<td>Compose a message</td>
+</tr>
+<tr>
+<td><code>phone</code></td>
+<td><code>phone</code></td>
+<td>Dial</td>
+</tr>
+<tr>
+<td><code>sms</code></td>
+<td><code>number</code>, <code>message</code></td>
+<td>Send a text</td>
+</tr>
+<tr>
+<td><code>wifi</code></td>
+<td><code>ssid</code>, <code>password</code>, <code>security</code>, <code>hidden</code></td>
+<td>Join the network</td>
+</tr>
+<tr>
+<td><code>vcard</code></td>
+<td><code>name</code>, <code>org</code>, <code>title</code>, <code>phone</code>, <code>email</code>, <code>url</code>, <code>address</code></td>
+<td>Add the contact</td>
+</tr>
+<tr>
+<td><code>mecard</code></td>
+<td><code>name</code>, <code>phone</code>, <code>email</code>, <code>url</code>, <code>address</code>, <code>note</code></td>
+<td>Add the contact, from a smaller code</td>
+</tr>
+<tr>
+<td><code>geo</code></td>
+<td><code>lat</code>, <code>lng</code></td>
+<td>Open the map pin</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td><code>title</code>, <code>location</code>, <code>start</code>, <code>end</code></td>
+<td>Add to the calendar</td>
+</tr>
+<tr>
+<td><code>epc</code></td>
+<td><code>name</code>, <code>iban</code>, <code>bic</code>, <code>amount</code>, <code>purpose</code>, <code>reference</code>, <code>message</code></td>
+<td>Prefill a bank transfer</td>
+</tr>
+<tr>
+<td><code>crypto</code></td>
+<td><code>coin</code>, <code>address</code>, <code>amount</code></td>
+<td>Open the wallet</td>
+</tr>
+</tbody>
+</table>
+<p><code>mecard</code> is the compact form of <code>vcard</code>: it drops the organisation and job title and produces a
+noticeably smaller code, which older readers also handle more reliably. <code>epc</code> is the <strong>GiroCode</strong> seen
+on European invoices — it takes euro amounts only, and either a structured <code>reference:</code> or free
+<code>message:</code> text, not both. Its IBAN is checked (including the check digits) before the code is drawn,
+because a mistyped one scans perfectly and then fails at the bank.</p>
+<p>Any block can also carry these settings:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ec</code></td>
+<td><code>L</code>, <code>M</code>, <code>Q</code>, <code>H</code> — how much damage the code survives</td>
+<td><code>M</code></td>
+</tr>
+<tr>
+<td><code>cellSize</code></td>
+<td>pixels per module, 1–64</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td><code>margin</code></td>
+<td>quiet zone in modules, 0–32</td>
+<td><code>4</code></td>
+</tr>
+<tr>
+<td><code>dark</code></td>
+<td>hex colour of the modules</td>
+<td>the theme's</td>
+</tr>
+<tr>
+<td><code>light</code></td>
+<td>hex colour behind them</td>
+<td>the theme's</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-qr">type: wifi
+ssid: MyNetwork
+password: s3cr3t-pass
+security: WPA
+ec: H
+cellSize: 6
+</code></pre>
+<p>Higher error correction is worth it for anything that will be printed, put on a curved surface, or
+partly covered — it costs capacity, so the same content needs a slightly larger code.</p>
+<p>A block that can't be built says so in place of the picture, naming the line at fault: a misspelled
+setting, a field belonging to another type, a missing required field, or content too long to fit.</p>
+<hr />
+<h2 id="barcodes">Barcodes</h2>
+<p>A fenced <code>barcode</code> block becomes a scannable linear barcode, generated on your machine like everything
+else here. The body is a flat list of <code>key: value</code> lines — a <code>format:</code>, a <code>value:</code>, and whatever
+settings you want:</p>
+<pre><code class="language-markdown">```barcode
+format: EAN13
+value: 590123412345
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/barcodes.png" alt="Barcodes: Code 128, an EAN-13 and an ISBN with its price add-on" /></p>
+<p><strong>What you typed is editable where it is drawn; what the format worked out is not.</strong> Click into the
+digits and type — the symbol re-encodes as you go, and the change goes back into the fence in your
+document.</p>
+<p>Most of these formats do not print exactly what they are given, and the caret goes only where they
+do. Codabar wraps your value in the start and stop marks it needs, so those two characters take no
+caret and the rest does. An EAN-13 works out its thirteenth digit from the other twelve, so the
+twelfth is the last place you can stand. A UPC-E given six digits fills in both ends. An ISBN is the
+furthest from what you typed — the digits under its bars are your number with the hyphens taken out
+and a check digit added — so none of them is editable, and the caption above the bars, which is your
+number as you wrote it, is where you edit it.</p>
+<p>Everything is still selectable and copyable either way, and pressing a digit the format worked out
+selects the whole number it was worked out from. Where a symbol takes no caret at all, edit it in the
+block source: double-click to open it.</p>
+<h3 id="formats">Formats</h3>
+<table>
+<thead>
+<tr>
+<th><code>format:</code></th>
+<th>Carries</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CODE128</code></td>
+<td>Any ASCII</td>
+<td>Moves between its subsets to keep the symbol short</td>
+</tr>
+<tr>
+<td><code>CODE128A</code> / <code>CODE128B</code> / <code>CODE128C</code></td>
+<td>One subset each</td>
+<td>When a scanner insists on one</td>
+</tr>
+<tr>
+<td><code>EAN13</code> / <code>EAN8</code></td>
+<td>12 or 7 digits</td>
+<td>The check digit is computed, or verified if you write it</td>
+</tr>
+<tr>
+<td><code>UPC</code> (<code>UPCA</code>) / <code>UPCE</code></td>
+<td>11 or 7 digits</td>
+<td><code>UPC</code> and <code>UPCA</code> are the same thing</td>
+</tr>
+<tr>
+<td><code>EAN2</code> / <code>EAN5</code></td>
+<td>2 or 5 digits</td>
+<td>The add-on block, on its own</td>
+</tr>
+<tr>
+<td><code>ISBN</code> / <code>ISSN</code> / <code>ISMN</code></td>
+<td>The number as printed</td>
+<td>Hyphens and all; add a space and an add-on for a price or issue</td>
+</tr>
+<tr>
+<td><code>CODE39</code></td>
+<td>Digits, capitals, <code>- . $ / + % space</code></td>
+<td>The old workhorse</td>
+</tr>
+<tr>
+<td><code>ITF</code> / <code>ITF14</code></td>
+<td>An even number of digits</td>
+<td><code>ITF14</code> is the shipping-carton one, and adds its own check digit</td>
+</tr>
+<tr>
+<td><code>MSI</code>, <code>MSI10</code>, <code>MSI11</code>, <code>MSI1010</code>, <code>MSI1110</code></td>
+<td>Digits</td>
+<td>The suffix says which check digits to add</td>
+</tr>
+<tr>
+<td><code>PHARMACODE</code></td>
+<td>3–131070</td>
+<td>Read right to left, by design</td>
+</tr>
+<tr>
+<td><code>CODABAR</code></td>
+<td>Digits and <code>- $ : / . +</code></td>
+<td>Start/stop letters <code>A</code>–<code>D</code> are added if you leave them off</td>
+</tr>
+</tbody>
+</table>
+<p>The retail formats are drawn the way they are printed: the number broken at the guard bars into the
+groups that sit in the wells between them, the first digit set outside the symbol, the guards running
+down past the digits, and an add-on's digits above its own bars. The shape is how these are recognised
+at a glance, so it is worth getting right even though a scanner only reads the bars.</p>
+<p>An ISBN, ISSN or ISMN is not a symbology — each is a numbering scheme that agreed to be <em>printed</em> as
+an EAN-13 by reserving a prefix. So these work out which thirteen digits your number stands for, print
+it under the scheme's own name, and hand the bars to EAN-13. A ten-digit ISBN is promoted the way the
+standard says. Anything after a space is the add-on:</p>
+<pre><code class="language-markdown">```barcode
+format: ISBN
+value: 978-1-56581-231-4 90000
+```
+</code></pre>
+<h3 id="settings">Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>width</code></td>
+<td>width of a <strong>single bar</strong> in pixels, 0.5–20</td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>height</code></td>
+<td>bar height in pixels, 4–1000</td>
+<td><code>100</code></td>
+</tr>
+<tr>
+<td><code>displayValue</code></td>
+<td><code>true</code> / <code>false</code> — print the number under the bars</td>
+<td><code>true</code></td>
+</tr>
+<tr>
+<td><code>fontSize</code></td>
+<td>pixels, 4–200</td>
+<td><code>20</code></td>
+</tr>
+<tr>
+<td><code>textAlign</code></td>
+<td><code>left</code>, <code>center</code>, <code>right</code></td>
+<td><code>center</code></td>
+</tr>
+<tr>
+<td><code>lineColor</code></td>
+<td>hex colour of the bars</td>
+<td>the theme's</td>
+</tr>
+<tr>
+<td><code>background</code></td>
+<td>hex colour behind them</td>
+<td>the theme's</td>
+</tr>
+<tr>
+<td><code>margin</code></td>
+<td>quiet zone in pixels, 0–200</td>
+<td><code>10</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>width</code> is the width of one bar, not of the whole symbol — that follows from the value, since a
+barcode's length is decided by what it encodes. Doubling <code>width</code> doubles the symbol.</p>
+<h3 id="when-it-cant-be-drawn">When it can't be drawn</h3>
+<p>The two ways a block can be wrong are treated differently, because only one of them is your problem
+while you are typing:</p>
+<ul>
+<li>A block that can't be <strong>understood</strong> — an unknown setting, a format that doesn't exist, a width
+that isn't a number — is shown as its source with the reason above it. There is nothing to draw.</li>
+<li>A value the format can't <strong>carry</strong> still renders. The bars of a valid value in that format are
+drawn faint with a line struck through them, and a red wave goes under the value; hovering says
+why. This matters because a value is invalid every time you are halfway through changing it — an
+EAN-13 has the wrong number of digits for all but the last keystroke.</li>
+</ul>
+<hr />
+<h2 id="data-matrix">Data Matrix</h2>
+<p>A fenced <code>datamatrix</code> block becomes a Data Matrix symbol — the ECC 200 kind on every parcel label and
+pharmacy pack — generated on your machine. It takes exactly the <code>type:</code> lines a <code>qr</code> block does, because
+a Wi-Fi descriptor or a vCard decodes the same from either symbol, plus the formats that exist <em>only</em> as
+Data Matrix:</p>
+<pre><code class="language-markdown">```datamatrix
+type: ppn
+pzn: 01234562
+lot: A1B2
+expiry: 271231
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/datamatrix.png" alt="Data Matrix symbols: a URL, a pharmacy pack's PPN, a GS1 item and a rectangular symbol" /></p>
+<table>
+<thead>
+<tr>
+<th><code>type:</code></th>
+<th>Fields</th>
+<th>Encodes as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>every <code>qr</code> type</em></td>
+<td>as for <code>qr</code></td>
+<td>the same text — <code>WIFI:…</code>, <code>mailto:</code>, a vCard</td>
+</tr>
+<tr>
+<td><code>gs1</code></td>
+<td><code>data</code></td>
+<td>a GS1 element string, written with each AI in brackets: <code>(01)04150012345623(17)271231(10)LOT7</code>. FNC1 first, brackets off, a separator after each variable-length element that is followed by another</td>
+</tr>
+<tr>
+<td><code>ppn</code></td>
+<td><code>pzn</code>, <code>lot</code>, <code>expiry</code>, <code>serial</code></td>
+<td>a German pharmacy pack: the PPN is derived from the PZN with both checks computed, and the fields go under MH10.8.2 identifiers wrapped in Macro 06</td>
+</tr>
+<tr>
+<td><code>ntin</code></td>
+<td><code>pzn</code> or <code>gtin</code>, <code>expiry</code>, <code>lot</code>, <code>serial</code></td>
+<td>the same pack as GS1 sees it — an NTIN under AI 01, derived from the PZN, with 17, 10 and 21</td>
+</tr>
+<tr>
+<td><code>mailmark</code></td>
+<td><code>format</code>, <code>message</code></td>
+<td>a Royal Mail Mailmark 2D: format 7 is 51 characters in 24×24, 9 is 90 in 32×32, 29 is 70 in 16×48. The size is not a choice — it is what Royal Mail's readers expect for the format</td>
+</tr>
+</tbody>
+</table>
+<p>The check digits are the reason <code>ppn</code> and <code>ntin</code> take a PZN rather than the finished number: a PZN's
+own check is verified, the PPN's two check characters and the NTIN's mod-10 are computed, and a
+mistyped one is refused before anything is drawn.</p>
+<p>The smallest symbol that fits is chosen, square or rectangular. Two settings steer that, on top of the
+<code>cellSize</code> / <code>margin</code> / <code>dark</code> / <code>light</code> a <code>qr</code> block takes:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shape</code></td>
+<td><code>square</code>, <code>rectangle</code>, <code>any</code></td>
+<td><code>any</code></td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td>a size the standard defines, <code>rows×columns</code> — <code>10x10</code> to <code>144x144</code>, or one of <code>8x18</code>, <code>8x32</code>, <code>12x26</code>, <code>12x36</code>, <code>16x36</code>, <code>16x48</code></td>
+<td>the smallest that fits</td>
+</tr>
+</tbody>
+</table>
+<p>Text is written in whichever of the two encodations makes it shorter: ASCII, which carries anything,
+or C40, which packs three capitals into two codewords and is what lets a Mailmark's ninety characters
+fit the symbol its format mandates. Anything outside ASCII goes as UTF-8, with the symbol saying so.</p>
+<hr />
+<h2 id="pdf417">PDF417</h2>
+<p>A fenced <code>pdf417</code> block becomes a PDF417 symbol — the stacked barcode on driving licences, boarding
+passes and shipping labels. It takes the same <code>type:</code> lines a <code>qr</code> block does:</p>
+<pre><code class="language-markdown">```pdf417
+type: url
+url: https://markdown.org
+columns: 4
+```
+</code></pre>
+<p>It is stacked rather than square: each row is an independent line of bars, and every row carries
+indicators saying which row it is and how the symbol is shaped. That is what lets a scanner piece one
+together from rows read out of order, or in strips, as a parcel goes past.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>columns</code></td>
+<td>data columns, 1–30</td>
+<td>a symbol about three times as wide as it is tall</td>
+</tr>
+<tr>
+<td><code>ec</code></td>
+<td>error correction, 0–8 — each level spends 2^(level+1) codewords on parity</td>
+<td>by payload size, as the standard recommends</td>
+</tr>
+<tr>
+<td><code>rowHeight</code></td>
+<td>how tall a row is drawn, in module widths, 2–20</td>
+<td><code>3</code></td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td><code>true</code> drops the right row indicator and the stop pattern</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>plus the <code>cellSize</code> / <code>margin</code> / <code>dark</code> / <code>light</code> a <code>qr</code> block takes.</p>
+<p><code>rowHeight</code> exists because a row carries nothing in its height — the standard asks for at least three
+module widths so a scanner sweeping across the symbol stays inside one row. Truncating saves eighteen
+modules a row and is worth it on a document that will not be damaged at its right edge; not on a parcel.</p>
+<p>Text is packed two characters to a codeword, and a long run of digits switches to a denser numeric
+mode automatically. Anything that will not fit either goes as bytes.</p>
+<hr />
+<h2 id="aztec-code">Aztec Code</h2>
+<p>A fenced <code>aztec</code> block becomes an Aztec Code — the symbology on rail and air tickets. It takes the same
+<code>type:</code> lines a <code>qr</code> block does, plus GS1 element strings:</p>
+<pre><code class="language-markdown">```aztec
+type: url
+url: https://markdown.org
+```
+</code></pre>
+<p><img src="../_img/Nexaflow.Features.Markdown/images/markdown/aztec.png" alt="Aztec symbols: a compact URL, the same URL in the full range, a GS1 item and a styled one" /></p>
+<p>Its finder pattern is a bullseye in the middle rather than three squares in the corners, which is why an
+Aztec code needs almost no quiet zone around it — handy on a ticket where there is no room to spare. It
+also has no version table: a symbol grows one two-module ring at a time, so a message of any length gets
+a symbol barely larger than it needs.</p>
+<p>There are two families. A <strong>compact</strong> symbol has an eleven-module core and up to four rings; the <strong>full
+range</strong> has a fifteen-module core, up to thirty-two rings, and a reference grid running through its
+larger sizes to keep a reader registered across a big symbol. Compact is smaller for the same message,
+so that is what you get unless you say otherwise or the message outgrows it.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>format</code></td>
+<td><code>compact</code>, <code>full</code> or <code>auto</code></td>
+<td><code>auto</code> — compact while the message fits</td>
+</tr>
+<tr>
+<td><code>layers</code></td>
+<td>rings around the core: 1–4 compact, 1–32 full</td>
+<td>the smallest that fits</td>
+</tr>
+<tr>
+<td><code>ecc</code></td>
+<td>least share of the symbol that is error correction, 0–95</td>
+<td><code>23</code>, which is what the standard advises</td>
+</tr>
+<tr>
+<td><code>eci</code></td>
+<td>an ECI number declaring the character set</td>
+<td>none — bytes are UTF-8</td>
+</tr>
+</tbody>
+</table>
+<p>plus the <code>cellSize</code> / <code>margin</code> / <code>dark</code> / <code>light</code> a <code>qr</code> block takes.</p>
+<p><code>ecc</code> is a floor rather than a target: whatever capacity the message leaves over becomes error correction
+too, so a short message in a symbol sized for it often ends up eighty per cent parity. Raising <code>ecc</code>
+therefore changes the answer only when it forces a larger symbol. <code>layers</code> is the other way about — it
+fixes the size outright, for a printed form with a box to fill, and fails rather than growing when the
+message will not fit.</p>
+<p>A <code>gs1</code> block takes an element string as people write it — <code>(01)04150123456782(10)LOT7(21)SN9</code> — and puts
+the wire form in the symbol: brackets off, FNC1 in front, and a group separator after each
+variable-length element that needs one.</p>
+<p>Not supported: Aztec Runes, reader-initialisation symbols, and structured append across several symbols.</p>
+<hr />
+<p>Back to <a href="../markdown/">Markdown</a>.</p>
+</article>
+
+</main>
+<footer class="site">
+  <p>Nexaflow v1.6.0 &middot; public domain under the Unlicense &middot;
+     <a href="https://github.com/smile-forge/nexaflow">source on GitHub</a></p>
+  <p class="small">These pages are the app's own help, published from the same files it ships.</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Builds the GitHub Pages site from the help pages the app itself ships. Deliberately outside
+       Nexaflow.slnx (as the installer is): it is release tooling, not part of the app, and nothing in
+       the app may depend on it. Plain net10.0 with no WPF — the rendered figures it lays out are the
+       PNGs the help pages already carry, so nothing here needs a UI thread. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Nexaflow.SiteGenerator</RootNamespace>
+    <AssemblyName>Nexaflow.SiteGenerator</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.3.2" />
+  </ItemGroup>
+
+</Project>
