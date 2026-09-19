@@ -1449,12 +1449,13 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Requirement diagram
 
-        A `requirementDiagram` (SysML-style) draws requirements and elements as boxes — a
-        «type» + name header over a list of fields (`id`, `text`, `risk`, `verifymethod` /
-        `type`, `docref`) — joined by labelled relationships: `contains` is a solid line with a
-        crosshair (⊕) at the container, the rest (`copies`, `derives`, `satisfies`, `verifies`,
-        `refines`, `traces`) are dashed arrows. It reuses the same box + Sugiyama layout as the
-        class diagram.
+        A `requirementDiagram` (SysML-style) draws requirements and the elements that meet them as
+        boxes — what kind of thing it is over its name, then a row for each field (`id`, `text`,
+        `risk`, `verifymethod`; an element's `type` and `docref`) — joined by lines saying what holds
+        between them: `contains` is the whole and its parts, a solid line with a crosshair at the end
+        that holds, and the rest (`copies`, `derives`, `satisfies`, `verifies`, `refines`, `traces`)
+        are dashed arrows. It is drawn on the shared layout tree, so every word is the characters
+        written and the caret goes into them.
 
         Full example
 

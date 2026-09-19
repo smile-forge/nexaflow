@@ -147,9 +147,16 @@ public class DiagramRendererTests
         """;
 
     [TestMethod]
-    public void Requirement_RendersGraphNotSourceText() => UiThread.Run(() =>
-        AssertGraphDiagram(DiagramRenderer.Render("mermaid", RequirementSrc, MarkdownPalette.Dark),
-                           "a requirement diagram"));
+    public void Requirement_RendersOnTheSharedTreeNotSourceText() => UiThread.Run(() =>
+    {
+        var content = DiagramRenderer.Render("mermaid", RequirementSrc, MarkdownPalette.Dark) as Nexaflow.Visuals.Text.Editing.ContentElement;
+
+        Assert.IsNotNull(content, "a requirement diagram is drawn on the shared layout tree");
+        content!.Measure(new Size(900, double.PositiveInfinity));
+
+        Assert.IsTrue(content.Laid.Tree.Count > 0, "and it drew something");
+        Assert.AreEqual(0, content.Diagnostics.Count, "with nothing wrong in it");
+    });
 
     // ── Sankey ────────────────────────────────────────────────────────────
 

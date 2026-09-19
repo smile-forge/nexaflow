@@ -53,6 +53,9 @@ internal enum DiagramHead
     /// <summary>A cross: a flowchart's <c>--x</c>, a sequence diagram's <c>-x</c>.</summary>
     Cross,
 
+    /// <summary>A cross in a circle: SysML's composite containment, at the end holding the other.</summary>
+    CrossCircle,
+
     /// <summary>An ER diagram's zero or one: <c>|o</c>.</summary>
     ZeroOrOne,
 
@@ -238,6 +241,13 @@ internal static class DiagramConnector
                 lines.Children.Add(new LineGeometry(centre + ((along + across) * half), centre - ((along + across) * half)));
                 lines.Children.Add(new LineGeometry(centre + ((along - across) * half), centre - ((along - across) * half)));
                 return tip;
+
+            case DiagramHead.CrossCircle:
+                var held = tip - (along * half);
+                lines.Children.Add(new EllipseGeometry(held, half, half));
+                lines.Children.Add(new LineGeometry(held - (along * half), held + (along * half)));
+                lines.Children.Add(new LineGeometry(held - (across * half), held + (across * half)));
+                return tip - (along * half * 2);
 
             case DiagramHead.ZeroOrOne:
                 Bar(tip - (along * 6), across, half, lines);

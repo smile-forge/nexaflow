@@ -152,7 +152,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + nesting, shapes + config (`MindmapTreeTests`) + draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + states, transitions, notes + config (`StateDiagramTests`) + draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
 | `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + classes, members, relations + config (`ClassDiagramTests`) + draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
-| `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + requirements, fields, relations + config (`RequirementDiagramTests`) + draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanBoardTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
@@ -292,19 +292,30 @@ name on; a note is drawn beside the class it is about, but where it goes is sett
 and `theme`, `look`, `layout`, `htmlLabels`, `arrowMarkerAbsolute`, `defaultRenderer`, `useMaxWidth` and `textHeight`
 name a renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
-**Requirement-diagram sub-features** ([`MermaidRequirementParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs)).
-A requirement / element is structurally a UML box, so it reuses the **`ClassBox`** node, the Sugiyama layout and
-`WpfGraphRenderer` — a «type» stereotype + name header over a *single* field compartment (the
-`ClassInfo.SingleCompartment` flag suppresses the class box's second/methods compartment). Supported: every
-requirement type (`requirement`, `functionalRequirement`, `interfaceRequirement`, `performanceRequirement`,
-`physicalRequirement`, `designConstraint`) and `element`, each with `id` / `text` / `risk` / `verifymethod` /
-`type` / `docref` fields (keys shown as `Id`/`Text`/`Risk`/`Verification`/`Type`/`Doc Ref`, enum values
-title-cased, `functionalRequirement` → «Functional Requirement»); relationships `src - type -> dst` and the
-reverse `dst <- type - src` labelled «type» — `contains` draws as a solid line with the SysML composite
-crosshair (⊕) at the container end, the others (`copies`, `derives`, `satisfies`, `verifies`, `refines`,
-`traces`) as dashed open arrows; `direction`; comments; and styling (`style`, `classDef`, `class a,b name`,
-inline `:::name`). **Limitation:** single-line `req name { … }` blocks aren't parsed — the opening brace must
-end the line (the standard multi-line form).
+**Requirement-diagram sub-features** ([`RequirementGrammar`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementGrammar.cs),
+[`RequirementDiagram`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementDiagram.cs),
+[`RequirementBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Requirement/RequirementBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
+Supported: every kind of requirement SysML names — `requirement`, `functionalRequirement`, `interfaceRequirement`,
+`performanceRequirement`, `physicalRequirement` and `designConstraint` — and the `element`s that meet them, named bare or in
+quotes, each holding the fields `id`, `text`, `risk` and `verifymethod` (an element `type` and `docref`), drawn a row each
+behind Mermaid's own word for the field — `Id`, `Text`, `Risk`, `Verification`, `Type`, `Doc Ref` — under what kind of thing it
+is, which is drawn «Functional Requirement» over the name; what a field is set to in quotes, markdown and all; the whole
+relation set — `contains`, `copies`, `derives`, `satisfies`, `verifies`, `refines` and `traces` — written
+`A - satisfies -> B` or the other way round `B <- satisfies - A`, drawn «so» over the line joining them, with `contains` the
+whole and its parts (a solid line with SysML's crosshair at the end that holds) and the rest dashed arrows; a name on a line
+of its own, which writes the box, and a relation naming what no block writes, which writes the box for that too; `direction`;
+`classDef`, `class "A,B" name`, `:::` and `style`; `accTitle`/`accDescr`; comments; and a title from the front matter.
+**A requirement is two compartments in one box** — what kind of thing it is over its name, then its fields — with a rule the
+width of the box between them, and a box nothing writes fields for is the one compartment. **The front matter is applied**
+([`RequirementConfig`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementConfig.cs)): `config: requirement:`
+`rect_min_width`, `rect_min_height`, `rect_padding`, `fontSize` and `line_height`, and the shared `markdownAutoWrap`.
+**Divergences from Mermaid:** a name ends at the punctuation a relation is drawn with, so one holding a dash, a brace or a
+colon is written in quotes, and a rename drops what a bare name cannot hold, since a `style` line names one bare; a risk and a
+verification method are drawn as the word written rather than capitalised, so the caret can go into them; the smallest box is
+what it takes rather than Mermaid's 200 by 200, because the words in it are measured rather than guessed; a `#` comment is not
+read, only `%%`; and `rect_fill`, `text_color`, `rect_border_size`, `rect_border_color`, `theme`, `look`, `layout` and
+`useMaxWidth` name colours the theme decides here, a renderer, a drawing style and a layout engine.
 
 **Git-graph sub-features** ([`GitGrammar`](../src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs) →
 [`GitGraph`](../src/Nexaflow.Markdown/Mermaid/Git/GitGraph.cs) →
@@ -532,8 +543,8 @@ across two of them; a fourth column is read as part of what the flow is worth, a
 reads three and stops; and `%%` comments are skipped here, which Mermaid's sankey reads as part of a name.
 
 **ER-diagram sub-features** ([`MermaidErParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs)).
-An entity is structurally a UML box, so ER reuses the shared graph model + Sugiyama layout + `WpfGraphRenderer`
-(like class / requirement diagrams): each entity is a single-compartment `ClassBox`, each relationship an edge with
+An entity is structurally a UML box, so ER reuses the shared graph model + Sugiyama layout + `WpfGraphRenderer`:
+each entity is a single-compartment `ClassBox`, each relationship an edge with
 **crow's-foot cardinality** markers at both ends (new `EdgeArrow.Er*` heads — a min indicator: bar = one, circle =
 zero; plus a max indicator: bar = one, fork = many) and a solid (identifying `--`) or dashed (non-identifying `..`)
 line. Supported: entities — bare `NAME`, quoted `"name with space"`, or aliased `id[Alias]` / `id["Multi word"]` —
@@ -786,9 +797,9 @@ itself, not a second copy of it.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 
-`stateDiagram`, `classDiagram`, `erDiagram` and `requirementDiagram` share the graph model, the Sugiyama layout and
-[`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs), so they also share two things
-that only matter once a graph gets big — and a `graph`/`flowchart` joins them for as long as it asks to, a `config: nexaflow:`
+`erDiagram` shares the graph model, the Sugiyama layout and
+[`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs), so it also has two things
+that only matter once a graph gets big — and a `graph`/`flowchart` joins it for as long as it asks to, a `config: nexaflow:`
 block being what sends it here rather than to the shared layout tree.
 
 **A node can hide a subtree.** `Node.Expansion` is `Leaf` / `Collapsed` / `Expanded`, and a non-leaf node is drawn
@@ -1722,8 +1733,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state/class/requirement routing; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, state, class, requirement, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state, class and requirement drawn on the shared layout tree; sankey (CSV routing, front-matter config + node colours); ER (graph routing, word-cardinality + front-matter config); architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), ER + `ErConfig` (symbol/word cardinality, identification, attributes/keys/comments, aliases, `layoutDirection`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |

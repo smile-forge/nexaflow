@@ -164,12 +164,61 @@
           "class": "LinkedElement"
         }
       ]
+    },
+    "requirement-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementGrammar.cs",
+          "class": "RequirementGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementDiagram.cs",
+          "class": "RequirementDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Requirement/RequirementConfig.cs",
+          "class": "RequirementConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Requirement/RequirementBuilder.cs",
+          "class": "RequirementBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Requirement/RequirementGrammarTests.cs",
+            "class": "RequirementGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Requirement/RequirementDiagramTests.cs",
+            "class": "RequirementDiagramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/RequirementBuilderTests.cs",
+            "class": "RequirementBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/RequirementEditingTests.cs",
+            "class": "RequirementEditingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 3,
+  "changed_sets": 5,
   "touched_nodes": [
     "class-diagram",
-    "mermaid-diagram-kit"
+    "mermaid-diagram-kit",
+    "requirement-diagram"
   ]
 }
