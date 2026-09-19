@@ -276,7 +276,20 @@ internal static class DiagramConnector
 
     // ── Lines ───────────────────────────────────────────────────────────────
 
-    /// <summary>The line through the points: straight between them, or a curve through every one.</summary>
+    /// <summary>
+    /// The line a route is drawn as: straight from point to point, or curved through every one of them.
+    ///
+    /// <para>
+    /// Curved, it is a Catmull-Rom spline written as cubic Béziers, so the line passes through the route rather than near it, with each
+    /// handle held to a third of the run it belongs to — the tangent at a corner points the way the route turns, and left to its own
+    /// length it would carry the line past the corner and back.
+    /// </para>
+    /// <para>
+    /// <strong>A stub at either end is straight.</strong> A line turns in the air between two ranks, so the run from that turn to what
+    /// it joins is about as long as the head it carries; a corner's tangent across a run that short bows it right where the head is, and
+    /// the hook shows. So a run no longer than twice a head goes straight into what it meets, and every longer run keeps its curve.
+    /// </para>
+    /// </summary>
     private static Geometry Line(IReadOnlyList<Point> points, bool curved)
     {
         var line = new StreamGeometry();
@@ -290,17 +303,31 @@ internal static class DiagramConnector
             }
             else
             {
-                // Catmull-Rom through every point, as cubic Béziers: the curve passes through the route rather than near it.
                 for (var at = 0; at < points.Count - 1; at++)
                 {
                     var (before, from, to, after) = (points[Math.Max(0, at - 1)], points[at], points[at + 1], points[Math.Min(points.Count - 1, at + 2)]);
-                    pen.BezierTo(from + ((to - before) / 6), to - ((after - from) / 6), to, isStroked: true, isSmoothJoin: true);
+                    var run = to - from;
+                    var most = run.Length / 3;
+                    var stub = run.Length <= HeadLength * 2;
+
+                    var lead = stub && at == points.Count - 2 ? run / 3 : Held((to - before) / 6, most);
+                    var trail = stub && at == 0 ? run / 3 : Held((after - from) / 6, most);
+
+                    pen.BezierTo(from + lead, to - trail, to, isStroked: true, isSmoothJoin: true);
                 }
             }
         }
 
         line.Freeze();
         return line;
+    }
+
+    /// <summary>A handle held to how far it may reach, keeping its direction — what stops a curve overshooting its own corner.</summary>
+    private static Vector Held(Vector handle, double most)
+    {
+        var reach = handle.Length;
+
+        return reach <= most || reach < 1e-9 ? handle : handle * (most / reach);
     }
 
     private static Vector Direction(Point from, Point to)

@@ -34,11 +34,9 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidStateParser    StateParser    = new();
     private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidErParser       ErParser       = new();
-    private static readonly MermaidSwimlaneParser  SwimlaneParser = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
 
     public bool CanHandle(string language) =>
@@ -62,13 +60,13 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
 
-            MermaidDiagram.State        => RenderGraphFamily(StateParser.Parse(block.Body), block, options, 900),
+
             MermaidDiagram.Class        => RenderClass(block, options),
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
 
             MermaidDiagram.Er           => RenderEr(block, options),
 
-            MermaidDiagram.Swimlane     => RenderSwimlane(block, palette),
+
 
             MermaidDiagram.C4           => RenderC4(block, options),
             MermaidDiagram.C4Sequence   => RenderC4Sequence(block, palette),
@@ -115,13 +113,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         }
 
         return RenderGraphFamily(graph, block, options, 1100);
-    }
-
-    private static FrameworkElement RenderSwimlane(MermaidBlock block, MarkdownPalette palette)
-    {
-        var graph = SwimlaneParser.Parse(block.Body);
-        graph.Title = Titled(graph.Title, block);
-        return WpfSwimlaneRenderer.Render(graph, palette);
     }
 
     /// <summary>

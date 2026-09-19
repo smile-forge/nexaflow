@@ -49,6 +49,17 @@ public class DiagramLayersTests
     }
 
     [TestMethod]
+    public void ALinkReachingOverNoRankAtAllHoldsWhatItJoinsSideBySide()
+    {
+        var (a, b, c) = (Cell(), Cell(), Cell());
+        DiagramLayers.Lay([a, b, c], [Join(a, b), Join(a, c, span: 0)], DiagramWay.Down, 10, 30);
+
+        Assert.AreEqual(a.Bounds.Top, c.Bounds.Top, 0.01, "nought ranks on is the rank it leaves — a note beside what it is about");
+        Assert.IsTrue(c.Bounds.Left >= a.Bounds.Right + 10 || a.Bounds.Left >= c.Bounds.Right + 10, "and it stands beside it");
+        Assert.IsTrue(b.Bounds.Top > a.Bounds.Bottom, "while a link of its own still reaches the next rank");
+    }
+
+    [TestMethod]
     public void ALinkReachingOverMoreThanOneRankBends()
     {
         var (a, b, c) = (Cell(), Cell(), Cell());

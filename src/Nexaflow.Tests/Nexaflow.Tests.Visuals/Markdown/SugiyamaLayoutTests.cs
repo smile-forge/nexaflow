@@ -32,21 +32,18 @@ public class SugiyamaLayoutTests
     [TestMethod]
     public void NestedComposites_AreLaidOutAsBoxesInsideBoxes()
     {
-        var g = new MermaidStateParser().Parse(
+        var g = new MermaidFlowchartParser().Parse(
             """
-            stateDiagram-v2
-                [*] --> First
-                state First {
-                    [*] --> Second
-                    state Second {
-                        [*] --> second
-                        state Third {
-                            [*] --> third
-                            third --> [*]
-                        }
+            flowchart TB
+                start --> First
+                subgraph First
+                    subgraph Second
+                        subgraph Third
+                            third --> t2
+                        end
                         second --> Third
-                    }
-                }
+                    end
+                end
             """);
 
         var lg = SugiyamaLayout.Compute(g);

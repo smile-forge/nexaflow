@@ -15,13 +15,19 @@ lines list items with values and whose options share a line, xychart one with ax
 
 | File | What it is | Pie / Venn |
 |---|---|---|
-| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
+| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what it writes across several lines rather than one (`Stretches`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Diagram.cs` (or `Chart`) | The model: the tree read back into what it describes, every part kept. `Of(MermaidBlock)`. The title is `MermaidBlock.Title` | `PieChart`, `VennDiagram`, `RadarChart` |
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
+
+**A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
+the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
+`SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes
+themselves ask for is its own (`SwimlaneConfig`). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
+and a builder's over what it draws.
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
 matter's), what could not be read set beneath it, the card, and the element the block is shown and written in.
@@ -36,6 +42,7 @@ diagram's own code sits in a folder of its own under each.
 
 | To | Use |
 |---|---|
+| read a statement written across several lines — a note written until its `end note` | `MermaidStretch`, named in the grammar's `Stretches`: the parser finds the stretch, from the line that opens one to the line that ends it, and hands each line back to be read; the whole of it is one line of the tree |
 | read a line: its keyword, words, space and tokens, and a `%%` comment closing it | `MermaidLine.Of`, `Keyword`, `Word`, `Token`, `Space`; `Spaced`, `Past`, `Sees`, `Next` to look ahead — `Keyword` and `Word` take what carries a word on, for one punctuation may close (`complex-->clear`) |
 | read a title | `MermaidLine.Title` — every builder sets it over the diagram |
 | read a name, bare or in quotes, or names with a separator between — each item more than its name where `item` says, a name still to write before `ends` | `Name`, `Names` |
@@ -79,8 +86,10 @@ diagram's own code sits in a folder of its own under each.
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
 | set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
-| lay nodes joined by lines out in ranks — a flowchart, a state chart | `DiagramLayers.Lay` of `DiagramCell`s and `DiagramJoin`s: ranks by how far the links reach, an order that keeps few lines crossing, boxes laid out in their own space and run their own way, and a route for every line |
-| draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray` |
+| lay nodes joined by lines out in ranks — a flowchart, a state chart | `DiagramLayers.Lay` of `DiagramCell`s and `DiagramJoin`s: ranks by how far the links reach, an order that keeps few lines crossing, boxes laid out in their own space and run their own way, and a route for every line — turning in the air between two ranks rather than between the middles of what it joins, running alongside a rank it passes rather than across what is in it, and bowed aside from any other line joining the same pair |
+| lay the same out in lanes — a swimlane | `DiagramLanes` of `DiagramLane`s, given to `DiagramLayers.Lay`: each cell keeps to the band its `DiagramCell.Lane` names, a lane's cells come one to a rank, and a link handed between two lanes goes across rather than on. A lane is not a cell — it is the band its cells are laid out in, and comes back its `Bounds` and the `Strip` at the near end where its name goes |
+| set a shape's words turned — a lane's name read up its band | `DiagramShapes.Draw` with `degrees`, which stands the words in the room the turn leaves them |
+| draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray`. Curved, the line passes through its route with each handle held to its own run and the runs at either end straight, so a corner is filleted and the line goes into a head along the head's own axis |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
 | set words that may hold an entity code — drawn as what the code says, and so pressed rather than typed into | `Says` on the builder |
@@ -98,7 +107,9 @@ diagram's own code sits in a folder of its own under each.
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed
 through the leaves it draws. That is why `DiagramShapes.Draw` draws its outline as a `Shape` leaf beside its words — standing
 in its outline less where the words are, so a press on them means them — and
-why a region's circles and its words are layers of their own. Where shapes overlap, a press means the one seen: a shape
+why a region's circles and its words are layers of their own. **A piece that holds other pieces stands for the whole stretch they
+were written in**: a swimlane's lane stands for its whole `subgraph … end`, not the line that opened it, so what is drawn in the lane
+stands for a stretch of what the lane itself stands for. Where shapes overlap, a press means the one seen: a shape
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 

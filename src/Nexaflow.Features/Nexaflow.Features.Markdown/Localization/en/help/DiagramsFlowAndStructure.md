@@ -1,6 +1,7 @@
 # Markdown — Diagrams: flow & structure
 
-Diagrams for how something is built, and how it runs: flowcharts, sequence, class, state and ER diagrams, and the C4 family.
+Diagrams for how something is built, and how it runs: flowcharts, swimlanes, sequence, class, state and ER diagrams, and
+the C4 family.
 
 ---
 
@@ -26,6 +27,37 @@ flowchart LR
 ````
 
 ![A flowchart running left to right, two of its nodes gathered in a subgraph and one coloured by a class](images/markdown/mermaid-flowchart.png)
+
+---
+
+## Swimlane diagram
+
+A flowchart divided by who owns each step. Every `subgraph` written outside them all is a lane — a band of its own, named at the
+near end of it, that the work in it runs through — and an arrow from one lane to another is a handoff.
+
+````markdown
+```mermaid
+swimlane-beta LR
+    subgraph Author
+        write[Write the page]
+        fix[Fix the notes]
+    end
+    subgraph Review team
+        read{Reads well?}
+    end
+    subgraph Publishing
+        ship([Publish])
+    end
+    write --> read
+    read -->|yes| ship
+    read -->|no| fix
+    fix --> read
+    classDef waiting fill:#6e6ce6,stroke:#333
+    class read waiting
+```
+````
+
+![A swimlane diagram running left to right, its three lanes stacked as bands with a decision handed from one to the next](images/markdown/mermaid-swimlane.png)
 
 ---
 
@@ -81,22 +113,28 @@ classDiagram
 
 ## State diagram
 
-States, transitions, start/end markers and composite states.
+States, the transitions between them, the dots a scope starts and stops at, composite states and notes.
 
 ````markdown
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
     Idle --> Loading : open file
+    state Loading {
+        [*] --> Reading
+        Reading --> Parsing
+        Parsing --> [*]
+    }
     Loading --> Rendered : success
     Loading --> Error : failure
+    note right of Error : the file is kept open
     Rendered --> Idle : close
     Error --> Idle : retry
     Rendered --> [*]
 ```
 ````
 
-![A state machine with start and end markers](images/markdown/mermaid-state.png)
+![A state machine whose loading state holds two states of its own, with a note beside the error state](images/markdown/mermaid-state.png)
 
 ---
 
