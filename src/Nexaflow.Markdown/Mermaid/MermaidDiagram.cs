@@ -99,7 +99,10 @@ public static class MermaidDiagrams
         MermaidDiagram.Block => Blocks,
         MermaidDiagram.Architecture => Architectures,
         MermaidDiagram.Sankey => Sankeys,
-        MermaidDiagram.Flowchart => Flowcharts,
+        MermaidDiagram.State => States,
+        // A swimlane is a flowchart laid out in lanes, and Mermaid reads the two with one parser: its top-level subgraphs
+        // are the lanes, and everything else about it is a flowchart's. Only its builder differs.
+        MermaidDiagram.Flowchart or MermaidDiagram.Swimlane => Flowcharts,
         _ => null,
     };
 
@@ -136,6 +139,8 @@ public static class MermaidDiagrams
     private static readonly Architecture.ArchitectureGrammar Architectures = new();
 
     private static readonly Sankey.SankeyGrammar Sankeys = new();
+
+    private static readonly State.StateGrammar States = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =

@@ -131,6 +131,7 @@ public class FlowchartGrammarTests : MermaidGrammarContract
         ("a node written again to say more about it", "flowchart LR\n  a --> b\n  a[\"Said later\"]"),
         ("a subgraph with nothing after the word", "flowchart TB\n  subgraph\n    a\n  end"),
         ("a subgraph titled in quotes", "flowchart TB\n  subgraph id [\"The title\"]\n    a\n  end"),
+        ("a subgraph named in words", "flowchart TB\n  subgraph The first part\n    a1 --> a2\n  end"),
         ("subgraphs nested in subgraphs", "flowchart TB\n  subgraph one\n    subgraph two\n      a\n    end\n  end"),
         ("a class given where the node is written", "flowchart LR\n  a:::hot --> b\n  classDef hot fill:#f00"),
         ("a class given to several nodes", "flowchart LR\n  a --> b\n  classDef hot fill:#f00\n  class a,b hot"),

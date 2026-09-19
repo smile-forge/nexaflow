@@ -8,6 +8,7 @@ using Nexaflow.Search;
 using Nexaflow.Providers.Common;
 using System.IO;
 using System.Text;
+using Nexaflow.Core.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -327,6 +328,13 @@ public sealed class AIService : IAIService
             var shellCtx = new ShellAi.ShellAiContext(_workspace);
             context = shellCtx.BuildContext() + "\n---\n" + pageContext;
             pageTools.AddRange(shellCtx.BuildTools());
+
+            // The help the app ships, on every page. A model that was not trained on Nexaflow otherwise has to
+            // guess at what a document can hold or what a page can do, and a guess reads exactly like knowing.
+            // No language pack means no help to offer — which is the case in a unit test of this loop, and the
+            // same way BuildTools above yields nothing without a shell.
+            if (LanguageManager.TryInstance is not null)
+                pageTools.AddRange(new Help.HelpClientTools(Help.HelpLibrary.Shared).Tools);
         }
 
         // Built-in discovery tool, plus the resolvable catalogue (page tools + the built-in).

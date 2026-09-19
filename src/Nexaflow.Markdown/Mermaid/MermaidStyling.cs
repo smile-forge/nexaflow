@@ -126,7 +126,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// <param name="drawn">The kinds of line that write the things these lines style.</param>
     /// <param name="missing">What is wrong with an id nothing writes, given the id.</param>
     public ContentNode Resolve(ContentNode tree, IReadOnlyList<string> drawn, string classDef, string classKind,
-                               string styleKind, Func<string, string> missing)
+                               string styleKind, Func<string, string?> missing)
     {
         var written = Names(tree, drawn, idRole);
         var classes = Names(tree, [classDef], classRole);
@@ -134,9 +134,10 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
 
         foreach (var line in tree.SelfAndDescendants().Where(node => node.Kind == classKind || node.Kind == styleKind))
         {
+            // A name the diagram always has, whether it is written or not — a state diagram's start and stop — is nothing missing.
             foreach (var name in Said(line, idRole))
-                if (Text(name) is { Length: > 0 } id && !written.Contains(id))
-                    wrong[name] = missing(id);
+                if (Text(name) is { Length: > 0 } id && !written.Contains(id) && missing(id) is { } reason)
+                    wrong[name] = reason;
 
             if (line.Kind != classKind) continue;
 

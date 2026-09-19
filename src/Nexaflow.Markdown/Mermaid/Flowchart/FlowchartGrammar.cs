@@ -76,7 +76,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
         return line.Done
             ? line.Read(FlowchartKinds.Way, MermaidRoles.Arguments)
-            : ContentNode.Shown(arguments, "A flowchart is laid out TB, TD, BT, RL or LR, and nothing else follows it: flowchart LR.",
+            : ContentNode.Shown(arguments, "A chart is laid out TB, TD, BT, RL or LR, and nothing else follows the keyword: flowchart LR.",
                                 MermaidRoles.Arguments);
     }
 
@@ -111,7 +111,8 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         if (part.Parent is { Kind: FlowchartKinds.Saying } saying) return Quoted(saying, part, caret, text);
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
-        if (part.Role is FlowchartRoles.Id or FlowchartRoles.Class or FlowchartRoles.Link) return Bared(part, caret, text);
+        if (part.Role is FlowchartRoles.Id or FlowchartRoles.Class or FlowchartRoles.Link)
+            return Bared(part, caret, text, Naming(part));
         if (part.Role is FlowchartRoles.Target or FlowchartRoles.Curve or FlowchartRoles.Call)
             return MermaidWriting.Only(caret, text, Bare);
 
@@ -122,28 +123,46 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     }
 
     /// <summary>
-    /// What is typed into a bare name — an id, a class — which cannot be quoted at all: what such a name may hold, and only so long
-    /// as none of it starts a link. A dash carries an id on, and is dropped where what is written after it would read as the link
-    /// instead.
+    /// Text written into a name that is written bare and cannot be quoted at all: a character goes in only where what the name would then
+    /// say still reads as the name, and whatever would not is dropped, since there is nowhere to put it.
+    ///
+    /// <para>
+    /// What follows the character is the rest of what is being written as well as the rest of the line. A name written in words takes a
+    /// space at the end of it too, a word at a time being how one is written: the space belongs to the line until the next word arrives,
+    /// and the line reads either way.
+    /// </para>
     /// </summary>
-    private static MermaidWriting? Bared(ContentPart part, int caret, string text)
+    /// <param name="worded">Whether it is a name written in words — a subgraph's own — rather than an id, a class or a link's.</param>
+    private static MermaidWriting? Bared(ContentPart part, int caret, string text, bool worded)
     {
+        Func<string, int, int> ends = worded ? Titled : Ends;
         var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
         var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var after = said[at..] + Following(part);
+        var beyond = said[at..] + Following(part);
         var kept = said[..at];
         var written = string.Empty;
 
-        foreach (var character in text.Where(Bare))
+        for (var character = 0; character < text.Length; character++)
         {
-            var tried = kept + character;
-            if (Ends(tried + after, 0) < tried.Length) continue;
+            var tried = kept + text[character];
+            var wanted = worded ? tried.TrimEnd(' ', '\t').Length : tried.Length;
+
+            if (ends(tried + text[(character + 1)..] + beyond, 0) < wanted) continue;
 
             kept = tried;
-            written += character;
+            written += text[character];
         }
 
         return written == text ? null : new MermaidWriting(caret, caret, written, caret + written.Length);
+    }
+
+    /// <summary>Whether a name is a subgraph's own, which may be written in words where an id may not.</summary>
+    private static bool Naming(ContentPart part)
+    {
+        for (var over = part.Parent; over is not null; over = over.Parent)
+            if (over.Kind == FlowchartKinds.Opens) return true;
+
+        return false;
     }
 
     /// <summary>What is written after a part, which is what a character typed at the end of it would run into.</summary>
@@ -214,6 +233,32 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         return at;
     }
 
+    /// <summary>
+    /// Where a subgraph's own name ends: Mermaid lets it be written in words, spaces and all — <c>subgraph Sales team</c>, whose name is
+    /// its title too — so it runs on through a space, and stops where its label opens, where a link starts, or at the end of what a name
+    /// may hold. The space at the end of it belongs to the line rather than to the name.
+    /// </summary>
+    public static int Titled(string text, int at)
+    {
+        var end = at;
+
+        while (at < text.Length)
+        {
+            if (text[at] is ' ' or '\t')
+            {
+                at++;
+                continue;
+            }
+
+            if (!Bare(text[at])) break;
+            if (text[at] is '-' or '.' or '=' && MermaidLinks.At(text, at) is not null) break;
+
+            end = ++at;
+        }
+
+        return end;
+    }
+
     // ── The lines ───────────────────────────────────────────────────────────
 
     /// <summary>A subgraph opening: <c>subgraph</c>, <c>subgraph Title</c>, or <c>subgraph id [Title]</c>.</summary>
@@ -224,7 +269,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Room();
 
-        if (!line.Done && !Node(line, FlowchartKinds.Node)) line.Restore(mark);
+        if (!line.Done && !Node(line, FlowchartKinds.Node, Titled)) line.Restore(mark);
 
         line.Space();
         line.Token(";");
@@ -363,14 +408,17 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
     // ── What a line of nodes is made of ─────────────────────────────────────
 
-    /// <summary>One node: <c>A</c>, <c>B["Wide"]</c>, <c>C{Decide}:::chosen</c>.</summary>
-    private static bool Node(MermaidLine line, string kind)
+    /// <summary>
+    /// One node: its id, the label in the brackets that say its shape, and the classes written on it. <paramref name="ends"/> says where
+    /// its id stops, which is a rule of the line's own — a subgraph's name runs on through a space where a node's id does not.
+    /// </summary>
+    private static bool Node(MermaidLine line, string kind, Func<string, int, int>? ends = null)
     {
         var mark = line.Save();
         line.Open();
 
         if (!MermaidOutline.Node(line, FlowchartRoles.Id, FlowchartRoles.Label, Stops, out var titled,
-                                 MermaidShapes.Brackets, spaced: false, ends: Ends))
+                                 MermaidShapes.Brackets, spaced: false, ends: ends ?? Ends))
             return Back(line, mark);
 
         if (!titled && line.At == mark.At) return Back(line, mark, NodeShape);
@@ -507,7 +555,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
                             "A linkStyle numbers the links it styles, counting from nought: linkStyle 0,2 stroke:#f00.");
 
     private static string? Wayward(string said) =>
-        Ways.Contains(said, StringComparer.OrdinalIgnoreCase) ? null : "A flowchart is laid out TB, TD, BT, RL or LR.";
+        Ways.Contains(said, StringComparer.OrdinalIgnoreCase) ? null : "A chart is laid out TB, TD, BT, RL or LR.";
 
     private static string? Targeted(string said) =>
         Targets.Contains(said, StringComparer.OrdinalIgnoreCase) ? null : "A link opens _self, _blank, _parent or _top.";

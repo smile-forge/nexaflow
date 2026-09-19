@@ -39,6 +39,13 @@ public interface IMermaidGrammar
     ContentNode? Statement(string text);
 
     /// <summary>
+    /// The statements this type writes across several lines rather than one — a note written until its <c>end note</c>. The parser
+    /// finds each stretch and reads it through the <see cref="MermaidStretch"/>, and hands every other line to
+    /// <see cref="Statement"/> on its own. None, for a type whose every statement is a line.
+    /// </summary>
+    IEnumerable<MermaidStretch> Stretches => [];
+
+    /// <summary>
     /// What a new line written under <paramref name="above"/> starts as before anything is filled in, and how far into it the
     /// caret goes — what Enter starts. <paramref name="above"/> is what the line the caret is on says, as this grammar read
     /// it, or null for a line that says nothing: a diagram whose lines come in several shapes starts the one that follows it.

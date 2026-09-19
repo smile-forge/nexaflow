@@ -48,6 +48,39 @@ public class DiagramConnectorTests
     });
 
     [TestMethod]
+    public void ACurvedLineRunsStraightIntoItsHead_AndDoesNotBowPastItsCorners() => UiThread.Run(() =>
+    {
+        // The route a layered layout hands over: down, across, and down again, squared off so it leaves and arrives head on.
+        var along = Flattened(Curved(DiagramHead.Arrow, new Point(0, 0), new Point(0, 50), new Point(100, 50), new Point(100, 100)));
+
+        var strayed = along.Where(at => at.Y > 60).Select(at => Math.Abs(at.X - 100)).DefaultIfEmpty(0).Max();
+        Assert.IsTrue(strayed < 0.5, $"the run into the head is straight, and this one bows {strayed:0.0} to the side of it");
+
+        var left = along.Where(at => at.Y < 40).Select(at => Math.Abs(at.X)).DefaultIfEmpty(0).Max();
+        Assert.IsTrue(left < 0.5, $"the run out of what it leaves is straight too, and this one bows {left:0.0}");
+
+        Assert.IsTrue(along.All(at => at.X >= -0.5 && at.X <= 100.5),
+                      "and it never bows past a corner, which is what holding each handle to its own run is for");
+    });
+
+    /// <summary>Every point a curved line comes to, the curve flattened to the lines it is drawn as.</summary>
+    private static Point[] Flattened(Piece edge) =>
+        [.. PathGeometry.CreateFromGeometry(edge.Marks.ToArray().OfType<GeometryMark>().First().Shape)
+                        .GetFlattenedPathGeometry()
+                        .Figures
+                        .SelectMany(figure => figure.Segments.OfType<PolyLineSegment>().SelectMany(segment => segment.Points))];
+
+    private static Piece Curved(DiagramHead end, params Point[] route)
+    {
+        var build = new LayoutBuilder();
+        build.Open("page");
+        DiagramConnector.Draw(build, "Edge", new TestPart(0, 3), route, new DiagramStroke(Brushes.Black), end: end, curved: true);
+        build.Close();
+
+        return build.Seal().Root.SelfAndDescendants().Single(piece => piece.Kind == "Edge");
+    }
+
+    [TestMethod]
     public void TheLineStopsWhereAHollowHeadStarts() => UiThread.Run(() =>
     {
         foreach (var head in new[] { DiagramHead.Triangle, DiagramHead.HollowDiamond, DiagramHead.Circle })
