@@ -103,7 +103,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
 
         // The edges are worked out before anything is drawn, because a group under one of them does not stand where it runs.
         var routes = Routes(diagram, boxes, groups);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(ArchitecturePiece.Parts, part: null, stops: Stops.None);
 
@@ -414,24 +414,6 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         }
 
         return routes;
-    }
-
-    /// <summary>
-    /// What the edges cover, which whatever is drawn under them does not stand in: the band along each one, and the patch what
-    /// is written on it sits on. Each is its own shape rather than one group of them, because a group of shapes taken out of
-    /// another shape does not take with it what is nested inside it.
-    /// </summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-    over.Add(DiagramConnector.Band(route.Along, Thick));
-    if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
     }
 
     /// <summary>The edges, drawn over everything they join.</summary>

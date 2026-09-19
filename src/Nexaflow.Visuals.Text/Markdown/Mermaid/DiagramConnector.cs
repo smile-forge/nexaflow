@@ -200,6 +200,41 @@ internal static class DiagramConnector
     public static Geometry Band(IReadOnlyList<Point> route, double thickness = 1, bool curved = false) =>
         Frozen(Line(route, curved).GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(Reach, thickness))));
 
+    /// <summary>
+    /// A join's route with its ends brought in from the middles of the cells it joins to their edges, which is where a line is
+    /// drawn from and to. <paramref name="edge"/> says where a cell's own shape is met, for a diagram whose nodes are not all
+    /// rectangles; a cell joined to itself keeps the loop the layout gave it.
+    /// </summary>
+    public static IReadOnlyList<Point> Trimmed(DiagramJoin join, Func<DiagramCell, Point, Point>? edge = null)
+    {
+        var points = join.Route.ToList();
+        if (ReferenceEquals(join.From, join.To)) return points;
+
+        edge ??= static (cell, toward) => DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, toward);
+
+        points[0] = edge(join.From, points[1]);
+        points[^1] = edge(join.To, points[^2]);
+
+        return points;
+    }
+
+    /// <summary>
+    /// What a set of lines covers, which whatever is drawn under them does not stand in: the band each runs in, and the room what
+    /// is written over the middle of it takes.
+    /// </summary>
+    public static IReadOnlyList<Geometry> Covered(IEnumerable<(IReadOnlyList<Point> Along, Rect Room)> routes, double thickness = 1)
+    {
+        var over = new List<Geometry>();
+
+        foreach (var (along, room) in routes)
+        {
+            over.Add(Band(along, thickness));
+            if (!room.IsEmpty) over.Add(new RectangleGeometry(room));
+        }
+
+        return over;
+    }
+
     // ── Heads ───────────────────────────────────────────────────────────────
 
     /// <summary>

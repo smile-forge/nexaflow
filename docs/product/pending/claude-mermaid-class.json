@@ -162,8 +162,102 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
           "class": "LinkedElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramBox.cs",
+          "class": "DiagramBox"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidGrammarContract.cs",
+            "class": "MermaidGrammarContract"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidKitRulesTests.cs",
+            "class": "MermaidKitRulesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderContract.cs",
+            "class": "MermaidBuilderContract"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderRulesTests.cs",
+            "class": "MermaidBuilderRulesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramShapesTests.cs",
+            "class": "DiagramShapesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramConnectorTests.cs",
+            "class": "DiagramConnectorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramAxisTests.cs",
+            "class": "DiagramAxisTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLegendTests.cs",
+            "class": "DiagramLegendTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/MermaidDiagramRulesTests.cs",
+            "class": "MermaidDiagramRulesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramCurveTests.cs",
+            "class": "DiagramCurveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidLineTests.cs",
+            "class": "MermaidLineTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramSpanTests.cs",
+            "class": "DiagramSpanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramGlyphTests.cs",
+            "class": "DiagramGlyphTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramColoursTests.cs",
+            "class": "DiagramColoursTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLayersTests.cs",
+            "class": "DiagramLayersTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLanesTests.cs",
+            "class": "DiagramLanesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramBoxTests.cs",
+            "class": "DiagramBoxTests"
+          }
+        ]
+      }
     },
     "requirement-diagram": {
       "links": [
@@ -272,7 +366,7 @@
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 8,
   "touched_nodes": [
     "class-diagram",
     "er-diagram",

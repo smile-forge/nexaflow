@@ -225,7 +225,7 @@ public sealed class RequirementGrammar : IMermaidGrammar
         line.Space();
 
         // A name on a line of its own writes the box, which is where ::: gives one a class.
-        if (line.Done || line.Sees(";")) return Closed(line, RequirementKinds.Naming, RelationShape);
+        if (line.Done || line.Sees(";")) return line.Closed(RequirementKinds.Naming, RelationShape);
 
         // Written the other way round, the end the relation reaches is named first — which is what the <- says.
         var back = line.Sees(Backward);
@@ -240,7 +240,7 @@ public sealed class RequirementGrammar : IMermaidGrammar
         line.Room();
         if (!Named(line)) return line.Shown(RelationShape);
 
-        return Closed(line, RequirementKinds.Relation, RelationShape);
+        return line.Closed(RequirementKinds.Relation, RelationShape);
     }
 
     /// <summary>The way the diagram is laid out.</summary>
@@ -250,7 +250,7 @@ public sealed class RequirementGrammar : IMermaidGrammar
         line.Room();
         line.Setting(RequirementRoles.Towards, Wayward, until: Stops);
 
-        return Closed(line, RequirementKinds.Direction, DirectionShape);
+        return line.Closed(RequirementKinds.Direction, DirectionShape);
     }
 
     // ── The fields between the braces ───────────────────────────────────────
@@ -295,7 +295,7 @@ public sealed class RequirementGrammar : IMermaidGrammar
         line.Room();
         line.Token(Closing, Roles.Close);
 
-        return Closed(line, RequirementKinds.Shut, StrayShape);
+        return line.Closed(RequirementKinds.Shut, StrayShape);
     }
 
     /// <summary>
@@ -335,35 +335,16 @@ public sealed class RequirementGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Open();
 
-        if (!line.Name(RequirementRoles.Id, Bare)) return Back(line, mark);
+        if (!line.Name(RequirementRoles.Id, Bare)) return line.Undo(mark);
 
         if (line.Sees(Given))
         {
             line.Token(Given);
-            if (!line.Name(RequirementRoles.Class, Bare)) return Back(line, mark);
+            if (!line.Name(RequirementRoles.Class, Bare)) return line.Undo(mark);
         }
 
         line.Close(RequirementKinds.Named, RequirementRoles.Id);
         return true;
-    }
-
-    /// <summary>The semicolon and the space a line may end with, and what is wrong where anything else is written there.</summary>
-    private static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
-    }
-
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark)
-    {
-        var why = line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
     }
 
     private static string? Between(string said) =>

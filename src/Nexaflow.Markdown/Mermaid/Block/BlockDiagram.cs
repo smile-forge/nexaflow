@@ -165,7 +165,8 @@ public sealed class BlockDiagram
                     break;
 
                 case BlockKinds.Class:
-                    taken.Add((BlockGrammar.Styling.Ids(stated), BlockGrammar.Styling.Given(stated) ?? string.Empty));
+                    foreach (var given in BlockGrammar.Styling.Givens(stated))
+                        taken.Add((BlockGrammar.Styling.Ids(stated), given));
                     break;
 
                 case BlockKinds.Style:

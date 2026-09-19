@@ -241,11 +241,11 @@ public sealed class ClassGrammar : IMermaidGrammar
         if (!line.Sees(Opens) || !line.Label(Opens, Shuts, ClassRoles.Kind)) line.Restore(mark);
 
         line.Space();
-        if (!line.Token(Opening, Roles.Open)) return Closed(line, ClassKinds.Class, ClassShape);
+        if (!line.Token(Opening, Roles.Open)) return line.Closed(ClassKinds.Class, ClassShape);
 
         // class Foo{} is a class written on one line with nothing in it, which Mermaid draws as an empty class.
         line.Space();
-        if (line.Token(Closing, Roles.Close)) return Closed(line, ClassKinds.Class, ClassShape);
+        if (line.Token(Closing, Roles.Close)) return line.Closed(ClassKinds.Class, ClassShape);
 
         return line.Done ? line.Read(ClassKinds.Opens) : line.Shown(BodyShape);
     }
@@ -272,7 +272,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Room();
         line.Token(Closing, Roles.Close);
 
-        return Closed(line, kind, BodyShape);
+        return line.Closed(kind, BodyShape);
     }
 
     /// <summary>A relation between two classes, or a member given to one class after a colon.</summary>
@@ -307,7 +307,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         }
 
         Said(line);
-        return Closed(line, ClassKinds.Relation, RelationShape);
+        return line.Closed(ClassKinds.Relation, RelationShape);
     }
 
     /// <summary>A member given to a class on a line of its own: <c>Foo : +int age</c>.</summary>
@@ -321,7 +321,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Words(ClassRoles.Member);
         line.Close(ClassKinds.Member, ClassRoles.Member);
 
-        return Closed(line, ClassKinds.Says, MemberShape);
+        return line.Closed(ClassKinds.Says, MemberShape);
     }
 
     /// <summary>An annotation written on a line of its own, saying what a class declared elsewhere is.</summary>
@@ -332,7 +332,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Room();
         if (!Named(line)) return line.Shown(AnnotationShape);
 
-        return Closed(line, ClassKinds.Annotation, AnnotationShape);
+        return line.Closed(ClassKinds.Annotation, AnnotationShape);
     }
 
     /// <summary>A note beside a class, or one floating with nothing to be beside.</summary>
@@ -350,7 +350,7 @@ public sealed class ClassGrammar : IMermaidGrammar
 
         if (!line.Quoted(ClassRoles.Said)) return line.Shown(NoteShape);
 
-        return Closed(line, ClassKinds.Note, NoteShape);
+        return line.Closed(ClassKinds.Note, NoteShape);
     }
 
     /// <summary>The way the diagram is laid out.</summary>
@@ -360,7 +360,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Room();
         line.Setting(ClassRoles.Towards, Wayward, until: Stops);
 
-        return Closed(line, ClassKinds.Direction, DirectionShape);
+        return line.Closed(ClassKinds.Direction, DirectionShape);
     }
 
     /// <summary>What takes a class, and the class it takes: <c>cssClass "A,B" blue</c>.</summary>
@@ -376,7 +376,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Room();
         if (!line.Done && !line.Name(ClassRoles.Class, Bare)) return line.Shown(CssClassShape);
 
-        return Closed(line, ClassKinds.CssClass, CssClassShape);
+        return line.Closed(ClassKinds.CssClass, CssClassShape);
     }
 
     /// <summary>Where pressing a class leads, what it says while pointed at, and where it opens.</summary>
@@ -409,7 +409,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         if (line.Done) line.Restore(mark);
         else line.Setting(ClassRoles.Target, Targeted, until: Stops);
 
-        return Closed(line, ClassKinds.Click, ClickShape);
+        return line.Closed(ClassKinds.Click, ClickShape);
     }
 
     // ── The members between the braces ──────────────────────────────────────
@@ -430,7 +430,7 @@ public sealed class ClassGrammar : IMermaidGrammar
 
         if (line.Sees(Opens))
             return line.Label(Opens, Shuts, ClassRoles.Kind)
-                ? Closed(line, ClassKinds.Annotation, AnnotationShape)
+                ? line.Closed(ClassKinds.Annotation, AnnotationShape)
                 : line.Shown(AnnotationShape);
 
         line.Words(ClassRoles.Member);
@@ -447,7 +447,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Open();
 
-        if (!Id(line)) return Back(line, mark);
+        if (!Id(line)) return line.Undo(mark);
 
         if (line.Sees(Tilde))
         {
@@ -460,7 +460,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         if (line.Sees(Given))
         {
             line.Token(Given);
-            if (!line.Name(ClassRoles.Class, Bare)) return Back(line, mark);
+            if (!line.Name(ClassRoles.Class, Bare)) return line.Undo(mark);
         }
 
         line.Close(ClassKinds.Named, ClassRoles.Id);
@@ -529,25 +529,6 @@ public sealed class ClassGrammar : IMermaidGrammar
         line.Close(ClassKinds.Said, ClassRoles.Said);
 
         return true;
-    }
-
-    /// <summary>The semicolon and the space a line may end with, and what is wrong where anything else is written there.</summary>
-    private static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
-    }
-
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark)
-    {
-        var why = line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
     }
 
     private static string? Wayward(string said) =>

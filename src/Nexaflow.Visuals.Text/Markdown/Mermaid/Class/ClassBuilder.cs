@@ -127,7 +127,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         // The relations are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(ClassPiece.Classes, part: null, stops: Stops.None);
         foreach (var space in diagram.Within(null)) Held(build, diagram, plan, room, space, over);
@@ -228,24 +228,11 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>Everything the diagram means to draw, gathered so the whole of it is brought inside the box the block takes.</summary>
-    private DiagramRoom Reached(ClassDiagram diagram, Plan plan)
-    {
-        var room = new DiagramRoom(diagram.Config.Padding);
-
-        room.Reach(new Rect(default, plan.Size));
-        foreach (var node in plan.Nodes) room.Reach(node.Cell.Bounds);
-        foreach (var note in plan.Notes) room.Reach(note.Cell.Bounds);
-        foreach (var box in plan.Spaces.Values) room.Reach(box.Cell.Bounds);
-
-        foreach (var (relation, join) in plan.Joins)
-        {
-            foreach (var at in join.Route) room.Reach(new Rect(at, at));
-
-            if (Says(relation) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
-        }
-
-        return room;
-    }
+    private DiagramRoom Reached(ClassDiagram diagram, Plan plan) =>
+        DiagramRoom.Round(diagram.Config.Padding, plan.Size,
+                          [.. plan.Nodes.Select(node => node.Cell), .. plan.Notes.Select(note => note.Cell),
+                           .. plan.Spaces.Values.Select(box => box.Cell)],
+                          plan.Joins.Select(join => (join.Value, Says(join.Key))));
 
     // ── What a class comes to ───────────────────────────────────────────────
 
@@ -271,13 +258,20 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         var methods = node.Methods.Select(member => (Member: member, Words: Member(member, ink))).ToList();
         var offered = node.Lollipops.Select(lollipop => (Lollipop: lollipop, Words: Offered(lollipop))).ToList();
 
-        var banded = !config.HideEmptyMembers || fields.Count > 0 || methods.Count > 0;
-        var head = (title.Count * Row) + (Air * 2);
-        var first = banded ? (fields.Count * Row) + (Air * 2) : 0;
-        var second = banded ? (methods.Count * Row) + (Air * 2) : 0;
+        var bands = new List<DiagramCompartment>
+        {
+            new([.. title.Select(words => DiagramRow.Of(words))]) { Centred = true },
+        };
 
-        var widest = title.Concat(fields.Concat(methods).Select(row => row.Words)).Max(words => words.Width);
-        var wide = Math.Max(Least, widest + (Pad * 2));
+        // The two bands under the name are drawn whether or not anything is written in them, unless the front matter says not.
+        if (!config.HideEmptyMembers || fields.Count > 0 || methods.Count > 0)
+        {
+            bands.Add(new([.. fields.Select(row => DiagramRow.Of(row.Words))]));
+            bands.Add(new([.. methods.Select(row => DiagramRow.Of(row.Words))]));
+        }
+
+        var laid = DiagramBox.Measure(bands, Row, Pad, Air, gap: 0, new Size(Least, Shortest), Chrome);
+
         var above = offered.Any(one => !one.Lollipop.Below) ? Band : 0;
         var below = offered.Any(one => one.Lollipop.Below) ? Band : 0;
 
@@ -285,15 +279,11 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
             ? 0
             : Math.Max(offered.Count(one => !one.Lollipop.Below), offered.Count(one => one.Lollipop.Below)) * Apart;
 
-        return new Sized(node, title, fields, methods, offered)
+        return new Sized(node, fields, methods, offered, laid)
         {
-            Head = head,
-            Fields = first,
             Above = above,
             Below = below,
-            Wide = wide,
-            Deep = Math.Max(Shortest, head + first + second) + Chrome,
-            Size = new Size(Math.Max(wide, spread), Math.Max(Shortest, head + first + second) + Chrome + above + below),
+            Size = new Size(Math.Max(laid.Size.Width, spread), laid.Size.Height + above + below),
         };
     }
 
@@ -351,7 +341,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         {
             if (!plan.Joins.TryGetValue(relation, out var join) || join.Route.Count < 2) continue;
 
-            var along = Trimmed(join);
+            var along = DiagramConnector.Trimmed(join);
             var placed = along.Select(room.At).ToList();
             var said = Says(relation);
 
@@ -367,32 +357,6 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
 
     private DiagramWords? Counted(ContentPart? count) =>
         count is { Length: > 0 } ? Written(count, null, LabelSize, Palette.TextMuted) : null;
-
-    /// <summary>A route's ends brought in from the middles of the boxes it joins to their edges.</summary>
-    private static IReadOnlyList<Point> Trimmed(DiagramJoin join)
-    {
-        var points = join.Route.ToList();
-        if (ReferenceEquals(join.From, join.To)) return points;
-
-        points[0] = DiagramShapes.Edge(DiagramShape.Rectangle, join.From.Bounds, points[1]);
-        points[^1] = DiagramShapes.Edge(DiagramShape.Rectangle, join.To.Bounds, points[^2]);
-
-        return points;
-    }
-
-    /// <summary>What the relations cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
-    }
 
     /// <summary>The relations, drawn over the diagram.</summary>
     private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes)
@@ -489,14 +453,12 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         // A class carrying lollipops is given room for them either side; the box itself sits in the middle of that.
         var box = new Rect(bounds.X + ((bounds.Width - sized.Wide) / 2), bounds.Y + sized.Above, sized.Wide, sized.Deep);
         var outline = DiagramShapes.Outline(DiagramShape.Rounded, box);
-
-        var title = Heading(sized, box).ToList();
-        var rows = Rows(sized, box).ToList();
+        var placed = sized.Laid.Placed(box).ToList();
 
         var covered = new GeometryGroup();
         foreach (var shape in over) covered.Children.Add(shape);
-        foreach (var (words, at) in title) covered.Children.Add(new RectangleGeometry(new Rect(at, new Size(words.Width, words.Height))));
-        foreach (var (words, at, _) in rows) covered.Children.Add(new RectangleGeometry(new Rect(at, new Size(words.Width, words.Height))));
+        foreach (var (_, _, set) in placed)
+            foreach (var (words, at) in set) covered.Children.Add(new RectangleGeometry(new Rect(at, new Size(words.Width, words.Height))));
 
         build.Open(ClassPiece.Class, node.Whole, stops: Stops.None);
         if (node.Href is { Length: > 0 } href) build.Links(new LayoutLink(href, node.Tip));
@@ -505,7 +467,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         build.Draw(new GeometryMark(outline, Fill(node), Stroke(node.Style).Ink, Stroke(node.Style).Thickness));
 
         // The rules divide the box into its bands, which is what says a class has members at all.
-        foreach (var at in Rules(sized, box))
+        foreach (var at in sized.Laid.Rules(box))
             build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
@@ -513,52 +475,17 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         build.Occupies(stands);
         build.Close();
 
-        foreach (var (words, at) in title) words.Set(build, at, MermaidPiece.Words);
-        foreach (var (words, at, member) in rows) Membered(build, words, at, member);
+        foreach (var (band, at, set) in placed)
+            foreach (var (words, where) in set)
+            {
+                if (band == 0) words.Set(build, where, MermaidPiece.Words);
+                else Membered(build, words, where, band == 1 ? sized.Fielded[at].Member : sized.Methoded[at].Member);
+            }
 
         Offering(build, sized, box, above: true);
         Offering(build, sized, box, above: false);
 
         build.Close();
-    }
-
-    /// <summary>Where each line of a class's name is set: one to a row, across the middle of the band above its members.</summary>
-    private static IEnumerable<(DiagramWords Words, Point At)> Heading(Sized sized, Rect box)
-    {
-        var top = box.Y + Air;
-
-        foreach (var words in sized.Title)
-        {
-            yield return (words, new Point(box.X + ((box.Width - words.Width) / 2), top + ((Row - words.Height) / 2)));
-            top += Row;
-        }
-    }
-
-    /// <summary>Where each member is set: the fields under the first rule, the methods under the second, one to a row.</summary>
-    private static IEnumerable<(DiagramWords Words, Point At, ClassMember Member)> Rows(Sized sized, Rect box)
-    {
-        var top = box.Y + sized.Head + Air;
-        foreach (var (member, words) in sized.Fielded)
-        {
-            yield return (words, new Point(box.X + Pad, top + ((Row - words.Height) / 2)), member);
-            top += Row;
-        }
-
-        top = box.Y + sized.Head + sized.Fields + Air;
-        foreach (var (member, words) in sized.Methoded)
-        {
-            yield return (words, new Point(box.X + Pad, top + ((Row - words.Height) / 2)), member);
-            top += Row;
-        }
-    }
-
-    /// <summary>Where the rules dividing a class's bands run, or none at all where it is drawn without them.</summary>
-    private static IEnumerable<double> Rules(Sized sized, Rect box)
-    {
-        if (sized.Fields <= 0) yield break;
-
-        yield return box.Y + sized.Head;
-        yield return box.Y + sized.Head + sized.Fields;
     }
 
     /// <summary>
@@ -654,17 +581,15 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    /// <summary>A class measured: the words of each band, how deep each is, and the cell the layout placed it in.</summary>
+    /// <summary>A class measured: the words of each band, the box they are set in, and the cell the layout placed it in.</summary>
     private sealed class Sized(
         ClassNode node,
-        IReadOnlyList<DiagramWords> title,
         IReadOnlyList<(ClassMember Member, DiagramWords Words)> fielded,
         IReadOnlyList<(ClassMember Member, DiagramWords Words)> methoded,
-        IReadOnlyList<(ClassLollipop Lollipop, DiagramWords Words)> offered)
+        IReadOnlyList<(ClassLollipop Lollipop, DiagramWords Words)> offered,
+        DiagramBox laid)
     {
         public ClassNode Node { get; } = node;
-
-        public IReadOnlyList<DiagramWords> Title { get; } = title;
 
         public IReadOnlyList<(ClassMember Member, DiagramWords Words)> Fielded { get; } = fielded;
 
@@ -672,11 +597,8 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         public IReadOnlyList<(ClassLollipop Lollipop, DiagramWords Words)> Offered { get; } = offered;
 
-        /// <summary>How deep the band its name is drawn in is.</summary>
-        public double Head { get; init; }
-
-        /// <summary>How deep the band its fields are drawn in is, or nought where it is drawn without bands at all.</summary>
-        public double Fields { get; init; }
+        /// <summary>Its name and its members measured into a box of compartments (<see cref="DiagramBox"/>).</summary>
+        public DiagramBox Laid { get; } = laid;
 
         /// <summary>The room kept above and below the box for the interfaces it offers.</summary>
         public double Above { get; init; }
@@ -684,9 +606,9 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         public double Below { get; init; }
 
         /// <summary>How wide and how deep the box itself is, which is less than the cell where lollipops widen it.</summary>
-        public double Wide { get; init; }
+        public double Wide => Laid.Size.Width;
 
-        public double Deep { get; init; }
+        public double Deep => Laid.Size.Height;
 
         public Size Size { get; init; }
 

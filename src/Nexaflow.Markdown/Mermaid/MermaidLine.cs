@@ -194,6 +194,20 @@ public sealed class MermaidLine
         Reason = null;
     }
 
+    /// <summary>
+    /// Goes back to <paramref name="mark"/> and says why the reading that got there could not go on — <paramref name="reason"/>,
+    /// or what the reading itself gave. Always false, which is what a grammar returns where one reading of a line did not work
+    /// out and another is to be tried.
+    /// </summary>
+    public bool Undo(Mark mark, string? reason = null)
+    {
+        var why = reason ?? Reason;
+        Restore(mark);
+        if (why is not null) Fail(why);
+
+        return false;
+    }
+
     /// <summary>The pieces read since <paramref name="mark"/>.</summary>
     public IReadOnlyList<ContentNode> Since(Mark mark) => _pieces.GetRange(mark.Pieces, _pieces.Count - mark.Pieces);
 
@@ -516,6 +530,19 @@ public sealed class MermaidLine
 
     /// <summary>What was read, as a <paramref name="kind"/> — with the comment closing the line, where one does, kept inside it.</summary>
     public ContentNode Read(string kind, string role = Roles.Element) => Commented(ContentNode.Branch(kind, [.. _pieces], role));
+
+    /// <summary>
+    /// What was read as a <paramref name="kind"/>, once the semicolon and the space a line may end with are taken — and the line
+    /// as written, with <paramref name="shape"/> saying what one of this kind looks like, where anything else is written there.
+    /// </summary>
+    public ContentNode Closed(string kind, string shape)
+    {
+        Space();
+        Token(";");
+        Space();
+
+        return Done ? Read(kind) : Shown(shape);
+    }
 
     /// <summary>
     /// The line as written, held with why it could not be read: <see cref="Reason"/> where a read gave one, and otherwise

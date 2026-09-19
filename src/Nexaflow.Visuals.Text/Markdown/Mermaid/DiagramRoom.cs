@@ -46,6 +46,29 @@ internal sealed class DiagramRoom(double padding = 0)
     /// <summary>Takes in words set at a point.</summary>
     public void Reach(DiagramWords words, Point at) => Reach(new Rect(at, new Size(words.Width, words.Height)));
 
+    /// <summary>
+    /// The room a diagram of cells joined by lines takes: the whole of what the layout laid out, every cell in it, and every line
+    /// with the words written over the middle of it. A diagram reaches whatever else it draws — a lane's band, a note pinned
+    /// beside something — into the room this hands back.
+    /// </summary>
+    public static DiagramRoom Round(double padding, Size laid, IEnumerable<DiagramCell> cells,
+                                    IEnumerable<(DiagramJoin Join, IReadOnlyList<DiagramWords> Said)> joins)
+    {
+        var room = new DiagramRoom(padding);
+
+        room.Reach(new Rect(default, laid));
+        foreach (var cell in cells) room.Reach(cell.Bounds);
+
+        foreach (var (join, said) in joins)
+        {
+            foreach (var at in join.Route) room.Reach(new Rect(at, at));
+
+            if (said.Count > 0) room.Reach(DiagramConnector.Room(join.Route, said));
+        }
+
+        return room;
+    }
+
     /// <summary>How far left what was reached since <paramref name="from"/> pieces goes.</summary>
     public double Left(int from)
     {

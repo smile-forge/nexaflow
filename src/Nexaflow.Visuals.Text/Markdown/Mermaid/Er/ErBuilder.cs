@@ -98,7 +98,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         // The relationships are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(ErPiece.Entities, part: null, stops: Stops.None);
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
@@ -162,25 +162,12 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         return plan;
     }
 
-    private DiagramRoom Reached(ErDiagram diagram, Plan plan)
-    {
-        var room = new DiagramRoom(diagram.Config.Air);
+    private DiagramRoom Reached(ErDiagram diagram, Plan plan) =>
+        DiagramRoom.Round(diagram.Config.Air, plan.Size,
+                          [.. plan.Entities.Select(entity => entity.Cell), .. plan.Groups.Values.Select(box => box.Cell)],
+                          plan.Joins.Select(join => (join.Value, Says(join.Key))));
 
-        room.Reach(new Rect(default, plan.Size));
-        foreach (var entity in plan.Entities) room.Reach(entity.Cell.Bounds);
-        foreach (var box in plan.Groups.Values) room.Reach(box.Cell.Bounds);
-
-        foreach (var (relation, join) in plan.Joins)
-        {
-            foreach (var at in join.Route) room.Reach(new Rect(at, at));
-
-            if (Says(relation) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
-        }
-
-        return room;
-    }
-
-    /// <summary>One entity measured: its name over its attributes, and how wide each column of them runs.</summary>
+    /// <summary>One entity measured: its name over its attributes, each set in its own column.</summary>
     private Sized Measure(ErEntity entity, ErConfig config)
     {
         var ink = Ink.Written(entity.Style.Colour) ?? Palette.Text;
@@ -188,32 +175,24 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         var title = Wrapped(entity.Said, entity.SaidHole, config.TextSize, ink, config.Wrapping, FontWeights.SemiBold);
 
         var rows = entity.Attributes
-            .Select(attribute => new Row(attribute,
-                                         [Worded(attribute.Type, ink, config),
-                                          Worded(attribute.Field, ink, config),
-                                          Keyed(attribute, ink, config),
-                                          Worded(attribute.Comment, Palette.TextMuted, config)]))
+            .Select(attribute => (Attribute: attribute,
+                                  Said: new DiagramRow([Worded(attribute.Type, ink, config),
+                                                        Worded(attribute.Field, ink, config),
+                                                        Keyed(attribute, ink, config),
+                                                        Worded(attribute.Comment, Palette.TextMuted, config)])))
             .ToList();
 
-        var columns = new double[Columns];
-        foreach (var row in rows)
-            for (var at = 0; at < Columns; at++)
-                columns[at] = Math.Max(columns[at], row.Said[at]?.Width ?? 0);
-
-        var across = columns.Where(column => column > 0).ToList();
-        var widest = Math.Max(title.Count == 0 ? 0 : title.Max(words => words.Width),
-                              across.Sum() + (Math.Max(0, across.Count - 1) * Gap(config)));
-
-        var head = (Math.Max(1, title.Count) * config.RowHeight) + (Air * 2);
-        var body = rows.Count > 0 ? (rows.Count * config.RowHeight) + (Air * 2) : 0;
-
-        return new Sized(entity, title, rows, columns)
+        var bands = new List<DiagramCompartment>
         {
-            Head = head,
-            Body = body,
-            Size = new Size(Math.Max(config.MinWidth, widest + (config.Padding * 2)),
-                            Math.Max(config.MinHeight, head + body) + Chrome),
+            new([.. title.Select(words => DiagramRow.Of(words))]) { Centred = true },
         };
+
+        // The attributes line up down the box, column by column, so they read down as well as across.
+        if (rows.Count > 0) bands.Add(new([.. rows.Select(row => row.Said)]) { Aligned = true });
+
+        return new Sized(entity, rows,
+                         DiagramBox.Measure(bands, config.RowHeight, config.Padding, Air, config.TextSize,
+                                            new Size(config.MinWidth, config.MinHeight), Chrome));
     }
 
     /// <summary>What is written at the top of a subgraph.</summary>
@@ -246,7 +225,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         {
             if (!plan.Joins.TryGetValue(relation, out var join) || join.Route.Count < 2) continue;
 
-            var placed = Trimmed(join).Select(room.At).ToList();
+            var placed = DiagramConnector.Trimmed(join).Select(room.At).ToList();
             var said = Says(relation);
 
             routes.Add(new Route(relation, placed, said, DiagramConnector.Room(placed, said)));
@@ -260,32 +239,6 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         relation.Said is null && relation.SaidHole is null
             ? []
             : Wrapped(relation.Said, relation.SaidHole, LabelSize, Palette.TextMuted, Widest);
-
-    /// <summary>A route's ends brought in from the middles of the boxes it joins to their edges.</summary>
-    private static IReadOnlyList<Point> Trimmed(DiagramJoin join)
-    {
-        var points = join.Route.ToList();
-        if (ReferenceEquals(join.From, join.To)) return points;
-
-        points[0] = DiagramShapes.Edge(DiagramShape.Rectangle, join.From.Bounds, points[1]);
-        points[^1] = DiagramShapes.Edge(DiagramShape.Rectangle, join.To.Bounds, points[^2]);
-
-        return points;
-    }
-
-    /// <summary>What the relationships cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
-    }
 
     /// <summary>The relationships, drawn over the diagram.</summary>
     private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes)
@@ -351,14 +304,12 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         var box = room.At(laid.Cell.Bounds);
         var outline = DiagramShapes.Outline(DiagramShape.Rounded, box);
-
-        var title = Heading(laid, config, box).ToList();
-        var rows = Rows(laid, config, box).ToList();
+        var placed = laid.Laid.Placed(box).ToList();
 
         var covered = new GeometryGroup();
         foreach (var shape in over) covered.Children.Add(shape);
-        foreach (var (words, at) in title) covered.Children.Add(Taken(words, at));
-        foreach (var (_, said) in rows) foreach (var (words, at) in said) covered.Children.Add(Taken(words, at));
+        foreach (var (_, _, set) in placed)
+            foreach (var (words, at) in set) covered.Children.Add(Taken(words, at));
 
         build.Open(ErPiece.Entity, entity.Whole, stops: Stops.None);
         build.Open(MermaidPiece.Shape, entity.Part, stops: Stops.None);
@@ -367,63 +318,24 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         build.Draw(new GeometryMark(outline, Fill(entity, config), stroke.Ink, stroke.Thickness));
 
         // The rule under the name is what says an entity has attributes at all.
-        if (laid.Body > 0)
-            build.Draw(new LineMark(new Point(box.Left, box.Y + laid.Head), new Point(box.Right, box.Y + laid.Head),
-                                    Palette.CodeBorder));
+        foreach (var at in laid.Laid.Rules(box))
+            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
         stands.Freeze();
         build.Occupies(stands);
         build.Close();
 
-        foreach (var (words, at) in title) words.Set(build, at, MermaidPiece.Words);
-
-        foreach (var (attribute, said) in rows)
+        foreach (var (band, at, set) in placed)
         {
-            build.Open(ErPiece.Attribute, attribute.Part, stops: Stops.None);
-            foreach (var (words, at) in said) words.Set(build, at, MermaidPiece.Words);
-            build.Close();
+            if (band > 0) build.Open(ErPiece.Attribute, laid.Rows[at].Attribute.Part, stops: Stops.None);
+
+            foreach (var (words, where) in set) words.Set(build, where, MermaidPiece.Words);
+
+            if (band > 0) build.Close();
         }
 
         build.Close();
-    }
-
-    /// <summary>Where each line of the name is set: one to a row, across the middle of the band above the attributes.</summary>
-    private static IEnumerable<(DiagramWords Words, Point At)> Heading(Sized sized, ErConfig config, Rect box)
-    {
-        var top = box.Y + Air;
-
-        foreach (var words in sized.Title)
-        {
-            yield return (words, new Point(box.X + ((box.Width - words.Width) / 2), top + ((config.RowHeight - words.Height) / 2)));
-            top += config.RowHeight;
-        }
-    }
-
-    /// <summary>Where each attribute is set: its columns across the row, one attribute to a row under the rule.</summary>
-    private static IEnumerable<(ErAttribute Attribute, List<(DiagramWords Words, Point At)> Said)> Rows(
-        Sized sized, ErConfig config, Rect box)
-    {
-        var top = box.Y + sized.Head + Air;
-
-        foreach (var row in sized.Rows)
-        {
-            var said = new List<(DiagramWords, Point)>();
-            var across = box.X + config.Padding;
-
-            for (var at = 0; at < Columns; at++)
-            {
-                if (sized.Columns[at] <= 0) continue;
-
-                if (row.Said[at] is { } words)
-                    said.Add((words, new Point(across, top + ((config.RowHeight - words.Height) / 2))));
-
-                across += sized.Columns[at] + Gap(config);
-            }
-
-            yield return (row.Attribute, said);
-            top += config.RowHeight;
-        }
     }
 
     private static RectangleGeometry Taken(DiagramWords words, Point at) =>
@@ -433,9 +345,6 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         diagram.Inside(group)
             .Select(entity => plan.Entities.FirstOrDefault(sized => ReferenceEquals(sized.Entity, entity)))
             .OfType<Sized>();
-
-    /// <summary>The space between one column of the attributes and the next.</summary>
-    private static double Gap(ErConfig config) => config.TextSize;
 
     // ── Colour ──────────────────────────────────────────────────────────────
 
@@ -460,35 +369,20 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    /// <summary>How many columns an attribute is set in: what it holds, what it is called, its keys, and what it is for.</summary>
-    private const int Columns = 4;
-
-    /// <summary>One attribute measured, a run of words to each column it writes.</summary>
-    private sealed record Row(ErAttribute Attribute, IReadOnlyList<DiagramWords?> Said);
-
-    /// <summary>One entity measured: its name, its attributes, how wide each column is, and the cell the layout placed it in.</summary>
+    /// <summary>One entity measured: its attributes, the box they are set in, and the cell the layout placed it in.</summary>
     private sealed class Sized(
         ErEntity entity,
-        IReadOnlyList<DiagramWords> title,
-        IReadOnlyList<Row> rows,
-        IReadOnlyList<double> columns)
+        IReadOnlyList<(ErAttribute Attribute, DiagramRow Said)> rows,
+        DiagramBox laid)
     {
         public ErEntity Entity { get; } = entity;
 
-        public IReadOnlyList<DiagramWords> Title { get; } = title;
+        public IReadOnlyList<(ErAttribute Attribute, DiagramRow Said)> Rows { get; } = rows;
 
-        public IReadOnlyList<Row> Rows { get; } = rows;
+        /// <summary>Its name and its attributes measured into a box of compartments (<see cref="DiagramBox"/>).</summary>
+        public DiagramBox Laid { get; } = laid;
 
-        /// <summary>How wide each column of the attributes runs, which is what sets them under one another.</summary>
-        public IReadOnlyList<double> Columns { get; } = columns;
-
-        /// <summary>How deep the band its name is drawn in is.</summary>
-        public double Head { get; init; }
-
-        /// <summary>How deep the band its attributes are drawn in is, or nought where nothing writes it any.</summary>
-        public double Body { get; init; }
-
-        public Size Size { get; init; }
+        public Size Size => Laid.Size;
 
         public DiagramCell Cell { get; set; } = new(default);
     }

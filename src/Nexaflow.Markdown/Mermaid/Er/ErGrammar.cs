@@ -199,7 +199,7 @@ public sealed class ErGrammar : IMermaidGrammar
             return line.Done ? line.Read(ErKinds.Opens) : line.Shown(EntityShape);
         }
 
-        if (line.Done || line.Sees(";")) return Closed(line, ErKinds.Entity, EntityShape);
+        if (line.Done || line.Sees(";")) return line.Closed(ErKinds.Entity, EntityShape);
 
         if (!Counted(line)) return line.Shown(RelationShape);
         line.Room();
@@ -213,7 +213,7 @@ public sealed class ErGrammar : IMermaidGrammar
         if (!Named(line)) return line.Shown(RelationShape);
 
         Said(line);
-        return Closed(line, ErKinds.Relation, RelationShape);
+        return line.Closed(ErKinds.Relation, RelationShape);
     }
 
     /// <summary>A subgraph, which boxes the entities written until the <c>end</c> closing it.</summary>
@@ -230,14 +230,14 @@ public sealed class ErGrammar : IMermaidGrammar
         line.Space();
         if (line.Next == '[' && !line.Label("[", "]", ErRoles.Label)) return line.Shown(SubgraphShape);
 
-        return Closed(line, ErKinds.Subgraph, SubgraphShape);
+        return line.Closed(ErKinds.Subgraph, SubgraphShape);
     }
 
     private static ContentNode Ended(MermaidLine line)
     {
         line.Word(EndWord, letter: Bare);
 
-        return Closed(line, ErKinds.Ends, "A subgraph is closed by end, with nothing after it.");
+        return line.Closed(ErKinds.Ends, "A subgraph is closed by end, with nothing after it.");
     }
 
     /// <summary>The way the diagram is laid out.</summary>
@@ -247,7 +247,7 @@ public sealed class ErGrammar : IMermaidGrammar
         line.Room();
         line.Setting(ErRoles.Towards, Wayward, until: " \t");
 
-        return Closed(line, ErKinds.Direction, DirectionShape);
+        return line.Closed(ErKinds.Direction, DirectionShape);
     }
 
     // ── The attributes between the braces ───────────────────────────────────
@@ -281,7 +281,7 @@ public sealed class ErGrammar : IMermaidGrammar
         line.Space();
         if (!line.Done && !line.Quoted(ErRoles.Comment, what: "comment")) return line.Shown(AttributeShape);
 
-        return Closed(line, ErKinds.Attribute, AttributeShape);
+        return line.Closed(ErKinds.Attribute, AttributeShape);
     }
 
     private static ContentNode Shutter(string text)
@@ -291,7 +291,7 @@ public sealed class ErGrammar : IMermaidGrammar
         line.Room();
         line.Token(Closing, Roles.Close);
 
-        return Closed(line, ErKinds.Shut, StrayShape);
+        return line.Closed(ErKinds.Shut, StrayShape);
     }
 
     /// <summary>Whether anything but the comment closing the line is still to be read.</summary>
@@ -307,14 +307,14 @@ public sealed class ErGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Open();
 
-        if (!line.Name(ErRoles.Id, Bare)) return Back(line, mark);
+        if (!line.Name(ErRoles.Id, Bare)) return line.Undo(mark);
 
-        if (line.Next == '[' && !line.Label("[", "]", ErRoles.Label)) return Back(line, mark);
+        if (line.Next == '[' && !line.Label("[", "]", ErRoles.Label)) return line.Undo(mark);
 
         if (line.Sees(Given))
         {
             line.Token(Given);
-            if (!line.Names(Classed, ErRoles.Class, "class")) return Back(line, mark);
+            if (!line.Names(Classed, ErRoles.Class, "class")) return line.Undo(mark);
         }
 
         line.Close(ErKinds.Named, ErRoles.Id);
@@ -367,25 +367,6 @@ public sealed class ErGrammar : IMermaidGrammar
 
         line.Close(ErKinds.Said, ErRoles.Said);
         return true;
-    }
-
-    /// <summary>The semicolon and the space a line may end with, and what is wrong where anything else is written there.</summary>
-    private static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
-    }
-
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark)
-    {
-        var why = line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
     }
 
     private static string? Keying(string said) =>

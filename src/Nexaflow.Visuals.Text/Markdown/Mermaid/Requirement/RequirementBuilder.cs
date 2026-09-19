@@ -90,10 +90,10 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
         // The relations are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(RequirementPiece.Boxes, part: null, stops: Stops.None);
-        foreach (var sized in plan.Nodes) Drawn(build, diagram.Config, room, sized, over);
+        foreach (var sized in plan.Nodes) Drawn(build, room, sized, over);
         build.Close();
 
         Relations(build, routes);
@@ -131,22 +131,9 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         return plan;
     }
 
-    private DiagramRoom Reached(RequirementDiagram diagram, Plan plan)
-    {
-        var room = new DiagramRoom(diagram.Config.Air);
-
-        room.Reach(new Rect(default, plan.Size));
-        foreach (var node in plan.Nodes) room.Reach(node.Cell.Bounds);
-
-        foreach (var (relation, join) in plan.Joins)
-        {
-            foreach (var at in join.Route) room.Reach(new Rect(at, at));
-
-            if (Says(relation) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
-        }
-
-        return room;
-    }
+    private DiagramRoom Reached(RequirementDiagram diagram, Plan plan) =>
+        DiagramRoom.Round(diagram.Config.Air, plan.Size, plan.Nodes.Select(node => node.Cell),
+                          plan.Joins.Select(join => (join.Value, Says(join.Key))));
 
     /// <summary>One box measured: what kind of thing it is over its name, then a row for each field.</summary>
     private Sized Measure(RequirementNode node, RequirementConfig config)
@@ -165,19 +152,17 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
                              Said: Written(fact.Said, fact.Hole, config.TextSize, ink)))
             .ToList();
 
-        var head = (Math.Max(1, title.Count) * config.RowHeight) + (Air * 2);
-        var body = rows.Count > 0 ? (rows.Count * config.RowHeight) + (Air * 2) : 0;
-
-        var widest = Math.Max(title.Count == 0 ? 0 : title.Max(words => words.Width),
-                              rows.Count == 0 ? 0 : rows.Max(row => row.Label.Width + Gap(config) + row.Said.Width));
-
-        return new Sized(node, title, rows)
+        var bands = new List<DiagramCompartment>
         {
-            Head = head,
-            Body = body,
-            Size = new Size(Math.Max(config.MinWidth, widest + (config.Padding * 2)),
-                            Math.Max(config.MinHeight, head + body) + Chrome),
+            new([.. title.Select(words => DiagramRow.Of(words))]) { Centred = true },
         };
+
+        // What is drawn in front of a field and what it is set to follow one another along the row, as Mermaid writes them.
+        if (rows.Count > 0) bands.Add(new([.. rows.Select(row => DiagramRow.Of(row.Label, row.Said))]));
+
+        return new Sized(node, rows,
+                         DiagramBox.Measure(bands, config.RowHeight, config.Padding, Air, config.TextSize / 3,
+                                            new Size(config.MinWidth, config.MinHeight), Chrome));
     }
 
     // ── The relations ───────────────────────────────────────────────────────
@@ -191,7 +176,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         {
             if (!plan.Joins.TryGetValue(relation, out var join) || join.Route.Count < 2) continue;
 
-            var placed = Trimmed(join).Select(room.At).ToList();
+            var placed = DiagramConnector.Trimmed(join).Select(room.At).ToList();
             var said = Says(relation);
 
             routes.Add(new Route(relation, placed, said, DiagramConnector.Room(placed, said)));
@@ -205,32 +190,6 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         relation.Said is { Length: > 0 } said
             ? [Worked(Opens + said.Text + Shuts, said, LabelSize, Palette.TextMuted)]
             : [];
-
-    /// <summary>A route's ends brought in from the middles of the boxes it joins to their edges.</summary>
-    private static IReadOnlyList<Point> Trimmed(DiagramJoin join)
-    {
-        var points = join.Route.ToList();
-        if (ReferenceEquals(join.From, join.To)) return points;
-
-        points[0] = DiagramShapes.Edge(DiagramShape.Rectangle, join.From.Bounds, points[1]);
-        points[^1] = DiagramShapes.Edge(DiagramShape.Rectangle, join.To.Bounds, points[^2]);
-
-        return points;
-    }
-
-    /// <summary>What the relations cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
-    }
 
     /// <summary>The relations, drawn over the diagram.</summary>
     private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes)
@@ -258,22 +217,16 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     // ── Drawing it ──────────────────────────────────────────────────────────
 
-    private void Drawn(LayoutBuilder build, RequirementConfig config, DiagramRoom room, Sized sized, IReadOnlyList<Geometry> over)
+    private void Drawn(LayoutBuilder build, DiagramRoom room, Sized sized, IReadOnlyList<Geometry> over)
     {
         var box = room.At(sized.Cell.Bounds);
         var outline = DiagramShapes.Outline(DiagramShape.Rounded, box);
-
-        var title = Heading(sized, config, box).ToList();
-        var rows = Rows(sized, config, box).ToList();
+        var placed = sized.Laid.Placed(box).ToList();
 
         var covered = new GeometryGroup();
         foreach (var shape in over) covered.Children.Add(shape);
-        foreach (var (words, at) in title) covered.Children.Add(Taken(words, at));
-        foreach (var row in rows)
-        {
-            covered.Children.Add(Taken(row.Label, row.LabelAt));
-            covered.Children.Add(Taken(row.Said, row.SaidAt));
-        }
+        foreach (var (_, _, set) in placed)
+            foreach (var (words, at) in set) covered.Children.Add(Taken(words, at));
 
         build.Open(RequirementPiece.Box, sized.Node.Whole, stops: Stops.None);
         build.Open(MermaidPiece.Shape, sized.Node.Part, stops: Stops.None);
@@ -282,60 +235,28 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         build.Draw(new GeometryMark(outline, Fill(sized.Node), stroke.Ink, stroke.Thickness));
 
         // The rule under the name is what says a requirement has fields at all.
-        if (sized.Body > 0)
-            build.Draw(new LineMark(new Point(box.Left, box.Y + sized.Head), new Point(box.Right, box.Y + sized.Head),
-                                    Palette.CodeBorder));
+        foreach (var at in sized.Laid.Rules(box))
+            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
         stands.Freeze();
         build.Occupies(stands);
         build.Close();
 
-        foreach (var (words, at) in title) words.Set(build, at, MermaidPiece.Words);
-
-        foreach (var row in rows)
+        foreach (var (band, at, set) in placed)
         {
-            build.Open(RequirementPiece.Fact, row.Fact.Part, stops: Stops.None);
-            row.Label.Set(build, row.LabelAt, MermaidPiece.Words);
-            row.Said.Set(build, row.SaidAt, MermaidPiece.Words);
-            build.Close();
+            if (band > 0) build.Open(RequirementPiece.Fact, sized.Facts[at].Fact.Part, stops: Stops.None);
+
+            foreach (var (words, where) in set) words.Set(build, where, MermaidPiece.Words);
+
+            if (band > 0) build.Close();
         }
 
         build.Close();
     }
 
-    /// <summary>Where each line of the name is set: one to a row, across the middle of the band above the fields.</summary>
-    private static IEnumerable<(DiagramWords Words, Point At)> Heading(Sized sized, RequirementConfig config, Rect box)
-    {
-        var top = box.Y + Air;
-
-        foreach (var words in sized.Title)
-        {
-            yield return (words, new Point(box.X + ((box.Width - words.Width) / 2), top + ((config.RowHeight - words.Height) / 2)));
-            top += config.RowHeight;
-        }
-    }
-
-    /// <summary>Where each field is set: what is drawn in front of it, then what it is set to, one to a row under the rule.</summary>
-    private static IEnumerable<Row> Rows(Sized sized, RequirementConfig config, Rect box)
-    {
-        var top = box.Y + sized.Head + Air;
-
-        foreach (var (fact, label, said) in sized.Facts)
-        {
-            var at = new Point(box.X + config.Padding, top + ((config.RowHeight - label.Height) / 2));
-
-            yield return new Row(fact, label, at, said,
-                                 new Point(at.X + label.Width + Gap(config), top + ((config.RowHeight - said.Height) / 2)));
-            top += config.RowHeight;
-        }
-    }
-
     private static RectangleGeometry Taken(DiagramWords words, Point at) =>
         new(new Rect(at, new Size(words.Width, words.Height)));
-
-    /// <summary>The space between what is drawn in front of a field and what it is set to, which a measured width leaves out.</summary>
-    private static double Gap(RequirementConfig config) => config.TextSize / 3;
 
     // ── Colour ──────────────────────────────────────────────────────────────
 
@@ -359,28 +280,20 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     // ── What it works with ──────────────────────────────────────────────────
 
-    /// <summary>One field placed: what is drawn in front of it and where, and what it is set to and where.</summary>
-    private sealed record Row(RequirementFact Fact, DiagramWords Label, Point LabelAt, DiagramWords Said, Point SaidAt);
-
-    /// <summary>One box measured: the words of each band, how deep each is, and the cell the layout placed it in.</summary>
+    /// <summary>One box measured: the words of each of its fields, the box they are set in, and the cell the layout placed it in.</summary>
     private sealed class Sized(
         RequirementNode node,
-        IReadOnlyList<DiagramWords> title,
-        IReadOnlyList<(RequirementFact Fact, DiagramWords Label, DiagramWords Said)> facts)
+        IReadOnlyList<(RequirementFact Fact, DiagramWords Label, DiagramWords Said)> facts,
+        DiagramBox laid)
     {
         public RequirementNode Node { get; } = node;
 
-        public IReadOnlyList<DiagramWords> Title { get; } = title;
-
         public IReadOnlyList<(RequirementFact Fact, DiagramWords Label, DiagramWords Said)> Facts { get; } = facts;
 
-        /// <summary>How deep the band its name is drawn in is.</summary>
-        public double Head { get; init; }
+        /// <summary>Its name and its fields measured into a box of compartments (<see cref="DiagramBox"/>).</summary>
+        public DiagramBox Laid { get; } = laid;
 
-        /// <summary>How deep the band its fields are drawn in is, or nought where nothing writes it any.</summary>
-        public double Body { get; init; }
-
-        public Size Size { get; init; }
+        public Size Size => Laid.Size;
 
         public DiagramCell Cell { get; set; } = new(default);
     }

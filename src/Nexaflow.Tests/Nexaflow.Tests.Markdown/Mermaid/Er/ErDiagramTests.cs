@@ -134,9 +134,10 @@ public class ErDiagramTests
     {
         var diagram = ErDiagram.Read(
             "erDiagram\n  A ||--|| B : x\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n"
-            + "  class A,B blue\n  style B fill:#f00");
+            + "  class A,B blue,bold\n  style B fill:#f00");
 
         Assert.AreEqual("#00f", diagram.Find("A")!.Style.Fill);
+        Assert.AreEqual(3, diagram.Find("A")!.Style.StrokeWidth, "a class line gives every class it names");
         Assert.AreEqual("#f00", diagram.Find("B")!.Style.Fill, "what is written for one on its own is laid over its classes");
     }
 

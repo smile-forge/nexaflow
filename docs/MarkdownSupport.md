@@ -286,7 +286,8 @@ somewhere. **The front matter is applied** ([`ClassConfig`](../src/Nexaflow.Mark
 `hideEmptyMembersBox` and `hierarchicalNamespaces`, and the shared `markdownAutoWrap`. **Divergences from Mermaid:** an
 id ends at the punctuation a relation is drawn with, so a class called anything holding a dot, a dash or a brace is
 written in backticks, and a rename drops what a bare id cannot hold, since a `style` line names a class bare and a
-`cssClass` line inside quotes of its own; `o--` is read as aggregation after a space, a bare `o` otherwise carrying a
+`cssClass` line inside quotes of its own; a label is drawn as the characters written, where Mermaid renders markdown in
+one; `o--` is read as aggregation after a space, a bare `o` otherwise carrying a
 name on; a note is drawn beside the class it is about, but where it goes is settled by the layout; a `callback`, and a
 `click … call`, name a function nothing here calls, so only a URL leads anywhere; a `#` comment is not read, only `%%`;
 and `theme`, `look`, `layout`, `htmlLabels`, `arrowMarkerAbsolute`, `defaultRenderer`, `useMaxWidth` and `textHeight`
@@ -312,7 +313,8 @@ width of the box between them, and a box nothing writes fields for is the one co
 `rect_min_width`, `rect_min_height`, `rect_padding`, `fontSize` and `line_height`, and the shared `markdownAutoWrap`.
 **Divergences from Mermaid:** a name ends at the punctuation a relation is drawn with, so one holding a dash, a brace or a
 colon is written in quotes, and a rename drops what a bare name cannot hold, since a `style` line names one bare; a risk and a
-verification method are drawn as the word written rather than capitalised, so the caret can go into them; the smallest box is
+verification method are drawn as the word written rather than capitalised, so the caret can go into them; what a field is set
+to is drawn as the characters written, where Mermaid renders markdown in it; the smallest box is
 what it takes rather than Mermaid's 200 by 200, because the words in it are measured rather than guessed; a `#` comment is not
 read, only `%%`; and `rect_fill`, `text_color`, `rect_border_size`, `rect_border_color`, `theme`, `look`, `layout` and
 `useMaxWidth` name colours the theme decides here, a renderer, a drawing style and a layout engine.
@@ -564,8 +566,11 @@ stands for the whole `subgraph … end` it was written as. **The front matter is
 documents, where the legacy renderer read the spacing ones and drew its own metrics anyway. **Divergences from Mermaid:** a
 name ends at the punctuation a relationship is drawn with, so one holding anything else is written in quotes, and a rename
 drops what a bare name cannot hold, since a `style` line names one bare; what a relationship is called is read to the end of
-its line, where Mermaid reads one word unless it is quoted; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`,
-`look` and `layout` name a renderer, a drawing style and a layout engine.
+its line, where Mermaid reads one word unless it is quoted; a name and a comment are drawn as the characters written, where
+Mermaid renders markdown in them; an attribute name written `*id` is drawn as written, where Mermaid reads the star as
+another way of saying `PK`; a relationship names an entity, so naming a subgraph writes an entity called that rather than
+joining the box; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a renderer, a
+drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
 its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs) and [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) →

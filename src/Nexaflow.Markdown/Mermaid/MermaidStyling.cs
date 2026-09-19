@@ -43,7 +43,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         line.Room();
         if (!line.Done && !line.Properties(ends: ';')) return line.Shown(DefinedShape);
 
-        return Closed(line, kind, DefinedShape);
+        return line.Closed(kind, DefinedShape);
     }
 
     /// <summary>What takes a class, and the class it takes: <c>class A,B blue</c>.</summary>
@@ -57,7 +57,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         line.Room();
         if (!line.Done && !line.Names(Class, classRole, "class")) return line.Shown(AppliedShape);
 
-        return Closed(line, kind, AppliedShape);
+        return line.Closed(kind, AppliedShape);
     }
 
     /// <summary>What is styled on its own, and the style written for it: <c>style A fill:#969,stroke:#333</c>.</summary>
@@ -71,17 +71,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         line.Room();
         if (!line.Done && !line.Properties(ends: ';')) return line.Shown(StyledShape);
 
-        return Closed(line, kind, StyledShape);
-    }
-
-    /// <summary>A styling line as far as it goes, with the semicolon that may close it.</summary>
-    public static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
+        return line.Closed(kind, StyledShape);
     }
 
     /// <summary>The classes a <c>classDef</c> line names, which the style it writes belongs to every one of.</summary>
