@@ -24,6 +24,26 @@ dotnet build Nexaflow.slnx
 dotnet run --project src/Nexaflow.Core/Nexaflow.Core.csproj
 ```
 
+## `site/` — generated, and not yours to regenerate
+
+`site/` is the published GitHub Pages site (smile-forge.github.io/nexaflow), written by
+`tools/site/Build-Site.ps1` from the help pages the app ships plus the newest `docs/product/v*.json`.
+`.github/workflows/pages.yml` only uploads it; nothing is built on the runner, because the figures are drawn by
+the app's own WPF renderer.
+
+**Leave it alone.** Editing a help page, adding one, or changing the product tree does **not** mean regenerating
+`site/` — it is rebuilt when a release is cut, so the site matches the release somebody can actually download.
+Regenerating it mid-cycle only puts a large, noisy diff in an unrelated change. The same goes for
+`docs/images/showcase/` and `tools/site/Capture-Showcase.ps1`, which drive the real app to photograph it.
+
+Two things follow from that, and both are already handled — do not re-solve them:
+
+- Between releases the working tree is ahead of the download, so every page carries a notice saying so. The
+  script decides that from whether HEAD stands on the newest tag; the app's version only changes when the
+  release is cut, so the version alone cannot tell you.
+- The site reads the newest committed **release snapshot** for descriptions and AI Ready badges, not the live
+  gitignored `.product/tree.json`. A tree fix shows up when the next snapshot is exported, not before.
+
 ## Layout
 
 ```
