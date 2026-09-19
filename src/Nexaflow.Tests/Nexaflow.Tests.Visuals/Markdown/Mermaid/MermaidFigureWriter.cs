@@ -28,6 +28,7 @@ public class MermaidFigureWriter
         ("Swimlane diagram", "mermaid-swimlane.png"),
         ("State diagram", "mermaid-state.png"),
         ("Sequence diagram", "mermaid-sequence.png"),
+        ("C4 sequence", "mermaid-c4-sequence.png"),
         ("Class diagram", "mermaid-class.png"),
         ("Pie chart", "mermaid-pie.png"),
         ("Venn diagram", "mermaid-venn.png"),

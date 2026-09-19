@@ -104,6 +104,7 @@ public static class MermaidDiagrams
         MermaidDiagram.Requirement => Requirements,
         MermaidDiagram.Er => Ers,
         MermaidDiagram.Sequence => Sequences,
+        MermaidDiagram.C4Sequence => C4s,
         // A swimlane is a flowchart laid out in lanes, and Mermaid reads the two with one parser: its top-level subgraphs
         // are the lanes, and everything else about it is a flowchart's. Only its builder differs.
         MermaidDiagram.Flowchart or MermaidDiagram.Swimlane => Flowcharts,
@@ -154,6 +155,9 @@ public static class MermaidDiagrams
 
     /// <summary>A sequence diagram, which a C4 sequence is Mermaid's own reading of.</summary>
     private static readonly Sequence.SequenceGrammar Sequences = new();
+
+    /// <summary>A C4 sequence, which is a sequence diagram written in C4-PlantUML's words.</summary>
+    private static readonly C4.C4Grammar C4s = new();
 
     /// <summary>The types named by how their keyword starts, in the order they are tried.</summary>
     private static readonly (string Prefix, MermaidDiagram Diagram)[] Prefixes =

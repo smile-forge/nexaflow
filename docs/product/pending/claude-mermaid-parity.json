@@ -1,0 +1,107 @@
+{
+  "branch": "claude/mermaid-parity",
+  "nodes": {
+    "sequence-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs",
+          "class": "SequenceGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs",
+          "class": "SequenceDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs",
+          "class": "SequenceConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceGrammarTests.cs",
+            "class": "SequenceGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceDiagramTests.cs",
+            "class": "SequenceDiagramTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceBuilderTests.cs",
+            "class": "SequenceBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceEditingTests.cs",
+            "class": "SequenceEditingTests"
+          }
+        ]
+      }
+    },
+    "c4-sequence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs",
+          "class": "C4Grammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Sequence.cs",
+          "class": "C4Sequence"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs",
+          "class": "C4Config"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs",
+          "class": "C4SequenceBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4GrammarTests.cs",
+            "class": "C4GrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4SequenceTests.cs",
+            "class": "C4SequenceTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4SequenceBuilderTests.cs",
+            "class": "C4SequenceBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4SequenceEditingTests.cs",
+            "class": "C4SequenceEditingTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "c4-sequence",
+    "sequence-diagram"
+  ]
+}

@@ -112,6 +112,18 @@ public class SequenceBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ABreakInALabelStartsAnotherLine() => UiThread.Run(() =>
+    {
+        var laid = Lay("sequenceDiagram\n  participant A as Alice<br/>Johnson\n  A->>B: Hello,<br/>how are you?");
+
+        var name = Said(Pieces(laid, SequencePiece.Head)[0]).Select(words => words.Words!.Glyphs.Text).ToList();
+        var said = Said(Pieces(laid, SequencePiece.Message).Single()).Select(words => words.Words!.Glyphs.Text).ToList();
+
+        CollectionAssert.AreEqual(new[] { "Alice", "Johnson" }, name);
+        CollectionAssert.AreEqual(new[] { "Hello,", "how are you?" }, said);
+    });
+
+    [TestMethod]
     public void AMessageToAParticipantItselfLoopsOffItsOwnLifeline() => UiThread.Run(() =>
     {
         var laid = Lay("sequenceDiagram\n  participant A\n  participant B\n  A->>A: thinking\n  A->>B: done");
@@ -236,6 +248,15 @@ public class SequenceBuilderTests : MermaidBuilderContract
 
         Assert.IsTrue(Holds(box, heads[0]) && Holds(box, heads[1]), "the two inside it are inside the box");
         Assert.IsFalse(Holds(box, heads[2]), "and the one outside it is not");
+    });
+
+    [TestMethod]
+    public void ABoxWithNothingWrittenOnItKeepsNoBandAboveTheLifelines() => UiThread.Run(() =>
+    {
+        var named = Standing(Lay("sequenceDiagram\n  box The shop\n  participant A\n  end\n  A->>A: x"));
+        var bare = Standing(Lay("sequenceDiagram\n  box\n  participant A\n  end\n  A->>A: x"));
+
+        Assert.IsTrue(named[0].Top > bare[0].Top, $"a box that says something reserves room to say it: {named[0]} under {bare[0]}");
     });
 
     [TestMethod]

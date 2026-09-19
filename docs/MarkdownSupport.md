@@ -166,7 +166,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
-| `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
+| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4GrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -827,12 +827,15 @@ direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed an
 graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle
 (it has no geometry for the person and cylinder outlines) though it does write all three of the card's text rows.
 
-**C4 sequence** ([`C4SequenceProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs)).
+**C4 sequence** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
+[`C4Sequence`](../src/Nexaflow.Markdown/Mermaid/C4/C4Sequence.cs),
+[`C4SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs)).
 `C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword
-for. It is the one diagram left on [`WpfSequenceDiagramRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs),
-which a native `sequenceDiagram` has moved off: element macros become participant lifelines whose heads are C4 element cards instead of
+for. Drawn on the **shared layout tree**, and read into the very same [`SequenceDiagram`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs)
+a `sequenceDiagram` is read into, so it is **drawn by the sequence diagram's own builder** — only the words a reader
+wrote to say it differ. Element macros become participant lifelines whose boxes are C4 element cards instead of
 plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping over the participants it spans, and each
-`Rel` becomes a message carrying its `[technology]` under the label. `SHOW_INDEX()` numbers the messages (an explicit
+`Rel` becomes a message carrying its technology under the label. `SHOW_INDEX()` numbers the messages (an explicit
 `$index`/`RelIndex` wins and the count continues from it), `SHOW_FOOT_BOXES(false)` drops the repeated heads at the
 bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into its card — hidden by default, because a
 lifeline head is a column header and a paragraph in every column only pushes the columns apart.
@@ -840,10 +843,17 @@ lifeline head is a column header and a paragraph in every column only pushes the
 `SHOW_LEGEND()` works here too, drawn below the timeline by the same painter and built from the same rows as a
 structural diagram's.
 
-**Native sequence syntax works inside it.** Any line the C4 reader does not claim is replayed through
-`MermaidSequenceParser.ParseLine`, so `alt`/`else`/`end`, `loop`, `par`, `critical`, `note over`, `activate` and even a
-plain `participant` sit alongside C4 macros in one diagram and nest around them correctly. That reader is the legacy
-one, which stays until the C4 family moves onto the shared layout tree as well.
+**Native sequence syntax works inside it.** Any line the C4 grammar does not claim is read by
+[`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) itself, and any line
+`C4Sequence` does not claim is read by the sequence diagram's own model — so `alt`/`else`/`end`, `loop`, `par`,
+`critical`, `note over`, `activate` and even a plain `participant` sit alongside C4 macros in one diagram and nest
+around them correctly. It is the native grammar, not a second copy of it. **Divergences from C4-PlantUML:** an element's
+own name is never drawn — its label is — so a rename is made in the source rather than in the drawing, while a
+participant written as a sequence diagram's own is renamed where it is drawn and carries to the macros naming it;
+`SHOW_LEGEND`'s `$details` is read and every row says the same, there being one row of words to say; a boundary's
+`$type` is read and its label alone is drawn; `SHOW_PERSON_OUTLINE` and `SHOW_PERSON_PORTRAIT` are read and a person is
+one card either way, a lifeline's head being a column heading; and `Lay_*`, `$sprite` and `UpdateLayoutConfig` tune a
+graph placement this does not use.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 

@@ -23,6 +23,12 @@ lines list items with values and whose options share a line, xychart one with ax
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
+**A type written in another language may still be the same diagram.** A C4 sequence is a sequence diagram said in
+C4-PlantUML's words, so `C4Grammar` reads the macros and hands every other line to `SequenceGrammar`, `C4Sequence` reads
+those macros onto the very same `SequenceDiagram` — through `SequenceDiagram.Read`, which gives the other language first
+refusal on each line and reads the rest itself — and `C4SequenceBuilder` derives from `SequenceBuilder` saying only where
+its model comes from. One picture, one builder, two ways of writing it.
+
 **A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
 the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
 `SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes

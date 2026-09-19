@@ -2,9 +2,7 @@
 # A file deleted leaves the baseline too; a file that has shrunk may have its number lowered. Nothing is added.
 src/Nexaflow.Visuals.Text/Markdown/Graphs/C4Element.cs 217
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs 199
-
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs 57
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/SequenceDiagram.cs 167
 src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs 129
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Graph.cs 361
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Layout/GraphExpansion.cs 273
@@ -15,17 +13,9 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4ConfigParser.cs 70
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs 203
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4LegendBuilder.cs 86
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4MacroReader.cs 249
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs 175
-
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs 419
-
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidDirectives.cs 85
-
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidFlowchartParser.cs 629
-
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidSequenceParser.cs 390
-
-
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs 131
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NomnomlParser.cs 215
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs 170
@@ -39,5 +29,3 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/GraphDiagramView.cs 307
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/GraphRenderOptions.cs 33
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/SvgGraphRenderer.cs 198
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs 1371
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs 661
-

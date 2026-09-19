@@ -86,6 +86,48 @@ public enum SequenceFrame
     Rect,
 }
 
+/// <summary>The outline a participant's card is drawn with, where a diagram draws one rather than a plain box.</summary>
+public enum SequenceCardShape
+{
+    Box,
+
+    /// <summary>A box with a head above it: C4's person.</summary>
+    Person,
+
+    /// <summary>A cylinder: C4's <c>SystemDb</c>, <c>ContainerDb</c>, <c>ComponentDb</c>.</summary>
+    Database,
+
+    /// <summary>A box open at one end: C4's <c>SystemQueue</c>, <c>ContainerQueue</c>, <c>ComponentQueue</c>.</summary>
+    Queue,
+}
+
+/// <summary>
+/// What a participant's box holds beyond its name, where a diagram writes more than one thing for it: the line saying what
+/// kind of thing it is, and the sentence saying what it does. A participant written as itself has none of this, and is a name
+/// in a box.
+/// </summary>
+public sealed record SequenceCard
+{
+    /// <summary>What it is, drawn in brackets under the name — worked out from several things written, so pressed rather than typed into.</summary>
+    public string? Stereotype { get; init; }
+
+    /// <summary>What it is built with, which the stereotype says as well — kept so a press on it means what was written.</summary>
+    public ContentPart? Technology { get; init; }
+
+    /// <summary>The sentence under it, where the diagram asks for descriptions.</summary>
+    public ContentPart? Said { get; init; }
+
+    public SequenceCardShape Shape { get; init; }
+
+    /// <summary>What it is filled, written in and outlined with, where anything says — otherwise the theme's own.</summary>
+    public string? Fill { get; init; }
+    public string? Ink { get; init; }
+    public string? Border { get; init; }
+}
+
+/// <summary>One row of the key drawn under a diagram that asks for one: what it says, and the colours it stands for.</summary>
+public sealed record SequenceLegend(string Says, string? Fill, string? Border);
+
 /// <summary>Somewhere a participant leads, from a <c>link</c> line or one of the several a <c>links</c> line gives.</summary>
 /// <param name="Part">What it was written as, which is what a press on it means.</param>
 public sealed record SequenceLink(ContentPart Part, ContentPart? Said, string Url);
@@ -114,6 +156,9 @@ public sealed record SequenceParticipant(ContentPart Part, string Id, int Order)
 
     /// <summary>Where it leads, in the order written.</summary>
     public IReadOnlyList<SequenceLink> Links { get; init; } = [];
+
+    /// <summary>What its box holds beyond its name, where the diagram writes more than one thing for it.</summary>
+    public SequenceCard? Card { get; init; }
 
     /// <summary>Whether anything on the timeline names it, which is what <c>hideUnusedParticipants</c> asks about.</summary>
     public bool Reached { get; init; }
@@ -148,6 +193,16 @@ public sealed record SequenceMessage(ContentPart Part, string From, string To, i
 
     /// <summary>The number <c>autonumber</c> gives it, or null where nothing numbers it.</summary>
     public string? Number { get; init; }
+
+    /// <summary>
+    /// The smaller lines drawn under what it says: what it is done with, and what it is for — a C4 relationship's technology
+    /// and its description. A message written as a sequence diagram's own says everything on the one line and has none.
+    /// </summary>
+    public IReadOnlyList<ContentPart> Under { get; init; } = [];
+
+    /// <summary>What its line and its words are drawn in, where anything says — otherwise the theme's own.</summary>
+    public string? Ink { get; init; }
+    public string? SaidInk { get; init; }
 
     /// <summary>Whether it goes from a participant to itself, which is drawn as a loop off its own lifeline.</summary>
     public bool Self => string.Equals(From, To, StringComparison.Ordinal);
@@ -200,6 +255,11 @@ public sealed record SequenceClosing(ContentPart Part, string Key, int Order) : 
 /// <summary>One box, read: the tint drawn behind a run of participants.</summary>
 public sealed record SequenceBox(ContentPart Part, string Key, ContentPart? Said, string? Colour, int Order)
 {
+    /// <summary>
+    /// The box this one was written inside, or null for one written outside them all. A sequence diagram's own boxes never
+    /// nest; a C4 boundary does, and then the outer one is drawn round everything the inner one holds.
+    /// </summary>
+    public string? Parent { get; init; }
     /// <summary>The whole of it as written, from the line that opened it through the <c>end</c> that closed it.</summary>
     public ISourcePart Whole { get; init; } = default(SourceSpan);
 }
@@ -252,6 +312,9 @@ public sealed class SequenceDiagram
 
     /// <summary>The boxes grouping the participants, in the order written.</summary>
     public IReadOnlyList<SequenceBox> Boxes { get; }
+
+    /// <summary>The rows of the key drawn under it, where the diagram asks for one — none for a sequence diagram's own.</summary>
+    public IReadOnlyList<SequenceLegend> Legend { get; init; } = [];
 
     /// <summary>The messages, which is what a sequence diagram is mostly made of.</summary>
     public IEnumerable<SequenceMessage> Messages => Items.OfType<SequenceMessage>();
@@ -332,68 +395,69 @@ public sealed class SequenceDiagram
         _ => (false, SequenceHead.None, SequenceHead.Arrow),
     };
 
-    public static SequenceDiagram Of(MermaidBlock block)
-    {
-        var config = SequenceConfig.Read(block.Config);
+    public static SequenceDiagram Of(MermaidBlock block) => Read(block, SequenceConfig.Read(block.Config), null);
 
-        var made = new List<Made>();
-        var known = new Dictionary<string, Made>(StringComparer.Ordinal);
-        var items = new List<SequenceItem>();
-        var boxes = new List<SequenceBox>();
-        var open = new Stack<Opened>();
+    /// <summary>
+    /// Reads a block's lines into a timeline, giving <paramref name="claims"/> first refusal on each of them — which is how a
+    /// diagram written in another language reads its own lines onto this very timeline rather than keeping a second copy of how
+    /// a sequence is read. A C4 sequence claims its macros and leaves <c>alt</c>, <c>note over</c> and <c>activate</c> here.
+    /// </summary>
+    /// <param name="claims">What each line is to the other language, or false where it is one of this grammar's own.</param>
+    internal static SequenceDiagram Read(MermaidBlock block, SequenceConfig config,
+                                         Func<SequenceReading, ContentPart, string?, bool>? claims,
+                                         IReadOnlyList<SequenceLegend>? legend = null)
+    {
+        var read = new SequenceReading();
 
         foreach (var line in block.Reading.Root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Line))
         {
             if (line.Stated() is not { } stated) continue;
             var inside = Keyed(stated.Fact(SequenceRoles.Inside));
 
+            if (claims is not null && claims(read, stated, inside)) continue;
+
             switch (stated.Kind)
             {
                 case SequenceKinds.Participant:
                 case SequenceKinds.Created:
-                    Standing(stated, inside, boxes, made, known);
+                    Standing(stated, inside, read.Boxes, read.Made, read.Known);
                     break;
 
                 case SequenceKinds.Destroyed:
-                    if (Gathered(stated.Inner(SequenceKinds.Named), made, known) is { } going)
+                    if (Gathered(stated.Inner(SequenceKinds.Named), read.Made, read.Known) is { } going)
                     {
                         going.Destroyed = true;
                         going.Reached = true;
-                        items.Add(new SequenceGone(stated, going.Id, items.Count));
+                        read.Items.Add(new SequenceGone(stated, going.Id, read.Items.Count));
                     }
 
                     break;
 
                 case SequenceKinds.Activation:
-                    if (Gathered(stated.Inner(SequenceKinds.Named), made, known) is { } turning)
+                    if (Gathered(stated.Inner(SequenceKinds.Named), read.Made, read.Known) is { } turning)
                     {
                         turning.Reached = true;
-                        items.Add(new SequenceTurn(stated, turning.Id, Turned(stated), items.Count));
+                        read.Items.Add(new SequenceTurn(stated, turning.Id, Turned(stated), read.Items.Count));
                     }
 
                     break;
 
                 case SequenceKinds.Message:
-                    Messaged(stated, made, known, items);
+                    Messaged(stated, read.Made, read.Known, read.Items);
                     break;
 
                 case SequenceKinds.Note:
-                    Noted(stated, made, known, items);
+                    Noted(stated, read.Made, read.Known, read.Items);
                     break;
 
                 case SequenceKinds.Box:
-                    var boxed = Keyed(stated.Fact(SequenceRoles.Opened)) ?? Unwritten + stated.Start;
-                    boxes.Add(new SequenceBox(stated, boxed, Spaced(stated), Coloured(stated), boxes.Count)
-                    {
-                        Whole = new SourceSpan(stated.Start, stated.End - stated.Start),
-                    });
-                    open.Push(new Opened(boxed, boxes.Count - 1, Box: true));
+                    read.Opens(stated, Spaced(stated), Coloured(stated), inside);
                     break;
 
                 case SequenceKinds.Frame:
                     var framed = Keyed(stated.Fact(SequenceRoles.Opened)) ?? Unwritten + stated.Start;
-                    items.Add(new SequenceOpening(stated, framed, Framed(Said(stated, MermaidKinds.Setting, SequenceRoles.Word)),
-                                                  items.Count)
+                    read.Items.Add(new SequenceOpening(stated, framed, Framed(Said(stated, MermaidKinds.Setting, SequenceRoles.Word)),
+                                                       read.Items.Count)
                     {
                         Said = Piece(stated, SequenceRoles.Space),
                         Word = Worded(stated, SequenceRoles.Word),
@@ -401,40 +465,32 @@ public sealed class SequenceDiagram
                         Parent = inside,
                         Whole = new SourceSpan(stated.Start, stated.End - stated.Start),
                     });
-                    open.Push(new Opened(framed, items.Count - 1, Box: false));
+                    read.Open.Push(new Opened(framed, read.Items.Count - 1, Box: false));
                     break;
 
                 case SequenceKinds.Section when inside is not null:
-                    items.Add(new SequenceDivider(stated, inside, items.Count) { Said = Piece(stated, SequenceRoles.Space) });
+                    read.Items.Add(new SequenceDivider(stated, inside, read.Items.Count) { Said = Piece(stated, SequenceRoles.Space) });
                     break;
 
                 // The end closing one is where the whole of it stops, which is what a press on the room round it means.
-                case SequenceKinds.Ends when open.Count > 0:
-                    var shut = open.Pop();
-
-                    if (shut.Box)
-                    {
-                        boxes[shut.At] = boxes[shut.At] with { Whole = Spanned(boxes[shut.At].Part, stated) };
-                    }
-                    else if (items[shut.At] is SequenceOpening opening)
-                    {
-                        items[shut.At] = opening with { Whole = Spanned(opening.Part, stated) };
-                        items.Add(new SequenceClosing(stated, shut.Key, items.Count));
-                    }
-
+                case SequenceKinds.Ends when read.Open.Count > 0:
+                    read.Shuts(stated);
                     break;
 
                 case SequenceKinds.Link:
-                    Leading(stated, made, known);
+                    Leading(stated, read.Made, read.Known);
                     break;
 
                 case SequenceKinds.Menu:
-                    Menued(stated, made, known);
+                    Menued(stated, read.Made, read.Known);
                     break;
             }
         }
 
-        return new SequenceDiagram(block, config, [.. made.Select(Frozen)], items, boxes);
+        return new SequenceDiagram(block, config, [.. read.Made.Select(Frozen)], read.Items, read.Boxes)
+        {
+            Legend = legend ?? [],
+        };
     }
 
     // ── What each line says ─────────────────────────────────────────────────
@@ -548,7 +604,7 @@ public sealed class SequenceDiagram
     /// The participant a name names: the one already made where it names it again, and otherwise a new one. A name with nothing
     /// written in it yet is a participant of its own, known by where it is written, so writing it is watched as it is typed.
     /// </summary>
-    private static Made? Gathered(ContentPart? named, List<Made> made, Dictionary<string, Made> known)
+    internal static Made? Gathered(ContentPart? named, List<Made> made, Dictionary<string, Made> known)
     {
         if (named is not { } holder) return null;
 
@@ -611,7 +667,7 @@ public sealed class SequenceDiagram
 
     private static SourceSpan Spanned(ContentPart from, ContentPart to) => new(from.Start, to.End - from.Start);
 
-    private static string? Keyed(string? fact) => string.IsNullOrEmpty(fact) ? null : fact;
+    internal static string? Keyed(string? fact) => string.IsNullOrEmpty(fact) ? null : fact;
 
     private static SequenceParticipant Frozen(Made one) =>
         new(one.Part, one.Id, one.Order)
@@ -624,13 +680,14 @@ public sealed class SequenceDiagram
             Box = one.Box,
             Links = one.Links,
             Reached = one.Reached,
+            Card = one.Card,
         };
 
     /// <summary>A box or a frame while the block is being read, before the <c>end</c> closing it has been seen.</summary>
-    private sealed record Opened(string Key, int At, bool Box);
+    internal sealed record Opened(string Key, int At, bool Box);
 
     /// <summary>One participant while the block is being read, before every line saying something about it is known.</summary>
-    private sealed class Made(ContentPart part, string id, int order)
+    internal sealed class Made(ContentPart part, string id, int order)
     {
         public ContentPart Part { get; } = part;
 
@@ -653,5 +710,7 @@ public sealed class SequenceDiagram
         public bool Reached { get; set; }
 
         public List<SequenceLink> Links { get; } = [];
+
+        public SequenceCard? Card { get; set; }
     }
 }

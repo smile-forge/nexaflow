@@ -49,6 +49,7 @@ internal static class MermaidBuilders
         MermaidDiagram.Requirement => Requirement.RequirementBuilder.Build,
         MermaidDiagram.Er => Er.ErBuilder.Build,
         MermaidDiagram.Sequence => Sequence.SequenceBuilder.Build,
+        MermaidDiagram.C4Sequence => C4.C4SequenceBuilder.Build,
         _ => null,
     };
 

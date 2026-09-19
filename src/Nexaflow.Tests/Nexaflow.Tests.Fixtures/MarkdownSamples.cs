@@ -4113,7 +4113,7 @@ internal sealed class MarkdownSamples : ISampleSet
         `C4Sequence` mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword for. Elements
         become participant cards, a `Boundary` groups them, and each `Rel` is a message carrying its
         technology. Native `sequenceDiagram` control lines — `alt`, `loop`, `note over`, `activate` —
-        work inside it, because it is drawn by the very same renderer.
+        work inside it, because it is read into the very same diagram and drawn by the very same builder.
 
         ```mermaid
         C4Sequence
@@ -4138,6 +4138,49 @@ internal sealed class MarkdownSamples : ISampleSet
         Rel_Back(spa, signin, "401 Unauthorized")
         end
         Rel_Back(customer, spa, "Shows the dashboard")
+        ```
+
+        A key, tags and colours of its own
+
+        ```mermaid
+        C4Sequence
+        SHOW_LEGEND()
+        AddElementTag("v1", $bgColor="#1168bd", $legendText="Version one")
+        AddRelTag("async", $lineStyle=DashedLine(), $legendText="Asynchronous")
+        UpdateElementStyle("person", $bgColor="#08427b", $fontColor="#ffffff")
+
+        Person(customer, "Banking Customer")
+        Container(api, "API", "Java", $tags="v1")
+        ContainerQueue(bus, "Event Bus", "Kafka")
+
+        Rel(customer, api, "Signs in", "HTTPS")
+        Rel(api, bus, "Publishes", "AMQP", $tags="async")
+        UpdateRelStyle(customer, api, $textColor="#ff6b6b", $lineColor="#ff6b6b")
+        ```
+
+        Boundaries nested, with a sequence diagram's own lines among the macros
+
+        ```mermaid
+        C4Sequence
+        SHOW_ELEMENT_DESCRIPTIONS()
+        Person(customer, "Customer", "Somebody with an account")
+        Boundary(bank, "Big Bank plc") {
+          Boundary(api, "The API") {
+            Component(signin, "Sign In", "Spring MVC")
+          }
+          SystemDb(core, "Core banking")
+        }
+        participant Audit
+
+        loop every attempt
+          Rel(customer, signin, "Tries to sign in", "HTTPS")
+          Note over signin,core: the attempt is recorded
+          activate core
+          Rel(signin, core, "Checks the account", "JDBC")
+          Rel_Back(signin, core, "The answer")
+          deactivate core
+          signin->>Audit: logged
+        end
         ```
 
         ## Deployment — nested nodes

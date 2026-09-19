@@ -46,6 +46,16 @@ public class SequenceDiagramTests
     }
 
     [TestMethod]
+    public void AParticipantWrittenAsItselfIsANameInABoxAndNothingMore()
+    {
+        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant Alice\n  Alice->>Bob: hi");
+
+        Assert.IsTrue(diagram.Participants.All(one => one.Card is null), "only a diagram that writes a card has one");
+        Assert.IsTrue(diagram.Messages.All(message => message.Under.Count == 0 && message.Ink is null));
+        Assert.AreEqual(0, diagram.Legend.Count);
+    }
+
+    [TestMethod]
     public void MetadataSaysWhatOneIsDrawnAs()
     {
         var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant DB@{ \"type\": \"database\" }\n  DB->>DB: x");

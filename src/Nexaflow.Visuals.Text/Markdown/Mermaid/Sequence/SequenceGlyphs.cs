@@ -47,6 +47,49 @@ internal static class SequenceGlyphs
         _ => Standing(bounds),
     };
 
+    /// <summary>How much of a person's card is the head drawn above it.</summary>
+    public const double Heading = 14;
+
+    /// <summary>How much deeper a cylinder is than what is written in it, for the cap at each end.</summary>
+    private const double Capping = 8;
+
+    /// <summary>The outline a participant's card is drawn with, where a diagram draws one rather than a plain box.</summary>
+    public static Geometry Carded(SequenceCardShape shape, Rect bounds) => shape switch
+    {
+        SequenceCardShape.Database => DiagramShapes.Outline(DiagramShape.Cylinder, bounds),
+        SequenceCardShape.Queue => Queued(bounds),
+        SequenceCardShape.Person => Headed(bounds),
+        _ => Frozen(new RectangleGeometry(bounds, Corner, Corner)),
+    };
+
+    /// <summary>The room a card of that shape leaves for what is written in it.</summary>
+    public static Rect Inside(SequenceCardShape shape, Rect bounds) => shape switch
+    {
+        SequenceCardShape.Database => DiagramShapes.Inside(DiagramShape.Cylinder, bounds),
+        SequenceCardShape.Queue => new Rect(bounds.X, bounds.Y, Math.Max(0, bounds.Width - (bounds.Height / 2)), bounds.Height),
+        SequenceCardShape.Person => new Rect(bounds.X, bounds.Y + Heading, bounds.Width, Math.Max(0, bounds.Height - Heading)),
+        _ => bounds,
+    };
+
+    /// <summary>How much deeper and wider a card of that shape is than the words in it.</summary>
+    public static double Allowed(SequenceCardShape shape) => shape switch
+    {
+        SequenceCardShape.Person => Heading,
+        SequenceCardShape.Database => Capping * 2,
+        _ => 0,
+    };
+
+    public static double Wider(SequenceCardShape shape) => shape == SequenceCardShape.Queue ? Capping * 2 : 0;
+
+    /// <summary>A person's card: a head above the box holding what it is called.</summary>
+    private static Geometry Headed(Rect bounds)
+    {
+        var body = new Rect(bounds.X, bounds.Y + Heading, bounds.Width, Math.Max(1, bounds.Height - Heading));
+        var head = new EllipseGeometry(new Point(bounds.X + (bounds.Width / 2), body.Y), Heading, Heading);
+
+        return Frozen(new CombinedGeometry(GeometryCombineMode.Union, head, new RectangleGeometry(body, Corner, Corner)));
+    }
+
     /// <summary>How round the corner of a plain participant is.</summary>
     private const double Corner = 4;
 

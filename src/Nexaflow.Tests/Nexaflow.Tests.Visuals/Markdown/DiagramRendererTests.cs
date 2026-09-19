@@ -7,6 +7,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Linq;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -31,11 +32,12 @@ public class DiagramRendererTests
 
     [TestMethod]
     [CoversNode("sequence-diagram")]
-    public void Sequence_RendersBorder() => UiThread.Run(() =>
+    public void Sequence_DrawsOnTheSharedLayoutTree() => UiThread.Run(() =>
     {
-        var diagram = new MermaidSequenceParser().Parse(SequenceSrc);
-        var fe      = WpfSequenceDiagramRenderer.Render(diagram, MarkdownPalette.Dark);
-        Assert.IsInstanceOfType(fe, typeof(Border));
+        var laid = MermaidBuilders.Lay(SequenceSrc, MarkdownPalette.Dark);
+
+        Assert.IsNotNull(laid);
+        Assert.IsTrue(laid!.Root.SelfAndDescendants().Any(piece => piece.Kind == SequencePiece.Lifeline));
     });
 
     [TestMethod]
@@ -46,12 +48,15 @@ public class DiagramRendererTests
     });
 
     [TestMethod]
-    [CoversNode("sequence-diagram")]
-    public void Sequence_EmptyDiagram_RendersWithoutThrowing() => UiThread.Run(() =>
+    [CoversNode("c4-sequence")]
+    public void C4Sequence_DrawsOnTheSharedLayoutTreeToo() => UiThread.Run(() =>
     {
-        var diagram = new MermaidSequenceParser().Parse("sequenceDiagram\n");
-        var fe      = WpfSequenceDiagramRenderer.Render(diagram, MarkdownPalette.Dark);
-        Assert.IsNotNull(fe);
+        const string source = "C4Sequence\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\", \"HTTPS\")";
+        var laid = MermaidBuilders.Lay(source, MarkdownPalette.Dark);
+
+        Assert.IsNotNull(laid);
+        Assert.AreEqual(2, laid!.Root.SelfAndDescendants().Count(piece => piece.Kind == SequencePiece.Lifeline));
+        Assert.IsNotNull(DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark));
     });
 
     [TestMethod]

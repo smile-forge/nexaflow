@@ -262,8 +262,10 @@ Mermaid's subset.
 
 ## C4 sequence
 
-`C4Sequence` has no Mermaid equivalent — it mirrors C4-PlantUML's `C4_Sequence`, and is drawn by the *same* renderer as
-a native sequence diagram, so native control lines work inside it.
+`C4Sequence` has no Mermaid equivalent — it mirrors C4-PlantUML's `C4_Sequence`. It is read into the same thing a
+`sequenceDiagram` is read into and drawn by the same builder, so an element is a lifeline whose box is a card saying what
+it is, a `Boundary` groups them, a `Rel` carries what it is done with — and `alt`, `loop`, `note over` and `activate`
+work among the macros because they are the native grammar itself.
 
 ````markdown
 ```mermaid
