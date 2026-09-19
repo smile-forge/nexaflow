@@ -106,6 +106,7 @@ public class ErGrammarTests : MermaidGrammarContract
         ("a label holding a semicolon", "erDiagram\n  A ||--|| B : x;"),
         ("a comment closing a line", "erDiagram\n  A ||--|| B : x %% and on"),
         ("an attribute with nothing after its type", "erDiagram\n  A {\n    string\n  }"),
+        ("a name written with a star", "erDiagram\n  A {\n    string *id\n  }"),
         ("an attribute still being written", "erDiagram\n  A {\n    string name \n  }"),
         ("a line with nothing on it inside one", "erDiagram\n  A {\n    string name\n\n  }"),
         ("the way it is laid out", "erDiagram\n  direction LR\n  A ||--|| B : x"),

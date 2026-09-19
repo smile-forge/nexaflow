@@ -551,7 +551,8 @@ reads three and stops; and `%%` comments are skipped here, which Mermaid's sanke
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: entities — bare `NAME`, quoted `"name with space"`, named in any alphabet, or aliased `id[Alias]` /
 `id["Multi word"]` — each with an optional `{ … }` block of attributes, read as what it holds, what it is called, the keys it
-is (`PK`, `FK`, `UK`, comma-separated) and what it says it is for in quotes, with array and parameterised types
+is (`PK`, `FK`, `UK`, comma-separated, and a name written `*id` saying `PK` without writing it) and what it says it is for in
+quotes, with array and parameterised types
 (`string[]`, `string(99)`, `string?`); the whole relationship set in **both** the symbol form (`||--o{`, `}o..o{`, either
 spelling at either end, even with no space round it) and the **word-alias** form (`one to zero or more`,
 `many(0) optionally to 0+`), `--`/`to` identifying against `..`/`-.`/`.-`/`optionally to` not, with `: what it is called`;
@@ -569,8 +570,7 @@ documents, where the legacy renderer read the spacing ones and drew its own metr
 name ends at the punctuation a relationship is drawn with, so one holding anything else is written in quotes, and a rename
 drops what a bare name cannot hold, since a `style` line names one bare; what a relationship is called is read to the end of
 its line, where Mermaid reads one word unless it is quoted; a name and a comment are drawn as the characters written, where
-Mermaid renders markdown in them; an attribute name written `*id` is drawn as written, where Mermaid reads the star as
-another way of saying `PK`; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a
+Mermaid renders markdown in them; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a
 renderer, a drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →

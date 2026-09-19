@@ -39,6 +39,21 @@ public class ErDiagramTests
     }
 
     [TestMethod, TestCategory("Unit")]
+    public void ANameWrittenWithAStarIsAPrimaryKeyToo()
+    {
+        var entity = ErDiagram
+            .Read("erDiagram\n  CAR {\n    string *plate\n    string *vin PK\n    string *owner FK\n    string make\n  }")
+            .Find("CAR")!;
+
+        Assert.AreEqual("PK", entity.Attributes[0].Keyed, "the star says it without writing it");
+        Assert.AreEqual("*plate", entity.Attributes[0].Field!.Text, "and the name is drawn as it was written");
+
+        Assert.AreEqual("PK", entity.Attributes[1].Keyed, "one that says it both ways says it once");
+        Assert.AreEqual("PK, FK", entity.Attributes[2].Keyed, "and the star comes before what else was written");
+        Assert.AreEqual(string.Empty, entity.Attributes[3].Keyed);
+    }
+
+    [TestMethod, TestCategory("Unit")]
     public void AnAliasIsDrawnInsteadOfTheNameWhereverItIsWritten()
     {
         var diagram = ErDiagram.Read("erDiagram\n  p[Person] {\n    string firstName\n  }\n  p ||--o| a[\"The account\"] : has");

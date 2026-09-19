@@ -47,6 +47,7 @@ public class ErBuilderTests : MermaidBuilderContract
         ("an entity on its own", "erDiagram\n  CUSTOMER"),
         ("an entity with nothing in it", "erDiagram\n  CUSTOMER {\n  }"),
         ("an entity with a label", "erDiagram\n  p[\"The person\"] {\n    string name\n  }"),
+        ("a name written with a star", "erDiagram\n  A {\n    string *id\n    string make\n  }"),
         ("an entity named in quotes", "erDiagram\n  \"Two words\" ||--|| ORDER : places"),
         ("subgraphs", "erDiagram\n  subgraph Sales\n    A ||--o{ B : x\n  end\n  subgraph Stock\n    C\n  end\n  B ||--|| C : y"),
         ("subgraphs nested", "erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end"),

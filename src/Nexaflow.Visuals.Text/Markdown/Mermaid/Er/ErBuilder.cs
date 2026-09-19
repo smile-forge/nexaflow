@@ -219,12 +219,15 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// The keys an attribute is: the one written, where it is the only one, and otherwise what they say together — which nobody
     /// writes as one run, and so is pressed rather than typed into.
     /// </summary>
-    private DiagramWords? Keyed(ErAttribute attribute, Brush ink, ErConfig config) => attribute.Keys.Count switch
+    private DiagramWords? Keyed(ErAttribute attribute, Brush ink, ErConfig config)
     {
-        0 => null,
-        1 => Written(attribute.Keys[0], null, config.TextSize, ink),
-        _ => Worked(attribute.Keyed, attribute.Part, config.TextSize, ink),
-    };
+        if (attribute.Keyed is not { Length: > 0 } keyed) return null;
+
+        // The one key written is the characters written; anything else — several of them, or the PK a star says — is worked out.
+        return attribute.Keys.Count == 1 && keyed == attribute.Keys[0].Text
+            ? Written(attribute.Keys[0], null, config.TextSize, ink)
+            : Worked(keyed, attribute.Part, config.TextSize, ink);
+    }
 
     // ── The relationships ───────────────────────────────────────────────────
 
