@@ -169,9 +169,13 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     private static string? Text(ContentNode name) =>
         name.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Words)?.Text;
 
-    private string AppliedShape => $"A class line names the {named}s taking a class, then the class: class A,B blue.";
+    private string AppliedShape => $"A class line names the {Plural(named)} taking a class, then the class: class A,B blue.";
 
-    private string StyledShape => $"A style line names the {named}s it styles, then the style: style A fill:#969,stroke:#333.";
+    private string StyledShape => $"A style line names the {Plural(named)} it styles, then the style: style A fill:#969,stroke:#333.";
+
+    /// <summary>More than one of what the diagram styles — <c>node</c>, <c>state</c>, <c>class</c>.</summary>
+    private static string Plural(string named) =>
+        named.EndsWith('s') || named.EndsWith('x') || named.EndsWith("ch", StringComparison.Ordinal) ? named + "es" : named + "s";
 
     /// <summary>Everything a line names in a role, in the order it is written.</summary>
     private static IReadOnlyList<string> Said(ContentPart stated, string role) =>

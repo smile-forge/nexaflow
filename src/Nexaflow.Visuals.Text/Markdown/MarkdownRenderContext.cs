@@ -32,6 +32,9 @@ public sealed class MarkdownRenderContext
     /// </summary>
     public Func<string, bool>? OnNavigate { get; init; }
 
+    /// <summary>Whether what is rendered is only looked at, which is what a viewer asks for and an editor does not.</summary>
+    public bool ReadOnly { get; init; }
+
     /// <summary>
     /// Invoked when a diagram node's expand chip is clicked. Return <c>true</c> to claim it — a host
     /// that generated the diagram answers by re-emitting it with more of the tree walked. Return

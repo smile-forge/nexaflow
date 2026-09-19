@@ -18,7 +18,7 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4MacroReader.cs 249
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs 175
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/ErConfigParser.cs 76
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs 419
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs 567
+
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidDirectives.cs 85
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidErParser.cs 383
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidFlowchartParser.cs 629

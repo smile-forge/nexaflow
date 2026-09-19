@@ -151,7 +151,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitGraphTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + nesting, shapes + config (`MindmapTreeTests`) + draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + states, transitions, notes + config (`StateDiagramTests`) + draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
-| `classDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
+| `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + classes, members, relations + config (`ClassDiagramTests`) + draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
 | `requirementDiagram` | ✅ (Sugiyama layout) | ✅ parser (`DiagramParsersTests`) + render (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanBoardTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
@@ -256,28 +256,41 @@ and changes nothing, the diagram being drawn at the size it comes to; a `#` comm
 `miniPadding`, `fontSizeFactor`, `fontSize`, `labelHeight`, `edgeLengthFactor`, `compositTitleSize` and `radius` name a
 renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
-**Class-diagram sub-features** ([`MermaidClassParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidClassParser.cs)).
-Class diagrams reuse the shared graph model, the Sugiyama layout and `WpfGraphRenderer`. Each class is a
-**`ClassBox`** node ([`ClassBox.cs`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/ClassBox.cs)) drawn as a
-UML box with name / attribute / method compartments; relationships are edges whose
-`EdgeArrow` heads (`TriangleHollow`/`DiamondFilled`/`DiamondHollow`) and `Edge.StartLabel`/`EndLabel`
-multiplicities draw the UML markers. Supported: classes (`class A`, block `class A { … }`, label override
-`class A["Pretty"]`, generics `A~T~` → `A<T>` incl. nested `List~List~int~~` → `List<List<int>>`, implicit
-declaration from a member/relationship); members via block lines or the `A : +member` shorthand, with
-visibility (`+ - # ~`), attribute-vs-method by `()`, a method return type shown after a colon
-(`getId() int` → `getId() : int`), classifiers `*` (abstract → *italic*) / `$` (static → underline);
-annotations `<<interface>>`/`<<enumeration>>`/… → «stereotype»; the full relationship set (`<|--` inheritance,
-`*--` composition, `o--` aggregation, `-->` association, `--`/`..` links, `..>` dependency, `..|>` realization)
-in either direction **including two-way forms** (`<|--|>`, `<-->`), with multiplicity (`A "1" --> "*" B`) and a
-`: label`; lollipop interfaces (`A --() iface`, `iface ()-- A`) drawn as a small circle on a short straight stub
-off the class box with the name beside it (a decoration on the class, reserved by the layout — not a routed node);
-`namespace N { … }`
-with **hierarchical (dotted) nesting** (`namespace A.B.C` nests `C` inside `B` inside `A`); notes (`note "…"`,
-`note for A "…"`, with `<br>` / `\n` line breaks); `direction`; comments; and styling (`classDef`, `cssClass`,
-`style A fill:…`, inline `A:::name`). A front-matter / `title:` is centred over the diagram. Multiplicity survives
-`namespace` nesting — the clustered layout rebuilds each edge per level, and until recently that rebuild dropped the end
-labels, so `Order "1" --> "*" LineItem` lost its `1` and `*` as soon as either class sat in a namespace. **Limitations:**
-`hideEmptyMembersBox` and interactive `callback`/`link` directives are ignored.
+**Class-diagram sub-features** ([`ClassGrammar`](../src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs),
+[`ClassDiagram`](../src/Nexaflow.Markdown/Mermaid/Class/ClassDiagram.cs),
+[`ClassBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
+Supported: `classDiagram` and `classDiagram-v2`; a class declared `class A`, `class A { … }` or `class A{}`, given a
+label `class A["Shown instead"]`, named in backticks `` class `Car Class!` ``, given type parameters `A~T~` — drawn
+`A<T>`, nested ones and all (`List~List~int~~` → `List<List<int>>`) — or made by being named anywhere else; members
+written between the braces or after a colon (`A : +int age`), with visibility `+ - # ~`, a method told from a field by
+the brackets after its name, what a method gives back drawn after a colon (`getId() int` → `getId() : int`), and the
+classifiers `$` (drawn underlined) and `*` (drawn in italics) written at the end or hard against the brackets;
+annotations `<<interface>>` written after the name, on a line of their own or among the members, drawn «so» over the
+name; the whole relation set — `<|--` inheritance, `*--` composition, `o--` aggregation, `-->` association, `--` and
+`..` links, `..>` dependency, `..|>` realization — either way round and **both ways at once** (`<|--|>`, `<-->`), with
+how many of each class the other has in quotes at that end (`A "1" --> "*" B`) and `: what it says` on the line;
+**lollipop interfaces** (`A --() iface`, `iface ()-- A`), drawn as a small circle on a short stub off the class with
+its name beside it — a decoration on the class, neither a class of its own nor a line; `namespace N { … }`, nested as
+deep as it is written and **nesting by the dots in its name** (`namespace A.B.C` boxes `C` in `B` in `A`), with a label
+`namespace N["The name"]`; notes `note "…"` and `note for A "…"`, with `<br>` breaking a line; `direction`;
+`classDef`, `cssClass "A,B" name`, `:::` and `style`; `click`, `link` and `callback` with a URL, a tooltip and a target;
+`accTitle`/`accDescr`; comments; and a title from the front matter. **A class is three compartments in one box** — its
+name, its fields, then its methods — with a rule the width of the box between them, and **a namespace holds its classes
+in the layout**, so pressing a class means that class and pressing the room round it means the namespace, which stands
+for the whole `namespace … }` it was written as. **A member may lead somewhere**: a trailing ` @@<url>`, which nothing
+in Mermaid writes and the Code feature's *As Code* writes, draws the row as a link and a press on it opens the
+declaration ([`LayoutLink`](../src/Nexaflow.Visuals.Text/Editing/LayoutLink.cs)) — as does a class a `click` line points
+somewhere. **The front matter is applied** ([`ClassConfig`](../src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs)):
+`config: class:` `nodeSpacing`, `rankSpacing`, `diagramPadding`, `dividerMargin`, `titleTopMargin`, `wrappingWidth`,
+`hideEmptyMembersBox` and `hierarchicalNamespaces`, and the shared `markdownAutoWrap`. **Divergences from Mermaid:** an
+id ends at the punctuation a relation is drawn with, so a class called anything holding a dot, a dash or a brace is
+written in backticks, and a rename drops what a bare id cannot hold, since a `style` line names a class bare and a
+`cssClass` line inside quotes of its own; `o--` is read as aggregation after a space, a bare `o` otherwise carrying a
+name on; a note is drawn beside the class it is about, but where it goes is settled by the layout; a `callback`, and a
+`click … call`, name a function nothing here calls, so only a URL leads anywhere; a `#` comment is not read, only `%%`;
+and `theme`, `look`, `layout`, `htmlLabels`, `arrowMarkerAbsolute`, `defaultRenderer`, `useMaxWidth` and `textHeight`
+name a renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
 **Requirement-diagram sub-features** ([`MermaidRequirementParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidRequirementParser.cs)).
 A requirement / element is structurally a UML box, so it reuses the **`ClassBox`** node, the Sugiyama layout and

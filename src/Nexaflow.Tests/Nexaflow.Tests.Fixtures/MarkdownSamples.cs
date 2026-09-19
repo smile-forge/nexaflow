@@ -1556,9 +1556,13 @@ internal sealed class MarkdownSamples : ISampleSet
         # Mermaid — Class diagram
 
         A `classDiagram` draws UML classes as boxes with name / attribute / method
-        compartments, connected by relationships. Each class is laid out by the shared
-        Sugiyama engine; relationship operators set the arrowhead (hollow triangle for
-        inheritance, filled/hollow diamond for composition/aggregation, …).
+        compartments, connected by relationships, on the shared layout tree: the classes
+        are put in ranks by how far along the relations reach them, and the operator at
+        each end says what that end draws (hollow triangle for inheritance, filled or
+        hollow diamond for composition and aggregation, a circle for an interface offered
+        as a lollipop). Members are read as Mermaid reads them — `~T~` drawn between angle
+        brackets, a trailing `$` underlined and a trailing `*` italic, a return type after
+        a colon — and a namespace boxes the classes written inside it.
 
         Inheritance with members, a title, and notes (with `<br>`)
 

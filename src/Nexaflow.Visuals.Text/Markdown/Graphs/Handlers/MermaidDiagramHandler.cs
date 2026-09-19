@@ -16,7 +16,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • a diagram named in <see cref="MermaidBuilders"/> → its grammar, its stages and its builder, on the shared layout
 ///     tree, in an element it can be selected and written in (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
+
 ///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
 
 ///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
@@ -34,7 +34,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidClassParser    ClassParser    = new();
     private static readonly MermaidRequirementParser RequirementParser = new();
     private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
@@ -61,7 +60,7 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
 
 
-            MermaidDiagram.Class        => RenderClass(block, options),
+
             MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
 
             MermaidDiagram.Er           => RenderEr(block, options),
@@ -137,10 +136,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
     }
-
-    // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
-    private static FrameworkElement RenderClass(MermaidBlock block, DiagramRenderOptions options)
-        => RenderGraphFamily(ClassParser.Parse(block.Body), block, options, 1100);
 
     /// <summary>
     /// Every diagram that shares the graph model, layout and renderer — flowchart, state, class, ER,

@@ -56,17 +56,6 @@ public class SugiyamaLayoutTests
         Assert.IsTrue(ContainedWithMargin(second, third), "Third must sit inside Second with a margin");
     }
 
-    [TestMethod]
-    public void ClassDiagram_DirectionLr_StacksUnconnectedClassesVertically()
-    {
-        // The "As Code" panel emits `direction LR` so a file's unrelated classes form a vertical column.
-        var td = Nodes(SugiyamaLayout.Compute(new MermaidClassParser().Parse("classDiagram\n  class A\n  class B\n  class C\n")));
-        var lr = Nodes(SugiyamaLayout.Compute(new MermaidClassParser().Parse("classDiagram\n  direction LR\n  class A\n  class B\n  class C\n")));
-
-        Assert.IsTrue(Spread(td, n => n.X) > Spread(td, n => n.Y), "default top-down lays unconnected classes in a row");
-        Assert.IsTrue(Spread(lr, n => n.Y) > Spread(lr, n => n.X), "direction LR stacks them into a column");
-    }
-
     private static List<LayoutNode> Nodes(LayoutedGraph lg) => lg.AllNodes.Where(n => !n.IsDummy).ToList();
     private static double Spread(List<LayoutNode> ns, Func<LayoutNode, double> sel) => ns.Max(sel) - ns.Min(sel);
 
@@ -306,27 +295,31 @@ public class SugiyamaLayoutTests
     /// <summary>
     /// Laying a graph out by levels rebuilds every edge, and for years that rebuild listed the
     /// fields it carried by hand — so an edge kept its label and arrow but silently lost its
-    /// multiplicity the moment it sat inside a namespace or composite. Every property now travels
+    /// multiplicity the moment it sat inside a cluster. Every property now travels
     /// via <see cref="Edge.Copy"/>, and this is the test that says so.
     /// </summary>
     [TestMethod]
     public void ClusteredEdges_KeepEveryProperty()
     {
-        var g = new MermaidClassParser().Parse(
-            """
-            classDiagram
-                namespace Ordering {
-                    class Order
-                    class LineItem
-                }
-                Order "1" --> "*" LineItem : contains
-            """);
+        var g = new Graph();
+        g.Nodes.Add(new Node { Id = "Order", Label = "Order" });
+        g.Nodes.Add(new Node { Id = "LineItem", Label = "LineItem" });
 
-        // Sanity: the parse really did produce a clustered graph with multiplicity to lose.
-        Assert.AreEqual(1, g.Subgraphs.Count, "expected a namespace box");
-        var source = g.Edges.Single();
-        Assert.AreEqual("1", source.StartLabel);
-        Assert.AreEqual("*", source.EndLabel);
+        var box = new Subgraph { Id = "Ordering", Label = "Ordering" };
+        box.NodeIds.AddRange(["Order", "LineItem"]);
+        g.Subgraphs.Add(box);
+
+        var source = new Edge
+        {
+            SourceId = "Order",
+            TargetId = "LineItem",
+            Label = "contains",
+            StartLabel = "1",
+            EndLabel = "*",
+            Style = EdgeStyle.Dashed,
+        };
+
+        g.Edges.Add(source);
 
         var laidOut = SugiyamaLayout.Compute(g, 900).Edges.Single(e => e.Source is not null).Source!;
         Assert.AreEqual("contains", laidOut.Label);
