@@ -71,6 +71,9 @@ public sealed class LayoutTree
 
     private readonly LayoutWords?[] _words;
 
+    /// <summary>Where the few pieces that lead anywhere lead, by index, or null where none does.</summary>
+    private readonly IReadOnlyDictionary<int, LayoutLink>? _links;
+
     /// <summary>Which run a piece reads along and where in it, and the same downward. -1 for neither.</summary>
     private readonly int[] _across;
     private readonly int[] _acrossAt;
@@ -84,7 +87,7 @@ public sealed class LayoutTree
 
     internal LayoutTree(Stored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
                         LayoutPaint?[] paints, Geometry?[] regions, LayoutWords?[] words,
-                        int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
+                        IReadOnlyDictionary<int, LayoutLink>? links, int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
     {
         _pieces = pieces;
         _marks = marks;
@@ -93,6 +96,7 @@ public sealed class LayoutTree
         _paints = paints;
         _regions = regions;
         _words = words;
+        _links = links;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
@@ -134,6 +138,9 @@ public sealed class LayoutTree
 
     /// <summary>The run of text it is, or nothing — which is nearly always. See <see cref="LayoutBuilder.Words"/>.</summary>
     internal LayoutWords? WordsOf(int at) => _words[at];
+
+    /// <summary>Where pressing it leads, or nothing — which is nearly always. See <see cref="LayoutBuilder.Links"/>.</summary>
+    internal LayoutLink? LinkOf(int at) => _links is not null && _links.TryGetValue(at, out var link) ? link : null;
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) =>
         _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);

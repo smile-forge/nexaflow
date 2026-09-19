@@ -117,8 +117,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
                                                  Func<EditState, MarkdownPalette, double, double, bool, Laid> build,
                                                  bool readOnly = true) =>
-        new(source, options.Palette,
-            new MermaidContent((state, room, pixelsPerDip, looking) => build(state, options.Palette, pixelsPerDip, room, !looking)))
+        new Editing.LinkedElement(source, options.Palette,
+                                  new MermaidContent((state, room, pixelsPerDip, looking) => build(state, options.Palette, pixelsPerDip, room, !looking)),
+                                  options.OnNavigate)
         {
             IsReadOnly = readOnly,
 
@@ -333,8 +334,9 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <summary>Words the diagram works out rather than anybody writing (a share, a total): pressed as
     /// the <paramref name="part"/> they stand for, no caret. See <see cref="DiagramWords"/>.</summary>
-    protected DiagramWords Worked(string says, ContentPart? part, double size, Brush ink, FontWeight? weight = null) =>
-        new(Text(says, size, ink, weight), part, null, Text("x", size, ink), ink, maps: false, writes: false);
+    protected DiagramWords Worked(string says, ContentPart? part, double size, Brush ink, FontWeight? weight = null,
+                                  FontStyle? slant = null) =>
+        new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
     protected override FormattedText Characters(string text) =>

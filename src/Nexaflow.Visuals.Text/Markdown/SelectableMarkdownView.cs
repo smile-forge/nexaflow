@@ -237,7 +237,7 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, ReadOnly = true, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
     }
 
     /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,

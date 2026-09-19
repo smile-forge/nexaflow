@@ -224,13 +224,13 @@ public sealed class StateGrammar : IMermaidGrammar
             if (!Named(line)) return line.Shown(TransitionShape);
 
             Says(line);
-            return Closed(line, StateKinds.Transition, TransitionShape);
+            return line.Closed(StateKinds.Transition, TransitionShape);
         }
 
         line.Restore(mark);
         Says(line);
 
-        return Closed(line, StateKinds.State, StateShape);
+        return line.Closed(StateKinds.State, StateShape);
     }
 
     /// <summary>A <c>state</c> line: a composite state, a state written with what is on it first, or one drawn as a fork or a choice.</summary>
@@ -258,7 +258,7 @@ public sealed class StateGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Space();
 
-        if (Marked(line)) return Closed(line, StateKinds.State, DrawnShape);
+        if (Marked(line)) return line.Closed(StateKinds.State, DrawnShape);
 
         line.Restore(mark);
         return Opened(line);
@@ -290,7 +290,7 @@ public sealed class StateGrammar : IMermaidGrammar
         if (!line.Token(Opening, Roles.Open))
         {
             line.Restore(mark);
-            return Closed(line, StateKinds.State, StateShape);
+            return line.Closed(StateKinds.State, StateShape);
         }
 
         line.Space();
@@ -303,7 +303,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         line.Token(Closing, Roles.Close);
 
-        return Closed(line, StateKinds.Ends, CompositeShape);
+        return line.Closed(StateKinds.Ends, CompositeShape);
     }
 
     /// <summary>The <c>--</c> dividing a composite state into regions running at the same time.</summary>
@@ -312,7 +312,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         line.Token(Divider, StateRoles.Arrow);
 
-        return Closed(line, StateKinds.Concurrent, DividerShape);
+        return line.Closed(StateKinds.Concurrent, DividerShape);
     }
 
     /// <summary>A note beside a state, or one floating with a name of its own.</summary>
@@ -332,7 +332,7 @@ public sealed class StateGrammar : IMermaidGrammar
             line.Room();
             if (!Named(line)) return line.Shown(NoteShape);
 
-            return Closed(line, StateKinds.Note, NoteShape);
+            return line.Closed(StateKinds.Note, NoteShape);
         }
 
         line.Setting(StateRoles.Side, Sided, until: " \t");
@@ -344,7 +344,7 @@ public sealed class StateGrammar : IMermaidGrammar
         if (!Named(line)) return line.Shown(NoteShape);
 
         // A note saying nothing on its own is written on the lines under it, until an end note closes it.
-        return Closed(line, Says(line) ? StateKinds.Note : StateKinds.NoteOpens, NoteShape);
+        return line.Closed(Says(line) ? StateKinds.Note : StateKinds.NoteOpens, NoteShape);
     }
 
     /// <summary>The <c>end note</c> closing a note written across several lines.</summary>
@@ -355,7 +355,7 @@ public sealed class StateGrammar : IMermaidGrammar
 
         if (!line.Word(NoteWord, letter: Bare)) return line.Shown(NoteEndShape);
 
-        return Closed(line, StateKinds.NoteEnds, NoteEndShape);
+        return line.Closed(StateKinds.NoteEnds, NoteEndShape);
     }
 
     /// <summary>The way the diagram, or the composite state this line is in, is laid out.</summary>
@@ -365,7 +365,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         line.Setting(StateRoles.Towards, Wayward, until: Stops);
 
-        return Closed(line, StateKinds.Direction, DirectionShape);
+        return line.Closed(StateKinds.Direction, DirectionShape);
     }
 
     /// <summary>Where pressing a state leads, and what it says while pointed at.</summary>
@@ -387,7 +387,7 @@ public sealed class StateGrammar : IMermaidGrammar
         if (line.Next == '"' && !line.Quoted(StateRoles.Tip)) return line.Shown(ClickShape);
         if (line.Next != '"' && !line.Done) line.Restore(mark);
 
-        return Closed(line, StateKinds.Click, ClickShape);
+        return line.Closed(StateKinds.Click, ClickShape);
     }
 
     /// <summary>A state with nothing written on it drawn as its id alone.</summary>
@@ -401,7 +401,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         if (!line.Word(DescriptionWord, letter: Bare)) return line.Shown(HideShape);
 
-        return Closed(line, StateKinds.Hide, HideShape);
+        return line.Closed(StateKinds.Hide, HideShape);
     }
 
     /// <summary>How wide to draw it, which Mermaid keeps from its first renderer.</summary>
@@ -414,7 +414,7 @@ public sealed class StateGrammar : IMermaidGrammar
 
         if (!line.Word(WidthWord, letter: Bare)) return line.Shown(ScaleShape);
 
-        return Closed(line, StateKinds.Scale, ScaleShape);
+        return line.Closed(StateKinds.Scale, ScaleShape);
     }
 
     // ── The pieces a line is made of ────────────────────────────────────────
@@ -425,12 +425,12 @@ public sealed class StateGrammar : IMermaidGrammar
         var mark = line.Save();
         line.Open();
 
-        if (!line.Name(StateRoles.Id, Bare)) return Back(line, mark);
+        if (!line.Name(StateRoles.Id, Bare)) return line.Undo(mark);
 
         if (line.Sees(Given))
         {
             line.Token(Given);
-            if (!line.Name(StateRoles.Class, Bare)) return Back(line, mark);
+            if (!line.Name(StateRoles.Class, Bare)) return line.Undo(mark);
         }
 
         line.Close(StateKinds.Named, StateRoles.Id);
@@ -455,25 +455,6 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Close(StateKinds.Said, StateRoles.Label);
 
         return true;
-    }
-
-    /// <summary>The semicolon and the space a line may end with, and what is wrong where anything else is written there.</summary>
-    private static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
-    }
-
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark)
-    {
-        var why = line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
     }
 
     private static string? Wayward(string said) =>

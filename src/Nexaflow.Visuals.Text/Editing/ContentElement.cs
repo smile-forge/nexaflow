@@ -762,8 +762,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     private const double PointerReach = 4.0;
 
     /// <summary>What the pointer should be at a point: see <see cref="OnMouseMove"/>.</summary>
-    private Cursor Pointing(Point at) =>
-        !IsReadOnly && _laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+    protected virtual Cursor Pointing(Point at) =>
+        !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
 
     /// <inheritdoc/>
     Cursor? IInteractiveBlock.PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));

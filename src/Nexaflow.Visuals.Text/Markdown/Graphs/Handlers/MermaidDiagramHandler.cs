@@ -16,10 +16,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 ///   • a diagram named in <see cref="MermaidBuilders"/> → its grammar, its stages and its builder, on the shared layout
 ///     tree, in an element it can be selected and written in (docs/mermaid-diagrams.md)
 ///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-///   • <c>classDiagram</c>     → <see cref="MermaidClassParser"/>   + Sugiyama + <see cref="WpfGraphRenderer"/>
-///   • <c>requirementDiagram</c> → <see cref="MermaidRequirementParser"/> + Sugiyama + <see cref="WpfGraphRenderer"/>
-
-///   • <c>erDiagram</c>        → <see cref="MermaidErParser"/>      + Sugiyama + <see cref="WpfGraphRenderer"/>
 
 ///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
 ///   • <c>C4Sequence</c>       → <see cref="MermaidC4Parser"/> + <see cref="C4SequenceProjector"/> + <see cref="WpfSequenceDiagramRenderer"/>
@@ -34,9 +30,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
     private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidClassParser    ClassParser    = new();
-    private static readonly MermaidRequirementParser RequirementParser = new();
-    private static readonly MermaidErParser       ErParser       = new();
     private static readonly MermaidC4Parser       C4Parser       = new();
 
     public bool CanHandle(string language) =>
@@ -59,14 +52,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return block.Diagram switch
         {
             MermaidDiagram.Sequence     => RenderSequence(block, palette),
-
-
-            MermaidDiagram.Class        => RenderClass(block, options),
-            MermaidDiagram.Requirement  => RenderGraphFamily(RequirementParser.Parse(block.Body), block, options, 1100),
-
-            MermaidDiagram.Er           => RenderEr(block, options),
-
-
 
             MermaidDiagram.C4           => RenderC4(block, options),
             MermaidDiagram.C4Sequence   => RenderC4Sequence(block, palette),
@@ -96,25 +81,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
     }
 
-    private static FrameworkElement RenderEr(MermaidBlock block, DiagramRenderOptions options)
-    {
-        // ER entities are UML-style boxes, so they reuse the shared graph model + Sugiyama + WpfGraphRenderer
-        // (like class / requirement diagrams). The er config is applied here: an inline `direction` wins, else
-        // config layoutDirection; an explicit fill/stroke becomes the default for entities lacking a colour.
-        var graph = ErParser.Parse(block.Body);
-
-        var cfg = ErConfigParser.Parse(block.Config);
-        bool inlineDir = block.Body.Split('\n').Any(l => l.TrimStart().StartsWith("direction ", StringComparison.OrdinalIgnoreCase));
-        if (!inlineDir && cfg.LayoutDirection is GraphDirection d) graph.Direction = d;
-        foreach (var node in graph.Nodes)
-        {
-            if (cfg.Fill   is string f && node.FillColor   is null) node.FillColor   = f;
-            if (cfg.Stroke is string s && node.StrokeColor is null) node.StrokeColor = s;
-        }
-
-        return RenderGraphFamily(graph, block, options, 1100);
-    }
-
     /// <summary>
     /// C4 structural diagrams reuse the shared graph model, layout and renderer — a C4 diagram is a
     /// node-and-edge graph with richer boxes, so it needs a parser and a projection, not a layout engine.
@@ -137,10 +103,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         diagram.Title = Titled(diagram.Title, block);
         return WpfSequenceDiagramRenderer.Render(diagram, palette);
     }
-
-    // Class boxes are wide; allow more width before the layout starts compacting horizontal gaps.
-    private static FrameworkElement RenderClass(MermaidBlock block, DiagramRenderOptions options)
-        => RenderGraphFamily(ClassParser.Parse(block.Body), block, options, 1100);
 
     /// <summary>
     /// Every diagram that shares the graph model, layout and renderer — flowchart, state, class, ER,

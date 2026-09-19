@@ -43,7 +43,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         line.Room();
         if (!line.Done && !line.Properties(ends: ';')) return line.Shown(DefinedShape);
 
-        return Closed(line, kind, DefinedShape);
+        return line.Closed(kind, DefinedShape);
     }
 
     /// <summary>What takes a class, and the class it takes: <c>class A,B blue</c>.</summary>
@@ -55,9 +55,9 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         if (!line.Names(Id, idRole, named)) return line.Shown(AppliedShape);
 
         line.Room();
-        if (!line.Done && !line.Name(classRole, bare)) return line.Shown(AppliedShape);
+        if (!line.Done && !line.Names(Class, classRole, "class")) return line.Shown(AppliedShape);
 
-        return Closed(line, kind, AppliedShape);
+        return line.Closed(kind, AppliedShape);
     }
 
     /// <summary>What is styled on its own, and the style written for it: <c>style A fill:#969,stroke:#333</c>.</summary>
@@ -71,17 +71,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
         line.Room();
         if (!line.Done && !line.Properties(ends: ';')) return line.Shown(StyledShape);
 
-        return Closed(line, kind, StyledShape);
-    }
-
-    /// <summary>A styling line as far as it goes, with the semicolon that may close it.</summary>
-    public static ContentNode Closed(MermaidLine line, string kind, string shape)
-    {
-        line.Space();
-        line.Token(";");
-        line.Space();
-
-        return line.Done ? line.Read(kind) : line.Shown(shape);
+        return line.Closed(kind, StyledShape);
     }
 
     /// <summary>The classes a <c>classDef</c> line names, which the style it writes belongs to every one of.</summary>
@@ -90,8 +80,11 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// <summary>The ids a <c>class</c> or <c>style</c> line names.</summary>
     public IReadOnlyList<string> Ids(ContentPart stated) => Said(stated, idRole);
 
-    /// <summary>The one class a <c>class</c> line gives what it names, or null where none is written yet.</summary>
+    /// <summary>The first class a <c>class</c> line gives what it names, or null where none is written yet.</summary>
     public string? Given(ContentPart stated) => Said(stated, classRole).FirstOrDefault();
+
+    /// <summary>Every class it gives them, in the order written, so the last one written wins where they disagree.</summary>
+    public IReadOnlyList<string> Givens(ContentPart stated) => Said(stated, classRole);
 
     /// <summary>
     /// What each thing the diagram draws is styled with: the <see cref="Every"/> class it starts from, then the classes it is
@@ -169,9 +162,13 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     private static string? Text(ContentNode name) =>
         name.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Words)?.Text;
 
-    private string AppliedShape => $"A class line names the {named}s taking a class, then the class: class A,B blue.";
+    private string AppliedShape => $"A class line names the {Plural(named)} taking a class, then the class: class A,B blue.";
 
-    private string StyledShape => $"A style line names the {named}s it styles, then the style: style A fill:#969,stroke:#333.";
+    private string StyledShape => $"A style line names the {Plural(named)} it styles, then the style: style A fill:#969,stroke:#333.";
+
+    /// <summary>More than one of what the diagram styles — <c>node</c>, <c>state</c>, <c>class</c>.</summary>
+    private static string Plural(string named) =>
+        named.EndsWith('s') || named.EndsWith('x') || named.EndsWith("ch", StringComparison.Ordinal) ? named + "es" : named + "s";
 
     /// <summary>Everything a line names in a role, in the order it is written.</summary>
     private static IReadOnlyList<string> Said(ContentPart stated, string role) =>

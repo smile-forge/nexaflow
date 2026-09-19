@@ -882,11 +882,13 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Entity Relationship diagram
 
-        An `erDiagram` models entities and their relationships. Cardinality uses crow's-foot notation —
-        either the symbol form (`||--o{`, `}o..o{`) or word aliases (`one to zero or more`); `--` is an
-        identifying (solid) relationship, `..` a non-identifying (dashed) one. Entities can carry an
-        attribute block (`type name [PK|FK|UK] ["comment"]`). Front-matter `config: er:` (`layoutDirection`,
-        `fill`, `stroke`, …) is honoured.
+        An `erDiagram` draws entities and what holds between them. An entity is its name over its attributes
+        (`type name [PK|FK|UK] ["comment"]`), set in columns so they read down as well as across. How many of
+        each entity the other has is drawn as crow's feet, written either as symbols (`||--o{`, `}o..o{`) or
+        in words (`one to zero or more`); `--` identifies what it reaches and is drawn solid, `..` does not
+        and is drawn dotted. A `subgraph … end` boxes what is written inside it. Front-matter `config: er:`
+        (`minEntityWidth`, `fontSize`, `layoutDirection`, `fill`, `stroke`, …) is honoured. It is drawn on the
+        shared layout tree, so every word is the characters written and the caret goes into them.
 
         ## Order example with attributes
 
@@ -1449,12 +1451,13 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Requirement diagram
 
-        A `requirementDiagram` (SysML-style) draws requirements and elements as boxes — a
-        «type» + name header over a list of fields (`id`, `text`, `risk`, `verifymethod` /
-        `type`, `docref`) — joined by labelled relationships: `contains` is a solid line with a
-        crosshair (⊕) at the container, the rest (`copies`, `derives`, `satisfies`, `verifies`,
-        `refines`, `traces`) are dashed arrows. It reuses the same box + Sugiyama layout as the
-        class diagram.
+        A `requirementDiagram` (SysML-style) draws requirements and the elements that meet them as
+        boxes — what kind of thing it is over its name, then a row for each field (`id`, `text`,
+        `risk`, `verifymethod`; an element's `type` and `docref`) — joined by lines saying what holds
+        between them: `contains` is the whole and its parts, a solid line with a crosshair at the end
+        that holds, and the rest (`copies`, `derives`, `satisfies`, `verifies`, `refines`, `traces`)
+        are dashed arrows. It is drawn on the shared layout tree, so every word is the characters
+        written and the caret goes into them.
 
         Full example
 
@@ -1556,9 +1559,13 @@ internal sealed class MarkdownSamples : ISampleSet
         # Mermaid — Class diagram
 
         A `classDiagram` draws UML classes as boxes with name / attribute / method
-        compartments, connected by relationships. Each class is laid out by the shared
-        Sugiyama engine; relationship operators set the arrowhead (hollow triangle for
-        inheritance, filled/hollow diamond for composition/aggregation, …).
+        compartments, connected by relationships, on the shared layout tree: the classes
+        are put in ranks by how far along the relations reach them, and the operator at
+        each end says what that end draws (hollow triangle for inheritance, filled or
+        hollow diamond for composition and aggregation, a circle for an interface offered
+        as a lollipop). Members are read as Mermaid reads them — `~T~` drawn between angle
+        brackets, a trailing `$` underlined and a trailing `*` italic, a return type after
+        a colon — and a namespace boxes the classes written inside it.
 
         Inheritance with members, a title, and notes (with `<br>`)
 

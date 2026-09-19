@@ -30,7 +30,9 @@ themselves ask for is its own (`SwimlaneConfig`). Its tests are its own either w
 and a builder's over what it draws.
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
-matter's), what could not be read set beneath it, the card, and the element the block is shown and written in.
+matter's), what could not be read set beneath it, the card, and the element the block is shown and written in — which
+is read-only where the host takes no edits (`DiagramRenderOptions.ReadOnly`, which a viewer sets and an editor does
+not), leaving a diagram there looked at, selected and followed where it leads.
 `MermaidDiagramHandler` asks `MermaidBuilders` first, so a diagram named there never reaches its legacy renderer.
 
 ## The kit
@@ -55,7 +57,8 @@ diagram's own code sits in a folder of its own under each.
 | read `key: value` properties — a style's, metadata closed by a brace, or options written one after another with only space between them | `Properties(known, ends, what, spaced)`, and `MermaidStyle.With` in the model |
 | read words to where they end — the rest of the line, `until` a character or a `stop` token | `Words` |
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
-| try one reading and go back | `Save`, `Restore`, `Since` |
+| try one reading and go back | `Save`, `Restore`, `Since`; `Undo` to go back and say why, which is what a reading that did not work out returns |
+| end a line: the semicolon and the space one may end with, and what is wrong where anything else is written there | `MermaidLine.Closed` |
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
@@ -90,7 +93,8 @@ diagram's own code sits in a folder of its own under each.
 | lay the same out in lanes — a swimlane | `DiagramLanes` of `DiagramLane`s, given to `DiagramLayers.Lay`: each cell keeps to the band its `DiagramCell.Lane` names, a lane's cells come one to a rank, and a link handed between two lanes goes across rather than on. A lane is not a cell — it is the band its cells are laid out in, and comes back its `Bounds` and the `Strip` at the near end where its name goes |
 | set a shape's words turned — a lane's name read up its band | `DiagramShapes.Draw` with `degrees`, which stands the words in the room the turn leaves them |
 | draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray`. Curved, the line passes through its route with each handle held to its own run and the runs at either end straight, so a corner is filleted and the line goes into a head along the head's own axis |
-| gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size` |
+| gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size`; `DiagramRoom.Round` for a diagram of cells joined by lines, which reaches the layout, every cell and every line with what is written over it |
+| draw a box of compartments — a class, a requirement, an entity | `DiagramBox.Measure` of `DiagramCompartment`s of `DiagramRow`s: how deep each band is, how wide the box has to be, where each row's columns go (`Placed`) and where the rules between the bands run (`Rules`). A band's rows are set across the middle of it or from the left, and its columns line up down the band or follow one another along each row |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
 | set words that may hold an entity code — drawn as what the code says, and so pressed rather than typed into | `Says` on the builder |
 | put a band over each run of things sharing a group | `DiagramBand.Runs` |
@@ -98,10 +102,11 @@ diagram's own code sits in a folder of its own under each.
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |
-| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words, `Band` is what a shape under it leaves out of its own |
+| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words, `Band` is what a shape under it leaves out of its own, `Trimmed` brings a join's ends in from the middles of the cells to their edges, and `Covered` is what a set of lines leaves no room under |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | round a panel between two axes — the room their numbers and titles take, the panel left inside it, the titles along it | `DiagramPanel.Room` for the axes' own room and `DiagramEdges` added for a key, a title band or a caption; `Round` for the panel, held to an `aspect` and shrunk to what was drawn; `Titles` for the turned upright title and the flat one under its numbers |
 | draw gridlines across a panel | `DiagramGrid.Draw`, or `DiagramGrid.Lines` into a shape of your own where a diagram draws more than one set of them |
+| say a piece leads somewhere | `build.Links` of a `LayoutLink` — a press on it means the link rather than a place for the caret, and the pointer is a hand over it. Held in a table beside the pieces rather than a slot on each, since almost nothing drawn is a link; followed by `LinkedElement`, which is what `MermaidBuilder.Host` shows a diagram in |
 | show a block with nothing to draw | `AsWritten` |
 
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed

@@ -53,6 +53,12 @@ public sealed class DiagramRenderOptions
     public Func<string, bool>? OnNavigate { get; init; }
 
     /// <summary>
+    /// Whether the host takes no edits — a viewer rather than an editor. A diagram there is looked at, selected and
+    /// followed where it leads, and never written in.
+    /// </summary>
+    public bool ReadOnly { get; init; }
+
+    /// <summary>
     /// How a block that names a picture finds it — a word cloud's <c>mask:</c>.
     ///
     /// <para>

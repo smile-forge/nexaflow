@@ -6,7 +6,7 @@ using Nexaflow.Features.Code.FileActions;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.FileActions;
 using Nexaflow.Syntax;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+using Nexaflow.Markdown.Mermaid.Class;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 
@@ -510,21 +510,24 @@ public class CodeIntelligenceTests
 
     // ── Parser link token ───────────────────────────────────────────────────
 
+    /// <summary>
+    /// "As Code" ends each member row with a hidden <c>@@</c> token pointing at the line it is declared on, so the row is
+    /// drawn as the member alone and a press on it opens the declaration.
+    /// </summary>
     [TestMethod]
-    public void MermaidClassParser_PeelsHrefToken_FromMember()
+    public void AMembersLinkTokenIsPeeledFromWhatTheRowSays()
     {
         const string src = "classDiagram\n  class Shape {\n    +draw() @@nx:line#42\n    -color\n  }\n";
-        var graph = new MermaidClassParser().Parse(src);
-        var shape = graph.FindNode("Shape");
+        var shape = ClassDiagram.Read(src).Find("Shape");
 
-        Assert.IsNotNull(shape?.Class);
-        var method = shape!.Class!.Methods.Single();
-        Assert.AreEqual("+draw()", method.Text);
+        Assert.IsNotNull(shape);
+        var method = shape!.Methods.Single();
+        Assert.AreEqual("+draw()", method.Says);
         Assert.AreEqual("nx:line#42", method.Href);
 
-        var attr = shape.Class.Attributes.Single();
-        Assert.AreEqual("-color", attr.Text);
-        Assert.IsNull(attr.Href);
+        var field = shape.Fields.Single();
+        Assert.AreEqual("-color", field.Says);
+        Assert.IsNull(field.Href);
     }
 
     // ── Actions ─────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Nexaflow.Core.Help;
 using Nexaflow.Features.Common.ClientTools;
+using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -9,6 +10,7 @@ namespace Nexaflow.Tests.Core.Unit;
 /// which pages exist, which of them mention a thing, and then the page itself.
 /// </summary>
 [TestClass]
+[CoversNode("help-ai-tools")]
 public class HelpClientToolsTests
 {
     [TestMethod]

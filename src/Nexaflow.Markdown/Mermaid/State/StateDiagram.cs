@@ -262,7 +262,8 @@ public sealed class StateDiagram
                     break;
 
                 case StateKinds.Class:
-                    taken.Add((StateGrammar.Styling.Ids(stated), StateGrammar.Styling.Given(stated) ?? string.Empty));
+                    foreach (var given in StateGrammar.Styling.Givens(stated))
+                        taken.Add((StateGrammar.Styling.Ids(stated), given));
                     break;
 
                 case StateKinds.Style:

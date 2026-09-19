@@ -185,14 +185,14 @@ public sealed class BlockGrammar : IMermaidGrammar
         line.Open();
 
         if (!MermaidOutline.Node(line, BlockRoles.Id, BlockRoles.Label, Stops, out var titled, MermaidShapes.Brackets, spaced: false))
-            return Back(line, mark);
+            return line.Undo(mark);
 
         var named = titled || line.At > mark.At;
 
         switch (Arrow(line))
         {
             case false:
-                return Back(line, mark);
+                return line.Undo(mark);
 
             case true:
                 Width(line);
@@ -200,7 +200,7 @@ public sealed class BlockGrammar : IMermaidGrammar
                 return true;
         }
 
-        if (!named) return Back(line, mark, ItemShape);
+        if (!named) return line.Undo(mark, ItemShape);
 
         Width(line);
         line.Close(BlockKinds.Item);
@@ -267,10 +267,10 @@ public sealed class BlockGrammar : IMermaidGrammar
         line.Token(Drawn(line, link), Roles.Open);
         line.Space();
 
-        if (!line.Quoted(BlockRoles.Label, what: "label")) return Back(line, mark, LinkShape);
+        if (!line.Quoted(BlockRoles.Label, what: "label")) return line.Undo(mark, LinkShape);
 
         line.Space();
-        if (MermaidLinks.At(line.Written, line.At) is not { Whole: true } closing) return Back(line, mark, LinkShape);
+        if (MermaidLinks.At(line.Written, line.At) is not { Whole: true } closing) return line.Undo(mark, LinkShape);
 
         line.Token(Drawn(line, closing), BlockRoles.Arrow);
         line.Close(BlockKinds.Link);
@@ -282,16 +282,6 @@ public sealed class BlockGrammar : IMermaidGrammar
                   said => Directions.Contains(said, StringComparer.OrdinalIgnoreCase)
                       ? null
                       : $"A block arrow points {string.Join(", ", Directions.SkipLast(1))} or {Directions[^1]}.");
-
-    /// <summary>Takes nothing, with the reason: a reading that got part of the way and cannot go on.</summary>
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark, string? reason = null)
-    {
-        var why = reason ?? line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
-    }
 
     // ── What a link is made of ──────────────────────────────────────────────
 

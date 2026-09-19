@@ -252,7 +252,8 @@ public sealed class FlowchartDiagram
                     break;
 
                 case FlowchartKinds.Class:
-                    taken.Add((FlowchartGrammar.Styling.Ids(stated), FlowchartGrammar.Styling.Given(stated) ?? string.Empty));
+                    foreach (var given in FlowchartGrammar.Styling.Givens(stated))
+                        taken.Add((FlowchartGrammar.Styling.Ids(stated), given));
                     break;
 
                 case FlowchartKinds.Style:

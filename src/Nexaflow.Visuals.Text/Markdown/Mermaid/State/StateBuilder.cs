@@ -107,7 +107,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
         // The transitions are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(StatePiece.States, part: null, stops: Stops.None);
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
@@ -250,24 +250,11 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>
     /// Everything the diagram means to draw, gathered so the whole of it is brought inside the box the block takes.
     /// </summary>
-    private DiagramRoom Reached(StateDiagram diagram, Plan plan)
-    {
-        var room = new DiagramRoom(diagram.Config.Padding);
-
-        room.Reach(new Rect(default, plan.Size));
-        foreach (var node in plan.Nodes) room.Reach(node.Cell.Bounds);
-        foreach (var note in plan.Notes) room.Reach(note.Cell.Bounds);
-        foreach (var box in plan.Groups.Values) room.Reach(box.Cell.Bounds);
-
-        foreach (var (step, join) in plan.Joins)
-        {
-            foreach (var at in join.Route) room.Reach(new Rect(at, at));
-
-            if (Says(step, diagram.Config) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
-        }
-
-        return room;
-    }
+    private DiagramRoom Reached(StateDiagram diagram, Plan plan) =>
+        DiagramRoom.Round(diagram.Config.Padding, plan.Size,
+                          [.. plan.Nodes.Select(node => node.Cell), .. plan.Notes.Select(note => note.Cell),
+                           .. plan.Groups.Values.Select(box => box.Cell)],
+                          plan.Joins.Select(join => (join.Value, Says(join.Key, diagram.Config))));
 
     /// <summary>What is written on a state: what it says, or what it is called where nothing else says anything.</summary>
     private IReadOnlyList<DiagramWords> Said(StateNode node, StateConfig config) =>
@@ -302,7 +289,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         {
             if (!plan.Joins.TryGetValue(step, out var join) || join.Route.Count < 2) continue;
 
-            var along = Trimmed(plan, join);
+            var along = DiagramConnector.Trimmed(join, (cell, toward) => Edge(plan, cell, toward));
             var placed = along.Select(room.At).ToList();
             var said = Says(step, diagram.Config);
 
@@ -312,37 +299,11 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         return routes;
     }
 
-    /// <summary>A route's ends brought in from the middles of what it joins to their edges.</summary>
-    private static IReadOnlyList<Point> Trimmed(Plan plan, DiagramJoin join)
-    {
-        var points = join.Route.ToList();
-        if (ReferenceEquals(join.From, join.To)) return points;
-
-        points[0] = Edge(plan, join.From, points[1]);
-        points[^1] = Edge(plan, join.To, points[^2]);
-
-        return points;
-    }
-
     private static Point Edge(Plan plan, DiagramCell cell, Point toward)
     {
         var shape = plan.Nodes.FirstOrDefault(node => ReferenceEquals(node.Cell, cell))?.Shape ?? DiagramShape.Rounded;
 
         return DiagramShapes.Edge(shape, cell.Bounds, toward);
-    }
-
-    /// <summary>What the transitions cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
     }
 
     /// <summary>The transitions, drawn over the diagram.</summary>

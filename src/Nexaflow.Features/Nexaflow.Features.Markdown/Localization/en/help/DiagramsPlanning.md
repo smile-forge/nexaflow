@@ -6,7 +6,7 @@ Diagrams for what happens, in what order, and who it is for: requirements, Gantt
 
 ## Requirement diagram
 
-SysML-style requirements and elements with their satisfy / verify / derive relationships.
+SysML-style requirements and the elements that meet them, with what holds between them — satisfy, verify, derive, contain.
 
 ````markdown
 ```mermaid
@@ -17,14 +17,22 @@ requirementDiagram
         risk: low
         verifymethod: test
     }
+    designConstraint no_browser {
+        id: 1.1
+        text: No embedded browser
+        risk: medium
+        verifymethod: inspection
+    }
     element renderer {
         type: component
+        docref: Visuals.Text
     }
+    render_req - contains -> no_browser
     renderer - satisfies -> render_req
 ```
 ````
 
-![A requirement diagram linking an element to a requirement](images/markdown/mermaid-requirement.png)
+![A requirement diagram: an element satisfying a requirement, which contains a design constraint](images/markdown/mermaid-requirement.png)
 
 ---
 

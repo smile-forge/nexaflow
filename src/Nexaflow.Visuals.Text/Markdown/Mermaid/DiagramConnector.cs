@@ -53,6 +53,9 @@ internal enum DiagramHead
     /// <summary>A cross: a flowchart's <c>--x</c>, a sequence diagram's <c>-x</c>.</summary>
     Cross,
 
+    /// <summary>A cross in a circle: SysML's composite containment, at the end holding the other.</summary>
+    CrossCircle,
+
     /// <summary>An ER diagram's zero or one: <c>|o</c>.</summary>
     ZeroOrOne,
 
@@ -197,6 +200,41 @@ internal static class DiagramConnector
     public static Geometry Band(IReadOnlyList<Point> route, double thickness = 1, bool curved = false) =>
         Frozen(Line(route, curved).GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(Reach, thickness))));
 
+    /// <summary>
+    /// A join's route with its ends brought in from the middles of the cells it joins to their edges, which is where a line is
+    /// drawn from and to. <paramref name="edge"/> says where a cell's own shape is met, for a diagram whose nodes are not all
+    /// rectangles; a cell joined to itself keeps the loop the layout gave it.
+    /// </summary>
+    public static IReadOnlyList<Point> Trimmed(DiagramJoin join, Func<DiagramCell, Point, Point>? edge = null)
+    {
+        var points = join.Route.ToList();
+        if (ReferenceEquals(join.From, join.To)) return points;
+
+        edge ??= static (cell, toward) => DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, toward);
+
+        points[0] = edge(join.From, points[1]);
+        points[^1] = edge(join.To, points[^2]);
+
+        return points;
+    }
+
+    /// <summary>
+    /// What a set of lines covers, which whatever is drawn under them does not stand in: the band each runs in, and the room what
+    /// is written over the middle of it takes.
+    /// </summary>
+    public static IReadOnlyList<Geometry> Covered(IEnumerable<(IReadOnlyList<Point> Along, Rect Room)> routes, double thickness = 1)
+    {
+        var over = new List<Geometry>();
+
+        foreach (var (along, room) in routes)
+        {
+            over.Add(Band(along, thickness));
+            if (!room.IsEmpty) over.Add(new RectangleGeometry(room));
+        }
+
+        return over;
+    }
+
     // ── Heads ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -238,6 +276,13 @@ internal static class DiagramConnector
                 lines.Children.Add(new LineGeometry(centre + ((along + across) * half), centre - ((along + across) * half)));
                 lines.Children.Add(new LineGeometry(centre + ((along - across) * half), centre - ((along - across) * half)));
                 return tip;
+
+            case DiagramHead.CrossCircle:
+                var held = tip - (along * half);
+                lines.Children.Add(new EllipseGeometry(held, half, half));
+                lines.Children.Add(new LineGeometry(held - (along * half), held + (along * half)));
+                lines.Children.Add(new LineGeometry(held - (across * half), held + (across * half)));
+                return tip - (along * half * 2);
 
             case DiagramHead.ZeroOrOne:
                 Bar(tip - (along * 6), across, half, lines);

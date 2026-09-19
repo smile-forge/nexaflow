@@ -45,12 +45,18 @@ internal static class MermaidBuilders
         MermaidDiagram.Flowchart => Flowchart.FlowchartBuilder.Build,
         MermaidDiagram.Swimlane => Swimlane.SwimlaneBuilder.Build,
         MermaidDiagram.State => State.StateBuilder.Build,
+        MermaidDiagram.Class => Class.ClassBuilder.Build,
+        MermaidDiagram.Requirement => Requirement.RequirementBuilder.Build,
+        MermaidDiagram.Er => Er.ErBuilder.Build,
         _ => null,
     };
 
     /// <summary>The element a block is shown and written in, or null where its diagram is not drawn on the shared tree.</summary>
+    /// <remarks>Read-only where the host takes no edits, which leaves a diagram there looked at, selected and followed.</remarks>
     public static Editing.ContentElement? Element(string source, MermaidDiagram diagram, DiagramRenderOptions options) =>
-        For(diagram) is { } build ? MermaidBuilder.Host(source, options, (state, palette, pixelsPerDip, room, writing) => build(state, palette, pixelsPerDip, room, writing), readOnly: false) : null;
+        For(diagram) is { } build
+            ? MermaidBuilder.Host(source, options, (state, palette, pixelsPerDip, room, writing) => build(state, palette, pixelsPerDip, room, writing), options.ReadOnly)
+            : null;
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
     public static Laid? Lay(string source, MarkdownPalette palette, double pixelsPerDip = 1, double room = double.PositiveInfinity, bool writing = false) =>

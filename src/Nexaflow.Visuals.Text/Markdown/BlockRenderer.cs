@@ -937,6 +937,7 @@ public static class BlockRenderer
             Palette           = ctx.Palette,
             SourceOffset      = FencedContentOffset(rawMarkdown, content),
             OnNavigate        = ctx.OnNavigate,
+            ReadOnly          = ctx.ReadOnly,
             Pictures          = src => Picture(src, ctx),
             OnExpand          = ctx.OnDiagramExpand,
             OnSelect          = ctx.OnDiagramSelect,

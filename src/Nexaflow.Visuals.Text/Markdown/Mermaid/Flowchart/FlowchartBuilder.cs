@@ -117,7 +117,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
         // The links are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Where(route => route.Link.Drawn).Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(FlowchartPiece.Nodes, part: null, stops: Stops.None);
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
@@ -314,19 +314,12 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// </summary>
     private DiagramRoom Reached(FlowchartDiagram diagram, Plan plan)
     {
-        var room = new DiagramRoom(diagram.Config.Padding);
+        var room = DiagramRoom.Round(diagram.Config.Padding, plan.Size,
+                                     [.. plan.Nodes.Select(node => node.Cell), .. plan.Groups.Values.Select(box => box.Cell)],
+                                     plan.Joins.Select(join => (join.Value, Says(join.Key))));
 
-        room.Reach(new Rect(default, plan.Size));
-        foreach (var node in plan.Nodes) room.Reach(node.Cell.Bounds);
-        foreach (var box in plan.Groups.Values) room.Reach(box.Cell.Bounds);
+        // A lane is not a cell — it is the band its cells are laid out in, and its name is drawn at the near end of it.
         foreach (var lane in plan.Lanes) room.Reach(lane.Band.Bounds);
-
-        foreach (var (link, join) in plan.Joins)
-        {
-            foreach (var at in join.Route) room.Reach(new Rect(at, at));
-
-            if (Says(link) is { Count: > 0 } said) room.Reach(DiagramConnector.Room(join.Route, said));
-        }
 
         return room;
     }
@@ -364,7 +357,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         {
             if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
 
-            var along = Trimmed(plan, link, join);
+            var along = DiagramConnector.Trimmed(join, (cell, toward) => Edge(plan, cell, toward));
             var placed = along.Select(room.At).ToList();
             var said = Says(link);
 
@@ -374,41 +367,12 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         return routes;
     }
 
-    /// <summary>
-    /// A route's ends brought in from the middles of what it joins to their edges, so the line meets the shape rather than running
-    /// into it. A link back to the node it leaves already runs beside it, and is left alone.
-    /// </summary>
-    private static IReadOnlyList<Point> Trimmed(Plan plan, FlowchartLink link, DiagramJoin join)
-    {
-        var points = join.Route.ToList();
-        if (ReferenceEquals(join.From, join.To)) return points;
-
-        points[0] = Edge(plan, join.From, points[1]);
-        points[^1] = Edge(plan, join.To, points[^2]);
-
-        return points;
-    }
-
     /// <summary>Where a line reaching a cell from <paramref name="toward"/> meets it: the shape's edge, for a node.</summary>
     private static Point Edge(Plan plan, DiagramCell cell, Point toward)
     {
         var shape = plan.Nodes.FirstOrDefault(node => ReferenceEquals(node.Cell, cell))?.Shape ?? DiagramShape.Rounded;
 
         return DiagramShapes.Edge(shape, cell.Bounds, toward);
-    }
-
-    /// <summary>What the links cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes.Where(route => route.Link.Drawn))
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
     }
 
     /// <summary>The links, drawn over the chart.</summary>

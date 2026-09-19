@@ -101,7 +101,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
         // The links are worked out before anything is drawn, because a composite under one of them does not stand where it runs.
         var routes = Routes(diagram, Placed(sized));
-        var over = Covered(routes);
+        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
 
         build.Open(BlockPiece.Blocks, part: null, stops: Stops.None);
         foreach (var item in sized) Drawn(build, item, pad, over);
@@ -393,20 +393,6 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         }
 
         return routes;
-    }
-
-    /// <summary>What the links cover, which whatever is drawn under them does not stand in.</summary>
-    private static IReadOnlyList<Geometry> Covered(IReadOnlyList<Route> routes)
-    {
-        var over = new List<Geometry>();
-
-        foreach (var route in routes)
-        {
-            over.Add(DiagramConnector.Band(route.Along, Thick));
-            if (!route.Room.IsEmpty) over.Add(new RectangleGeometry(route.Room));
-        }
-
-        return over;
     }
 
     /// <summary>The links, drawn over the grid.</summary>

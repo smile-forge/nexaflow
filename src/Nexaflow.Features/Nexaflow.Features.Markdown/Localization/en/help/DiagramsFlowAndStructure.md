@@ -85,29 +85,36 @@ sequenceDiagram
 
 ## Class diagram
 
-UML classes with attribute and method compartments and the full relationship set.
+UML classes with attribute and method compartments, the full relationship set, namespaces, annotations and
+how many of each class the other has.
 
 ````markdown
 ```mermaid
 classDiagram
+    direction LR
     class Animal {
+        <<abstract>>
         +String name
         +int age
-        +makeSound() void
+        +makeSound()* void
     }
     class Dog {
         +String breed
         +bark() void
+        +count()$ int
     }
-    class Cat {
-        +scratch() void
+    namespace Shelter {
+        class Kennel {
+            +List~Dog~ residents
+            +admit(Dog dog) bool
+        }
     }
     Animal <|-- Dog
-    Animal <|-- Cat
+    Kennel "1" o-- "*" Dog : houses
 ```
 ````
 
-![A class diagram with inheritance arrows](images/markdown/mermaid-class.png)
+![A class diagram running left to right: an abstract animal inherited by a dog, and a kennel boxed in a shelter namespace holding many dogs](images/markdown/mermaid-class.png)
 
 ---
 

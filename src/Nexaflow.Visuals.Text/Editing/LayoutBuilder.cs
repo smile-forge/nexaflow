@@ -28,6 +28,12 @@ public sealed class LayoutBuilder
     /// <summary>The run of text each piece is, where it is one — see <see cref="Words"/>. Null for nearly everything.</summary>
     private readonly List<LayoutWords?> _words = [];
 
+    /// <summary>
+    /// Where pressing a piece leads, by its index. A table rather than one slot per piece, as the words and the region
+    /// beside it are: almost nothing drawn is a link, so a piece that is not one costs nothing at all.
+    /// </summary>
+    private readonly Dictionary<int, LayoutLink> _links = [];
+
     private readonly List<LayoutMark> _marks = [];
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
 
@@ -184,6 +190,9 @@ public sealed class LayoutBuilder
     /// </summary>
     public void Words(LayoutWords words) => _words[_open.Peek().At] = words;
 
+    /// <summary>Says the piece being built leads somewhere: a press on it means the link rather than the caret.</summary>
+    public void Links(LayoutLink link) => _links[_open.Peek().At] = link;
+
     /// <summary>
     /// Says the piece being built reserves exactly this much of its line, vertically, whatever it draws above
     /// or below — the staff a note stands on, the height of a word's letters on its line. Width is still whatever
@@ -240,6 +249,7 @@ public sealed class LayoutBuilder
             _paints.Add(tree.PaintOf(piece));
             _regions.Add(tree.RegionOf(piece));
             _words.Add(tree.WordsOf(piece));
+            if (tree.LinkOf(piece) is { } link) _links[_pieces.Count - 1] = link;
         }
 
         for (var run = 0; run < tree.RunCount; run++)
@@ -356,7 +366,7 @@ public sealed class LayoutBuilder
         }
 
         return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
-                              across, acrossAt, down, downAt, runs);
+                              _links.Count == 0 ? null : new Dictionary<int, LayoutLink>(_links), across, acrossAt, down, downAt, runs);
     }
 
     /// <summary>

@@ -338,7 +338,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
         if (!line.Done && !line.Properties(ends: ';')) return line.Shown(LinkStyleShape);
 
-        return MermaidStyling.Closed(line, FlowchartKinds.LinkStyle, LinkStyleShape);
+        return line.Closed(FlowchartKinds.LinkStyle, LinkStyleShape);
     }
 
     /// <summary>Where pressing a node leads, and what it says while pointed at: <c>click A "https://example.com" "Tooltip"</c>.</summary>
@@ -376,7 +376,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         line.Room();
         if (!line.Done && !line.Sees(";") && !line.Name(FlowchartRoles.Target, Bare, Targeted)) return line.Shown(ClickShape);
 
-        return MermaidStyling.Closed(line, FlowchartKinds.Click, ClickShape);
+        return line.Closed(FlowchartKinds.Click, ClickShape);
     }
 
     /// <summary>
@@ -419,9 +419,9 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
         if (!MermaidOutline.Node(line, FlowchartRoles.Id, FlowchartRoles.Label, Stops, out var titled,
                                  MermaidShapes.Brackets, spaced: false, ends: ends ?? Ends))
-            return Back(line, mark);
+            return line.Undo(mark);
 
-        if (!titled && line.At == mark.At) return Back(line, mark, NodeShape);
+        if (!titled && line.At == mark.At) return line.Undo(mark, NodeShape);
 
         Classed(line);
         line.Close(kind);
@@ -454,7 +454,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
         Identified(line);
 
-        if (MermaidLinks.At(line.Written, line.At) is not { } link) return Back(line, mark);
+        if (MermaidLinks.At(line.Written, line.At) is not { } link) return line.Undo(mark);
 
         var opening = Drawn(line, link);
 
@@ -469,10 +469,10 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         line.Token(opening, Roles.Open);
         line.Space();
 
-        if (!Saying(line, opening)) return Back(line, mark, LinkShape);
+        if (!Saying(line, opening)) return line.Undo(mark, LinkShape);
 
         line.Space();
-        if (MermaidLinks.At(line.Written, line.At) is not { Whole: true } closing) return Back(line, mark, LinkShape);
+        if (MermaidLinks.At(line.Written, line.At) is not { Whole: true } closing) return line.Undo(mark, LinkShape);
 
         line.Token(Drawn(line, closing), FlowchartRoles.Arrow);
         line.Close(FlowchartKinds.Link);
@@ -564,14 +564,4 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     private static bool Called(char character) => Bare(character) || character is '(' or ')';
 
     private static string Drawn(MermaidLine line, MermaidLinks.Joined link) => line.Written.Substring(line.At, link.Length);
-
-    /// <summary>Takes nothing, with the reason: a reading that got part of the way and cannot go on.</summary>
-    private static bool Back(MermaidLine line, MermaidLine.Mark mark, string? reason = null)
-    {
-        var why = reason ?? line.Reason;
-        line.Restore(mark);
-        if (why is not null) line.Fail(why);
-
-        return false;
-    }
 }
