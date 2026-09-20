@@ -52,6 +52,9 @@ internal static class DiagramLayers
     /// </summary>
     private const double Spreading = 14;
 
+    /// <summary>The air a line keeps past what is written on it, where it goes round something rather than between things.</summary>
+    private const double Skirting = 8;
+
     /// <summary>
     /// Lays every cell out, hands each its <see cref="DiagramCell.Bounds"/> and each join its <see cref="DiagramJoin.Route"/>,
     /// and says how much room it all came to.
@@ -89,7 +92,7 @@ internal static class DiagramLayers
 
         foreach (var join in joins) join.Route = Routed(join, way);
         Parted(cells, joins, way, ports);
-        Swung(joins);
+        Swung(cells, joins, way);
 
         return whole;
     }
@@ -696,25 +699,86 @@ internal static class DiagramLayers
     }
 
     /// <summary>
-    /// Spends the two bends of a line that leaves and arrives square as the handles of one curve.
+    /// Spends a line's bends as the shape of a curve rather than drawing through them as corners.
     ///
     /// <para>
-    /// <see cref="Routed"/> gives such a line a bend at each end of the gap it crosses so that it meets both shapes square
-    /// rather than slanting into them. Kept as bends they are drawn through, and the line is a dog-leg; spent as handles
-    /// they shape a single swing across the gap instead. It happens last because the bends are what the ends are moved
-    /// along — a line given its own place on a shape's edge takes its handle with it.
+    /// A line crossing to the next rank is given a bend at each end of the gap by <see cref="Routed"/>, so that it meets both
+    /// shapes square rather than slanting into them. Kept as bends they are drawn through and the line is a dog-leg; spent as
+    /// the handles of one cubic they shape a single swing across the gap instead.
     /// </para>
     ///
     /// <para>
-    /// Only that pair. A line that reaches past the next rank is routed around what stands in its way, and those bends are
-    /// places it has to pass through rather than handles to be spent.
+    /// A line reaching further has things standing between its two ends, and one curve round the outside of them says what
+    /// the chain of bends said and reads as one line. Which side it goes round is settled by where its own two ends are: a
+    /// line between two shapes that both stand to the right of what it passes goes round to the right, whatever side the
+    /// rank it crosses happened to leave a column free on. It clears them by half of what is written on it, since the words
+    /// sit on the line and they are what would otherwise land on what it passes.
+    /// </para>
+    ///
+    /// <para>
+    /// It happens last because the bends are what the ends are moved along: a line given its own place on a shape's edge
+    /// takes its handle with it.
     /// </para>
     /// </summary>
-    private static void Swung(IReadOnlyList<DiagramJoin> joins)
+    private static void Swung(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way)
     {
+        var sideways = way is DiagramWay.Down or DiagramWay.Up;
+
         foreach (var join in joins)
-            if (join.Bends.Count == 0 && join.Route.Count == 4 && !ReferenceEquals(join.From, join.To))
-                join.Route = DiagramConnector.Curving(join.Route[0], join.Route[1], join.Route[2], join.Route[3]);
+        {
+            if (ReferenceEquals(join.From, join.To) || join.Route.Count < 3) continue;
+
+            var (from, to) = (join.Route[0], join.Route[^1]);
+
+            if (join.Bends.Count == 0)
+            {
+                if (join.Route.Count == 4) join.Route = DiagramConnector.Curving(from, join.Route[1], join.Route[2], to);
+                continue;
+            }
+
+            var (near, far) = Ends(sideways ? from.Y : from.X, sideways ? to.Y : to.X);
+
+            var passed = cells
+                .Where(cell => !ReferenceEquals(cell, join.From) && !ReferenceEquals(cell, join.To))
+                .Where(cell => (sideways ? cell.Bounds.Bottom : cell.Bounds.Right) > near
+                            && (sideways ? cell.Bounds.Top : cell.Bounds.Left) < far)
+                .ToList();
+
+            var middle = sideways ? (from.X + to.X) / 2 : (from.Y + to.Y) / 2;
+
+            var clear = passed.Count == 0
+                ? middle
+                : Round(passed, middle, sideways, (sideways ? join.Said.Width : join.Said.Height) / 2);
+
+            // A curve reaches half as far as its handle: the widest of it is halfway between the straight run and the handle,
+            // so the handle goes twice as far out as the line itself is meant to.
+            var handle = middle + (2 * (clear - middle));
+
+            var over = sideways
+                ? new Point(handle, (from.Y + to.Y) / 2)
+                : new Point((from.X + to.X) / 2, handle);
+
+            join.Route = DiagramConnector.Curving(from, from + (2 * (over - from) / 3), to + (2 * (over - to) / 3), to);
+        }
+    }
+
+    /// <summary>The two ends of a run, in order.</summary>
+    private static (double Near, double Far) Ends(double one, double other) =>
+        one <= other ? (one, other) : (other, one);
+
+    /// <summary>
+    /// How far out a line has to go to pass what stands between its ends: round whichever side of them its own ends are on,
+    /// and out past the furthest of them by <paramref name="said"/> — half of what is written on the line.
+    /// </summary>
+    private static double Round(IReadOnlyList<DiagramCell> passed, double middle, bool sideways, double said)
+    {
+        var theirs = passed.Average(cell => sideways
+            ? cell.Bounds.X + (cell.Bounds.Width / 2)
+            : cell.Bounds.Y + (cell.Bounds.Height / 2));
+
+        return middle >= theirs
+            ? passed.Max(cell => sideways ? cell.Bounds.Right : cell.Bounds.Bottom) + said + Skirting
+            : passed.Min(cell => sideways ? cell.Bounds.Left : cell.Bounds.Top) - said - Skirting;
     }
 
     /// <summary>

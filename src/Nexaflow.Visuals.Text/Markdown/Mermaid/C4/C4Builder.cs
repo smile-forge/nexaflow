@@ -127,7 +127,9 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         Relations(build, routes, group: null);
         build.Close();
 
-        return Keyed(build, diagram, room.Size);
+        Keyed(diagram);
+
+        return room.Size;
     }
 
     // ── Laying it out ───────────────────────────────────────────────────────
@@ -695,10 +697,14 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
             .OfType<Sized>();
 
-    /// <summary>The key, where <c>SHOW_LEGEND()</c> asked for one: a row per kind of element written, under the diagram.</summary>
-    private Size Keyed(LayoutBuilder build, C4Structure diagram, Size size)
+    /// <summary>
+    /// The key, where <c>SHOW_LEGEND()</c> asked for one: a row per kind of element written. It is handed to the block to
+    /// put under the drawing rather than drawn into the drawing, so the two are set about the same middle whichever of them
+    /// turns out to be the wider.
+    /// </summary>
+    private void Keyed(C4Structure diagram)
     {
-        if (diagram.Legend.Count == 0) return size;
+        if (diagram.Legend.Count == 0) return;
 
         // A row's swatch is the colour the cards it explains are actually drawn in: what is written for it, and otherwise
         // the band of the grading they take. A row explaining a tag rather than a kind has only what the tag wrote.
@@ -714,10 +720,12 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             Framed = (DiagramInk.Faded(Palette.Text, 0.04), Palette.CodeBorder),
         };
 
-        key.Draw(build, new Point(diagram.Config.Across, size.Height + Clear));
+        // With the air either side of it that diagramMarginX asks for, kept as part of the piece so the block is as wide
+        // as the legend plus its margins rather than the legend alone.
+        var build = new LayoutBuilder();
+        key.Draw(build, new Point(diagram.Config.Across, 0));
 
-        return new Size(Math.Max(size.Width, key.Size.Width + (diagram.Config.Across * 2)),
-                        size.Height + Clear + key.Size.Height);
+        Beneath(build.Seal(), new Size(key.Size.Width + (diagram.Config.Across * 2), key.Size.Height), Clear);
     }
 
     private static DiagramCardShape Carded(C4Shape shape) => shape switch

@@ -243,15 +243,35 @@ internal static class DiagramConnector
         var points = join.Route.ToList();
         if (ReferenceEquals(join.From, join.To)) return points;
 
-        points[0] = edge is null
-            ? DiagramShapes.Edge(DiagramShape.Rectangle, join.From.Bounds, points[1], points[0])
-            : edge(join.From, points[1]);
-
-        points[^1] = edge is null
-            ? DiagramShapes.Edge(DiagramShape.Rectangle, join.To.Bounds, points[^2], points[^1])
-            : edge(join.To, points[^2]);
+        Brought(points, join.To, edge);
+        points.Reverse();
+        Brought(points, join.From, edge);
+        points.Reverse();
 
         return points;
+    }
+
+    /// <summary>
+    /// Brings the far end of a route in to the edge of what it meets, and drops whatever of the route was within.
+    ///
+    /// <para>
+    /// A route that swings across a gap is made of points rather than corners, and several of them at that end are inside the
+    /// shape it meets. Moving only the last of them leaves the rest drawn across the shape, which reads as a line setting off
+    /// from somewhere in the middle of it.
+    /// </para>
+    /// </summary>
+    private static void Brought(List<Point> points, DiagramCell cell, Func<DiagramCell, Point, Point>? edge)
+    {
+        // The last point of the route still outside the shape — never the other end, which would leave nothing to draw.
+        var outside = points.Count - 2;
+        while (outside > 0 && cell.Bounds.Contains(points[outside])) outside--;
+
+        var met = edge is null
+            ? DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, points[outside], points[outside + 1])
+            : edge(cell, points[outside]);
+
+        points.RemoveRange(outside + 1, points.Count - outside - 1);
+        points.Add(met);
     }
 
     /// <summary>
