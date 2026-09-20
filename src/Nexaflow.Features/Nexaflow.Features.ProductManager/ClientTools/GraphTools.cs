@@ -5,6 +5,7 @@ using Nexaflow.Services.Initiatives.Graph.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Services.Initiatives.Hosting;
+using Nexaflow.Services.Initiatives.Product.Model;
 
 namespace Nexaflow.Features.ProductManager.ClientTools;
 
@@ -146,7 +147,7 @@ public static class GraphTools
                  new ClientToolParameter("op",
                      "replace | delete | signature | body | rename | insert_before | insert_after | append | doc | "
                      + "set_attribute | remove_attribute | move | create. 'move' takes 'to' (a type's code: id or file:<path>); "
-                     + "'create' takes the new file's path as node_id and its content as text. The attribute ops change one attribute of an XML element (its "
+                     + "'create' takes the new file's path as node_id and its content as text; 'delete' on a file: node_id with no 'at' deletes the file itself, everything it declared leaving the graph with it. The attribute ops change one attribute of an XML element (its "
                      + "name in 'name'); a XAML code: id (T:/N:/K:/A:) takes every op on its element. "
                    + "'append' targets a type and adds a member at the end of its body; 'signature' and 'body' "
                    + "each leave the other half byte-for-byte unchanged."),
@@ -366,6 +367,7 @@ public static class GraphTools
             foreach (var line in change.Hunk.Added)   report.AppendLine($"+ {line}");
         }
         foreach (var note in outcome.Steps.SelectMany(s => s.Notes)) report.AppendLine($"note: {note}");
+        if (Stranded(root, outcome.Files) is { Length: > 0 } stranded) report.AppendLine(stranded);
 
         if (Bool(a, "dry_run"))
         {
@@ -397,7 +399,7 @@ public static class GraphTools
                 return ToolResult.Error(refused);
         }
 
-        if (Merge(root, [.. outcome.Files.Select(f => f.RelativePath)]) is { Length: > 0 } merged)
+        if (Merge(root, outcome.Files) is { Length: > 0 } merged)
             report.AppendLine(merged);
         return ToolResult.Ok(outcome.Message, report.ToString());
     }
@@ -424,6 +426,12 @@ public static class GraphTools
                     return false;
                 }
                 step = new EditPlan.Move(label, id!, to);
+                return true;
+
+            // A file: node id with no element path names the file itself, so deleting it deletes the file; with an
+            // 'at' it names one element inside, which is an ordinary edit.
+            case "delete" when id!.StartsWith("file:", StringComparison.Ordinal) && Blank(Str(a, "at")) is null:
+                step = new EditPlan.Remove(label, id!["file:".Length..].Replace('\\', '/'));
                 return true;
 
             case "create":
@@ -522,6 +530,30 @@ public static class GraphTools
     }
 
     /// <summary>
+    /// The snaplinks a plan's deletions leave naming nothing — the same answer `nfi graph edit` gives, so the Product
+    /// page and the CLI agree on what a delete costs. Nothing to say when the plan removes no file.
+    /// </summary>
+    private static string Stranded(string root, IReadOnlyList<EditPlan.Written> files)
+    {
+        var removed = files.Where(f => f.After is null).Select(f => f.RelativePath).ToList();
+        if (removed.Count == 0) return "";
+        if (!ProductStore.Exists(root)) return $"snaplinks: not checked — no .product/ under {root}";
+
+        ProductState state;
+        try { state = new ProductStore(root).Load(); }
+        catch (Exception ex) { return $"snaplinks: not checked — {ex.Message}"; }
+
+        var orphaned = removed
+            .SelectMany(rel => SnaplinkRemapper.Touching(state, rel))
+            .Select(link => link.Concern is { Length: > 0 } tag ? $"{link.NodeId} ({tag})" : link.NodeId)
+            .ToList();
+
+        return orphaned.Count == 0
+            ? $"snaplinks: none named {string.Join(", ", removed)} — checked {state.Nodes.Count} node(s)."
+            : $"snaplinks: {orphaned.Count} left naming nothing — {string.Join("; ", orphaned)}";
+    }
+
+    /// <summary>
     /// Folds the files an edit just changed back into the warm graph, so the next question is answered about the
     /// code as it now is.
     /// <para>
@@ -530,14 +562,20 @@ public static class GraphTools
     /// text, and the only remedy on offer was a whole repo walk. One file's parse is not a rebuild.
     /// </para>
     /// </summary>
-    private static string Merge(string root, IReadOnlyList<string> files)
+    private static string Merge(string root, IReadOnlyList<EditPlan.Written> files)
     {
         if (Warm(root) is not { } workspace)
             return "Rebuild the graph (open the Product page) so its record matches the file.";
 
+        // A file the edit took away is dropped rather than re-read: RefreshFiles leaves an absent file alone because an
+        // absence on its own is as likely to be another branch's work, and here the absence is this edit's own doing.
         var folded = workspace.Mutate(snapshot =>
         {
-            return GraphBuilder.RefreshFiles(snapshot.Graph, snapshot.Cache, root, [.. files], null).Count > 0;
+            var gone = files.Where(f => f.After is null)
+                            .Count(f => GraphBuilder.ForgetFile(snapshot.Graph, snapshot.Cache, f.RelativePath));
+            var read = GraphBuilder.RefreshFiles(snapshot.Graph, snapshot.Cache, root,
+                                                 [.. files.Where(f => f.After is not null).Select(f => f.RelativePath)], null);
+            return gone > 0 || read.Count > 0;
         });
 
         return folded ? "The graph has been brought up to date with the change." : "";

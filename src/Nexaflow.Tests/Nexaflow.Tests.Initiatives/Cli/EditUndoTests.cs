@@ -4,6 +4,7 @@ using System.Linq;
 using Nexaflow.Services.Initiatives.Cli;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Graph;
+using Nexaflow.Services.Initiatives.Product.Model;
 using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Tests.Fixtures;
 
@@ -56,6 +57,60 @@ public class EditUndoTests
         Assert.IsFalse(File.Exists(At("a.md")));
 
         Assert.AreNotEqual(0, Run("graph", "edit", "undo"), "with nothing left to undo, it says so");
+    }
+
+    [TestMethod]
+    public void AFileDeleted_IsGone_AndComesBackByteForByte()
+    {
+        Assert.AreEqual(0, Run("graph", "edit", "create", "notes.md", "--text-escaped", "one\\ntwo"));
+        var written = File.ReadAllText(At("notes.md"));
+
+        Assert.AreEqual(0, Run("graph", "edit", "delete", "file:notes.md"), "no graph has been built here, and none is needed");
+        Assert.IsFalse(File.Exists(At("notes.md")));
+
+        Assert.AreEqual(0, Run("graph", "edit", "undo"));
+        Assert.AreEqual(written, File.ReadAllText(At("notes.md")), "line endings and all");
+    }
+
+    [TestMethod]
+    public void DeletingAFileThatIsNotThere_IsRefused()
+    {
+        Assert.AreNotEqual(0, Run("graph", "edit", "delete", "file:absent.md"));
+        Assert.AreNotEqual(0, Run("graph", "edit", "undo"), "a refusal is not an edit to take back");
+    }
+
+    /// <summary>Hangs a code snaplink naming <paramref name="doc"/> on a node, the way a feature claims a file.</summary>
+    private void SnaplinkNaming(string doc)
+    {
+        var store = new ProductStore(_root);
+        var state = store.Load();
+        state.Nodes["claimant"] = new ProductNode { Title = "Claimant", Snaplinks = [new Snaplink { Type = "code", Doc = doc }] };
+        store.SaveTree(state.Nodes);
+    }
+
+    [TestMethod]
+    public void WithMustCompile_ADeleteThatStrandsASnaplink_IsRefused()
+    {
+        Assert.AreEqual(0, Run("graph", "edit", "create", "claimed.md", "--text", "one"));
+        SnaplinkNaming("claimed.md");
+
+        Assert.AreNotEqual(0, Run("graph", "edit", "delete", "file:claimed.md", "--must-compile"),
+                           "nothing compiles a snaplink, so only this check stands between a delete and a broken tree");
+        Assert.IsTrue(File.Exists(At("claimed.md")), "refused means nothing was written");
+
+        Assert.AreEqual(0, Run("graph", "edit", "delete", "file:claimed.md"),
+                        "without the flag it is reported and written — the caller decides");
+        Assert.IsFalse(File.Exists(At("claimed.md")));
+    }
+
+    [TestMethod]
+    public void WithMustCompile_ADeleteNoSnaplinkNames_GoesAhead()
+    {
+        Assert.AreEqual(0, Run("graph", "edit", "create", "spare.md", "--text", "one"));
+        SnaplinkNaming("elsewhere.md");
+
+        Assert.AreEqual(0, Run("graph", "edit", "delete", "file:spare.md", "--must-compile"));
+        Assert.IsFalse(File.Exists(At("spare.md")));
     }
 
     [TestMethod]

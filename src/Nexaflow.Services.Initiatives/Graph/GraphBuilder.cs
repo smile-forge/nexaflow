@@ -230,17 +230,19 @@ public sealed class GraphBuilder
     }
 
     /// <summary>
-    /// Drops a file from the graph entirely — for a file that is no longer in the tree this graph describes.
+    /// Drops a file from the graph entirely — for a file this tree knows is gone.
     /// <para>
-    /// Only ever correct against a graph that belongs to one working tree. Against a shared graph an absent
-    /// file is as likely to be another branch's work in progress, and forgetting it would delete a parallel
-    /// session's published work; that is why <see cref="RefreshFile"/> will not do this on its own.
+    /// Two things make that knowledge safe: a graph that belongs to one working tree, or a caller that took the file
+    /// away itself, as a `graph edit delete` does. Neither holds for a file that is merely absent from a shared graph's
+    /// tree — it is as likely to be another branch's work in progress, and forgetting it would delete a parallel
+    /// session's published work. That is why <see cref="RefreshFile"/> will not do this on an absence alone.
     /// </para>
     /// </summary>
-    /// <returns>True when the graph actually held something for it.</returns>
+    /// <returns>True when the graph or its cache actually held something for it.</returns>
     public static bool ForgetFile(KnowledgeGraph graph, GraphCache cache, string relPath)
     {
-        var had = graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal));
+        var had = graph.Nodes.Any(n => string.Equals(n.Source, relPath, StringComparison.Ordinal))
+               || cache.Files.ContainsKey(relPath);
         Prune(graph, cache, relPath);
         return had;
     }

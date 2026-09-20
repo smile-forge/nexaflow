@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using Nexaflow.Services.Initiatives.Cli.Daemon;
 using Nexaflow.Services.Initiatives.Graph;
 using Nexaflow.Services.Initiatives.Graph.Model;
+using Nexaflow.Services.Initiatives.Product.Model;
+using Nexaflow.Services.Initiatives.Product.Services;
 using Nexaflow.Syntax;
 using Nexaflow.Syntax.Compiler;
 
@@ -156,6 +158,49 @@ internal static class EditCheck
 
         var views = mentions.Where(m => m.RelativePath.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)).ToList();
         return new Findings(names, uses.Distinct().ToList(), byCompiler, views, report, notSearched.Distinct().ToList());
+    }
+
+    /// <summary>A snaplink left naming a file that is gone: the file it named, and where the link hangs.</summary>
+    internal sealed record Orphan(string RelativePath, string NodeId, string? Concern);
+
+    /// <summary>
+    /// The snaplinks a plan's deletions strand. For each file removed, every link a <c>remap</c> of that path would have
+    /// had to rewrite — the same matching, so a delete reports exactly what a move would have carried.
+    /// </summary>
+    internal static IReadOnlyList<Orphan> Orphaned(ProductState? tree, IReadOnlyList<EditPlan.Written> files) =>
+        tree is null
+            ? []
+            : [.. files.Where(f => f.After is null)
+                       .SelectMany(f => SnaplinkRemapper.Touching(tree, f.RelativePath)
+                                                        .Select(t => new Orphan(f.RelativePath, t.NodeId, t.Concern)))];
+
+    /// <summary>
+    /// The snaplink verdict, said only when the plan removes a file — no other edit can leave a link naming nothing.
+    /// <paramref name="notChecked"/> is why the tree could not be asked, and is said instead of a clean verdict,
+    /// because nothing checked is not a zero.
+    /// </summary>
+    internal static void PrintOrphaned(IReadOnlyList<Orphan> orphaned, IReadOnlyList<EditPlan.Written> files,
+                                       ProductState? tree, string? notChecked)
+    {
+        var removed = files.Where(f => f.After is null).Select(f => f.RelativePath).ToList();
+        if (removed.Count == 0) return;
+
+        if (tree is null)
+        {
+            Console.WriteLine($"snaplinks: not checked — {notChecked ?? "no product tree was read"}");
+            return;
+        }
+        if (orphaned.Count == 0)
+        {
+            Console.WriteLine($"snaplinks: none named {string.Join(", ", removed)} — checked {tree.Nodes.Count} node(s).");
+            return;
+        }
+
+        Console.WriteLine($"snaplinks: {orphaned.Count} left naming nothing — "
+                        + string.Join(", ", orphaned.Select(o => o.RelativePath).Distinct(StringComparer.Ordinal)) + ":");
+        foreach (var orphan in orphaned.Take(ShownUses))
+            Console.WriteLine($"  {orphan.NodeId}" + (orphan.Concern is { Length: > 0 } tag ? $"   ({tag})" : ""));
+        if (orphaned.Count > ShownUses) Console.WriteLine($"  … and {orphaned.Count - ShownUses} more");
     }
 
     internal static void Print(Findings findings, string codeRoot)

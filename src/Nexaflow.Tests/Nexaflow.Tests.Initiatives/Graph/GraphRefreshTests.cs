@@ -201,6 +201,21 @@ public class GraphRefreshTests
     }
 
     [TestMethod]
+    public void AFileForgotten_TakesItsDeclarationsWithIt_UnlikeOneMerelyAbsent()
+    {
+        Write("public class C\n{\n    public void M() { }\n}\n");
+        var (graph, cache) = Empty();
+        GraphBuilder.RefreshFile(graph, cache, _root, Rel);
+
+        File.Delete(Path.Combine(_root, "src", "Sample.cs"));
+
+        Assert.IsTrue(GraphBuilder.ForgetFile(graph, cache, Rel), "it described the file, and now it does not");
+        CollectionAssert.DoesNotContain(Ids(graph), $"code:{Rel}#T:C",
+            "a deletion this tree KNOWS about is the one case where dropping the file is right");
+        Assert.IsFalse(GraphBuilder.ForgetFile(graph, cache, Rel), "forgetting what is already forgotten is not a change");
+    }
+
+    [TestMethod]
     public void RefreshingOneFile_LeavesEveryOtherFileAlone()
     {
         File.WriteAllText(Path.Combine(_root, "src", "Other.cs"), "public class Other { }\n");

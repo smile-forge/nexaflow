@@ -27,6 +27,9 @@ public static class EditPlan
     /// <summary>A new file.</summary>
     public sealed record Create(string Label, string RelativePath, string? Text) : Step(Label);
 
+    /// <summary>A file removed whole, everything it declared with it.</summary>
+    public sealed record Remove(string Label, string RelativePath) : Step(Label);
+
     /// <summary>A declaration moved into a type (<c>code:</c>) or to a file (<c>file:</c>, created if absent).</summary>
     public sealed record Move(string Label, string NodeId, string Destination) : Step(Label);
 
@@ -57,6 +60,7 @@ public static class EditPlan
             {
                 Edit e   => GraphEdit.Plan(graph, e.NodeId, e.Op, e.Text, Read, e.Options, e.RenameTo),
                 Create c => GraphEdit.Create(c.RelativePath, c.Text, Read, newlineFor),
+                Remove r => GraphEdit.Remove(r.RelativePath, Read),
                 Move m   => GraphEdit.Move(graph, m.NodeId, m.Destination, Read, newlineFor),
                 Rewrite r => GraphEdit.Rewrite(r.RelativePath, r.Before, r.After, r.Description, Read),
                 _        => GraphEdit.Result.Fail($"{step.GetType().Name} is not a step this can plan."),
