@@ -448,12 +448,16 @@ public partial class InlineMarkdownEditor : UserControl
         _placeholder.Margin = ContentPadding;
     }
 
+    /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
+    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get; set; }
+
     private MarkdownRenderContext Context => new()
     {
         Palette           = Pal,
         BaseFontSize      = EffectiveBaseFontSize,
         OnNavigate        = LinkNavigate,
         BaseDirectory     = BaseDirectory,
+        DataContext       = DiagramData,
         FitContentToWidth = true,   // diagrams scale to the column rather than getting un-grabbable scrollbars
 
         // A surface whose whole content is one rendered sub-block is an input field, not a document:

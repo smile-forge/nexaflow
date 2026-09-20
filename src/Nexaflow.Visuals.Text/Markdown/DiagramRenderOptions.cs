@@ -65,6 +65,17 @@ public sealed class DiagramRenderOptions
     public Func<Editing.LayoutAct, bool>? OnAction { get; init; }
 
     /// <summary>
+    /// What a <c>{{…}}</c> written in a diagram is read against — the host's own object, asked by path.
+    ///
+    /// <para>
+    /// The XAML analogue, and a presentation concern for the same reason that one is: <em>what</em> is bound to is the
+    /// host's business, which is why the seam is an interface rather than an object. Null leaves a binding drawn as the
+    /// characters it was written with, so a document nobody has bound to still reads.
+    /// </para>
+    /// </summary>
+    public Nexaflow.Markdown.Binding.IDataContext? DataContext { get; init; }
+
+    /// <summary>
     /// Whether the host takes no edits — a viewer rather than an editor. A diagram there is looked at, selected and
     /// followed where it leads, and never written in.
     /// </summary>

@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -42,6 +43,12 @@ public static class MermaidPiece
     /// <summary>What a node folds and unfolds by — see <see cref="DiagramChip"/>.</summary>
     public const string Chip = "Chip";
 
+    /// <summary>Another language drawn inside this one's words — see <see cref="DiagramInset"/>.</summary>
+    public const string Nested = "Nested";
+
+    /// <summary>What offers the children a node has too many of — see <see cref="DiagramSpill"/>.</summary>
+    public const string More = "More";
+
     /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
     public const string Line = "Line";
 }
@@ -76,7 +83,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <param name="laying">What the diagram is drawn with, how much room it has, and whether anybody is writing in it.</param>
     protected MermaidBuilder(EditState state, DiagramLaying laying)
-        : base(state.Source)
+        : base(state.Source, laying.At)
     {
     State = state;
     Laying = laying;
@@ -130,7 +137,11 @@ internal abstract class MermaidBuilder : ContentBuilder
 
         var element = new Editing.LinkedElement(source, options.Palette,
                                                 new MermaidContent((state, room, pixelsPerDip, looking) =>
-                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking) { View = actions.View })),
+                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
+                                                                                                        {
+                                                                                                            View = actions.View,
+                                                                                                            Data = options.DataContext,
+                                                                                                        })),
                                                 actions)
         {
             IsReadOnly = readOnly,
@@ -196,7 +207,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     protected sealed override Laid Read()
     {
-        var block = MermaidBlock.Of(Reading(Source));
+        var block = MermaidBlock.Of(Reading(Source), At);
 
         var diagram = new LayoutBuilder();
         var body = Draw(block, diagram);
@@ -298,10 +309,15 @@ internal abstract class MermaidBuilder : ContentBuilder
         build.Draw(new GeometryMark(edge, null, Palette.CodeBorder, 1));
     }
 
-    /// <summary>What a part of the block says on the page: its own characters while being written, else
-    /// what it reads as (an entity code as the character it stands for — <see cref="MermaidText"/>).</summary>
+    /// <summary>
+    /// What a part says once it is read rather than as it was written: its entity codes decoded, and each
+    /// <c>{{…}}</c> replaced by what it comes to. What is being written in is left exactly as written, so the caret
+    /// stands between the characters the reader can see.
+    /// </summary>
     protected string Shown(ContentPart part) =>
-        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End ? part.Text : MermaidText.Decode(part.Text);
+        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
+            ? part.Text
+            : BoundText.Bound(MermaidText.Decode(part.Text), Laying.Data);
 
     /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
@@ -313,12 +329,22 @@ internal abstract class MermaidBuilder : ContentBuilder
             ink,
             PixelsPerDip);
 
-    /// <summary>What somebody wrote, as the diagram sets it: <paramref name="part"/>'s words (shown via
-    /// <see cref="Shown"/>), or <paramref name="hole"/> where nothing is written yet. See <see cref="DiagramWords"/>.</summary>
+    /// <summary>
+    /// A part's words, as they read rather than as they were written — entity codes decoded, bindings read.
+    ///
+    /// <para>
+    /// Where the part is a whole block of another language, that content is laid out and handed back in their place:
+    /// a builder measures and sets what it is given, so every diagram draws a tune on a node without knowing a tune
+    /// from a molecule.
+    /// </para>
+    /// </summary>
     protected DiagramWords Written(ContentPart? part, ContentPart? hole, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null)
     {
         var letter = Text("x", size, ink);
         if (hole is not null || part is null) return new DiagramWords(letter, part, hole, letter, ink, maps: false, writes: false);
+
+        if (Inset(part, Space) is { } inset)
+            return new DiagramWords(letter, part, null, letter, ink, maps: false, writes: false, inset);
 
         var says = Shown(part);
         return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Text, writes: true);
@@ -331,6 +357,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     {
         var whole = Written(part, hole, size, ink, weight, slant);
         if (part is null || hole is not null) return [whole];
+
+        // Another content is one thing, however wide it turned out: breaking it would be breaking a tune in half.
+        if (whole.Nested) return [whole];
 
         var says = Shown(part);
         var maps = says == part.Text;
@@ -401,6 +430,28 @@ internal abstract class MermaidBuilder : ContentBuilder
                                   FontStyle? slant = null) =>
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
+    /// <summary>
+    /// A whole other content written inside a run of words, laid out to be set down there — or null where the words
+    /// are just words, which is nearly always.
+    ///
+    /// <para>
+    /// A label whose text opens with a fence says what it is a block of: <c>["```abc CDEF"]</c> is a tune on a node.
+    /// The tune is read by abc's own parser into a tree of its own, told where it was written so every part of it
+    /// names the characters a reader is selecting — nothing of it is parsed into this diagram's tree.
+    /// </para>
+    /// <para>
+    /// What is being written in is words: while the caret is inside a label, the characters are shown rather than what
+    /// they draw, exactly as an entity code or a binding is.
+    /// </para>
+    /// </summary>
+    protected ContentInset? Inset(ContentPart? part, double room)
+    {
+        if (part is not { Length: > 0 }) return null;
+        if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
+
+        return ContentLanguages.Inset(part, Palette, PixelsPerDip, room);
+    }
+
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
@@ -460,6 +511,24 @@ internal abstract class MermaidBuilder<TDiagram>(EditState state, DiagramLaying 
                          Worked(DiagramChip.Says(fold), part as ContentPart, DiagramChip.TextSize, Palette.Text),
                          Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1));
     }
+
+    /// <summary>
+    /// The nodes offering what is left of each over-wide set of children, ready to be laid out with the rest and drawn
+    /// afterwards. Nothing, where nothing is over-wide.
+    /// </summary>
+    /// <param name="cells">The cell a node was given, or null for one this diagram did not lay out.</param>
+    protected DiagramSpill Spilled(Func<string, DiagramCell?> cells) =>
+        DiagramSpill.Of(Folding, cells, More, SpillPad);
+
+    /// <summary>The room a node offering leftovers keeps round its words.</summary>
+    private const double SpillPad = 10;
+
+    /// <summary>What a node offering <paramref name="count"/> children says.</summary>
+    private DiagramWords More(int count) =>
+        Worked($"+{count} more", null, SpillSize, Palette.TextMuted);
+
+    /// <summary>How big it says it.</summary>
+    private const double SpillSize = 11;
 
     protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
     {

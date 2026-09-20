@@ -18,7 +18,7 @@ namespace Nexaflow.Markdown.Mermaid;
 /// config:
 ///   nexaflow:
 ///     defaultExpansion: 2     # draw this many levels down from the roots; deeper nodes fold behind a [+]
-///     maxFanOut: 24           # more siblings than this fold behind one "+N more" (0 = off)
+///     maxFanOut: 24           # show this many of a node's children, and the rest behind one more-node (0 = off)
 ///     collapsed:              # ids that own a subtree the source does not carry — a list, or id → the host's key
 ///       n3: KERNEL32.dll
 ///     expanded:               # ids already open
@@ -27,13 +27,19 @@ namespace Nexaflow.Markdown.Mermaid;
 /// </code>
 /// </summary>
 /// <param name="DefaultExpansion">
-/// How many levels below the roots are drawn. Null is all of them, and only an explicit <paramref name="Collapsed"/>
-/// mark folds anything away.
+/// How many levels below the roots of the planned layout are drawn. Null is all of them, and only an explicit
+/// <paramref name="Collapsed"/> mark folds anything away. Also written <c>expandDepth</c>.
 /// </param>
 /// <param name="MaxFanOut">
-/// Above this many children, the surplus siblings fold behind one stand-in. Nought leaves fan-out alone — a diagram
-/// never hides what its author wrote unless it asks to.
+/// How many of one node's children are drawn before the rest go behind a single node that offers to show them.
+/// Nought leaves breadth alone.
+///
+/// <para>
+/// The other way a diagram is too big: some nodes have hundreds of children, and all of them at once is a wall
+/// rather than a picture.
+/// </para>
 /// </param>
+
 /// <param name="Collapsed">Ids that own a folded subtree: id → the producer's own name for it.</param>
 /// <param name="Expanded">Ids already open: id → the producer's own name for it.</param>
 public sealed record NexaflowConfig(
@@ -57,7 +63,7 @@ public sealed record NexaflowConfig(
     {
         var said = config.Diagram(Name);
 
-        // expandDepth is what every diagram the Executable feature has ever written says, and means the same thing.
+        // expandDepth is what diagrams already in the wild say, and means the same depth.
         var depth = Levels(said, "defaultExpansion") ?? Levels(said, "expandDepth");
         var fan = Levels(said, "maxFanOut") ?? 0;
         var collapsed = Named(said, "collapsed");
@@ -72,7 +78,22 @@ public sealed record NexaflowConfig(
     public bool IsEmpty => DefaultExpansion is null && MaxFanOut <= 0 && Collapsed.Count == 0 && Expanded.Count == 0;
 
     /// <summary>
-    /// The producer's own name for a node, or the id where it declared none.
+    /// What the name of the node offering a parent's remaining children begins with.
+    ///
+    /// <para>
+    /// That node is drawn and nobody wrote it, so it needs a name of its own to be opened and remembered under — and one
+    /// no diagram could have written, since every id of this shape is one this made up.
+    /// </para>
+    /// </summary>
+    public const string More = "nexaflow-more:";
+
+    /// <summary>The node whose remaining children an id offers, or null for an ordinary id.</summary>
+    public static string? MoreOf(string id) =>
+        id.StartsWith(More, StringComparison.Ordinal) ? id[More.Length..] : null;
+
+    /// <summary>
+    /// The producer's own name for a node, or the id where it declared none. The node offering what is left of a
+    /// parent's children is known by that parent's name said differently, so opening the two is two different things.
     ///
     /// <para>
     /// What the reader opens is remembered under this rather than the id, because an id is positional: a host that
@@ -81,7 +102,8 @@ public sealed record NexaflowConfig(
     /// </para>
     /// </summary>
     public string KeyFor(string id) =>
-        Collapsed.TryGetValue(id, out var folded) && folded.Length > 0 ? folded
+        MoreOf(id) is { } offers ? More + KeyFor(offers)
+      : Collapsed.TryGetValue(id, out var folded) && folded.Length > 0 ? folded
       : Expanded.TryGetValue(id, out var open) && open.Length > 0 ? open
       : id;
 

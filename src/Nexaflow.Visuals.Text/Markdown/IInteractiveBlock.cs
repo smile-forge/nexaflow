@@ -58,6 +58,12 @@ public interface IInteractiveBlock
     /// text container's to set, and it sets a bar over all of it.
     /// </summary>
     Cursor? PointerCursor(Point pointInElement) => null;
+
+    /// <summary>
+    /// Lays the block out again, because something outside it changed — what a binding is read against, or what the
+    /// reader has opened. Nothing, for a block that draws the same whatever happens elsewhere.
+    /// </summary>
+    void Refresh() { }
 }
 
 /// <summary>

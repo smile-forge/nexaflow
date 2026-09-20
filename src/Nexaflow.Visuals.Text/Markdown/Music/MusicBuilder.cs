@@ -36,8 +36,8 @@ internal abstract partial class MusicBuilder : ContentBuilder
     private readonly ScoreSpacing _spacing;
 
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    protected MusicBuilder(string source, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
-        : base(source)
+    protected MusicBuilder(string source, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing, int at = 0)
+        : base(source, at)
     {
         _width = width;
         _ink = ink;

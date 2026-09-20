@@ -103,6 +103,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         build.Open(ErPiece.Entities, part: null, stops: Stops.None);
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
         foreach (var entity in diagram.Inside(null)) Drawn(build, diagram.Config, plan, room, entity, over);
+        plan.Spill.Draw(build, room, Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dotted));
         build.Close();
 
         Relations(build, routes);
@@ -164,7 +165,10 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
             plan.Joins[relation] = new DiagramJoin(from, to);
         }
 
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], Towards(diagram.Way),
+        plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
+        cells.AddRange(plan.Spill.Cells);
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Spill.Joins], Towards(diagram.Way),
                                       diagram.Config.NodeSpacing, diagram.Config.RankSpacing, square: true);
 
         return plan;
@@ -433,6 +437,9 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         public Dictionary<string, Box> Groups { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<ErRelation, DiagramJoin> Joins { get; } = [];
+
+        /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
+        public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         public Size Size { get; set; }
     }

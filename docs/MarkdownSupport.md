@@ -884,23 +884,38 @@ collide with a key Mermaid reads and so stock Mermaid simply ignores it
 ---
 config:
   nexaflow:
-    defaultExpansion: 2     # draw this many levels down from the roots; deeper nodes fold behind a [+]
-    maxFanOut: 24           # read, and not yet acted on
+    defaultExpansion: 2     # depth: draw this many levels down from the roots, deeper nodes folding behind a [+]
+    maxFanOut: 24           # breadth: draw this many of one node's children, the rest behind a "+N more"
     collapsed: [n3, n7]     # ids owning a folded subtree — or a keyed block, below
     expanded:
       n0: app.exe           # id → the producer's own name, echoed back on the expand request
 ---
 ```
 
-`expandDepth` says the same thing as `defaultExpansion`, which is the spelling every diagram the PE inspector writes
-uses.
+`expandDepth` is an older spelling of `defaultExpansion` and means the same depth.
 
-[`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn and which carry
-a chip, from that config plus whatever the reader has since opened. It runs while the diagram is being planned, so a
-folded node is simply never given a cell: the links to it have no end to meet and a subgraph holding nothing else closes
-up, rather than a hole being cut in a finished drawing. Nothing touches the source — what the reader opens is view state
+[`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn, which carry a
+chip, and which have children left over, from that config plus whatever the reader has since opened. It runs while the
+diagram is being planned, so a node that is not drawn is simply never given a cell: the links to it have no end to meet
+and a subgraph holding nothing else closes up, rather than a hole being cut in a finished drawing. Nothing touches the
+source — what the reader opens is view state
 ([`DiagramViewState`](../src/Nexaflow.Visuals.Text/Markdown/DiagramViewState.cs)), so the diagram is always exactly what
-its author wrote — and a diagram that says nothing about folding gets no chips.
+its author wrote — and a diagram that says nothing about any of this gets neither chips nor stand-ins.
+
+**Depth and breadth are the two ways a diagram is too big, and they are answered differently.**
+
+*Depth* is a fact about a tree: only a node with something under it in the planned layout folds, so a flat diagram has
+nothing to fold and a leaf never grows a chip. The one exception is a node a `collapsed:` line names, which is the
+producer saying it owns a subtree the source does not carry — the PE inspector's unwalked imports — and the chip on it
+is what offers to fetch them.
+
+*Breadth* is the other problem: some nodes have hundreds of children, and all of them at once is a wall rather than a
+picture. `maxFanOut` draws the first of them and hangs one node off the parent offering the rest — `+7 more`
+([`DiagramSpill`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs)). **That node is layout only**: nobody
+wrote it, so it stands for no part of the source and is in no diagram's model — it is a cell, a line and a press, and
+the press means the same `expand` every chip means, answered by the same handler. Place decides what stays: the first
+of the children are the ones on the page. A child that holds something still shown is never held back, since that would
+orphan it, and neither is one something else visible also points at, since it is still reached that way.
 
 **A press means what the builder said it means.** A builder declares a verb and its argument
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
@@ -922,9 +937,7 @@ sits under its parent — and a rank too wide for the room wraps onto further ro
 **Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
 minimap. `DiagramRenderOptions.ZoomOnWheel`, `MaxHeight`, `FitToWidth` and `OpenOnDoubleClick` — and the
 `DiagramZoomOnWheel` / `DiagramOpenOnDoubleClick` properties on `SelectableMarkdownView` that set them — are the seam
-those will be wired back through, and nothing reads them today. `maxFanOut` is read and not yet acted on for the same
-reason its chip has nowhere to stand: a "+N more" node is one nobody wrote, and a piece with no part of the source
-behind it cannot be selected, caretted or named.
+those will be wired back through, and nothing reads them today.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives
@@ -942,6 +955,77 @@ as written, with a wave under the header's word and the reason beneath
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.
+
+### Bound words (every diagram on the shared tree)
+
+Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
+renderer (`SelectableMarkdownView.DiagramData` / `InlineMarkdownEditor.DiagramData` →
+`MarkdownRenderContext.DataContext` → [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
+
+```
+graph TD
+  a["Owned by {{Team.Name}}"] --> b["{{Team.People[0]}}"]
+  c["{{Team.Headcount()}}"]
+```
+
+[`ReflectionDataContext`](../src/Nexaflow.Markdown/Binding/ReflectionDataContext.cs) walks an ordinary object:
+`A.B.C` reads properties and fields, `A[0]` and `A[key]` index a list or a dictionary, and `A.Method()` calls a
+zero-argument method the host marked `[Bindable]`. Properties and fields are read freely because reading one does
+nothing; a **call is arbitrary code driven by a string in a document**, so the host says which of its methods it
+meant, one at a time. Every step is null-propagating and nothing throws — a path naming nothing leaves a gap, and a
+gap is what sends somebody to look at the path.
+
+Read when the words are set, never at parse time, so **the source is untouched**: the block still says `{{Team.Name}}`
+and the value is drawn over it. That is also what makes a binding writable in place — pressing one reveals the
+characters and puts the caret in them, exactly as an entity code does, because they are still there
+([`BoundText`](../src/Nexaflow.Markdown/Binding/BoundText.cs)). With no data context at all a binding is drawn as the
+text it is, so a document nobody has bound to still reads.
+
+Nothing watches the object: a host that has changed what it holds calls `SelectableMarkdownView.RefreshDiagrams()`
+(or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.
+
+### Nested content — one content inside another
+
+Any content can hold a whole block of another, written with a fence. A flowchart node holding a formula is the
+obvious one, and it is not a Mermaid feature: a song's lyrics could hold a molecule, a formula could hold a barcode.
+
+```
+graph TD
+  a["```latex x^2 + y^2"] --> b["Next"]
+```
+
+**Two trees, never one.** The outer parser reads only *here is a block of that* and puts one node in its own tree
+([`Kinds.Nested`](../src/Nexaflow.Markdown/Ast/Roles.cs)), holding the characters exactly as written. The inner
+content is read by **its own** parser, through its own pipeline, into a tree of its own — a tree that mixed two
+grammars would be neither — and that tree is told where it was written
+([`ContentLink`](../src/Nexaflow.Markdown/Ast/ContentLink.cs) → `ContentPart.Of(tree, at)`), so every part of it
+names the characters a reader is actually selecting in the document holding both.
+
+That is what makes it editable rather than a picture: selection and editing go from a layout piece to its part to
+the AST node behind it, and for the formula's pieces that is the *formula's* node, at the right offset.
+
+The builder then asks for that content's **layout tree** — `abc`, `lilypond`, `latex`, `smiles`, `qr` and `mermaid`
+itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
+around it, and grafts the two into one combined layout tree
+([`ContentInset`](../src/Nexaflow.Visuals.Text/Markdown/ContentInset.cs)). A language nothing here draws leaves the
+label drawn as the words it is.
+
+Every builder knows where it sits (`ContentBuilder.At`), which is the whole of what embedding costs a language:
+nought for a block of its own, and the offset of the slice for one written inside another's.
+
+**Only where the grammar said so.** A run of words is another content because its language declared that it may be
+one, never because of how its characters happen to begin — so a `state` description, which nothing has declared,
+draws a fence as the characters it is. Every Mermaid label has declared it, quoted or not, and every diagram draws
+one without knowing anything about it: a label is `DiagramWords`, and a `DiagramWords` may be a whole layout instead
+of a row of glyphs. A wide one is never broken into lines, because breaking a tune in half is not a smaller tune.
+
+**Taking it up in another language** is two things: its grammar emits a `Kinds.Nested` node where it allows a block,
+and its layout reserves room for a box where it reserves room for a line of text. The first is a line; the second is
+free for anything already drawing through `DiagramWords` and real work for anything not — a score reserves its lyric
+and annotation rows from text metrics, so a molecule sung under a note needs the engraver to measure it.
+
+**One line, for now.** A label is one row of source, so a block written across several lines is not read as one yet —
+that needs a `MermaidStretch` on each graph-family grammar, the mechanism that already reads `note … end note`.
 
 ---
 

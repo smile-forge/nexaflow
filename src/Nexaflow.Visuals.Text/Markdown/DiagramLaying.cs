@@ -25,4 +25,16 @@ internal sealed record DiagramLaying(
     /// nowhere and the diagram is drawn as its front matter asks every time.
     /// </summary>
     public DiagramViewState? View { get; init; }
+
+    /// <summary>
+    /// What a <c>{{…}}</c> written in the diagram is read against, or null where nothing is — in which case a
+    /// binding is drawn as the characters it was written with.
+    /// </summary>
+    public Nexaflow.Markdown.Binding.IDataContext? Data { get; init; }
+
+    /// <summary>
+    /// Where the block's first character stands in the document that holds it. Nought for a block of its own, and
+    /// the offset of the slice for one written inside another content.
+    /// </summary>
+    public int At { get; init; }
 }

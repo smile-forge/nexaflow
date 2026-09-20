@@ -381,8 +381,12 @@ public sealed class MermaidLine
             var lead = inner.Length - inner.TrimStart().Length;
 
             if (lead > 0) Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia));
-            Add(ContentNode.Leaf(MermaidKinds.Words, words, role,
-                                 words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null));
+
+            var said = ContentNode.Leaf(MermaidKinds.Words, words, role,
+                                        words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null);
+
+            // Words that open with a fence are a whole other content — see Quotes, which says the same of a quoted label.
+            Add(ContentLink.Opens(words) ? ContentNode.Branch(Kinds.Nested, [said], role) : said);
             if (inner.Length > lead + words.Length) Add(ContentNode.Leaf(Kinds.Space, inner[(lead + words.Length)..], Roles.Trivia));
         }
 
@@ -552,11 +556,22 @@ public sealed class MermaidLine
 
     // ── Characters ──────────────────────────────────────────────────────────
 
-    /// <summary>The quote next, what follows it up to <paramref name="close"/>, and the quote there.</summary>
+    /// <summary>
+    /// What is written between quotes, and the quotes round it.
+    ///
+    /// <para>
+    /// Words that open with a fence are a whole other content — <c>["```abc CDEF"]</c> is a tune — so they are held
+    /// under a node saying so. The words themselves are still there, said and rolled exactly as any others, because
+    /// what a label <em>is</em> has not changed: only that something else can read it.
+    /// </para>
+    /// </summary>
     private void Quotes(int close, string role)
     {
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Open));
-        Add(ContentNode.Leaf(MermaidKinds.Words, Written[At..close], role));
+
+        var said = ContentNode.Leaf(MermaidKinds.Words, Written[At..close], role);
+        Add(ContentLink.Opens(said.Text) ? ContentNode.Branch(Kinds.Nested, [said], role) : said);
+
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
     }
 

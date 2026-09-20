@@ -139,6 +139,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         foreach (var space in diagram.Within(null)) Held(build, diagram, plan, room, space, over);
         foreach (var node in diagram.Inside(null)) Drawn(build, plan, room, node, over);
         foreach (var note in plan.Notes.Where(note => note.Space is null)) Noted(build, room, note, over);
+        plan.Spill.Draw(build, room, Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dotted));
         build.Close();
 
         // The band each namespace keeps at the top of itself for its own name, so nothing written against a line landing
@@ -235,7 +236,10 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
                 plan.Beside.Add(new DiagramJoin(about.Cell, beside.Cell, span: 0));
         }
 
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside], towards,
+        plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
+        cells.AddRange(plan.Spill.Cells);
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside, .. plan.Spill.Joins], towards,
                                       diagram.Config.NodeSpacing, diagram.Config.RankSpacing, square: true,
                                       room: Space);
 
@@ -725,6 +729,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         public Dictionary<string, Box> Spaces { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<ClassRelation, DiagramJoin> Joins { get; } = [];
+
+        /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
+        public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         /// <summary>The joins that hold a note beside the class it is about, which nothing draws.</summary>
         public List<DiagramJoin> Beside { get; } = [];

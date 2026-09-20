@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -30,11 +31,22 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public abstract class ContentBuilder
 {
-    /// <param name="source">The characters to lay out. Null is read as empty.</param>
-    protected ContentBuilder(string? source) => Source = source ?? string.Empty;
+    /// <param name="at">
+    /// Where this content's first character stands in the document that holds it. Nought for content that is a
+    /// document of its own, and the offset of the slice for content written inside another's — so every part it
+    /// reads names the characters a reader is actually selecting.
+    /// </param>
+    protected ContentBuilder(string? source, int at = 0)
+    {
+        Source = source ?? string.Empty;
+        At = at;
+    }
 
     /// <summary>The source this is laying out — what a selection over the result yields.</summary>
     public string Source { get; }
+
+    /// <summary>Where <see cref="Source"/> begins in the document that holds it — see <see cref="ContentPart.Of"/>.</summary>
+    protected int At { get; }
 
     /// <summary>
     /// Lays the source out. Never null, and never throws.

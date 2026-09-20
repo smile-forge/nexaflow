@@ -60,6 +60,8 @@ internal static class MermaidBuilders
         For(diagram) is { } build ? MermaidBuilder.Host(source, options, build, options.ReadOnly) : null;
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
-    public static Laid? Lay(string source, MarkdownPalette palette, double pixelsPerDip = 1, double room = double.PositiveInfinity, bool writing = false) =>
-        For(MermaidBlock.Read(source).Diagram)?.Invoke(EditState.For(source), new DiagramLaying(palette, pixelsPerDip, room, writing));
+    public static Laid? Lay(string source, MarkdownPalette palette, double pixelsPerDip = 1, double room = double.PositiveInfinity,
+                            bool writing = false, int at = 0) =>
+        For(MermaidBlock.Read(source).Diagram)?.Invoke(EditState.For(source),
+                                                       new DiagramLaying(palette, pixelsPerDip, room, writing) { At = at });
 }

@@ -36,14 +36,20 @@ public sealed class DiagramExpansion
     private readonly IReadOnlySet<string>? _shown;
     private readonly IReadOnlyDictionary<string, DiagramFold> _folds;
 
-    private DiagramExpansion(IReadOnlySet<string>? shown, IReadOnlyDictionary<string, DiagramFold> folds)
+    /// <summary>How many of a node's children are left for the node that offers them, for the few that have any.</summary>
+    private readonly IReadOnlyDictionary<string, int> _more;
+
+    private DiagramExpansion(IReadOnlySet<string>? shown, IReadOnlyDictionary<string, DiagramFold> folds,
+                             IReadOnlyDictionary<string, int> more)
     {
         _shown = shown;
         _folds = folds;
+        _more = more;
     }
 
     /// <summary>Everything drawn and nothing folded — what a diagram nobody asked to fold gets.</summary>
-    public static DiagramExpansion None { get; } = new(null, new Dictionary<string, DiagramFold>(StringComparer.Ordinal));
+    public static DiagramExpansion None { get; } =
+        new(null, new Dictionary<string, DiagramFold>(StringComparer.Ordinal), new Dictionary<string, int>(StringComparer.Ordinal));
 
     /// <summary>True where this draws the whole diagram, so a builder can skip asking about every node.</summary>
     public bool IsEmpty => _shown is null;
@@ -53,6 +59,20 @@ public sealed class DiagramExpansion
 
     /// <summary>The chip a node carries, or null where it carries none.</summary>
     public DiagramFold? FoldOf(string id) => _folds.TryGetValue(id, out var fold) ? fold : null;
+
+    /// <summary>
+    /// How many of a node's children are left over for the node that offers them, or nought where none are.
+    ///
+    /// <para>
+    /// The other way a diagram is too big: depth is answered by folding a node, and breadth by drawing the first of a
+    /// node's children and one more node offering the rest. That node is a fact about the layout and nothing else —
+    /// nobody wrote it, so it has no part of the source and is not in any model.
+    /// </para>
+    /// </summary>
+    public int MoreBehind(string id) => _more.TryGetValue(id, out var count) ? count : 0;
+
+    /// <summary>Every node with children left over, in the order the diagram names them.</summary>
+    public IEnumerable<string> Offering => _more.Keys;
 
     /// <summary>
     /// How much of <paramref name="chart"/> to draw under <paramref name="config"/>, with <paramref name="opened"/>
@@ -104,20 +124,79 @@ public sealed class DiagramExpansion
                 if (shown.Add(child)) waiting.Enqueue(child);
         }
 
+        // Breadth after depth, so what is already past the frontier is not counted as left over as well.
+        var more = config.MaxFanOut > 0 ? Spilled(config, chart, children, shown, opened) : [];
+
         var folds = new Dictionary<string, DiagramFold>(StringComparer.Ordinal);
         foreach (var id in chart.Ids)
         {
             if (!shown.Contains(id) || !Governed(id)) continue;
 
+            // Only something with a subtree folds. A node the source draws as a leaf can still own one the source does not
+            // carry — which is the whole of what a `collapsed:` line says — but nothing else earns a chip.
+            if (children.GetValueOrDefault(id, []).Count == 0 && !config.Collapsed.ContainsKey(id)) continue;
+
             var closed = shut.Contains(id);
-
-            // A node with nothing behind it is a leaf, and a leaf has nothing to say.
-            if (!closed && children.GetValueOrDefault(id, []).Count == 0) continue;
-
             folds[id] = new DiagramFold(!closed, closed ? Behind(id, children, shown) : 0);
         }
 
-        return new DiagramExpansion(shown, folds);
+        return new DiagramExpansion(shown, folds, more);
+    }
+
+    /// <summary>
+    /// Takes each over-wide set of siblings down to what the config draws at once, and says how many of each are left
+    /// for the node that offers them.
+    ///
+    /// <para>
+    /// Only a child holding nothing else that is shown can be left over: holding one back that does would orphan what
+    /// is under it. A child something else visible also points at stays too, since it is still reached that way, and
+    /// holding it back would take it from a parent nobody asked about.
+    /// </para>
+    /// <para>
+    /// Place decides: the first of them stay, and the rest are held back — so what an author wrote at the top of a long
+    /// list is what is on the page. One that cannot be held back stays wherever it was written.
+    /// </para>
+    /// </summary>
+    private static Dictionary<string, int> Spilled(NexaflowConfig config, DiagramChart chart,
+                                                   Dictionary<string, List<string>> children, HashSet<string> shown,
+                                                   IReadOnlyDictionary<string, bool>? opened)
+    {
+        var more = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        // In the order the diagram names them, so what is held back does not depend on how a dictionary happens to walk.
+        foreach (var parent in chart.Ids)
+        {
+            if (!shown.Contains(parent) || !children.TryGetValue(parent, out var kids)) continue;
+            if (opened?.GetValueOrDefault(config.KeyFor(NexaflowConfig.More + parent)) == true) continue;
+
+            var here = kids.Where(shown.Contains).ToList();
+            if (here.Count <= config.MaxFanOut) continue;
+
+            var holding = new List<string>();
+            for (var at = config.MaxFanOut; at < here.Count; at++)
+                if (Spillable(here[at], parent, children, shown)) holding.Add(here[at]);
+
+            if (holding.Count == 0) continue;
+
+            foreach (var child in holding) shown.Remove(child);
+            more[parent] = holding.Count;
+        }
+
+        return more;
+    }
+
+    /// <summary>Whether a child can be held back from under <paramref name="parent"/> without hiding anything else.</summary>
+    private static bool Spillable(string child, string parent, Dictionary<string, List<string>> children, HashSet<string> shown)
+    {
+        if (children.GetValueOrDefault(child, []).Any(shown.Contains)) return false;
+
+        foreach (var (other, kids) in children)
+            if (!string.Equals(other, parent, StringComparison.Ordinal)
+                && shown.Contains(other)
+                && kids.Contains(child, StringComparer.Ordinal))
+                return false;
+
+        return true;
     }
 
     /// <summary>What each node points at, each named once. A link to itself hides nothing, so it is not a child.</summary>

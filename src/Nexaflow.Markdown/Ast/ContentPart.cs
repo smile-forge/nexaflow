@@ -41,8 +41,17 @@ public sealed class ContentPart : ISourcePart
         }
     }
 
-    /// <summary>Reads a tree into a positioned view of itself.</summary>
-    public static ContentPart Of(ContentNode root) => new(root, 0, null, null);
+    /// <summary>
+    /// The whole tree, positioned — <paramref name="at"/> being where its first character stands in the source that
+    /// holds it.
+    ///
+    /// <para>
+    /// Nought for content that is a document of its own. Content written inside another's — a tune on a flowchart node
+    /// — is parsed from its own slice, and is told where that slice begins so every part of it names the characters it
+    /// was actually written as, in the document a reader is selecting and editing.
+    /// </para>
+    /// </summary>
+    public static ContentPart Of(ContentNode root, int at = 0) => new(root, at, null, null);
 
     /// <summary>The piece this part is a positioned view of.</summary>
     public ContentNode Node { get; }

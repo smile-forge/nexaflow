@@ -31,12 +31,21 @@ internal sealed class DiagramWords
     private readonly bool _maps;
     private readonly bool _writes;
 
-    internal DiagramWords(FormattedText text, ISourcePart? part, ISourcePart? hole, FormattedText letter, Brush ink, bool maps, bool writes)
+    /// <summary>Another content written where these words are, drawn instead of them.</summary>
+    private readonly ContentInset? _inset;
+
+    /// <param name="inset">
+    /// Another content written where these words are — a tune, a formula, a molecule. Where there is one, it is what is
+    /// measured and what is set down, and the words are only what it was written as.
+    /// </param>
+    internal DiagramWords(FormattedText text, ISourcePart? part, ISourcePart? hole, FormattedText letter, Brush ink,
+                          bool maps, bool writes, ContentInset? inset = null)
     {
         _text = text;
         _letter = letter;
         _maps = maps;
         _writes = writes;
+        _inset = inset;
         Part = part;
         Hole = hole;
         Ink = ink;
@@ -44,6 +53,9 @@ internal sealed class DiagramWords
 
     /// <summary>What they say — empty for a hole.</summary>
     public string Says => Hole is null ? _text.Text : string.Empty;
+
+    /// <summary>Whether these are a whole other content rather than words — which nothing may break, wrap or turn.</summary>
+    public bool Nested => _inset is not null;
 
     /// <summary>What they were written in, or stand for — what pressing them means. Null for words that stand for nothing.</summary>
     public ISourcePart? Part { get; }
@@ -53,19 +65,28 @@ internal sealed class DiagramWords
 
     public Brush Ink { get; }
 
-    /// <summary>How wide they are set: the words, or the hole.</summary>
-    public double Width => Hole is null ? _text.Width : LayoutText.HoleWidth(_letter);
+    /// <summary>How wide they are set: what is written there, the words, or the hole.</summary>
+    public double Width => _inset?.Width ?? (Hole is null ? _text.Width : LayoutText.HoleWidth(_letter));
 
     /// <summary>How tall a line of them is set.</summary>
-    public double Height => Math.Max(_text.Height, _letter.Height);
+    public double Height => _inset?.Height ?? Math.Max(_text.Height, _letter.Height);
 
     /// <summary>How far below their top their baseline is — what words set side by side line up on.</summary>
-    public double Baseline => Hole is null ? _text.Baseline : _letter.Baseline;
+    /// <remarks>Content written where words go sits on its own foot, having no line of text to share one with.</remarks>
+    public double Baseline => _inset is { } inset ? inset.Height : Hole is null ? _text.Baseline : _letter.Baseline;
 
     /// <summary>Sets them with their top left at <paramref name="at"/>, as a piece of <paramref name="kind"/>.</summary>
     /// <param name="degrees">How far the words are turned about where they start — nought for level words, -90 for words read upward.</param>
     public void Set(LayoutBuilder build, Point at, string kind, double degrees = 0)
     {
+        // Content written where words go is set down as itself, whichever way the words round it would have read: a
+        // tune turned on its side is not a tune.
+        if (_inset is { } inset)
+        {
+            inset.Set(build, at, MermaidPiece.Nested);
+            return;
+        }
+
         if (Hole is not null)
         {
             LayoutText.Hole(build, Hole, at, _letter, Ink);

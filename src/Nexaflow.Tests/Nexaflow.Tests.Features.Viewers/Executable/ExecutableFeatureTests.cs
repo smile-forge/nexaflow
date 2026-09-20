@@ -337,7 +337,7 @@ public sealed class ExecutableFeatureTests
         var cfg = NexaflowConfig.Read(MermaidBlock.Read(source).Config);
         Assert.AreEqual("lib.dll",  cfg.Expanded["n1"],  "an opened module can be closed again");
         Assert.AreEqual("shut.dll", cfg.Collapsed["n2"], "an unopened one can be opened");
-        Assert.AreEqual(DependencyMermaid.MaxFanOut, cfg.MaxFanOut);
+        Assert.AreEqual(DependencyMermaid.MaxFanOut, cfg.MaxFanOut, "how many of a module's imports are drawn at once");
     }
 
     [TestMethod, TestCategory("Unit")]

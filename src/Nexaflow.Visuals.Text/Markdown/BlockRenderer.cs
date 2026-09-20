@@ -946,6 +946,7 @@ public static class BlockRenderer
             ZoomOnWheel       = ctx.DiagramZoomOnWheel,
             MaxHeight         = ctx.MaxDiagramHeight,
             ViewState         = ctx.DiagramStates?.Next(),
+            DataContext       = ctx.DataContext,
         });
     }
 
