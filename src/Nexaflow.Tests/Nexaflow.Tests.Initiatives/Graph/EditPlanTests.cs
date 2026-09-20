@@ -111,6 +111,41 @@ public class EditPlanTests
     }
 
     [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public void RemovingAFile_TakesItWhole_AndTheStepAfterCannotFindIt()
+    {
+        var outcome = Run(Files(),
+            new EditPlan.Remove("delete", "src/Store.cs"),
+            new EditPlan.Edit("append", "code:src/Store.cs#T:Store", StructuralEdit.Op.Append, "public void Drop() { }"));
+
+        Assert.IsFalse(outcome.Ok, "the file is gone as far as the rest of the plan is concerned");
+        StringAssert.StartsWith(outcome.Message, "append:");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public void ARemovedFile_ComesOutAsABeforeWithNoAfter()
+    {
+        var outcome = Run(Files(), new EditPlan.Remove("delete", "src/Store.cs"));
+
+        Assert.IsTrue(outcome.Ok, outcome.Message);
+        var written = outcome.Files.Single();
+        Assert.AreEqual("src/Store.cs", written.RelativePath);
+        Assert.AreEqual(Store, written.Before, "what the undo journal puts back");
+    Assert.IsNull(written.After, "and nothing to write in its place");
+    }
+
+    [TestMethod]
+    [CoversNode("graph-edit-plan")]
+    public void RemovingAFileThatIsNotThere_IsRefused()
+    {
+        var outcome = Run(Files(), new EditPlan.Remove("delete", "src/Absent.cs"));
+
+        Assert.IsFalse(outcome.Ok, "a path typed wrong must say so rather than succeed at nothing");
+        StringAssert.Contains(outcome.Message, "src/Absent.cs");
+    }
+
+    [TestMethod]
     [CoversNode("graph-edit-move")]
     public void MovingATypeToANewFile_CarriesItsImportsAndNamespace()
     {

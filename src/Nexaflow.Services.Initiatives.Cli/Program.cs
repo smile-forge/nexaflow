@@ -733,6 +733,7 @@ internal static class Program
 
             edit ops: replace | delete | signature | body | rename --to <name> | insert-before | insert-after
                       | append (into a type's body) | doc | import (where the file keeps them) | create <relpath>
+                      | delete file:<path> (the file itself, and out of the graph with it — undo puts it back)
                       | rename --to <name> --references (every use the compiler binds, overrides and implementations too)
                       | move --to code:<file>#<type> | --to file:<path> (brings the imports it needs; a new file gets the
                       namespace too, and a C# file left empty is removed)
@@ -744,7 +745,9 @@ internal static class Program
             check:    a C# edit is compiled in memory before it is written, from the project's own build command line and
                       warm in the resident process. `compile:` lists the errors it introduces and fixes, in its project and in
                       the projects that compile against it; `impact:` names what uses a declaration whose outside changed.
-                      --must-compile refuses a write that introduces errors; --no-check skips both.
+                      A delete is also put to the product tree: every snaplink that named the file is listed, because
+                      nothing compiles those and validate treats one naming nothing as a failure.
+                      --must-compile refuses a write that introduces errors or strands a snaplink; --no-check skips it all.
             editing: the graph names the declaration; the parse of the file IN HAND says where it is. The edit
                   is refused unless the AST path still resolves AND the parser agrees the declaration there is
                   still the one the graph labelled — so a stale graph cannot overwrite whatever now occupies
@@ -1352,9 +1355,15 @@ internal static class Program
         {
             var store     = GraphStore(root, main);
             var cache     = EditCache(root, main, store);
-            var refreshed = entry.Files.Where(f => GraphBuilder.RefreshFile(graph, cache, root, f.RelativePath, CodeRootOrNull(root, main)))
+            // Undoing a `create` leaves no file, and the graph is told so outright for the same reason the edit itself
+            // is: this tree knows the file went, so nothing is left behind describing it.
+            var gone      = entry.Files.Where(f => f.Before is null).ToList();
+            var forgotten = gone.Where(f => GraphBuilder.ForgetFile(graph, cache, f.RelativePath))
+                                .Select(f => f.RelativePath).ToList();
+            var refreshed = entry.Files.Except(gone)
+                                       .Where(f => GraphBuilder.RefreshFile(graph, cache, root, f.RelativePath, CodeRootOrNull(root, main)))
                                        .Select(f => f.RelativePath).ToList();
-            if (refreshed.Count > 0) SaveGraphChange(root, main, store, graph, cache, refreshed);
+            if (refreshed.Count > 0 || forgotten.Count > 0) SaveGraphChange(root, main, store, graph, cache, refreshed, forgotten);
         }
 
         Console.WriteLine($"undone: `{entry.Label}` - {entry.Files.Count} file(s) back as that edit found them.");
@@ -1390,6 +1399,22 @@ internal static class Program
                 if (text is null) { error = "creating a file needs its content (--text, --file or --stdin)"; return false; }
 
                 step = new EditPlan.Create(label, rel, text);
+                return true;
+            }
+
+            // `delete file:<path>` takes the file away; with --at it takes one element inside it, which is an
+            // ordinary edit. A code: id never names a whole file, so the file: prefix is what asks for the file
+            // itself — a declaration id typed wrong is refused, not deleted.
+            case "delete" when a[1].StartsWith("file:", StringComparison.Ordinal) && a.Value("--at") is null:
+            {
+                if (text is not null || find is not null)
+                {
+                    error = "deleting a file takes the file and nothing else — drop --text / --find, or name an "
+                          + "element inside it with --at <path> to delete just that";
+                    return false;
+                }
+
+                step = new EditPlan.Remove(label, a[1]["file:".Length..].Replace('\\', '/'));
                 return true;
             }
 
@@ -1450,7 +1475,8 @@ internal static class Program
         if (op is null)
         {
             error = $"unknown edit op '{a[0]}' — expected replace | delete | signature | body | rename | insert-before | "
-                  + "insert-after | append | doc | substitute | import | set-attribute | remove-attribute | move | create";
+                  + "insert-after | append | doc | substitute | import | set-attribute | remove-attribute | move | create "
+                  + "(delete file:<path> deletes the file itself)";
             return false;
         }
 
@@ -1497,23 +1523,27 @@ internal static class Program
     /// </summary>
     private static int RunEditPlan(IReadOnlyList<EditPlan.Step> steps, string root, EditRun run)
     {
-        // A new file names a path that does not exist yet: there is no node to look up, so a plan of nothing but new
-        // files needs no graph at all — which is also what lets one be made before any graph has been built.
-        var createOnly = steps.All(s => s is EditPlan.Create);
+        // Neither a create nor a delete looks a node up — each names a path — so a plan of nothing but those needs no
+        // graph at all, which is what lets one be made before any graph has been built. A delete still has something
+        // to tell the graph afterwards, so it takes one when there is one and goes ahead without when there is not.
+        var byPath = steps.All(s => s is EditPlan.Create or EditPlan.Remove);
 
-        var graph = new KnowledgeGraph();
-        if (!createOnly && !TryLoadGraph(root, out graph, out var loadCode)) return loadCode;
+        var store = GraphStore(root, run.Main);
+        KnowledgeGraph? graph;
+        if (byPath) graph = Workspace(root, run.Main, store)?.Graph ?? store.LoadGraph();
+        else if (!TryLoadGraph(root, out graph, out var loadCode)) return loadCode;
 
-        var store = createOnly ? null : GraphStore(root, run.Main);
-        var cache = store is null ? null : EditCache(root, run.Main, store);
+        var cache = graph is null ? null : EditCache(root, run.Main, store);
+        graph ??= new KnowledgeGraph();
         var dirty = false;
         var refreshed = new List<string>();
+        var forgotten = new List<string>();
 
         int Refused(string message)
         {
             // A refresh may have learned something real — a file changed — and that is worth keeping even though the
             // edit itself is not going ahead.
-            if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
+            if (dirty) SaveGraphChange(root, run.Main, store, graph, cache!, refreshed, forgotten);
             Console.Error.WriteLine($"error: {message}");
             return Error;
         }
@@ -1562,8 +1592,26 @@ internal static class Program
                                         rel => CodeFilePath(root, rel, run.Main) is { } full ? File.ReadAllText(full) : null);
             EditCheck.Print(findings, codeRoot);
 
-            if (run.MustCompile && findings.Compile is { Introduced.Count: > 0 })
-                return Refused("--must-compile was given and the edit introduces compile errors, so nothing was written.");
+            // A file removed takes with it every snaplink that named it. The tree is the authority on those, not the
+            // compiler, and `validate` already fails on a link naming nothing — so a stranded link refuses the write
+            // exactly as an error does.
+            var tree     = TreeForCheck(root, out var noTree);
+            var orphaned = EditCheck.Orphaned(tree, outcome.Files);
+            EditCheck.PrintOrphaned(orphaned, outcome.Files, tree, noTree);
+
+            if (run.MustCompile)
+            {
+                var broke = new List<string>();
+                if (findings.Compile is { Introduced.Count: > 0 } compile) broke.Add($"introduces {compile.Introduced.Count} compile error(s)");
+                if (orphaned.Count > 0) broke.Add($"leaves {orphaned.Count} snaplink(s) naming nothing");
+                // A tree that is there and will not read is not a clean snaplink check, and --must-compile is the
+                // flag that says do not write on anything unproven.
+                else if (tree is null && ProductStore.Exists(root) && outcome.Files.Any(f => f.After is null))
+                    broke.Add($"removes a file with the product tree unreadable ({noTree}), so stranded snaplinks are unknown");
+                if (broke.Count > 0)
+                    return Refused($"--must-compile was given and the edit {string.Join(" and ", broke)}, so nothing was written."
+                                 + (orphaned.Count > 0 ? " nfi remap sends a snaplink elsewhere, nfi remove-snaplink drops it." : ""));
+            }
         }
 
         if (run.DryRun)
@@ -1582,14 +1630,22 @@ internal static class Program
         // costs more than parsing the files that changed. Deliberately no "now rebuild the graph": the files just edited
         // have already been merged back in, and saying it anyway only teaches the caller to distrust the tool between
         // builds. A full `graph build` is for the cross-file passes, not for editing.
+        // A file the edit took away is dropped rather than re-read: an absence on its own is no evidence, which is why
+        // RefreshFile leaves one alone, but this tree took this one away itself.
         if (run.Refresh && cache is not null)
             foreach (var file in outcome.Files)
-                if (GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main)))
+                if (file.After is null)
+                {
+                    if (!GraphBuilder.ForgetFile(graph, cache, file.RelativePath)) continue;
+                    forgotten.Add(file.RelativePath);
+                    dirty = true;
+                }
+                else if (GraphBuilder.RefreshFile(graph, cache, root, file.RelativePath, CodeRootOrNull(root, run.Main)))
                 {
                     refreshed.Add(file.RelativePath);
                     dirty = true;
                 }
-        if (dirty) SaveGraphChange(root, run.Main, store!, graph, cache!, refreshed);
+        if (dirty) SaveGraphChange(root, run.Main, store, graph, cache!, refreshed, forgotten);
 
         // The declaration as it now stands, so that checking an edit is part of making it rather than the next command.
         // Not for a delete or a rename — there is nothing at that id any more — and not for a file-level target, where
@@ -1602,9 +1658,15 @@ internal static class Program
             Console.WriteLine();
         }
 
-        Console.WriteLine(steps is [EditPlan.Create created]
-            ? $"{outcome.Message}. It is editable straight away — code:{created.RelativePath}#<astpath> works without a graph build."
-            : $"{outcome.Message}.");
+        Console.WriteLine(steps switch
+        {
+            [EditPlan.Create created] =>
+                $"{outcome.Message}. It is editable straight away — code:{created.RelativePath}#<astpath> works without a graph build.",
+            [EditPlan.Remove] =>
+                $"{outcome.Message}." + (forgotten.Count > 0 ? " The graph no longer describes it." : "")
+                                      + " `graph edit undo` puts it back.",
+            _ => $"{outcome.Message}.",
+        });
         return Clean;
     }
 
@@ -4326,5 +4388,24 @@ internal static class Program
             return true;
         }
         catch (Exception ex) { Console.Error.WriteLine($"error: {ex.Message}"); code = Error; return false; }
+    }
+
+    /// <summary>
+    /// The product tree for a check, without the refusal <see cref="TryLoad"/> prints — a caller checking an edit has
+    /// no business failing because a repository tracks no product. Null with <paramref name="why"/> saying which of
+    /// "there is none here" and "there is one and it would not read" it was, so a check can say it did not run rather
+    /// than report a clean it never earned.
+    /// </summary>
+    private static ProductState? TreeForCheck(string root, out string why)
+    {
+        if (!ProductStore.Exists(root)) { why = $"no .product/ under {root}"; return null; }
+        try
+        {
+            var state = LoadTree(root, new ProductStore(root));
+            if (PendingBranch(root) is { } branch) PendingStoreFor(root).Load(branch).ApplyTo(state);
+            why = "";
+            return state;
+        }
+        catch (Exception ex) { why = ex.Message; return null; }
     }
 }

@@ -139,8 +139,9 @@ What it guarantees, and why it is the only way files here are changed:
 - **Compiled before it is written.** A C# edit is compiled in memory against the project's own build, and the answer's
   `compile:` lines list the errors it **introduced and fixed** — in its project and every project compiling against
   it; errors already there cancel out. A XAML edit is put to the analyzers its project hands the view, before and after
-  (`views:` — an NXUI001 fix shows as `fixed`); the markup itself is compiled only by a build. `--must-compile` refuses
-  the write; `--no-check` skips it.
+  (`views:` — an NXUI001 fix shows as `fixed`); the markup itself is compiled only by a build. A file delete is put to
+  the product tree too — `snaplinks:` names every link left naming nothing. `--must-compile` refuses the write on
+  either; `--no-check` skips it.
 - **What it affects is in the answer.** A declaration whose outside changed (removed, renamed, re-signed) is followed
   by the compiler's binding: `impact:` names each user, and XAML that names it as text.
 - **Several edits are one change** — `script` writes all the files or none.
@@ -156,6 +157,7 @@ What it guarantees, and why it is the only way files here are changed:
 | rename it | `rename <id> --to N` — **`--references`** carries it to every use, override and implementation the compiler binds |
 | move it | `move <id> --to code:<file>#<type>` · to its own file: `--to file:<path>` (imports and namespace come along) |
 | a new file | `create <relpath> --file …` |
+| a file gone | `delete file:<relpath>` — with it out of the graph, so nothing still answers from it |
 | a using | `import <file-or-id> --text 'using X;'` |
 | something in no declaration, a doc, a text file | `substitute file:<relpath> --find …` |
 | a XAML element, a project file | a XAML id (`T:`/`N:`/`K:`/`A:`) takes every op; `file:<path> --at "<xpath>"` any element, or `--at <line>:<column>` straight from a build warning; `set-attribute` / `remove-attribute --name` |

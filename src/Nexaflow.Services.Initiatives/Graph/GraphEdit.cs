@@ -231,6 +231,25 @@ public static class GraphEdit
     }
 
     /// <summary>
+    /// A file removed whole. Refused when it is not there, so a delete naming the wrong path says so rather than
+    /// succeeding at nothing.
+    /// <para>
+    /// The file's declarations all leave at once, which is why the caller's check earns its keep here more than for any
+    /// other op: the projects are compiled without the file, so everything that bound to something in it arrives as an
+    /// introduced error before a byte is written, and every snaplink that named the file is named too. The edit is
+    /// journalled like any other, so `undo` puts it back.
+    /// </para>
+    /// </summary>
+    public static Result Remove(string rel, ReadText read)
+    {
+        if (read(rel) is not { } original) return Result.Fail($"There is no {rel} to delete.");
+
+        var lines = SourceText.Of(original).Lines;
+        return new Result(true, $"deleted {rel} ({lines.Count} lines)",
+                          [new FileChange(rel, original, "", new StructuralEdit.Hunk(1, [.. lines], []), ChangeKind.Deleted)], []);
+    }
+
+    /// <summary>
     /// Moves a declaration out of its file and into a type (a <c>code:</c> destination) or a file (<c>file:</c>, created
     /// when it does not exist). Both halves are ordinary edits, each resolved and verified against the parse, and the
     /// result is one change per file — so a move either lands whole or is refused whole.
