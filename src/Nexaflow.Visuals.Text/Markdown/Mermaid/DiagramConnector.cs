@@ -100,8 +100,20 @@ internal static class DiagramConnector
     /// <summary>How near a press has to be to a connector's line to mean it.</summary>
     public const double Reach = 8;
 
+    /// <summary>
+    /// How far what is written on a line is kept from what the line meets, so the head at that end always shows: the head
+    /// itself, and enough line past it to read as a line.
+    /// </summary>
+    public const double Clearance = HeadLength + 6;
+
+    /// <summary>And the air between two lots of words written one under the other over the same stretch.</summary>
+    public const double Stacking = 12;
+
     /// <summary>The air round what is written on a connector, between its words and the line they are drawn over.</summary>
     private const double Air = 2;
+
+    /// <summary>How many points a cubic is made of — enough that the corners between them do not read as corners.</summary>
+    private const int Steps = 16;
 
     /// <summary>
     /// Draws a connector through <paramref name="route"/>, as a piece of <paramref name="kind"/> standing for
@@ -218,21 +230,60 @@ internal static class DiagramConnector
         Frozen(Line(route, curved).GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(Reach, thickness))));
 
     /// <summary>
-    /// A join's route with its ends brought in from the middles of the cells it joins to their edges, which is where a line is
-    /// drawn from and to. <paramref name="edge"/> says where a cell's own shape is met, for a diagram whose nodes are not all
-    /// rectangles; a cell joined to itself keeps the loop the layout gave it.
+    /// A join's route with its ends brought in from the middles of the cells to their edges.
+    ///
+    /// <para>
+    /// The default cast is from the line's own end rather than the cell's middle, so a line given its own place along the
+    /// edge keeps it. A diagram that hands its own <paramref name="edge"/> — because its shapes are not rectangles — says
+    /// where a line meets a shape its own way, and that is taken as given.
+    /// </para>
     /// </summary>
     public static IReadOnlyList<Point> Trimmed(DiagramJoin join, Func<DiagramCell, Point, Point>? edge = null)
     {
         var points = join.Route.ToList();
         if (ReferenceEquals(join.From, join.To)) return points;
 
-        edge ??= static (cell, toward) => DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, toward);
+        points[0] = edge is null
+            ? DiagramShapes.Edge(DiagramShape.Rectangle, join.From.Bounds, points[1], points[0])
+            : edge(join.From, points[1]);
 
-        points[0] = edge(join.From, points[1]);
-        points[^1] = edge(join.To, points[^2]);
+        points[^1] = edge is null
+            ? DiagramShapes.Edge(DiagramShape.Rectangle, join.To.Bounds, points[^2], points[^1])
+            : edge(join.To, points[^2]);
 
         return points;
+    }
+
+    /// <summary>
+    /// A cubic, as the points a line is made of: from <paramref name="from"/> to <paramref name="to"/>, leaving towards
+    /// <paramref name="lead"/> and arriving from <paramref name="trail"/>.
+    ///
+    /// <para>
+    /// This is what a line crossing a gap between two things that are not lined up is: it leaves square to the edge it
+    /// leaves, swings across, and arrives square to the edge it reaches. Drawn as the two corners it would otherwise have,
+    /// it is a dog-leg — and two of them out of the same shape read as one line that forks rather than as a fan.
+    /// </para>
+    ///
+    /// <para>
+    /// It is the route itself, not a way of drawing one, so everything that reads a route afterwards — where what is written
+    /// on it goes, what it leaves no room under, what a shape takes out of it — sees the line that is actually drawn.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<Point> Curving(Point from, Point lead, Point trail, Point to, int steps = Steps)
+    {
+        var along = new Point[steps + 1];
+
+        for (var step = 0; step <= steps; step++)
+        {
+            var t = step / (double)steps;
+            var s = 1 - t;
+
+            along[step] = new Point(
+                (s * s * s * from.X) + (3 * s * s * t * lead.X) + (3 * s * t * t * trail.X) + (t * t * t * to.X),
+                (s * s * s * from.Y) + (3 * s * s * t * lead.Y) + (3 * s * t * t * trail.Y) + (t * t * t * to.Y));
+        }
+
+        return along;
     }
 
     /// <summary>

@@ -55,6 +55,12 @@ internal sealed class DiagramJoin(DiagramCell from, DiagramCell to, int span = 1
     /// <summary>Where it runs, from the middle of what it leaves to the middle of what it reaches, bending on the way.</summary>
     public IReadOnlyList<Point> Route { get; set; } = [];
 
+    /// <summary>
+    /// How much room what is written on this line needs, or nothing where a diagram writes nothing on its lines. The
+    /// layout holds the two ranks a line runs between far enough apart for it.
+    /// </summary>
+    public Size Said { get; init; }
+
     /// <summary>Where it bends, in the space of the box it was laid out in — <see cref="DiagramLayers"/>' own bookkeeping.</summary>
     internal IReadOnlyList<Point> Bends { get; set; } = [];
 

@@ -206,32 +206,41 @@ internal static class DiagramShapes
     }
 
     /// <summary>
-    /// Where a line from the middle of a shape filling <paramref name="bounds"/> towards <paramref name="toward"/> leaves its
-    /// outline — where a connector to the shape stops.
+    /// Where a line meets a shape: the point its ray leaves the outline by.
     /// </summary>
-    public static Point Edge(DiagramShape shape, Rect bounds, Point toward)
+    /// <param name="from">
+    /// Where the ray is cast from, for a line given its own place along the edge rather than the shape's middle. Cast from
+    /// the middle, every line meeting a shape leaves it at much the same point however far apart their ends were set.
+    /// </param>
+    public static Point Edge(DiagramShape shape, Rect bounds, Point toward, Point? from = null)
     {
-        var centre = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
-        var along = toward - centre;
-        if (along.Length < 1e-9) return centre;
+        var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
 
         if (shape is DiagramShape.Circle or DiagramShape.DoubleCircle)
         {
+            var round = toward - middle;
+            if (round.Length < 1e-9) return middle;
+
             var (a, b) = (bounds.Width / 2, bounds.Height / 2);
-            var scale = 1 / Math.Sqrt(((along.X * along.X) / (a * a)) + ((along.Y * along.Y) / (b * b)));
-            return centre + (along * scale);
+            var scale = 1 / Math.Sqrt(((round.X * round.X) / (a * a)) + ((round.Y * round.Y) / (b * b)));
+
+            return middle + (round * scale);
         }
+
+        var start = from ?? middle;
+        var along = toward - start;
+        if (along.Length < 1e-9) return start;
 
         var points = Corners(shape, bounds) ?? [bounds.TopLeft, bounds.TopRight, bounds.BottomRight, bounds.BottomLeft];
         var nearest = double.PositiveInfinity;
 
         for (var at = 0; at < points.Count; at++)
         {
-            var (from, to) = (points[at], points[(at + 1) % points.Count]);
-            if (Crossing(centre, along, from, to) is { } distance && distance < nearest) nearest = distance;
+            var (one, other) = (points[at], points[(at + 1) % points.Count]);
+            if (Crossing(start, along, one, other) is { } distance && distance < nearest) nearest = distance;
         }
 
-        return double.IsInfinity(nearest) ? centre : centre + (along * nearest);
+        return double.IsInfinity(nearest) ? start : start + (along * nearest);
     }
 
     /// <summary>

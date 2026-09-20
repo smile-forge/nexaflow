@@ -181,31 +181,17 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             if (!plan.Named.TryGetValue(link.From, out var from) || !plan.Named.TryGetValue(link.To, out var to)) continue;
             if (ReferenceEquals(from, to)) continue;
 
-            plan.Joins[link] = new DiagramJoin(from.Cell, to.Cell);
+            // What is written on the line goes with it, so the layout holds the ranks it runs between far enough apart.
+            plan.Joins[link] = new DiagramJoin(from.Cell, to.Cell)
+            {
+                Said = plan.Said[link].Count > 0 ? DiagramWords.Taken(plan.Said[link]) : default,
+            };
         }
 
         var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
 
-        // The ranks are held far enough apart for everything written between them, which is known before anything is placed
-        // because the words are measured already. Several lines between the same two things write one under another, so it
-        // is what they come to together that the gap has to hold — and the air either side of that is what leaves the lines
-        // themselves visible rather than papered over by what is written on them.
-        plan.Along = diagram.Config.Apart;
-
-        foreach (var pair in diagram.Links.GroupBy(Pairing))
-        {
-            var stacked = pair
-                .Select(link => plan.Said[link])
-                .Where(said => said.Count > 0)
-                .Sum(said => way is DiagramWay.Right or DiagramWay.Left
-                    ? DiagramWords.Taken(said).Width
-                    : DiagramWords.Taken(said).Height);
-
-            if (stacked > 0) plan.Along = Math.Max(plan.Along, stacked + Clear);
-        }
-
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart + Apart, plan.Along,
-                                      ports: true);
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart + Apart,
+                                      diagram.Config.Apart, ports: true);
 
         return plan;
     }
@@ -303,27 +289,35 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     {
         var routes = new List<Route>();
         var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
+        var down = way is DiagramWay.Down or DiagramWay.Up;
 
-        // Several lines between the same two things are a couple, and each of them is told which of the couple it is.
-        var coupled = diagram.Links
-            .GroupBy(Pairing)
-            .ToDictionary(pair => pair.Key, pair => pair.ToList());
-
-        foreach (var link in diagram.Links)
+        // Several lines between the same two things are a couple, and what is written on one of them is held clear of the
+        // thing that line leaves. So the two of a pair running opposite ways sit at opposite ends of the gap, each the same
+        // distance from its own source — which is what says at a glance which words belong to which line. Lines of a couple
+        // running the same way have the same source, and stack one under another beneath it.
+        foreach (var couple in diagram.Links.GroupBy(Pairing))
         {
-            if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
+            var running = new[] { DiagramConnector.Clearance, DiagramConnector.Clearance };
 
-            var along = DiagramConnector.Trimmed(join);
-            var placed = along.Select(room.At).ToList();
-            var said = plan.Said[link];
-            var group = Grouped(diagram, link);
-            var couple = coupled[Pairing(link)];
-
-            routes.Add(new Route(link, placed, said)
+            foreach (var link in couple)
             {
-                Room = Written(plan, room, link, group, placed, said, way, couple.IndexOf(link), couple.Count),
-                Group = group,
-            });
+                if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
+
+                var placed = DiagramConnector.Trimmed(join).Select(room.At).ToList();
+                var said = plan.Said[link];
+                var group = Grouped(diagram, link);
+                var taken = DiagramConnector.Room(placed, said);
+                var deep = down ? taken.Height : taken.Width;
+                var side = Forward(link) ? 0 : 1;
+
+                var where = taken.IsEmpty || couple.Count() == 1
+                    ? Written(plan, room, link, group, placed, taken, way)
+                    : Stacked(placed, taken, running[side] + (deep / 2), down);
+
+                if (!taken.IsEmpty) running[side] += deep + DiagramConnector.Stacking;
+
+                routes.Add(new Route(link, placed, said) { Room = where, Group = group });
+            }
         }
 
         Spread(routes, way);
@@ -356,33 +350,41 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// </para>
     /// </summary>
     private static Rect Written(Plan plan, DiagramRoom room, C4Link link, string? group, IReadOnlyList<Point> along,
-                                IReadOnlyList<DiagramWords> said, DiagramWay way, int one, int couple)
+                                Rect taken, DiagramWay way)
     {
-        var size = DiagramConnector.Room(along, said);
-        if (size.IsEmpty) return size;
-
-        // One of a couple is written along its own line rather than in the middle of the gap, a quarter to three quarters
-        // of the way down it, and set out to the side that line bows to. Staggered along tells them apart at a glance;
-        // held out to its own side says which of the two each of them belongs to. The share is measured from the same end
-        // of the couple for all of them, since a line written the other way round runs the other way.
-        if (couple > 1)
-        {
-            var mine = Portion(along, Shared(link, 0.26 + (0.48 * (one / (double)(couple - 1)))));
-            var bias = Bowed(along, way) * ((way is DiagramWay.Down or DiagramWay.Up ? size.Width : size.Height) / 2);
-
-            var out0 = way is DiagramWay.Down or DiagramWay.Up
-                ? new Point(mine.X + bias, mine.Y)
-                : new Point(mine.X, mine.Y + bias);
-
-            return new Rect(out0.X - (size.Width / 2), out0.Y - (size.Height / 2), size.Width, size.Height);
-        }
+        if (taken.IsEmpty) return taken;
 
         var at = Between(plan, link, group) is { } ends
             ? Crossing(along, room.At(ends.From.Bounds), room.At(ends.To.Bounds), way)
             : Middle(along);
 
-        return new Rect(at.X - (size.Width / 2), at.Y - (size.Height / 2), size.Width, size.Height);
+        return new Rect(at.X - (taken.Width / 2), at.Y - (taken.Height / 2), taken.Width, taken.Height);
     }
+
+    /// <summary>
+    /// What is written on one of a couple, set that far into the gap from the thing its own line leaves. Far enough in that
+    /// the head at that end still shows, and the gap was sized for it.
+    ///
+    /// <para>
+    /// <strong>Measured across the gap, not along the line.</strong> A line bowed out and back is half as long again as
+    /// the gap it crosses, and it spends the first of that going sideways — so a distance taken along it puts the words
+    /// wherever the bow happened to carry them, which is how two of them come to sit on top of one another in a gap that
+    /// was sized to hold them apart.
+    /// </para>
+    /// </summary>
+    private static Rect Stacked(IReadOnlyList<Point> along, Rect taken, double into, bool down)
+    {
+        var (from, to) = down ? (along[0].Y, along[^1].Y) : (along[0].X, along[^1].X);
+
+        var mine = At(along, from + (Math.Sign(to - from) * into), down);
+
+        return new Rect(mine.X - (taken.Width / 2), mine.Y - (taken.Height / 2), taken.Width, taken.Height);
+    }
+
+    /// <summary>Which of the two ways round a couple runs a line takes, so the two of them are counted off separately.</summary>
+    private static bool Forward(C4Link link) => string.CompareOrdinal(link.From, link.To) <= 0;
+
+
 
     /// <summary>The point that far along a route, as a share of its whole length.</summary>
     private static Point Portion(IReadOnlyList<Point> along, double share)
