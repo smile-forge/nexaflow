@@ -124,7 +124,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 
 | Language | Status | Tests |
 |---|---|---|
-| `nomnoml` | ✅ | ❌ — no test or sample fixture |
+| `nomnoml` | ✅ | ✅ — UML class notation on the shared layout tree; see [nomnoml](#nomnoml--sub-support) below |
 | `mermaid` | ⚠️ Partial | ✅ — see sub-types below |
 | `qr` | ✅ | ✅ — see [QR codes](#qr-codes--sub-support) below |
 | `barcode` | ✅ | ✅ — see [Barcodes](#barcodes--sub-support) below |
@@ -873,7 +873,7 @@ graph placement this does not use.
 A `graph`/`flowchart` asking for nodes that open and close is drawn by the graph model, the Sugiyama layout and
 [`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs) instead of on the shared layout
 tree, which is what a `config: nexaflow:` block asks for. The two things that path has, which only matter once a graph gets
-big, are these — and the C4 diagrams are drawn through it as well.
+big, are these.
 
 **A node can hide a subtree.** `Node.Expansion` is `Leaf` / `Collapsed` / `Expanded`, and a non-leaf node is drawn
 with a **`[+]` / `[−]` chip** on its top-right corner — a *second* hit region, so the node's body keeps its own
@@ -956,6 +956,55 @@ not rendered — see the extensions table above); this Mermaid front-matter is a
 mechanism.
 
 ---
+
+## nomnoml — sub-support
+
+[nomnoml](https://www.nomnoml.com/) is UML class notation written shorter, so what a `nomnoml` block says **is** a
+class diagram: the same classes with the same compartments, the same relations between them, the same boxes round the
+ones written together. It is read into [`ClassDiagram`](../src/Nexaflow.Markdown/Mermaid/Class/ClassDiagram.cs) and
+drawn by [`ClassBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs), so a fix to how a class
+diagram is laid out is a fix to both. What is nomnoml's alone is how it is written
+([`NomnomlGrammar`](../src/Nexaflow.Markdown/Nomnoml/NomnomlGrammar.cs) →
+[`NomnomlDiagram`](../src/Nexaflow.Markdown/Nomnoml/NomnomlDiagram.cs) →
+[`NomnomlBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs)).
+
+Nothing inside the block names its type — the fence's language does — so the grammar is handed to
+`MermaidParser.Parse` rather than found from a first line, and every line of the block is a statement.
+
+**What is read**
+
+| Written | Read as |
+|---|---|
+| `[Name]` | a class |
+| `[Name\|a field\|a method()]` | its compartments, a member to a semicolon |
+| `[<abstract>Name]` | what it says it is, drawn over its name |
+| `[<note>What it says]` | a note |
+| `[Group\|[A] -> [B]]`, or opened on one line and closed on another | a box round what is written in it |
+| `[A] 1 -> 0..n [B]` | how many of each the other has, beside its own end |
+| `[A] -> [B] : what it says` | written over the middle of the line |
+| `#direction: down \| right` | which way the diagram runs |
+| `// a comment`, at the start of a line | kept as written |
+| `\[`, `\]`, `\\|`, `\;` | the character itself, not the end of a name |
+
+An association is built the way nomnoml builds one — an end, a line, and another end — rather than from a list, so
+every combination of them is read: `-` `->` `<->` `-->` `<-->` `-:>` `<:-` `--:>` `<:--` `+-` `+->` `o-` `o->`
+`-o)` `o<-)` `->o` `--` `-/-`, and the spellings that fall out of the same three lists. Only a single dash is drawn
+solid; `--` and `-/-` are dashed. A ball and socket is drawn as the class diagram's lollipop.
+
+**Divergences from the reference implementation** ([`skanaar/nomnoml`](https://github.com/skanaar/nomnoml))
+
+- The classifier is drawn as a class box with what it says it is over its name. The reference draws a shape per
+  classifier — `actor`, `database`, `ellipse`, `frame`, `package`, `pipe`, `start`, `end`, `choice`, `usecase`,
+  `table` and the rest — which is the largest gap.
+- `[<actor id=a>User]`: the attributes inside the angle brackets are read as part of what it says it is, so two
+  nodes with the same name cannot be told apart by `id`.
+- `-/-` is drawn dashed rather than not drawn at all.
+- A `;` separates members inside a compartment, not statements on a line.
+- Custom classifier styles (`#.box: fill=#8f8 dashed`) are read and kept, not applied; of the other directives only
+  `#direction` changes what is drawn.
+- An escaped character is stopped from ending a name, but its backslash is still shown; the reference shows `\n` as
+  a line break.
+- A compartment holds either members or nodes, where the reference holds both at once.
 
 ## QR codes — sub-support
 
@@ -1845,7 +1894,8 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, s
 - **`MarkdownFlowDocument`** (the selectable path) is only tested for tables; its other
   block types (headings, lists, code, quotes) rely on the shared `BlockRenderer` but have
   no FlowDocument-specific assertions.
-- **`nomnoml`** has neither a test nor a sample fixture.
+- **`nomnoml`** is read and drawn by its own tests (`NomnomlGrammarTests`, `NomnomlBuilderTests`) and has a sample
+  fixture, but none of the classifier shapes beyond a class box are drawn — see [nomnoml](#nomnoml--sub-support).
 - The base CommonMark renderer, the enabled extensions, and the Mermaid parser family are
   all well covered.
 

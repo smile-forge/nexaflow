@@ -322,10 +322,48 @@
           }
         ]
       }
+    },
+    "nomnoml": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlGrammar.cs",
+          "class": "NomnomlGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlDiagram.cs",
+          "class": "NomnomlDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlDiagramHandler.cs",
+          "class": "NomnomlDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nomnoml/NomnomlGrammarTests.cs",
+            "class": "NomnomlGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Nomnoml/NomnomlBuilderTests.cs",
+            "class": "NomnomlBuilderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 24,
   "touched_nodes": [
     "c4",
     "c4-boundaries",
@@ -337,6 +375,7 @@
     "c4-sequence",
     "c4-sequence-writing",
     "c4-styling",
+    "nomnoml",
     "sequence-diagram"
   ]
 }

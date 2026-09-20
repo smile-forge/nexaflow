@@ -33,12 +33,19 @@ public static class MermaidParser
 
     public const string AccessibleDescription = "accDescr";
 
-    public static ContentNode Parse(string? source)
+    /// <summary>
+    /// Reads a block into its lines, every character kept.
+    /// </summary>
+    /// <param name="grammar">
+    /// What reads the lines, where the block's language names its diagram rather than its first line does. Named, there is
+    /// no header to find and every line is a statement; left out, the first line that says anything names the diagram.
+    /// </param>
+    public static ContentNode Parse(string? source, IMermaidGrammar? grammar = null)
     {
         source ??= string.Empty;
         var lines = new List<ContentNode>();
         var at = 0;
-        var reading = new Reading();
+        var reading = new Reading { Headed = grammar is not null, Grammar = grammar };
 
         if (Fences(source) is (var open, var close))
         {
@@ -453,21 +460,14 @@ public static class MermaidParser
         }
     }
 
-    /// <summary>
-    /// The tree a diagram is drawn from: the block parsed, then run through its type's stages (<see cref="IMermaidGrammar.Stages"/>)
-    /// — with a hole wherever the type holds one (<see cref="IMermaidGrammar.Holds"/>), where <paramref name="holes"/> asks for
-    /// them. A type with no grammar is only parsed.
-    /// </summary>
-    /// <param name="holes">
-    /// Whether something not yet written gets a hole standing in it: asked for by a surface being written on, where the hole is
-    /// how a reader sees there is something still to write, and how they aim at it.
-    /// </param>
-    public static ContentNode Read(string? source, bool holes = false)
+    /// <summary>The block parsed and run through its diagram's stages, with a hole wherever something is still to be written.</summary>
+    /// <param name="grammar">What reads the block, where its language names its diagram rather than its first line — see <see cref="Parse"/>.</param>
+    public static ContentNode Read(string? source, bool holes = false, IMermaidGrammar? grammar = null)
     {
-        var tree = Parse(source);
+        var tree = Parse(source, grammar);
         var block = MermaidBlock.Of(tree);
-        if (MermaidDiagrams.Grammar(block.Diagram) is not { } grammar) return tree;
+        if ((grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is not { } reading) return tree;
 
-        return new AstPipeline(grammar.Stages(block)).Then(holes ? new WithHoles(grammar.Holds) : null).Run(tree);
+        return new AstPipeline(reading.Stages(block)).Then(holes ? new WithHoles(reading.Holds) : null).Run(tree);
     }
 }

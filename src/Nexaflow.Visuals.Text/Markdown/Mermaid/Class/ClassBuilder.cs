@@ -59,7 +59,7 @@ public static class ClassPiece
 /// <strong>A namespace holds its classes in the layout.</strong> What is inside one is laid out in its own space and drawn inside
 /// the namespace's piece, so pressing a class means that class and pressing the room round it means the namespace.
 /// </summary>
-internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
+internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 {
     /// <summary>How big a class's name is drawn, its members, and what an annotation says it is.</summary>
     private const double TextSize = 12;
@@ -111,7 +111,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    private ClassBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
+    protected ClassBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
         : base(state, palette, pixelsPerDip, room, writing) { }
 
     /// <summary>Lays a class diagram's source out. Never null, and never throws.</summary>

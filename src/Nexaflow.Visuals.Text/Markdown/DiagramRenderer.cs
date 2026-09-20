@@ -1,6 +1,6 @@
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+using Nexaflow.Visuals.Text.Markdown.Nomnoml;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -32,7 +32,7 @@ public static class DiagramRenderer
     private static readonly IDiagramHandler[] Handlers =
     [
         new MermaidDiagramHandler(),                           // mermaid (pie, flowchart, …)
-        new GraphDiagramHandler(new NomnomlParser()),          // nomnoml
+        new NomnomlDiagramHandler(),                           // nomnoml
         new QrDiagramHandler(),                                // qr
         new BarcodeDiagramHandler(),                           // barcode
         new MusicDiagramHandler(Music.MusicDialect.Abc),       // abc (music)

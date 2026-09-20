@@ -10,7 +10,6 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/NodeLabelMetrics.cs 53
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidDirectives.cs 85
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidFlowchartParser.cs 629
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs 131
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NomnomlParser.cs 215
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/CanvasPlacementExtensions.cs 34
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/DiagramBrushes.cs 90
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/DiagramInteraction.cs 129

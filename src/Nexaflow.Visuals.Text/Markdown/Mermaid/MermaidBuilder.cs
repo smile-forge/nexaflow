@@ -138,9 +138,15 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);
 
+    /// <summary>
+    /// What reads the block, where the fence's language names the diagram rather than the block's first line — a
+    /// <c>nomnoml</c> block, say. Null for a Mermaid block, whose header names its own grammar.
+    /// </summary>
+    protected virtual Nexaflow.Markdown.Mermaid.IMermaidGrammar? Grammar => null;
+
     /// <summary>Reads the block: parsed and run through its type's stages, with a hole wherever
     /// something is still to be written (<see cref="MermaidParser.Read"/>).</summary>
-    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing);
+    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing, grammar: Grammar);
 
     /// <summary>The title to set over the diagram: the diagram's own where it writes one, else the
     /// front matter's (<see cref="MermaidBlock.Title"/>).</summary>
