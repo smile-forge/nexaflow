@@ -212,7 +212,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside], towards,
-                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
+                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing, square: true);
 
         return plan;
     }
@@ -369,8 +369,10 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         {
             var stroke = new DiagramStroke(Palette.TextMuted, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
 
+            // Square, corners and all: several relations reaching the same class run up to the same rail and into it by
+            // the same stem, and a rounded corner is a corner that no longer meets the next one.
             DiagramConnector.Draw(build, ClassPiece.Relation, route.Relation.Part, route.Along, stroke,
-                                  Headed(route.Relation.Head), Headed(route.Relation.Tail), curved: true);
+                                  Headed(route.Relation.Head), Headed(route.Relation.Tail));
 
             DiagramConnector.Says(build, ClassPiece.Label, route.Relation.Part, route.Room, route.Said, Palette.CodeBg);
 

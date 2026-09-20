@@ -72,6 +72,12 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// <summary>Air inside a boundary, between its edge and its name.</summary>
     private const double Boxed = 14;
 
+    /// <summary>The least air a boundary keeps between its edge and what it holds, so it reads as closed round them.</summary>
+    private const double Closing = 16;
+
+    /// <summary>How many goes a diagram gets at coming down to the room it was given.</summary>
+    private const int Fittings = 4;
+
     /// <summary>
     /// Clear air either side of what is written between two ranks, so the line it is written on still shows, and enough of
     /// it runs straight for a bend in it to be a curve rather than a corner.
@@ -112,6 +118,8 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         // A diagram with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Empty) return AsWritten(build);
 
+        diagram = Fitted(diagram);
+
         var plan = Laid(diagram);
         var room = Reached(diagram, plan);
 
@@ -130,6 +138,42 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         Keyed(diagram);
 
         return room.Size;
+    }
+
+    /// <summary>
+    /// The diagram to measures that fit the room the block was given.
+    ///
+    /// <para>
+    /// A drawing wider than the room is a drawing with its right-hand side cut off, so the cards wrap their words narrower
+    /// and the gaps close up until it fits. It takes a few goes because what a card comes to is not a straight multiple of
+    /// what it was allowed — words wrap where words wrap — and it stops short of measures too small to read, since a
+    /// diagram that cannot be drawn small enough is better drawn too wide than illegibly.
+    /// </para>
+    /// </summary>
+    private C4Structure Fitted(C4Structure diagram)
+    {
+        if (double.IsInfinity(Space)) return diagram;
+
+        for (var attempt = 0; attempt < Fittings; attempt++)
+        {
+            var room = Reached(diagram, Laid(diagram));
+            if (room.Size.Width <= Space) break;
+
+            var config = diagram.Config;
+            var by = Space / room.Size.Width;
+
+            var narrowed = config with
+            {
+                Widest = Math.Max(Least, config.Widest * by),
+                Apart = Math.Max(Apart, config.Apart * by),
+            };
+
+            if (narrowed.Widest >= config.Widest && narrowed.Apart >= config.Apart) break;
+
+            diagram = diagram.Sized(narrowed);
+        }
+
+        return diagram;
     }
 
     // ── Laying it out ───────────────────────────────────────────────────────
@@ -153,7 +197,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
                 Cell = new DiagramCell(new Size(said.Width + (Boxed * 2), 0))
                 {
                     Inside = box.Parent is { } parent && plan.Boxes.TryGetValue(parent, out var outer) ? outer.Cell : null,
-                    Pad = diagram.Config.Framed,
+
+                    // Never tighter than Closing, whatever boxMargin says: a boundary drawn close to the cards inside it
+                    // reads as a line behind them rather than as something closed round them.
+                    Pad = Math.Max(diagram.Config.Framed, Closing),
                     Heading = said.Height > 0 ? said.Height + Boxed : 0,
                     Way = null,
                 },

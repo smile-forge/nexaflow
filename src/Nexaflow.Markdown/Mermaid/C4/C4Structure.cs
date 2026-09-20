@@ -123,6 +123,13 @@ public sealed class C4Structure
     /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
     public static C4Structure Read(string? block) => Of(MermaidParser.Read(block));
 
+    /// <summary>
+    /// The same diagram to different measures — what one too wide for the room it is given is laid out again as. Nothing is
+    /// read again: it is the same nodes, boundaries and relationships, drawn smaller.
+    /// </summary>
+    public C4Structure Sized(C4Metrics config) =>
+        new(this.Block, config, this.Nodes, this.Boxes, this.Links, this.Legend, this.Way);
+
     /// <summary>Reads a tree the stages have already been over.</summary>
     public static C4Structure Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

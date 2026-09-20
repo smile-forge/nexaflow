@@ -72,27 +72,35 @@ internal static class DiagramLayers
     /// middle needs the gaps between its ranks sized for them first, or what was hidden becomes what is overlapping.
     /// </para>
     /// </param>
+    /// <param name="square">
+    /// Whether the lines run square — straight, meeting at right angles — rather than swinging across the gaps they
+    /// cross. It is a convention of the diagram rather than a matter of taste: a class or entity diagram is read as
+    /// square lines, and several of them reaching the same shape share a stem into it, which they can only do by
+    /// running square. See <see cref="Swung"/> for what the rest of them do instead.
+    /// </param>
     public static Size Lay(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way,
-                           double between, double along, DiagramLanes? laning = null, bool ports = false)
+                           double between, double along, DiagramLanes? laning = null, bool ports = false,
+                           bool square = false)
     {
         // Innermost boxes first: a box is the size of what it holds, so what it holds is arranged before the box is placed.
         foreach (var box in Boxes(cells).OrderByDescending(Deep))
         {
             // A box is a space of its own, which the bands of the layout round it do not reach into.
-            var held = Arrange(Within(cells, box), Joining(joins, box), box.Way ?? way, between, along, laning: null, ports);
+            var held = Arrange(Within(cells, box), Joining(joins, box), box.Way ?? way, between, along, laning: null,
+                               ports, square);
 
             box.Size = new Size(Math.Max(box.Size.Width, held.Width + (box.Pad * 2)),
                                 Math.Max(box.Size.Height, held.Height + (box.Pad * 2) + box.Heading));
         }
 
-        var whole = Arrange(Within(cells, null), Joining(joins, null), way, between, along, laning, ports);
+        var whole = Arrange(Within(cells, null), Joining(joins, null), way, between, along, laning, ports, square);
 
         // Outermost boxes first, so a box is already where it belongs before what is inside it is moved into it.
         foreach (var box in Boxes(cells).OrderBy(Deep)) Moved(cells, joins, box);
 
         foreach (var join in joins) join.Route = Routed(join, way);
         Parted(cells, joins, way, ports);
-        Swung(cells, joins, way);
+        if (!square) Swung(cells, joins, way);
 
         return whole;
     }
@@ -156,7 +164,8 @@ internal static class DiagramLayers
 
     /// <summary>Lays one level out: cells into ranks, each rank ordered then set across, every join given its bend places. Hands back the room it took.</summary>
     private static Size Arrange(IReadOnlyList<DiagramCell> cells, IReadOnlyList<Joined> edges, DiagramWay way,
-                                double between, double along, DiagramLanes? laning, bool ports = false)
+                                double between, double along, DiagramLanes? laning, bool ports = false,
+                                bool square = false)
     {
         // Lanes with nothing in them yet are still bands to place.
         if (cells.Count == 0 && laning is null) return default;
@@ -177,7 +186,7 @@ internal static class DiagramLayers
         var whole = Sized(cells, rows, way, Gaps(links, ranks, rows.Count, way, along, ports), laning?.Heading ?? 0,
                           banded, out var from, out var deep);
 
-        Settled(cells, rows, way, from, deep, whole);
+        Settled(cells, rows, way, from, deep, whole, square);
         laning?.Settled(way, whole);
 
         foreach (var link in links)
@@ -582,15 +591,27 @@ internal static class DiagramLayers
         return way is DiagramWay.Down or DiagramWay.Up ? new Size(across, whole) : new Size(whole, across);
     }
 
-    /// <summary>Turns what each rank settled on into where every cell and every bend is, the way round the layout runs.</summary>
+    /// <summary>
+    /// Hands every cell the box it ends up in.
+    ///
+    /// <para>
+    /// A rank is as deep as the deepest thing in it, and everything shallower sits in the middle of that — which is what a
+    /// row of shapes of different heights reads as. A square diagram lines them up on the near edge of the rank instead: its
+    /// lines run square and several of them share a rail, so the shapes they leave have to start together for the rail to be
+    /// the same distance from all of them.
+    /// </para>
+    /// </summary>
     private static void Settled(IReadOnlyList<DiagramCell> cells, List<List<Place>> rows, DiagramWay way, double[] from,
-                                double[] deep, Size whole)
+                                double[] deep, Size whole, bool square)
     {
         foreach (var row in rows)
             foreach (var place in row)
             {
                 var size = place.Cell >= 0 ? cells[place.Cell].Size : default;
-                var start = from[place.Rank] + ((deep[place.Rank] - Along(size, way)) / 2);
+
+                var start = square
+                    ? from[place.Rank]
+                    : from[place.Rank] + ((deep[place.Rank] - Along(size, way)) / 2);
 
                 place.Near = Placed(from[place.Rank], place.At, way, whole);
                 place.Far = Placed(from[place.Rank] + deep[place.Rank], place.At, way, whole);
@@ -863,11 +884,38 @@ internal static class DiagramLayers
         ends.Add((join, at));
     }
 
+    /// <summary>
+    /// Spreads the ends the lines meeting one shape have along that shape's edge, so a fan of them reads as a fan rather
+    /// than piling up on the shape's middle.
+    ///
+    /// <para>
+    /// Each side of the shape on its own. Lines meeting it from opposite ways along the layout are on opposite edges of it
+    /// and can never run into one another, so spreading them together only moves them off the middle for nothing — which is
+    /// what a shape standing in the middle of a chain is, one line in and one line out, both belonging on its middle.
+    /// </para>
+    /// </summary>
     private static void Ported(DiagramCell cell, List<(DiagramJoin Join, int At)> ends, DiagramWay way)
+    {
+        var across = way is DiagramWay.Down or DiagramWay.Up;
+
+        foreach (var side in ends.GroupBy(end => Side(cell, end.Join, end.At, across)))
+            Fanned(cell, [.. side], across);
+    }
+
+    /// <summary>Which way along the layout a line leaves a shape it meets: on towards the far side, or back the other way.</summary>
+    private static int Side(DiagramCell cell, DiagramJoin join, int at, bool across)
+    {
+        var bounds = cell.Bounds;
+        var far = join.Route[at == 0 ? ^1 : 0];
+
+        return (across ? far.Y - (bounds.Y + (bounds.Height / 2)) : far.X - (bounds.X + (bounds.Width / 2))) >= 0 ? 1 : -1;
+    }
+
+    /// <summary>The ends on one side of a shape, set out along its edge in the order they head off in.</summary>
+    private static void Fanned(DiagramCell cell, List<(DiagramJoin Join, int At)> ends, bool across)
     {
         if (ends.Count < 2) return;
 
-        var across = way is DiagramWay.Down or DiagramWay.Up;
         var bounds = cell.Bounds;
 
         var span = Math.Max(0, (across ? bounds.Width : bounds.Height) - (Ports * 2));
