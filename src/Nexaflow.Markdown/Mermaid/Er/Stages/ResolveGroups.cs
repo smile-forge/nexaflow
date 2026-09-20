@@ -13,7 +13,7 @@ public sealed class ResolveGroups : IAstStage
     public string Name => "er:subgraphs";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, ErKinds.Subgraph, ErKinds.Ends,
+        MermaidNesting.Inside(tree, [ErKinds.Subgraph], [ErKinds.Ends],
                               [ErKinds.Entity, ErKinds.Block, ErKinds.Relation, ErKinds.Direction,
                                ErKinds.ClassDef, ErKinds.CssClass, ErKinds.Style],
                               ErKinds.Fact, ErRoles.Inside, ErRoles.Opened,

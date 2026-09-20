@@ -188,6 +188,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             {
                 Cell = new DiagramCell(new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)))
                 {
+                    Shape = shape,
                     Inside = Holding(plan, node.Group),
                     Lane = Banded(plan, diagram, node.Group),
                 },
@@ -202,15 +203,18 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         {
             if (Ended(plan, diagram, link.From) is not { } from || Ended(plan, diagram, link.To) is not { } to) continue;
 
-            var join = new DiagramJoin(from, to, link.Span);
-            plan.Joins[link] = join;
+            plan.Joins[link] = new DiagramJoin(from, to, Aside(plan, diagram, link) ? 0 : link.Span);
         }
 
+        // Every line meets a shape at its own place along the edge. A decision has a line in and a line out for each way
+        // it can go, and on a diamond the straight run out of the middle leaves by the one point at the bottom — so
+        // without this they all set off from that point, on top of one another and on top of what arrives there.
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], towards, diagram.Config.NodeSpacing,
                                       diagram.Config.RankSpacing,
                                       laning is { } lanes
                                           ? new DiagramLanes([.. plan.Lanes.Select(lane => lane.Band)], across: !lanes.Sideways)
-                                          : null);
+                                          : null,
+                                      ports: true);
 
         return plan;
     }
@@ -298,6 +302,68 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         return group is not null && plan.Groups.TryGetValue(group.Key, out var box) ? box.Cell : null;
     }
 
+    /// <summary>
+    /// Whether a way out of a decision is set beside it rather than under it — and so is the way back, where the two of
+    /// them are a loop.
+    ///
+    /// <para>
+    /// A loop that comes straight back is a pair of links, and the way back closes a cycle: ranking it as a step down puts
+    /// what it leaves a rank below the decision, which drags the aside down with it and undoes the whole point of setting
+    /// it aside. Both halves are flat or neither is.
+    /// </para>
+    /// </summary>
+    private static bool Aside(Plan plan, FlowchartDiagram diagram, FlowchartLink link) =>
+        Detour(plan, diagram, link)
+        || diagram.Links.Any(other => string.Equals(other.From, link.To, StringComparison.Ordinal)
+                                      && string.Equals(other.To, link.From, StringComparison.Ordinal)
+                                      && Detour(plan, diagram, other));
+
+    /// <summary>
+    /// Whether a way out of a decision is the one set beside it rather than under it.
+    ///
+    /// <para>
+    /// What people draw round a diamond is the four ways off it: what asks the question arrives above, the answer that
+    /// carries the flow on goes below, and the rest go out to the sides. So a decision's ways out want the places round it,
+    /// and only one of them can have the one underneath.
+    /// </para>
+    ///
+    /// <para>
+    /// The one that carries on is the one that does not come back: a way out leading round to the decision again is a
+    /// detour off the flow, whatever it is called, and a way out that does not is the flow itself. Where every way out
+    /// comes back, or only one leaves at all, there is nothing to choose between them and they all go below as before.
+    /// </para>
+    /// </summary>
+    private static bool Detour(Plan plan, FlowchartDiagram diagram, FlowchartLink link)
+    {
+        if (plan.Named.TryGetValue(link.From, out var node) && node.Shape is not DiagramShape.Diamond) return false;
+
+        var ways = diagram.Links.Where(other => string.Equals(other.From, link.From, StringComparison.Ordinal)).ToList();
+        if (ways.Count < 2) return false;
+
+        var back = ways.Where(one => Returns(diagram, one)).ToList();
+
+        return back.Count < ways.Count && back.Contains(link);
+    }
+
+    /// <summary>Whether what a way out leads to leads round to where it came from.</summary>
+    private static bool Returns(FlowchartDiagram diagram, FlowchartLink link)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal) { link.From };
+        var going = new Queue<string>([link.To]);
+
+        while (going.Count > 0)
+        {
+            var at = going.Dequeue();
+            if (string.Equals(at, link.From, StringComparison.Ordinal)) return true;
+            if (!seen.Add(at)) continue;
+
+            foreach (var on in diagram.Links.Where(one => string.Equals(one.From, at, StringComparison.Ordinal)))
+                going.Enqueue(on.To);
+        }
+
+        return false;
+    }
+
     /// <summary>The subgraphs, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
     private static IEnumerable<FlowchartGroup> Nested(FlowchartDiagram diagram, string? inside)
     {
@@ -357,7 +423,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         {
             if (!plan.Joins.TryGetValue(link, out var join) || join.Route.Count < 2) continue;
 
-            var along = DiagramConnector.Trimmed(join, (cell, toward) => Edge(plan, cell, toward));
+            var along = DiagramConnector.Trimmed(join, (cell, end, toward) => Edge(plan, cell, end, toward));
             var placed = along.Select(room.At).ToList();
             var said = Says(link);
 
@@ -367,12 +433,16 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         return routes;
     }
 
-    /// <summary>Where a line reaching a cell from <paramref name="toward"/> meets it: the shape's edge, for a node.</summary>
-    private static Point Edge(Plan plan, DiagramCell cell, Point toward)
+    /// <summary>Where a line meets one of the diagram's shapes.</summary>
+    private static Point Edge(Plan plan, DiagramCell cell, Point end, Point toward)
     {
         var shape = plan.Nodes.FirstOrDefault(node => ReferenceEquals(node.Cell, cell))?.Shape ?? DiagramShape.Rounded;
 
-        return DiagramShapes.Edge(shape, cell.Bounds, toward);
+        // A diamond is a decision, and a decision is drawn met at its points rather than wherever a line crosses its slopes:
+        // met on the slope, two lines leaving a decision read as one line forking off the middle of nothing in particular.
+        return shape is DiagramShape.Diamond
+            ? DiagramShapes.Cornered(shape, cell.Bounds, end, toward)
+            : DiagramShapes.Edge(shape, cell.Bounds, toward, end);
     }
 
     /// <summary>The links, drawn over the chart.</summary>

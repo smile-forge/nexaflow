@@ -289,7 +289,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         {
             if (!plan.Joins.TryGetValue(step, out var join) || join.Route.Count < 2) continue;
 
-            var along = DiagramConnector.Trimmed(join, (cell, toward) => Edge(plan, cell, toward));
+            var along = DiagramConnector.Trimmed(join, (cell, end, toward) => Edge(plan, cell, end, toward));
             var placed = along.Select(room.At).ToList();
             var said = Says(step, diagram.Config);
 
@@ -299,11 +299,12 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         return routes;
     }
 
-    private static Point Edge(Plan plan, DiagramCell cell, Point toward)
+    /// <summary>Where a line meets one of the diagram's shapes, cast from the line's own end.</summary>
+    private static Point Edge(Plan plan, DiagramCell cell, Point end, Point toward)
     {
         var shape = plan.Nodes.FirstOrDefault(node => ReferenceEquals(node.Cell, cell))?.Shape ?? DiagramShape.Rounded;
 
-        return DiagramShapes.Edge(shape, cell.Bounds, toward);
+        return DiagramShapes.Edge(shape, cell.Bounds, toward, end);
     }
 
     /// <summary>The transitions, drawn over the diagram.</summary>

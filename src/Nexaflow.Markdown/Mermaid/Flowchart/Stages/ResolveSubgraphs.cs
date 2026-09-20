@@ -13,7 +13,7 @@ public sealed class ResolveSubgraphs : IAstStage
     public string Name => "flowchart:subgraphs";
 
     public ContentNode Run(ContentNode tree) =>
-        MermaidNesting.Inside(tree, FlowchartKinds.Opens, FlowchartKinds.Ends, [FlowchartKinds.Nodes, FlowchartKinds.Direction],
+        MermaidNesting.Inside(tree, [FlowchartKinds.Opens], [FlowchartKinds.Ends], [FlowchartKinds.Nodes, FlowchartKinds.Direction],
                               FlowchartKinds.Fact, FlowchartRoles.Inside, FlowchartRoles.Opened,
                               stray: "This end closes a subgraph, and none is open here.",
                               unclosed: "This subgraph is never closed: end closes it.");

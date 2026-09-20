@@ -152,6 +152,24 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>How big the diagram's front matter asks its title to be set, or null for the size every diagram's title is.</summary>
     protected virtual double? TitleTextSize => null;
 
+    /// <summary>
+    /// What goes under the drawing — a legend, a key, a caption — each as its own tree, with the air above it.
+    /// </summary>
+    private readonly List<(LayoutTree Tree, Size Size, double Gap)> beneath = [];
+
+    /// <summary>
+    /// Adds a piece under the drawing, as one of the block's own pieces rather than part of the drawing.
+    ///
+    /// <para>
+    /// That is what keeps it lined up with everything else. A block is a stack — its title, its drawing, whatever goes
+    /// under that, and anything it could not read — and the width of the block is the widest of them, which is not known
+    /// until all of them have been measured. A piece a diagram sets down inside its own drawing is placed against the
+    /// drawing's width, so a legend wider than the drawing widens the block underneath a drawing already off to one side
+    /// of it. Handed over instead, it is measured with the rest and every one of them is set about the same middle.
+    /// </para>
+    /// </summary>
+    protected void Beneath(LayoutTree tree, Size size, double gap) => this.beneath.Add((tree, size, gap));
+
     protected sealed override Laid Read()
     {
         var block = MermaidBlock.Of(Reading(Source));
@@ -169,29 +187,50 @@ internal abstract class MermaidBuilder : ContentBuilder
         // diagram is its lines, and the card they are drawn on is not somewhere to write.
         build.Open(MermaidPiece.Diagram, block.Reading.Root, stops: Stops.None);
 
-        var width = body.Width;
-        var top = Pad;
-
+        // Everything the block stacks is measured before any of it is placed, and the width of the block is the widest of
+        // them. A piece set down before that is known sits off to one side of the block as soon as a later one turns out to
+        // be wider — which is how a drawing comes to stand off-centre under its own title, or beside its own legend.
         var (titlePart, titleText) = TitleOf(block);
+
+        FormattedText? title = null;
+        string says = string.Empty;
+        Brush ink = Palette.Heading;
+
         if (titlePart is not null && !string.IsNullOrWhiteSpace(titleText))
         {
             // What was written, where the reader is writing in it — a front-matter title says one thing and is written
             // as another, quotes and all, and only the characters they typed can be typed into.
             var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
-            var says = written ? titlePart.Text : MermaidText.Decode(titleText!);
 
-            var ink = Ink.Written(TitleColour) ?? Palette.Heading;
-            var title = Text(says, TitleTextSize ?? TitleSize, ink, FontWeights.SemiBold);
-            // The title is set no wider than the room there is; a diagram asked to be wider than that keeps its width.
-            width = Math.Max(width, Math.Min(title.WidthIncludingTrailingWhitespace, Space));
+            says = written ? titlePart.Text : MermaidText.Decode(titleText!);
+            ink = Ink.Written(TitleColour) ?? Palette.Heading;
+            title = Text(says, TitleTextSize ?? TitleSize, ink, FontWeights.SemiBold);
+        }
 
+        var width = body.Width;
+
+        // The title is set no wider than the room there is; a diagram asked to be wider than that keeps its width.
+        if (title is not null) width = Math.Max(width, Math.Min(title.WidthIncludingTrailingWhitespace, Space));
+        foreach (var piece in this.beneath) width = Math.Max(width, piece.Size.Width);
+
+        var top = Pad;
+
+        if (title is not null)
+        {
             LayoutText.Words(build, title, new Point(Pad, top), width, TextAlignment.Center, titlePart,
-                             MermaidPiece.Title, maps: says == titlePart.Text, writes: true, ink: ink);
+                             MermaidPiece.Title, maps: says == titlePart!.Text, writes: true, ink: ink);
             top += title.Height + TitleGap;
         }
 
-        build.Graft(diagram.Seal(), new Point(Pad, top));
+        build.Graft(diagram.Seal(), new Point(Pad + Math.Max(0, (width - body.Width) / 2), top));
         top += body.Height;
+
+        foreach (var (tree, taken, gap) in this.beneath)
+        {
+            top += gap;
+            build.Graft(tree, new Point(Pad + Math.Max(0, (width - taken.Width) / 2), top));
+            top += taken.Height;
+        }
 
         foreach (var reason in trouble.Select(diagnostic => diagnostic.Message).Distinct())
         {

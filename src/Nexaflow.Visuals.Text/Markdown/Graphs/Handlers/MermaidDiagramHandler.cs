@@ -15,10 +15,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 /// <see cref="MermaidParser"/>, and the diagram its header names chooses the sub-pipeline:
 ///   • a diagram named in <see cref="MermaidBuilders"/> → its grammar, its stages and its builder, on the shared layout
 ///     tree, in an element it can be selected and written in (docs/mermaid-diagrams.md)
-///   • <c>sequenceDiagram</c>  → <see cref="MermaidSequenceParser"/> + <see cref="WpfSequenceDiagramRenderer"/>
-
-///   • <c>C4Context / …</c>    → <see cref="MermaidC4Parser"/> + <see cref="C4GraphProjector"/> + the graph family
-///   • <c>C4Sequence</c>       → <see cref="MermaidC4Parser"/> + <see cref="C4SequenceProjector"/> + <see cref="WpfSequenceDiagramRenderer"/>
 ///   • <c>graph / flowchart</c> asking for nodes that open and close → <see cref="MermaidFlowchartParser"/> + Sugiyama +
 ///     <see cref="WpfGraphRenderer"/>; every other flowchart is drawn on the shared layout tree
 ///   • a header naming no type → <see cref="UnknownDiagramBuilder"/>, the block as written with the reason
@@ -29,8 +25,6 @@ namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
 public sealed class MermaidDiagramHandler : IDiagramHandler
 {
     private static readonly MermaidFlowchartParser FlowParser = new();
-    private static readonly MermaidSequenceParser SequenceParser = new();
-    private static readonly MermaidC4Parser       C4Parser       = new();
 
     public bool CanHandle(string language) =>
         language.Equals("mermaid", StringComparison.OrdinalIgnoreCase);
@@ -51,10 +45,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
 
         return block.Diagram switch
         {
-            MermaidDiagram.Sequence     => RenderSequence(block, palette),
-
-            MermaidDiagram.C4           => RenderC4(block, options),
-            MermaidDiagram.C4Sequence   => RenderC4Sequence(block, palette),
             MermaidDiagram.Flowchart    => RenderGraphFamily(FlowParser.Parse(block.Body), block, options, 900),
             _                           => UnknownDiagramBuilder.Element(source, options),
         };
@@ -73,36 +63,6 @@ public sealed class MermaidDiagramHandler : IDiagramHandler
         block.Diagram == MermaidDiagram.Flowchart && !NexaflowConfigParser.Parse(block.Config).IsEmpty;
 
     // ── Sub-renderers ──────────────────────────────────────────────────────
-
-    private static FrameworkElement RenderSequence(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = SequenceParser.Parse(block.Body);
-        diagram.Title = Titled(diagram.Title, block);
-        return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
-
-    /// <summary>
-    /// C4 structural diagrams reuse the shared graph model, layout and renderer — a C4 diagram is a
-    /// node-and-edge graph with richer boxes, so it needs a parser and a projection, not a layout engine.
-    /// </summary>
-    private static FrameworkElement RenderC4(MermaidBlock block, DiagramRenderOptions options)
-    {
-        var diagram = C4Parser.Parse(block.Body);
-        diagram.Title  = Titled(diagram.Title, block);
-        diagram.Config = C4ConfigParser.Parse(block.Config);
-        return RenderGraphFamily(C4GraphProjector.ToGraph(diagram), block, options, 1100);
-    }
-
-    /// <summary>
-    /// A C4 sequence goes through the same renderer as a native sequenceDiagram — the participants just
-    /// carry element cards instead of plain boxes. See <see cref="C4SequenceProjector"/>.
-    /// </summary>
-    private static FrameworkElement RenderC4Sequence(MermaidBlock block, MarkdownPalette palette)
-    {
-        var diagram = C4SequenceProjector.ToSequence(C4Parser.Parse(block.Body));
-        diagram.Title = Titled(diagram.Title, block);
-        return WpfSequenceDiagramRenderer.Render(diagram, palette);
-    }
 
     /// <summary>
     /// Every diagram that shares the graph model, layout and renderer — flowchart, state, class, ER,

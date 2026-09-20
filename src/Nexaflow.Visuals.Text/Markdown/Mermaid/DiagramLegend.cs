@@ -45,19 +45,46 @@ internal sealed class DiagramLegend(IReadOnlyList<DiagramKey> rows, IReadOnlyLis
     /// <summary>The widest the legend says it is down a column, however wide its words are.</summary>
     public double Room { get; init; } = double.PositiveInfinity;
 
+    /// <summary>
+    /// What the key is drawn on, where a diagram sets it off from the rest rather than letting it sit on the page — the
+    /// surface behind it and the edge round it. Null for a key with nothing behind it.
+    /// </summary>
+    public (Brush Fill, Brush Edge)? Framed { get; init; }
+
+    /// <summary>The air the frame keeps round the rows.</summary>
+    public const double Framing = 8;
+
     /// <summary>How much room the legend takes.</summary>
-    public Size Size => rows.Count == 0
-        ? default
-        : across
-            ? new Size(rows.Sum(row => Width(row) + Apart) - Apart, rows.Max(Height))
-            : new Size(Math.Min(Room, Left(columns.Count - 1) + Widest(columns.Count - 1)), rows.Sum(row => Height(row) + RowGap) - RowGap);
+    public Size Size
+    {
+        get
+        {
+            if (rows.Count == 0) return default;
+
+            var taken = across
+                ? new Size(rows.Sum(row => Width(row) + Apart) - Apart, rows.Max(Height))
+                : new Size(Math.Min(Room, Left(columns.Count - 1) + Widest(columns.Count - 1)),
+                           rows.Sum(row => Height(row) + RowGap) - RowGap);
+
+            return this.Framed is null
+                ? taken
+                : new Size(taken.Width + (Framing * 2), taken.Height + (Framing * 2));
+        }
+    }
 
     /// <summary>Draws the legend with its top left at <paramref name="at"/>.</summary>
     public void Draw(LayoutBuilder build, Point at)
     {
         build.Open(MermaidPiece.Legend, part: null, stops: Stops.None);
 
-        var (x, y) = (at.X, at.Y);
+        if (this.Framed is { } framed)
+        {
+            var frame = new RectangleGeometry(new Rect(at, Size), Framing / 2, Framing / 2);
+            frame.Freeze();
+            build.Draw(new GeometryMark(frame, framed.Fill, framed.Edge, 1));
+        }
+
+        var (x, y) = this.Framed is null ? (at.X, at.Y) : (at.X + Framing, at.Y + Framing);
         foreach (var row in rows)
         {
             var height = Height(row);

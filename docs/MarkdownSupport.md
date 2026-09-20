@@ -146,7 +146,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + nodes, links, subgraphs, styling + config (`FlowchartDiagramTests`) + draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantChartTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
-| `sequenceDiagram` | ✅ | ✅ parser (`DiagramParsersTests`, extensive) + render (`DiagramRendererTests`) + sample |
+| `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
 | `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttChartTests`) + draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitGraphTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + nesting, shapes + config (`MindmapTreeTests`) + draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
@@ -165,8 +165,8 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
-| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (graph layout, C4-PlantUML macro set) | ✅ parser + projection (`C4ParserTests`, `C4ProjectionTests`) + card/palette (`C4ElementTests`) + render + sample render. See sub-features below. |
-| `C4Sequence` *(Nexaflow extension)* | ✅ (shared sequence renderer) | ✅ projection (`C4SequenceProjectionTests`) + render + sample render. See sub-features below. |
+| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StructureTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
+| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -274,7 +274,8 @@ how many of each class the other has in quotes at that end (`A "1" --> "*" B`) a
 its name beside it — a decoration on the class, neither a class of its own nor a line; `namespace N { … }`, nested as
 deep as it is written and **nesting by the dots in its name** (`namespace A.B.C` boxes `C` in `B` in `A`), with a label
 `namespace N["The name"]`; notes `note "…"` and `note for A "…"`, with `<br>` breaking a line; `direction`;
-`classDef`, `cssClass "A,B" name`, `:::` and `style`; `click`, `link` and `callback` with a URL, a tooltip and a target;
+`classDef`, `cssClass "A,B" blue,bold`, `:::` and `style`, several classes given at once; `click`, `link` and `callback` with
+a URL, a tooltip and a target;
 `accTitle`/`accDescr`; comments; and a title from the front matter. **A class is three compartments in one box** — its
 name, its fields, then its methods — with a rule the width of the box between them, and **a namespace holds its classes
 in the layout**, so pressing a class means that class and pressing the room round it means the namespace, which stands
@@ -318,6 +319,42 @@ to is drawn as the characters written, where Mermaid renders markdown in it; the
 what it takes rather than Mermaid's 200 by 200, because the words in it are measured rather than guessed; a `#` comment is not
 read, only `%%`; and `rect_fill`, `text_color`, `rect_border_size`, `rect_border_color`, `theme`, `look`, `layout` and
 `useMaxWidth` name colours the theme decides here, a renderer, a drawing style and a layout engine.
+
+**Sequence-diagram sub-features** ([`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs),
+[`SequenceDiagram`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs),
+[`SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs)).
+Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
+Supported: participants written where they are used or declared `participant A` / `actor A` to fix the order they stand
+in, with a label `as Alice` or an `"alias"` in the `@{ … }` metadata against the name (the label wins), and the whole
+stereotype set that metadata's `"type"` names — `actor`, `boundary`, `control`, `entity`, `database`, `collections`,
+`queue`; `create participant B` and `destroy B`, which start a lifeline partway down and end one with a cross; every
+message Mermaid draws — `->` `-->` `->>` `-->>` `-x` `--x` `-)` `--)`, `<<->>` and `<<-->>` both ways at once, and the
+half heads `-|\` `-|/` `/|-` `\|-` and the sticks `-\\` `-//` `//-` `\\-`, each drawing its head at the end its
+characters put it — with `()` running an end to the middle of a lifeline, `+`/`-` turning a bar on and off, and a
+message to a participant itself drawn as a loop off its own lifeline; `activate`/`deactivate`, nested as deep as they
+are written; `Note left of`, `Note right of` and `Note over A,B`; the frames `alt`/`else`, `opt`, `loop`, `par`/`and`,
+`critical`/`option`, `break` and `rect`, nested as deep as they are written; `box … end` grouping a run of participants
+behind a tint; `autonumber`, `autonumber off` and `autonumber 10 10` (hundredths and all); `link A: Label @ url`,
+`links`, `properties` and `details`; `title`, `accTitle`/`accDescr`, comments, entity codes and `<br>`; and a title from
+the front matter. **The drawing nests where the source does not**: the lines of the block are a list, and the picture is
+a frame holding the messages written inside it, holding the frames written inside those — so a frame stands for the
+whole of what was written from the word that opened it through its `end`, and a press on the room round a message means
+the `alt` it is under. **A participant may lead somewhere**: a `link` line draws its label under the lifeline and a
+press on it follows the url ([`LayoutLink`](../src/Nexaflow.Visuals.Text/Editing/LayoutLink.cs)). **The front matter is
+applied** ([`SequenceConfig`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs)): `config: sequence:`
+`activationWidth`, `diagramMarginX`, `diagramMarginY`, `actorMargin`, `width`, `height`, `boxMargin`, `boxTextMargin`,
+`noteMargin`, `messageMargin`, `messageAlign`, `noteAlign`, `mirrorActors`, `bottomMarginAdj`, `rightAngles`,
+`showSequenceNumbers`, `hideUnusedParticipants`, `actorFontSize`, `noteFontSize`, `messageFontSize`, `wrap`,
+`wrapPadding`, `labelBoxWidth` and `labelBoxHeight` — every key Mermaid documents, on Mermaid's own defaults.
+**Divergences from Mermaid:** a name ends at what a line is written with — a colon, a comma, a semicolon, an angle
+bracket, a plus, the `@` opening its metadata — or at the characters of an arrow, so `Order-Service` is a name and
+`Order->>Service` is a message, and typing into a name drops what would end one, a name here having no quotes to hold
+it; a `#` and its digits is read as a box's colour, which Mermaid cannot read because a `#` opens a comment there, and a
+bare word is a colour only where CSS names one; a menu of several links is set out under the participant rather than
+popped, a layout tree popping none, so `forceMenus` changes nothing and `properties` and `details` are read and kept
+with nothing drawn for them; a name and a label are drawn as the characters written, where Mermaid renders markdown in
+them; and `useMaxWidth`, `arrowMarkerAbsolute`, `theme`, `look` and the font families and weights name a renderer, a
+drawing style and fonts a page has.
 
 **Git-graph sub-features** ([`GitGrammar`](../src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs) →
 [`GitGraph`](../src/Nexaflow.Markdown/Mermaid/Git/GitGraph.cs) →
@@ -550,11 +587,13 @@ reads three and stops; and `%%` comments are skipped here, which Mermaid's sanke
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: entities — bare `NAME`, quoted `"name with space"`, named in any alphabet, or aliased `id[Alias]` /
 `id["Multi word"]` — each with an optional `{ … }` block of attributes, read as what it holds, what it is called, the keys it
-is (`PK`, `FK`, `UK`, comma-separated) and what it says it is for in quotes, with array and parameterised types
+is (`PK`, `FK`, `UK`, comma-separated, and a name written `*id` saying `PK` without writing it) and what it says it is for in
+quotes, with array and parameterised types
 (`string[]`, `string(99)`, `string?`); the whole relationship set in **both** the symbol form (`||--o{`, `}o..o{`, either
 spelling at either end, even with no space round it) and the **word-alias** form (`one to zero or more`,
 `many(0) optionally to 0+`), `--`/`to` identifying against `..`/`-.`/`.-`/`optionally to` not, with `: what it is called`;
-`subgraph … end` boxes, nested as deep as they are written and labelled `subgraph id ["The title"]`; `direction`;
+`subgraph … end` boxes, nested as deep as they are written, labelled `subgraph id ["The title"]` and joined by a relationship
+naming one by its id, written above the subgraph or below it; `direction`;
 `classDef`, `class A,B blue,bold`, `:::` (several classes at once) and `style`; `accTitle`/`accDescr`; comments; and a title
 from the front matter. **An entity is its name over its attributes**, a rule the width of the box between them, and the
 attributes are **set in columns** so they read down as well as across, which is how Mermaid sets them. **A subgraph holds its
@@ -567,10 +606,8 @@ documents, where the legacy renderer read the spacing ones and drew its own metr
 name ends at the punctuation a relationship is drawn with, so one holding anything else is written in quotes, and a rename
 drops what a bare name cannot hold, since a `style` line names one bare; what a relationship is called is read to the end of
 its line, where Mermaid reads one word unless it is quoted; a name and a comment are drawn as the characters written, where
-Mermaid renders markdown in them; an attribute name written `*id` is drawn as written, where Mermaid reads the star as
-another way of saying `PK`; a relationship names an entity, so naming a subgraph writes an entity called that rather than
-joining the box; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a renderer, a
-drawing style and a layout engine.
+Mermaid renders markdown in them; a `#` comment is not read, only `%%`; and `useMaxWidth`, `theme`, `look` and `layout` name a
+renderer, a drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
 its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs) and [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) →
@@ -760,15 +797,21 @@ diagram and neither does this, so a title is the front matter's; a block whose s
 drawn to the end of that row rather than outside the grid; a label written with no id before it reads as a block still being
 written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block being drawn at the size its blocks come to.
 
-**C4 sub-features** ([`MermaidC4Parser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/MermaidC4Parser.cs)
-+ [`C4GraphProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4GraphProjector.cs)
-+ [`C4ElementPainter`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/C4ElementPainter.cs)).
-A C4 diagram is a node-and-edge graph with richer boxes, so it is **projected onto the shared graph pipeline** — the same
-Sugiyama layout, `WpfGraphRenderer`, viewport, panning, selection and expandable nodes as a flowchart — rather than
-getting a layout engine of its own. Elements become `NodeShape.C4Element` nodes carrying a
-[`C4ElementInfo`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/C4Element.cs) card (bold title, a `[Kind: technology]`
-stereotype, a wrapped description), boundaries and deployment nodes become nested styled subgraph boxes with a `[type]`
-line under their title, and relationships become edges whose second label line is the `[technology]`.
+**C4 sub-features** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
+[`C4Structure`](../src/Nexaflow.Markdown/Mermaid/C4/C4Structure.cs),
+[`C4Builder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs)).
+A C4 diagram **is** a graph with richer boxes, so it is drawn on the **shared layout tree** with the same layered layout
+([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs)) a class diagram and a flowchart use,
+rather than getting a layout engine of its own. Every element is a card — its label, the `[Kind: technology]` stereotype
+worked out from what it is, and the sentence under that — drawn as a person, a cylinder, a queue or a box
+([`DiagramCard`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramCard.cs)); boundaries and deployment nodes are
+boxes holding boxes, nested as deep as they are written, each with a `[type]` line under its name; and a relationship is
+a line carrying what it is done with and what it is for under what it says.
+
+**The drawing nests where the source does not.** A boundary's piece *holds* the cards inside it and the relationships
+that only exist inside it, so a press on one means the thing pressed and a boundary is sized from everything it holds.
+A relationship that crosses out of a boundary belongs to whatever holds both its ends, and what is written on it is set
+clear of the band each boundary keeps for its own name.
 
 **The body is C4-PlantUML's macro set, not Mermaid's subset** — Mermaid supports a fraction of what people write, the two
 agree wherever Mermaid has an opinion, so accepting the larger language rejects far less. Supported: the headers
@@ -778,35 +821,52 @@ and `Deployment_Node`/`Node`/`Node_L`/`Node_R`, nested by braces or closed with 
 `_U`/`_D`/`_L`/`_R`/`_Neighbor`/`_Back`/`BiRel` variants and `RelIndex`; `$techn`, `$descr`, `$tags`, `$link` and
 `$index=Index()`/`LastIndex()`/`SetIndex()`/`increment()`; `UpdateElementStyle` (by element *type* as C4-PlantUML writes
 it **or** by *alias* as Mermaid does), `AddElementTag`/`AddBoundaryTag`/`AddRelTag` with `UpdateRelStyle` and
-`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its edge in both the structural and the sequence renderers; `SHOW_LEGEND($hideStereotype, $details)` — which, as in C4-PlantUML, **hides the stereotypes by default**, since the legend then carries what they said, and whose `$details` (`None()`/`Small()`/`Normal()`) sizes the legend rows; `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`/`LAYOUT_LANDSCAPE`, the
+`UpdateBoundaryStyle` — a relationship's `$lineColor`/`$textColor`/`$lineStyle` colour its line in both the structural
+diagram and the sequence; `SHOW_LEGEND($hideStereotype, $details)` — which, as in C4-PlantUML, **hides the stereotypes by
+default**, since the key then carries what they said; `HIDE_STEREOTYPE`, `LAYOUT_TOP_DOWN`/`LAYOUT_LEFT_RIGHT`, the
 `SHOW_PERSON_OUTLINE`/`SHOW_PERSON_PORTRAIT` shape variants; `<br/>` and HTML entities in labels; and both `%%` and
 PlantUML `'` comments. **Colours map C4's scheme onto the theme** rather than copying its hex — what carries the meaning
 is the grading (depth tracks abstraction level, grey means external), so it is reproduced from the active accent and a
-theme can retune it (see [theming.md](theming.md) → *Diagram tokens*). **The front-matter `config:` block is applied**
-([`C4ConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4ConfigParser.cs) →
-[`C4Config`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/C4Diagram.cs)): `config: c4` `wrap`, `width`, `height`,
-with `c4ShapeInRow`/`c4BoundaryInRow` recorded but not obeyed. **Limitations:** `Lay_*`, the `_U`/`_D`/`_L`/`_R`
-direction suffixes, `$sprite` and `UpdateRelStyle`'s pixel offsets are parsed and ignored — they exist to nudge
-graphviz, and placement here belongs to the shared layout; `SvgGraphRenderer` draws a C4 element as a plain rectangle
-(it has no geometry for the person and cylinder outlines) though it does write all three of the card's text rows.
+theme can retune it ([`C4Grading`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Grading.cs) over the kit's
+[`DiagramTone`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTone.cs); see [theming.md](theming.md) →
+*Diagram tokens*). **The front-matter `config: c4:` block is applied**
+([`C4Config`](../src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs)): `wrap`, `width`, `height`, `c4ShapeMargin`,
+`c4ShapePadding`, `boxMargin`, `diagramMarginX` and `diagramMarginY`, on Mermaid's own defaults.
 
-**C4 sequence** ([`C4SequenceProjector`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/C4SequenceProjector.cs)).
+**Divergences:** `Lay_*`, the `_U`/`_D`/`_L`/`_R` direction suffixes, `$sprite`, `c4ShapeInRow`/`c4BoundaryInRow` and
+`UpdateRelStyle`'s pixel offsets are read and change nothing — they nudge a grid pack and a graphviz placement, and what
+stands beside what here is worked out from what is joined to what. `SHOW_PERSON_OUTLINE` and `SHOW_PERSON_PORTRAIT` are
+read and a person is one card either way. An element's own name is never drawn — its label is — so it is renamed in the
+source rather than in the drawing, where every macro naming it is in view.
+
+**C4 sequence** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
+[`C4Sequence`](../src/Nexaflow.Markdown/Mermaid/C4/C4Sequence.cs),
+[`C4SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs)).
 `C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword
-for. It is drawn by the *same* [`WpfSequenceDiagramRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfSequenceDiagramRenderer.cs)
-as a native `sequenceDiagram`: element macros become participant lifelines whose heads are C4 element cards instead of
+for. Drawn on the **shared layout tree**, and read into the very same [`SequenceDiagram`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs)
+a `sequenceDiagram` is read into, so it is **drawn by the sequence diagram's own builder** — only the words a reader
+wrote to say it differ. Element macros become participant lifelines whose boxes are C4 element cards instead of
 plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping over the participants it spans, and each
-`Rel` becomes a message carrying its `[technology]` under the label. `SHOW_INDEX()` numbers the messages (an explicit
+`Rel` becomes a message carrying its technology under the label. `SHOW_INDEX()` numbers the messages (an explicit
 `$index`/`RelIndex` wins and the count continues from it), `SHOW_FOOT_BOXES(false)` drops the repeated heads at the
 bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into its card — hidden by default, because a
 lifeline head is a column header and a paragraph in every column only pushes the columns apart.
 
-`SHOW_LEGEND()` works here too, drawn below the timeline by the same painter and built from the same rows as a
-structural diagram's.
+`SHOW_LEGEND()` works here too, drawn below the timeline and built from the same rows as a structural diagram's — both
+read by [`C4Said`](../src/Nexaflow.Markdown/Mermaid/C4/C4Said.cs), which is the pass that settles what a whole block is
+switched to show and what everything in it is styled with.
 
-**Native sequence syntax works inside it.** Any line the C4 reader does not claim is replayed through
-`MermaidSequenceParser.ParseLine`, so `alt`/`else`/`end`, `loop`, `par`, `critical`, `note over`, `activate` and even a
-plain `participant` sit alongside C4 macros in one diagram and nest around them correctly — it is the native grammar
-itself, not a second copy of it.
+**Native sequence syntax works inside it.** Any line the C4 grammar does not claim is read by
+[`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) itself, and any line
+`C4Sequence` does not claim is read by the sequence diagram's own model — so `alt`/`else`/`end`, `loop`, `par`,
+`critical`, `note over`, `activate` and even a plain `participant` sit alongside C4 macros in one diagram and nest
+around them correctly. It is the native grammar, not a second copy of it. **Divergences from C4-PlantUML:** an element's
+own name is never drawn — its label is — so a rename is made in the source rather than in the drawing, while a
+participant written as a sequence diagram's own is renamed where it is drawn and carries to the macros naming it;
+`SHOW_LEGEND`'s `$details` is read and every row says the same, there being one row of words to say; a boundary's
+`$type` is read and its label alone is drawn; `SHOW_PERSON_OUTLINE` and `SHOW_PERSON_PORTRAIT` are read and a person is
+one card either way, a lifeline's head being a column heading; and `Lay_*`, `$sprite` and `UpdateLayoutConfig` tune a
+graph placement this does not use.
 
 ### Expandable nodes + the viewport (graph-family diagrams)
 
@@ -1746,8 +1806,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
-| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for sequence; state, class and requirement drawn on the shared layout tree; sankey (CSV routing, front-matter config + node colours); ER drawn on the shared layout tree; architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
-| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: sequence (extensive), flowchart, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
+| [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for state, class, requirement and sequence drawn on the shared layout tree; sankey (CSV routing, front-matter config + node colours); ER drawn on the shared layout tree; architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
+| [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: the legacy sequence reader a C4 sequence still uses (extensive), flowchart, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
 | [`Unit/Markdown/MarkdownBlocksTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/MarkdownBlocksTests.cs) | **Editor** block model (split/join/compact) — *not* renderer coverage. |
 | [`Unit/Markdown/HtmlToMarkdownTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/HtmlToMarkdownTests.cs) | **HTML→markdown paste** conversion — *not* renderer coverage. |

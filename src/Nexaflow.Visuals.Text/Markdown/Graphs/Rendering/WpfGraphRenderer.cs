@@ -86,19 +86,12 @@ public static class WpfGraphRenderer
         ChipGlyph   = p.Text;
         SelectBrush = p.Warning;
 
-        C4      = C4Palette.Resolve(p);
         Palette = p;
     }
-
-    /// <summary>Element-card colours, used only by <see cref="NodeShape.C4Element"/> nodes.</summary>
-    private static C4Palette C4 = C4Palette.Resolve(MarkdownPalette.Dark);
 
     /// <summary>The palette this render was themed from — the legend needs more of it than the
     /// individual brushes above expose.</summary>
     private static MarkdownPalette Palette = MarkdownPalette.Dark;
-
-    /// <summary>Verbosity of the legend rows, carried on the graph by a C4 SHOW_LEGEND($details).</summary>
-    private static C4LegendDetails LegendDetails = C4LegendDetails.Small;
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -180,19 +173,7 @@ public static class WpfGraphRenderer
             canvas.Children.Add(tb);
         }
 
-        // Legend, below everything the layout produced. It grows the canvas rather than reserving
-        // space up front, so a diagram without one is laid out exactly as before.
-        if (lg.Source.Legend is { Count: > 0 } legend)
-        {
-            LegendDetails = lg.Source.LegendDetails;
-            var block = C4LegendPainter.Build(legend, C4, Palette, LegendDetails);
-            block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(block, SugiyamaLayout.MarginX);
-            Canvas.SetTop(block, lg.Height + 4);
-            canvas.Children.Add(block);
-            canvas.Height = lg.Height + 4 + block.DesiredSize.Height + 8;
-            canvas.Width  = Math.Max(canvas.Width, SugiyamaLayout.MarginX * 2 + block.DesiredSize.Width);
-        }
+
 
         return canvas;
     }
@@ -223,7 +204,7 @@ public static class WpfGraphRenderer
             NodeShape.ForkJoin         => DrawForkJoin(ln),
             NodeShape.Note             => DrawNote(ln),
             NodeShape.ClassBox         => DrawClassBox(ln, options),
-            NodeShape.C4Element        => DrawC4Element(ln),
+
             _                          => DrawRectShape(ln),
         };
 
@@ -231,7 +212,7 @@ public static class WpfGraphRenderer
         canvas.Children.Add(shape);
 
         // A class box draws its own multi-compartment text; everything else gets the centred label.
-        if (ln.Source is { Shape: not (NodeShape.ClassBox or NodeShape.C4Element) } && ln.Source.Label.Length > 0)
+        if (ln.Source is { Shape: not NodeShape.ClassBox } && ln.Source.Label.Length > 0)
         {
             string label = ln.Source.Label;
             bool   isNote = ln.Source.Shape == NodeShape.Note;
@@ -723,16 +704,6 @@ public static class WpfGraphRenderer
     }
 
     // ── Class-diagram box ─────────────────────────────────────────────────
-
-    /// <summary>A C4 element card, painted into the footprint <see cref="C4ElementMetrics"/> reserved
-    /// for it. The painter puts the outline first, which is what lets <see cref="Highlight"/> select it.</summary>
-    private static UIElement DrawC4Element(LayoutNode ln)
-    {
-        var cell = C4ElementPainter.Build(ln.Source!.Label, ln.Source.C4!, ln.Width, ln.Height, C4);
-        Canvas.SetLeft(cell, ln.X - ln.Width  / 2.0);
-        Canvas.SetTop(cell,  ln.Y - ln.Height / 2.0);
-        return cell;
-    }
 
     private static UIElement DrawClassBox(LayoutNode ln, GraphRenderOptions options)
     {
