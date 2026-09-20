@@ -329,12 +329,22 @@ internal abstract class MermaidBuilder : ContentBuilder
             ink,
             PixelsPerDip);
 
-    /// <summary>What somebody wrote, as the diagram sets it: <paramref name="part"/>'s words (shown via
-    /// <see cref="Shown"/>), or <paramref name="hole"/> where nothing is written yet. See <see cref="DiagramWords"/>.</summary>
+    /// <summary>
+    /// A part's words, as they read rather than as they were written — entity codes decoded, bindings read.
+    ///
+    /// <para>
+    /// Where the part is a whole block of another language, that content is laid out and handed back in their place:
+    /// a builder measures and sets what it is given, so every diagram draws a tune on a node without knowing a tune
+    /// from a molecule.
+    /// </para>
+    /// </summary>
     protected DiagramWords Written(ContentPart? part, ContentPart? hole, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null)
     {
         var letter = Text("x", size, ink);
         if (hole is not null || part is null) return new DiagramWords(letter, part, hole, letter, ink, maps: false, writes: false);
+
+        if (Inset(part, Space) is { } inset)
+            return new DiagramWords(letter, part, null, letter, ink, maps: false, writes: false, inset);
 
         var says = Shown(part);
         return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Text, writes: true);
@@ -347,6 +357,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     {
         var whole = Written(part, hole, size, ink, weight, slant);
         if (part is null || hole is not null) return [whole];
+
+        // Another content is one thing, however wide it turned out: breaking it would be breaking a tune in half.
+        if (whole.Nested) return [whole];
 
         var says = Shown(part);
         var maps = says == part.Text;

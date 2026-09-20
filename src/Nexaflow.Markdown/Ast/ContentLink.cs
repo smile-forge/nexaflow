@@ -34,6 +34,10 @@ public readonly record struct ContentLink(ContentPart Part, string Language, str
     {
         if (part is not { Length: > 0 } written) return null;
 
+        // Only where the grammar said so. A language that has not declared that it holds other content never gets
+        // it by accident, however its own words happen to begin — which is the whole reason the tree says it.
+        if (written.Kind != Kinds.Nested && written.Parent?.Kind != Kinds.Nested) return null;
+
         // What it prints as, not what its own node says: the node holding a block is a branch, and the characters
         // are in the leaf under it.
         var text = written.Print();

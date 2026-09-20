@@ -1013,6 +1013,17 @@ label drawn as the words it is.
 Every builder knows where it sits (`ContentBuilder.At`), which is the whole of what embedding costs a language:
 nought for a block of its own, and the offset of the slice for one written inside another's.
 
+**Only where the grammar said so.** A run of words is another content because its language declared that it may be
+one, never because of how its characters happen to begin — so a `state` description, which nothing has declared,
+draws a fence as the characters it is. Every Mermaid label has declared it, quoted or not, and every diagram draws
+one without knowing anything about it: a label is `DiagramWords`, and a `DiagramWords` may be a whole layout instead
+of a row of glyphs. A wide one is never broken into lines, because breaking a tune in half is not a smaller tune.
+
+**Taking it up in another language** is two things: its grammar emits a `Kinds.Nested` node where it allows a block,
+and its layout reserves room for a box where it reserves room for a line of text. The first is a line; the second is
+free for anything already drawing through `DiagramWords` and real work for anything not — a score reserves its lyric
+and annotation rows from text metrics, so a molecule sung under a note needs the engraver to measure it.
+
 **One line, for now.** A label is one row of source, so a block written across several lines is not read as one yet —
 that needs a `MermaidStretch` on each graph-family grammar, the mechanism that already reads `note … end note`.
 

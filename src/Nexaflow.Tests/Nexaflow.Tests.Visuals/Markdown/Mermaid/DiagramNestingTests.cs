@@ -137,4 +137,48 @@ public class DiagramNestingTests
         Assert.AreEqual(Src.IndexOf(Inner, System.StringComparison.Ordinal), link.Value.At,
                         "and it says where that source begins in the document holding it");
     });
+
+    [TestMethod]
+    public void EveryDiagramThatDrawsALabelDrawsOneThatIsAnotherContent() => UiThread.Run(() =>
+    {
+        // Nothing here was taught about nesting: every diagram's words go through one place, so a label that is a
+        // block of something else is drawn as that block wherever labels are drawn.
+        foreach (var (what, source) in new[]
+                 {
+                     ("flowchart, unquoted", "graph TD\n  a[```latex " + Inner + "] --> b[Next]\n"),
+                     ("class", "classDiagram\n  class A[\"```latex " + Inner + "\"]\n  A --> B\n"),
+                     ("pie", "pie\n  \"```latex " + Inner + "\" : 3\n  \"Rest\" : 1\n"),
+                 })
+        {
+            var element = Drawn(source);
+
+            Assert.AreEqual(1, Pieces(element, MermaidPiece.Nested).Count, what);
+            Assert.IsFalse(Words(element).Any(said => said.Contains("```", StringComparison.Ordinal)),
+                           $"{what}: the fence is what the label is, not something drawn on it");
+        }
+    });
+
+    [TestMethod]
+    public void WordsAreOnlyAnotherContentWhereTheGrammarSaidSo() => UiThread.Run(() =>
+    {
+        // A state description is free text that no grammar has declared may hold another content, so a fence in it is
+        // the characters it is. Nothing gets nesting by how its words happen to begin.
+        var element = Drawn("stateDiagram-v2\n  s1 : ```latex " + Inner + "\n  s1 --> s2\n");
+
+        Assert.AreEqual(0, Pieces(element, MermaidPiece.Nested).Count);
+        Assert.IsTrue(Words(element).Any(said => said.Contains("```latex", StringComparison.Ordinal)));
+    });
+
+    [TestMethod]
+    public void AWideBlockIsOneThingRatherThanBrokenIntoLines() => UiThread.Run(() =>
+    {
+        // A label wider than the wrapping width is broken into lines. A block of another language is not words, so
+        // there is nothing in it to break — breaking a tune in half is not a smaller tune.
+        const string wide = "a^2 + b^2 + c^2 + d^2 + e^2 + f^2 + g^2 + h^2 + i^2 + j^2 + k^2 + l^2";
+        var element = Drawn("graph TD\n  a[\"```latex " + wide + "\"] --> b[\"Next\"]\n");
+
+        Assert.AreEqual(1, Pieces(element, MermaidPiece.Nested).Count);
+        Assert.IsFalse(Words(element).Any(said => said.Contains("a^2", StringComparison.Ordinal)),
+                       "it was drawn as the formula it is, not re-broken into rows of its own characters");
+    });
 }

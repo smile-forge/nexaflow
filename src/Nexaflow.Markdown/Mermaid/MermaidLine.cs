@@ -381,8 +381,12 @@ public sealed class MermaidLine
             var lead = inner.Length - inner.TrimStart().Length;
 
             if (lead > 0) Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia));
-            Add(ContentNode.Leaf(MermaidKinds.Words, words, role,
-                                 words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null));
+
+            var said = ContentNode.Leaf(MermaidKinds.Words, words, role,
+                                        words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null);
+
+            // Words that open with a fence are a whole other content — see Quotes, which says the same of a quoted label.
+            Add(ContentLink.Opens(words) ? ContentNode.Branch(Kinds.Nested, [said], role) : said);
             if (inner.Length > lead + words.Length) Add(ContentNode.Leaf(Kinds.Space, inner[(lead + words.Length)..], Roles.Trivia));
         }
 
