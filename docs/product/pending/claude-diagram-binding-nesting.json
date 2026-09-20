@@ -54,13 +54,13 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramInset.cs",
-          "class": "DiagramInset"
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentInset.cs",
+          "class": "ContentInset"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
-          "class": "GraftedPart"
+          "doc": "src/Nexaflow.Markdown/Ast/ContentLink.cs",
+          "class": "ContentLink"
         }
       ],
       "concerns": {
@@ -78,7 +78,7 @@
             "title_path": [
               "Markdown Support",
               "Diagrams \u2014 sub-support",
-              "Nested content \u2014 a fenced block inside a label"
+              "Nested content \u2014 one content inside another"
             ]
           }
         ]

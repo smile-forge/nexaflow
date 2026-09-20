@@ -48,8 +48,8 @@ public sealed class MermaidBlock
     /// <summary>Reads <paramref name="source"/>.</summary>
     public static MermaidBlock Read(string? source) => Of(MermaidParser.Parse(source));
 
-    /// <summary>Reads a tree <see cref="MermaidParser"/> made.</summary>
-    public static MermaidBlock Of(ContentNode tree) => new(ContentReading.Of(tree));
+    /// <summary>The block a tree reads as, positioned <paramref name="at"/> in the document that holds it.</summary>
+    public static MermaidBlock Of(ContentNode tree, int at = 0) => new(ContentReading.Of(tree, at));
 
     /// <summary>The tree, with where each part sits.</summary>
     public ContentReading Reading { get; }

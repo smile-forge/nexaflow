@@ -589,7 +589,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// A node whose label is a block of another language: the shape, and that language's own layout set down in the
     /// middle of the room inside it. Grafted rather than painted, so what it drew is still selectable as itself.
     /// </summary>
-    private void Nested(LayoutBuilder build, FlowchartNode node, Sized sized, DiagramInset inset, Rect bounds,
+    private void Nested(LayoutBuilder build, FlowchartNode node, Sized sized, ContentInset inset, Rect bounds,
                         IReadOnlyList<Geometry> over)
     {
         var inside = DiagramShapes.Inside(sized.Shape, bounds);
@@ -670,7 +670,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
         /// <summary>Another language drawn on it instead of words — a tune, a formula — where its label is one.</summary>
-        public DiagramInset? Inset { get; init; }
+        public ContentInset? Inset { get; init; }
 
         public DiagramShape Shape { get; } = shape;
 

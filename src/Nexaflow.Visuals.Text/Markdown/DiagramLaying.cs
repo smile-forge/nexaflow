@@ -31,4 +31,10 @@ internal sealed record DiagramLaying(
     /// binding is drawn as the characters it was written with.
     /// </summary>
     public Nexaflow.Markdown.Binding.IDataContext? Data { get; init; }
+
+    /// <summary>
+    /// Where the block's first character stands in the document that holds it. Nought for a block of its own, and
+    /// the offset of the slice for one written inside another content.
+    /// </summary>
+    public int At { get; init; }
 }

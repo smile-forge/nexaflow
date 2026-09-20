@@ -14,10 +14,11 @@ public sealed class ContentReading
 
     /// <summary>
     /// A reading of a tree that has already been read and worked over — what the stages of an
-    /// <see cref="Pipeline.AstPipeline"/> hand back. The source it reports is the source the tree prints
-    /// as, which is the same source it came from, because that is the one rule every stage keeps.
+    /// <see cref="Pipeline.AstPipeline"/> hand back. The source it reports is the source the tree prints as, which is
+    /// the same source it came from, because that is the one rule every stage keeps.
     /// </summary>
-    public static ContentReading Of(ContentNode tree) => new(tree.Print(), ContentPart.Of(tree));
+    /// <param name="at">Where this content's first character stands in the source that holds it — see <see cref="ContentPart.Of"/>.</param>
+    public static ContentReading Of(ContentNode tree, int at = 0) => new(tree.Print(), ContentPart.Of(tree, at));
 
     /// <summary>The source this was read from.</summary>
     public string Source { get; }

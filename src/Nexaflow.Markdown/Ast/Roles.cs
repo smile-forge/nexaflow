@@ -114,6 +114,18 @@ public static class Kinds
     public const string Verbatim = "verbatim";
 
     /// <summary>
+    /// A whole other content written inside this one — a tune in a flowchart node, a molecule in a song's lyrics, a
+    /// barcode in a formula.
+    ///
+    /// <para>
+    /// One node, holding the characters as they were written and nothing read out of them. What is inside is a
+    /// different language with a different grammar, so it is read by <em>its own</em> parser into a tree of its own,
+    /// positioned where it was written (<see cref="ContentLink"/>) — a tree that mixed the two would be neither.
+    /// </para>
+    /// </summary>
+    public const string Nested = "nested";
+
+    /// <summary>
     /// Somewhere something still has to go: an argument or a cell written empty, on a surface that is
     /// being written on.
     /// <para>

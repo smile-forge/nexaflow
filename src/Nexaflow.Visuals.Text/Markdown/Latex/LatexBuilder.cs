@@ -27,8 +27,8 @@ public sealed partial class LatexBuilder : ContentBuilder
     private readonly double _block;
 
     private LatexBuilder(string latex, double scale, bool inline, string systemFont,
-                         RawZone? shownAsWritten, bool placeholders, double pixelsPerDip, double block)
-        : base(latex)
+                         RawZone? shownAsWritten, bool placeholders, double pixelsPerDip, double block, int at = 0)
+        : base(latex, at)
     {
         _scale = scale;
         _inline = inline;
@@ -52,8 +52,8 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
     public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
                              RawZone? shownAsWritten = null, bool placeholders = false,
-                             double pixelsPerDip = 1.0, double block = 0) =>
-        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip, block).Lay();
+                             double pixelsPerDip = 1.0, double block = 0, int at = 0) =>
+        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip, block, at).Lay();
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>
@@ -74,7 +74,7 @@ public sealed partial class LatexBuilder : ContentBuilder
         // Draws() is asked of the builder rather than the tables: the tables describe what the engine's own
         // parser could read, a different question — asking them instead once showed `\ ` in red as unreadable.
         var read = TexPipeline.Read(Source, Draws, editing, _placeholders);
-        var reading = ContentReading.Of(read);
+        var reading = ContentReading.Of(read, At);
 
         var environment = WpfTeXEnvironment.Create(
             style: _inline ? TexStyle.Text : TexStyle.Display,

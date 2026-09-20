@@ -25,19 +25,19 @@ internal sealed class AbcBuilder : MusicBuilder
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
     public AbcBuilder(string abc, double width, Brush ink, double pixelsPerDip,
                       (int Start, int Length)? shownAsWritten = null,
-                      ScoreSpacing? spacing = null)
-        : base(abc, width, ink, pixelsPerDip, spacing) =>
+                      ScoreSpacing? spacing = null, int at = 0)
+        : base(abc, width, ink, pixelsPerDip, spacing, at) =>
         _shownAsWritten = shownAsWritten;
 
     /// <summary>Reads and engraves a tune in one call — most callers want nothing else from a laid-out builder.</summary>
     public static Laid Build(string abc, double width, Brush ink, double pixelsPerDip,
-                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null) =>
-        new AbcBuilder(abc, width, ink, pixelsPerDip, shownAsWritten, spacing).Lay();
+                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0) =>
+        new AbcBuilder(abc, width, ink, pixelsPerDip, shownAsWritten, spacing, at).Lay();
 
     protected override Tune ReadTune()
     {
         // What can't be drawn and what's being typed are both settled before this, returned as parts that say so.
-        var reading = ContentReading.Of(AbcPipeline.Read(Source, Draws, _shownAsWritten));
+        var reading = ContentReading.Of(AbcPipeline.Read(Source, Draws, _shownAsWritten), At);
         return new Tune(Rows(reading), AbcHeader.Of(reading), reading);
     }
 

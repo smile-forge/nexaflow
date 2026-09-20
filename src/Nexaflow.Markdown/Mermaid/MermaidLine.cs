@@ -552,11 +552,22 @@ public sealed class MermaidLine
 
     // ── Characters ──────────────────────────────────────────────────────────
 
-    /// <summary>The quote next, what follows it up to <paramref name="close"/>, and the quote there.</summary>
+    /// <summary>
+    /// What is written between quotes, and the quotes round it.
+    ///
+    /// <para>
+    /// Words that open with a fence are a whole other content — <c>["```abc CDEF"]</c> is a tune — so they are held
+    /// under a node saying so. The words themselves are still there, said and rolled exactly as any others, because
+    /// what a label <em>is</em> has not changed: only that something else can read it.
+    /// </para>
+    /// </summary>
     private void Quotes(int close, string role)
     {
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Open));
-        Add(ContentNode.Leaf(MermaidKinds.Words, Written[At..close], role));
+
+        var said = ContentNode.Leaf(MermaidKinds.Words, Written[At..close], role);
+        Add(ContentLink.Opens(said.Text) ? ContentNode.Branch(Kinds.Nested, [said], role) : said);
+
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
     }
 

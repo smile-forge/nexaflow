@@ -984,23 +984,34 @@ text it is, so a document nobody has bound to still reads.
 Nothing watches the object: a host that has changed what it holds calls `SelectableMarkdownView.RefreshDiagrams()`
 (or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.
 
-### Nested content — a fenced block inside a label
+### Nested content — one content inside another
 
-A label whose text opens with a fence is drawn as a block of that language rather than as the words it is:
+Any content can hold a whole block of another, written with a fence. A flowchart node holding a formula is the
+obvious one, and it is not a Mermaid feature: a song's lyrics could hold a molecule, a formula could hold a barcode.
 
 ```
 graph TD
   a["```latex x^2 + y^2"] --> b["Next"]
 ```
 
-The inner source is laid out by [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
-`abc`, `lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself — and **grafted** into the tree being built
-([`DiagramInset`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramInset.cs)), never painted: every piece of the
-formula is still a piece of the outer tree, and selecting inside it selects the formula's own characters in the
-document that holds it. A language nothing here draws leaves the label drawn as the words it is.
+**Two trees, never one.** The outer parser reads only *here is a block of that* and puts one node in its own tree
+([`Kinds.Nested`](../src/Nexaflow.Markdown/Ast/Roles.cs)), holding the characters exactly as written. The inner
+content is read by **its own** parser, through its own pipeline, into a tree of its own — a tree that mixed two
+grammars would be neither — and that tree is told where it was written
+([`ContentLink`](../src/Nexaflow.Markdown/Ast/ContentLink.cs) → `ContentPart.Of(tree, at)`), so every part of it
+names the characters a reader is actually selecting in the document holding both.
 
-A nested layout is built from a slice, so its parts count from the start of that slice; each is re-based as it is
-copied (`LayoutBuilder.Graft(…, shift)`), which is what `ISourcePart` means by wrapping a part in an adapter.
+That is what makes it editable rather than a picture: selection and editing go from a layout piece to its part to
+the AST node behind it, and for the formula's pieces that is the *formula's* node, at the right offset.
+
+The builder then asks for that content's **layout tree** — `abc`, `lilypond`, `latex`, `smiles`, `qr` and `mermaid`
+itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
+around it, and grafts the two into one combined layout tree
+([`ContentInset`](../src/Nexaflow.Visuals.Text/Markdown/ContentInset.cs)). A language nothing here draws leaves the
+label drawn as the words it is.
+
+Every builder knows where it sits (`ContentBuilder.At`), which is the whole of what embedding costs a language:
+nought for a block of its own, and the offset of the slice for one written inside another's.
 
 **One line, for now.** A label is one row of source, so a block written across several lines is not read as one yet —
 that needs a `MermaidStretch` on each graph-family grammar, the mechanism that already reads `note … end note`.

@@ -83,7 +83,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <param name="laying">What the diagram is drawn with, how much room it has, and whether anybody is writing in it.</param>
     protected MermaidBuilder(EditState state, DiagramLaying laying)
-        : base(state.Source)
+        : base(state.Source, laying.At)
     {
     State = state;
     Laying = laying;
@@ -207,7 +207,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     protected sealed override Laid Read()
     {
-        var block = MermaidBlock.Of(Reading(Source));
+        var block = MermaidBlock.Of(Reading(Source), At);
 
         var diagram = new LayoutBuilder();
         var body = Draw(block, diagram);
@@ -418,29 +418,25 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>
-    /// Another language written inside a run of words, laid out to be set down there — or null where the words are
-    /// just words, which is nearly always.
+    /// A whole other content written inside a run of words, laid out to be set down there — or null where the words
+    /// are just words, which is nearly always.
     ///
     /// <para>
     /// A label whose text opens with a fence says what it is a block of: <c>["```abc CDEF"]</c> is a tune on a node.
-    /// It is laid out from the slice after the fence and carries where that slice begins, so every piece of it still
-    /// stands for what it was written as.
+    /// The tune is read by abc's own parser into a tree of its own, told where it was written so every part of it
+    /// names the characters a reader is selecting — nothing of it is parsed into this diagram's tree.
     /// </para>
     /// <para>
     /// What is being written in is words: while the caret is inside a label, the characters are shown rather than what
     /// they draw, exactly as an entity code or a binding is.
     /// </para>
     /// </summary>
-    protected DiagramInset? Inset(ContentPart? part, double room)
+    protected ContentInset? Inset(ContentPart? part, double room)
     {
         if (part is not { Length: > 0 }) return null;
         if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        if (!ContentLanguages.Fenced(part.Text, out var language, out var at)) return null;
-
-        return ContentLanguages.Lay(language, part.Text[at..], Palette, PixelsPerDip, room) is { Exists: true } laid
-            ? new DiagramInset(laid, part.Start + at)
-            : null;
+        return ContentLanguages.Inset(part, Palette, PixelsPerDip, room);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>

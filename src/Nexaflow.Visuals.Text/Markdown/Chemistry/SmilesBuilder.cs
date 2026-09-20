@@ -54,7 +54,7 @@ internal sealed class SmilesBuilder : ContentBuilder
     private readonly double _dpi;
     private readonly double _room;
 
-    private SmilesBuilder(string source, MarkdownPalette palette, double pixelsPerDip, double room) : base(source)
+    private SmilesBuilder(string source, MarkdownPalette palette, double pixelsPerDip, double room, int at) : base(source, at)
     {
         _palette = palette;
         _dpi = pixelsPerDip;
@@ -62,8 +62,9 @@ internal sealed class SmilesBuilder : ContentBuilder
     }
 
     /// <summary>Lays a block's source out to fit <paramref name="room"/>. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity) =>
-        new SmilesBuilder(source, palette, pixelsPerDip, room).Lay();
+    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
+                             int at = 0) =>
+        new SmilesBuilder(source, palette, pixelsPerDip, room, at).Lay();
 
     /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
@@ -83,7 +84,7 @@ internal sealed class SmilesBuilder : ContentBuilder
     protected override Laid? Read()
     {
         var tree = SmilesPipeline.Read(Source);
-        var reading = ContentReading.Of(tree);
+        var reading = ContentReading.Of(tree, At);
 
         var entries = reading.Root.SelfAndDescendants()
             .Where(part => part.Kind == SmilesKinds.Entry || (part.Kind == Kinds.Verbatim && part.Parent?.Kind == SmilesKinds.Line))

@@ -99,4 +99,42 @@ public class DiagramNestingTests
     {
         Assert.AreEqual(Src, ((IEditableBlock)Drawn(Src)).Source);
     });
+
+    [TestMethod]
+    public void ItReachesTheInnerLanguagesOwnTreeAndNotThisOne() => UiThread.Run(() =>
+    {
+        var element = Drawn(Src);
+
+        // What a piece stands for is a part of the formula's own parse tree — read by LaTeX's parser, not by
+        // anything here — positioned where it was written in the document that holds it.
+        var inside = Pieces(element, MermaidPiece.Nested).Single()
+            .SelfAndDescendants()
+            .Select(piece => piece.Part)
+            .OfType<Nexaflow.Markdown.Ast.ISourcePart>()
+            .ToList();
+
+        Assert.IsTrue(inside.Count > 0);
+        Assert.IsTrue(inside.All(part => part is not Nexaflow.Markdown.Ast.ContentPart { Kind: Nexaflow.Markdown.Mermaid.MermaidKinds.Words }),
+                      "none of it is a word of the flowchart — it is the formula's own tree");
+    });
+
+    [TestMethod]
+    public void TheOuterTreeHoldsOneNodeSayingWhatIsInsideIt() => UiThread.Run(() =>
+    {
+        var block = Nexaflow.Markdown.Mermaid.MermaidBlock.Read(Src);
+
+        var links = block.Reading.Root.SelfAndDescendants()
+            .Where(part => part.Kind == Nexaflow.Markdown.Ast.Kinds.Nested)
+            .ToList();
+
+        Assert.AreEqual(1, links.Count, "one node for the block, never a parse of it into this tree");
+        Assert.AreEqual(Src, block.Reading.Root.Print(), "and the outer tree still prints as it was written");
+
+        var link = Nexaflow.Markdown.Ast.ContentLink.Of(links[0]);
+        Assert.IsNotNull(link);
+        Assert.AreEqual("latex", link!.Value.Language);
+        Assert.AreEqual(Inner, link.Value.Source);
+        Assert.AreEqual(Src.IndexOf(Inner, System.StringComparison.Ordinal), link.Value.At,
+                        "and it says where that source begins in the document holding it");
+    });
 }

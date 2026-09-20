@@ -28,18 +28,18 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
 
     /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
     public LilyPondBuilder(string ly, double width, Brush ink, double pixelsPerDip,
-                           (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null)
-        : base(ly, width, ink, pixelsPerDip, spacing) =>
+                           (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0)
+        : base(ly, width, ink, pixelsPerDip, spacing, at) =>
         _shownAsWritten = shownAsWritten;
 
     /// <summary>Reads and engraves LilyPond in one call.</summary>
     public static Laid Build(string ly, double width, Brush ink, double pixelsPerDip,
-                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null) =>
-        new LilyPondBuilder(ly, width, ink, pixelsPerDip, shownAsWritten, spacing).Lay();
+                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0) =>
+        new LilyPondBuilder(ly, width, ink, pixelsPerDip, shownAsWritten, spacing, at).Lay();
 
     protected override Tune ReadTune()
     {
-        var reading = ContentReading.Of(LilyPondPipeline.Read(Source, _shownAsWritten));
+        var reading = ContentReading.Of(LilyPondPipeline.Read(Source, _shownAsWritten), At);
 
         Pieces(reading.Root);
         var rows = Rows();
