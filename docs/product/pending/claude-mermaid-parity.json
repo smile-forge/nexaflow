@@ -266,8 +266,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs",
-          "class": "C4Builder"
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Piece.cs",
+          "class": "C4Piece"
         }
       ],
       "concerns": {
