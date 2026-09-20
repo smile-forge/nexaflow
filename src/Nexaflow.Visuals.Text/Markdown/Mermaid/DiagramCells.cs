@@ -35,6 +35,12 @@ internal sealed class DiagramCell(Size size)
     /// <summary>The lane band it's confined to, numbered from one; 0 for no lane.</summary>
     public int Lane { get; init; }
 
+    /// <summary>
+    /// What it is drawn as, where the layout has to know: a line meeting a shape touches its outline, and the outline of
+    /// a diamond is nowhere near the box round it. A cell that says nothing is met as its box.
+    /// </summary>
+    public DiagramShape Shape { get; init; } = DiagramShape.Rectangle;
+
     /// <summary>Where it ended up — in the space of the box it is in until that box is placed, and absolute after.</summary>
     public Rect Bounds { get; set; }
 }

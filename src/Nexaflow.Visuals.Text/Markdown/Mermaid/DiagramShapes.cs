@@ -244,6 +244,59 @@ internal static class DiagramShapes
     }
 
     /// <summary>
+    /// Where a line meets a shape that is read as being met at its points rather than wherever the line happens to cross
+    /// its outline — a flowchart's diamond, met at its top, its foot, or one of its sides.
+    ///
+    /// <para>
+    /// Which point it takes follows from where the layout set this line's end along the shape: the ends set out to either
+    /// side take the side points, and one left in the middle takes the point ahead of it. That is the classic drawing of a
+    /// decision — what comes in arrives at the top, and each way out leaves by a side or the foot — and it holds however
+    /// the layout happened to place what is at the other end of each line.
+    /// </para>
+    /// </summary>
+    /// <param name="end">Where the layout put this line's end, which is on the shape's own middle line.</param>
+    /// <param name="toward">The way the line goes from there.</param>
+    public static Point Cornered(DiagramShape shape, Rect bounds, Point end, Point toward)
+    {
+        var points = Corners(shape, bounds);
+        if (points is null || points.Count == 0) return Edge(shape, bounds, toward, end);
+
+        var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+
+        var along = toward - middle;
+        if (along.Length < 1e-9) return middle;
+
+        var upright = Math.Abs(along.Y) >= Math.Abs(along.X);
+        var aside = upright ? end.X - middle.X : end.Y - middle.Y;
+
+        // Off the middle at all. Which point a line takes is which of the ends it is, not how far from the middle the layout
+        // happened to set it: measured as a distance, a wide shape swallows the whole spread and every line takes the point
+        // ahead, so the same diagram drawn with longer words in its decisions loses the sides it had with shorter ones.
+        var out0 = Math.Abs(aside) > 1e-9;
+
+        var want = (upright, out0) switch
+        {
+            (true, true) => new Vector(Math.Sign(aside), 0),
+            (true, false) => new Vector(0, Math.Sign(along.Y)),
+            (false, true) => new Vector(0, Math.Sign(aside)),
+            (false, false) => new Vector(Math.Sign(along.X), 0),
+        };
+
+        var (best, most) = (points[0], double.NegativeInfinity);
+
+        foreach (var corner in points)
+        {
+            var side = corner - middle;
+            if (side.Length < 1e-9) continue;
+
+            var how = ((side.X * want.X) + (side.Y * want.Y)) / side.Length;
+            if (how > most) (most, best) = (how, corner);
+        }
+
+        return best;
+    }
+
+    /// <summary>
     /// Draws a shape filling <paramref name="bounds"/> as a piece of <paramref name="kind"/> standing for <paramref name="part"/>:
     /// filled, outlined, and standing in its own outline (<see cref="MermaidPiece.Shape"/>), so a press anywhere inside it means
     /// what it stands for — with <paramref name="words"/>, where it has any, in the middle of the room inside it as a piece of

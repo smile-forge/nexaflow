@@ -253,10 +253,11 @@ internal static class DiagramConnector
     /// <para>
     /// The default cast is from the line's own end rather than the cell's middle, so a line given its own place along the
     /// edge keeps it. A diagram that hands its own <paramref name="edge"/> — because its shapes are not rectangles — says
-    /// where a line meets a shape its own way, and that is taken as given.
+    /// where a line meets a shape its own way, and that is taken as given; it is handed the line's own end and the way the
+    /// line goes from there, which is everything there is to know about how the line arrives.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<Point> Trimmed(DiagramJoin join, Func<DiagramCell, Point, Point>? edge = null)
+    public static IReadOnlyList<Point> Trimmed(DiagramJoin join, Func<DiagramCell, Point, Point, Point>? edge = null)
     {
         var points = join.Route.ToList();
         if (ReferenceEquals(join.From, join.To)) return points;
@@ -278,15 +279,15 @@ internal static class DiagramConnector
     /// from somewhere in the middle of it.
     /// </para>
     /// </summary>
-    private static void Brought(List<Point> points, DiagramCell cell, Func<DiagramCell, Point, Point>? edge)
+    private static void Brought(List<Point> points, DiagramCell cell, Func<DiagramCell, Point, Point, Point>? edge)
     {
         // The last point of the route still outside the shape — never the other end, which would leave nothing to draw.
         var outside = points.Count - 2;
         while (outside > 0 && cell.Bounds.Contains(points[outside])) outside--;
 
         var met = edge is null
-            ? DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, points[outside], points[outside + 1])
-            : edge(cell, points[outside]);
+            ? DiagramShapes.Edge(DiagramShape.Rectangle, cell.Bounds, points[outside], points[^1])
+            : edge(cell, points[^1], points[outside]);
 
         points.RemoveRange(outside + 1, points.Count - outside - 1);
         points.Add(met);

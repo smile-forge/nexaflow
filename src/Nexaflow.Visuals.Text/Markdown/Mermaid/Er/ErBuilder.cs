@@ -161,7 +161,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], Towards(diagram.Way),
-                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
+                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing, square: true);
 
         return plan;
     }
@@ -266,8 +266,10 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         {
             var stroke = new DiagramStroke(Palette.TextMuted, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
 
+            // Square, corners and all: an entity diagram is read as straight runs meeting at right angles, and a rounded
+            // corner is a corner that no longer meets the next one.
             DiagramConnector.Draw(build, ErPiece.Relation, route.Relation.Part, route.Along, stroke,
-                                  Headed(route.Relation.Near), Headed(route.Relation.Far), curved: true);
+                                  Headed(route.Relation.Near), Headed(route.Relation.Far));
 
             DiagramConnector.Says(build, ErPiece.Label, route.Relation.Part, route.Room, route.Said, Palette.CodeBg);
         }
