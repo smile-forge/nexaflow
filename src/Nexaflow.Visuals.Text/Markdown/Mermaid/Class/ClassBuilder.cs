@@ -59,7 +59,7 @@ public static class ClassPiece
 /// <strong>A namespace holds its classes in the layout.</strong> What is inside one is laid out in its own space and drawn inside
 /// the namespace's piece, so pressing a class means that class and pressing the room round it means the namespace.
 /// </summary>
-internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
+internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 {
     /// <summary>How big a class's name is drawn, its members, and what an annotation says it is.</summary>
     private const double TextSize = 12;
@@ -111,17 +111,17 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    private ClassBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    protected ClassBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a class diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new ClassBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new ClassBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => ClassDiagram.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(ClassDiagram diagram) =>
+        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]);
 
     protected override Size Draw(ClassDiagram diagram, LayoutBuilder build)
     {
@@ -188,6 +188,10 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         foreach (var node in diagram.Nodes)
         {
+            // A class folded away is never given a cell, so the relations to it have no end to meet and a namespace
+            // holding nothing else closes up rather than standing empty.
+            if (!Draws(node.Id)) continue;
+
             var sized = Measure(node, diagram.Config);
             sized.Cell = new DiagramCell(sized.Size)
             {
@@ -522,7 +526,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
             foreach (var (words, at) in set) covered.Children.Add(new RectangleGeometry(new Rect(at, new Size(words.Width, words.Height))));
 
         build.Open(ClassPiece.Class, node.Whole, stops: Stops.None);
-        if (node.Href is { Length: > 0 } href) build.Links(new LayoutLink(href, node.Tip));
+        if (node.Href is { Length: > 0 } href) build.Links(href, node.Tip);
 
         build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, Fill(node), Stroke(node.Style).Ink, Stroke(node.Style).Thickness));
@@ -547,6 +551,8 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         Offering(build, sized, box, above: false);
 
         build.Close();
+
+        Chipped(build, node.Id, box, node.Whole);
     }
 
     /// <summary>
@@ -586,7 +592,7 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         if (member.Href is { Length: > 0 } href)
         {
             build.Open(ClassPiece.Member, member.Part, stops: Stops.None);
-            build.Links(new LayoutLink(href));
+            build.Links(href);
             words.Set(build, at, MermaidPiece.Words);
             build.Close();
         }

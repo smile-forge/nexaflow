@@ -23,14 +23,10 @@ internal sealed class C4SequenceBuilder : SequenceBuilder
     /// <summary>The grading, worked out once from the theme this is drawn on.</summary>
     private readonly DiagramTone ink;
 
-    private C4SequenceBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) => this.ink = C4Grading.Of(palette);
+    private C4SequenceBuilder(EditState state, DiagramLaying laying) : base(state, laying) => this.ink = C4Grading.Of(laying.Palette);
 
     /// <summary>Lays a C4 sequence's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static new Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip,
-                                 double room = double.PositiveInfinity, bool writing = false) =>
-        new C4SequenceBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static new Laid Build(EditState state, DiagramLaying laying) => new C4SequenceBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override SequenceDiagram Of(MermaidBlock block) => C4Sequence.Of(block);

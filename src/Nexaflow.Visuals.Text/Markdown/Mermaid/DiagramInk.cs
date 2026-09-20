@@ -1,7 +1,6 @@
 using System;
 using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -20,7 +19,7 @@ internal sealed class DiagramInk(MarkdownPalette palette)
     /// <summary>A colour as a style or the front matter wrote it, or null where it wrote none this understands.</summary>
     public Brush? Written(string? colour)
     {
-        if (DiagramBrushes.ParseCss(colour) is not { } parsed) return null;
+        if (DiagramColour.ParseCss(colour) is not { } parsed) return null;
 
         var brush = new SolidColorBrush(parsed);
         brush.Freeze();
@@ -35,7 +34,7 @@ internal sealed class DiagramInk(MarkdownPalette palette)
 
     /// <summary>Ink that reads over <paramref name="fill"/>: the theme's dark ink over a light fill, and its light ink over a dark one.</summary>
     public Brush Over(Brush fill) =>
-        DiagramBrushes.OnColor(DiagramBrushes.ColorOf(fill, Colors.Gray), palette.QrDark, palette.QrLight);
+        DiagramColour.OnColor(DiagramColour.ColorOf(fill, Colors.Gray), palette.QrDark, palette.QrLight);
 
     /// <summary>
     /// The colour a diagram's own surface comes to, opaque. A theme's surfaces are translucent — a light theme's are
@@ -43,9 +42,9 @@ internal sealed class DiagramInk(MarkdownPalette palette)
     /// in the surface brush itself.
     /// </summary>
     public static Color Under(MarkdownPalette palette) =>
-        DiagramBrushes.Composite(
-            DiagramBrushes.ColorOf(palette.CodeBg, Colors.Black),
-            DiagramBrushes.Luminance(DiagramBrushes.ColorOf(palette.Text, Colors.White)) > 140 ? Colors.Black : Colors.White);
+        DiagramColour.Composite(
+            DiagramColour.ColorOf(palette.CodeBg, Colors.Black),
+            DiagramColour.Luminance(DiagramColour.ColorOf(palette.Text, Colors.White)) > 140 ? Colors.Black : Colors.White);
 
     /// <summary>That colour as a brush — what a diagram paints on to cover what it has already drawn.</summary>
     public Brush Surface => Frozen(Under(palette));

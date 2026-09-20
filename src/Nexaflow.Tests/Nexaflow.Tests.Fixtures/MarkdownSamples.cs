@@ -44,6 +44,7 @@ internal sealed class MarkdownSamples : ISampleSet
         SampleFile.Text("mermaid-journey.md",     Journey),
         SampleFile.Text("mermaid-block.md",       Block),
         SampleFile.Text("mermaid-c4.md",          C4),
+        SampleFile.Text("nomnoml.md",             Nomnoml),
         SampleFile.Text("extensions.md",          Extensions),
         SampleFile.Text("latex-math-symbols.md",    LatexMathSymbols),
         SampleFile.Text("latex-math-structures.md", LatexMathStructures),
@@ -1780,6 +1781,55 @@ internal sealed class MarkdownSamples : ISampleSet
             classDef highlight fill:#f9f,stroke:#333,color:#000
             class Student:::highlight
             style Course fill:#bbf,stroke:#338
+        ```
+        """;
+
+    private const string Nomnoml =
+        """
+        # nomnoml
+
+        `nomnoml` is UML class notation written shorter, so what it says is a class diagram and it is drawn
+        by the same builder. A node goes in brackets and a bar divides it into compartments; what it is goes
+        in angle brackets before its name.
+
+        ```nomnoml
+        #direction: down
+
+        [<frame>Decorator pattern|
+          [<abstract>Component||+ operation()]
+          [Client] depends --> [Component]
+          [Decorator|- next: Component]
+          [Decorator] decorates -- [ConcreteComponent]
+          [Component] <:- [Decorator]
+          [Component] <:- [ConcreteComponent]
+        ]
+        ```
+
+        ## How two nodes are joined
+
+        An association is an end, a line and another end. Only a single dash is drawn solid, and how many of
+        each node the other has is written beside its own end.
+
+        ```nomnoml
+        #direction: right
+
+        [Order|id: int;placed: Date|total()] 1 -> 0..n [Line item|sku: string;qty: int]
+        [Order] -> [Customer] : billed to
+        [Customer] o- [Address]
+        [Customer] +-> [Account]
+        [Payment] --> [Order]
+        [<abstract>Method] <:- [Card]
+        [Service] -o) [Port]
+        ```
+
+        ## Compartments and classifiers
+
+        ```nomnoml
+        // a comment, at the start of a line
+        [<abstract>Shape|area: double|+draw();+move(x, y)]
+        [Shape] <:- [Circle|radius: double]
+        [Shape] <:- [Square|side: double]
+        [<note>A shape knows how to draw itself]
         ```
         """;
 

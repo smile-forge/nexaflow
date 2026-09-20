@@ -28,11 +28,8 @@ public sealed class LayoutBuilder
     /// <summary>The run of text each piece is, where it is one — see <see cref="Words"/>. Null for nearly everything.</summary>
     private readonly List<LayoutWords?> _words = [];
 
-    /// <summary>
-    /// Where pressing a piece leads, by its index. A table rather than one slot per piece, as the words and the region
-    /// beside it are: almost nothing drawn is a link, so a piece that is not one costs nothing at all.
-    /// </summary>
-    private readonly Dictionary<int, LayoutLink> _links = [];
+    /// <summary>What a piece answers to, for the few that answer to anything. Kept beside the pieces, as their words are.</summary>
+    private readonly Dictionary<int, LayoutActions> _acts = [];
 
     private readonly List<LayoutMark> _marks = [];
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
@@ -190,8 +187,16 @@ public sealed class LayoutBuilder
     /// </summary>
     public void Words(LayoutWords words) => _words[_open.Peek().At] = words;
 
-    /// <summary>Says the piece being built leads somewhere: a press on it means the link rather than the caret.</summary>
-    public void Links(LayoutLink link) => _links[_open.Peek().At] = link;
+    /// <summary>Says what the open piece answers to: what one press means, what two mean, what a menu over it offers.</summary>
+    public void Acts(LayoutActions actions) => _acts[_open.Peek().At] = actions;
+
+    /// <summary>
+    /// Says the open piece leads somewhere: one press on it meaning that rather than a place for the caret, and the
+    /// pointer a hand over it. Shorthand for the one verb almost every link is.
+    /// </summary>
+    /// <param name="tip">What it says while pointed at, or null to say where it leads.</param>
+    public void Links(string href, string? tip = null) =>
+        Acts(new LayoutActions { Click = new LayoutIntent(LayoutVerbs.Navigate, href, tip) });
 
     /// <summary>
     /// Says the piece being built reserves exactly this much of its line, vertically, whatever it draws above
@@ -249,7 +254,7 @@ public sealed class LayoutBuilder
             _paints.Add(tree.PaintOf(piece));
             _regions.Add(tree.RegionOf(piece));
             _words.Add(tree.WordsOf(piece));
-            if (tree.LinkOf(piece) is { } link) _links[_pieces.Count - 1] = link;
+            if (tree.ActsOf(piece) is { } acts) _acts[_pieces.Count - 1] = acts;
         }
 
         for (var run = 0; run < tree.RunCount; run++)
@@ -366,7 +371,7 @@ public sealed class LayoutBuilder
         }
 
         return new LayoutTree([.. _pieces], [.. _marks], [.. _parts], [.. _kinds], [.. _paints], [.. _regions], [.. _words],
-                              _links.Count == 0 ? null : new Dictionary<int, LayoutLink>(_links), across, acrossAt, down, downAt, runs);
+                              _acts.Count == 0 ? null : new Dictionary<int, LayoutActions>(_acts), across, acrossAt, down, downAt, runs);
     }
 
     /// <summary>

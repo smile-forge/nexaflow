@@ -42,7 +42,7 @@ public class VennBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        VennBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
+        VennBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);

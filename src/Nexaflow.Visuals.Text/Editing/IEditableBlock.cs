@@ -172,5 +172,10 @@ public interface IEditableBlock : IInteractiveBlock
     /// A small ribbon of the actions this block offers on what is selected, for the host to show where the
     /// reader right-clicked. Null from anything with none, which is what puts the ordinary text menu back.
     /// </summary>
-    FrameworkElement? BuildRibbon() => null;
+    /// <param name="at">
+    /// Where the pointer was, in the block's own coordinates, or null where the host does not know. A block whose
+    /// answer depends on what was pointed at — a diagram, where every node offers something of its own — has nothing
+    /// to offer without it.
+    /// </param>
+    FrameworkElement? BuildRibbon(Point? at = null) => null;
 }

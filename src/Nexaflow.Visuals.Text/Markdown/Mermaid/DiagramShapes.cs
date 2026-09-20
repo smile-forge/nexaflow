@@ -303,13 +303,15 @@ internal static class DiagramShapes
     /// <paramref name="wordsKind"/>.
     /// </summary>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds,
-                            Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words)
+                            Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words,
+                                                    LayoutActions? acts = null)
     {
         var outline = Outline(shape, bounds);
         var room = Inside(shape, bounds);
         var at = words is null ? default : new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2));
 
         build.Open(kind, part, stops: Stops.None);
+        if (acts is not null) build.Acts(acts);
 
         // The drawing is a piece of its own, and a leaf: only what draws is pressed, so a shape with words in it stands in its
         // outline through this — less where its words are, which stand in front.
@@ -331,8 +333,8 @@ internal static class DiagramShapes
     /// </summary>
     /// <param name="degrees">How far the words are turned, a quarter turn being <c>-90</c>, which reads them up the page.</param>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds, Brush? fill, DiagramStroke? stroke,
-                            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null,
-                            double degrees = 0)
+    IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null,
+                            double degrees = 0, LayoutActions? acts = null)
     {
         var outline = Outline(shape, bounds);
         var over = new GeometryGroup();
@@ -340,6 +342,7 @@ internal static class DiagramShapes
         foreach (var (said, at, _) in words) over.Children.Add(new RectangleGeometry(Taken(said, at, degrees)));
 
         build.Open(kind, part, stops: Stops.None);
+        if (acts is not null) build.Acts(acts);
 
         build.Open(MermaidPiece.Shape, part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });

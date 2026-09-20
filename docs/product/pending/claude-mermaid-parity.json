@@ -322,10 +322,100 @@
           }
         ]
       }
+    },
+    "nomnoml": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlGrammar.cs",
+          "class": "NomnomlGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlDiagram.cs",
+          "class": "NomnomlDiagram"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlDiagramHandler.cs",
+          "class": "NomnomlDiagramHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nomnoml/NomnomlGrammarTests.cs",
+            "class": "NomnomlGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Nomnoml/NomnomlBuilderTests.cs",
+            "class": "NomnomlBuilderTests"
+          }
+        ]
+      }
+    },
+    "graph-expandable-nodes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs",
+          "class": "DiagramExpansion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/NexaflowConfig.cs",
+          "class": "NexaflowConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramChip.cs",
+          "class": "DiagramChip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs",
+          "class": "DiagramActions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutActions"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support",
+            "Nodes that fold (graph-family diagrams)"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/DiagramExpansionTests.cs",
+            "class": "DiagramExpansionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/FoldingDiagramTests.cs",
+            "class": "FoldingDiagramTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 22,
+  "changed_sets": 26,
   "touched_nodes": [
     "c4",
     "c4-boundaries",
@@ -337,6 +427,8 @@
     "c4-sequence",
     "c4-sequence-writing",
     "c4-styling",
+    "graph-expandable-nodes",
+    "nomnoml",
     "sequence-diagram"
   ]
 }

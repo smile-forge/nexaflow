@@ -69,17 +69,17 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
     private readonly DiagramTone ink;
 
-    private C4Builder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) => this.ink = C4Grading.Of(palette);
+    private C4Builder(EditState state, DiagramLaying laying) : base(state, laying) => this.ink = C4Grading.Of(laying.Palette);
 
     /// <summary>Lays a structural C4 diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip,
-                             double room = double.PositiveInfinity, bool writing = false) =>
-        new C4Builder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new C4Builder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override C4Structure Of(MermaidBlock block) => C4Structure.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(C4Structure diagram) =>
+        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]);
 
     /// <inheritdoc/>
     protected override Size Draw(C4Structure diagram, LayoutBuilder build)
@@ -181,6 +181,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
         foreach (var node in diagram.Nodes)
         {
+            // An element folded away is never given a cell, so the relationships to it have no end to meet and a
+            // boundary holding nothing else closes up rather than standing empty.
+            if (!Draws(node.Id)) continue;
+
             var sized = Measure(node, diagram.Config);
             sized.Cell = new DiagramCell(sized.Size)
             {
@@ -633,7 +637,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         ]);
 
         build.Open(C4Piece.Boundary, box.Whole, stops: Stops.None);
-        if (box.Href is { Length: > 0 } href) build.Links(new LayoutLink(href));
+        if (box.Href is { Length: > 0 } href) build.Links(href);
 
         build.Open(C4Piece.Holding, box.Part, stops: Stops.None);
 
@@ -692,7 +696,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             covered.Children.Add(new RectangleGeometry(new Rect(at, new Size(words.Width, words.Height))));
 
         build.Open(C4Piece.Element, node.Part, stops: Stops.None);
-        if (node.Href is { Length: > 0 } href) build.Links(new LayoutLink(href));
+        if (node.Href is { Length: > 0 } href) build.Links(href);
 
         build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
         build.Draw(new GeometryMark(outline, sized.Fill, sized.Stroke, Thick));
@@ -706,6 +710,8 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             placed[at].Words.Set(build, placed[at].At, sized.Rows[at].Kind);
 
         build.Close();
+
+        Chipped(build, node.Id, bounds, node.Part);
     }
 
     private static IEnumerable<Sized> Inside(C4Structure diagram, Plan plan, string? box) =>

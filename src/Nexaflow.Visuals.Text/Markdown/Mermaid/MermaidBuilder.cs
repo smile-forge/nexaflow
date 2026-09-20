@@ -8,7 +8,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -39,6 +39,9 @@ public static class MermaidPiece
     /// <summary>What a shape draws — its outline, filled — which is what a press inside it lands on. See <see cref="DiagramShapes.Draw"/>.</summary>
     public const string Shape = "Shape";
 
+    /// <summary>What a node folds and unfolds by — see <see cref="DiagramChip"/>.</summary>
+    public const string Chip = "Chip";
+
     /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
     public const string Line = "Line";
 }
@@ -50,6 +53,9 @@ public static class MermaidPiece
 internal abstract class MermaidBuilder : ContentBuilder
 {
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
+
+    /// <summary>The face a diagram's own words are drawn in.</summary>
+    private static readonly FontFamily BodyFont = new("Segoe UI");
 
     private const double SourceSize = 13;
     private const double TitleSize = 15;
@@ -68,20 +74,23 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>How round the card's corners are.</summary>
     private const double Corner = 6;
 
-    /// <param name="room">How wide the diagram may be. Infinity, or anything not a width, is as wide as it likes.</param>
-    /// <param name="writing">Whether somebody is writing in the block — see <see cref="Writing"/>.</param>
-    protected MermaidBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing = false)
+    /// <param name="laying">What the diagram is drawn with, how much room it has, and whether anybody is writing in it.</param>
+    protected MermaidBuilder(EditState state, DiagramLaying laying)
         : base(state.Source)
     {
-        State = state;
-        Palette = palette;
-        PixelsPerDip = pixelsPerDip;
-        Room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
-        Writing = writing;
-        Ink = new DiagramInk(palette);
+    State = state;
+    Laying = laying;
+    Palette = laying.Palette;
+    PixelsPerDip = laying.PixelsPerDip;
+    Room = double.IsNaN(laying.Room) || laying.Room <= 0 ? double.PositiveInfinity : laying.Room;
+    Writing = laying.Writing;
+    Ink = new DiagramInk(laying.Palette);
     }
 
     protected MarkdownPalette Palette { get; }
+
+    /// <summary>Everything this diagram is being laid out against, for what a builder needs beyond the four it is given.</summary>
+    protected DiagramLaying Laying { get; }
 
     /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
     protected DiagramInk Ink { get; }
@@ -115,11 +124,14 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <param name="build">Lays a block's source out for a palette, pixel density, width, and whether it's being written in.</param>
     /// <param name="readOnly">Whether the block is only looked at; the host decides whether keys reach it.</param>
     internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                 Func<EditState, MarkdownPalette, double, double, bool, Laid> build,
-                                                 bool readOnly = true) =>
-        new Editing.LinkedElement(source, options.Palette,
-                                  new MermaidContent((state, room, pixelsPerDip, looking) => build(state, options.Palette, pixelsPerDip, room, !looking)),
-                                  options.OnNavigate)
+                                                MermaidBuilders.Build build, bool readOnly = true)
+    {
+        var actions = new DiagramActions(options, source);
+
+        var element = new Editing.LinkedElement(source, options.Palette,
+                                                new MermaidContent((state, room, pixelsPerDip, looking) =>
+                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking) { View = actions.View })),
+                                                actions)
         {
             IsReadOnly = readOnly,
 
@@ -134,13 +146,25 @@ internal abstract class MermaidBuilder : ContentBuilder
             Margin = new Thickness(0, 4, 0, 10),
         };
 
+        // What a verb this answers itself redraws: the element lays out from the source again, reading back whatever
+        // the press just wrote into the view state.
+        actions.Shown = element;
+        return element;
+    }
+
     /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);
 
+    /// <summary>
+    /// What reads the block, where the fence's language names the diagram rather than the block's first line — a
+    /// <c>nomnoml</c> block, say. Null for a Mermaid block, whose header names its own grammar.
+    /// </summary>
+    protected virtual Nexaflow.Markdown.Mermaid.IMermaidGrammar? Grammar => null;
+
     /// <summary>Reads the block: parsed and run through its type's stages, with a hole wherever
     /// something is still to be written (<see cref="MermaidParser.Read"/>).</summary>
-    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing);
+    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing, grammar: Grammar);
 
     /// <summary>The title to set over the diagram: the diagram's own where it writes one, else the
     /// front matter's (<see cref="MermaidBlock.Title"/>).</summary>
@@ -284,7 +308,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(DiagramText.BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
+            new Typeface(BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
             size,
             ink,
             PixelsPerDip);
@@ -392,8 +416,8 @@ internal abstract class MermaidBuilder : ContentBuilder
 /// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
 /// title, trouble text, card — is <see cref="MermaidBuilder"/>'s.</summary>
 /// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-    : MermaidBuilder(state, palette, pixelsPerDip, room, writing)
+internal abstract class MermaidBuilder<TDiagram>(EditState state, DiagramLaying laying)
+    : MermaidBuilder(state, laying)
     where TDiagram : class
 {
     /// <summary>The diagram as it was read — null until it has been.</summary>
@@ -406,5 +430,48 @@ internal abstract class MermaidBuilder<TDiagram>(EditState state, MarkdownPalett
     /// took. May throw — shown as written, with the reason, on failure.</summary>
     protected abstract Size Draw(TDiagram diagram, LayoutBuilder build);
 
-    protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build) => Draw(Diagram = Of(block), build);
+    /// <summary>
+    /// This diagram as a graph, for folding: its node ids, and the links between them. Null for a diagram that is not
+    /// graph-shaped, which is never folded at all.
+    /// </summary>
+    protected virtual DiagramChart? Chart(TDiagram diagram) => null;
+
+    /// <summary>What the front matter asked to be folded away, read once before the diagram is drawn.</summary>
+    protected NexaflowConfig Folds { get; private set; } = NexaflowConfig.None;
+
+    /// <summary>How much of the diagram is drawn, worked out once before it is.</summary>
+    protected DiagramExpansion Folding { get; private set; } = DiagramExpansion.None;
+
+    /// <summary>Whether a node is drawn at all. Everything is, unless something asked otherwise.</summary>
+    protected bool Draws(string id) => Folding.Draws(id);
+
+    /// <summary>The producer's name for a node — what an opening is remembered under, never the positional id.</summary>
+    protected string KeyFor(string id) => Folds.KeyFor(id);
+
+    /// <summary>
+    /// Draws the chip a node carries, where it carries one: over the top right-hand corner of what it fills, as a piece
+    /// of its own, so the node's body and its folding are two separate things to press.
+    /// </summary>
+    protected void Chipped(LayoutBuilder build, string id, Rect bounds, ISourcePart? part, string? label = null)
+    {
+        if (Folding.FoldOf(id) is not { } fold) return;
+
+        DiagramChip.Draw(build, DiagramChip.On(bounds), part, fold, id, label,
+                         Worked(DiagramChip.Says(fold), part as ContentPart, DiagramChip.TextSize, Palette.Text),
+                         Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1));
+    }
+
+    protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        Diagram = Of(block);
+        Folds = NexaflowConfig.Read(block.Config);
+
+        // Worked out before anything is placed, so a node that is not drawn is never given a cell — rather than taken
+        // out afterwards, which would leave a hole where it stood and a line running to nothing.
+        Folding = Chart(Diagram) is { } chart
+            ? DiagramExpansion.Of(Folds, chart, Laying.View?.Expansion)
+            : DiagramExpansion.None;
+
+        return Draw(Diagram, build);
+    }
 }

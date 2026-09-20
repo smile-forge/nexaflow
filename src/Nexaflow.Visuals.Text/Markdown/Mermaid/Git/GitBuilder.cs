@@ -65,13 +65,10 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// <summary>How far an id is turned where the front matter asks for it, as Mermaid turns one.</summary>
     private const double Turned = 45;
 
-    private GitBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private GitBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new GitBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new GitBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override GitGraph Of(MermaidBlock block) => GitGraph.Of(block);

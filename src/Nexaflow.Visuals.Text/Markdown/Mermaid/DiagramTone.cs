@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
@@ -24,8 +24,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 internal sealed class DiagramTone(MarkdownPalette palette, IReadOnlyList<Brush> bands)
 {
     /// <summary>Near-black and near-white card ink. Not quite pure, so a card never out-contrasts the page it sits on.</summary>
-    private static readonly Brush Dark = DiagramBrushes.Frozen(Color.FromRgb(0x14, 0x16, 0x1C));
-    private static readonly Brush Light = DiagramBrushes.Frozen(Color.FromRgb(0xF4, 0xF6, 0xFB));
+    private static readonly Brush Dark = DiagramColour.Frozen(Color.FromRgb(0x14, 0x16, 0x1C));
+    private static readonly Brush Light = DiagramColour.Frozen(Color.FromRgb(0xF4, 0xF6, 0xFB));
 
     /// <summary>
     /// What a translucent fill actually shows as — the light theme's surfaces are alpha-black, so a brightness test on the
@@ -42,16 +42,16 @@ internal sealed class DiagramTone(MarkdownPalette palette, IReadOnlyList<Brush> 
     /// </summary>
     public (Brush Fill, Brush Stroke, Brush Ink) Card(int band, string? fill, string? border, string? ink)
     {
-        var painted = DiagramBrushes.ParseCss(fill) is { } literal ? DiagramBrushes.Frozen(literal) : Band(band);
-        var colour = DiagramBrushes.ColorOf(painted, this.under);
+        var painted = DiagramColour.ParseCss(fill) is { } literal ? DiagramColour.Frozen(literal) : Band(band);
+        var colour = DiagramColour.ColorOf(painted, this.under);
 
-        var stroke = DiagramBrushes.ParseCss(border) is { } edge
-            ? DiagramBrushes.Frozen(edge)
-            : DiagramBrushes.Frozen(Scaled(colour, 1.45));
+        var stroke = DiagramColour.ParseCss(border) is { } edge
+            ? DiagramColour.Frozen(edge)
+            : DiagramColour.Frozen(Scaled(colour, 1.45));
 
-        var written = DiagramBrushes.ParseCss(ink) is { } said
-            ? DiagramBrushes.Frozen(said)
-            : DiagramBrushes.OnColor(DiagramBrushes.Composite(colour, this.under), Dark, Light);
+        var written = DiagramColour.ParseCss(ink) is { } said
+            ? DiagramColour.Frozen(said)
+            : DiagramColour.OnColor(DiagramColour.Composite(colour, this.under), Dark, Light);
 
         return (painted, stroke, written);
     }
@@ -61,10 +61,10 @@ internal sealed class DiagramTone(MarkdownPalette palette, IReadOnlyList<Brush> 
     /// grading that follows the theme — the numbers are the diagram's, since what the levels are is the diagram's.
     /// </summary>
     public static Brush Shaded(MarkdownPalette palette, double factor) =>
-        DiagramBrushes.Frozen(Scaled(DiagramBrushes.ColorOf(palette.Accent, Colors.SteelBlue), factor));
+        DiagramColour.Frozen(Scaled(DiagramColour.ColorOf(palette.Accent, Colors.SteelBlue), factor));
 
     /// <summary>Softer ink for a second line on a card — its own, tinted. Translucent, so it settles against its fill.</summary>
-    public static Brush Muted(Brush ink) => DiagramBrushes.Tint(ink, 0xB4, Colors.Gray);
+    public static Brush Muted(Brush ink) => DiagramColour.Tint(ink, 0xB4, Colors.Gray);
 
     /// <summary>Scales a colour's brightness, keeping its hue.</summary>
     private static Color Scaled(Color colour, double factor)

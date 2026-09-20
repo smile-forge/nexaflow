@@ -10,7 +10,7 @@ using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
+
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Executable;
@@ -315,7 +315,7 @@ public sealed class ExecutableFeatureTests
 
         var lines  = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))
                                       .Split('\n', StringSplitOptions.None);
-        var cfg = NexaflowConfigParser.Parse(MermaidBlock.Read(string.Join("\n", lines[1..^2])).Config);
+        var cfg = NexaflowConfig.Read(MermaidBlock.Read(string.Join("\n", lines[1..^2])).Config);
 
         Assert.IsFalse(cfg.Expanded.ContainsKey("n0"), "the root is never declared collapsible");
         Assert.AreEqual("lib.dll", cfg.Expanded["n1"], "…but an opened module below it still is");
@@ -334,7 +334,7 @@ public sealed class ExecutableFeatureTests
                                       .Split('\n', StringSplitOptions.None);
         var source = string.Join("\n", lines[1..^2]);
 
-        var cfg = NexaflowConfigParser.Parse(MermaidBlock.Read(source).Config);
+        var cfg = NexaflowConfig.Read(MermaidBlock.Read(source).Config);
         Assert.AreEqual("lib.dll",  cfg.Expanded["n1"],  "an opened module can be closed again");
         Assert.AreEqual("shut.dll", cfg.Collapsed["n2"], "an unopened one can be opened");
         Assert.AreEqual(DependencyMermaid.MaxFanOut, cfg.MaxFanOut);

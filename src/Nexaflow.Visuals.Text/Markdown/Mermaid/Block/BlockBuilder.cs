@@ -76,14 +76,10 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     private const double Shaft = 0.16;
     private const double Wing = 0.3;
 
-    private BlockBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private BlockBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new BlockBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new BlockBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override BlockDiagram Of(MermaidBlock block) => BlockDiagram.Of(block);

@@ -215,7 +215,7 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     });
 
     private static Laid Build(string source, double room = 900) =>
-        FlowchartBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
+        FlowchartBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     /// <summary>Every node drawn, by what is written on it.</summary>
     private static Dictionary<string, Rect> Nodes(string source) => Nodes(Build(source));

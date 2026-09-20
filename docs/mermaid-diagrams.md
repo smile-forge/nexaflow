@@ -6,8 +6,8 @@ renderer draws ([markdown-ast.md](markdown-ast.md)):
 **grammar → stages → model → builder**, the builder emitting pieces of the layout tree, each standing for the part of
 the source it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
 
-The diagrams still on the legacy renderers (`src/Nexaflow.Visuals.Text/Markdown/Graphs/`) move across one at a time, and
-each is built from **the Mermaid kit**: the pieces every diagram shares, decided once. Pie, Venn and radar are the
+Every diagram is drawn this way, and each is built from **the Mermaid kit**: the pieces every diagram shares, decided
+once. Pie, Venn and radar are the
 references — pie the smallest whole diagram, Venn one with stages, names, styles and a layout of its own, radar one whose
 lines list items with values and whose options share a line, xychart one with axes, ranges and series in brackets.
 
@@ -46,7 +46,8 @@ The builder's base draws everything round the diagram: the title (a `title` line
 matter's), what could not be read set beneath it, the card, and the element the block is shown and written in — which
 is read-only where the host takes no edits (`DiagramRenderOptions.ReadOnly`, which a viewer sets and an editor does
 not), leaving a diagram there looked at, selected and followed where it leads.
-`MermaidDiagramHandler` asks `MermaidBuilders` first, so a diagram named there never reaches its legacy renderer.
+`MermaidDiagramHandler` asks `MermaidBuilders` for the builder its header names, and a header naming no diagram at all
+falls to `UnknownDiagramBuilder`, which shows the block as written with the reason.
 
 ## The kit
 
@@ -123,7 +124,7 @@ diagram's own code sits in a folder of its own under each.
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | round a panel between two axes — the room their numbers and titles take, the panel left inside it, the titles along it | `DiagramPanel.Room` for the axes' own room and `DiagramEdges` added for a key, a title band or a caption; `Round` for the panel, held to an `aspect` and shrunk to what was drawn; `Titles` for the turned upright title and the flat one under its numbers |
 | draw gridlines across a panel | `DiagramGrid.Draw`, or `DiagramGrid.Lines` into a shape of your own where a diagram draws more than one set of them |
-| say a piece leads somewhere | `build.Links` of a `LayoutLink` — a press on it means the link rather than a place for the caret, and the pointer is a hand over it. Held in a table beside the pieces rather than a slot on each, since almost nothing drawn is a link; followed by `LinkedElement`, which is what `MermaidBuilder.Host` shows a diagram in |
+| say what a press on a piece means | `build.Acts` of a `LayoutActions` — a verb and its argument (`LayoutIntent`), never a delegate: a press that means something means that rather than a place for the caret. `build.Links(href)` is the shorthand for the commonest verb. Held in a table beside the pieces rather than a slot on each, since almost nothing drawn answers to a press; dispatched by `LinkedElement` to `DiagramActions`, which offers the host `OnAction` first and then resolves the verbs it knows |
 | show a block with nothing to draw | `AsWritten` |
 
 **Only what draws is pressed.** A press lands on a leaf of the layout tree; a piece holding other pieces is pressed
@@ -135,11 +136,9 @@ stands for a stretch of what the lane itself stands for. Where shapes overlap, a
 stands only in what the shapes drawn over it leave uncovered (a Venn circle less its unions' lenses, a radar curve less
 the curves after it). A piece standing for a stretch nothing is written in yet stands for nothing — only its hole does.
 
-## Converting a diagram
+## Adding a diagram
 
-1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it,
-   not only what the legacy parser does. Read the legacy renderer only to see what the diagram draws today — never copy
-   from it.
+1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it.
 2. **The grammar and its kinds**, reading every line through `MermaidLine`, named in `MermaidDiagrams.Grammar`. Its
    tests derive from `MermaidGrammarContract` and list every construct, and what nobody means to write, in `Blocks`, and
    the documentation's examples in `DocumentedBlocks`.
@@ -149,18 +148,15 @@ the curves after it). A piece standing for a stretch nothing is written in yet s
    was drawn from. Its tests derive from `MermaidBuilderContract` and list what it draws in `Drawn`.
 6. **Writing in place**: `Blank`, `Escaping`, `Names` and `Naming` on the grammar, with editing tests like
    `PieEditingTests` and `VennEditingTests`.
-7. **Delete the legacy code** the diagram alone used — its parser, model and renderer, their tests, their dispatch arm in
-   `MermaidDiagramHandler` — and those files' lines in `legacy-diagram-code.txt`.
-8. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure
+7. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure
    (`MermaidFigureWriter`), the row in [MarkdownSupport.md](MarkdownSupport.md), and the product tree node with its
    snaplinks.
 
 ### When the kit lacks something
 
-Add it to the kit — a file directly in the `Mermaid` folder, with its own tests — and use it from the diagram being
-converted. What only one diagram will ever draw (a pie's wedges, the Venn layout) stays in that diagram's folder. A layout
-the legacy code has, such as Sugiyama's, moves into the kit and takes the kit's own input. A mark the layout tree cannot
-draw goes into the engine (`src/Nexaflow.Visuals.Text/Editing/`), not into a builder.
+Add it to the kit — a file directly in the `Mermaid` folder, with its own tests — and use it from the diagram that
+needed it. What only one diagram will ever draw (a pie's wedges, the Venn layout) stays in that diagram's folder. A mark
+the layout tree cannot draw goes into the engine (`src/Nexaflow.Visuals.Text/Editing/`), not into a builder.
 
 ## What holds it
 
@@ -171,4 +167,4 @@ draw goes into the engine (`src/Nexaflow.Visuals.Text/Editing/`), not into a bui
 | `MermaidEditing` (Tests.Visuals) | What writing in a diagram is tested through: the block in a real editor, `PressPast` some words it draws, `Write` a keystroke |
 | `MermaidKitRulesTests` (Tests.Markdown) | Every grammar is named in `MermaidDiagrams.Grammar` and tested against the contract |
 | `MermaidBuilderRulesTests` (Tests.Visuals) | A diagram has a grammar and a builder, or neither; every builder is tested against the contract |
-| `MermaidDiagramRulesTests` (Tests.Features.Architecture) | The legacy code is frozen — no file added, none grown, each marked; code on the shared tree never names it; a diagram's own reading and drawing go through the kit |
+| `MermaidDiagramRulesTests` (Tests.Features.Architecture) | A diagram's own reading and drawing go through the kit — a grammar reads a line through `MermaidLine` and never a `Regex`, a builder asks `DiagramInk` for a brush and `DiagramWords` for what it says, and neither reaches for a control |

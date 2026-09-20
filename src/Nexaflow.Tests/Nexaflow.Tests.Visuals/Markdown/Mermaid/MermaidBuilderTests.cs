@@ -108,14 +108,14 @@ public class MermaidBuilderTests
     [TestMethod]
     public void AKnownDiagramNeverReachesTheUnknownBuilder() => UiThread.Run(() =>
     {
-        // A flowchart asking for nodes that open and close has no builder, so it is drawn by the graph view it needs.
-        Assert.IsNotInstanceOfType(
-            DiagramRenderer.Render("mermaid", "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
-                                   MarkdownPalette.Dark),
-            typeof(ContentElement));
-
-        // Everything else is drawn on the shared layout tree, so it is a ContentElement — a drawing, not its own characters.
-        foreach (var source in new[] { "pie\n  \"A\" : 1", "C4Context\n  Person(a, \"A\")" })
+        // Every diagram a builder is named for is drawn on the shared layout tree — a drawing, not its own characters —
+        // including a flowchart asking for nodes that fold, which is something the tree itself now does.
+        foreach (var source in new[]
+                 {
+                     "pie\n  \"A\" : 1",
+                     "C4Context\n  Person(a, \"A\")",
+                     "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
+                 })
         {
             var drawn = (ContentElement)DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark);
             Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), source);
@@ -129,7 +129,7 @@ public class MermaidBuilderTests
         part is null ? "" : source.Substring(part.Start, part.Length);
 
     /// <summary>A diagram that is one box of a known size — what the frame is tested around.</summary>
-    private sealed class Box(string source, bool fail) : MermaidBuilder(EditState.For(source), MarkdownPalette.Dark, 1.0, double.PositiveInfinity)
+    private sealed class Box(string source, bool fail) : MermaidBuilder(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark))
     {
         public const string Kind = "Box";
         public const double Width = 120;

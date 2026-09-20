@@ -36,10 +36,19 @@ public abstract class MermaidBuilderContract
     /// <summary>Blocks that draw every part of the diagram, and blocks half written — the record of what the builder draws.</summary>
     protected abstract IEnumerable<(string What, string Source)> Drawn { get; }
 
+    /// <summary>The language a block of this diagram is fenced with — a language of its own, or Mermaid's.</summary>
+    public virtual string Language => "mermaid";
+
+    /// <summary>
+    /// The builder under test: the one its diagram names, or, for a language of its own, the one it says itself.
+    /// </summary>
+    internal virtual MermaidBuilders.Build Builder =>
+        MermaidBuilders.For(Diagram)
+        ?? throw new AssertFailedException($"{Diagram} is drawn by no builder: MermaidBuilders names none.");
+
     /// <summary>Lays a block out as the shared renderer would.</summary>
     protected Laid Lay(string source, double room = 700, bool writing = false) =>
-        (MermaidBuilders.For(Diagram) ?? throw new AssertFailedException($"{Diagram} is drawn by no builder: MermaidBuilders names none."))
-            .Invoke(EditState.For(source), MarkdownPalette.Dark, 1.0, room, writing);
+        Builder.Invoke(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
 
     [TestMethod]
     public void EveryBlockDrawsReadOrWritten_WideOrNarrow() => UiThread.Run(() =>
@@ -99,7 +108,7 @@ public abstract class MermaidBuilderContract
     public void ItIsWhatTheMarkdownRendererShows() => UiThread.Run(() =>
     {
         var (what, source) = Drawn.First();
-        var element = DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render(Language, source, MarkdownPalette.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element, $"{what}: drawn on the shared layout tree");
 

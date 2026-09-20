@@ -48,13 +48,10 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
     /// <summary>How tall a column's title is given room for, at least.</summary>
     private const double TitleRoom = 25;
 
-    private KanbanBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private KanbanBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new KanbanBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new KanbanBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override KanbanBoard Of(MermaidBlock block) => KanbanBoard.Of(block);

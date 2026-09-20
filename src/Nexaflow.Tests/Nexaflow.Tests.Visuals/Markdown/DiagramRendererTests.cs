@@ -1,8 +1,5 @@
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Parsers;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
 using System.Windows;
-using System.Windows.Controls;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Linq;
@@ -12,10 +9,9 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// Smoke tests for the legacy WPF diagram renderers — they must
-/// produce a real element without throwing on the UI thread.  Renderer exceptions are
-/// asserted here directly because <see cref="DiagramRenderer"/> swallows them into an
-/// error border.
+/// What <see cref="DiagramRenderer"/> hands a block to, and that what comes back is a drawing rather than the
+/// source-text fallback. Asserted here directly because the renderer swallows a failure into an error border, so a
+/// diagram that stopped routing would otherwise look like one that simply drew nothing.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -74,28 +70,6 @@ public class DiagramRendererTests
     });
 
 
-
-    /// <summary>
-    /// Asserts the source reached the graph renderer and came back drawn, rather than falling
-    /// through to the raw-text fallback. Deliberately not pinned to the exact chrome: which of a
-    /// scroller and a pan/zoom viewport wraps the canvas depends on how big the diagram turned out,
-    /// and that is not what these tests are about.
-    /// </summary>
-    private static void AssertGraphDiagram(FrameworkElement fe, string what)
-    {
-        Assert.IsInstanceOfType(fe, typeof(GraphDiagramView), $"{what} should route to the graph renderer");
-        fe.Measure(new Size(900, 900));
-        fe.Arrange(new Rect(0, 0, 900, 900));
-        Assert.IsNotNull(FindCanvas(fe), $"{what} should have drawn a canvas");
-    }
-
-    private static Canvas? FindCanvas(DependencyObject root)
-    {
-        if (root is Canvas c && c.Children.Count > 0) return c;
-        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
-            if (FindCanvas(System.Windows.Media.VisualTreeHelper.GetChild(root, i)) is { } hit) return hit;
-        return null;
-    }
 
     // ── Class diagram ──────────────────────────────────────────────────────
 

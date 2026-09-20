@@ -292,6 +292,16 @@ public sealed class ClassDiagram
     /// <summary>Reads a tree the stages have already been over.</summary>
     public static ClassDiagram Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 
+    /// <summary>
+    /// A class diagram put together by another language's reader. Nomnoml is UML class notation spelled shorter
+    /// (<see cref="Nomnoml.NomnomlDiagram"/>), so what it says is a class diagram and is drawn by the same builder; what
+    /// differs is only how it was written, which is what its own grammar reads.
+    /// </summary>
+    internal static ClassDiagram From(MermaidBlock block, ClassWay way, IReadOnlyList<ClassNode> nodes,
+                                      IReadOnlyList<ClassRelation> relations, IReadOnlyList<ClassSpace> spaces,
+                                      IReadOnlyList<ClassNote> notes) =>
+        new(block, ClassConfig.Default, way, nodes, relations, spaces, notes);
+
     /// <summary>The block this was read from — its front matter, its header, its title, everything written in it.</summary>
     public MermaidBlock Block { get; }
 
