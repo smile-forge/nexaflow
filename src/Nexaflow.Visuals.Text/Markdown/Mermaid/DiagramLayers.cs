@@ -78,9 +78,13 @@ internal static class DiagramLayers
     /// square lines, and several of them reaching the same shape share a stem into it, which they can only do by
     /// running square. See <see cref="Swung"/> for what the rest of them do instead.
     /// </param>
+    /// <param name="room">
+    /// How wide the diagram may be, where something says. A diagram wider than that is one with its right-hand side cut
+    /// off, so the parts of it that have nothing to do with one another are wrapped onto further rows until it fits.
+    /// </param>
     public static Size Lay(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way,
                            double between, double along, DiagramLanes? laning = null, bool ports = false,
-                           bool square = false)
+                           bool square = false, double room = double.PositiveInfinity)
     {
         // Innermost boxes first: a box is the size of what it holds, so what it holds is arranged before the box is placed.
         foreach (var box in Boxes(cells).OrderByDescending(Deep))
@@ -93,14 +97,15 @@ internal static class DiagramLayers
                                 Math.Max(box.Size.Height, held.Height + (box.Pad * 2) + box.Heading));
         }
 
-        var whole = Arrange(Within(cells, null), Joining(joins, null), way, between, along, laning, ports, square);
+        var whole = Banded(Within(cells, null), Joining(joins, null), way, between, along, laning, ports, square, room);
 
         // Outermost boxes first, so a box is already where it belongs before what is inside it is moved into it.
         foreach (var box in Boxes(cells).OrderBy(Deep)) Moved(cells, joins, box);
 
         foreach (var join in joins) join.Route = Routed(join, way);
         Parted(cells, joins, way, ports);
-        if (!square) Swung(cells, joins, way);
+        if (square) Skirted(cells, joins, way);
+        else Swung(cells, joins, way);
 
         return whole;
     }
@@ -108,6 +113,108 @@ internal static class DiagramLayers
     /// <summary>The cells directly inside a box — those at the outermost level, for null.</summary>
     private static List<DiagramCell> Within(IReadOnlyList<DiagramCell> cells, DiagramCell? box) =>
         [.. cells.Where(cell => ReferenceEquals(cell.Inside, box))];
+
+    /// <summary>
+    /// The outermost level, wrapped onto further rows where it comes to more than the room there is.
+    ///
+    /// <para>
+    /// One go at it whole first, because a diagram that fits is laid out as one and nothing is gained by breaking it up.
+    /// Where it does not fit, the parts of it that are joined to nothing in the rest are laid out apart and set out in rows
+    /// as wide as the room allows. That is the only width a diagram like that can be given back: a row of things standing
+    /// beside one another because none of them is joined to any other cannot be made narrower except by putting some of
+    /// them underneath the rest.
+    /// </para>
+    ///
+    /// <para>
+    /// Only across the way the layout runs. Wrapping the direction the diagram itself runs in would break the chains it is
+    /// made of, and a diagram too long that way is brought down by laying it out to smaller measures instead.
+    /// </para>
+    /// </summary>
+    private static Size Banded(List<DiagramCell> cells, List<Joined> edges, DiagramWay way, double between, double along,
+                               DiagramLanes? laning, bool ports, bool square, double room)
+    {
+        var whole = Arrange(cells, edges, way, between, along, laning, ports, square);
+
+        if (laning is not null || way is not (DiagramWay.Down or DiagramWay.Up)) return whole;
+        if (double.IsInfinity(room) || whole.Width <= room) return whole;
+
+        var parts = Parts(cells, edges);
+        if (parts.Count < 2) return whole;
+
+        var (across, down, deepest, widest) = (0d, 0d, 0d, 0d);
+
+        foreach (var part in parts)
+        {
+            var size = Arrange(part.Cells, part.Edges, way, between, along, laning: null, ports, square);
+
+            if (across > 0 && across + size.Width > room)
+            {
+                across = 0;
+                down += deepest + along;
+                deepest = 0;
+            }
+
+            Nudged(part, new Vector(across, down));
+
+            across += size.Width + between;
+            deepest = Math.Max(deepest, size.Height);
+            widest = Math.Max(widest, across - between);
+        }
+
+        return new Size(widest, down + deepest);
+    }
+
+    /// <summary>The cells at one level split into the groups joined to one another, each in the order it was given in.</summary>
+    private static List<(List<DiagramCell> Cells, List<Joined> Edges)> Parts(List<DiagramCell> cells, List<Joined> edges)
+    {
+        var at = new Dictionary<DiagramCell, int>(cells.Count);
+        for (var cell = 0; cell < cells.Count; cell++) at[cells[cell]] = cell;
+
+        var group = new int[cells.Count];
+        for (var one = 0; one < group.Length; one++) group[one] = one;
+
+        foreach (var edge in edges)
+            if (at.TryGetValue(edge.From, out var from) && at.TryGetValue(edge.To, out var to))
+                group[Root(group, from)] = Root(group, to);
+
+        var parts = new List<(List<DiagramCell> Cells, List<Joined> Edges)>();
+        var where = new Dictionary<int, int>();
+
+        foreach (var cell in cells)
+        {
+            var root = Root(group, at[cell]);
+
+            if (!where.TryGetValue(root, out var which))
+            {
+                where[root] = which = parts.Count;
+                parts.Add(([], []));
+            }
+
+            parts[which].Cells.Add(cell);
+        }
+
+        foreach (var edge in edges)
+            if (at.TryGetValue(edge.From, out var from)) parts[where[Root(group, from)]].Edges.Add(edge);
+
+        return parts;
+    }
+
+    /// <summary>Which group a cell has ended up in, flattening the chain on the way.</summary>
+    private static int Root(int[] group, int one)
+    {
+        while (group[one] != one) one = group[one] = group[group[one]];
+
+        return one;
+    }
+
+    /// <summary>Moves one group of a wrapped level to where its row put it.</summary>
+    private static void Nudged((List<DiagramCell> Cells, List<Joined> Edges) part, Vector by)
+    {
+        if (by.Length < 1e-9) return;
+
+        foreach (var cell in part.Cells) cell.Bounds = Rect.Offset(cell.Bounds, by);
+        foreach (var edge in part.Edges) edge.Join.Bends = [.. edge.Join.Bends.Select(bend => bend + by)];
+    }
 
     /// <summary>The cells holding other cells.</summary>
     private static List<DiagramCell> Boxes(IReadOnlyList<DiagramCell> cells) =>
@@ -781,6 +888,151 @@ internal static class DiagramLayers
 
             join.Route = DiagramConnector.Curving(from, from + (2 * (over - from) / 3), to + (2 * (over - to) / 3), to);
         }
+    }
+
+    /// <summary>
+    /// Takes a square line round whatever stands between its two ends.
+    ///
+    /// <para>
+    /// A line between two shapes that are not in neighbouring ranks was routed round what stands in its way; one between
+    /// shapes that <em>are</em> neighbours at the level it was arranged at was not, and that level is not always the level
+    /// the line is drawn at. Two shapes each inside a box of its own are neighbours as far as the boxes go, so the line
+    /// between them is given a straight run — which then goes through whatever else those boxes hold on the way.
+    /// </para>
+    ///
+    /// <para>
+    /// It leaves square, steps aside once it is clear of the shape it left, runs past on that side, and comes back in
+    /// square to the shape it reaches: the same detour drawn with corners that <see cref="Swung"/> draws as a curve.
+    /// </para>
+    /// </summary>
+    private static void Skirted(IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins, DiagramWay way)
+    {
+        var sideways = way is DiagramWay.Down or DiagramWay.Up;
+
+        foreach (var join in joins)
+        {
+            if (ReferenceEquals(join.From, join.To) || join.Route.Count < 2 || join.Bends.Count > 0) continue;
+
+            var (from, to) = (join.Route[0], join.Route[^1]);
+
+            var run = sideways ? to.Y - from.Y : to.X - from.X;
+            if (Math.Abs(run) < 1e-9) continue;
+
+            var passed = cells
+                .Where(cell => !Holds(cell, join.From) && !Holds(cell, join.To))
+                .Where(cell => Crossed(cell.Bounds, join.Route))
+                .ToList();
+
+            if (passed.Count == 0) continue;
+
+            var onwards = Math.Sign(run);
+            var edges = passed.Select(cell => Edges(cell.Bounds, sideways, onwards)).ToList();
+
+            // It steps aside halfway between what it left and what it has to get past, and comes back in as soon as it is
+            // past — not halfway again. Coming back early is what leaves a long straight run into the shape it reaches,
+            // which is where whatever belongs to that end of the line is written.
+            var leave = (Edges(join.From.Bounds, sideways, onwards).Far + edges.Min(edge => onwards * edge.Near) * onwards) / 2;
+            var arrive = (edges.Max(edge => onwards * edge.Far) * onwards) + (onwards * Skirting);
+
+            // And not before it is out of the boxes it is leaving. Coming back in while still inside one puts the line back
+            // through the box it has just come out of, and a box a line runs into and out of again reads as one it belongs
+            // in. A box holding both ends is not one it is leaving, so it is none of this.
+            for (var box = join.From.Inside; box is not null; box = box.Inside)
+            {
+                if (Holds(box, join.To)) continue;
+
+                var past = Edges(box.Bounds, sideways, onwards).Far + (onwards * Skirting);
+                if (onwards * past > onwards * arrive) arrive = past;
+            }
+
+            var middle = sideways ? (from.X + to.X) / 2 : (from.Y + to.Y) / 2;
+            var said = (sideways ? join.Said.Width : join.Said.Height) / 2;
+            var clear = Outside(Round(passed, middle, sideways, said), middle, join, leave, arrive, sideways, said);
+
+            // It leaves the shape nearer the side it is going round, rather than from the middle of the edge. Another line
+            // off the same edge that is not going round anything keeps the middle, so the two of them part where they meet
+            // their shape instead of setting off from the same point — and what is written against each end parts with them.
+            var half = (sideways ? join.From.Bounds.Width : join.From.Bounds.Height) / 2;
+            var off = Math.Sign(clear - middle) * Math.Min(Stepping, half / 2);
+
+            var start = sideways ? new Point(from.X + off, from.Y) : new Point(from.X, from.Y + off);
+
+            join.Route = sideways
+                ? [start, new Point(start.X, leave), new Point(clear, leave), new Point(clear, arrive), new Point(to.X, arrive), to]
+                : [start, new Point(leave, start.Y), new Point(leave, clear), new Point(arrive, clear), new Point(arrive, to.Y), to];
+        }
+    }
+
+    /// <summary>
+    /// The side a line steps out to, pushed clear of the boxes its own ends are in.
+    ///
+    /// <para>
+    /// A box drawn close round what it holds has no room inside it for a line to pass through: a line stepping aside to get
+    /// past what a box holds ends up running along the inside of the box's own border, which reads as the border. Out past
+    /// the box instead — a line crossing a box's edge once on its way out of it is what leaving a box looks like.
+    /// </para>
+    /// </summary>
+    private static double Outside(double clear, double middle, DiagramJoin join, double leave, double arrive,
+                                  bool sideways, double said)
+    {
+        var side = clear >= middle ? 1 : -1;
+
+        foreach (var end in new[] { join.From, join.To })
+            for (var box = end.Inside; box is not null; box = box.Inside)
+            {
+                var bounds = box.Bounds;
+                var (near, far) = sideways ? (bounds.Left, bounds.Right) : (bounds.Top, bounds.Bottom);
+                var (top, bottom) = sideways ? (bounds.Top, bounds.Bottom) : (bounds.Left, bounds.Right);
+
+                // Only a box the line would run down the inside of: one it runs past, and one it would run within.
+                var (one, other) = Ends(leave, arrive);
+                if (bottom <= one || top >= other) continue;
+                if (clear + said <= near || clear - said >= far) continue;
+
+                clear = side > 0 ? Math.Max(clear, far + said + Skirting) : Math.Min(clear, near - said - Skirting);
+            }
+
+        return clear;
+    }
+
+    /// <summary>Whether a cell is the one a line meets, or a box holding it — neither of which a line goes round.</summary>
+    private static bool Holds(DiagramCell cell, DiagramCell end)
+    {
+        for (var at = end; at is not null; at = at.Inside)
+            if (ReferenceEquals(at, cell)) return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a line as it is drawn goes through a box.
+    ///
+    /// <para>
+    /// As it is drawn, not as the crow flies between its two ends: a square line leaves square, crosses at the rail between
+    /// the ranks and arrives square, so a box standing to one side of the straight run between the ends is nowhere near it.
+    /// Asking about the straight run instead sends lines round things they were never going to touch, and a line sent round
+    /// something is a line that has left the rail the rest of them share.
+    /// </para>
+    /// </summary>
+    private static bool Crossed(Rect bounds, IReadOnlyList<Point> route)
+    {
+        for (var at = 1; at < route.Count; at++)
+        {
+            var (left, right) = Ends(route[at - 1].X, route[at].X);
+            var (top, bottom) = Ends(route[at - 1].Y, route[at].Y);
+
+            if (left < bounds.Right && right > bounds.Left && top < bounds.Bottom && bottom > bounds.Top) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>A box's two edges along the way a line runs: the one it comes to first, and the one it leaves by.</summary>
+    private static (double Near, double Far) Edges(Rect bounds, bool sideways, int onwards)
+    {
+        var (near, far) = sideways ? (bounds.Top, bounds.Bottom) : (bounds.Left, bounds.Right);
+
+        return onwards > 0 ? (near, far) : (far, near);
     }
 
     /// <summary>The two ends of a run, in order.</summary>

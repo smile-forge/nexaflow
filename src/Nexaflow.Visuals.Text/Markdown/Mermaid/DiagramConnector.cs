@@ -165,16 +165,34 @@ internal static class DiagramConnector
     }
 
     /// <summary>
-    /// The room what is written on a connector takes, over the middle of it and with a little air round it — or nothing, where
-    /// there is nothing to say. Whatever is drawn under it does not stand there, so it is worked out before anything is drawn.
+    /// The room what is written on a line takes, set about <paramref name="at"/> — the middle of the line where nothing
+    /// else is said.
     /// </summary>
-    public static Rect Room(IReadOnlyList<Point> route, IReadOnlyList<DiagramWords> said)
+    public static Rect Room(IReadOnlyList<Point> route, IReadOnlyList<DiagramWords> said, Point? at = null)
     {
         var taken = DiagramWords.Taken(said);
         if (taken.Width <= 0 || taken.Height <= 0) return Rect.Empty;
 
-        var at = Middle(route);
-        return Rect.Inflate(new Rect(at.X - (taken.Width / 2), at.Y - (taken.Height / 2), taken.Width, taken.Height), Air, Air / 2);
+        var on = at ?? Middle(route);
+
+        return Rect.Inflate(new Rect(on.X - (taken.Width / 2), on.Y - (taken.Height / 2), taken.Width, taken.Height), Air, Air / 2);
+    }
+
+    /// <summary>
+    /// The middle of the longest straight run of a line, which is where what is written on it has the most room to stand in.
+    /// A line that turns has its own middle on or near one of its corners as often as not, and a corner is where it is
+    /// getting past whatever made it turn.
+    /// </summary>
+    public static Point Longest(IReadOnlyList<Point> route)
+    {
+        if (route.Count < 2) return Middle(route);
+
+        var (best, at) = (-1.0, 1);
+
+        for (var one = 1; one < route.Count; one++)
+            if ((route[one] - route[one - 1]).Length > best) (best, at) = ((route[one] - route[one - 1]).Length, one);
+
+        return new Point((route[at - 1].X + route[at].X) / 2, (route[at - 1].Y + route[at].Y) / 2);
     }
 
     /// <summary>How round the corner of an outlined label is.</summary>
