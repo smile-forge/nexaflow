@@ -3,7 +3,7 @@ using System.Windows;
 using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles <c>datamatrix</c> fenced code blocks.

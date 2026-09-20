@@ -640,6 +640,18 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     // ── Pointer, driven by the host ─────────────────────────────────────────
 
+    /// <summary>
+    /// A press landed at <paramref name="at"/>. True where it meant something — which is the end of it, and no caret is
+    /// placed and nothing is selected. Nothing, unless the content declares what its pieces answer to.
+    /// </summary>
+    protected virtual bool Pressed(Point at, ModifierKeys modifiers) => false;
+
+    /// <summary>Two presses landed at <paramref name="at"/>. True where that meant something.</summary>
+    protected virtual bool Chosen(Point at) => false;
+
+    /// <summary>A piece was picked by a press at <paramref name="at"/>. It is chosen either way; this is only the telling.</summary>
+    protected virtual void Picked(Point at) { }
+
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement) => BeginPointerSelect(pointInElement, ModifierKeys.None);
 
@@ -651,6 +663,9 @@ public class ContentElement : FrameworkElement, IEditableBlock
         var at = Unscaled(pointInElement);
         _pressedAt = pointInElement;
         _moving = false;
+
+        // A piece that answers to a press means what it answers with, and not a place to put the caret.
+        if (Pressed(at, modifiers)) return;
 
         // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
         if (modifiers.HasFlag(ModifierKeys.Control))
@@ -693,7 +708,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // letters — including the press that has to show it as written before there is anywhere to put one.
         if (Writing(_anchorNode, at)) return;
 
-        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); return; }
+        if (On(_anchorNode, at)) { SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return; }
 
         TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
     }
@@ -721,6 +736,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         Apply(state, notify: false);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+        Picked(at);
     }
 
     /// <summary>What of <paramref name="range"/> lies outside <paramref name="taken"/>.</summary>
@@ -789,6 +805,14 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Whether <paramref name="offset"/> falls inside one of the selected stretches.</summary>
     private bool Covers(int offset) =>
         _state.Selection.Any(range => offset >= range.Start && offset <= range.End);
+
+    /// <summary>
+    /// The pieces that answer to a gesture and are covered by what is picked out — empty where nothing is, which is
+    /// what makes "for one item" and "for a selection of them" the same question asked twice.
+    /// </summary>
+    protected IReadOnlyList<Piece> Selected() =>
+        [.. _laid.Root.SelfAndDescendants()
+                 .Where(piece => piece.Acts is not null && piece.Sits() is { Length: > 0 } sits && Covers(sits.Start))];
 
     /// <inheritdoc />
     public void ExtendPointerSelect(Point pointInElement)
@@ -899,6 +923,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // Select the thing under the pointer rather than letting the host drop the whole block into
         // source-edit mode: inside content, "the word you clicked" is the symbol you clicked.
         var at = Unscaled(pointInElement);
+        if (Chosen(at)) return true;
+
         var here = _laid.OffsetAt(at);
 
         var under = Pointing(_laid.PieceAt(at));

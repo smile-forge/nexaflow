@@ -5,7 +5,7 @@ using Nexaflow.Markdown.Mermaid.C4;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
+
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
 
@@ -176,7 +176,7 @@ public class C4BuilderTests : MermaidBuilderContract
     {
         var ink = C4Grading.Of(MarkdownPalette.Dark);
 
-        double Lit(int tone) => DiagramBrushes.Luminance(DiagramBrushes.ColorOf(ink.Band(tone), Colors.Black));
+        double Lit(int tone) => DiagramColour.Luminance(DiagramColour.ColorOf(ink.Band(tone), Colors.Black));
 
         // C4's information is the grading: deeper for the outer abstraction, lighter as you go in.
         Assert.IsTrue(Lit((int)C4Level.Person) < Lit((int)C4Level.System), "a person is deeper than a system");
@@ -191,7 +191,7 @@ public class C4BuilderTests : MermaidBuilderContract
         var dark = C4Grading.Of(MarkdownPalette.Dark).Band((int)C4Level.Container);
         var light = C4Grading.Of(MarkdownPalette.Light).Band((int)C4Level.Container);
 
-        Assert.AreNotEqual(DiagramBrushes.ColorOf(dark, Colors.Black), DiagramBrushes.ColorOf(light, Colors.Black),
+        Assert.AreNotEqual(DiagramColour.ColorOf(dark, Colors.Black), DiagramColour.ColorOf(light, Colors.Black),
                            "a retheme retunes a C4 diagram rather than leaving one region stubbornly cornflower blue");
     }
 
@@ -202,24 +202,24 @@ public class C4BuilderTests : MermaidBuilderContract
         var ink = C4Grading.Of(MarkdownPalette.Dark);
 
         var (fill, stroke, text) = ink.Card((int)C4Level.Container, "#969", "#333", "#fff");
-        Assert.AreEqual(Color.FromRgb(0x99, 0x66, 0x99), DiagramBrushes.ColorOf(fill, Colors.Black));
-        Assert.AreEqual(Color.FromRgb(0x33, 0x33, 0x33), DiagramBrushes.ColorOf(stroke, Colors.Black));
-        Assert.AreEqual(Colors.White, DiagramBrushes.ColorOf(text, Colors.Black));
+        Assert.AreEqual(Color.FromRgb(0x99, 0x66, 0x99), DiagramColour.ColorOf(fill, Colors.Black));
+        Assert.AreEqual(Color.FromRgb(0x33, 0x33, 0x33), DiagramColour.ColorOf(stroke, Colors.Black));
+        Assert.AreEqual(Colors.White, DiagramColour.ColorOf(text, Colors.Black));
 
         // On both palettes, because the trap is a theme whose text brush matches the fill's own darkness.
         foreach (var palette in new[] { MarkdownPalette.Dark, MarkdownPalette.Light })
         {
             var on = C4Grading.Of(palette);
 
-            var onWhite = DiagramBrushes.Luminance(DiagramBrushes.ColorOf(on.Card(0, "#ffffff", null, null).Ink, Colors.Red));
+            var onWhite = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#ffffff", null, null).Ink, Colors.Red));
             Assert.IsTrue(onWhite < 100, $"a white card takes dark ink (luminance {onWhite})");
 
-            var onBlack = DiagramBrushes.Luminance(DiagramBrushes.ColorOf(on.Card(0, "#000000", null, null).Ink, Colors.Red));
+            var onBlack = DiagramColour.Luminance(DiagramColour.ColorOf(on.Card(0, "#000000", null, null).Ink, Colors.Red));
             Assert.IsTrue(onBlack > 180, $"a black card takes light ink (luminance {onBlack})");
 
             var (person, _, reading) = on.Card((int)C4Level.Person, null, null, null);
-            var gap = Math.Abs(DiagramBrushes.Luminance(DiagramBrushes.ColorOf(reading, Colors.Red))
-                               - DiagramBrushes.Luminance(DiagramBrushes.ColorOf(person, Colors.Red)));
+            var gap = Math.Abs(DiagramColour.Luminance(DiagramColour.ColorOf(reading, Colors.Red))
+                               - DiagramColour.Luminance(DiagramColour.ColorOf(person, Colors.Red)));
             Assert.IsTrue(gap > 90, $"and the deepest of the grading is legible too (gap {gap})");
         }
     }
@@ -238,13 +238,13 @@ public class C4BuilderTests : MermaidBuilderContract
             CodeBorder = dark.CodeBorder, QuoteBg = dark.QuoteBg, Hr = dark.Hr, TableBorder = dark.TableBorder,
             TableHeaderBg = dark.TableHeaderBg, TableAltRowBg = dark.TableAltRowBg, FigureBorder = dark.FigureBorder,
             FigureBg = dark.FigureBg, FooterBg = dark.FooterBg,
-            C4Container = DiagramBrushes.Frozen(pinned),
+            C4Container = DiagramColour.Frozen(pinned),
         };
 
         var ink = C4Grading.Of(palette);
 
-        Assert.AreEqual(pinned, DiagramBrushes.ColorOf(ink.Band((int)C4Level.Container), Colors.Black));
-        Assert.AreNotEqual(pinned, DiagramBrushes.ColorOf(ink.Band((int)C4Level.Component), Colors.Black),
+        Assert.AreEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Container), Colors.Black));
+        Assert.AreNotEqual(pinned, DiagramColour.ColorOf(ink.Band((int)C4Level.Component), Colors.Black),
                            "and the levels it did not pin still derive");
     }
 
@@ -253,10 +253,10 @@ public class C4BuilderTests : MermaidBuilderContract
     public void SomebodyElsesIsTheOneMutedColourWhateverLevelItSitsAt() => UiThread.Run(() =>
     {
         var ink = C4Grading.Of(MarkdownPalette.Dark);
-        var muted = DiagramBrushes.ColorOf(ink.Band(C4Elements.External), Colors.Black);
+        var muted = DiagramColour.ColorOf(ink.Band(C4Elements.External), Colors.Black);
 
         foreach (var level in new[] { C4Level.Person, C4Level.System, C4Level.Container, C4Level.Component })
-            Assert.AreEqual(muted, DiagramBrushes.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), Colors.Black),
+            Assert.AreEqual(muted, DiagramColour.ColorOf(ink.Band(C4Elements.Banded(level, external: true)), Colors.Black),
                             $"{level}");
     });
 

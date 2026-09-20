@@ -2,7 +2,7 @@ using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using System.Windows;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles <c>qr</c> fenced code blocks — the QR-code generator described at

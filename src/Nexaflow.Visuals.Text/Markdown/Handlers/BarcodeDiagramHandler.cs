@@ -2,7 +2,7 @@ using Nexaflow.Visuals.Text.Markdown.Barcode;
 using System.Windows;
 using Nexaflow.Visuals.Text.Editing;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles <c>barcode</c> fenced code blocks — the linear-barcode generator described at

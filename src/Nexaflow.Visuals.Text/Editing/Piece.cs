@@ -127,8 +127,8 @@ public readonly record struct Piece
     /// </summary>
     public LayoutWords? Words => _tree?.WordsOf(_at);
 
-    /// <summary>Where pressing it leads, or null where it leads nowhere — which is nearly every piece.</summary>
-    public LayoutLink? Link => _tree?.LinkOf(_at);
+    /// <summary>What it answers to, or null where it answers to nothing.</summary>
+    public LayoutActions? Acts => _tree?.ActsOf(_at);
 
     /// <summary>Where its own frame begins on the page — what its marks and its region are measured from.</summary>
     internal Vector Anchor => _tree is null ? default : _tree.AnchorOf(_at);

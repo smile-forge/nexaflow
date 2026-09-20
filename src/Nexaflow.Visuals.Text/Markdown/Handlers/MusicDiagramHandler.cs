@@ -1,7 +1,7 @@
 using System.Windows;
 using Nexaflow.Visuals.Text.Markdown.Music;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles the fenced code blocks that hold music — <c>abc</c>, <c>lilypond</c> and <c>ly</c> — engraved.

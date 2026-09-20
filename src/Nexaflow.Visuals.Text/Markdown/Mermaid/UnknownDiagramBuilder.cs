@@ -17,18 +17,17 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal sealed class UnknownDiagramBuilder : MermaidBuilder
 {
-    private UnknownDiagramBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room)
-        : base(state, palette, pixelsPerDip, room) { }
+    private UnknownDiagramBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Nothing to this builder: a block shown as written looks the same to a reader and a writer.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new UnknownDiagramBuilder(state, palette, pixelsPerDip, room).Lay();
+    /// <remarks>Written in or not, it looks the same, so it is laid out as nobody were: a block shown as its own
+    /// characters has nothing still to be written in it.</remarks>
+    public static Laid Build(EditState state, DiagramLaying laying) =>
+        new UnknownDiagramBuilder(state, laying with { Writing = false }).Lay();
 
     /// <summary>The same, for a block nobody is writing in.</summary>
     public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity) =>
-        Build(EditState.For(source), palette, pixelsPerDip, room);
+        Build(EditState.For(source), new DiagramLaying(palette, pixelsPerDip, room));
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

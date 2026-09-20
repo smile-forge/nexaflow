@@ -1,19 +1,18 @@
-// LEGACY — frozen. Diagrams move off this code onto the shared layout tree one at a time, built from the Mermaid kit
-// (docs/mermaid-diagrams.md); this file goes when the last diagram using it has moved. Read it for what a diagram draws —
-// never copy from it, add to it, or use it from code on the shared tree (MermaidDiagramRulesTests).
 using System.Windows.Media;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Rendering;
+namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
 /// <summary>
-/// Colour and brush helpers shared by the diagram renderers — freezing, alpha tinting, CSS colour
-/// parsing and the readable-ink choice.  Each renderer had grown its own copy of these; sharing them
-/// keeps a tint in one diagram the same strength as the same tint in another, and gives the one
-/// place to fix a colour rule.
+/// Colour arithmetic: what a colour somebody wrote comes to, how bright it is, what a translucent one shows as over
+/// what is behind it, and which of two inks reads over it.
 ///
-/// Every brush returned is frozen, so it is safe to hold and cheap to reuse.
+/// <para>
+/// The layer under <see cref="DiagramInk"/>, which is what a builder actually asks: this decides what
+/// <c>#ff6b6b</c>, <c>red</c> and <c>rgb(1, 2, 3)</c> mean once, for every diagram, so a tint in one is the same
+/// strength as the same tint in another.
+/// </para>
 /// </summary>
-internal static class DiagramBrushes
+internal static class DiagramColour
 {
     /// <summary>A frozen solid brush of <paramref name="c"/>.</summary>
     internal static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }

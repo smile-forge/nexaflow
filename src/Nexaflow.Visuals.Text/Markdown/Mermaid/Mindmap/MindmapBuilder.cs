@@ -47,13 +47,10 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
     private const double Thickest = 11;
     private const double Thinner = 3;
 
-    private MindmapBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private MindmapBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new MindmapBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new MindmapBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override MindmapTree Of(MermaidBlock block) => MindmapTree.Of(block);

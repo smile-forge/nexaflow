@@ -2,7 +2,7 @@ using System;
 using System.Windows;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles <c>wordcloud</c> fenced code blocks — a word and what it counts for on each line, packed into a

@@ -3,7 +3,7 @@ using System.Windows;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Plot;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles one of the correlation fences — <c>scatter</c>, <c>bubble</c>, <c>heatmap</c> or

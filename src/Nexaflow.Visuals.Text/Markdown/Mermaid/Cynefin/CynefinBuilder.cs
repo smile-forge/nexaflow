@@ -94,13 +94,10 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         (CynefinDomain.Clear, false, false),
     ];
 
-    private CynefinBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private CynefinBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new CynefinBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new CynefinBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override CynefinDiagram Of(MermaidBlock block) => CynefinDiagram.Of(block);

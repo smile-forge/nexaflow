@@ -87,14 +87,10 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
     /// <summary>What the legend's one column is.</summary>
     private static readonly string[] Columns = [RadarPiece.Name];
 
-    private RadarBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private RadarBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new RadarBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new RadarBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override RadarChart Of(MermaidBlock block) => RadarChart.Of(block);

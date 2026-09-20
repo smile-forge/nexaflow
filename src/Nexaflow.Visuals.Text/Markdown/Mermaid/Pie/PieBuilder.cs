@@ -77,14 +77,10 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     /// <summary>What each of the legend's columns is: a slice's label, its value, and its share.</summary>
     private static readonly string[] Columns = [PiePiece.Label, PiePiece.Value, PiePiece.Share];
 
-    private PieBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private PieBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new PieBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new PieBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override PieChart Of(MermaidBlock block) => PieChart.Of(block);

@@ -1,5 +1,5 @@
 using Nexaflow.Markdown.Plot;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+using Nexaflow.Visuals.Text.Markdown.Handlers;
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
 using System.Windows;
 using System.Windows.Controls;

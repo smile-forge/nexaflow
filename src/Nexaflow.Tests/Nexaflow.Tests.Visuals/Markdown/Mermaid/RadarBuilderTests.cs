@@ -50,7 +50,7 @@ public class RadarBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700, bool writing = false) =>
-        RadarBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room, writing);
+        RadarBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
 
     [TestMethod]
     public void EveryAxisIsASpokeStandingForTheAxisItWasWrittenAs() => UiThread.Run(() =>

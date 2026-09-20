@@ -20,8 +20,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal static class MermaidBuilders
 {
-    /// <summary>Lays a block's source out for a palette, a pixel density, a width, and whether somebody is writing in it.</summary>
-    public delegate Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing);
+    /// <summary>Lays a block's source out for everything the laying depends on but the source itself.</summary>
+    public delegate Laid Build(EditState state, DiagramLaying laying);
 
     /// <summary>The builder a diagram is drawn by, or null for one not drawn on the shared tree.</summary>
     public static Build? For(MermaidDiagram diagram) => diagram switch
@@ -57,11 +57,9 @@ internal static class MermaidBuilders
     /// <summary>The element a block is shown and written in, or null where its diagram is not drawn on the shared tree.</summary>
     /// <remarks>Read-only where the host takes no edits, which leaves a diagram there looked at, selected and followed.</remarks>
     public static Editing.ContentElement? Element(string source, MermaidDiagram diagram, DiagramRenderOptions options) =>
-        For(diagram) is { } build
-            ? MermaidBuilder.Host(source, options, (state, palette, pixelsPerDip, room, writing) => build(state, palette, pixelsPerDip, room, writing), options.ReadOnly)
-            : null;
+        For(diagram) is { } build ? MermaidBuilder.Host(source, options, build, options.ReadOnly) : null;
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
     public static Laid? Lay(string source, MarkdownPalette palette, double pixelsPerDip = 1, double room = double.PositiveInfinity, bool writing = false) =>
-        For(MermaidBlock.Read(source).Diagram)?.Invoke(EditState.For(source), palette, pixelsPerDip, room, writing);
+        For(MermaidBlock.Read(source).Diagram)?.Invoke(EditState.For(source), new DiagramLaying(palette, pixelsPerDip, room, writing));
 }

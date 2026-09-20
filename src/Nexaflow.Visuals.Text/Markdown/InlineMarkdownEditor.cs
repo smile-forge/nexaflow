@@ -1100,7 +1100,7 @@ public partial class InlineMarkdownEditor : UserControl
         // than of its type, so the host never learns what a note is.
         if (InteractiveBlockAtPoint(e.GetPosition(_rtb)) is Editing.IEditableBlock editable
             && editable is UIElement hosting
-            && editable.BuildRibbon() is { } ribbon)
+            && editable.BuildRibbon(e.GetPosition(hosting)) is { } ribbon)
         {
             OpenBlockRibbon(editable, ribbon, e.GetPosition(hosting));
             return;

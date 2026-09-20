@@ -53,6 +53,18 @@ public sealed class DiagramRenderOptions
     public Func<string, bool>? OnNavigate { get; init; }
 
     /// <summary>
+    /// What a gesture on a piece of the diagram means, offered to the host before anything else answers it. Return true
+    /// to say it was taken on, which stops the press meaning anything more.
+    ///
+    /// <para>
+    /// The catch-all behind the typed hooks beside it: a builder declares what a press <em>means</em>
+    /// (<see cref="Editing.LayoutIntent"/>) and the host decides, so a diagram can offer a verb nothing here has ever
+    /// heard of and a host that wants it needs no change to the renderer.
+    /// </para>
+    /// </summary>
+    public Func<Editing.LayoutAct, bool>? OnAction { get; init; }
+
+    /// <summary>
     /// Whether the host takes no edits — a viewer rather than an editor. A diagram there is looked at, selected and
     /// followed where it leads, and never written in.
     /// </summary>
@@ -80,15 +92,20 @@ public sealed class DiagramRenderOptions
     /// <summary>Called when the selected node changes, for a host showing detail beside the diagram.</summary>
     public Action<DiagramSelection>? OnSelect { get; init; }
 
-    /// <summary>The surface scales an over-wide diagram down to its column instead of giving it a
-    /// viewport of its own. Set by editable surfaces, where scrollbars and pan gestures both fight
-    /// text selection.</summary>
+    /// <summary>
+    /// The surface scales an over-wide diagram down to its column instead of giving it a viewport of its own. Set by
+    /// editable surfaces, where scrollbars and pan gestures both fight text selection.
+    ///
+    /// <para>Nothing reads it: a diagram on the shared tree has no viewport of its own yet.</para>
+    /// </summary>
     public bool FitToWidth { get; init; }
 
     /// <summary>
     /// A single click on a node only selects it; opening it takes a double-click. For surfaces where
     /// opening costs something the user may not have meant — the PE inspector spawns a whole tab —
     /// so a single click is left free for looking at a node and its edges.
+    ///
+    /// <para>Nothing reads it: a press means what the builder declared it means, and nothing declares this yet.</para>
     /// </summary>
     public bool OpenOnDoubleClick { get; init; }
 
@@ -96,11 +113,16 @@ public sealed class DiagramRenderOptions
     /// A plain mouse wheel zooms the diagram rather than scrolling the page past it. For a pane whose
     /// whole content is the diagram; a diagram sitting in a flowing document leaves this off, or the
     /// page could never be scrolled past one.
+    ///
+    /// <para>Nothing reads it: a diagram on the shared tree has no viewport of its own yet.</para>
     /// </summary>
     public bool ZoomOnWheel { get; init; }
 
-    /// <summary>Height the diagram may take before it becomes a window onto itself. Zero uses the
-    /// default cap.</summary>
+    /// <summary>
+    /// Height the diagram may take before it becomes a window onto itself. Zero uses the default cap.
+    ///
+    /// <para>Nothing reads it: a diagram on the shared tree has no viewport of its own yet.</para>
+    /// </summary>
     public double MaxHeight { get; init; }
 
     /// <summary>Where this diagram's expansion, selection and pan/zoom survive between renders.

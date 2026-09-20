@@ -139,7 +139,7 @@ and drawn natively in WPF (no JS/Mermaid.js, no browser).
 | `density2d` | ✅ | ✅ — the contours of a kernel density estimate; see [Correlation plots](#correlation-plots--sub-support) below |
 | `abc` | ✅ | ✅ — ABC music on the shared syntax tree; see [Musical Notation](#musical-notation--sub-support) below |
 
-**Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MermaidDiagramHandler.cs)):
+**Mermaid sub-types** ([`MermaidDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/MermaidDiagramHandler.cs)):
 
 | Sub-type | Status | Tests |
 |---|---|---|
@@ -281,7 +281,7 @@ name, its fields, then its methods — with a rule the width of the box between 
 in the layout**, so pressing a class means that class and pressing the room round it means the namespace, which stands
 for the whole `namespace … }` it was written as. **A member may lead somewhere**: a trailing ` @@<url>`, which nothing
 in Mermaid writes and the Code feature's *As Code* writes, draws the row as a link and a press on it opens the
-declaration ([`LayoutLink`](../src/Nexaflow.Visuals.Text/Editing/LayoutLink.cs)) — as does a class a `click` line points
+declaration ([`LayoutActions`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) — as does a class a `click` line points
 somewhere. **The front matter is applied** ([`ClassConfig`](../src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs)):
 `config: class:` `nodeSpacing`, `rankSpacing`, `diagramPadding`, `dividerMargin`, `titleTopMargin`, `wrappingWidth`,
 `hideEmptyMembersBox` and `hierarchicalNamespaces`, and the shared `markdownAutoWrap`. **Divergences from Mermaid:** an
@@ -340,7 +340,7 @@ the front matter. **The drawing nests where the source does not**: the lines of 
 a frame holding the messages written inside it, holding the frames written inside those — so a frame stands for the
 whole of what was written from the word that opened it through its `end`, and a press on the room round a message means
 the `alt` it is under. **A participant may lead somewhere**: a `link` line draws its label under the lifeline and a
-press on it follows the url ([`LayoutLink`](../src/Nexaflow.Visuals.Text/Editing/LayoutLink.cs)). **The front matter is
+press on it follows the url ([`LayoutActions`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)). **The front matter is
 applied** ([`SequenceConfig`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs)): `config: sequence:`
 `activationWidth`, `diagramMarginX`, `diagramMarginY`, `actorMargin`, `width`, `height`, `boxMargin`, `boxTextMargin`,
 `noteMargin`, `messageMargin`, `messageAlign`, `noteAlign`, `mirrorActors`, `bottomMarginAdj`, `rightAngles`,
@@ -602,7 +602,7 @@ stands for the whole `subgraph … end` it was written as. **The front matter is
 ([`ErConfig`](../src/Nexaflow.Markdown/Mermaid/Er/ErConfig.cs)): `config: er:` `minEntityWidth`, `minEntityHeight`,
 `entityPadding`, `fontSize`, `nodeSpacing`, `rankSpacing`, `diagramPadding`, `titleTopMargin`, `fill`, `stroke` and
 `layoutDirection` (where the body has no `direction` line of its own), and the shared `markdownAutoWrap` — every key Mermaid
-documents, where the legacy renderer read the spacing ones and drew its own metrics anyway. **Divergences from Mermaid:** a
+documents. **Divergences from Mermaid:** a
 name ends at the punctuation a relationship is drawn with, so one holding anything else is written in quotes, and a rename
 drops what a bare name cannot hold, since a `style` line names one bare; what a relationship is called is read to the end of
 its line, where Mermaid reads one word unless it is quoted; a name and a comment are drawn as the characters written, where
@@ -759,7 +759,7 @@ in. Supported: `title`; `section`; `Task name: score: actor, actor` (a task may 
 `section` are a group of their own with no name); `%%` comments; and `accTitle`/`accDescr`. A task stands for its line,
 a band for its `section` line, a face for the score it shows, and an actor's mark for where they are named on that
 task's line. **A score nobody can reach is no score at all**: the line says what is wrong with it and the task shows the
-middling face, where the legacy renderer clamped it silently. **The front matter is applied**
+middling face rather than being clamped to one silently. **The front matter is applied**
 ([`JourneyConfig`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs)): `config: journey:`
 `width`/`height`/`boxMargin`/`taskFontSize`, the colour lists `actorColours`/`sectionFills` (written in brackets or as the
 lines under the key), and the `themeVariables` `fillType0…7` slots behind the sections' list. Writing in place: what a
@@ -868,75 +868,63 @@ participant written as a sequence diagram's own is renamed where it is drawn and
 one card either way, a lifeline's head being a column heading; and `Lay_*`, `$sprite` and `UpdateLayoutConfig` tune a
 graph placement this does not use.
 
-### Expandable nodes + the viewport (graph-family diagrams)
+### Nodes that fold (graph-family diagrams)
 
-A `graph`/`flowchart` asking for nodes that open and close is drawn by the graph model, the Sugiyama layout and
-[`WpfGraphRenderer`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs) instead of on the shared layout
-tree, which is what a `config: nexaflow:` block asks for. The two things that path has, which only matter once a graph gets
-big, are these.
+A `graph`/`flowchart` — and `stateDiagram`, `classDiagram`, `erDiagram`, `requirementDiagram` and `C4Context` with it —
+can be drawn with only part of itself showing, which is what a `config: nexaflow:` block asks for.
 
-**A node can hide a subtree.** `Node.Expansion` is `Leaf` / `Collapsed` / `Expanded`, and a non-leaf node is drawn
-with a **`[+]` / `[−]` chip** on its top-right corner — a *second* hit region, so the node's body keeps its own
-`click` target and expansion doesn't have to be smuggled into the label or the href. Which nodes those are is
-declared in a **`config: nexaflow:`** front-matter block, namespaced so it can never collide with a real mermaid
-key and so stock mermaid simply ignores it
-([`NexaflowConfigParser`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Parsers/NexaflowConfigParser.cs) →
-[`NexaflowGraphConfig`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Charts/NexaflowGraphConfig.cs)):
+**A node can hide what is behind it.** A node something spoke about is drawn with a **`[+N]` / `[−]` chip** over its
+top-right corner ([`DiagramChip`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramChip.cs)) — a piece of its own, so
+the node's body goes on meaning whatever its own press meant and folding never has to be smuggled into a label or an
+href. Which nodes those are is declared in a **`config: nexaflow:`** front-matter block, namespaced so it can never
+collide with a key Mermaid reads and so stock Mermaid simply ignores it
+([`NexaflowConfig`](../src/Nexaflow.Markdown/Mermaid/NexaflowConfig.cs)):
 
 ```yaml
 ---
 config:
   nexaflow:
-    expandDepth: 2          # auto-open this many levels from the roots; deeper nodes get a [+]
-    maxFanOut: 24           # more siblings than this fold behind one "+N more" chip (0 = off)
-    collapsed: [n3, n7]     # ids owning a hidden subtree — or a keyed block, below
+    defaultExpansion: 2     # draw this many levels down from the roots; deeper nodes fold behind a [+]
+    maxFanOut: 24           # read, and not yet acted on
+    collapsed: [n3, n7]     # ids owning a folded subtree — or a keyed block, below
     expanded:
       n0: app.exe           # id → the producer's own name, echoed back on the expand request
 ---
 ```
 
-[`GraphExpansion`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Layout/GraphExpansion.cs) derives the *visible*
-graph from the parsed one plus that config plus whatever the reader has since opened — the parsed graph is never
-mutated, so re-laying it out is idempotent. A diagram that says nothing about expansion gets no chips and renders
-exactly as before. Clicking a chip goes to the host first (`SelectableMarkdownView.DiagramExpand` → a
-`DiagramExpandRequest`); a host that *generated* the diagram claims it and re-emits with more walked (the PE
-inspector's import tree), and if nobody claims it the diagram opens the node itself from its own source.
+`expandDepth` says the same thing as `defaultExpansion`, which is the spelling every diagram the PE inspector writes
+uses.
 
-**Layout.** The layout counts crossings and keeps the best ordering (barycenter ⊕ median ⊕ adjacent transposition),
-then pulls each node toward the median of its neighbours so a child sits under its parent. It also respects the
-width it has, in two ways: a layer too wide for the space wraps onto further rows rather than becoming one endless
-line, and a label long enough to set the width of its whole layer is capped and wrapped instead
-([`NodeLabelMetrics`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/NodeLabelMetrics.cs), shared with the renderer so
-the two agree about where text sits). The cap is derived from the space available and only ever binds on the labels
-that caused the overflow — so a diagram that already fits is untouched, and one that didn't spends height, where
-the room actually is, instead of growing sideways. The width laid out for is the view's **actual** width, not a
-per-diagram constant.
+[`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn and which carry
+a chip, from that config plus whatever the reader has since opened. It runs while the diagram is being planned, so a
+folded node is simply never given a cell: the links to it have no end to meet and a subgraph holding nothing else closes
+up, rather than a hole being cut in a finished drawing. Nothing touches the source — what the reader opens is view state
+([`DiagramViewState`](../src/Nexaflow.Visuals.Text/Markdown/DiagramViewState.cs)), so the diagram is always exactly what
+its author wrote — and a diagram that says nothing about folding gets no chips.
 
-**Viewport.** A graph diagram sits on a
-[`PanZoomSurface`](../src/Nexaflow.Visuals.Common/Layout/PanZoomSurface.cs) — drag to pan, Ctrl+wheel or the
-`−`/`+`/`Fit`/`1:1` chips to zoom, and an overview minimap (of the node boxes, not just the bounding box) that
-appears once part of the diagram is off-screen. **Always**, not only once the diagram happens to overflow: a
-gesture that comes and goes with the size of the content is one nobody can learn, and "it fits" is only true until
-the next node is opened. The one exception is a surface that set `FitContentToWidth` (the inline editor), which
-keeps scaling the diagram down to its column — panning inside an already-scaled picture would fight both the
-scaling and text selection.
+**A press means what the builder said it means.** A builder declares a verb and its argument
+([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
+function and cannot close over a host's state;
+[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) resolves it, offering the host's `OnAction`
+everything first and then falling to the verbs it knows: `navigate` → `OnNavigate`, `expand`/`collapse` → the view state
+and `OnExpand`, `select` → `OnSelect`. A chip writes its opening down **before** the host is offered the request,
+because a host that takes it on answers by re-emitting the whole diagram (the PE inspector walks one level further) and
+an opening made here has to survive that; where nobody takes it on, the diagram lays itself out again and opens the node
+from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that
+([`DiagramRibbon`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs)), falling through to the document's own menu
+where it offers nothing.
 
-**Selecting.** Clicking a node selects it: the node and every edge touching it are drawn in the selection colour
-and lifted above the rest, which is what makes one line followable across a dense diagram. Two host options tune
-what else a click does, both off by default:
+**Layout.** A folding diagram is laid out by the same
+[`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) as every other graph-shaped one:
+ranks, then an ordering that keeps crossings down, then each node pulled toward the middle of its neighbours so a child
+sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
-| Option (on `SelectableMarkdownView`) | Effect |
-|---|---|
-| `DiagramOpenOnDoubleClick` | A single click only selects; the node's link opens on double-click. For a pane where opening costs something the user may not have meant — the PE inspector spawns a whole tab. |
-| `DiagramZoomOnWheel` | A plain wheel zooms the diagram instead of scrolling the page past it. Only for a pane whose whole content is the diagram; in a flowing document it would trap the wheel. |
-
-Both reach the diagram through `IInteractiveBlock` (`PointerDoubleClick`, `WantsPointerWheel`), because the host
-intercepts mouse input on the way down — a block that is never asked never sees a double-click or a wheel event
-at all, and the chrome of a surface inside a text container would otherwise need a second click to reach.
-
-`PanZoomSurface` lives in `Visuals.Common` beside the `PanZoomMiniMap` arithmetic it drives, because the scratchpad
-corkboard and the image collage each hand-rolled the same WPF half — transforms, drag, minimap redraw, zoom
-buttons — around that shared arithmetic. It is the half that was missing.
+**Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
+minimap. `DiagramRenderOptions.ZoomOnWheel`, `MaxHeight`, `FitToWidth` and `OpenOnDoubleClick` — and the
+`DiagramZoomOnWheel` / `DiagramOpenOnDoubleClick` properties on `SelectableMarkdownView` that set them — are the seam
+those will be wired back through, and nothing reads them today. `maxFanOut` is read and not yet acted on for the same
+reason its chip has nowhere to stand: a "+N more" node is one nobody wrote, and a piece with no part of the source
+behind it cannot be selected, caretted or named.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives
@@ -1010,7 +998,7 @@ solid; `--` and `-/-` are dashed. A ball and socket is drawn as the class diagra
 
 A **`qr`** fence ([syntax](https://markdown.org/tools/diagrams/qr/)) generates a QR symbol. It is not a
 diagram, but it arrives the same way — a fenced block rendered to an element in place of its source — so
-it is registered as an [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/QrDiagramHandler.cs)
+it is registered as an [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/QrDiagramHandler.cs)
 and reaches both markdown surfaces through the one dispatcher.
 
 The body is a flat `key: value` list; the key is everything before the first colon, so a URL on the right
@@ -1071,7 +1059,7 @@ centres (including version 32, the one that breaks the spacing rule), and the Ta
 
 A **`barcode`** fence ([syntax](https://markdown.org/tools/diagrams/barcode/)) generates a linear
 barcode. Like `qr` it is not a diagram but arrives as one, so it is registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/BarcodeDiagramHandler.cs)
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/BarcodeDiagramHandler.cs)
 and reaches both markdown surfaces through the one dispatcher.
 
 The body is a flat `key: value` list, and **unrecognised keys are refused rather than ignored** — the
@@ -1186,7 +1174,7 @@ it retunes them all, which is the intent: they are "scannable dark on light", no
 ## Data Matrix — sub-support
 
 A **`datamatrix`** fence generates an ECC 200 symbol. Registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/DataMatrixDiagramHandler.cs)
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/DataMatrixDiagramHandler.cs)
 beside `qr` for the same reason.
 
 **The encoder is ours** (ISO/IEC 16022), in
@@ -1227,7 +1215,7 @@ digit pairing in one figure.
 ## PDF417 — sub-support
 
 A **`pdf417`** fence generates a PDF417 symbol (ISO/IEC 15438), registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/Pdf417DiagramHandler.cs)
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/Pdf417DiagramHandler.cs)
 beside `qr` and `datamatrix`. It is the first stacked symbology here, and the first user of
 `MatrixBuilder`'s row-height multiplier.
 
@@ -1270,7 +1258,7 @@ compaction decoded. The rendered picture is rasterised and read back too.
 ## Aztec Code — sub-support
 
 An **`aztec`** fence generates an Aztec Code (ISO/IEC 24778), registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/AztecDiagramHandler.cs) beside
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/AztecDiagramHandler.cs) beside
 `qr`, `datamatrix` and `pdf417`. Both families are supported: **compact** (11-module core, 1–4 layers,
 15×15 to 27×27) and the **full range** (15-module core, 1–32 layers, 19×19 to 151×151, with a reference
 grid through the larger sizes). `format:` picks one; left alone the encoder takes compact while the
@@ -1331,7 +1319,7 @@ A **`smiles`** fence draws molecules from SMILES strings, in the format describe
 [markdown.org](https://markdown.org/tools/diagrams/chemistry/): a molecule per line, an optional caption in
 double quotes after it, `#` comments, and the `chemistry` keyword, which may open the block and may be
 left out. It is registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/SmilesDiagramHandler.cs), and is the
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/SmilesDiagramHandler.cs), and is the
 fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smiles)).
 
 | Piece | What it does |
@@ -1383,7 +1371,7 @@ That rule is what lets a cloud count `shape`, `scale`, `colour` and `gap`, which
 well as settings; the one case it cannot reach — a cloud whose *heaviest* word is named like a setting — is
 written in quotes, `"shape": 40`, which makes a word of it wherever it stands. `#` starts a comment. It is
 registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/WordCloudDiagramHandler.cs), and is
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/WordCloudDiagramHandler.cs), and is
 on the shared syntax tree ([markdown-ast.md](markdown-ast.md#word-clouds)).
 
 | Piece | What it does |
@@ -1487,7 +1475,7 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 
 - **Where it is written.** A fenced ```abc or ```lilypond block; a `#% … #%` block, which is a fence
   spelled another way (below); or a file of its own, `.abc` or `.ly`. Every one of them reaches
-  [`MusicDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/MusicDiagramHandler.cs) — one
+  [`MusicDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/MusicDiagramHandler.cs) — one
   registration per notation — so one path lights it up on both markdown surfaces.
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
   written, and worked over by a pipeline of stages —
@@ -1752,7 +1740,7 @@ against a pair of axes. They share one grammar
 [`PlotChart`](../src/Nexaflow.Markdown/Plot/PlotChart.cs) →
 [`PlotBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs)), because they differ in what
 is drawn rather than in what is written — the division ggplot2 makes. Registered as an
-[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Graphs/Handlers/PlotDiagramHandler.cs), one
+[`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs), one
 instance per fence, and drawn on the **shared layout tree**
 ([markdown-ast.md](markdown-ast.md#correlation-plots)).
 

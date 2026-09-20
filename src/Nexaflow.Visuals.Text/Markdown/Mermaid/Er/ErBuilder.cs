@@ -76,17 +76,17 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// <summary>How wide what is written on a relationship runs before it wraps.</summary>
     private const double Widest = 160;
 
-    private ErBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private ErBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays an ER diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new ErBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new ErBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override ErDiagram Of(MermaidBlock block) => ErDiagram.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(ErDiagram diagram) =>
+        new([.. diagram.Entities.Select(entity => entity.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]);
 
     protected override Size Draw(ErDiagram diagram, LayoutBuilder build)
     {
@@ -138,6 +138,10 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         foreach (var entity in diagram.Entities)
         {
+            // An entity folded away is never given a cell, so the relationships to it have no end to meet and a
+            // subgraph holding nothing else closes up rather than standing empty.
+            if (!Draws(entity.Id)) continue;
+
             var sized = Measure(entity, diagram.Config);
             sized.Cell = new DiagramCell(sized.Size)
             {
@@ -353,6 +357,8 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         }
 
         build.Close();
+
+        Chipped(build, entity.Id, box, entity.Whole);
     }
 
     private static RectangleGeometry Taken(DiagramWords words, Point at) =>

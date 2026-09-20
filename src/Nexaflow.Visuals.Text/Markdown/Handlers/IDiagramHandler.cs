@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Encapsulates a complete diagram pipeline (parse → layout → render) for one

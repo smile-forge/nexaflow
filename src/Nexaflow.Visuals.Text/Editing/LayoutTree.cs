@@ -71,8 +71,8 @@ public sealed class LayoutTree
 
     private readonly LayoutWords?[] _words;
 
-    /// <summary>Where the few pieces that lead anywhere lead, by index, or null where none does.</summary>
-    private readonly IReadOnlyDictionary<int, LayoutLink>? _links;
+    /// <summary>What the few pieces that answer to a gesture answer to, by index. Null where none does.</summary>
+    private readonly IReadOnlyDictionary<int, LayoutActions>? _acts;
 
     /// <summary>Which run a piece reads along and where in it, and the same downward. -1 for neither.</summary>
     private readonly int[] _across;
@@ -87,7 +87,7 @@ public sealed class LayoutTree
 
     internal LayoutTree(Stored[] pieces, LayoutMark[] marks, ISourcePart?[] parts, string[] kinds,
                         LayoutPaint?[] paints, Geometry?[] regions, LayoutWords?[] words,
-                        IReadOnlyDictionary<int, LayoutLink>? links, int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
+                        IReadOnlyDictionary<int, LayoutActions>? acts, int[] across, int[] acrossAt, int[] down, int[] downAt, int[][] runs)
     {
         _pieces = pieces;
         _marks = marks;
@@ -96,7 +96,7 @@ public sealed class LayoutTree
         _paints = paints;
         _regions = regions;
         _words = words;
-        _links = links;
+        _acts = acts;
         _across = across;
         _acrossAt = acrossAt;
         _down = down;
@@ -139,8 +139,8 @@ public sealed class LayoutTree
     /// <summary>The run of text it is, or nothing — which is nearly always. See <see cref="LayoutBuilder.Words"/>.</summary>
     internal LayoutWords? WordsOf(int at) => _words[at];
 
-    /// <summary>Where pressing it leads, or nothing — which is nearly always. See <see cref="LayoutBuilder.Links"/>.</summary>
-    internal LayoutLink? LinkOf(int at) => _links is not null && _links.TryGetValue(at, out var link) ? link : null;
+    /// <summary>What the piece at <paramref name="at"/> answers to, or null where it answers to nothing.</summary>
+    internal LayoutActions? ActsOf(int at) => _acts is not null && _acts.TryGetValue(at, out var acts) ? acts : null;
 
     internal ReadOnlySpan<LayoutMark> MarksOf(int at) =>
         _marks.AsSpan(_pieces[at].Marks, _pieces[at].MarkCount);

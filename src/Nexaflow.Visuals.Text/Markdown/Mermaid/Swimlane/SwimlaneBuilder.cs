@@ -18,14 +18,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
 /// </summary>
 internal sealed class SwimlaneBuilder : FlowchartBuilder
 {
-    private SwimlaneBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private SwimlaneBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a swimlane's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new SwimlaneBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new SwimlaneBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram)

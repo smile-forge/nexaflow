@@ -140,7 +140,7 @@ public class ClassBuilderTests : MermaidBuilderContract
         var laid = Build("classDiagram\n  class A {\n    +draw() @@nx:line#42\n    +plain()\n  }");
         var linked = Pieces(laid, ClassPiece.Member).Single();
 
-        Assert.AreEqual("nx:line#42", linked.Link?.Href);
+        Assert.AreEqual("nx:line#42", linked.Acts?.Click?.Target);
         Assert.IsTrue(Saying(linked).Contains("+draw()"), "the link is on the member it was written on");
     });
 
@@ -150,8 +150,9 @@ public class ClassBuilderTests : MermaidBuilderContract
         var laid = Build("classDiagram\n  class A\n  click A href \"https://example.com\" \"Go there\"");
         var box = Pieces(laid, ClassPiece.Class).Single();
 
-        Assert.AreEqual("https://example.com", box.Link?.Href);
-        Assert.AreEqual("Go there", box.Link?.Tip);
+        Assert.AreEqual(LayoutVerbs.Navigate, box.Acts?.Click?.Verb);
+        Assert.AreEqual("https://example.com", box.Acts?.Click?.Target);
+        Assert.AreEqual("Go there", box.Acts?.Click?.Tip);
     });
 
     [TestMethod]
@@ -159,13 +160,13 @@ public class ClassBuilderTests : MermaidBuilderContract
     {
         var laid = Build("classDiagram\n  class A {\n    +draw()\n  }\n  A --> B");
 
-        Assert.IsFalse(laid.Tree.Root.SelfAndDescendants().Any(piece => piece.Link is not null));
+        Assert.IsFalse(laid.Tree.Root.SelfAndDescendants().Any(piece => piece.Acts is not null));
     });
 
     // ── What it works with ──────────────────────────────────────────────────
 
     private static Laid Build(string source, double room = 900) =>
-        ClassBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
+        ClassBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     /// <summary>Every class drawn, by what its name says.</summary>
     private static Dictionary<string, Rect> Boxes(string source) => Boxes(Build(source));

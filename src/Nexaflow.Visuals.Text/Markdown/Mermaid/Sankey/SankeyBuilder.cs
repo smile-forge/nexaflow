@@ -57,14 +57,10 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// <summary>How solid a ribbon is.</summary>
     private const double Wash = 0.45;
 
-    private SankeyBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private SankeyBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new SankeyBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new SankeyBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override SankeyChart Of(MermaidBlock block) => SankeyChart.Of(block);

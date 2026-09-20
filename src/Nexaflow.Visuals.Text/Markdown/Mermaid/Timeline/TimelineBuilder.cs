@@ -75,13 +75,10 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     private const double Banded = 0.16;
     private const double Tinted = 0.22;
 
-    private TimelineBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private TimelineBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new TimelineBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new TimelineBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override TimelineChart Of(MermaidBlock block) => TimelineChart.Of(block);

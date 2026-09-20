@@ -484,7 +484,7 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`BlockRenderer`, `MarkdownView`, extensions, pipeline factory, diagram renderer, Sugiyama layout), the
+(`BlockRenderer`, `MarkdownView`, extensions, pipeline factory, the diagram renderer and the layered layout), the
 LaTeX formula tree/layout/caret model, the music engraver, the inline markdown editor, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 

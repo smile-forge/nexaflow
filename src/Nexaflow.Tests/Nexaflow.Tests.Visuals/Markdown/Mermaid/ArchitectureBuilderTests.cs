@@ -183,7 +183,7 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
     });
 
     private static Laid Build(string source, double room = 900) =>
-        ArchitectureBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
+        ArchitectureBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     private static IEnumerable<Piece> Said(Piece piece) =>
         piece.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null);

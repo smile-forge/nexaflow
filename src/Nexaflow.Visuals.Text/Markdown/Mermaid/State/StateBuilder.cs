@@ -85,17 +85,17 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>How wide what is written on a transition runs before it wraps.</summary>
     private const double Widest = 160;
 
-    private StateBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private StateBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a state diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new StateBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new StateBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override StateDiagram Of(MermaidBlock block) => StateDiagram.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(StateDiagram diagram) =>
+        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Steps.Select(step => (step.From, step.To))]);
 
     protected override Size Draw(StateDiagram diagram, LayoutBuilder build)
     {
@@ -154,6 +154,10 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
         foreach (var node in diagram.Nodes)
         {
+            // A state folded away is never given a cell, so the steps to it have no end to meet and a box holding
+            // nothing else closes up rather than standing empty.
+            if (!Draws(node.Id)) continue;
+
             var shape = Shaped(node);
             var words = Said(node, diagram.Config);
             var sized = new Sized(node, words, shape)
@@ -371,7 +375,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         var words = DiagramWords.Placed(sized.Words, DiagramShapes.Inside(sized.Shape, bounds), MermaidPiece.Words);
 
         DiagramShapes.Draw(build, StatePiece.State, node.Part, sized.Shape, bounds, Fill(node), Stroke(node.Style), words,
-                           DiagramShapes.United(over));
+                                                      DiagramShapes.United(over));
+
+                           Chipped(build, node.Id, bounds, node.Part);
     }
 
     /// <summary>

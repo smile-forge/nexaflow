@@ -1,8 +1,8 @@
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Graphs;
-using Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+
+using Nexaflow.Visuals.Text.Markdown.Handlers;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 using Content = Nexaflow.Visuals.Text.Editing.ContentElement;

@@ -2,7 +2,7 @@ using Nexaflow.Markdown.Chemistry;
 using Nexaflow.Visuals.Text.Markdown.Chemistry;
 using System.Windows;
 
-namespace Nexaflow.Visuals.Text.Markdown.Graphs.Handlers;
+namespace Nexaflow.Visuals.Text.Markdown.Handlers;
 
 /// <summary>
 /// Handles <c>smiles</c> fenced code blocks — chemical structures drawn from SMILES strings, the format described

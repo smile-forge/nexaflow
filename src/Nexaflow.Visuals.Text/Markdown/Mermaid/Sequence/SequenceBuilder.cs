@@ -48,14 +48,10 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     /// <summary>How much of a box's or a wash's colour is laid over what is behind it.</summary>
     private const double Wash = 0.14;
 
-    protected SequenceBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    protected SequenceBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a sequence diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new SequenceBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new SequenceBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override SequenceDiagram Of(MermaidBlock block) => SequenceDiagram.Of(block);
@@ -689,7 +685,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         foreach (var (link, words) in column.Links)
         {
             build.Open(SequencePiece.Menu, link.Part, stops: Stops.None);
-            build.Links(new LayoutLink(link.Url, link.Url));
+            build.Links(link.Url, link.Url);
             words.Set(build, new Point(column.Centre - (words.Width / 2), y), MermaidPiece.Words);
             build.Close();
 

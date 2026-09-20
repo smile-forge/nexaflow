@@ -88,14 +88,10 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <summary>How solid a subgraph's background is, over the colour its place among the subgraphs gives it.</summary>
     private const double Wash = 0.14;
 
-    protected FlowchartBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    protected FlowchartBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a flowchart's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new FlowchartBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new FlowchartBuilder(state, laying).Lay();
 
     /// <summary>
     /// How the chart's lanes are laid out, where a subgraph written outside them all is one: whether a link handed from one lane to
@@ -106,6 +102,10 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
     /// <inheritdoc/>
     protected override FlowchartDiagram Of(MermaidBlock block) => FlowchartDiagram.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(FlowchartDiagram diagram) =>
+        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]);
 
     protected override Size Draw(FlowchartDiagram diagram, LayoutBuilder build)
     {
@@ -179,6 +179,10 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
         foreach (var node in diagram.Nodes)
         {
+            // A node folded away is never given a cell, so nothing is laid out round it, the links to it have no end to
+            // meet, and a box holding nothing else closes up rather than standing empty.
+            if (!Draws(node.Id)) continue;
+
             var shape = Shaped(node);
             var words = Said(node, diagram.Config.Wrapping);
             var taken = DiagramWords.Taken(words);
@@ -561,7 +565,23 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         var plain = node.Shape == MermaidShape.Text;
 
         DiagramShapes.Draw(build, FlowchartPiece.Node, node.Part, sized.Shape, bounds,
-                           plain ? null : Fill(node), plain ? null : Stroke(node.Style), words, DiagramShapes.United(over));
+                                                      plain ? null : Fill(node), plain ? null : Stroke(node.Style), words, DiagramShapes.United(over),
+                                                      acts: Answers(node));
+
+                           Chipped(build, node.Id, bounds, node.Part, Shown(node.Said ?? node.Part));
+    }
+
+    /// <summary>
+    /// What a press on a node means: where a <c>click</c> line said it leads, and which node it is where anything is
+    /// listening — an ordinary flowchart has no host following its selection, and an intent nobody reads is a table
+    /// entry for nothing.
+    /// </summary>
+    private LayoutActions? Answers(FlowchartNode node)
+    {
+        LayoutIntent? click = node.Href is { Length: > 0 } href ? new LayoutIntent(LayoutVerbs.Navigate, href, node.Tip) : null;
+        LayoutIntent? select = !Folds.IsEmpty && node.Id.Length > 0 ? new LayoutIntent(LayoutVerbs.Select, node.Id, node.Tip) : null;
+
+        return click is null && select is null ? null : new LayoutActions { Click = click, Select = select };
     }
 
     private static IEnumerable<Sized> Inside(FlowchartDiagram diagram, Plan plan, string? group) =>

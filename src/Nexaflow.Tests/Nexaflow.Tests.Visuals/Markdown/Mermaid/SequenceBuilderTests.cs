@@ -274,7 +274,7 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var laid = Lay("sequenceDiagram\n  participant A\n  link A: Dashboard @ https://example.com/a\n  A->>B: x");
         var menu = Pieces(laid, SequencePiece.Menu).Single();
 
-        Assert.AreEqual("https://example.com/a", menu.Link?.Href);
+        Assert.AreEqual("https://example.com/a", menu.Acts?.Click?.Target);
         Assert.AreEqual("Dashboard", Said(menu).Single().Words!.Glyphs.Text);
     });
 

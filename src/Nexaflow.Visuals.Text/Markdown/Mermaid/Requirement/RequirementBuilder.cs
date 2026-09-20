@@ -68,17 +68,17 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    private RequirementBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private RequirementBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a requirement diagram's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new RequirementBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new RequirementBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override RequirementDiagram Of(MermaidBlock block) => RequirementDiagram.Of(block);
+
+    /// <inheritdoc/>
+    protected override DiagramChart? Chart(RequirementDiagram diagram) =>
+        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]);
 
     protected override Size Draw(RequirementDiagram diagram, LayoutBuilder build)
     {
@@ -110,6 +110,9 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
         foreach (var node in diagram.Nodes)
         {
+            // A requirement folded away is never given a cell, so the relations to it have no end to meet.
+            if (!Draws(node.Id)) continue;
+
             var sized = Measure(node, diagram.Config);
             sized.Cell = new DiagramCell(sized.Size);
 
@@ -253,6 +256,8 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         }
 
         build.Close();
+
+        Chipped(build, sized.Node.Id, box, sized.Node.Whole);
     }
 
     private static RectangleGeometry Taken(DiagramWords words, Point at) =>

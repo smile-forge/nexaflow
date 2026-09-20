@@ -59,13 +59,10 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     private const double DateSize = 10;
     private const double MarkerSize = 15;
 
-    private GanttBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private GanttBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new GanttBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new GanttBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override GanttChart Of(MermaidBlock block) => GanttChart.Of(block);

@@ -17,14 +17,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Nomnoml;
 /// <see cref="ClassBuilder"/>, and a fix there is a fix to both.
 /// </para>
 /// </summary>
-internal sealed class NomnomlBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-    : ClassBuilder(state, palette, pixelsPerDip, room, writing)
+internal sealed class NomnomlBuilder(EditState state, DiagramLaying laying)
+    : ClassBuilder(state, laying)
 {
     /// <summary>Lays a nomnoml block's source out. Never null, and never throws.</summary>
-    /// <param name="writing">Whether somebody is writing in it, which draws what is still to be written.</param>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new NomnomlBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new NomnomlBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override IMermaidGrammar? Grammar => NomnomlDiagram.Grammar;

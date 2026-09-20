@@ -42,7 +42,7 @@ public class QuadrantBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        QuadrantBuilder.Build(EditState.For(source), MarkdownPalette.Dark, 1.0, room);
+        QuadrantBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     [TestMethod]
     public void TheFirstQuadrantIsTopRight_AndTheRestGoAnticlockwise() => UiThread.Run(() =>

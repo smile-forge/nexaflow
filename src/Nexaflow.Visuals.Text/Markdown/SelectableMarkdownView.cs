@@ -49,6 +49,7 @@ public class SelectableMarkdownView : UserControl
         _rtb.PreviewMouseLeftButtonDown += OnPreviewMouseLeftButtonDown;
         _rtb.PreviewMouseLeftButtonUp   += OnPreviewMouseLeftButtonUp;
         _rtb.PreviewMouseMove           += OnPreviewMouseMove;
+        _rtb.PreviewMouseRightButtonUp  += OnPreviewMouseRightButtonUp;
         _rtb.AddHandler(Mouse.QueryCursorEvent, new QueryCursorEventHandler(OnQueryCursor), handledEventsToo: true);
 
         Background = Brushes.Transparent;
@@ -115,6 +116,33 @@ public class SelectableMarkdownView : UserControl
     {
         if (_pointerBlock is null) return;
         EndPointerGesture();
+        e.Handled = true;
+    }
+
+    /// <summary>Where a block's own menu is shown — the document's Copy menu is the <see cref="RichTextBox"/>'s own.</summary>
+    private readonly System.Windows.Controls.Primitives.Popup _ribbon = new()
+    {
+        StaysOpen = false,
+        AllowsTransparency = true,
+        Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+    };
+
+    /// <summary>
+    /// A block under the pointer gets first refusal on a right-click: a diagram node offers where it leads and what is
+    /// folded behind it, neither of which the document's own Copy menu could name. Asked of the block rather than of
+    /// its type, so the view never learns what a node is — and where it offers nothing, the ordinary menu opens.
+    /// </summary>
+    private void OnPreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _ribbon.IsOpen = false;
+
+        var (block, element) = BlockAt(e.GetPosition(_rtb));
+        if (block is not Editing.IEditableBlock editable || element is null) return;
+        if (editable.BuildRibbon(e.GetPosition(element)) is not { } offered) return;
+
+        _ribbon.PlacementTarget = _rtb;
+        _ribbon.Child = offered;
+        _ribbon.IsOpen = true;
         e.Handled = true;
     }
 

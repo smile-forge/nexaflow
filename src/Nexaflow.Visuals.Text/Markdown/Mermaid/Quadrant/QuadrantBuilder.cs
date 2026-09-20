@@ -56,13 +56,10 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
     /// <summary>How solid a quadrant is tinted where no front matter colours it.</summary>
     private const double Tint = 0.16;
 
-    private QuadrantBuilder(EditState state, MarkdownPalette palette, double pixelsPerDip, double room, bool writing)
-        : base(state, palette, pixelsPerDip, room, writing) { }
+    private QuadrantBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             bool writing = false) =>
-        new QuadrantBuilder(state, palette, pixelsPerDip, room, writing).Lay();
+    public static Laid Build(EditState state, DiagramLaying laying) => new QuadrantBuilder(state, laying).Lay();
 
     /// <inheritdoc/>
     protected override QuadrantChart Of(MermaidBlock block) => QuadrantChart.Of(block);
