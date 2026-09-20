@@ -942,6 +942,25 @@ internal sealed class MarkdownSamples : ISampleSet
             MANUFACTURER only one to zero or more CAR : makes
         ```
 
+        ## Subgraphs, and a relationship that names one
+
+        ```mermaid
+        erDiagram
+            subgraph sales ["Sales"]
+                CUSTOMER ||--o{ ORDER : places
+                ORDER {
+                    int id PK
+                    date placedAt
+                }
+            end
+            subgraph stock ["Stock"]
+                PRODUCT
+                WAREHOUSE
+            end
+            ORDER }|--|{ PRODUCT : holds
+            SUPPLIER ||--o{ stock : supplies
+        ```
+
         ## Word-alias cardinality and non-identifying relationships
 
         ```mermaid
@@ -2494,7 +2513,8 @@ internal sealed class MarkdownSamples : ISampleSet
 
         A `sequenceDiagram` draws participant lifelines with messages flowing
         top-to-bottom. Arrow forms set the line and head: `->>` solid, `-->>`
-        dashed, `-)` async, `-x` cross, and a self-message loops back.
+        dashed, `-)` async, `-x` cross, `<<->>` both ways at once, half a head
+        either side of the line, and a self-message loops back.
 
         ```mermaid
         sequenceDiagram
@@ -2771,6 +2791,74 @@ internal sealed class MarkdownSamples : ISampleSet
             John-->>Alice: Great!
             John->>Bob: How about you?
             Bob-->>John: Jolly good!
+        ```
+
+        Numbering from where it says, and turned off partway
+
+        ```mermaid
+        sequenceDiagram
+            autonumber 10 10
+            Alice->>John: One
+            Alice->>John: Two
+            autonumber off
+            Alice->>John: Unnumbered
+        ```
+
+        Half arrows and sticks
+
+        ```mermaid
+        sequenceDiagram
+            Alice-|\John: Top half
+            Alice-|/John: Bottom half
+            Alice/|-John: Top half, the other way round
+            Alice\|-John: Bottom half, the other way round
+            Alice-\\John: Top stick
+            Alice-//John: Bottom stick
+            Alice//-John: Top stick, the other way round
+            Alice\\-John: Bottom stick, the other way round
+        ```
+
+        Critical regions
+
+        ```mermaid
+        sequenceDiagram
+            critical Establish a connection to the DB
+                Service-->DB: connect
+            option Network timeout
+                Service-->Service: Log error
+            option Credentials rejected
+                Service-->Service: Log different error
+            end
+        ```
+
+        Actor menus
+
+        ```mermaid
+        sequenceDiagram
+            participant Alice
+            participant John
+            link Alice: Dashboard @ https://dashboard.contoso.com/alice
+            link Alice: Wiki @ https://wiki.contoso.com/alice
+            links John: {"Dashboard": "https://dashboard.contoso.com/john", "Wiki": "https://wiki.contoso.com/john"}
+            Alice->>John: Great!
+        ```
+
+        The front matter's own settings
+
+        ```mermaid
+        ---
+        config:
+          sequence:
+            mirrorActors: false
+            hideUnusedParticipants: true
+            actorMargin: 90
+            wrap: true
+        ---
+        sequenceDiagram
+            participant Alice
+            participant John
+            participant Nobody
+            Alice->>John: A long message that is wrapped because the front matter asked for it
         ```
 
 
@@ -3932,8 +4020,8 @@ internal sealed class MarkdownSamples : ISampleSet
         `C4Deployment` headers are Mermaid's, but the body accepts the fuller
         [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro set: `$techn` and `$descr`
         on elements and relationships, `$tags` with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`
-        and the `SHOW_PERSON_*` shape variants. Elements are laid out by the shared graph engine, so a
-        C4 diagram pans, zooms and selects like a flowchart.
+        and the `SHOW_PERSON_*` shape variants. Elements are laid out in ranks by what is joined to what,
+        and a card's label is typed into where it is drawn.
 
         ## System context
 
@@ -4025,7 +4113,7 @@ internal sealed class MarkdownSamples : ISampleSet
         `C4Sequence` mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword for. Elements
         become participant cards, a `Boundary` groups them, and each `Rel` is a message carrying its
         technology. Native `sequenceDiagram` control lines — `alt`, `loop`, `note over`, `activate` —
-        work inside it, because it is drawn by the very same renderer.
+        work inside it, because it is read into the very same diagram and drawn by the very same builder.
 
         ```mermaid
         C4Sequence
@@ -4050,6 +4138,49 @@ internal sealed class MarkdownSamples : ISampleSet
         Rel_Back(spa, signin, "401 Unauthorized")
         end
         Rel_Back(customer, spa, "Shows the dashboard")
+        ```
+
+        A key, tags and colours of its own
+
+        ```mermaid
+        C4Sequence
+        SHOW_LEGEND()
+        AddElementTag("v1", $bgColor="#1168bd", $legendText="Version one")
+        AddRelTag("async", $lineStyle=DashedLine(), $legendText="Asynchronous")
+        UpdateElementStyle("person", $bgColor="#08427b", $fontColor="#ffffff")
+
+        Person(customer, "Banking Customer")
+        Container(api, "API", "Java", $tags="v1")
+        ContainerQueue(bus, "Event Bus", "Kafka")
+
+        Rel(customer, api, "Signs in", "HTTPS")
+        Rel(api, bus, "Publishes", "AMQP", $tags="async")
+        UpdateRelStyle(customer, api, $textColor="#ff6b6b", $lineColor="#ff6b6b")
+        ```
+
+        Boundaries nested, with a sequence diagram's own lines among the macros
+
+        ```mermaid
+        C4Sequence
+        SHOW_ELEMENT_DESCRIPTIONS()
+        Person(customer, "Customer", "Somebody with an account")
+        Boundary(bank, "Big Bank plc") {
+          Boundary(api, "The API") {
+            Component(signin, "Sign In", "Spring MVC")
+          }
+          SystemDb(core, "Core banking")
+        }
+        participant Audit
+
+        loop every attempt
+          Rel(customer, signin, "Tries to sign in", "HTTPS")
+          Note over signin,core: the attempt is recorded
+          activate core
+          Rel(signin, core, "Checks the account", "JDBC")
+          Rel_Back(signin, core, "The answer")
+          deactivate core
+          signin->>Audit: logged
+        end
         ```
 
         ## Deployment — nested nodes

@@ -37,6 +37,19 @@ internal sealed class DiagramInk(MarkdownPalette palette)
     public Brush Over(Brush fill) =>
         DiagramBrushes.OnColor(DiagramBrushes.ColorOf(fill, Colors.Gray), palette.QrDark, palette.QrLight);
 
+    /// <summary>
+    /// The colour a diagram's own surface comes to, opaque. A theme's surfaces are translucent — a light theme's are
+    /// alpha-black — so anything painted to hide what is under it has to be painted in what they come to over the page, not
+    /// in the surface brush itself.
+    /// </summary>
+    public static Color Under(MarkdownPalette palette) =>
+        DiagramBrushes.Composite(
+            DiagramBrushes.ColorOf(palette.CodeBg, Colors.Black),
+            DiagramBrushes.Luminance(DiagramBrushes.ColorOf(palette.Text, Colors.White)) > 140 ? Colors.Black : Colors.White);
+
+    /// <summary>That colour as a brush — what a diagram paints on to cover what it has already drawn.</summary>
+    public Brush Surface => Frozen(Under(palette));
+
     /// <summary>A brush at <paramref name="opacity"/> — itself, where that is whole.</summary>
     public static Brush Faded(Brush brush, double opacity)
     {

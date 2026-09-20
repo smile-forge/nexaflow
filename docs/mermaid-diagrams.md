@@ -23,6 +23,19 @@ lines list items with values and whose options share a line, xychart one with ax
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
+**A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
+macro set, one shape throughout, which Mermaid has borrowed a slice of. So the language is read once, apart from any one
+diagram: `C4Grammar` says only what a line *is*, and `C4Macro`, `C4Elements`, `C4Said` and `C4Counter` say what a macro
+says, what its name makes it, what the whole block is switched to show, and how the numbering counts. A diagram of C4's
+is then only the mapping onto a picture — `C4Structure` onto a graph, `C4Sequence` onto a timeline — and the two cannot
+disagree about what `ContainerDb(…, $tags="x")` means, because neither of them decides it.
+
+**A type written in another language may still be the same diagram.** A C4 sequence is a sequence diagram said in
+C4-PlantUML's words, so `C4SequenceGrammar` claims the macros and hands every other line to `SequenceGrammar`,
+`C4Sequence` reads those macros onto the very same `SequenceDiagram` — through `SequenceDiagram.Read`, which gives the
+other language first refusal on each line and reads the rest itself — and `C4SequenceBuilder` derives from
+`SequenceBuilder` saying only where its model comes from. One picture, one builder, two ways of writing it.
+
 **A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
 the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
 `SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes
@@ -62,7 +75,8 @@ diagram's own code sits in a folder of its own under each.
 | read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
-| say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens |
+| say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens; several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame |
+| tell a colour written where a line may start with one from the start of what follows it — `box Aqua Group` | `MermaidColour.At`, which reads a name CSS knows, a `#` and its digits, or a colour written as its parts |
 | read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line, `ends` where a rule of the diagram's own says where the id stops — then `MermaidShapes.Of` for the shape that was written, or `MermaidShapes.Named` for one `@{ shape: … }` names |
 | read a link between two nodes, and what its characters draw | `MermaidLinks.At` — whether one is written there at all, and whether it is the whole of one or the opening of a labelled one — then `MermaidLinks.Of` for its heads, its line and how many ranks it reaches |
 | read the `classDef`, `class` and `style` lines, and work out what everything is styled with | `MermaidStyling`, given the diagram's own roles: `Defined`, `Applied`, `Styled`, then `Styles` in the model and `Resolve` from a stage |
@@ -94,6 +108,9 @@ diagram's own code sits in a folder of its own under each.
 | set a shape's words turned — a lane's name read up its band | `DiagramShapes.Draw` with `degrees`, which stands the words in the room the turn leaves them |
 | draw a link written one of Mermaid's ways | `DiagramConnector.Headed` for what each end draws, `DiagramConnector.Stroked` for its line, `DiagramInk.Dashes` for a `stroke-dasharray`. Curved, the line passes through its route with each handle held to its own run and the runs at either end straight, so a corner is filleted and the line goes into a head along the head's own axis |
 | gather what a diagram reaches and move it inside the box it takes | `DiagramRoom` — `Reach`, then `At` and `Size`; `DiagramRoom.Round` for a diagram of cells joined by lines, which reaches the layout, every cell and every line with what is written over it |
+| draw a card — a person, a cylinder, a queue or a box, with room left for what is written in it | `DiagramCard`: `Outline` and `Inside` answered together so they agree, `Deeper` and `Wider` for what the outline takes beyond the words, and `Above` for how much of that is over them, which is what lets a row of cards line up on their boxes rather than on the tops of their outlines |
+| grade what a diagram draws by what each thing is — C4's abstraction levels | `DiagramTone` of a bank of brushes: `Band` for one of them, `Card` for the fill, outline and legible ink a card is painted with, and `Shaded` for making a bank from the theme's accent. Which bank is the diagram's — `C4Grading` is C4's |
+| draw the frame UML puts round a run of a diagram — a sequence diagram's `alt` and `loop` | `DiagramFrame`: `Tabbed` for how big the tab in its corner has to be, `Tab` for the tab itself with its far corner cut away, `Word` and `Beside` for what goes in it and along from it, and `Round` for what the frame stands in — its border and its tab, leaving what is drawn inside it its own |
 | draw a box of compartments — a class, a requirement, an entity | `DiagramBox.Measure` of `DiagramCompartment`s of `DiagramRow`s: how deep each band is, how wide the box has to be, where each row's columns go (`Placed`) and where the rules between the bands run (`Rules`). A band's rows are set across the middle of it or from the left, and its columns line up down the band or follow one another along each row |
 | set the lines of a wrapped label, against a side | `DiagramWords.Stack`, `Placed` for a shape's own words, `Taken` for how much room they take |
 | set words that may hold an entity code — drawn as what the code says, and so pressed rather than typed into | `Says` on the builder |
@@ -102,7 +119,7 @@ diagram's own code sits in a folder of its own under each.
 | read how far a line is indented, for a diagram nested by indentation | `MermaidParts.Indent` |
 | read a diagram written as an outline of nodes — an id, a title in brackets, `::icon(…)` and `:::class` | `MermaidOutline.Node`, `Decoration`, `Escaping`, `Opening` |
 | nest an outline's lines by their indentation — each under the nearest line indented less | `MermaidOutline.Nested` |
-| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s; `Middle` places its words, `Band` is what a shape under it leaves out of its own, `Trimmed` brings a join's ends in from the middles of the cells to their edges, and `Covered` is what a set of lines leaves no room under |
+| draw an edge, a message, a relation | `DiagramConnector.Draw` with a `DiagramStroke` (`Dashed`, `Dotted`) and `DiagramHead`s — including the half heads a sequence diagram draws on the side its characters put them (`HalfTop`, `HalfBottom`, `StickTop`, `StickBottom`); `Middle` places its words, `Band` is what a shape under it leaves out of its own, `Trimmed` brings a join's ends in from the middles of the cells to their edges, and `Covered` is what a set of lines leaves no room under |
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | round a panel between two axes — the room their numbers and titles take, the panel left inside it, the titles along it | `DiagramPanel.Room` for the axes' own room and `DiagramEdges` added for a key, a title band or a caption; `Round` for the panel, held to an `aspect` and shrunk to what was drawn; `Titles` for the turned upright title and the flat one under its numbers |
 | draw gridlines across a panel | `DiagramGrid.Draw`, or `DiagramGrid.Lines` into a shape of your own where a diagram draws more than one set of them |

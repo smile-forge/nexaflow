@@ -63,23 +63,28 @@ swimlane-beta LR
 
 ## Sequence diagram
 
-Participants and the messages between them, including notes and async arrows.
+Participants and the messages between them: notes, numbering, the bar saying one is working, and the frames — `alt`,
+`opt`, `loop`, `par`, `critical`, `break` — that hold a run of messages under a condition.
 
 ````markdown
 ```mermaid
 sequenceDiagram
-    participant U as User
+    autonumber
+    actor U as User
     participant N as Nexaflow
     participant R as Renderer
-    U->>N: Open notes.md
-    N->>R: Parse + render blocks
-    R-->>N: WPF elements
-    N-->>U: Rendered document
-    Note over R: Diagrams drawn natively
+    U->>+N: Open notes.md
+    N->>+R: Parse and render the blocks
+    loop every block
+        R->>R: Draw it on the layout tree
+    end
+    R-->>-N: The elements to show
+    N-->>-U: The rendered document
+    Note over R: Diagrams are drawn natively
 ```
 ````
 
-![A sequence diagram with three participants and a note](images/markdown/mermaid-sequence.png)
+![A sequence diagram: a user and two services, their messages numbered, a loop frame round a message one of them sends itself, bars saying which is working, and a note](images/markdown/mermaid-sequence.png)
 
 ---
 
@@ -225,8 +230,9 @@ architecture-beta
 ## C4 diagrams
 
 Software architecture at C4's zoom levels — context, containers, components — plus deployment and dynamic views.
-Elements are cards carrying their kind, technology and description; boundaries nest; relationships name the protocol
-they run over.
+Elements are cards carrying their kind, technology and description, graded so the deeper the colour the higher the
+abstraction; boundaries nest and hold what is written inside them; relationships name the protocol they run over. A
+card's label and a boundary's name are typed into where they are drawn.
 
 ````markdown
 ```mermaid
@@ -250,15 +256,17 @@ Rel(api, db, "Reads from and writes to", "JDBC")
 ![A C4 container diagram with a system boundary, element cards and technology-labelled relationships](images/markdown/mermaid-c4.png)
 
 The body accepts the fuller [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) macro vocabulary — `$tags`
-with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering — not just
-Mermaid's subset.
+with `AddElementTag`, `UpdateElementStyle`, `SHOW_LEGEND`, `Deployment_Node` nesting, `RelIndex` numbering,
+`LAYOUT_LEFT_RIGHT` — not just Mermaid's subset. `C4Dynamic` numbers its relationships without being asked.
 
 ---
 
 ## C4 sequence
 
-`C4Sequence` has no Mermaid equivalent — it mirrors C4-PlantUML's `C4_Sequence`, and is drawn by the *same* renderer as
-a native sequence diagram, so native control lines work inside it.
+`C4Sequence` has no Mermaid equivalent — it mirrors C4-PlantUML's `C4_Sequence`. It is read into the same thing a
+`sequenceDiagram` is read into and drawn by the same builder, so an element is a lifeline whose box is a card saying what
+it is, a `Boundary` groups them, a `Rel` carries what it is done with — and `alt`, `loop`, `note over` and `activate`
+work among the macros because they are the native grammar itself.
 
 ````markdown
 ```mermaid

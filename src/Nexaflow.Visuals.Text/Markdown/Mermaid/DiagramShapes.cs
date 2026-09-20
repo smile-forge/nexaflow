@@ -206,32 +206,94 @@ internal static class DiagramShapes
     }
 
     /// <summary>
-    /// Where a line from the middle of a shape filling <paramref name="bounds"/> towards <paramref name="toward"/> leaves its
-    /// outline — where a connector to the shape stops.
+    /// Where a line meets a shape: the point its ray leaves the outline by.
     /// </summary>
-    public static Point Edge(DiagramShape shape, Rect bounds, Point toward)
+    /// <param name="from">
+    /// Where the ray is cast from, for a line given its own place along the edge rather than the shape's middle. Cast from
+    /// the middle, every line meeting a shape leaves it at much the same point however far apart their ends were set.
+    /// </param>
+    public static Point Edge(DiagramShape shape, Rect bounds, Point toward, Point? from = null)
     {
-        var centre = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
-        var along = toward - centre;
-        if (along.Length < 1e-9) return centre;
+        var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
 
         if (shape is DiagramShape.Circle or DiagramShape.DoubleCircle)
         {
+            var round = toward - middle;
+            if (round.Length < 1e-9) return middle;
+
             var (a, b) = (bounds.Width / 2, bounds.Height / 2);
-            var scale = 1 / Math.Sqrt(((along.X * along.X) / (a * a)) + ((along.Y * along.Y) / (b * b)));
-            return centre + (along * scale);
+            var scale = 1 / Math.Sqrt(((round.X * round.X) / (a * a)) + ((round.Y * round.Y) / (b * b)));
+
+            return middle + (round * scale);
         }
+
+        var start = from ?? middle;
+        var along = toward - start;
+        if (along.Length < 1e-9) return start;
 
         var points = Corners(shape, bounds) ?? [bounds.TopLeft, bounds.TopRight, bounds.BottomRight, bounds.BottomLeft];
         var nearest = double.PositiveInfinity;
 
         for (var at = 0; at < points.Count; at++)
         {
-            var (from, to) = (points[at], points[(at + 1) % points.Count]);
-            if (Crossing(centre, along, from, to) is { } distance && distance < nearest) nearest = distance;
+            var (one, other) = (points[at], points[(at + 1) % points.Count]);
+            if (Crossing(start, along, one, other) is { } distance && distance < nearest) nearest = distance;
         }
 
-        return double.IsInfinity(nearest) ? centre : centre + (along * nearest);
+        return double.IsInfinity(nearest) ? start : start + (along * nearest);
+    }
+
+    /// <summary>
+    /// Where a line meets a shape that is read as being met at its points rather than wherever the line happens to cross
+    /// its outline — a flowchart's diamond, met at its top, its foot, or one of its sides.
+    ///
+    /// <para>
+    /// Which point it takes follows from where the layout set this line's end along the shape: the ends set out to either
+    /// side take the side points, and one left in the middle takes the point ahead of it. That is the classic drawing of a
+    /// decision — what comes in arrives at the top, and each way out leaves by a side or the foot — and it holds however
+    /// the layout happened to place what is at the other end of each line.
+    /// </para>
+    /// </summary>
+    /// <param name="end">Where the layout put this line's end, which is on the shape's own middle line.</param>
+    /// <param name="toward">The way the line goes from there.</param>
+    public static Point Cornered(DiagramShape shape, Rect bounds, Point end, Point toward)
+    {
+        var points = Corners(shape, bounds);
+        if (points is null || points.Count == 0) return Edge(shape, bounds, toward, end);
+
+        var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+
+        var along = toward - middle;
+        if (along.Length < 1e-9) return middle;
+
+        var upright = Math.Abs(along.Y) >= Math.Abs(along.X);
+        var aside = upright ? end.X - middle.X : end.Y - middle.Y;
+
+        // Off the middle at all. Which point a line takes is which of the ends it is, not how far from the middle the layout
+        // happened to set it: measured as a distance, a wide shape swallows the whole spread and every line takes the point
+        // ahead, so the same diagram drawn with longer words in its decisions loses the sides it had with shorter ones.
+        var out0 = Math.Abs(aside) > 1e-9;
+
+        var want = (upright, out0) switch
+        {
+            (true, true) => new Vector(Math.Sign(aside), 0),
+            (true, false) => new Vector(0, Math.Sign(along.Y)),
+            (false, true) => new Vector(0, Math.Sign(aside)),
+            (false, false) => new Vector(Math.Sign(along.X), 0),
+        };
+
+        var (best, most) = (points[0], double.NegativeInfinity);
+
+        foreach (var corner in points)
+        {
+            var side = corner - middle;
+            if (side.Length < 1e-9) continue;
+
+            var how = ((side.X * want.X) + (side.Y * want.Y)) / side.Length;
+            if (how > most) (most, best) = (how, corner);
+        }
+
+        return best;
     }
 
     /// <summary>

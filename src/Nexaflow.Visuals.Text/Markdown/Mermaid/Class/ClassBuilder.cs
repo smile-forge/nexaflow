@@ -79,6 +79,12 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// <summary>The clear air inside a namespace's box.</summary>
     private const double Boxed = 14;
 
+    /// <summary>The air a count leaves between itself and the end of the line it belongs to.</summary>
+    private const double Tight = 1;
+
+    /// <summary>And how far off the line it stands, so the line is not drawn through it.</summary>
+    private const double Aside = 4;
+
     /// <summary>The least room a class takes, so classes with little in them come out alike.</summary>
     private const double Least = 96;
     private const double Shortest = 34;
@@ -135,7 +141,16 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         foreach (var note in plan.Notes.Where(note => note.Space is null)) Noted(build, room, note, over);
         build.Close();
 
-        Relations(build, routes);
+        // The band each namespace keeps at the top of itself for its own name, so nothing written against a line landing
+        // inside one is set on top of the name already written there.
+        var named = plan.Spaces.Values
+            .Where(space => space.Cell.Heading > 0)
+            .Select(space => room.At(space.Cell.Bounds) is var bounds
+                ? new Rect(bounds.X, bounds.Y, bounds.Width, space.Cell.Heading)
+                : default)
+            .ToList();
+
+        Relations(build, routes, named);
 
         return room.Size;
     }
@@ -188,7 +203,12 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         {
             if (!plan.Named.TryGetValue(relation.From, out var from) || !plan.Named.TryGetValue(relation.To, out var to)) continue;
 
-            plan.Joins[relation] = new DiagramJoin(from.Cell, to.Cell);
+            // What is written on the line goes with it, so the layout keeps room for it where it takes the line round
+            // something and when it holds the ranks apart.
+            plan.Joins[relation] = new DiagramJoin(from.Cell, to.Cell)
+            {
+                Said = Says(relation) is { Count: > 0 } words ? DiagramWords.Taken(words) : default,
+            };
         }
 
         // A note is written about the class it is beside, so it is held in the same rank rather than after it.
@@ -212,7 +232,8 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         }
 
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside], towards,
-                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
+                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing, square: true,
+                                      room: Space);
 
         return plan;
     }
@@ -345,7 +366,9 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
             var placed = along.Select(room.At).ToList();
             var said = Says(relation);
 
-            routes.Add(new Route(relation, placed, said, DiagramConnector.Room(placed, said))
+            // On the longest run of the line rather than its own middle: a line that had to turn to get past something has
+            // its middle at the turn, which is the one place along it that is squeezing past what it turned for.
+            routes.Add(new Route(relation, placed, said, DiagramConnector.Room(placed, said, DiagramConnector.Longest(placed)))
             {
                 Near = Counted(relation.Near),
                 Far = Counted(relation.Far),
@@ -358,8 +381,16 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
     private DiagramWords? Counted(ContentPart? count) =>
         count is { Length: > 0 } ? Written(count, null, LabelSize, Palette.TextMuted) : null;
 
-    /// <summary>The relations, drawn over the diagram.</summary>
-    private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes)
+    /// <summary>
+    /// Every relation: the lines first, and then everything written on them.
+    ///
+    /// <para>
+    /// In that order because a line is drawn over whatever is already there, and the lines of a diagram cross one another.
+    /// Drawing each line with its own words before the next line is drawn puts the next line through those words — which no
+    /// backing behind them can help, since the backing went down before the line did.
+    /// </para>
+    /// </summary>
+    private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes, IReadOnlyList<Rect> named)
     {
         if (routes.Count == 0) return;
 
@@ -369,35 +400,65 @@ internal sealed class ClassBuilder : MermaidBuilder<ClassDiagram>
         {
             var stroke = new DiagramStroke(Palette.TextMuted, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
 
+            // Square, corners and all: several relations reaching the same class run up to the same rail and into it by
+            // the same stem, and a rounded corner is a corner that no longer meets the next one.
             DiagramConnector.Draw(build, ClassPiece.Relation, route.Relation.Part, route.Along, stroke,
-                                  Headed(route.Relation.Head), Headed(route.Relation.Tail), curved: true);
+                                  Headed(route.Relation.Head), Headed(route.Relation.Tail));
+        }
 
-            DiagramConnector.Says(build, ClassPiece.Label, route.Relation.Part, route.Room, route.Said, Palette.CodeBg);
+        foreach (var route in routes)
+        {
+            // On the page's own surface rather than the code background, which is see-through on the light theme: what is
+            // written on a line has the line running under it, and a backing that lets the line through is no backing.
+            DiagramConnector.Says(build, ClassPiece.Label, route.Relation.Part, route.Room, route.Said, Ink.Surface);
 
             // Each count is set against the run of line leaving its own end, which a bend further along does not turn.
-            Counting(build, route.Near, route.Along[0], route.Along[1]);
-            Counting(build, route.Far, route.Along[^1], route.Along[^2]);
+            Counting(build, route.Near, route.Along[0], route.Along[1], named);
+            Counting(build, route.Far, route.Along[^1], route.Along[^2], named);
         }
 
         build.Close();
     }
 
     /// <summary>
-    /// How many of a class the other has, written just past the end of the relation it belongs to and off to one side of the
-    /// line, so it reads beside what it counts rather than over it.
+    /// What is counted at one end of a relation, set tight against the point the line leaves or arrives at.
+    ///
+    /// <para>
+    /// Tight, because that is the whole of what says which end it counts: two counts on one line are told apart by which
+    /// end each is near, so a count held out to clear something else is a count that could belong to either of them. The
+    /// one thing it is moved for is a band a namespace keeps for its own name, which already has the name written on it.
+    /// </para>
     /// </summary>
-    private static void Counting(LayoutBuilder build, DiagramWords? count, Point end, Point toward)
+    private static void Counting(LayoutBuilder build, DiagramWords? count, Point end, Point toward,
+                                 IReadOnlyList<Rect> named)
     {
         if (count is null) return;
 
         var run = toward - end;
-        if (run.Length > 0) run /= run.Length;
+        var most = run.Length;
+        if (most > 0) run /= most;
 
-        var aside = new Vector(-run.Y, run.X);
-        var at = end + (run * (DiagramConnector.Reach + (count.Height / 2))) + (aside * count.Height * 0.8);
+        var aside = new Vector(-run.Y, run.X) * ((count.Height / 2) + Aside);
+        var back = (count.Height / 2) + Tight;
+
+        // Off the band a little way, rather than flush against it: a count touching the box it was moved out of still reads
+        // as being on it. Edged along rather than stepped over it, and stopping a hair short of the turn the line takes, so
+        // a count that cannot get clear stops just off the turn rather than halfway across the border it was leaving — and
+        // with the same air from the line it turns into that it keeps from the end it belongs to.
+        var stop = Math.Max(back, most - Tight);
+
+        while (back < stop
+               && named.Any(band => Rect.Inflate(band, Aside / 2, Aside / 2).IntersectsWith(Counted(end + (run * back) + aside, count))))
+            back = Math.Min(stop, back + 1);
+
+        var at = end + (run * back) + aside;
 
         count.Set(build, new Point(at.X - (count.Width / 2), at.Y - (count.Height / 2)), ClassPiece.Count);
     }
+
+    /// <summary>The box a count takes, set about a point.</summary>
+    private static Rect Counted(Point at, DiagramWords count) =>
+        new(at.X - (count.Width / 2), at.Y - (count.Height / 2), count.Width, count.Height);
 
     /// <summary>What an end of a relation draws.</summary>
     private static DiagramHead Headed(ClassEnd end) => end switch

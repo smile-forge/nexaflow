@@ -51,6 +51,24 @@ public class ClassDiagramTests
     }
 
     [TestMethod, TestCategory("Unit")]
+    public void SeveralClassesGivenAtOnceAreAllLaidOn()
+    {
+        var given = ClassDiagram
+            .Read("classDiagram\n  class A:::blue,bold\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px")
+            .Find("A")!;
+
+        Assert.AreEqual("#00f", given.Style.Fill);
+        Assert.AreEqual(3, given.Style.StrokeWidth);
+
+        var taken = ClassDiagram
+            .Read("classDiagram\n  class A\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n  cssClass \"A\" blue,bold")
+            .Find("A")!;
+
+        Assert.AreEqual("#00f", taken.Style.Fill, "and a cssClass line gives every class it names too");
+        Assert.AreEqual(3, taken.Style.StrokeWidth);
+    }
+
+    [TestMethod, TestCategory("Unit")]
     public void NestedTypeParametersCloseProperly()
     {
         var node = ClassDiagram.Read("classDiagram\n  Square : +getDistanceMatrix() List~List~int~~").Find("Square")!;

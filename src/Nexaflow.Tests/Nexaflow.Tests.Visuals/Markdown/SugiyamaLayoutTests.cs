@@ -396,14 +396,12 @@ public class SugiyamaLayoutTests
         {
             Title = "T",
             Direction = GraphDirection.LeftRight,
-            Legend = [new GraphLegendEntry("Person", null, null, null)],
         };
         g.GetOrAdd("a");
 
         var shell = g.CopyShell();
         Assert.AreEqual("T", shell.Title);
         Assert.AreEqual(GraphDirection.LeftRight, shell.Direction);
-        Assert.AreSame(g.Legend, shell.Legend);
         Assert.AreEqual(0, shell.Nodes.Count, "a shell carries no content");
         Assert.AreEqual(0, shell.Edges.Count);
         Assert.AreEqual(0, shell.Subgraphs.Count);
