@@ -46,6 +46,9 @@ public static class MermaidPiece
     /// <summary>Another language drawn inside this one's words — see <see cref="DiagramInset"/>.</summary>
     public const string Nested = "Nested";
 
+    /// <summary>What offers the children a node has too many of — see <see cref="DiagramSpill"/>.</summary>
+    public const string More = "More";
+
     /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
     public const string Line = "Line";
 }
@@ -499,6 +502,24 @@ internal abstract class MermaidBuilder<TDiagram>(EditState state, DiagramLaying 
                          Worked(DiagramChip.Says(fold), part as ContentPart, DiagramChip.TextSize, Palette.Text),
                          Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1));
     }
+
+    /// <summary>
+    /// The nodes offering what is left of each over-wide set of children, ready to be laid out with the rest and drawn
+    /// afterwards. Nothing, where nothing is over-wide.
+    /// </summary>
+    /// <param name="cells">The cell a node was given, or null for one this diagram did not lay out.</param>
+    protected DiagramSpill Spilled(Func<string, DiagramCell?> cells) =>
+        DiagramSpill.Of(Folding, cells, More, SpillPad);
+
+    /// <summary>The room a node offering leftovers keeps round its words.</summary>
+    private const double SpillPad = 10;
+
+    /// <summary>What a node offering <paramref name="count"/> children says.</summary>
+    private DiagramWords More(int count) =>
+        Worked($"+{count} more", null, SpillSize, Palette.TextMuted);
+
+    /// <summary>How big it says it.</summary>
+    private const double SpillSize = 11;
 
     protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
     {

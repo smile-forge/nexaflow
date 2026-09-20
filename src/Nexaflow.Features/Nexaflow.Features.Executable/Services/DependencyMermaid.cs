@@ -89,11 +89,7 @@ public static class DependencyMermaid
         return builder.ToString();
     }
 
-    /// <summary>
-    /// A native binary's import tree fans out far wider than it goes deep — a single module can name
-    /// a hundred imports — so the surplus siblings fold behind one chip rather than becoming a mile
-    /// of diagram.
-    /// </summary>
+    /// <summary>How many of a module's imports are drawn at once, the rest going behind one node that offers them.</summary>
     public const int MaxFanOut = 20;
 
     private static void AppendFrontMatter(

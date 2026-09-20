@@ -122,6 +122,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         build.Open(FlowchartPiece.Nodes, part: null, stops: Stops.None);
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
         foreach (var node in diagram.Inside(null)) Drawn(build, plan, room, node, over);
+        plan.Spill.Draw(build, room, Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dotted));
         build.Close();
 
         Links(build, routes, diagram.Config);
@@ -214,7 +215,12 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         // Every line meets a shape at its own place along the edge. A decision has a line in and a line out for each way
         // it can go, and on a diamond the straight run out of the middle leaves by the one point at the bottom — so
         // without this they all set off from that point, on top of one another and on top of what arrives there.
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], towards, diagram.Config.NodeSpacing,
+        // A node with too many children draws the first of them and one more node offering the rest, which is laid out
+        // with everything else so nothing is placed where it would sit over something.
+        plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
+        cells.AddRange(plan.Spill.Cells);
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Spill.Joins], towards, diagram.Config.NodeSpacing,
                                       diagram.Config.RankSpacing,
                                       laning is { } lanes
                                           ? new DiagramLanes([.. plan.Lanes.Select(lane => lane.Band)], across: !lanes.Sideways)
@@ -713,6 +719,9 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         public List<Lane> Lanes { get; } = [];
 
         public Dictionary<FlowchartLink, DiagramJoin> Joins { get; } = [];
+
+        /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
+        public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         public Size Size { get; set; }
 

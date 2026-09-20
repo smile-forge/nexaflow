@@ -192,4 +192,59 @@ public class FoldingDiagramTests
         ((Nexaflow.Visuals.Text.Editing.IEditableBlock)element).BuildRibbon(Middle(where)) is DiagramRibbon ribbon
             ? [.. ribbon.Offers.Select(offer => offer.Verb)]
             : [];
+
+    // ── Too many children ───────────────────────────────────────────────────
+
+    /// <summary>A root with <paramref name="width"/> children, and a cap of three drawn at once.</summary>
+    private static string Wide(int width)
+    {
+        var said = new System.Text.StringBuilder("---\nconfig:\n  nexaflow:\n    maxFanOut: 3\n---\ngraph TD\n");
+        for (var at = 0; at < width; at++) said.Append($"  root[\"Root\"] --> c{at}[\"Child {at}\"]\n");
+        return said.ToString();
+    }
+
+    [TestMethod]
+    public void TooManyChildrenDrawTheFirstOfThemAndOneNodeOfferingTheRest() => UiThread.Run(() =>
+    {
+        var element = Drawn(Wide(10), Options());
+        var words = Words(element);
+
+        Assert.IsTrue(words.Contains("Child 0") && words.Contains("Child 2"), "the first three stay on the page");
+        Assert.IsFalse(words.Contains("Child 3"), "and the rest are held back");
+
+        Assert.AreEqual(1, Placed(element, MermaidPiece.More).Count, "one node offers them, however many there are");
+        CollectionAssert.Contains(words, "+7 more");
+    });
+
+    [TestMethod]
+    public void ASetOfChildrenWithinTheCapDrawsNoSuchNode() => UiThread.Run(() =>
+    {
+        var element = Drawn(Wide(3), Options());
+
+        Assert.AreEqual(0, Placed(element, MermaidPiece.More).Count);
+        CollectionAssert.Contains(Words(element), "Child 2");
+    });
+
+    [TestMethod]
+    public void PressingItShowsEveryChild() => UiThread.Run(() =>
+    {
+        var element = Drawn(Wide(10), Options());
+
+        element.BeginPointerSelect(Middle(Placed(element, MermaidPiece.More).First()));
+        element.UpdateLayout();
+
+        var words = Words(element);
+        Assert.IsTrue(words.Contains("Child 9"), "pressing it drew the ones that were held back");
+        Assert.AreEqual(0, Placed(element, MermaidPiece.More).Count, "and nothing is left to offer");
+    });
+
+    [TestMethod]
+    public void ItIsDrawnAndNobodyWroteIt() => UiThread.Run(() =>
+    {
+        var element = Drawn(Wide(10), Options());
+        var offering = element.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.More);
+
+        Assert.IsNull(offering.Part, "it stands for no part of the source, because there is none to stand for");
+        Assert.AreEqual(LayoutVerbs.Expand, offering.Acts?.Click?.Verb, "and a press on it means what every chip means");
+    });
 }

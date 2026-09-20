@@ -884,23 +884,38 @@ collide with a key Mermaid reads and so stock Mermaid simply ignores it
 ---
 config:
   nexaflow:
-    defaultExpansion: 2     # draw this many levels down from the roots; deeper nodes fold behind a [+]
-    maxFanOut: 24           # read, and not yet acted on
+    defaultExpansion: 2     # depth: draw this many levels down from the roots, deeper nodes folding behind a [+]
+    maxFanOut: 24           # breadth: draw this many of one node's children, the rest behind a "+N more"
     collapsed: [n3, n7]     # ids owning a folded subtree — or a keyed block, below
     expanded:
       n0: app.exe           # id → the producer's own name, echoed back on the expand request
 ---
 ```
 
-`expandDepth` says the same thing as `defaultExpansion`, which is the spelling every diagram the PE inspector writes
-uses.
+`expandDepth` is an older spelling of `defaultExpansion` and means the same depth.
 
-[`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn and which carry
-a chip, from that config plus whatever the reader has since opened. It runs while the diagram is being planned, so a
-folded node is simply never given a cell: the links to it have no end to meet and a subgraph holding nothing else closes
-up, rather than a hole being cut in a finished drawing. Nothing touches the source — what the reader opens is view state
+[`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn, which carry a
+chip, and which have children left over, from that config plus whatever the reader has since opened. It runs while the
+diagram is being planned, so a node that is not drawn is simply never given a cell: the links to it have no end to meet
+and a subgraph holding nothing else closes up, rather than a hole being cut in a finished drawing. Nothing touches the
+source — what the reader opens is view state
 ([`DiagramViewState`](../src/Nexaflow.Visuals.Text/Markdown/DiagramViewState.cs)), so the diagram is always exactly what
-its author wrote — and a diagram that says nothing about folding gets no chips.
+its author wrote — and a diagram that says nothing about any of this gets neither chips nor stand-ins.
+
+**Depth and breadth are the two ways a diagram is too big, and they are answered differently.**
+
+*Depth* is a fact about a tree: only a node with something under it in the planned layout folds, so a flat diagram has
+nothing to fold and a leaf never grows a chip. The one exception is a node a `collapsed:` line names, which is the
+producer saying it owns a subtree the source does not carry — the PE inspector's unwalked imports — and the chip on it
+is what offers to fetch them.
+
+*Breadth* is the other problem: some nodes have hundreds of children, and all of them at once is a wall rather than a
+picture. `maxFanOut` draws the first of them and hangs one node off the parent offering the rest — `+7 more`
+([`DiagramSpill`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs)). **That node is layout only**: nobody
+wrote it, so it stands for no part of the source and is in no diagram's model — it is a cell, a line and a press, and
+the press means the same `expand` every chip means, answered by the same handler. Place decides what stays: the first
+of the children are the ones on the page. A child that holds something still shown is never held back, since that would
+orphan it, and neither is one something else visible also points at, since it is still reached that way.
 
 **A press means what the builder said it means.** A builder declares a verb and its argument
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
@@ -922,9 +937,7 @@ sits under its parent — and a rank too wide for the room wraps onto further ro
 **Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
 minimap. `DiagramRenderOptions.ZoomOnWheel`, `MaxHeight`, `FitToWidth` and `OpenOnDoubleClick` — and the
 `DiagramZoomOnWheel` / `DiagramOpenOnDoubleClick` properties on `SelectableMarkdownView` that set them — are the seam
-those will be wired back through, and nothing reads them today. `maxFanOut` is read and not yet acted on for the same
-reason its chip has nowhere to stand: a "+N more" node is one nobody wrote, and a piece with no part of the source
-behind it cannot be selected, caretted or named.
+those will be wired back through, and nothing reads them today.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives

@@ -113,6 +113,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         foreach (var group in diagram.Within(null)) Held(build, diagram, plan, room, group, over);
         foreach (var node in diagram.Inside(null)) Drawn(build, diagram, plan, room, node, over);
         foreach (var note in plan.Notes.Where(note => note.Group is null)) Noted(build, room, note, over);
+        plan.Spill.Draw(build, room, Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dotted));
         build.Close();
 
         Steps(build, routes);
@@ -200,7 +201,10 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
                 plan.Beside.Add(new DiagramJoin(about.Cell, beside.Cell, span: 0));
         }
 
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside], towards,
+        plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
+        cells.AddRange(plan.Spill.Cells);
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside, .. plan.Spill.Joins], towards,
                                       diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
 
         return plan;
@@ -503,6 +507,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         public Dictionary<string, Box> Groups { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<StateStep, DiagramJoin> Joins { get; } = [];
+
+        /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
+        public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         /// <summary>The joins that hold a note beside the state it is about, which nothing draws.</summary>
         public List<DiagramJoin> Beside { get; } = [];

@@ -162,13 +162,13 @@ public class DiagramExpansionTests
     }
 
     [TestMethod, TestCategory("Unit")]
-    public void A_node_that_points_at_itself_hides_nothing_behind_itself()
+    public void A_node_that_points_at_itself_is_a_leaf_and_folds_nothing()
     {
         var chart = new DiagramChart(["a"], [("a", "a")]);
         var folding = DiagramExpansion.Of(Asked("    defaultExpansion: 0\n"), chart);
 
         Assert.IsTrue(folding.Draws("a"));
-        Assert.AreEqual(0, folding.FoldOf("a")?.Hidden, "a self-loop is not a subtree, so nothing stands behind it");
+        Assert.IsNull(folding.FoldOf("a"), "a self-loop is not a subtree, so there is nothing to fold away");
     }
 
     [TestMethod, TestCategory("Unit")]
@@ -178,5 +178,125 @@ public class DiagramExpansionTests
         var folding = DiagramExpansion.Of(Asked("    defaultExpansion: 1\n"), chart);
 
         Assert.IsTrue(folding.Draws("c"), "one step from the root by the short way, so inside a frontier of one");
+    }
+
+    // ── Only what is a tree folds ───────────────────────────────────────────
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_flat_diagram_has_nothing_to_fold()
+    {
+        // Folding is a fact about a tree: without one, every node is a leaf and no chip has anything to say.
+        var chart = new DiagramChart(["a", "b", "c"], []);
+        var folding = DiagramExpansion.Of(Asked("    defaultExpansion: 0\n"), chart);
+
+        Assert.IsTrue(chart.Ids.All(folding.Draws), "nothing points at anything, so every node is a root");
+        Assert.IsTrue(chart.Ids.All(id => folding.FoldOf(id) is null));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void Only_a_node_with_something_under_it_carries_a_chip()
+    {
+        var folding = DiagramExpansion.Of(Asked("    defaultExpansion: 1\n"), Tree(2));
+
+        Assert.IsNotNull(folding.FoldOf("root"), "it holds the children");
+        Assert.IsNotNull(folding.FoldOf("c0"), "and the child holds the grandchild");
+        Assert.IsNull(folding.FoldOf("g0"), "the grandchild holds nothing — and is not drawn either way");
+    }
+
+    /// <summary>One root with <paramref name="width"/> children and nothing under them.</summary>
+    private static DiagramChart Fan(int width)
+    {
+        var ids = new List<string> { "root" };
+        var edges = new List<(string From, string To)>();
+
+        for (var at = 0; at < width; at++)
+        {
+            ids.Add($"c{at}");
+            edges.Add(("root", $"c{at}"));
+        }
+
+        return new DiagramChart(ids, edges);
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void MaxFanOut_draws_the_first_of_a_wide_set_and_leaves_the_rest_over()
+    {
+        var folding = DiagramExpansion.Of(Asked("    maxFanOut: 3\n"), Fan(10));
+
+        Assert.AreEqual(3, Fan(10).Ids.Skip(1).Count(folding.Draws), "three of them stay on the page");
+        Assert.IsTrue(folding.Draws("c0") && folding.Draws("c2"), "and they are the ones written first");
+        Assert.AreEqual(7, folding.MoreBehind("root"));
+        CollectionAssert.AreEqual(new[] { "root" }, folding.Offering.ToList());
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_set_of_siblings_within_the_cap_is_left_alone()
+    {
+        var folding = DiagramExpansion.Of(Asked("    maxFanOut: 8\n"), Fan(5));
+
+        Assert.IsTrue(Fan(5).Ids.All(folding.Draws));
+        Assert.AreEqual(0, folding.MoreBehind("root"));
+        Assert.IsFalse(folding.Offering.Any(), "nothing is offering anything");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void Opening_what_is_left_over_shows_every_sibling()
+    {
+        var folding = DiagramExpansion.Of(Asked("    maxFanOut: 3\n"), Fan(10),
+                                          new Dictionary<string, bool> { [NexaflowConfig.More + "root"] = true });
+
+        Assert.IsTrue(Fan(10).Ids.All(folding.Draws));
+        Assert.AreEqual(0, folding.MoreBehind("root"));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void What_is_left_over_is_opened_under_the_producers_own_name_for_the_node_it_hangs_from()
+    {
+        var config = Asked("    maxFanOut: 3\n    expanded:\n      root: app.exe\n");
+
+        Assert.AreEqual(NexaflowConfig.More + "app.exe", config.KeyFor(NexaflowConfig.More + "root"));
+        Assert.AreEqual("root", NexaflowConfig.MoreOf(NexaflowConfig.More + "root"));
+        Assert.IsNull(NexaflowConfig.MoreOf("root"), "an ordinary id offers nothing but itself");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_sibling_holding_something_shown_is_never_held_back()
+    {
+        var chart = new DiagramChart(["root", "a", "b", "c", "under"],
+                                     [("root", "a"), ("root", "b"), ("root", "c"), ("c", "under")]);
+
+        var folding = DiagramExpansion.Of(Asked("    maxFanOut: 1\n"), chart);
+
+        Assert.IsTrue(folding.Draws("c") && folding.Draws("under"), "holding it back would orphan what is under it");
+        Assert.IsTrue(folding.Draws("a"), "the first of them stays whatever else happens");
+        Assert.IsFalse(folding.Draws("b"));
+        Assert.AreEqual(1, folding.MoreBehind("root"));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_sibling_something_else_points_at_is_never_held_back_from_it()
+    {
+        var chart = new DiagramChart(["root", "other", "a", "b", "shared"],
+                                     [("root", "a"), ("root", "b"), ("root", "shared"), ("other", "shared")]);
+
+        var folding = DiagramExpansion.Of(Asked("    maxFanOut: 1\n"), chart);
+
+        Assert.IsTrue(folding.Draws("shared"), "it is still reached the other way, so holding it back hides nothing");
+        Assert.IsFalse(folding.Draws("b"));
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void Depth_and_breadth_do_not_count_the_same_node_twice()
+    {
+        // Depth folds the grandchild away; breadth then holds back the surplus child. What went for depth stands behind
+        // a chip, and what went for breadth behind the node offering it — never both.
+        var chart = new DiagramChart(["root", "a", "b", "c", "deep"],
+                                     [("root", "a"), ("root", "b"), ("root", "c"), ("a", "deep")]);
+
+        var folding = DiagramExpansion.Of(Asked("    defaultExpansion: 1\n    maxFanOut: 2\n"), chart);
+
+        Assert.IsFalse(folding.Draws("deep"), "past the frontier");
+        Assert.AreEqual(1, folding.MoreBehind("root"), "one of the three children was held back");
+        Assert.AreEqual(new DiagramFold(Open: false, Hidden: 1), folding.FoldOf("a"), "and the one holding it says so");
     }
 }

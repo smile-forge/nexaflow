@@ -102,6 +102,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         foreach (var box in diagram.Within(null)) Held(build, diagram, plan, room, box, over, routes);
         foreach (var node in diagram.Inside(null)) Drawn(build, plan, room, node, over);
         Relations(build, routes, group: null);
+        plan.Spill.Draw(build, room, Ink.Surface, new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dotted));
         build.Close();
 
         Keyed(diagram);
@@ -212,7 +213,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
         var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
 
-        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values], way, diagram.Config.Apart + Apart,
+        plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
+        cells.AddRange(plan.Spill.Cells);
+
+        plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Spill.Joins], way, diagram.Config.Apart + Apart,
                                       diagram.Config.Apart, ports: true);
 
         return plan;
@@ -809,6 +813,9 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         public Dictionary<string, Bound> Boxes { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<C4Link, DiagramJoin> Joins { get; } = [];
+
+        /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
+        public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         /// <summary>What is written on each relationship, measured before anything is placed — the ranks are held apart for it.</summary>
         public Dictionary<C4Link, IReadOnlyList<DiagramWords>> Said { get; } = [];

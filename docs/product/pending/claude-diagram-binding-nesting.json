@@ -412,10 +412,53 @@
           }
         ]
       }
+    },
+    "graph-expandable-nodes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs",
+          "class": "DiagramExpansion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/NexaflowConfig.cs",
+          "class": "NexaflowConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramChip.cs",
+          "class": "DiagramChip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs",
+          "class": "DiagramActions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutActions"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support",
+            "Nodes that fold (graph-family diagrams)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs",
+          "class": "DiagramSpill"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 19,
+  "changed_sets": 20,
   "touched_nodes": [
     "aztec",
     "barcode",
@@ -425,6 +468,7 @@
     "datamatrix",
     "diagram-bindings",
     "diagram-nesting",
+    "graph-expandable-nodes",
     "mermaid",
     "mermaid-diagram-kit",
     "music-block",
