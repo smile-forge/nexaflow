@@ -17,5 +17,4 @@ src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/DiagramInteraction.cs 129
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/DiagramText.cs 46
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/GraphDiagramView.cs 307
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/GraphRenderOptions.cs 33
-src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/SvgGraphRenderer.cs 198
 src/Nexaflow.Visuals.Text/Markdown/Graphs/Rendering/WpfGraphRenderer.cs 1371
