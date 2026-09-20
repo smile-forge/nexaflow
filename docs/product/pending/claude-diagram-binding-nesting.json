@@ -1,0 +1,435 @@
+{
+  "branch": "claude/diagram-binding-nesting",
+  "nodes": {
+    "diagram-bindings": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/BoundText.cs",
+          "class": "BoundText"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/IDataContext.cs",
+          "class": "IDataContext"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/ReflectionDataContext.cs",
+          "class": "ReflectionDataContext"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Binding/BoundTextTests.cs",
+            "class": "BoundTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramBindingTests.cs",
+            "class": "DiagramBindingTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Diagrams \u2014 sub-support",
+              "Bound words (every diagram on the shared tree)"
+            ]
+          }
+        ]
+      }
+    },
+    "diagram-nesting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramInset.cs",
+          "class": "DiagramInset"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutBuilder.cs",
+          "class": "GraftedPart"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramNestingTests.cs",
+            "class": "DiagramNestingTests"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Diagrams \u2014 sub-support",
+              "Nested content \u2014 a fenced block inside a label"
+            ]
+          }
+        ]
+      }
+    },
+    "music-block": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs",
+          "class": "MusicBlockExtension"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockParser.cs",
+          "class": "MusicBlockParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/BlockRenderer.cs",
+          "class": "BlockRenderer",
+          "method": "RenderMusicBlock"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/MusicDiagramHandler.cs",
+          "class": "MusicDiagramHandler"
+        }
+      ]
+    },
+    "qr-code": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/QrDiagramHandler.cs",
+          "class": "QrDiagramHandler"
+        }
+      ]
+    },
+    "barcode": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/BarcodeDiagramHandler.cs",
+          "class": "BarcodeDiagramHandler"
+        }
+      ]
+    },
+    "datamatrix": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/DataMatrixDiagramHandler.cs",
+          "class": "DataMatrixDiagramHandler"
+        }
+      ]
+    },
+    "pdf417": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/Pdf417DiagramHandler.cs",
+          "class": "Pdf417DiagramHandler"
+        }
+      ]
+    },
+    "aztec": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/AztecDiagramHandler.cs",
+          "class": "AztecDiagramHandler"
+        }
+      ]
+    },
+    "chemical-structures": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/SmilesDiagramHandler.cs",
+          "class": "SmilesDiagramHandler"
+        }
+      ]
+    },
+    "wordcloud": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/WordCloudDiagramHandler.cs",
+          "class": "WordCloudDiagramHandler"
+        }
+      ]
+    },
+    "correlation-plots": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs",
+          "class": "PlotDiagramHandler"
+        }
+      ]
+    },
+    "correlation-plots-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs",
+          "class": "PlotBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs",
+          "class": "PlotDiagramHandler"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotChart.cs",
+          "class": "PlotChart"
+        }
+      ]
+    },
+    "mermaid-diagram-kit": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParts.cs",
+          "class": "MermaidParts"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidNumber.cs",
+          "class": "MermaidNumber"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidStyle.cs",
+          "class": "MermaidStyle"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLegend.cs",
+          "class": "DiagramLegend"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramShapes.cs",
+          "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramConnector.cs",
+          "class": "DiagramConnector"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramAxis.cs",
+          "class": "DiagramAxis"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilders.cs",
+          "class": "MermaidBuilders"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/mermaid-diagrams.md",
+          "title_path": [
+            "Mermaid diagrams on the shared layout tree"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramCurve.cs",
+          "class": "DiagramCurve"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramAxis.cs",
+          "class": "DiagramSpan"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramAxis.cs",
+          "class": "DiagramGrid"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramGlyph.cs",
+          "class": "DiagramGlyphs"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramColours.cs",
+          "class": "DiagramColours"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramBar.cs",
+          "class": "DiagramBar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs",
+          "class": "DiagramLayers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLanes.cs",
+          "class": "DiagramLanes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidStretch.cs",
+          "class": "MermaidStretch"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramBox.cs",
+          "class": "DiagramBox"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutActions"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidGrammarContract.cs",
+            "class": "MermaidGrammarContract"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/MermaidBuilderContract.cs",
+            "class": "MermaidBuilderContract"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramShapesTests.cs",
+            "class": "DiagramShapesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramConnectorTests.cs",
+            "class": "DiagramConnectorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramAxisTests.cs",
+            "class": "DiagramAxisTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLegendTests.cs",
+            "class": "DiagramLegendTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Architecture/Architecture/MermaidDiagramRulesTests.cs",
+            "class": "MermaidDiagramRulesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramCurveTests.cs",
+            "class": "DiagramCurveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidLineTests.cs",
+            "class": "MermaidLineTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramSpanTests.cs",
+            "class": "DiagramSpanTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramGlyphTests.cs",
+            "class": "DiagramGlyphTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramColoursTests.cs",
+            "class": "DiagramColoursTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLayersTests.cs",
+            "class": "DiagramLayersTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramLanesTests.cs",
+            "class": "DiagramLanesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/DiagramBoxTests.cs",
+            "class": "DiagramBoxTests"
+          }
+        ]
+      }
+    },
+    "mermaid": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DiagramSnapshotTests.cs",
+            "class": "DiagramSnapshotTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 19,
+  "touched_nodes": [
+    "aztec",
+    "barcode",
+    "chemical-structures",
+    "correlation-plots",
+    "correlation-plots-render",
+    "datamatrix",
+    "diagram-bindings",
+    "diagram-nesting",
+    "mermaid",
+    "mermaid-diagram-kit",
+    "music-block",
+    "pdf417",
+    "qr-code",
+    "wordcloud"
+  ]
+}

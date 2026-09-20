@@ -943,6 +943,55 @@ A document-level YAML front-matter block is handled separately (`UseYamlFrontMat
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
 mechanism.
 
+### Bound words (every diagram on the shared tree)
+
+Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
+renderer (`SelectableMarkdownView.DiagramData` / `InlineMarkdownEditor.DiagramData` →
+`MarkdownRenderContext.DataContext` → [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
+
+```
+graph TD
+  a["Owned by {{Team.Name}}"] --> b["{{Team.People[0]}}"]
+  c["{{Team.Headcount()}}"]
+```
+
+[`ReflectionDataContext`](../src/Nexaflow.Markdown/Binding/ReflectionDataContext.cs) walks an ordinary object:
+`A.B.C` reads properties and fields, `A[0]` and `A[key]` index a list or a dictionary, and `A.Method()` calls a
+zero-argument method the host marked `[Bindable]`. Properties and fields are read freely because reading one does
+nothing; a **call is arbitrary code driven by a string in a document**, so the host says which of its methods it
+meant, one at a time. Every step is null-propagating and nothing throws — a path naming nothing leaves a gap, and a
+gap is what sends somebody to look at the path.
+
+Read when the words are set, never at parse time, so **the source is untouched**: the block still says `{{Team.Name}}`
+and the value is drawn over it. That is also what makes a binding writable in place — pressing one reveals the
+characters and puts the caret in them, exactly as an entity code does, because they are still there
+([`BoundText`](../src/Nexaflow.Markdown/Binding/BoundText.cs)). With no data context at all a binding is drawn as the
+text it is, so a document nobody has bound to still reads.
+
+Nothing watches the object: a host that has changed what it holds calls `SelectableMarkdownView.RefreshDiagrams()`
+(or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.
+
+### Nested content — a fenced block inside a label
+
+A label whose text opens with a fence is drawn as a block of that language rather than as the words it is:
+
+```
+graph TD
+  a["```latex x^2 + y^2"] --> b["Next"]
+```
+
+The inner source is laid out by [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
+`abc`, `lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself — and **grafted** into the tree being built
+([`DiagramInset`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramInset.cs)), never painted: every piece of the
+formula is still a piece of the outer tree, and selecting inside it selects the formula's own characters in the
+document that holds it. A language nothing here draws leaves the label drawn as the words it is.
+
+A nested layout is built from a slice, so its parts count from the start of that slice; each is re-based as it is
+copied (`LayoutBuilder.Graft(…, shift)`), which is what `ISourcePart` means by wrapping a part in an adapter.
+
+**One line, for now.** A label is one row of source, so a block written across several lines is not read as one yet —
+that needs a `MermaidStretch` on each graph-family grammar, the mechanism that already reads `note … end note`.
+
 ---
 
 ## nomnoml — sub-support

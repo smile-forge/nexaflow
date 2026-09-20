@@ -7,6 +7,24 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Editing;
 
 /// <summary>
+/// A part of one tree grafted into another, saying where it stands in the source that holds it.
+///
+/// <para>
+/// Nested content is laid out from a slice, so its parts count from the start of that slice. Rather than rewrite a
+/// parse tree nobody else's copy of would agree with, each part is wrapped as it is copied — which is exactly what
+/// <see cref="ISourcePart"/> says an adapter is for.
+/// </para>
+/// </summary>
+internal readonly record struct GraftedPart(ISourcePart Part, int By) : ISourcePart
+{
+    /// <inheritdoc/>
+    public int Start => Part.Start + By;
+
+    /// <inheritdoc/>
+    public int Length => Part.Length;
+}
+
+/// <summary>
 /// How a <see cref="LayoutTree"/> is made: open a piece, draw into it, put pieces inside it, close it.
 /// A piece is finished when closed and never touched again — its anchor is fixed on open (everything
 /// inside measures from it) and its reach is worked out on close, from what it turned out to hold. That
@@ -223,7 +241,7 @@ public sealed class LayoutBuilder
     /// </summary>
     /// <param name="against">Which side of the block it stands against, if it stands against one.</param>
     /// <param name="clear">How much room it keeps from anything else it sits beside.</param>
-    public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0)
+    public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0, int shift = 0)
     {
         if (tree.Count == 0) return -1;
 
@@ -249,7 +267,7 @@ public sealed class LayoutBuilder
                 Marks = marks,
             });
 
-            _parts.Add(tree.PartOf(piece));
+            _parts.Add(Shifted(tree.PartOf(piece), shift));
             _kinds.Add(tree.KindOf(piece));
             _paints.Add(tree.PaintOf(piece));
             _regions.Add(tree.RegionOf(piece));
@@ -281,6 +299,10 @@ public sealed class LayoutBuilder
         if (against is { } side) _sides.Add((first, side, clear));
         return first;
     }
+
+    /// <summary>A copied part, as it stands in the source it was grafted into — itself, where the two are the same.</summary>
+    private static ISourcePart? Shifted(ISourcePart? part, int by) =>
+        part is null || by == 0 ? part : new GraftedPart(part, by);
 
     /// <summary>Finishes the piece being built, and gives back where it went.</summary>
     public int Close()

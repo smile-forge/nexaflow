@@ -184,12 +184,13 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             if (!Draws(node.Id)) continue;
 
             var shape = Shaped(node);
-            var words = Said(node, diagram.Config.Wrapping);
-            var taken = DiagramWords.Taken(words);
-            var around = DiagramShapes.Around(shape, taken, Pad);
+            var inset = Inset(node.Said, diagram.Config.Wrapping);
+            var words = inset is null ? Said(node, diagram.Config.Wrapping) : [];
+            var around = DiagramShapes.Around(shape, inset?.Taken ?? DiagramWords.Taken(words), Pad);
 
             var sized = new Sized(node, words, shape)
             {
+                Inset = inset,
                 Cell = new DiagramCell(new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)))
                 {
                     Shape = shape,
@@ -559,6 +560,13 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
 
         var bounds = room.At(sized.Cell.Bounds);
+
+        if (sized.Inset is { } inset)
+        {
+            Nested(build, node, sized, inset, bounds, over);
+            return;
+        }
+
         var words = DiagramWords.Placed(sized.Words, DiagramShapes.Inside(sized.Shape, bounds), MermaidPiece.Words);
 
         // A node asked to be words alone is drawn as its words: nothing is filled or stroked round them.
@@ -569,6 +577,27 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
                                                       acts: Answers(node));
 
                            Chipped(build, node.Id, bounds, node.Part, Shown(node.Said ?? node.Part));
+    }
+
+    /// <summary>
+    /// A node whose label is a block of another language: the shape, and that language's own layout set down in the
+    /// middle of the room inside it. Grafted rather than painted, so what it drew is still selectable as itself.
+    /// </summary>
+    private void Nested(LayoutBuilder build, FlowchartNode node, Sized sized, DiagramInset inset, Rect bounds,
+                        IReadOnlyList<Geometry> over)
+    {
+        var inside = DiagramShapes.Inside(sized.Shape, bounds);
+        var at = new Point(inside.X + ((inside.Width - inset.Width) / 2), inside.Y + ((inside.Height - inset.Height) / 2));
+
+        var plain = node.Shape == MermaidShape.Text;
+
+        DiagramShapes.Draw(build, FlowchartPiece.Node, node.Part, sized.Shape, bounds,
+                           plain ? null : Fill(node), plain ? null : Stroke(node.Style),
+                           [], DiagramShapes.United(over), acts: Answers(node));
+
+        inset.Set(build, at, MermaidPiece.Nested);
+
+        Chipped(build, node.Id, bounds, node.Part);
     }
 
     /// <summary>
@@ -634,9 +663,15 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
+        /// <summary>Another language drawn on it instead of words — a tune, a formula — where its label is one.</summary>
+        public DiagramInset? Inset { get; init; }
+
         public DiagramShape Shape { get; } = shape;
 
         public required DiagramCell Cell { get; init; }
+
+        /// <summary>The room what is on it takes, whichever of the two it is.</summary>
+        public Size Taken => Inset?.Taken ?? DiagramWords.Taken(Words);
     }
 
     /// <summary>A subgraph measured: what is written at the top of it, and the cell the layout placed it in.</summary>

@@ -197,6 +197,35 @@ public class SelectableMarkdownView : UserControl
     /// The key is null when the selection was dropped.</summary>
     public Action<DiagramSelection>? DiagramSelect { get; set; }
 
+    /// <summary>
+    /// What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.
+    ///
+    /// <para>
+    /// Read once each time a block is laid out, and never watched: a host that has changed what it holds calls
+    /// <see cref="RefreshDiagrams"/>, so nothing here has to know when an object it was handed has moved on.
+    /// </para>
+    /// </summary>
+    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get; set; }
+
+    /// <summary>
+    /// Lays every block that draws itself out again — what a host calls once what <see cref="DiagramData"/> holds has
+    /// changed. The document itself is untouched, so nothing scrolls and nothing is re-parsed.
+    /// </summary>
+    public void RefreshDiagrams()
+    {
+        foreach (var block in Blocks(_rtb)) block.Refresh();
+    }
+
+    /// <summary>Every block under <paramref name="root"/> that draws itself, innermost last.</summary>
+    private static IEnumerable<IInteractiveBlock> Blocks(DependencyObject root)
+    {
+        if (root is IInteractiveBlock block) yield return block;
+
+        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
+            foreach (var found in Blocks(VisualTreeHelper.GetChild(root, at)))
+                yield return found;
+    }
+
     /// <summary>In a diagram, a single click selects a node and a double-click opens it. Set it on a
     /// pane where opening a node costs something the user may not have meant.</summary>
     public bool DiagramOpenOnDoubleClick { get; set; }
@@ -265,7 +294,7 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, ReadOnly = true, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, ReadOnly = true, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates, DataContext = DiagramData });
     }
 
     /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,

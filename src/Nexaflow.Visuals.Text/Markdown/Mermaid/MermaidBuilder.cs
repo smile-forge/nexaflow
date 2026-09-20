@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -41,6 +42,9 @@ public static class MermaidPiece
 
     /// <summary>What a node folds and unfolds by — see <see cref="DiagramChip"/>.</summary>
     public const string Chip = "Chip";
+
+    /// <summary>Another language drawn inside this one's words — see <see cref="DiagramInset"/>.</summary>
+    public const string Nested = "Nested";
 
     /// <summary>What a line draws — an axis's line and ticks — which is what a press near it lands on. See <see cref="DiagramAxis.Draw"/>.</summary>
     public const string Line = "Line";
@@ -130,7 +134,11 @@ internal abstract class MermaidBuilder : ContentBuilder
 
         var element = new Editing.LinkedElement(source, options.Palette,
                                                 new MermaidContent((state, room, pixelsPerDip, looking) =>
-                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking) { View = actions.View })),
+                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
+                                                                                                        {
+                                                                                                            View = actions.View,
+                                                                                                            Data = options.DataContext,
+                                                                                                        })),
                                                 actions)
         {
             IsReadOnly = readOnly,
@@ -298,10 +306,15 @@ internal abstract class MermaidBuilder : ContentBuilder
         build.Draw(new GeometryMark(edge, null, Palette.CodeBorder, 1));
     }
 
-    /// <summary>What a part of the block says on the page: its own characters while being written, else
-    /// what it reads as (an entity code as the character it stands for — <see cref="MermaidText"/>).</summary>
+    /// <summary>
+    /// What a part says once it is read rather than as it was written: its entity codes decoded, and each
+    /// <c>{{…}}</c> replaced by what it comes to. What is being written in is left exactly as written, so the caret
+    /// stands between the characters the reader can see.
+    /// </summary>
     protected string Shown(ContentPart part) =>
-        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End ? part.Text : MermaidText.Decode(part.Text);
+        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
+            ? part.Text
+            : BoundText.Bound(MermaidText.Decode(part.Text), Laying.Data);
 
     /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
@@ -400,6 +413,32 @@ internal abstract class MermaidBuilder : ContentBuilder
     protected DiagramWords Worked(string says, ContentPart? part, double size, Brush ink, FontWeight? weight = null,
                                   FontStyle? slant = null) =>
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
+
+    /// <summary>
+    /// Another language written inside a run of words, laid out to be set down there — or null where the words are
+    /// just words, which is nearly always.
+    ///
+    /// <para>
+    /// A label whose text opens with a fence says what it is a block of: <c>["```abc CDEF"]</c> is a tune on a node.
+    /// It is laid out from the slice after the fence and carries where that slice begins, so every piece of it still
+    /// stands for what it was written as.
+    /// </para>
+    /// <para>
+    /// What is being written in is words: while the caret is inside a label, the characters are shown rather than what
+    /// they draw, exactly as an entity code or a binding is.
+    /// </para>
+    /// </summary>
+    protected DiagramInset? Inset(ContentPart? part, double room)
+    {
+        if (part is not { Length: > 0 }) return null;
+        if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
+
+        if (!ContentLanguages.Fenced(part.Text, out var language, out var at)) return null;
+
+        return ContentLanguages.Lay(language, part.Text[at..], Palette, PixelsPerDip, room) is { Exists: true } laid
+            ? new DiagramInset(laid, part.Start + at)
+            : null;
+    }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
     protected override FormattedText Characters(string text) =>

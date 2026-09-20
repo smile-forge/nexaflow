@@ -45,6 +45,9 @@ public sealed class MarkdownRenderContext
     /// <summary>Called when a diagram's selected node changes, for a host showing detail beside it.</summary>
     public Action<DiagramSelection>? OnDiagramSelect { get; init; }
 
+    /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
+    public Nexaflow.Markdown.Binding.IDataContext? DataContext { get; init; }
+
     /// <summary>In a diagram, a single click on a node selects it and a double-click opens it. For a
     /// pane where opening a node costs something (a whole new tab). See
     /// <see cref="DiagramRenderOptions.OpenOnDoubleClick"/>.</summary>
