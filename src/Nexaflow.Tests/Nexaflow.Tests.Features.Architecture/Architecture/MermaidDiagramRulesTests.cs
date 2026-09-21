@@ -31,6 +31,7 @@ public class MermaidDiagramRulesTests
     private static readonly string Root = RepoRoot.Locate();
     private const string Grammars = "src/Nexaflow.Markdown/Mermaid/";
     private const string Builders = "src/Nexaflow.Visuals.Text/Markdown/Mermaid/";
+    private const string Prose    = "src/Nexaflow.Visuals.Text/Markdown/Prose/";
 
     private sealed record Rule(Regex Found, string Instead);
 
@@ -65,6 +66,20 @@ public class MermaidDiagramRulesTests
         new(new(@":\s*MermaidBuilder\s*(\{|$)"), "MermaidBuilder<TDiagram> — the block read into its model, and the model drawn"),
     ];
 
+    /// <summary>
+    /// What no builder does, wherever it draws.
+    ///
+    /// <para>
+    /// A builder turns a tree into a layout. Which language reads what is written inside a piece is looked up in
+    /// a table the host assembled, and is settled by a stage before a builder ever sees the node — so a builder
+    /// that names the table has taken a decision that was not its, and can no longer be handed a tree and trusted.
+    /// </para>
+    /// </summary>
+    private static readonly Rule[] Building =
+    [
+        new(new(@"\bContentLanguages\b"), "the node — a stage settles which language reads what is written inside a piece, and hangs the answer on it (ContentNesting)"),
+    ];
+
     [TestMethod]
     [TestCategory("Unit")]
     public void A_diagrams_own_reading_goes_through_the_kit() => Holds(Files(Grammars, typeFoldersOnly: true), Reading);
@@ -72,6 +87,11 @@ public class MermaidDiagramRulesTests
     [TestMethod]
     [TestCategory("Unit")]
     public void A_diagrams_own_drawing_goes_through_the_kit() => Holds(Files(Builders, typeFoldersOnly: true), Drawing);
+
+    [TestMethod]
+    [TestCategory("Unit")]
+    public void No_builder_asks_which_language_reads_what_it_is_drawing() =>
+        Holds([.. Files(Builders, typeFoldersOnly: false), .. Files(Prose, typeFoldersOnly: false)], Building);
 
     // ── Reading the tree ────────────────────────────────────────────────────
 

@@ -44,6 +44,21 @@ internal static class MermaidBuilders
         return ContentReading.Of(after is null ? tree : after.Run(tree), at);
     }
 
+    /// <summary>
+    /// What a host puts between reading a block and drawing it: what the words are bound against, where it said,
+    /// and which language reads anything written inside it.
+    ///
+    /// <para>
+    /// Settled once, here, where what the host is showing the document against is in scope — a builder never
+    /// learns that there is such a thing as binding, or such a thing as a table of languages.
+    /// </para>
+    /// </summary>
+    internal static Nexaflow.Markdown.Pipeline.AstPipeline After(StyleFormat style, DiagramRenderOptions? options) =>
+        new([.. options?.DataContext is { } data
+                  ? new Nexaflow.Markdown.Pipeline.IAstStage[] { new Nexaflow.Markdown.Pipeline.Stages.WithBindings(data) }
+                  : [],
+             new Stages.WithNested(style, options)]);
+
     /// <summary>The builder a diagram is drawn by, or null for one not drawn on the shared tree.</summary>
     public static Make? For(MermaidDiagram diagram) => diagram switch
     {
@@ -82,8 +97,9 @@ internal static class MermaidBuilders
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
     public static Laid? Lay(string source, StyleFormat style, double room = double.PositiveInfinity,
-                            bool writing = false, int at = 0) =>
+                            bool writing = false, int at = 0, DiagramRenderOptions? options = null) =>
         For(MermaidBlock.Read(source).Diagram)
-            ?.Invoke(Read(source, holes: writing, at: at), EditState.For(source), style, isReadOnly: !writing)
+            ?.Invoke(Read(source, holes: writing, at: at, after: After(style, options)),
+                     EditState.For(source), style, isReadOnly: !writing)
             .Lay(room);
 }

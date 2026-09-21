@@ -43,15 +43,20 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// Lays <paramref name="markdown"/> out. Never null and never throws: source nothing can be made of comes back as
-    /// its own characters, which is what a reader is looking at while they type it anyway.
+    /// Lays <paramref name="markdown"/> out. Never null and never throws: source nothing can be made of comes
+    /// back as its own characters, which is what a reader is looking at while they type it anyway.
     /// </summary>
     /// <param name="at">Where this source starts in the document that holds it, for markdown written inside something else.</param>
+    /// <param name="reader">
+    /// What the document is read by once its blocks are found. A host with something to say about the diagrams
+    /// inside it assembles its own; on its own this reads everything and says nothing about how it is pressed.
+    /// </param>
     public static Laid Lay(string? markdown, StyleFormat style, double room = double.PositiveInfinity,
-                           RawZone? shownAsWritten = null, bool isReadOnly = true, int at = 0)
+                           RawZone? shownAsWritten = null, bool isReadOnly = true, int at = 0,
+                           Nexaflow.Markdown.Pipeline.AstPipeline? reader = null)
     {
         var source = markdown ?? string.Empty;
-        var read = MarkdownParser.Reader.Run(MarkdownParser.Read(source));
+        var read = (reader ?? MarkdownParser.Reader.Then(new Stages.WithNested(style))).Run(MarkdownParser.Read(source));
 
         return new MarkdownBuilder(ContentReading.Of(read, at),
                                    new EditState(source, 0, null, shownAsWritten), style, isReadOnly).Lay(room);
@@ -345,24 +350,25 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     // ── What another language, or nobody, reads ─────────────────────────────
 
     /// <summary>
-    /// A fenced block, laid by whichever builder reads the language it names itself and grafted where the fence was.
-    /// A language nothing here draws falls back to the characters, which is what a reader wanted from it anyway.
+    /// A fenced block, laid by whichever language reads what it names itself and set down where the fence was.
+    /// A fence in a language nothing draws falls back to the characters, which is what a reader wanted from it
+    /// anyway.
+    ///
+    /// <para>
+    /// Which language that is was settled by a stage and is hanging on the node. All this decides is the room it
+    /// gets and where it goes — which is what a builder is for.
+    /// </para>
     /// </summary>
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var language = part.Part(Roles.Name);
-        var body = part.Part(Roles.Body);
-
-        if (language is { Length: > 0 } && body is { Length: > 0 }
-            && ContentLanguages.Lay(new ContentLink(part, language.Text, body.Text, body.Start), Style, room)
-               is { Exists: true } laid)
+        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), room) is { } inset)
         {
             into.Open(MarkdownPieces.Block, part, new Point(x, _y));
-            into.Graft(laid.Tree);
+            inset.Set(into, default, MarkdownPieces.Block);
             into.Close();
 
-            _y += laid.Size.Height;
-            Reached(x + laid.Size.Width);
+            _y += inset.Height;
+            Reached(x + inset.Width);
 
             return;
         }

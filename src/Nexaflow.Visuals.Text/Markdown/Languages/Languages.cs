@@ -35,7 +35,7 @@ public sealed class MermaidLanguage : IContentLanguage
     public bool Reads(string? language) => "mermaid".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public Laid? Lay(ContentRequest request) =>
-        MermaidBuilders.Lay(request.Source, request.Style, request.Room, at: request.At)
+        MermaidBuilders.Lay(request.Source, request.Style, request.Room, at: request.At, options: request.Options)
         ?? UnknownDiagramBuilder.Lay(request.Source, request.Style, request.Room);
 
     public FrameworkElement Draw(string source, DiagramRenderOptions options) =>

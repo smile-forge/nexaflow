@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -25,9 +26,22 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// <param name="lay">Lays the state out at a width, told whether anybody can write in it — the builder, as the element asks for it.</param>
 public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay) : IContent
 {
-    /// <summary>The ordinary case: a document drawn in one style, by the one builder that draws markdown.</summary>
-    public static MarkdownContent Of(StyleFormat style) =>
-        new((state, room, readOnly) => MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly));
+    /// <summary>
+    /// The ordinary case: a document drawn in one style, by the one builder that draws markdown.
+    ///
+    /// <para>
+    /// The pipeline is assembled here rather than by the builder, because which language reads a fenced block is
+    /// looked up in a table the host assembled — and a builder's business is turning a tree into a layout, not
+    /// asking a host anything.
+    /// </para>
+    /// </summary>
+    public static MarkdownContent Of(StyleFormat style, DiagramRenderOptions? options = null)
+    {
+        var read = MarkdownParser.Reader.Then(new Stages.WithNested(style, options));
+
+        return new((state, room, readOnly) =>
+            MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly, reader: read));
+    }
 
     /// <inheritdoc/>
     public Laid Lay(EditState state, double room, bool readOnly) => lay(state, room, readOnly);

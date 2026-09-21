@@ -81,25 +81,4 @@ public static class ContentLanguages
             return Known.FirstOrDefault(known => known.Reads(language));
         }
     }
-
-    /// <summary>
-    /// That content laid out where it was written — or null for a language nothing here draws, or one that
-    /// can only draw itself into an element yet, which leaves the characters to be drawn as themselves.
-    /// </summary>
-    public static Laid? Lay(ContentLink link, StyleFormat palette, double room) =>
-        For(link.Language)?.Lay(new ContentRequest(link.Source, palette) { Room = Room(room), At = link.At });
-
-    /// <summary>
-    /// The content a part is a whole block of, laid out to be set down where its words would have gone — or
-    /// null where the part is words and nothing more.
-    /// </summary>
-    internal static ContentInset? Inset(ContentPart? part, StyleFormat palette, double room) =>
-        ContentLink.Of(part) is { } link && Lay(link, palette, room) is { Exists: true } laid
-            ? new ContentInset(laid)
-            : null;
-
-    /// <summary>A width to engrave against, since content set to infinity has nowhere to break.</summary>
-    private const double Widest = 420;
-
-    private static double Room(double room) => double.IsFinite(room) && room > 0 ? Math.Min(room, Widest) : Widest;
 }

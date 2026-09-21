@@ -63,4 +63,10 @@ public sealed record ContentRequest(string Source, StyleFormat Style)
 
     /// <summary>Where <see cref="Source"/> begins in the document holding it, so every part names the characters a reader is selecting.</summary>
     public int At { get; init; }
+
+    /// <summary>
+    /// What the host said about diagrams — what a press on a node means, what it is bound against, how much
+    /// of it to fold. Null where nobody said anything, which is every surface that only reads.
+    /// </summary>
+    public DiagramRenderOptions? Options { get; init; }
 }

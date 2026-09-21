@@ -108,17 +108,14 @@ internal abstract class MermaidBuilder : ContentBuilder
     {
         var actions = new DiagramActions(options, source);
 
-        // What the host puts between reading the block and drawing it. Settled once, here, where what the host is
-        // showing the document against is in scope — a builder never learns that there is such a thing as binding.
-        var after = options.DataContext is { } data
-            ? new Nexaflow.Markdown.Pipeline.AstPipeline(new Nexaflow.Markdown.Pipeline.Stages.WithBindings(data))
-            : null;
+        var drawn = options.Palette with { Expansion = actions.View };
+        var after = MermaidBuilders.After(drawn, options);
 
         var element = new Editing.LinkedElement(source, options.Palette,
                                                 new MermaidContent((state, room, looking) =>
                                                     make(MermaidBuilders.Read(state.Source, holes: !looking, grammar: grammar, after: after),
                                                          state,
-                                                         options.Palette with { Expansion = actions.View },
+                                                         drawn,
                                                          isReadOnly: looking).Lay(room)),
                                                 actions)
         {
@@ -403,17 +400,12 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>
-    /// A whole other content written inside a run of words, laid out to be set down there — or null where the words
-    /// are just words, which is nearly always.
+    /// The content written inside <paramref name="part"/>, laid out to fit <paramref name="room"/> — or null
+    /// where nothing is written inside it, or it is being shown as the characters it was typed as.
     ///
     /// <para>
-    /// A label whose text opens with a fence says what it is a block of: <c>["```abc CDEF"]</c> is a tune on a node.
-    /// The tune is read by abc's own parser into a tree of its own, told where it was written so every part of it
-    /// names the characters a reader is selecting — nothing of it is parsed into this diagram's tree.
-    /// </para>
-    /// <para>
-    /// What is being written in is words: while the caret is inside a label, the characters are shown rather than what
-    /// they draw, exactly as an entity code or a binding is.
+    /// Which language reads it was settled by a stage and is hanging on the node; all that is decided here is
+    /// how much room it gets, which is this builder's to decide and nobody else's.
     /// </para>
     /// </summary>
     protected ContentInset? Inset(ContentPart? part, double room)
@@ -421,7 +413,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (part is not { Length: > 0 }) return null;
         if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return ContentLanguages.Inset(part, Palette, room);
+        return ContentNesting.Of(part)?.At(part.Part(Roles.Body), room);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
