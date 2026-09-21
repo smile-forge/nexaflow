@@ -80,7 +80,7 @@ public class MatrixSelectionPicture
 
     private static RenderTargetBitmap Shot(string from, string to)
     {
-        var formula = new FormulaElement(Latex, MarkdownPalette.Light, 26);
+        var formula = new FormulaElement(Latex, StyleFormat.Light with { TextSize = 26 });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
 

@@ -39,7 +39,7 @@ public class QrBuilderTests
     [TestMethod]
     public void DispatchesThroughDiagramRenderer_ToContentThatCannotBeEdited() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("qr", Source, MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render("qr", Source, StyleFormat.Dark);
 
         var content = (ContentElement)element;
         Assert.IsTrue(content.IsReadOnly);
@@ -66,7 +66,7 @@ public class QrBuilderTests
         // The palette's QR tokens rather than its text and surface brushes: a code that follows the theme onto a
         // dark background stops being scannable.
         var themed = Build(Source);
-        Assert.AreEqual(((SolidColorBrush)MarkdownPalette.Dark.QrLight).Color,
+        Assert.AreEqual(((SolidColorBrush)StyleFormat.Dark.QrLight).Color,
                         ((SolidColorBrush)MatrixLayouts.Ground(themed).Foreground!).Color);
 
         var overridden = Build($"{Source}\ndark: #123456\nlight: #fedcba");
@@ -139,7 +139,7 @@ public class QrBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => QrBuilder.Build(source, MarkdownPalette.Dark);
+    private static Laid Build(string source) => QrBuilder.Lay(source, StyleFormat.Dark);
 
     private static QrMatrix Encoded(string source)
     {

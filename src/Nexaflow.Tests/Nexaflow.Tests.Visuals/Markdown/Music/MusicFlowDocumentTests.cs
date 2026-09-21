@@ -119,7 +119,7 @@ public class MusicFlowDocumentTests
     [TestMethod]
     public void TheWholeSampleDoc_SurvivesEveryTextPointerWalk() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build(SampleDoc(), MarkdownPalette.Light);
+        var doc = MarkdownFlowDocument.Build(SampleDoc(), StyleFormat.Light);
         var rtb = new RichTextBox { Document = doc };
         var host = new Window { Content = rtb, Width = 900, Height = 600, ShowActivated = false };
         try
@@ -157,7 +157,7 @@ public class MusicFlowDocumentTests
     [TestMethod]
     public void FocusRoundTrip_ThroughAnEmbeddedScore_DoesNotFaultTheTextTree() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build(SampleDoc(), MarkdownPalette.Light);
+        var doc = MarkdownFlowDocument.Build(SampleDoc(), StyleFormat.Light);
         var rtb = new RichTextBox { Document = doc };
         var other = new Button { Content = "elsewhere" };
         var host = new Window

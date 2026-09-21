@@ -171,7 +171,7 @@ public class InlineMarkdownEditorEditingTests
 
     private static Paragraph FirstParagraph(string markdown)
     {
-        var ctx = new MarkdownRenderContext { Palette = MarkdownPalette.Dark };
+        var ctx = new MarkdownRenderContext { Palette = StyleFormat.Dark };
         var doc = MarkdownFlowDocument.Build(markdown, ctx);
         return doc.Blocks.OfType<Paragraph>().First();
     }

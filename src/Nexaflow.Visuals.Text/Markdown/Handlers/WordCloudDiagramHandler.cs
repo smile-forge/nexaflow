@@ -24,7 +24,7 @@ public sealed class WordCloudDiagramHandler : IDiagramHandler
         language.Equals("wordcloud", StringComparison.OrdinalIgnoreCase)
         || language.Equals("word-cloud", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>

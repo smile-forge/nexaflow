@@ -95,10 +95,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         (CynefinDomain.Clear, false, false),
     ];
 
-    private CynefinBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new CynefinBuilder(reading, laying).Lay();
+    internal CynefinBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override CynefinDiagram Of(MermaidBlock block) => CynefinDiagram.Of(block);

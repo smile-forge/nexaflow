@@ -32,14 +32,14 @@ internal static class ContentLanguages
     /// That content laid out where it was written — or null for a language nothing here draws, which leaves the
     /// characters to be drawn as the characters they are.
     /// </summary>
-    public static Laid? Lay(ContentLink link, MarkdownPalette palette, double room) =>
+    public static Laid? Lay(ContentLink link, StyleFormat palette, double room) =>
         link.Language.ToLowerInvariant() switch
         {
-            "abc" => AbcBuilder.Build(link.Source, Room(room), palette.Text, at: link.At),
-            "lilypond" or "ly" => LilyPondBuilder.Build(link.Source, Room(room), palette.Text, at: link.At),
-            "latex" or "math" or "tex" => LatexBuilder.Build(link.Source, 1.0, at: link.At),
-            "smiles" => SmilesBuilder.Build(link.Source, palette, room, at: link.At),
-            "qr" => QrBuilder.Build(link.Source, palette),
+            "abc" => AbcBuilder.Lay(link.Source, Room(room), palette, at: link.At),
+            "lilypond" or "ly" => LilyPondBuilder.Lay(link.Source, Room(room), palette, at: link.At),
+            "latex" or "math" or "tex" => LatexBuilder.Lay(link.Source, palette, at: link.At),
+            "smiles" => SmilesBuilder.Lay(link.Source, palette, room, at: link.At),
+            "qr" => QrBuilder.Lay(link.Source, palette),
             "mermaid" => MermaidBuilders.Lay(link.Source, palette, room, at: link.At),
             _ => null,
         };
@@ -48,7 +48,7 @@ internal static class ContentLanguages
     /// The content a part is a whole block of, laid out to be set down where its words would have gone — or null
     /// where the part is words and nothing more.
     /// </summary>
-    public static ContentInset? Inset(ContentPart? part, MarkdownPalette palette, double room) =>
+    public static ContentInset? Inset(ContentPart? part, StyleFormat palette, double room) =>
         ContentLink.Of(part) is { } link && Lay(link, palette, room) is { Exists: true } laid
             ? new ContentInset(laid)
             : null;

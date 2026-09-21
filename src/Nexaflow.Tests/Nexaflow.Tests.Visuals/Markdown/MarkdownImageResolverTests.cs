@@ -74,7 +74,7 @@ public class MarkdownImageResolverTests
     private static FlowDocument Build(Func<string, ImageSource?> resolver, string? baseDirectory = null)
         => MarkdownFlowDocument.Build(Doc, new MarkdownRenderContext
         {
-            Palette       = MarkdownPalette.Dark,
+            Palette       = StyleFormat.Dark,
             ImageResolver = resolver,
             BaseDirectory = baseDirectory,
         });

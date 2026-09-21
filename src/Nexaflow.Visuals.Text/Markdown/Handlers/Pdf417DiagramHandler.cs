@@ -19,7 +19,7 @@ public sealed class Pdf417DiagramHandler : IDiagramHandler
     public bool CanHandle(string language) =>
         language.Equals("pdf417", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) => Pdf417Builder.Element(source, options);

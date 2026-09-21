@@ -166,7 +166,7 @@ public class ClassBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     private static Laid Build(string source, double room = 900) =>
-        ClassBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, room));
+        new ClassBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     /// <summary>Every class drawn, by what its name says.</summary>
     private static Dictionary<string, Rect> Boxes(string source) => Boxes(Build(source));

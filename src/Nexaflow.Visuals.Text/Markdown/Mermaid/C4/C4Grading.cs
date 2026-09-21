@@ -21,7 +21,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
 internal static class C4Grading
 {
     /// <summary>The bank, worked out once from the theme a diagram is drawn on.</summary>
-    public static DiagramTone Of(MarkdownPalette palette) => new(palette,
+    public static DiagramTone Of(StyleFormat palette) => new(palette,
     [
         palette.C4Person ?? DiagramTone.Shaded(palette, 0.55),
         palette.C4System ?? DiagramTone.Shaded(palette, 0.78),
@@ -35,5 +35,5 @@ internal static class C4Grading
     /// What a boundary is drawn in, which is nothing a card is graded by: the theme's own accent, washed. Boundaries nest,
     /// and a wash over a wash deepens, so the levels come apart without any of them being given a colour of its own.
     /// </summary>
-    public static System.Windows.Media.Brush Boundary(MarkdownPalette palette) => palette.C4Boundary ?? palette.Accent;
+    public static System.Windows.Media.Brush Boundary(StyleFormat palette) => palette.C4Boundary ?? palette.Accent;
 }

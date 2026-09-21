@@ -34,7 +34,7 @@ public readonly record struct DiagramSelection(string? NodeId, string? Key, stri
 /// </summary>
 public sealed class DiagramRenderOptions
 {
-    public required MarkdownPalette Palette { get; init; }
+    public required StyleFormat Palette { get; init; }
 
     /// <summary>
     /// Where the source handed to the renderer sits inside the markdown block it was taken from.
@@ -140,6 +140,6 @@ public sealed class DiagramRenderOptions
     /// Null means they do not.</summary>
     public DiagramViewState? ViewState { get; init; }
 
-    public static DiagramRenderOptions For(MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public static DiagramRenderOptions For(StyleFormat palette, Func<string, bool>? onNavigate = null)
         => new() { Palette = palette, OnNavigate = onNavigate };
 }

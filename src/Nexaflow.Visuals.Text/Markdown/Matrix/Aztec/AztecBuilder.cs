@@ -27,15 +27,15 @@ internal sealed class AztecBuilder : MatrixBuilder<AztecSymbol>
 
     private const string Sample = "Nexaflow";
 
-    private AztecBuilder(ContentReading reading, MarkdownPalette palette)
-        : base(reading, palette) { }
+    internal AztecBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette) =>
-        new AztecBuilder(ContentReading.Of(MatrixParser.Parse(source)), palette).Lay();
+    internal static Laid Lay(string source, StyleFormat style) =>
+        new AztecBuilder(ContentReading.Of(MatrixParser.Parse(source)), EditState.For(source), style, isReadOnly: true).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build);
+        Host(source, options, static (r, s, f, o) => new AztecBuilder(r, s, f, o));
 
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {

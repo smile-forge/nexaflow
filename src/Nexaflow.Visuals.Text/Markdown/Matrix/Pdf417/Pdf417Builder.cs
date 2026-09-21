@@ -34,15 +34,15 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
 
     private const string Sample = "Nexaflow";
 
-    private Pdf417Builder(ContentReading reading, MarkdownPalette palette)
-        : base(reading, palette) { }
+    internal Pdf417Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette) =>
-        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), palette).Lay();
+    internal static Laid Lay(string source, StyleFormat style) =>
+        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), EditState.For(source), style, isReadOnly: true).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build);
+        Host(source, options, static (r, s, f, o) => new Pdf417Builder(r, s, f, o));
 
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {

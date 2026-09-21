@@ -28,7 +28,8 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     public override string Language => NomnomlDiagramHandler.Language;
 
     /// <inheritdoc/>
-    internal override MermaidBuilders.Build Builder => NomnomlBuilder.Build;
+    internal override MermaidBuilders.Make Builder =>
+        static (r, s, f, o) => new NomnomlBuilder(r, s, f, o);
 
     /// <inheritdoc/>
     /// <remarks>Nothing inside a nomnoml block names its type — the fence's language does — so its grammar is named here.</remarks>

@@ -34,7 +34,7 @@ public class MarkdownTypographyTests
         MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);
 
     private static MarkdownRenderContext At(double body) =>
-        new() { Palette = MarkdownPalette.Dark, BaseFontSize = body };
+        new() { Palette = StyleFormat.Dark, BaseFontSize = body };
 
     /// <summary>Heading, body and code all move with the body size, and keep their relative sizes.</summary>
     [TestMethod]
@@ -57,7 +57,7 @@ public class MarkdownTypographyTests
     public void WithNoExplicitSize_TheContextFollowsTheShellSetting() => UiThread.Run(() =>
     {
         TextTypography.BaseFontSize = 21;
-        var ctx = new MarkdownRenderContext { Palette = MarkdownPalette.Dark };
+        var ctx = new MarkdownRenderContext { Palette = StyleFormat.Dark };
 
         Assert.AreEqual(21d, ctx.BaseFontSize, 1e-9);
         Assert.AreEqual(21d, ((TextBlock)BlockRenderer.Render(Parse("Body text.\n")[0], "", ctx)).FontSize, 1e-9);

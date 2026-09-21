@@ -59,7 +59,7 @@ public class MarkdownLinkDecoratorTests
     [TestMethod]
     public void NoHook_LeavesEveryLinkAsItWasWritten() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build(Doc, MarkdownPalette.Dark);
+        var doc = MarkdownFlowDocument.Build(Doc, StyleFormat.Dark);
 
         Assert.AreEqual(3, Links(doc).Count);
         Assert.IsTrue(Links(doc).All(l => l.ToolTip is null));
@@ -80,7 +80,7 @@ public class MarkdownLinkDecoratorTests
     private static FlowDocument Build(Action<Hyperlink, string> decorate)
         => MarkdownFlowDocument.Build(Doc, new MarkdownRenderContext
         {
-            Palette      = MarkdownPalette.Dark,
+            Palette      = StyleFormat.Dark,
             DecorateLink = decorate,
         });
 

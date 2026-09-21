@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -37,13 +38,53 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public abstract class ContentBuilder
 {
-    protected ContentBuilder(ContentReading reading)
+    /// <param name="reading">The content, read and worked over before it ever got here.</param>
+    /// <param name="state">What is being written, and where — see <see cref="State"/>.</param>
+    /// <param name="style">What it is drawn in: colours, type, and anything else about this showing of it.</param>
+    /// <param name="isReadOnly">Whether the block is only being looked at.</param>
+    protected ContentBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
     {
         Reading = reading;
+        State = state;
+        Style = style;
+        IsReadOnly = isReadOnly;
     }
 
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }
+
+    /// <summary>
+    /// What is being written, and where. A builder reads one thing from it — the stretch being shown as its
+    /// own characters rather than as what it says, because somebody is typing in it.
+    /// </summary>
+    /// <remarks>
+    /// Nothing to do with editing, which the element owns. This is how a builder draws content that is
+    /// half-written: the characters, so the caret stands between the ones the reader can see.
+    /// </remarks>
+    protected EditState State { get; }
+
+    /// <summary>What this showing of the content is drawn in — colours, type, and whatever else it carries.</summary>
+    protected StyleFormat Style { get; }
+
+    /// <summary>Whether the block is only being looked at.</summary>
+    protected bool IsReadOnly { get; }
+
+    /// <summary>
+    /// Whether somebody is writing in the block rather than only reading it. Content being written draws what is
+    /// still to be written — a hole where a label goes, a row for a value with nothing yet to draw.
+    /// </summary>
+    protected bool Writing => !IsReadOnly;
+
+    /// <summary>
+    /// How wide it may be laid out, in the content's own units — infinity where nothing says.
+    ///
+    /// <para>
+    /// The one size a builder is told, because where a line breaks is a layout decision and only what measures
+    /// the text can make it. Everything else about how big the content is set is a fact about the content or its
+    /// style, not about the room it landed in.
+    /// </para>
+    /// </summary>
+    protected double Room { get; private set; } = double.PositiveInfinity;
 
     /// <summary>The source this is laying out — what a selection over the result yields.</summary>
     public string Source => Reading.Source;
@@ -57,8 +98,10 @@ public abstract class ContentBuilder
     /// <summary>
     /// Lays the source out. Never null, and never throws.
     /// </summary>
-    public Laid Lay()
+    public Laid Lay(double room = double.PositiveInfinity)
     {
+        Room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
+
         try
         {
             return Build() ?? Shown([]);

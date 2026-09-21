@@ -174,7 +174,7 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheAbstractionLevelsAreGradedFromTheThemesOwnAccent()
     {
-        var ink = C4Grading.Of(MarkdownPalette.Dark);
+        var ink = C4Grading.Of(StyleFormat.Dark);
 
         double Lit(int tone) => DiagramColour.Luminance(DiagramColour.ColorOf(ink.Band(tone), Colors.Black));
 
@@ -188,8 +188,8 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void TheGradingIsMadeFromTheThemeRatherThanFixedHex()
     {
-        var dark = C4Grading.Of(MarkdownPalette.Dark).Band((int)C4Level.Container);
-        var light = C4Grading.Of(MarkdownPalette.Light).Band((int)C4Level.Container);
+        var dark = C4Grading.Of(StyleFormat.Dark).Band((int)C4Level.Container);
+        var light = C4Grading.Of(StyleFormat.Light).Band((int)C4Level.Container);
 
         Assert.AreNotEqual(DiagramColour.ColorOf(dark, Colors.Black), DiagramColour.ColorOf(light, Colors.Black),
                            "a retheme retunes a C4 diagram rather than leaving one region stubbornly cornflower blue");
@@ -199,7 +199,7 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void WhatIsWrittenWinsOverTheGrading_AndTheInkIsChosenToReadOnIt()
     {
-        var ink = C4Grading.Of(MarkdownPalette.Dark);
+        var ink = C4Grading.Of(StyleFormat.Dark);
 
         var (fill, stroke, text) = ink.Card((int)C4Level.Container, "#969", "#333", "#fff");
         Assert.AreEqual(Color.FromRgb(0x99, 0x66, 0x99), DiagramColour.ColorOf(fill, Colors.Black));
@@ -207,7 +207,7 @@ public class C4BuilderTests : MermaidBuilderContract
         Assert.AreEqual(Colors.White, DiagramColour.ColorOf(text, Colors.Black));
 
         // On both palettes, because the trap is a theme whose text brush matches the fill's own darkness.
-        foreach (var palette in new[] { MarkdownPalette.Dark, MarkdownPalette.Light })
+        foreach (var palette in new[] { StyleFormat.Dark, StyleFormat.Light })
         {
             var on = C4Grading.Of(palette);
 
@@ -229,8 +229,8 @@ public class C4BuilderTests : MermaidBuilderContract
     public void ThemeTokensWinOverTheDerivedGrading()
     {
         var pinned = Color.FromRgb(0x43, 0x8D, 0xD5);
-        var dark = MarkdownPalette.Dark;
-        var palette = new MarkdownPalette
+        var dark = StyleFormat.Dark;
+        var palette = new StyleFormat
         {
             Text = dark.Text, TextMuted = dark.TextMuted, Accent = dark.Accent, Heading = dark.Heading,
             DefTerm = dark.DefTerm, Citation = dark.Citation, Marked = dark.Marked, Success = dark.Success,
@@ -252,7 +252,7 @@ public class C4BuilderTests : MermaidBuilderContract
     [CoversNode("c4-elements")]
     public void SomebodyElsesIsTheOneMutedColourWhateverLevelItSitsAt() => UiThread.Run(() =>
     {
-        var ink = C4Grading.Of(MarkdownPalette.Dark);
+        var ink = C4Grading.Of(StyleFormat.Dark);
         var muted = DiagramColour.ColorOf(ink.Band(C4Elements.External), Colors.Black);
 
         foreach (var level in new[] { C4Level.Person, C4Level.System, C4Level.Container, C4Level.Component })

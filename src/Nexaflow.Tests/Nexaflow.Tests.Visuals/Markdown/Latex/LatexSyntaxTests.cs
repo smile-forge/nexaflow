@@ -29,7 +29,7 @@ public class LatexSyntaxTests
             var latex = LatexConstructs.Flatten(written);
 
             // Placeholders on, because the check asks for holes: an empty argument is unfinished to both.
-            var drawn = LatexBuilder.Build(latex, Scale, placeholders: true).Trouble
+            var drawn = LatexBuilder.Lay(latex, Scale, placeholders: true).Trouble
                 .Where(d => d.Severity == DiagnosticSeverity.Error)
                 .Select(Said).OrderBy(s => s).ToList();
             var checkedOut = LatexSyntax.Check(latex).Select(Said).OrderBy(s => s).ToList();

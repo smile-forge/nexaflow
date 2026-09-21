@@ -69,10 +69,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
     private readonly DiagramTone ink;
 
-    private C4Builder(ContentReading reading, DiagramLaying laying) : base(reading, laying) => this.ink = C4Grading.Of(laying.Palette);
-
-    /// <summary>Lays a structural C4 diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new C4Builder(reading, laying).Lay();
+    internal C4Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) => this.ink = C4Grading.Of(style);
 
     /// <inheritdoc/>
     protected override C4Structure Of(MermaidBlock block) => C4Structure.Of(block);

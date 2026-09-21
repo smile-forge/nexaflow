@@ -61,7 +61,7 @@ public class ContentWordsTests
 
     private static ContentElement Element(bool readOnly = false)
     {
-        var element = new ContentElement(Source, MarkdownPalette.Dark, (state, _) => Lay(state))
+        var element = new ContentElement(Source, StyleFormat.Dark, (state, _) => Lay(state))
         {
             IsReadOnly = readOnly,
         };

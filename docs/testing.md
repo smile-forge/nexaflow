@@ -380,9 +380,11 @@ the guard degrades to presence-only).
 
 A `ContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
 nothing. `ContentBuilderRulesTests` (in `Tests.Visuals`) reflects over every class deriving from it and requires one
-constructor, taking `(ContentReading, EditState, MarkdownPalette, bool)`; nothing told to it afterwards; and nothing
+constructor, taking `(ContentReading, EditState, StyleFormat, bool)`; nothing told to it afterwards; and nothing
 named that `ContentBuilder` does not declare. Anything else a builder was going to be given is a fact about the
-content or about this showing of it, and belongs somewhere every builder can be given it the same way.
+content or about this showing of it, and belongs somewhere every builder can be given it the same way — the
+style, the tree, or a pipeline stage that puts it there. How wide it may be goes to `Lay(room)`, because that is
+the one thing that changes without the content or the showing of it changing.
 
 It is a **ratchet**: builders that predate the rule are listed in
 `Editing/content-builders-not-yet-one-shape.txt`, and the two tests pull opposite ways — a new builder out of shape

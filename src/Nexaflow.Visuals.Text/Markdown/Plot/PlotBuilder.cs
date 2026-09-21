@@ -36,28 +36,27 @@ internal sealed class PlotBuilder : ContentBuilder
     /// <summary>And how much of what is under one shows through it.</summary>
     private const double Through = 0.25;
 
-    private readonly MarkdownPalette _palette;
+    private readonly StyleFormat _palette;
     private readonly DiagramInk _ink;
     private readonly PlotSettings _settings;
     private readonly string? _unreadable;
-    private readonly double _room;
-    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable,
-                        MarkdownPalette palette, double room)
-        : base(reading)
+    
+    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable, StyleFormat palette)
+        : base(reading, EditState.For(reading.Source), palette, isReadOnly: true)
     {
         _settings = settings;
         _unreadable = unreadable;
         _palette = palette;
         _ink = new DiagramInk(palette);
-        _room = room;
+    
     }
 
     /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
-    public static Laid Build(string source, PlotFence fence, MarkdownPalette palette, double room, int at = 0)
+    public static Laid Build(string source, PlotFence fence, StyleFormat palette, double room, int at = 0)
     {
         var tree = PlotPipeline.Read(source, fence, out var settings, out var unreadable);
 
-        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette, room).Lay();
+        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette).Lay(room);
     }
 
     /// <summary>
@@ -919,7 +918,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     {
         var it = chart.Settings;
 
-        var (wide, tall) = SettingRoom.Fit(it.Width, it.Height, _room, PlotSettings.HeightShare);
+        var (wide, tall) = SettingRoom.Fit(it.Width, it.Height, Room, PlotSettings.HeightShare);
 
         var trouble = new List<Diagnostic>();
 

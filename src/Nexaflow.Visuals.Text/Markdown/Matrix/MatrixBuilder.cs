@@ -60,12 +60,12 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// <summary>The narrowest a reason is set to, so a small symbol does not stack it a word to a line.</summary>
     private const double ReasonRoom = 240;
 
-    protected MatrixBuilder(ContentReading reading, MarkdownPalette palette) : base(reading)
-    {
-        Palette = palette;
-    }
+    protected MatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
-    protected MarkdownPalette Palette { get; }
+
+
+    protected StyleFormat Palette => Style;
 
     /// <summary>
     /// An encoded symbol and how to draw it. <paramref name="RowHeight"/> is a module's height as a multiple of its
@@ -93,10 +93,10 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
     /// <summary>The element a 2D-code block is shown in: read-only, because there is nothing in it to edit.</summary>
     protected static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                 Func<string, MarkdownPalette, Laid> build)
+                                                 Func<ContentReading, EditState, StyleFormat, bool, ContentBuilder> make)
     {
         var element = new Editing.ContentElement(source, options.Palette,
-            (state, _) => build(state.Source, options.Palette))
+            (state, _) => make(ContentReading.Of(MatrixParser.Parse(state.Source)), state, options.Palette, true).Lay())
         {
             IsReadOnly = true,
 

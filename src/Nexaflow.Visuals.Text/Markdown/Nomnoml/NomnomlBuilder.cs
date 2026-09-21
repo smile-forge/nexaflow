@@ -18,12 +18,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Nomnoml;
 /// <see cref="ClassBuilder"/>, and a fix there is a fix to both.
 /// </para>
 /// </summary>
-internal sealed class NomnomlBuilder(ContentReading reading, DiagramLaying laying)
-    : ClassBuilder(reading, laying)
+internal sealed class NomnomlBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+    : ClassBuilder(reading, state, style, isReadOnly)
 {
-    /// <summary>Lays a nomnoml block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new NomnomlBuilder(reading, laying).Lay();
-
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => NomnomlDiagram.Of(block);
 }

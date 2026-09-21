@@ -34,7 +34,7 @@ internal sealed class WordCloudInk
     /// What the settings ask for, or false with the reason — a colour written that is not one is a fault in
     /// the block rather than in a word, so it stops the whole thing being a cloud.
     /// </summary>
-    public static bool TryRead(WordCloudSettings settings, MarkdownPalette palette, WordCloudRandom random,
+    public static bool TryRead(WordCloudSettings settings, StyleFormat palette, WordCloudRandom random,
                                out WordCloudInk? ink, out string? error)
     {
         ink = null;

@@ -38,7 +38,7 @@ public class BracketTests
         foreach (var latex in new[] { @"\braket{0|0}", @"\bra{\psi}", @"\ket{\phi}",
                                       @"\Braket{a|b}", @"\Bra{a}", @"\Ket{b}" })
         {
-            var layout = LatexBuilder.Build(latex, 16);
+            var layout = LatexBuilder.Lay(latex, 16);
             Assert.IsNotNull(layout, latex);
             Assert.AreEqual(0, layout.Trouble.Count, $"{latex} was read without trouble");
             Assert.IsTrue(layout.Size.Width > 0, $"{latex} drew something");

@@ -31,7 +31,7 @@ public class DataMatrixBuilderTests
     [TestMethod]
     public void DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("datamatrix", "type: text\ntext: hello", MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render("datamatrix", "type: text\ntext: hello", StyleFormat.Dark);
 
         Assert.IsTrue(((ContentElement)element).IsReadOnly);
     });
@@ -89,7 +89,7 @@ public class DataMatrixBuilderTests
         var block = Read(source);
         var symbol = Encoded(source);
 
-        var drawn = MatrixLayouts.ReadBack(DataMatrixBuilder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Dark)),
+        var drawn = MatrixLayouts.ReadBack(DataMatrixBuilder.Element(source, DiagramRenderOptions.For(StyleFormat.Dark)),
                                            symbol.Width, symbol.Height, block.Settings);
         var decoded = DataMatrixTestDecoder.Decode(drawn);
 
@@ -109,7 +109,7 @@ public class DataMatrixBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => DataMatrixBuilder.Build(source, MarkdownPalette.Dark);
+    private static Laid Build(string source) => DataMatrixBuilder.Lay(source, StyleFormat.Dark);
 
     private static DataMatrixBlock Read(string source)
     {

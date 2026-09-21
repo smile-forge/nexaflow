@@ -30,7 +30,7 @@ public class DiagramBindingTests
     {
         var element = (ContentElement)DiagramRenderer.Render("mermaid", source, new DiagramRenderOptions
         {
-            Palette = MarkdownPalette.Dark,
+            Palette = StyleFormat.Dark,
             DataContext = data,
         });
 

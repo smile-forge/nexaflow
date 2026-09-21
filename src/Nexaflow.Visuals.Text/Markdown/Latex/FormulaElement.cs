@@ -33,12 +33,12 @@ public sealed class FormulaElement : ContentElement
     /// <summary>Raised when the reader's own editing changed the LaTeX.</summary>
     public event EventHandler? LatexChanged;
 
-    public FormulaElement(string latex, MarkdownPalette palette, double scale, bool inline = false)
-        : base(latex ?? string.Empty, palette, new LatexContent(scale, inline))
+    public FormulaElement(string latex, StyleFormat style, bool inline = false)
+        : base(latex ?? string.Empty, style, new LatexContent(style, inline))
     {
         SourceChanged += (_, _) => LatexChanged?.Invoke(this, EventArgs.Empty);
 
-        WashPad = scale * 0.14;
+        WashPad = style.TextSize * 0.14;
         Rebuild();
     }
 

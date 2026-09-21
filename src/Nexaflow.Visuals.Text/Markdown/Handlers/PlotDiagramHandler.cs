@@ -26,7 +26,7 @@ public sealed class PlotDiagramHandler(PlotFence fence) : IDiagramHandler
 {
     public bool CanHandle(string language) => PlotFences.Named(language) == fence;
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => this.Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>

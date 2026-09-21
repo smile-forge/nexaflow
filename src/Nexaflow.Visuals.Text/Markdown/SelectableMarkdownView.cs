@@ -170,15 +170,15 @@ public class SelectableMarkdownView : UserControl
         => ((SelectableMarkdownView)d).Rebuild();
 
     /// <summary>Colour scheme for rendering. When unset, follows the active theme via
-    /// <see cref="MarkdownPalette.FromTheme"/> (light themes get dark text, etc.); set
-    /// <see cref="MarkdownPalette.Light"/> for fixed light surfaces (e.g. scratchpad post-its).</summary>
+    /// <see cref="StyleFormat.FromTheme"/> (light themes get dark text, etc.); set
+    /// <see cref="StyleFormat.Light"/> for fixed light surfaces (e.g. scratchpad post-its).</summary>
     public static readonly DependencyProperty PaletteProperty =
-        DependencyProperty.Register(nameof(Palette), typeof(MarkdownPalette), typeof(SelectableMarkdownView),
+        DependencyProperty.Register(nameof(Palette), typeof(StyleFormat), typeof(SelectableMarkdownView),
             new PropertyMetadata(null, (d, _) => ((SelectableMarkdownView)d).Rebuild()));
 
-    public MarkdownPalette? Palette
+    public StyleFormat? Palette
     {
-        get => (MarkdownPalette?)GetValue(PaletteProperty);
+        get => (StyleFormat?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -294,7 +294,7 @@ public class SelectableMarkdownView : UserControl
         _search?.Clear();
         _diagramStates.Rewind();
         _rtb.Document = MarkdownFlowDocument.Build(
-            Markdown, new MarkdownRenderContext { Palette = Palette ?? MarkdownPalette.FromTheme(), OnNavigate = OpenLink, ReadOnly = true, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates, DataContext = DiagramData });
+            Markdown, new MarkdownRenderContext { Palette = Palette ?? StyleFormat.FromTheme(), OnNavigate = OpenLink, ReadOnly = true, OnDiagramExpand = DiagramExpand, OnDiagramSelect = DiagramSelect, BaseDirectory = BaseDirectory, ImageResolver = ImageResolver, DecorateLink = LinkDecorator, FitContentToWidth = FitContentToWidth, ScrollWideDiagrams = ScrollWideDiagrams, DiagramOpenOnDoubleClick = DiagramOpenOnDoubleClick, DiagramZoomOnWheel = DiagramZoomOnWheel, MaxDiagramHeight = MaxDiagramHeight, DiagramStates = _diagramStates, DataContext = DiagramData });
     }
 
     /// <summary>Scrolls the heading with in-page anchor <paramref name="anchor"/> — a <c>#anchor</c> link's target,

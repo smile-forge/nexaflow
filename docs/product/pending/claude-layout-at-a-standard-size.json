@@ -1,0 +1,33 @@
+{
+  "branch": "claude/layout-at-a-standard-size",
+  "nodes": {
+    "qr-render": {
+      "concerns": {
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Markdown/StyleFormat.cs",
+            "class": "StyleFormat"
+          }
+        ]
+      }
+    },
+    "smiles-render": {
+      "concerns": {
+        "theming": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Visuals.Text/Markdown/StyleFormat.cs",
+            "class": "StyleFormat"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "qr-render",
+    "smiles-render"
+  ]
+}

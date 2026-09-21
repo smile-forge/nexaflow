@@ -66,10 +66,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// <summary>How far an id is turned where the front matter asks for it, as Mermaid turns one.</summary>
     private const double Turned = 45;
 
-    private GitBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new GitBuilder(reading, laying).Lay();
+    internal GitBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override GitGraph Of(MermaidBlock block) => GitGraph.Of(block);

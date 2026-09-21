@@ -20,7 +20,7 @@ public sealed class DataMatrixDiagramHandler : IDiagramHandler
         language.Equals("datamatrix", StringComparison.OrdinalIgnoreCase)
         || language.Equals("data-matrix", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) => DataMatrixBuilder.Element(source, options);

@@ -28,13 +28,15 @@ public sealed class ContentNode
 {
     private static readonly ContentNode[] Childless = [];
 
-    private ContentNode(string kind, string role, string text, IReadOnlyList<ContentNode> children, string? trouble)
+    private ContentNode(string kind, string role, string text, IReadOnlyList<ContentNode> children, string? trouble,
+                        object? held = null)
     {
         this.Kind = kind;
         this.Role = role;
         this.Text = text;
         this.Children = children;
         this.Trouble = trouble;
+        this.Held = held;
 
         // A derived node stands for nothing anybody wrote, so it takes up none of the source. Saying so
         // once, here, is what keeps every piece above it honest: a width is the sum of the widths under
@@ -88,6 +90,26 @@ public sealed class ContentNode
 
     /// <summary>Whether this stands for characters rather than for parts.</summary>
     public bool IsLeaf => this.Children.Count == 0;
+
+    /// <summary>
+    /// Something a stage worked out that is not text — a picture a name was resolved to, a table a setting was
+    /// read into. Null for everything the parser makes, which is everything that stands for characters.
+    ///
+    /// <para>
+    /// Untyped on purpose. What a stage resolves a name <em>to</em> is often a thing this assembly could not
+    /// name: an image is a WPF object and nothing here knows about WPF. Whoever hangs it knows what it is, and
+    /// so does whoever reads it; this only has to carry it.
+    /// </para>
+    /// <para>
+    /// Only ever on a <see cref="Roles.Derived"/> node, so it takes up no source and the tree still prints as
+    /// what it came from.
+    /// </para>
+    /// </summary>
+    public object? Held { get; }
+
+    /// <summary>A piece holding something worked out that is not text — see <see cref="Held"/>.</summary>
+    public static ContentNode Holding(string kind, string role, object held) =>
+        new(kind, role, string.Empty, Childless, null, held);
 
     // ── Making them ─────────────────────────────────────────────────────────
 

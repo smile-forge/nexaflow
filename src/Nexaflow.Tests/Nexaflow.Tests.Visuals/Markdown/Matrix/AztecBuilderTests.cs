@@ -32,7 +32,7 @@ public class AztecBuilderTests
     [TestMethod]
     public void DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("aztec", "type: text\ntext: hello", MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render("aztec", "type: text\ntext: hello", StyleFormat.Dark);
 
         Assert.IsTrue(((ContentElement)element).IsReadOnly);
     });
@@ -129,7 +129,7 @@ public class AztecBuilderTests
         var block = Read(source);
         Assert.IsTrue(AztecEncoder.TryEncode(block.Payload, block.Options, out var symbol, out string? error), error);
 
-        var drawn = MatrixLayouts.ReadBack(AztecBuilder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Light)),
+        var drawn = MatrixLayouts.ReadBack(AztecBuilder.Element(source, DiagramRenderOptions.For(StyleFormat.Light)),
                                            symbol!.Size, symbol.Size, block.Settings);
 
         for (int y = 0; y < symbol.Size; y++)
@@ -151,7 +151,7 @@ public class AztecBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => AztecBuilder.Build(source, MarkdownPalette.Light);
+    private static Laid Build(string source) => AztecBuilder.Lay(source, StyleFormat.Light);
 
     private static AztecBlock Read(string source)
     {

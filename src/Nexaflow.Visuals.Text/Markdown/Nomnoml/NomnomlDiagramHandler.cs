@@ -18,9 +18,10 @@ public sealed class NomnomlDiagramHandler : IDiagramHandler
     public bool CanHandle(string language) =>
         language.Equals(Language, StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>
-        MermaidBuilder.Host(source, options, NomnomlBuilder.Build, options.ReadOnly, NomnomlDiagram.Grammar);
+        MermaidBuilder.Host(source, options, static (r, s, f, o) => new NomnomlBuilder(r, s, f, o),
+                            options.ReadOnly, NomnomlDiagram.Grammar);
 }

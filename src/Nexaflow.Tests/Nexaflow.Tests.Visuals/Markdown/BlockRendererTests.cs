@@ -260,7 +260,7 @@ public class BlockRendererTests
         try
         {
             SaveOnePixelPng(Path.Combine(dir, "pixel.png"));
-            var ctx = new MarkdownRenderContext { Palette = MarkdownPalette.Dark, BaseDirectory = dir };
+            var ctx = new MarkdownRenderContext { Palette = StyleFormat.Dark, BaseDirectory = dir };
 
             var tb = (TextBlock)BlockRenderer.Render(Parse("![alt](pixel.png)\n")[0], "", ctx);
 

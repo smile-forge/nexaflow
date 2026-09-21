@@ -27,7 +27,7 @@ public sealed class MusicDiagramHandler(MusicDialect dialect) : IDiagramHandler
 {
     public bool CanHandle(string language) => MusicDialectExtensions.FromTag(language) == dialect;
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>

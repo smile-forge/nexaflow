@@ -31,7 +31,7 @@ public class SmilesBuilderTests
     [TestMethod]
     public void DispatchesThroughDiagramRenderer_ToContentThatCannotBeEdited() => UiThread.Run(() =>
     {
-        var content = (ContentElement)DiagramRenderer.Render("smiles", "chemistry\nCCO \"Ethanol\"", MarkdownPalette.Dark);
+        var content = (ContentElement)DiagramRenderer.Render("smiles", "chemistry\nCCO \"Ethanol\"", StyleFormat.Dark);
         Assert.IsTrue(content.IsReadOnly);
 
         content.Measure(new Size(600, double.PositiveInfinity));
@@ -94,7 +94,7 @@ public class SmilesBuilderTests
         var oxygen = Pieces(laid, MoleculePiece.Atom).Last();
 
         var ink = oxygen.Marks.ToArray().OfType<TextMark>().First().Foreground;
-        Assert.AreEqual(((SolidColorBrush)MarkdownPalette.Light.Elements["O"]).Color, ((SolidColorBrush)ink!).Color);
+        Assert.AreEqual(((SolidColorBrush)StyleFormat.Light.Elements["O"]).Color, ((SolidColorBrush)ink!).Color);
     });
 
     [TestMethod]
@@ -140,7 +140,7 @@ public class SmilesBuilderTests
     });
 
     private static Laid Build(string source, double room = double.PositiveInfinity) =>
-        SmilesBuilder.Build(source, MarkdownPalette.Light, room);
+        SmilesBuilder.Lay(source, StyleFormat.Light, room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind).ToList();

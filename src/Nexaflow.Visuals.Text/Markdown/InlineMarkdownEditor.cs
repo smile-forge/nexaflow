@@ -177,12 +177,12 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     public static readonly DependencyProperty PaletteProperty =
-        DependencyProperty.Register(nameof(Palette), typeof(MarkdownPalette), typeof(InlineMarkdownEditor),
+        DependencyProperty.Register(nameof(Palette), typeof(StyleFormat), typeof(InlineMarkdownEditor),
             new PropertyMetadata(null, (d, _) => ((InlineMarkdownEditor)d).OnPaletteChanged()));
 
-    public MarkdownPalette? Palette
+    public StyleFormat? Palette
     {
-        get => (MarkdownPalette?)GetValue(PaletteProperty);
+        get => (StyleFormat?)GetValue(PaletteProperty);
         set => SetValue(PaletteProperty, value);
     }
 
@@ -261,7 +261,7 @@ public partial class InlineMarkdownEditor : UserControl
     }
 
     /// <summary>Palette in effect — an explicit <see cref="Palette"/>, else the active theme.</summary>
-    private MarkdownPalette Pal => Palette ?? MarkdownPalette.FromTheme();
+    private StyleFormat Pal => Palette ?? StyleFormat.FromTheme();
 
     /// <summary>
     /// Point size body text renders at, with the rest of the document proportional to it (see

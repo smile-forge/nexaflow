@@ -30,7 +30,7 @@ public class WordCloudBuilderTests
     private const string Stack = "WPF: 40\nXAML: 25\nMVVM: 12";
 
     private static Laid Lay(string source, double room = 480) =>
-        WordCloudBuilder.Build(source, MarkdownPalette.Dark, room);
+        WordCloudBuilder.Lay(source, StyleFormat.Dark, room);
 
     private static Piece[] Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == WordCloudPiece.Word)];
@@ -213,8 +213,10 @@ public class WordCloudBuilderTests
     public void APictureIsTheShapeItsDarkPartMakes() => UiThread.Run(() =>
     {
         // Black on white, left half only — every word should land in that half.
-        var laid = WordCloudBuilder.Build("mask: half.png\nminSize: 5\nmaxSize: 18\ngap: 1\n" + Many(),
-                                          MarkdownPalette.Dark, 600, _ => Half());
+        var laid = WordCloudBuilder.Lay("mask: half.png\nminSize: 5\nmaxSize: 18\ngap: 1\n" + Many(),
+                                        StyleFormat.Dark, 600,
+                                        new Nexaflow.Markdown.Pipeline.AstPipeline(
+                                            new Nexaflow.Visuals.Text.Markdown.WordCloud.Stages.WithPictures(_ => Half())));
 
         Assert.IsTrue(Words(laid).Length > 20, $"only {Words(laid).Length} word(s) were placed");
 

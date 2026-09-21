@@ -102,9 +102,9 @@ public class LilyPondCorpusParityTests
     private static string? Compare(string abc, string ly)
     {
         Laid one, other;
-        try { one = AbcBuilder.Build(abc, Width, Brushes.Black); }
+        try { one = AbcBuilder.Lay(abc, Width, StyleFormat.Light); }
         catch (Exception e) { return $"abc threw {e.GetType().Name}: {e.Message}"; }
-        try { other = LilyPondBuilder.Build(ly, Width, Brushes.Black); }
+        try { other = LilyPondBuilder.Lay(ly, Width, StyleFormat.Light); }
         catch (Exception e) { return $"ly threw {e.GetType().Name}: {e.Message}"; }
 
         var (abcNotes, abcBars) = Read(one);
@@ -188,8 +188,8 @@ public class LilyPondCorpusParityTests
     /// </summary>
     private static void Picture(string abc, string ly, string file)
     {
-        var one = Engraved(abc, (source, room) => AbcBuilder.Build(source, room, Brushes.Black));
-        var other = Engraved(ly, (source, room) => LilyPondBuilder.Build(source, room, Brushes.Black));
+        var one = Engraved(abc, (source, room) => AbcBuilder.Lay(source, room, StyleFormat.Light));
+        var other = Engraved(ly, (source, room) => LilyPondBuilder.Lay(source, room, StyleFormat.Light));
 
         var height = one.PixelHeight + other.PixelHeight + 24;
         var visual = new DrawingVisual();
@@ -213,7 +213,7 @@ public class LilyPondCorpusParityTests
     /// <summary>A source engraved as the page shows it, at the sweep's width.</summary>
     private static RenderTargetBitmap Engraved(string source, Func<string, double, Laid> build)
     {
-        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, MarkdownPalette.Light, (state, room) => build(state.Source, room));
+        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, StyleFormat.Light, (state, room) => build(state.Source, room));
         element.Measure(new Size(Width, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

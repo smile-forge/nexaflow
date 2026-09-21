@@ -42,6 +42,9 @@ size — is a fact about the content and reaches the builder as one.
 
 ```
 Ast/         ContentNode, ContentPart, ContentReading, ContentWords, ContentLink, ISourcePart, Roles, Kinds, AstWrite
+             — a node also carries what a stage worked out that is not text (ContentNode.Held): a picture a name
+             was resolved to, say. Untyped, because what a name resolves to is often something this assembly
+             could not name — an image is a WPF object and nothing here knows about WPF.
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles, Stages/WithBindings
 Binding/     IDataContext, ReflectionDataContext, BoundText — what a {{…}} is read against
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…

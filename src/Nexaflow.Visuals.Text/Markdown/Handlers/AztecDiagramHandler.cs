@@ -21,7 +21,7 @@ public sealed class AztecDiagramHandler : IDiagramHandler
         language.Equals("aztec", StringComparison.OrdinalIgnoreCase)
         || language.Equals("aztec-code", StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    public FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null)
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) => AztecBuilder.Element(source, options);

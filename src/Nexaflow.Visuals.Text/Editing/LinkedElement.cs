@@ -19,7 +19,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
-public class LinkedElement(string source, MarkdownPalette palette, IContent content, ILayoutActions? actions)
+public class LinkedElement(string source, StyleFormat palette, IContent content, ILayoutActions? actions)
     : ContentElement(source, palette, content), IEditableBlock
 {
     /// <inheritdoc/>

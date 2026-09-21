@@ -48,10 +48,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     /// <summary>How much of a box's or a wash's colour is laid over what is behind it.</summary>
     private const double Wash = 0.14;
 
-    protected SequenceBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a sequence diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new SequenceBuilder(reading, laying).Lay();
+    internal SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override SequenceDiagram Of(MermaidBlock block) => SequenceDiagram.Of(block);

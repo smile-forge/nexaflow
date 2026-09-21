@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -54,7 +55,7 @@ public class AbcCorpusRenderTests
             Laid layout;
             try
             {
-                layout = AbcBuilder.Build(abc, 700, Brushes.Black);
+                layout = AbcBuilder.Lay(abc, 700, StyleFormat.Light);
             }
             catch (Exception ex)
             {

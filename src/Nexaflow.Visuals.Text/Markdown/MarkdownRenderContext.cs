@@ -4,12 +4,12 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// Per-render options for <see cref="BlockRenderer"/>: the colour
 /// <see cref="Palette"/> plus an optional link-navigation hook.
 ///
-/// A <see cref="MarkdownPalette"/> converts implicitly to a context (with no
+/// A <see cref="StyleFormat"/> converts implicitly to a context (with no
 /// navigation hook), so existing palette-only callers are unaffected.
 /// </summary>
 public sealed class MarkdownRenderContext
 {
-    public required MarkdownPalette Palette { get; init; }
+    public required StyleFormat Palette { get; init; }
 
     /// <summary>
     /// Point size body text renders at; everything else in the document — headings, code runs, captions,
@@ -123,8 +123,8 @@ public sealed class MarkdownRenderContext
     /// </summary>
     public bool ScrollWideDiagrams { get; init; }
 
-    public static readonly MarkdownRenderContext Dark = MarkdownPalette.Dark;
+    public static readonly MarkdownRenderContext Dark = StyleFormat.Dark;
 
-    public static implicit operator MarkdownRenderContext(MarkdownPalette palette)
+    public static implicit operator MarkdownRenderContext(StyleFormat palette)
         => new() { Palette = palette };
 }

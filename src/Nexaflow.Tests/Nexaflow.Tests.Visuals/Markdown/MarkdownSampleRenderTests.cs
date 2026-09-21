@@ -119,7 +119,7 @@ public class MarkdownSampleRenderTests
             {
                 string latex = math.Content.ToString();
 
-                var layout = LatexBuilder.Build(latex, 20);
+                var layout = LatexBuilder.Lay(latex, 20);
                 var ok = layout is not null
                          && !layout.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
 

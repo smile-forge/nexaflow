@@ -27,7 +27,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>Converts a single Markdig <see cref="MdBlock"/> into a WPF <see cref="FrameworkElement"/>. Pure
 /// rendering — no editor coupling. Colours and the link-navigation hook come from a
-/// <see cref="MarkdownRenderContext"/> (defaults to <see cref="MarkdownPalette.Dark"/>).</summary>
+/// <see cref="MarkdownRenderContext"/> (defaults to <see cref="StyleFormat.Dark"/>).</summary>
 public static class BlockRenderer
 {
     // ── Theme-independent typography ──────────────────────────────────────
@@ -90,10 +90,10 @@ public static class BlockRenderer
 
     /// <param name="rawMarkdown">The raw markdown source for this block. Required for accurate math formula
     /// extraction; ignored by all other block types.</param>
-    /// <param name="context">Colours + link hook; defaults to <see cref="MarkdownPalette.Dark"/>.</param>
+    /// <param name="context">Colours + link hook; defaults to <see cref="StyleFormat.Dark"/>.</param>
     public static FrameworkElement Render(MdBlock block, string rawMarkdown = "", MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
+        var ctx = context ?? (MarkdownRenderContext)StyleFormat.FromTheme();
         var p   = ctx.Palette;
         try
         {
@@ -247,7 +247,7 @@ public static class BlockRenderer
     /// <summary>Maps an alert kind to its accent brush + title-cased label. The five GitHub kinds get
     /// distinct semantic colours; others fall back to the accent colour. Shared with
     /// <see cref="MarkdownFlowDocument"/>'s native alert rendering.</summary>
-    internal static (Brush accent, string label) AlertStyle(string kind, MarkdownPalette p) =>
+    internal static (Brush accent, string label) AlertStyle(string kind, StyleFormat p) =>
         kind.Trim().ToUpperInvariant() switch
         {
             "NOTE"      => (p.Accent,   "Note"),
@@ -575,7 +575,7 @@ public static class BlockRenderer
         // refusing it would make "start writing a formula" the one thing the editor couldn't do.
         try
         {
-            var formula = new FormulaElement(latex, p, Body(ctx) * DisplayFormulaRatio)
+            var formula = new FormulaElement(latex, p with { TextSize = Body(ctx) * DisplayFormulaRatio })
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin              = new Thickness(0, 8, 0, 8)
@@ -647,7 +647,7 @@ public static class BlockRenderer
 
     internal static void AddInlines(InlineCollection target, MdInline inline, MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
+        var ctx = context ?? (MarkdownRenderContext)StyleFormat.FromTheme();
         var p   = ctx.Palette;
         switch (inline)
         {
@@ -750,7 +750,7 @@ public static class BlockRenderer
                 {
                     // SourceStart/Length carry where the LaTeX sits in the block's source (delimiters
                     // excluded), so an editing host can splice a change back into the sentence.
-                    var ctrl = new FormulaElement(miLatex, p, Body(ctx), inline: true)
+                    var ctrl = new FormulaElement(miLatex, p with { TextSize = Body(ctx) }, inline: true)
                     {
                         SourceStart  = mi.Content.Start,
                         SourceLength = mi.Content.Length,
@@ -821,7 +821,7 @@ public static class BlockRenderer
     /// <summary>Builds the inline for an <see cref="AbbreviationInline"/>: the label drawn with a dotted
     /// underline + help cursor, carrying the definition as a hover tooltip. The tooltip is an explicit
     /// <see cref="TextBlock"/> — a bare string would inherit the host's text alignment.</summary>
-    private static WpfInline MakeAbbreviation(AbbreviationInline abbr, MarkdownPalette p)
+    private static WpfInline MakeAbbreviation(AbbreviationInline abbr, StyleFormat p)
     {
         var title = abbr.Abbreviation.Text.ToString().Trim();
 

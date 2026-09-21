@@ -28,7 +28,7 @@ public class BarcodeLayoutTests
     private static Piece UiRoot(string source)
     {
         Assert.IsTrue(BarcodeBlockParser.TryParse(source, out var block, out string? error), error);
-        return BarcodeBuilder.Build(block!, MarkdownPalette.Dark).Root;
+        return BarcodeBuilder.Build(block!, StyleFormat.Dark).Root;
     }
 
     private static Piece[] Of(Piece root, BarcodeKind kind) =>
@@ -83,7 +83,7 @@ public class BarcodeLayoutTests
         // kept the small one, and the symbol could then be neither selected nor typed into.
         const string value = "MARKdOWN-39";
         Assert.IsTrue(BarcodeBlockParser.TryParse("format: CODE39\nvalue: " + value, out var block, out string? error), error);
-        var laid = BarcodeBuilder.Build(block!, MarkdownPalette.Dark);
+        var laid = BarcodeBuilder.Build(block!, StyleFormat.Dark);
 
         Assert.AreEqual(1, laid.Trouble.Count, "a letter Code 39 cannot carry is an error like any other");
         CollectionAssert.AreEqual(Enumerable.Range(0, value.Length + 1).ToArray(), laid.Root.CaretStops().ToArray(),

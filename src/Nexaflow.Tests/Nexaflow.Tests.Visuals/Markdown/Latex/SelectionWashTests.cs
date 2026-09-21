@@ -57,7 +57,7 @@ public class SelectionWashTests
     /// <summary>A formula laid out and measured, so it has a render size to draw into.</summary>
     private static FormulaElement Measured(string latex)
     {
-        var formula = new FormulaElement(latex, MarkdownPalette.Dark, 22);
+        var formula = new FormulaElement(latex, StyleFormat.Dark with { TextSize = 22 });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
         return formula;

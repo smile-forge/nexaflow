@@ -90,8 +90,8 @@ public class DiagramSnapshotTests
                     index++;
                     foreach (var (theme, palette) in new[]
                     {
-                        ("dark",  MarkdownPalette.Dark),
-                        ("light", MarkdownPalette.Light),
+                        ("dark",  StyleFormat.Dark),
+                        ("light", StyleFormat.Light),
                     })
                     {
                         string name = $"{stem}-{index}-{theme}.png";
@@ -141,7 +141,7 @@ public class DiagramSnapshotTests
     }
 
     /// <summary>Renders one fence at the fixed host width and returns the PNG bytes.</summary>
-    private static byte[] Render(string source, MarkdownPalette palette)
+    private static byte[] Render(string source, StyleFormat palette)
     {
         var host = new Border { Width = HostWidth, Child = DiagramRenderer.Render("mermaid", source, palette) };
         host.Measure(new Size(HostWidth, double.PositiveInfinity));
@@ -155,7 +155,7 @@ public class DiagramSnapshotTests
         var bitmap = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
         var ground = new DrawingVisual();
         using (var dc = ground.RenderOpen())
-            dc.DrawRectangle(palette == MarkdownPalette.Light ? Brushes.White : Brushes.Black, null, new Rect(0, 0, w, h));
+            dc.DrawRectangle(palette == StyleFormat.Light ? Brushes.White : Brushes.Black, null, new Rect(0, 0, w, h));
         bitmap.Render(ground);
         bitmap.Render(host);
 

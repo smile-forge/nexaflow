@@ -30,7 +30,7 @@ public class Pdf417BuilderTests
     [TestMethod]
     public void DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("pdf417", "type: text\ntext: hello", MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render("pdf417", "type: text\ntext: hello", StyleFormat.Dark);
 
         Assert.IsTrue(((ContentElement)element).IsReadOnly);
     });
@@ -113,7 +113,7 @@ public class Pdf417BuilderTests
         var block = Read(source);
         var symbol = Encoded(source);
 
-        var drawn = MatrixLayouts.ReadBack(Pdf417Builder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Dark)),
+        var drawn = MatrixLayouts.ReadBack(Pdf417Builder.Element(source, DiagramRenderOptions.For(StyleFormat.Dark)),
                                            symbol.Width, symbol.Height, block.Settings, block.RowHeight);
         var decoded = Pdf417TestDecoder.Decode(drawn);
 
@@ -133,7 +133,7 @@ public class Pdf417BuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Pdf417Builder.Build(source, MarkdownPalette.Dark);
+    private static Laid Build(string source) => Pdf417Builder.Lay(source, StyleFormat.Dark);
 
     private static Pdf417Block Read(string source)
     {

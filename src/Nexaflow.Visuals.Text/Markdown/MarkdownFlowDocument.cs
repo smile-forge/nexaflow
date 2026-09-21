@@ -21,8 +21,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <see cref="BlockUIContainer"/>.
 ///
 /// Colours and the link hook come from a <see cref="MarkdownRenderContext"/>
-/// (a <see cref="MarkdownPalette"/> converts implicitly; defaults to
-/// <see cref="MarkdownPalette.Dark"/>).
+/// (a <see cref="StyleFormat"/> converts implicitly; defaults to
+/// <see cref="StyleFormat.Dark"/>).
 ///
 /// Leaf runs are tagged with their Markdig <see cref="SourceSpan"/> (via
 /// <see cref="BlockRenderer.AddInlines"/> and the code/heading paths here) so a
@@ -33,7 +33,7 @@ public static class MarkdownFlowDocument
 {
     public static FlowDocument Build(string? markdown, MarkdownRenderContext? context = null)
     {
-        var ctx = context ?? (MarkdownRenderContext)MarkdownPalette.FromTheme();
+        var ctx = context ?? (MarkdownRenderContext)StyleFormat.FromTheme();
         var p   = ctx.Palette;
         var doc = new FlowDocument
         {

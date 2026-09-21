@@ -76,10 +76,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     private const double Banded = 0.16;
     private const double Tinted = 0.22;
 
-    private TimelineBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new TimelineBuilder(reading, laying).Lay();
+    internal TimelineBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override TimelineChart Of(MermaidBlock block) => TimelineChart.Of(block);

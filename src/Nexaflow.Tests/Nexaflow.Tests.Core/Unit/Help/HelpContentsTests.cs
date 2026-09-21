@@ -69,7 +69,7 @@ public class HelpContentsTests
     public void EveryLinkItAdds_LandsOnARenderedHeading() => UiThread.Run(() =>
     {
         var result = HelpContents.AddTopics(Page);
-        var doc = MarkdownFlowDocument.Build(result, MarkdownPalette.Dark);
+        var doc = MarkdownFlowDocument.Build(result, StyleFormat.Dark);
 
         foreach (Match link in Regex.Matches(result, @"\]\(#([^)]+)\)"))
             Assert.IsNotNull(MarkdownAnchors.Find(doc, link.Groups[1].Value), $"#{link.Groups[1].Value} has a heading to land on");

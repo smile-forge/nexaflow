@@ -53,9 +53,9 @@ public static class DiagramRenderer
     public static bool IsDiagramLanguage(string? info) =>
         info is not null && Handlers.Any(h => h.CanHandle(info));
 
-    public static FrameworkElement Render(string language, string source, MarkdownPalette? palette = null,
+    public static FrameworkElement Render(string language, string source, StyleFormat? palette = null,
         Func<string, bool>? onNavigate = null)
-        => Render(language, source, DiagramRenderOptions.For(palette ?? MarkdownPalette.FromTheme(), onNavigate));
+        => Render(language, source, DiagramRenderOptions.For(palette ?? StyleFormat.FromTheme(), onNavigate));
 
     public static FrameworkElement Render(string language, string source, DiagramRenderOptions options)
     {

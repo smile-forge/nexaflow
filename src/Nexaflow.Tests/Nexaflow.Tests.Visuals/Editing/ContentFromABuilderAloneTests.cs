@@ -36,7 +36,7 @@ public class ContentFromABuilderAloneTests
     [CoversNode("abc-editing")]
     public void ATuneTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
-        var tune = Laid(MusicScore.Engraved(MusicDialect.Abc, "X:1\nL:1/8\nK:C\nCDEF|\n", MarkdownPalette.Dark, sourceStart: 0));
+        var tune = Laid(MusicScore.Engraved(MusicDialect.Abc, "X:1\nL:1/8\nK:C\nCDEF|\n", StyleFormat.Dark, sourceStart: 0));
 
         Assert.IsTrue(tune.AcceptsCaret, "the engraver named parts of the source, so there is somewhere to stand");
         Assert.IsTrue(tune.Laid.Places.Count > 0);
@@ -81,7 +81,7 @@ public class ContentFromABuilderAloneTests
     });
 
     private static Content Barcode(string source) =>
-        (Content)new BarcodeDiagramHandler().Render(source, DiagramRenderOptions.For(MarkdownPalette.Dark));
+        (Content)new BarcodeDiagramHandler().Render(source, DiagramRenderOptions.For(StyleFormat.Dark));
 
     /// <summary>Measured and arranged, because a caret is a place on a page that has been laid out.</summary>
     private static Content Laid(Content content)

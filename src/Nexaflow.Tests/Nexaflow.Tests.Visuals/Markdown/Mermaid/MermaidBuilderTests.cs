@@ -83,7 +83,7 @@ public class MermaidBuilderTests
     public void AHeaderNamingNoTypeDispatchesToTheBlockAsWritten() => UiThread.Run(() =>
     {
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
-        var content = (ContentElement)DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark);
+        var content = (ContentElement)DiagramRenderer.Render("mermaid", source, StyleFormat.Dark);
 
         Assert.IsTrue(content.IsReadOnly);
         content.Measure(new Size(600, double.PositiveInfinity));
@@ -97,7 +97,7 @@ public class MermaidBuilderTests
     public void AnUnknownDiagramShowsEveryCharacter_AndSaysWhy() => UiThread.Run(() =>
     {
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
-        var laid = UnknownDiagramBuilder.Build(source, MarkdownPalette.Dark, 1.0);
+        var laid = UnknownDiagramBuilder.Lay(source, StyleFormat.Dark);
 
         var shown = Pieces(laid, LayoutText.SourceKind).Single();
         Assert.AreEqual(source, Text(source, shown.Part));
@@ -117,7 +117,7 @@ public class MermaidBuilderTests
                      "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
                  })
         {
-            var drawn = (ContentElement)DiagramRenderer.Render("mermaid", source, MarkdownPalette.Dark);
+            var drawn = (ContentElement)DiagramRenderer.Render("mermaid", source, StyleFormat.Dark);
             Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), source);
         }
     });
@@ -129,13 +129,14 @@ public class MermaidBuilderTests
         part is null ? "" : source.Substring(part.Start, part.Length);
 
     /// <summary>A diagram that is one box of a known size — what the frame is tested around.</summary>
-    private sealed class Box(string source, bool fail) : MermaidBuilder(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark))
+    private sealed class Box(string source, bool fail)
+        : MermaidBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true)
     {
         public const string Kind = "Box";
         public const double Width = 120;
         public const double Height = 80;
 
-        public static Laid Build(string source, bool fail = false) => new Box(source, fail).Lay();
+        public static Laid Build(string source, bool fail = false) => new Box(source, fail).Lay(700);
 
         protected override Size Draw(MermaidBlock block, LayoutBuilder build)
         {

@@ -42,7 +42,7 @@ public class VennBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        VennBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, room));
+        new VennBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
@@ -238,7 +238,7 @@ public class VennBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var content = (ContentElement)DiagramRenderer.Render("mermaid", Sized, MarkdownPalette.Dark);
+        var content = (ContentElement)DiagramRenderer.Render("mermaid", Sized, StyleFormat.Dark);
 
         content.Measure(new Size(700, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);

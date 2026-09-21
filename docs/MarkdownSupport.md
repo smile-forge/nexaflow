@@ -1130,7 +1130,7 @@ over a byte array — no IO, no platform, nothing to keep current.
 **Settings** (any type): `ec` (`L`/`M`/`Q`/`H`, default `M`), `cellSize` (1–64, default 4), `margin`
 (0–32 modules, default 4), `dark` and `light` (`#RGB`, `#RRGGBB` or `#AARRGGBB`).
 
-**Colour is the one thing the palette does not follow.** `MarkdownPalette.QrDark` / `QrLight` are their own
+**Colour is the one thing the palette does not follow.** `StyleFormat.QrDark` / `QrLight` are their own
 pair rather than `Text` over `FigureBg`: a code that inverted with a dark theme would stop scanning. A theme
 can retune them (`QrDarkBrush` / `QrLightBrush`); a block's `dark:` / `light:` win over both.
 
@@ -1217,7 +1217,7 @@ which is the only place that holds both strings.
 (`left`/`center`/`right`), `lineColor`, `background` (`#RGB`, `#RRGGBB`, `#AARRGGBB`), `margin`
 (0–200, default 10).
 
-**Colour follows the same rule as QR**: `MarkdownPalette.BarcodeDark` / `BarcodeLight` are their own
+**Colour follows the same rule as QR**: `StyleFormat.BarcodeDark` / `BarcodeLight` are their own
 pair (`BarcodeDarkBrush` / `BarcodeLightBrush` to retune), because bars that inverted with a dark theme
 would stop scanning. A block's `lineColor:` / `background:` win over both.
 
@@ -1422,7 +1422,7 @@ fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smi
 | [`Molecule`](../src/Nexaflow.Markdown/Chemistry/Molecule.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | the graph read off the stages' answers; ring bonds, and the smallest set of smallest rings |
 | [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
 | [`CageLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs) | a cage drawn as the solid it is: built in 3D from its bonds and angles (classical scaling, then stress majorization), seen from whichever of four hundred directions `Readability` scores clearest — its substituents included — and kept only where that reads better than the flat drawing |
-| [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `MarkdownPalette.Elements`, wedges, captions, and entries flowing to the column |
+| [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `StyleFormat.Elements`, wedges, captions, and entries flowing to the column |
 
 **Read-only, but selectable.** Every atom and every written bond is a piece carrying the part it was
 typed as, so a selection across a structure copies its SMILES and trouble is waved under the atom that
@@ -1647,7 +1647,7 @@ GABc dedB|c2A2 A2BA|      #%                        (untagged → auto-detected 
 
 **One engraver, two readings.** Both notations are drawn with the bundled **Bravura** SMuFL font (SIL OFL)
 plus WPF geometry — no browser, no JS, matching the diagram engine's native approach. Ink follows the
-`MarkdownPalette`; the score sizes to **40–80% of the column, centred**, and wraps by width (honouring
+`StyleFormat`; the score sizes to **40–80% of the column, centred**, and wraps by width (honouring
 notation line breaks first). Where nothing can be drawn the source is shown instead; where part of it
 cannot, the rest is drawn and that part is marked where it was written.
 

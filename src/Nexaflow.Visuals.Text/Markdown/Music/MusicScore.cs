@@ -31,7 +31,7 @@ public sealed class MusicScore : StackPanel
     /// How much of the width it is given this block occupies — see <see cref="PageWidth"/>. A caller that is
     /// already handing it a page rather than a window passes 1.
     /// </param>
-    public MusicScore(MusicDialect dialect, string source, MarkdownPalette palette, int sourceStart,
+    public MusicScore(MusicDialect dialect, string source, StyleFormat palette, int sourceStart,
                       double zoom = 1.0, double pageWidth = 0.8)
     {
         PageWidth = pageWidth;
@@ -50,7 +50,7 @@ public sealed class MusicScore : StackPanel
     /// everything else on the page.
     /// </para>
     /// </summary>
-    public static Editing.ContentElement Engraved(MusicDialect dialect, string source, MarkdownPalette palette,
+    public static Editing.ContentElement Engraved(MusicDialect dialect, string source, StyleFormat palette,
                                                   int sourceStart = 0, double zoom = 1.0, ScoreSpacing? spacing = null)
     {
         var ink = palette.Text;
@@ -60,8 +60,8 @@ public sealed class MusicScore : StackPanel
             (int Start, int Length)? typed = state.Raw is { } raw ? (raw.Start, raw.End - raw.Start) : null;
 
             return dialect == MusicDialect.LilyPond
-                ? LilyPondBuilder.Build(state.Source, room, ink, typed, spacing)
-                : AbcBuilder.Build(state.Source, room, ink, typed, spacing);
+                ? LilyPondBuilder.Lay(state.Source, room, palette, typed)
+                : AbcBuilder.Lay(state.Source, room, palette, typed);
         })
         {
             SourceStart = sourceStart,

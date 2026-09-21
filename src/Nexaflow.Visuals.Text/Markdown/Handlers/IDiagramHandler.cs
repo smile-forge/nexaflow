@@ -21,7 +21,7 @@ public interface IDiagramHandler
     /// </summary>
     /// <param name="onNavigate">Optional click hook for navigable diagram elements (e.g. class-diagram member
     /// rows that carry a link). Handlers without clickable elements ignore it.</param>
-    FrameworkElement Render(string source, MarkdownPalette palette, Func<string, bool>? onNavigate = null);
+    FrameworkElement Render(string source, StyleFormat palette, Func<string, bool>? onNavigate = null);
 
     /// <summary>
     /// The same render, given everything the host offers rather than just a navigation hook — an

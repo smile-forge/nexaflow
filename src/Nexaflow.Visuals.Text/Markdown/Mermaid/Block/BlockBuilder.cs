@@ -77,10 +77,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     private const double Shaft = 0.16;
     private const double Wing = 0.3;
 
-    private BlockBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new BlockBuilder(reading, laying).Lay();
+    internal BlockBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override BlockDiagram Of(MermaidBlock block) => BlockDiagram.Of(block);

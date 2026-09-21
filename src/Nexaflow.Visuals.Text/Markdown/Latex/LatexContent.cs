@@ -18,7 +18,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// a tree re-read from the same source would answer about pieces that merely look right.
 /// </para>
 /// </summary>
-internal sealed class LatexContent(double scale, bool inline) : IContent
+/// <param name="style">
+/// What the formula is set in. Its <see cref="StyleFormat.TextSize"/> is the formula's own size — an inline one is
+/// set at body size and a display one against it, which is the caller's sum rather than this one's.
+/// </param>
+internal sealed class LatexContent(StyleFormat style, bool inline) : IContent
 {
     /// <summary>
     /// The formula as TeX sees it, remade beside the layout every time the source changes. Its reading is
@@ -39,8 +43,9 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     /// </summary>
     public Laid Lay(EditState state, double room, bool readOnly)
     {
-        var laid = LatexBuilder.Build(
-            state.Source, scale, inline, shownAsWritten: state.Raw, placeholders: !readOnly, block: room);
+        var laid = LatexBuilder.Lay(
+            state.Source, style with { InlineMath = inline }, shownAsWritten: state.Raw,
+            placeholders: !readOnly, block: room);
 
         return laid;
     }

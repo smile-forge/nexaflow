@@ -72,10 +72,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
     /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
-    public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, Laid> lay)
+    public ContentElement(string source, StyleFormat palette, Func<EditState, double, Laid> lay)
         : this(source, palette, Content.Of(lay)) { }
 
-    public ContentElement(string source, MarkdownPalette palette, IContent content)
+    public ContentElement(string source, StyleFormat palette, IContent content)
     {
         Palette = palette;
         _content = content;
@@ -95,7 +95,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
-    protected MarkdownPalette Palette { get; }
+    protected StyleFormat Palette { get; }
 
     /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
     public Laid Laid => _laid;
@@ -260,7 +260,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
             _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
-    private static Brush Wash(MarkdownPalette palette)
+    private static Brush Wash(StyleFormat palette)
     {
         if (palette.Accent is not SolidColorBrush accent) return palette.Marked;
 

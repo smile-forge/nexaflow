@@ -49,23 +49,17 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     /// <summary>The narrowest a reason is set to, so a small structure does not stack it a word to a line.</summary>
     private const double ReasonRoom = 260;
-
-    private readonly MarkdownPalette _palette;
-    private readonly double _room;
-
-    private SmilesBuilder(ContentReading reading, MarkdownPalette palette, double room) : base(reading)
-    {
-        _palette = palette;
-        _room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
-    }
+    internal SmilesBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out to fit <paramref name="room"/>. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double room = double.PositiveInfinity, int at = 0) =>
-        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), palette, room).Lay();
+    internal static Laid Lay(string source, StyleFormat style, double room = double.PositiveInfinity, int at = 0) =>
+        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), EditState.For(source), style, isReadOnly: true)
+            .Lay(room);
 
     /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        new(source, options.Palette, (state, room) => Build(state.Source, options.Palette, room))
+        new(source, options.Palette, (state, room) => Lay(state.Source, options.Palette, room))
         {
             IsReadOnly = true,
 
@@ -144,7 +138,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         }
 
         if (drawing is null)
-            standIn = Text((molecule ?? entry).Print(), SourceSize, SourceFont, _palette.TextMuted);
+            standIn = Text((molecule ?? entry).Print(), SourceSize, SourceFont, Style.TextMuted);
 
         return new Sketched
         {
@@ -152,7 +146,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             Structure = drawing,
             StandIn = drawing is null ? molecule ?? entry : null,
             StandInText = standIn,
-            Caption = label is null ? null : Text(label.Text, CaptionSize, LabelFont, _palette.TextMuted),
+            Caption = label is null ? null : Text(label.Text, CaptionSize, LabelFont, Style.TextMuted),
             CaptionPart = label,
             Reason = troubles.Count == 0 ? null : Reason(string.Join(" ", troubles), reasonRoom),
         };
@@ -170,7 +164,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         foreach (var entry in entries)
         {
             var needed = entry.Width + (row.Count > 0 ? Across : 0);
-            if (row.Count > 0 && across + needed > _room)
+            if (row.Count > 0 && across + needed > Room)
             {
                 rows.Add(row);
                 row = [];
@@ -209,8 +203,8 @@ internal sealed class SmilesBuilder : ContentBuilder
                 else if (entry.StandInText is { } text)
                 {
                     build.Open(MoleculePiece.StandIn, entry.StandIn, new Point(bodyLeft, bodyTop));
-                    build.Draw(new TextMark(text, default, _palette.TextMuted));
-                    build.Draw(new RuleMark(new Rect(0, text.Height / 2 - 0.75, text.Width, 1.5), _palette.Danger));
+                    build.Draw(new TextMark(text, default, Style.TextMuted));
+                    build.Draw(new RuleMark(new Rect(0, text.Height / 2 - 0.75, text.Width, 1.5), Style.Danger));
                     build.Close();
                 }
 
@@ -219,7 +213,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                 if (entry.Caption is { } caption)
                 {
                     build.Open(MoleculePiece.Caption, entry.CaptionPart, new Point((entry.Width - caption.Width) / 2, below));
-                    build.Draw(new TextMark(caption, default, _palette.TextMuted));
+                    build.Draw(new TextMark(caption, default, Style.TextMuted));
                     build.Close();
                     below += caption.Height;
                 }
@@ -228,7 +222,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                 {
                     below += 4;
                     build.Open(MoleculePiece.Trouble, part: null, new Point(0, below));
-                    build.Draw(new TextMark(reason, default, _palette.Danger));
+                    build.Draw(new TextMark(reason, default, Style.Danger));
                     build.Close();
                     below += reason.Height;
                 }
@@ -283,7 +277,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
             // Shrunk to the room it is given, as far as a structure stays legible.
             var natural = (maxX - minX) * BondLength * _spread + 2 * (Margin + LabelSize);
-            _scale = double.IsInfinity(owner._room) ? 1 : Math.Clamp(owner._room / natural, SmallestScale, 1);
+            _scale = double.IsInfinity(owner.Room) ? 1 : Math.Clamp(owner.Room / natural, SmallestScale, 1);
 
             var length = Length;
 
@@ -764,7 +758,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     /// <summary>An element's colour, or null for carbon and anything uncoloured — the theme's own ink.</summary>
     private Brush? Ink(int number) =>
-        _palette.Elements.TryGetValue(Elements.Symbol(number), out var brush) ? brush : null;
+        Style.Elements.TryGetValue(Elements.Symbol(number), out var brush) ? brush : null;
 
     private FormattedText Text(string text, double size, FontFamily font, Brush? ink) =>
         new(text,
@@ -772,7 +766,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             FlowDirection.LeftToRight,
             new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             size,
-            ink ?? _palette.Text,
+            ink ?? Style.Text,
             Editing.LayoutText.Density);
 
     private FormattedText Reason(string trouble, double room) =>
@@ -781,7 +775,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             FlowDirection.LeftToRight,
             new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             ReasonSize,
-            _palette.Danger,
+            Style.Danger,
             Editing.LayoutText.Density)
         {
             MaxTextWidth = room,
@@ -794,6 +788,6 @@ internal sealed class SmilesBuilder : ContentBuilder
             FlowDirection.LeftToRight,
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             SourceSize,
-            _palette.Text,
+            Style.Text,
             Editing.LayoutText.Density);
 }

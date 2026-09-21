@@ -29,7 +29,7 @@ public class PlotBuilderTests
     private const string Cars = "weight  mpg\n3504  18\n2372  24\n1613  35";
 
     private static Laid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
-        PlotBuilder.Build(source, fence, MarkdownPalette.Dark, room);
+        PlotBuilder.Build(source, fence, StyleFormat.Dark, room);
 
     private static Piece[] Marks(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PlotPiece.Mark)];
@@ -214,7 +214,7 @@ public class PlotBuilderTests
     [TestMethod]
     public void AScatterBlockDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("scatter", Cars, MarkdownPalette.Dark);
+        var element = DiagramRenderer.Render("scatter", Cars, StyleFormat.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element,
             "a plot is rendered content, not the source text it was written as");

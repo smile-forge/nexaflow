@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -27,11 +28,11 @@ public class MusicSampleDocTests
     [TestMethod]
     [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Build(ly, 900, Brushes.Black)));
+        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Lay(ly, 900, StyleFormat.Light)));
 
     [TestMethod]
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-abc.md", abc => AbcBuilder.Build(abc, 900, Brushes.Black)));
+        AssertDoc("music-abc.md", abc => AbcBuilder.Lay(abc, 900, StyleFormat.Light)));
 
     private static void AssertDoc(string file, Func<string, Laid> build)
     {

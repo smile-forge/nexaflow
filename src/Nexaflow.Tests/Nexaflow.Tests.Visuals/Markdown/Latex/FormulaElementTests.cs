@@ -25,7 +25,7 @@ public class FormulaElementTests
     private const double Scale = 20;
 
     private static FormulaElement Element(string latex) =>
-        new(latex, MarkdownPalette.FromTheme(), Scale);
+        new(latex, StyleFormat.FromTheme() with { TextSize = Scale });
 
     private static FormulaElement Arranged(string latex)
     {
@@ -197,7 +197,7 @@ public class FormulaElementTests
     [TestMethod]
     public void AReadOnlyFormulaIgnoresTyping() => UiThread.Run(() =>
     {
-        var element = new FormulaElement("x+2", MarkdownPalette.FromTheme(), Scale) { IsReadOnly = true };
+        var element = new FormulaElement("x+2", StyleFormat.FromTheme() with { TextSize = Scale }) { IsReadOnly = true };
         element.TakeCaret(1);
         Type(element, "z");
 

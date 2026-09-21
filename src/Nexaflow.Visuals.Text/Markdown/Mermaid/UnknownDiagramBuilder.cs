@@ -17,20 +17,19 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal sealed class UnknownDiagramBuilder : MermaidBuilder
 {
-    private UnknownDiagramBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Draws a block that has been read. Never null, and never throws.</summary>
-    /// <remarks>Written in or not, it looks the same, so it is drawn as nobody were: a block shown as its own
-    /// characters has nothing still to be written in it.</remarks>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) =>
-        new UnknownDiagramBuilder(reading, laying with { Writing = false }).Lay();
+    /// <remarks>
+    /// Read-only whatever it was asked for: written in or not, a block shown as its own characters looks the
+    /// same, because there is nothing in it still to be written.
+    /// </remarks>
+    internal UnknownDiagramBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly: true) { }
 
     /// <summary>The same, for a block nobody is writing in.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double room = double.PositiveInfinity) =>
-        Build(MermaidBuilders.Read(source), new DiagramLaying(palette, room));
+    internal static Laid Lay(string source, StyleFormat style, double room = double.PositiveInfinity) =>
+        new UnknownDiagramBuilder(MermaidBuilders.Read(source), EditState.For(source), style, isReadOnly: true).Lay(room);
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build);
+        Host(source, options, static (r, s, f, o) => new UnknownDiagramBuilder(r, s, f, o));
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build) => AsWritten(build);
 

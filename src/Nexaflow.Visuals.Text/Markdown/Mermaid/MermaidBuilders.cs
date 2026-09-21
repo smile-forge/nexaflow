@@ -21,8 +21,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal static class MermaidBuilders
 {
-    /// <summary>Draws a block that has already been read, for everything the drawing depends on but the block itself.</summary>
-    public delegate Laid Build(ContentReading reading, DiagramLaying laying);
+    /// <summary>
+    /// Makes the builder a diagram is drawn by, from the four things every builder is made from. Ask it for a
+    /// builder and call <see cref="Editing.ContentBuilder.Lay"/>; there is no other way in and nothing else to
+    /// pass.
+    /// </summary>
+    public delegate Editing.ContentBuilder Make(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly);
 
     /// <summary>
     /// A block read: parsed by its grammar, worked over by that grammar's stages, then by whatever the host put
@@ -41,44 +45,45 @@ internal static class MermaidBuilders
     }
 
     /// <summary>The builder a diagram is drawn by, or null for one not drawn on the shared tree.</summary>
-    public static Build? For(MermaidDiagram diagram) => diagram switch
+    public static Make? For(MermaidDiagram diagram) => diagram switch
     {
-        MermaidDiagram.Pie => PieBuilder.Build,
-        MermaidDiagram.Venn => VennBuilder.Build,
-        MermaidDiagram.Radar => RadarBuilder.Build,
-        MermaidDiagram.XyChart => XyBuilder.Build,
-        MermaidDiagram.Quadrant => QuadrantBuilder.Build,
-        MermaidDiagram.Ishikawa => Ishikawa.IshikawaBuilder.Build,
-        MermaidDiagram.Gantt => Gantt.GanttBuilder.Build,
-        MermaidDiagram.Kanban => Kanban.KanbanBuilder.Build,
-        MermaidDiagram.Mindmap => Mindmap.MindmapBuilder.Build,
-        MermaidDiagram.Cynefin => Cynefin.CynefinBuilder.Build,
-        MermaidDiagram.Timeline => Timeline.TimelineBuilder.Build,
-        MermaidDiagram.Journey => Journey.JourneyBuilder.Build,
-        MermaidDiagram.GitGraph => Git.GitBuilder.Build,
-        MermaidDiagram.Block => Block.BlockBuilder.Build,
-        MermaidDiagram.Architecture => Architecture.ArchitectureBuilder.Build,
-        MermaidDiagram.Sankey => Sankey.SankeyBuilder.Build,
-        MermaidDiagram.Flowchart => Flowchart.FlowchartBuilder.Build,
-        MermaidDiagram.Swimlane => Swimlane.SwimlaneBuilder.Build,
-        MermaidDiagram.State => State.StateBuilder.Build,
-        MermaidDiagram.Class => Class.ClassBuilder.Build,
-        MermaidDiagram.Requirement => Requirement.RequirementBuilder.Build,
-        MermaidDiagram.Er => Er.ErBuilder.Build,
-        MermaidDiagram.Sequence => Sequence.SequenceBuilder.Build,
-        MermaidDiagram.C4Sequence => C4.C4SequenceBuilder.Build,
-        MermaidDiagram.C4 => C4.C4Builder.Build,
+        MermaidDiagram.Pie => static (r, s, f, o) => new PieBuilder(r, s, f, o),
+        MermaidDiagram.Venn => static (r, s, f, o) => new VennBuilder(r, s, f, o),
+        MermaidDiagram.Radar => static (r, s, f, o) => new RadarBuilder(r, s, f, o),
+        MermaidDiagram.XyChart => static (r, s, f, o) => new XyBuilder(r, s, f, o),
+        MermaidDiagram.Quadrant => static (r, s, f, o) => new QuadrantBuilder(r, s, f, o),
+        MermaidDiagram.Ishikawa => static (r, s, f, o) => new Ishikawa.IshikawaBuilder(r, s, f, o),
+        MermaidDiagram.Gantt => static (r, s, f, o) => new Gantt.GanttBuilder(r, s, f, o),
+        MermaidDiagram.Kanban => static (r, s, f, o) => new Kanban.KanbanBuilder(r, s, f, o),
+        MermaidDiagram.Mindmap => static (r, s, f, o) => new Mindmap.MindmapBuilder(r, s, f, o),
+        MermaidDiagram.Cynefin => static (r, s, f, o) => new Cynefin.CynefinBuilder(r, s, f, o),
+        MermaidDiagram.Timeline => static (r, s, f, o) => new Timeline.TimelineBuilder(r, s, f, o),
+        MermaidDiagram.Journey => static (r, s, f, o) => new Journey.JourneyBuilder(r, s, f, o),
+        MermaidDiagram.GitGraph => static (r, s, f, o) => new Git.GitBuilder(r, s, f, o),
+        MermaidDiagram.Block => static (r, s, f, o) => new Block.BlockBuilder(r, s, f, o),
+        MermaidDiagram.Architecture => static (r, s, f, o) => new Architecture.ArchitectureBuilder(r, s, f, o),
+        MermaidDiagram.Sankey => static (r, s, f, o) => new Sankey.SankeyBuilder(r, s, f, o),
+        MermaidDiagram.Flowchart => static (r, s, f, o) => new Flowchart.FlowchartBuilder(r, s, f, o),
+        MermaidDiagram.Swimlane => static (r, s, f, o) => new Swimlane.SwimlaneBuilder(r, s, f, o),
+        MermaidDiagram.State => static (r, s, f, o) => new State.StateBuilder(r, s, f, o),
+        MermaidDiagram.Class => static (r, s, f, o) => new Class.ClassBuilder(r, s, f, o),
+        MermaidDiagram.Requirement => static (r, s, f, o) => new Requirement.RequirementBuilder(r, s, f, o),
+        MermaidDiagram.Er => static (r, s, f, o) => new Er.ErBuilder(r, s, f, o),
+        MermaidDiagram.Sequence => static (r, s, f, o) => new Sequence.SequenceBuilder(r, s, f, o),
+        MermaidDiagram.C4Sequence => static (r, s, f, o) => new C4.C4SequenceBuilder(r, s, f, o),
+        MermaidDiagram.C4 => static (r, s, f, o) => new C4.C4Builder(r, s, f, o),
         _ => null,
     };
 
     /// <summary>The element a block is shown and written in, or null where its diagram is not drawn on the shared tree.</summary>
     /// <remarks>Read-only where the host takes no edits, which leaves a diagram there looked at, selected and followed.</remarks>
     public static Editing.ContentElement? Element(string source, MermaidDiagram diagram, DiagramRenderOptions options) =>
-        For(diagram) is { } build ? MermaidBuilder.Host(source, options, build, options.ReadOnly) : null;
+        For(diagram) is { } make ? MermaidBuilder.Host(source, options, make, options.ReadOnly) : null;
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
-    public static Laid? Lay(string source, MarkdownPalette palette, double room = double.PositiveInfinity,
+    public static Laid? Lay(string source, StyleFormat style, double room = double.PositiveInfinity,
                             bool writing = false, int at = 0) =>
-        For(MermaidBlock.Read(source).Diagram)?.Invoke(Read(source, holes: writing, at: at),
-                                                       new DiagramLaying(palette, room, writing));
+        For(MermaidBlock.Read(source).Diagram)
+            ?.Invoke(Read(source, holes: writing, at: at), EditState.For(source), style, isReadOnly: !writing)
+            .Lay(room);
 }

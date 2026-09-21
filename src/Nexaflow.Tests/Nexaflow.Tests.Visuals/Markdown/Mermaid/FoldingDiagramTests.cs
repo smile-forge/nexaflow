@@ -46,7 +46,7 @@ public class FoldingDiagramTests
         return element;
     }
 
-    private static DiagramRenderOptions Options() => new() { Palette = MarkdownPalette.Dark };
+    private static DiagramRenderOptions Options() => new() { Palette = StyleFormat.Dark };
 
     /// <summary>Every word drawn anywhere in it.</summary>
     private static List<string> Words(ContentElement element) =>
@@ -105,7 +105,7 @@ public class FoldingDiagramTests
 
         var options = new DiagramRenderOptions
         {
-            Palette = MarkdownPalette.Dark,
+            Palette = StyleFormat.Dark,
             OnNavigate = href => { followed.Add(href); return true; },
             OnExpand = asked => { opened.Add(asked); return true; },
         };
@@ -135,7 +135,7 @@ public class FoldingDiagramTests
         var view = new DiagramViewState();
         var element = Drawn(Src, new DiagramRenderOptions
         {
-            Palette = MarkdownPalette.Dark,
+            Palette = StyleFormat.Dark,
             ViewState = view,
             OnExpand = _ => true,
         });
@@ -153,7 +153,7 @@ public class FoldingDiagramTests
         var element = Drawn("graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com/a\"\n",
                             new DiagramRenderOptions
                             {
-                                Palette = MarkdownPalette.Dark,
+                                Palette = StyleFormat.Dark,
                                 OnNavigate = href => { followed.Add(href); return true; },
                             });
 

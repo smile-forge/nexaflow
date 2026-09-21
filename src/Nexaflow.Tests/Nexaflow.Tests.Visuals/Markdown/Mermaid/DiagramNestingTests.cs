@@ -26,7 +26,7 @@ public class DiagramNestingTests
     private static ContentElement Drawn(string source)
     {
         var element = (ContentElement)DiagramRenderer.Render("mermaid", source,
-            new DiagramRenderOptions { Palette = MarkdownPalette.Dark });
+            new DiagramRenderOptions { Palette = StyleFormat.Dark });
 
         element.Measure(new Size(900, 900));
         element.Arrange(new Rect(0, 0, 900, 900));

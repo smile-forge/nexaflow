@@ -24,7 +24,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build(Doc, MarkdownPalette.Dark);
+        var doc = MarkdownFlowDocument.Build(Doc, StyleFormat.Dark);
 
         var ids = doc.Blocks.Select(MarkdownAnchors.GetId).Where(id => id is not null).ToList();
 
@@ -64,7 +64,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void ARelativeLinkThatIsNotAnAnchor_StaysInert() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build("[notes](notes.md)\n", MarkdownPalette.Dark);
+        var doc = MarkdownFlowDocument.Build("[notes](notes.md)\n", StyleFormat.Dark);
 
         Assert.IsNull(Links(doc).Single().NavigateUri, "nothing to navigate to, so nothing is handed to the shell");
     });

@@ -59,7 +59,7 @@ public class CaretStopTests
 
     private static IReadOnlyList<int> StopsIn(string latex)
     {
-        var layout = LatexBuilder.Build(latex, 16);
+        var layout = LatexBuilder.Lay(latex, 16);
         Assert.IsNotNull(layout, latex);
         return layout.Stops;
     }

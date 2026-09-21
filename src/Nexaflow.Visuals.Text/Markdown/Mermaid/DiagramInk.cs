@@ -14,7 +14,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// <c>#ff6b6b</c>, <c>red</c> or <c>rgb(1, 2, 3)</c> comes to is decided once, for all of them.
 /// </para>
 /// </summary>
-internal sealed class DiagramInk(MarkdownPalette palette)
+internal sealed class DiagramInk(StyleFormat palette)
 {
     /// <summary>A colour as a style or the front matter wrote it, or null where it wrote none this understands.</summary>
     public Brush? Written(string? colour)
@@ -41,7 +41,7 @@ internal sealed class DiagramInk(MarkdownPalette palette)
     /// alpha-black — so anything painted to hide what is under it has to be painted in what they come to over the page, not
     /// in the surface brush itself.
     /// </summary>
-    public static Color Under(MarkdownPalette palette) =>
+    public static Color Under(StyleFormat palette) =>
         DiagramColour.Composite(
             DiagramColour.ColorOf(palette.CodeBg, Colors.Black),
             DiagramColour.Luminance(DiagramColour.ColorOf(palette.Text, Colors.White)) > 140 ? Colors.Black : Colors.White);

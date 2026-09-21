@@ -84,7 +84,7 @@ public class QrPixelRoundTripTests
     /// </summary>
     private static QrMatrix ReadBackFromPixels(string source, QrBlock block, QrMatrix matrix)
     {
-        var drawn = MatrixLayouts.ReadBack(DiagramRenderer.Render("qr", source, MarkdownPalette.Dark),
+        var drawn = MatrixLayouts.ReadBack(DiagramRenderer.Render("qr", source, StyleFormat.Dark),
                                            matrix.Size, matrix.Size, block.Settings);
 
         var modules = new bool[matrix.Size * matrix.Size];

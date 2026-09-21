@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
@@ -5,15 +6,24 @@ using System.Windows.Media;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Colour scheme for markdown rendering. The same renderer (<see cref="BlockRenderer"/>,
-/// <see cref="MarkdownFlowDocument"/>) serves both dark surfaces (AI overlay, AIChat,
-/// markdown editor) and light surfaces (scratchpad post-its) by swapping the palette.
-/// Fonts and font sizes are theme-independent and stay on <see cref="BlockRenderer"/>.
+/// How content is presented: the colours it is drawn in and the type it is set in. One record rather than a
+/// parameter each, because every one of these is a fact about <em>this showing</em> of the content rather than
+/// about the content — the same source on a dark surface and a light one, at one reader's text size and another's,
+/// is the same source.
 ///
-/// The light palette uses semi-transparent black for fills/borders so code blocks,
-/// quotes and tables tint whatever note colour sits behind them.
+/// <para>
+/// The same renderer (<see cref="BlockRenderer"/>, <see cref="MarkdownFlowDocument"/>) serves dark surfaces (AI
+/// overlay, AIChat, markdown editor) and light ones (scratchpad post-its) by swapping this. The light values use
+/// semi-transparent black for fills and borders, so code blocks, quotes and tables tint whatever note colour sits
+/// behind them.
+/// </para>
+/// <para>
+/// A record, so a surface that differs in one thing says so — <c>style with { TextSize = 18 }</c> — rather than
+/// rebuilding the lot. Anything else that is a fact about the showing and not the content belongs here for the
+/// same reason: how a number or a date is written, when something needs one.
+/// </para>
 /// </summary>
-public sealed class MarkdownPalette
+public sealed record StyleFormat
 {
     public required Brush Text          { get; init; }
     public required Brush TextMuted     { get; init; }
@@ -50,6 +60,41 @@ public sealed class MarkdownPalette
     /// </summary>
     public Brush QrDark  { get; init; } = DefaultQrDark;
     public Brush QrLight { get; init; } = DefaultQrLight;
+
+    /// <summary>
+    /// The face body text is set in, and what anything measuring itself against body text follows: a formula's
+    /// <c>\text{…}</c>, the words on a score.
+    /// </summary>
+    public FontFamily TextFont { get; init; } = DefaultTextFont;
+
+    /// <summary>
+    /// How big body text is set. What a surface with its own text size sets, and what everything proportional to
+    /// body text is worked out from — a display formula, a heading, a caption.
+    /// </summary>
+    /// <remarks>
+    /// Not a zoom. Zoom magnifies a finished layout; this changes what the layout is, because text set larger
+    /// wraps in different places.
+    /// </remarks>
+    public double TextSize { get; init; } = DefaultTextSize;
+
+    /// <summary>
+    /// Where what the reader has opened and folded is kept between one showing and the next, or null where it is
+    /// kept nowhere and the content is drawn as its own source asks every time.
+    /// </summary>
+    public DiagramViewState? Expansion { get; init; }
+
+    /// <summary>
+    /// Whether a formula is set in a line of text rather than on its own — which decides how tall its operators
+    /// are allowed to grow and how its limits sit.
+    /// </summary>
+    public bool InlineMath { get; init; }
+
+
+
+    private static readonly FontFamily DefaultTextFont = new("Segoe UI");
+
+    /// <summary>The size this document's typography was designed against — see <c>BlockRenderer.DesignBodySize</c>.</summary>
+    private const double DefaultTextSize = 13.5;
 
     private static readonly Brush DefaultQrDark  = Frozen(0x0B, 0x0B, 0x0F);
     private static readonly Brush DefaultQrLight = Frozen(0xFF, 0xFF, 0xFF);
@@ -142,7 +187,7 @@ public sealed class MarkdownPalette
     }
 
     /// <summary>Light text on dark surfaces — the original app theme. Default everywhere.</summary>
-    public static readonly MarkdownPalette Dark = new()
+    public static readonly StyleFormat Dark = new()
     {
         Text          = Frozen(0xE8, 0xEA, 0xF2),
         TextMuted     = Frozen(0x78, 0x80, 0xA0),
@@ -168,7 +213,7 @@ public sealed class MarkdownPalette
     };
 
     /// <summary>Dark text on light surfaces — for the coloured scratchpad post-its.</summary>
-    public static readonly MarkdownPalette Light = new()
+    public static readonly StyleFormat Light = new()
     {
         Text          = Frozen(0x1F, 0x1F, 0x23),
         TextMuted     = Frozen(0x5C, 0x5F, 0x66),
@@ -199,13 +244,13 @@ public sealed class MarkdownPalette
     /// dark/immersive themes get their own accents. Falls back to <see cref="Dark"/> for any key that
     /// isn't present (or when there is no <see cref="Application"/>, e.g. in tests).
     /// </summary>
-    public static MarkdownPalette FromTheme()
+    public static StyleFormat FromTheme()
     {
         var res = Application.Current?.Resources;
         Brush R(string key, Brush fallback) => res?[key] as Brush ?? fallback;
         var d = Dark;
 
-        return new MarkdownPalette
+        return new StyleFormat
         {
             Text          = R("TextBrush",        d.Text),
             TextMuted     = R("TextMutedBrush",   d.TextMuted),

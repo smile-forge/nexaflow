@@ -158,8 +158,8 @@ public class BlockToolbarTests
     [TestMethod]
     public void APictureIsTheContentAsItReadsWithNobodyWritingInIt() => UiThread.Run(() =>
     {
-        var writable = Shown(new ContentElement("x", MarkdownPalette.Dark, new Marked()));
-        var reading = Shown(new ContentElement("x", MarkdownPalette.Dark, new Marked()) { IsReadOnly = true });
+        var writable = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()));
+        var reading = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()) { IsReadOnly = true });
 
         var picture = writable.Picture(Brushes.White);
 

@@ -374,7 +374,7 @@ public class MarkdownExtensionsTests
     public void Alert_Warning_RendersColouredCalloutWithLabelAndBody() => UiThread.Run(() =>
     {
         var border = (Border)BlockRenderer.Render(Parse("> [!WARNING]\n> Be careful here.\n")[0]);
-        Assert.AreSame(MarkdownPalette.Dark.Warning, border.BorderBrush, "warning accent expected");
+        Assert.AreSame(StyleFormat.Dark.Warning, border.BorderBrush, "warning accent expected");
         var text = AllText(border);
         StringAssert.Contains(text, "Warning");
         StringAssert.Contains(text, "Be careful here.");
@@ -387,7 +387,7 @@ public class MarkdownExtensionsTests
         Assert.IsInstanceOfType(block, typeof(Markdig.Extensions.Alerts.AlertBlock),
             "[!NOTE] should parse as an alert, not a generic blockquote");
         var border = (Border)BlockRenderer.Render(block);
-        Assert.AreSame(MarkdownPalette.Dark.Accent, border.BorderBrush);
+        Assert.AreSame(StyleFormat.Dark.Accent, border.BorderBrush);
         StringAssert.Contains(AllText(border), "Note");
     });
 
@@ -395,7 +395,7 @@ public class MarkdownExtensionsTests
     public void Alert_Important_UsesDedicatedToken() => UiThread.Run(() =>
     {
         var border = (Border)BlockRenderer.Render(Parse("> [!IMPORTANT]\n> Read this.\n")[0]);
-        Assert.AreSame(MarkdownPalette.Dark.Important, border.BorderBrush, "important should use its own token");
+        Assert.AreSame(StyleFormat.Dark.Important, border.BorderBrush, "important should use its own token");
         StringAssert.Contains(AllText(border), "Important");
     });
 
@@ -404,10 +404,10 @@ public class MarkdownExtensionsTests
     {
         // The selectable path renders alerts as a real FlowDocument Section (text drag-selectable),
         // not a BlockUIContainer UIElement island.
-        var doc = MarkdownFlowDocument.Build("> [!WARNING]\n> Be careful here.\n", MarkdownPalette.Dark);
+        var doc = MarkdownFlowDocument.Build("> [!WARNING]\n> Be careful here.\n", StyleFormat.Dark);
         var section = doc.Blocks.OfType<System.Windows.Documents.Section>().FirstOrDefault();
         Assert.IsNotNull(section, "alert should render as a native Section");
-        Assert.AreSame(MarkdownPalette.Dark.Warning, section.BorderBrush, "warning accent expected");
+        Assert.AreSame(StyleFormat.Dark.Warning, section.BorderBrush, "warning accent expected");
         Assert.IsFalse(doc.Blocks.OfType<System.Windows.Documents.BlockUIContainer>().Any(),
             "alert must not fall back to a UIElement island");
         var text = new System.Windows.Documents.TextRange(section.ContentStart, section.ContentEnd).Text;
