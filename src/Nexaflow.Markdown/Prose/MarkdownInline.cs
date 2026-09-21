@@ -47,13 +47,9 @@ public static class MarkdownInline
             parts.Add(ContentNode.Shown(read.Rest()));
         }
 
-        read.Gap(parts, text.Length);
+        read.Gap(parts, read.Length);
 
-        var node = ContentNode.Branch(MarkdownKinds.Words, parts);
-
-        // Checked rather than trusted: a reading that does not print back as what it was read from is not a
-        // reading of it.
-        return node.Print() == text ? node : ContentNode.Branch(MarkdownKinds.Words, [ContentNode.Shown(text)]);
+        return MarkdownParser.Checked(MarkdownKinds.Words, parts, text, Roles.Element);
     }
 
     /// <summary>
@@ -206,56 +202,4 @@ public static class MarkdownInline
         (_, 2) => MarkdownKinds.Strong,
         _ => MarkdownKinds.Emphasis,
     };
-
-    /// <summary>
-    /// The source, and how far along it has been accounted for. Every piece of the tree is cut from here, so
-    /// there is one place that can say a character was copied rather than made up.
-    /// </summary>
-    private sealed class Cut(string source)
-    {
-        public int At { get; private set; }
-
-        public int Starts(MarkdownObject what) => Math.Clamp(what.Span.Start, this.At, source.Length);
-
-        public int Ends(MarkdownObject what) => Math.Clamp(what.Span.End + 1, this.At, source.Length);
-
-        public string Between(int from, int to) => source[from..Math.Clamp(to, from, source.Length)];
-
-        public string Rest() => source[this.At..];
-
-        /// <summary>Whatever has been passed over since the last piece, kept where it was written.</summary>
-        public void Gap(List<ContentNode> parts, int stop)
-        {
-            if (stop > this.At) parts.Add(this.Take(stop, Roles.Trivia));
-        }
-
-        /// <summary>The source up to the next <paramref name="mark"/>, where one stands before the end.</summary>
-        public ContentNode? Upto(char mark, int end)
-        {
-            var found = source.IndexOf(mark, this.At);
-            return found >= this.At && found < end ? this.Take(found + 1, Roles.Close, Kinds.Token) : null;
-        }
-
-        /// <summary>Where a stretch stands in the source, with whatever the writer left in front of it.</summary>
-        public (ContentNode? Before, ContentNode Found)? Finds(string what, int end)
-        {
-            var at = source.IndexOf(what, this.At, StringComparison.Ordinal);
-            if (at < this.At || at + what.Length > end) return null;
-
-            var before = at > this.At ? this.Take(at, Roles.Trivia, Kinds.Token) : null;
-            return (before, this.Take(at + what.Length, Roles.Element, MarkdownKinds.Word));
-        }
-
-        /// <summary>
-        /// The source up to <paramref name="stop"/>, as a piece. Space is space and everything else is a
-        /// mark, unless the caller knows better.
-        /// </summary>
-        public ContentNode Take(int stop, string role, string? kind = null)
-        {
-            var text = this.Between(this.At, stop);
-            this.At += text.Length;
-
-            return ContentNode.Leaf(kind ?? (text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token), text, role);
-        }
-    }
 }

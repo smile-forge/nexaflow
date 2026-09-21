@@ -122,6 +122,14 @@ public static class MarkdownKinds
 
     /// <summary>The end of a line, hard or soft.</summary>
     public const string Break = "break";
+
+    // ── What a stage works out ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Which way a table's column is set. Derived, because nobody wrote it on the cell: the colons that say it
+    /// are in a rule of their own, in another row.
+    /// </summary>
+    public const string Aligned = "aligned";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>
@@ -141,4 +149,14 @@ public static class MarkdownRoles
 
     /// <summary>An item done.</summary>
     public const string Done = "done";
+}
+
+/// <summary>Which way a column of a table is set, as the rule under its head says.</summary>
+public static class MarkdownAligns
+{
+    public const string Left = "left";
+
+    public const string Center = "center";
+
+    public const string Right = "right";
 }

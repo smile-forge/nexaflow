@@ -6,6 +6,8 @@ using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Prose.Stages;
 
 namespace Nexaflow.Markdown.Prose;
 
@@ -44,6 +46,13 @@ public static class MarkdownParser
     /// </summary>
     public static MarkdownPipeline Pipeline { get; } = Reading(new MarkdownPipelineBuilder()).Build();
 
+    /// <summary>
+    /// The stages a document is read by once its blocks are found: each block's body read by the parser its
+    /// kind names. Here rather than at each surface, so an editor and a view read the same document the same
+    /// way.
+    /// </summary>
+    public static AstPipeline Reader { get; } = new(new WithBlocks());
+
     /// <summary>The same options, so a host adding an extension of its own starts from what is already read.</summary>
     public static MarkdownPipelineBuilder Reading(MarkdownPipelineBuilder builder) =>
         builder
@@ -69,65 +78,100 @@ public static class MarkdownParser
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(MarkdownKinds.Document, []);
 
+        var read = new Cut(text);
         var parts = new List<ContentNode>();
-        var at = 0;
 
         try
         {
-            foreach (var block in Markdig.Markdown.Parse(text, pipeline ?? Pipeline))
-            {
-                var from = Math.Clamp(block.Span.Start, at, text.Length);
-                var to = Math.Clamp(Ends(block, text, from), from, text.Length);
-                if (to == from) continue;
-
-                if (from > at) parts.Add(Trivia(text[at..from]));
-
-                parts.Add(Block(block, text[from..to]));
-                at = to;
-            }
+            Split(Markdig.Markdown.Parse(text, pipeline ?? Pipeline), parts, read);
         }
         catch
         {
             // A reader that threw has said nothing about the text, which is not the same as the text being
             // wrong. What is left of it is shown as it was typed.
-            parts.Add(ContentNode.Shown(text[at..]));
-            at = text.Length;
+            parts.Add(ContentNode.Shown(read.Rest()));
         }
 
-        if (at < text.Length) parts.Add(Trivia(text[at..]));
+        read.Gap(parts, read.Length);
 
-        return ContentNode.Branch(MarkdownKinds.Document, parts);
+        return Checked(MarkdownKinds.Document, parts, text, Roles.Element);
     }
 
     /// <summary>
-    /// One block: what kind it is, and its own source held as written. Nothing is read out of the body, because
-    /// what is inside is a different language with a different grammar and reading it is its own parser's
-    /// business.
-    /// </summary>
-    /// <summary>
-    /// One past the last character a block stands for.
+    /// What is written inside a block that holds blocks — a quote's lines, an alert's body.
     ///
     /// <para>
-    /// A span alone will not do. Markdig gives an unclosed fence a span of four characters, because there is
-    /// no closing fence to measure to — so the lines it read are asked as well, and whichever reaches further
-    /// wins. A block then takes the rest of the line it ends on, line ending and all, because a block-level
-    /// construct never shares a line with the next one and the ending is what separates them.
+    /// Nothing is stripped. The <c>&gt;</c> at the head of each line falls between the blocks the quote holds,
+    /// and is kept as the trivia it is, so the quote prints back as exactly what somebody typed while a builder
+    /// draws its blocks and skips its marks, neither of them knowing about the other.
     /// </para>
     /// </summary>
-    private static int Ends(Block block, string text, int from)
+    public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null)
     {
-        var to = Math.Max(block.Span.End + 1, from);
+        var text = source ?? string.Empty;
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Sequence, [], Roles.Body);
 
-        if (block is LeafBlock { Lines.Count: > 0 } leaf)
-            to = Math.Max(to, leaf.Lines.Lines[leaf.Lines.Count - 1].Slice.End + 1);
+        var read = new Cut(text);
+        var parts = new List<ContentNode>();
 
-        to = Math.Clamp(to, from, text.Length);
+        try
+        {
+            foreach (var block in Markdig.Markdown.Parse(text, pipeline ?? Pipeline))
+                if (block is ContainerBlock holds) Split(holds, parts, read);
+                else One(block, parts, read);
+        }
+        catch
+        {
+            parts.Add(ContentNode.Shown(read.Rest()));
+        }
 
-        while (to < text.Length && text[to] != '\n') to++;
+        read.Gap(parts, read.Length);
 
-        return to < text.Length ? to + 1 : to;
+        return Checked(Kinds.Sequence, parts, text, Roles.Body);
     }
 
+    /// <summary>
+    /// Every block of <paramref name="blocks"/>, in order, with whatever fell between two of them kept where
+    /// the writer put it. The one move a markdown container makes, wherever it is — a document's blocks, a
+    /// quote's, a list item's.
+    /// </summary>
+    internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read)
+    {
+        foreach (var block in blocks) One(block, parts, read);
+    }
+
+    /// <summary>One block, with whatever was written in front of it.</summary>
+    private static void One(Block block, List<ContentNode> parts, Cut read)
+    {
+        var from = read.Starts(block);
+        var to = read.Closes(block, from);
+        if (to == from) return;
+
+        read.Gap(parts, from);
+        parts.Add(Block(block, read.Text(to)));
+    }
+
+    /// <summary>
+    /// The reading, where it is one.
+    ///
+    /// <para>
+    /// Checked rather than trusted: a tree that does not print back as what it was read from is not a reading
+    /// of it, whatever else it is. What is handed back instead is the source shown as it was typed — which is
+    /// what the body held before anybody read it, and what every builder already knows how to draw.
+    /// </para>
+    /// </summary>
+    internal static ContentNode Checked(string kind, IReadOnlyList<ContentNode> parts, string text, string role)
+    {
+        var node = ContentNode.Branch(kind, parts, role);
+
+        return node.Print() == text ? node : ContentNode.Branch(kind, [ContentNode.Shown(text)], role);
+    }
+
+    /// <summary>
+    /// One block: what kind it is, and its own source held as written. Nothing is read out of the body here,
+    /// because what is inside is a different language with a different grammar, and reading it is its own
+    /// parser's business — which happens a stage later, in <see cref="Stages.WithBlocks"/>.
+    /// </summary>
     private static ContentNode Block(Block block, string source)
     {
         if (block is FencedCodeBlock fence) return Fenced(fence, source);
@@ -179,9 +223,6 @@ public static class MarkdownParser
 
         return ContentNode.Branch(MarkdownKinds.Fence, parts);
     }
-
-    private static ContentNode Trivia(string text) =>
-        ContentNode.Leaf(text.AsSpan().IsWhiteSpace() ? Kinds.Space : Kinds.Token, text, Roles.Trivia);
 
     /// <summary>Which language reads a block's body.</summary>
     private static string Kind(Block block) => block switch
