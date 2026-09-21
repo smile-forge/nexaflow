@@ -47,7 +47,7 @@ public interface IContentLanguage
     /// every language's <see cref="Lay"/> is what is left.
     /// </para>
     /// </summary>
-    FrameworkElement Draw(string source, DiagramRenderOptions options);
+    FrameworkElement Draw(string language, string source, DiagramRenderOptions options);
 }
 
 /// <summary>
@@ -58,6 +58,12 @@ public interface IContentLanguage
 /// <param name="Style">What this showing of it is drawn in.</param>
 public sealed record ContentRequest(string Source, StyleFormat Style)
 {
+    /// <summary>
+    /// What the fence called itself. A language that answers to a family of names — code does, to dozens —
+    /// needs the one that was written, not just the fact that it answered.
+    /// </summary>
+    public string? Named { get; init; }
+
     /// <summary>How wide it may be laid out — infinity where nothing says.</summary>
     public double Room { get; init; } = double.PositiveInfinity;
 

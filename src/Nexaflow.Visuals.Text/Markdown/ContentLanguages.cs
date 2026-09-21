@@ -46,6 +46,10 @@ public static class ContentLanguages
         new PlotLanguage(PlotFence.Bubble),
         new PlotLanguage(PlotFence.Heatmap),
         new PlotLanguage(PlotFence.Density2d),
+
+        // Last, and deliberately. It answers to dozens of words, so a fence calling itself something a
+        // language of its own already claims must reach that one first.
+        new CodeLanguage(),
     ];
 
     private static readonly Lock Adding = new();

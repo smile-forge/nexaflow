@@ -43,7 +43,8 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
         if (Nests(node) && !node.Children.Any(child => child.Held is ContentNesting)
             && ContentLanguages.For(node.Part(Roles.Name)!.Text) is { } language)
             node = node.With([.. node.Children,
-                              ContentNode.Holding(Kinds.Nested, Roles.Derived, new ContentNesting(language, style, options))]);
+                              ContentNode.Holding(Kinds.Nested, Roles.Derived,
+                                                  new ContentNesting(language, node.Part(Roles.Name)!.Text.Trim(), style, options))]);
 
         var seen = new ContentNode[node.Children.Count];
         var moved = false;

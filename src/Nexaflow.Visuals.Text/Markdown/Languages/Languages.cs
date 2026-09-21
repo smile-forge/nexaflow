@@ -21,6 +21,7 @@ using Nexaflow.Visuals.Text.Markdown.Qr;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Nomnoml;
+using Nexaflow.Visuals.Text.Markdown.Code;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -38,7 +39,7 @@ public sealed class MermaidLanguage : IContentLanguage
         MermaidBuilders.Lay(request.Source, request.Style, request.Room, at: request.At, options: request.Options)
         ?? UnknownDiagramBuilder.Lay(request.Source, request.Style, request.Room);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         MermaidBuilders.Element(source, MermaidBlock.Read(source).Diagram, options)
         ?? UnknownDiagramBuilder.Element(source, options);
 }
@@ -51,7 +52,7 @@ public sealed class NomnomlLanguage : IContentLanguage
 
     public bool Reads(string? language) => Name.Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         MermaidBuilder.Host(source, options, static (r, s, f, o) => new NomnomlBuilder(r, s, f, o),
                             options.ReadOnly, NomnomlDiagram.Grammar);
 }
@@ -63,7 +64,7 @@ public sealed class QrLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) => QrBuilder.Lay(request.Source, request.Style);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) => QrBuilder.Element(source, options);
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => QrBuilder.Element(source, options);
 }
 
 /// <summary>An Aztec symbol.</summary>
@@ -74,7 +75,7 @@ public sealed class AztecLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) => AztecBuilder.Lay(request.Source, request.Style);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) => AztecBuilder.Element(source, options);
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => AztecBuilder.Element(source, options);
 }
 
 /// <summary>A Data Matrix symbol.</summary>
@@ -85,7 +86,7 @@ public sealed class DataMatrixLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) => DataMatrixBuilder.Lay(request.Source, request.Style);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) => DataMatrixBuilder.Element(source, options);
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => DataMatrixBuilder.Element(source, options);
 }
 
 /// <summary>A PDF417 symbol.</summary>
@@ -95,7 +96,7 @@ public sealed class Pdf417Language : IContentLanguage
 
     public Laid? Lay(ContentRequest request) => Pdf417Builder.Lay(request.Source, request.Style);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) => Pdf417Builder.Element(source, options);
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => Pdf417Builder.Element(source, options);
 }
 
 /// <summary>A chemical structure written as SMILES.</summary>
@@ -106,7 +107,7 @@ public sealed class SmilesLanguage : IContentLanguage
     public Laid? Lay(ContentRequest request) =>
         SmilesBuilder.Lay(request.Source, request.Style, request.Room, request.At);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) => SmilesBuilder.Element(source, options);
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => SmilesBuilder.Element(source, options);
 }
 
 /// <summary>A formula, written in LaTeX.</summary>
@@ -121,7 +122,7 @@ public sealed class LatexLanguage : IContentLanguage
     public Laid? Lay(ContentRequest request) =>
         LatexBuilder.Lay(request.Source, request.Style, at: request.At);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         new ContentElement(source, options.Palette,
                            (state, _) => LatexBuilder.Lay(state.Source, options.Palette)) { IsReadOnly = true };
 }
@@ -136,7 +137,7 @@ public sealed class MusicLanguage(MusicDialect dialect) : IContentLanguage
             ? LilyPondBuilder.Lay(request.Source, Engraved(request.Room), request.Style, at: request.At)
             : AbcBuilder.Lay(request.Source, Engraved(request.Room), request.Style, at: request.At);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         new MusicScore(dialect, source, options.Palette, options.SourceOffset);
 
     /// <summary>A width to engrave against, since a score set to infinity has nowhere to break.</summary>
@@ -149,7 +150,7 @@ public sealed class PlotLanguage(PlotFence fence) : IContentLanguage
 {
     public bool Reads(string? language) => PlotFences.Named(language ?? string.Empty) == fence;
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         PlotBuilder.Element(source, fence, options);
 }
 
@@ -161,7 +162,7 @@ public sealed class WordCloudLanguage : IContentLanguage
     public Laid? Lay(ContentRequest request) =>
         WordCloudBuilder.Lay(request.Source, request.Style, request.Room, at: request.At);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options) =>
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         WordCloudBuilder.Element(source, options);
 }
 
@@ -170,7 +171,7 @@ public sealed class BarcodeLanguage : IContentLanguage
 {
     public bool Reads(string? language) => "barcode".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    public FrameworkElement Draw(string source, DiagramRenderOptions options)
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options)
     {
         if (!BarcodeBlockParser.TryParse(source, out var block, out string? error))
             return DiagramRenderer.ErrorElement(error!, source);
@@ -193,4 +194,28 @@ public sealed class BarcodeLanguage : IContentLanguage
             Margin = new Thickness(0, 6, 0, 10),
         };
     }
+}
+
+/// <summary>
+/// Code, in any language a grammar reads — and in any language it does not, which is the same drawing with
+/// nothing named.
+///
+/// <para>
+/// Last in the table on purpose: it answers to a great many words, and a fence calling itself something a
+/// real language already claims should reach that language. It is asked only once nothing else has.
+/// </para>
+/// </summary>
+public sealed class CodeLanguage : IContentLanguage
+{
+    public bool Reads(string? language) => CodeGrammars.For(language) is not null;
+
+    public Laid? Lay(ContentRequest request) =>
+        CodeBuilder.Lay(request.Source, CodeGrammars.For(request.Named), request.Style, request.Room, request.At);
+
+    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
+        new ContentElement(source, options.Palette,
+                           (state, room) => CodeBuilder.Lay(state.Source, CodeGrammars.For(language), options.Palette, room, options.SourceOffset))
+        {
+            IsReadOnly = true,
+        };
 }

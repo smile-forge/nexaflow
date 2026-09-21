@@ -22,9 +22,18 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// </para>
 /// </summary>
 /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
-public sealed class MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null)
-    : LinkedElement(source ?? string.Empty, palette, MarkdownContent.Of(palette), host)
+public sealed class MarkdownElement : LinkedElement
 {
+    /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
+    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null)
+        : base(source ?? string.Empty, palette, MarkdownContent.Of(palette), host)
+    {
+        // A fenced block draws uncoloured until its language has been read against it, which happens off the
+        // way to drawing. When it lands, this is what shows it — the same refresh a ticked item uses.
+        Loaded += (_, _) => Code.CodeSpans.Ready += Coloured;
+        Unloaded += (_, _) => Code.CodeSpans.Ready -= Coloured;
+    }
+
     /// <summary>The markdown this is showing.</summary>
     public string Markdown => Source;
 
@@ -37,9 +46,9 @@ public sealed class MarkdownElement(string source, StyleFormat palette, ILayoutA
     /// Ticks the item a press landed on, where it landed on one.
     ///
     /// <para>
-    /// The whole of it is an edit. What is drawn is read off the tree, the tree is read off the source, and the source
-    /// is what this writes — so there is no state anywhere saying which items are done, nothing to keep in step, and
-    /// taking it back is the undo the reader already has.
+    /// The whole of it is an edit. What is drawn is read off the tree, the tree is read off the source, and
+    /// the source is what this writes — so there is no state anywhere saying which items are done, nothing to
+    /// keep in step, and taking it back is the undo the reader already has.
     /// </para>
     /// </summary>
     private bool Ticked(Point at)
@@ -52,4 +61,7 @@ public sealed class MarkdownElement(string source, StyleFormat palette, ILayoutA
 
         return true;
     }
+
+    /// <summary>A reading landed somewhere. Laid again on the thread that draws, since it did not land there.</summary>
+    private void Coloured(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
 }

@@ -23,7 +23,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <param name="Language">What reads it.</param>
 /// <param name="Style">What this showing of the content is drawn in.</param>
 /// <param name="Options">What the host said about diagrams, where it said anything.</param>
-internal sealed record ContentNesting(IContentLanguage Language, StyleFormat Style, DiagramRenderOptions? Options)
+internal sealed record ContentNesting(IContentLanguage Language, string Named, StyleFormat Style, DiagramRenderOptions? Options)
 {
     /// <summary>What a piece has hanging off it, or null where it holds no other language.</summary>
     public static ContentNesting? Of(ContentPart? part) =>
@@ -37,7 +37,10 @@ internal sealed record ContentNesting(IContentLanguage Language, StyleFormat Sty
     {
         if (body is not { Length: > 0 }) return null;
 
-        var laid = Language.Lay(new ContentRequest(body.Text, Style) { Room = room, At = body.Start, Options = Options });
+        var laid = Language.Lay(new ContentRequest(body.Text, Style)
+        {
+            Named = Named, Room = room, At = body.Start, Options = Options,
+        });
 
         return laid is { Exists: true } ? new ContentInset(laid) : null;
     }

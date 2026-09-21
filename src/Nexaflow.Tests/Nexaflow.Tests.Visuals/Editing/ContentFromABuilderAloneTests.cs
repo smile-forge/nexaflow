@@ -81,7 +81,7 @@ public class ContentFromABuilderAloneTests
     });
 
     private static Content Barcode(string source) =>
-        (Content)new BarcodeLanguage().Draw(source, DiagramRenderOptions.For(StyleFormat.Dark));
+        (Content)new BarcodeLanguage().Draw("barcode", source, DiagramRenderOptions.For(StyleFormat.Dark));
 
     /// <summary>Measured and arranged, because a caret is a place on a page that has been laid out.</summary>
     private static Content Laid(Content content)

@@ -43,7 +43,7 @@ public static class DiagramRenderer
 
         try
         {
-            return reads.Draw(source, options);
+            return reads.Draw(language, source, options);
         }
         catch (Exception error)
         {
