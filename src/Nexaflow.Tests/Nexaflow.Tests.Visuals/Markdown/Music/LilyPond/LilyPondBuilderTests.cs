@@ -524,7 +524,7 @@ public class LilyPondBuilderTests
               GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|
             |:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|
               g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|
-            """, 900, Brushes.Black, 1.0);
+            """, 900, Brushes.Black);
 
         var ly = Lay("""
             \header { title = "Speed the Plough" }
@@ -553,7 +553,7 @@ public class LilyPondBuilderTests
 
     // ── Reading the picture ─────────────────────────────────────────────────
 
-    private static Laid Lay(string ly) => LilyPondBuilder.Build(ly, 900, Brushes.Black, 1.0);
+    private static Laid Lay(string ly) => LilyPondBuilder.Build(ly, 900, Brushes.Black);
 
     private static List<Piece> All(Laid layout, string kind) => All(layout.Root, kind);
 

@@ -196,7 +196,7 @@ public class StateBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     private static Laid Build(string source, double room = 900) =>
-        StateBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        StateBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, room));
 
     /// <summary>Every state drawn, by what is written on it.</summary>
     private static Dictionary<string, Rect> Nodes(string source) => Nodes(Build(source));

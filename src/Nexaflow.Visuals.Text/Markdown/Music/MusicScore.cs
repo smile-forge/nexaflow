@@ -55,13 +55,13 @@ public sealed class MusicScore : StackPanel
     {
         var ink = palette.Text;
 
-        return new Editing.ContentElement(source, palette, (state, room, pixelsPerDip) =>
+        return new Editing.ContentElement(source, palette, (state, room) =>
         {
             (int Start, int Length)? typed = state.Raw is { } raw ? (raw.Start, raw.End - raw.Start) : null;
 
             return dialect == MusicDialect.LilyPond
-                ? LilyPondBuilder.Build(state.Source, room, ink, pixelsPerDip, typed, spacing)
-                : AbcBuilder.Build(state.Source, room, ink, pixelsPerDip, typed, spacing);
+                ? LilyPondBuilder.Build(state.Source, room, ink, typed, spacing)
+                : AbcBuilder.Build(state.Source, room, ink, typed, spacing);
         })
         {
             SourceStart = sourceStart,

@@ -54,7 +54,7 @@ public class AbcCorpusRenderTests
             Laid layout;
             try
             {
-                layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
+                layout = AbcBuilder.Build(abc, 700, Brushes.Black);
             }
             catch (Exception ex)
             {

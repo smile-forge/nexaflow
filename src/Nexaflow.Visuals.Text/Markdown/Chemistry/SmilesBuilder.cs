@@ -51,24 +51,21 @@ internal sealed class SmilesBuilder : ContentBuilder
     private const double ReasonRoom = 260;
 
     private readonly MarkdownPalette _palette;
-    private readonly double _dpi;
     private readonly double _room;
 
-    private SmilesBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip, double room) : base(reading)
+    private SmilesBuilder(ContentReading reading, MarkdownPalette palette, double room) : base(reading)
     {
         _palette = palette;
-        _dpi = pixelsPerDip;
         _room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
     }
 
     /// <summary>Lays a block's source out to fit <paramref name="room"/>. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
-                             int at = 0) =>
-        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), palette, pixelsPerDip, room).Lay();
+    public static Laid Build(string source, MarkdownPalette palette, double room = double.PositiveInfinity, int at = 0) =>
+        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), palette, room).Lay();
 
     /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        new(source, options.Palette, (state, room, pixelsPerDip) => Build(state.Source, options.Palette, pixelsPerDip, room))
+        new(source, options.Palette, (state, room) => Build(state.Source, options.Palette, room))
         {
             IsReadOnly = true,
 
@@ -776,7 +773,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             size,
             ink ?? _palette.Text,
-            _dpi);
+            Editing.LayoutText.Density);
 
     private FormattedText Reason(string trouble, double room) =>
         new(trouble,
@@ -785,7 +782,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             ReasonSize,
             _palette.Danger,
-            _dpi)
+            Editing.LayoutText.Density)
         {
             MaxTextWidth = room,
         };
@@ -798,5 +795,5 @@ internal sealed class SmilesBuilder : ContentBuilder
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             SourceSize,
             _palette.Text,
-            _dpi);
+            Editing.LayoutText.Density);
 }

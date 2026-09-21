@@ -11,12 +11,10 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// </summary>
 /// <param name="Palette">The colours the host draws in.</param>
-/// <param name="PixelsPerDip">The screen's pixel density, so text is measured as it will be drawn.</param>
 /// <param name="Room">How wide the diagram may be. Infinity, or anything not a width, is as wide as it likes.</param>
 /// <param name="Writing">Whether somebody is writing in the block, which draws what is still to be written.</param>
 internal sealed record DiagramLaying(
     MarkdownPalette Palette,
-    double PixelsPerDip = 1,
     double Room = double.PositiveInfinity,
     bool Writing = false)
 {

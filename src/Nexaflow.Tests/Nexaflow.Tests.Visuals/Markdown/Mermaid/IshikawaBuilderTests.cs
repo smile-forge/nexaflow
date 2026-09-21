@@ -38,7 +38,7 @@ public class IshikawaBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        IshikawaBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        IshikawaBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, room));
 
     [TestMethod]
     public void EveryCauseHasABoneStandingForItsLine_AndTheEventTheHeadAndTheSpine() => UiThread.Run(() =>

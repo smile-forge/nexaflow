@@ -50,27 +50,24 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     private readonly MarkdownPalette _palette;
     private readonly double _room;
-    private readonly double _dpi;
-
     /// <summary>How a picture named by <c>mask:</c> is found, or null where there is nowhere to look.</summary>
     private readonly Func<string, ImageSource?>? _pictures;
 
     private WordCloudSettings _settings = WordCloudSettings.Default;
 
-    private WordCloudBuilder(ContentReading reading, MarkdownPalette palette, double room, double pixelsPerDip,
+    private WordCloudBuilder(ContentReading reading, MarkdownPalette palette, double room,
                              Func<string, ImageSource?>? pictures)
         : base(reading)
     {
         _palette = palette;
         _room = room;
-        _dpi = pixelsPerDip;
         _pictures = pictures;
     }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double room, double pixelsPerDip,
+    public static Laid Build(string source, MarkdownPalette palette, double room,
                              Func<string, ImageSource?>? pictures = null, int at = 0) =>
-        new WordCloudBuilder(ContentReading.Of(WordCloudParser.Parse(source), at), palette, room, pixelsPerDip, pictures).Lay();
+        new WordCloudBuilder(ContentReading.Of(WordCloudParser.Parse(source), at), palette, room, pictures).Lay();
 
     /// <summary>
     /// The element a cloud is shown in. Editable, because the words in it are words somebody typed — unlike a
@@ -79,7 +76,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// </summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         new Editing.ContentElement(source, options.Palette,
-            (state, room, pixelsPerDip) => Build(state.Source, options.Palette, room, pixelsPerDip, options.Pictures))
+            (state, room) => Build(state.Source, options.Palette, room, options.Pictures))
         {
             // Where the block's lines sit inside the fence that produced them, so an edit to a word is
             // spliced back where it came from rather than a couple of lines early.
@@ -377,7 +374,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
                          _settings.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal),
             size,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 
     private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) =>
         new(part.Start, Math.Max(part.Length, 1), severity, reason);
@@ -394,5 +391,5 @@ internal sealed class WordCloudBuilder : ContentBuilder
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             SourceSize,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 }

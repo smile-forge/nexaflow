@@ -25,16 +25,15 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </para>
 /// </summary>
 /// <param name="lay">
-/// Lays the state out at a width and a pixel density, told whether anybody can write in it — the builder, as the element
-/// asks for it.
+/// Lays the state out at a width, told whether anybody can write in it — the builder, as the element asks for it.
 /// </param>
-internal sealed class MermaidContent(Func<EditState, double, double, bool, Laid> lay) : IContent
+internal sealed class MermaidContent(Func<EditState, double, bool, Laid> lay) : IContent
 {
     /// <summary>How a first line under the header is indented when there is no line yet to follow — as Mermaid's examples are.</summary>
     private const string FirstIndent = "    ";
 
     /// <inheritdoc/>
-    public Laid Lay(EditState state, double room, double pixelsPerDip, bool readOnly) => lay(state, room, pixelsPerDip, readOnly);
+    public Laid Lay(EditState state, double room, bool readOnly) => lay(state, room, readOnly);
 
     /// <inheritdoc/>
     /// <remarks>

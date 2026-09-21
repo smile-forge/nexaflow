@@ -87,7 +87,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     {
     Laying = laying;
     Palette = laying.Palette;
-    PixelsPerDip = laying.PixelsPerDip;
+    
     Room = double.IsNaN(laying.Room) || laying.Room <= 0 ? double.PositiveInfinity : laying.Room;
     Writing = laying.Writing;
     Ink = new DiagramInk(laying.Palette);
@@ -108,8 +108,6 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </summary>
     protected bool Writing { get; }
 
-    protected double PixelsPerDip { get; }
-
     /// <summary>How wide the block may be laid out — infinity where nothing says.</summary>
     protected double Room { get; }
 
@@ -121,7 +119,7 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <summary>The element a Mermaid block is shown in: read-only (a diagram isn't typed into) but
     /// selectable, since what it draws carries the characters it was written as.</summary>
-    /// <param name="build">Draws a block that has been read, for a palette, pixel density, width, and whether it's being written in.</param>
+    /// <param name="build">Draws a block that has been read, for a palette, a width, and whether it's being written in.</param>
     /// <param name="readOnly">Whether the block is only looked at; the host decides whether keys reach it.</param>
     /// <param name="grammar">What reads it, where the fence's language names the diagram rather than the first line.</param>
     internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
@@ -137,9 +135,9 @@ internal abstract class MermaidBuilder : ContentBuilder
             : null;
 
         var element = new Editing.LinkedElement(source, options.Palette,
-                                                new MermaidContent((state, room, pixelsPerDip, looking) =>
+                                                new MermaidContent((state, room, looking) =>
                                                     build(MermaidBuilders.Read(state.Source, holes: !looking, grammar: grammar, after: after),
-                                                          new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
+                                                          new DiagramLaying(options.Palette, room, !looking)
                                                           {
                                                               View = actions.View,
                                                               Raw = state.Raw,
@@ -315,7 +313,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             ? part.Wrote()
             : ContentWords.Says(part, MermaidText.Decode);
 
-    /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
+    /// <summary>A run of diagram text: the face every diagram label is set in, at the standard size a layout is measured at.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
         new(text,
             CultureInfo.CurrentCulture,
@@ -323,7 +321,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             new Typeface(BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
             size,
             ink,
-            PixelsPerDip);
+            LayoutText.Density);
 
     /// <summary>
     /// A part's words, as they read rather than as they were written — entity codes decoded, bindings read.
@@ -445,7 +443,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (part is not { Length: > 0 }) return null;
         if (Laying.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return ContentLanguages.Inset(part, Palette, PixelsPerDip, room);
+        return ContentLanguages.Inset(part, Palette, room);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
@@ -456,7 +454,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             SourceSize,
             Palette.Text,
-            PixelsPerDip);
+            LayoutText.Density);
 }
 
 /// <summary>The shape every diagram's builder has: the block read into the diagram it describes once

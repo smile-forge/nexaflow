@@ -206,8 +206,10 @@ public class AbcPictureSweepTests
                 var width = reference.Width + Margin;
                 var zoom = ZoomFor(reference);
 
+                // Zoom magnifies, so the page is engraved into the room it will fill once magnified: the
+                // reference was set at a staff size, and this is how that staff size is asked for here.
                 var element = new MusicScore(MusicDialect.Abc, Text(tune.Abc), MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
-                element.Measure(new Size(width, double.PositiveInfinity));
+                element.Measure(new Size(width / zoom, double.PositiveInfinity));
                 element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
                 var file = Path.Combine(into, $"{name}-at-{zoom:F2}.png");
@@ -278,8 +280,9 @@ public class AbcPictureSweepTests
             var width = theirs.Width + Margin;
             var zoom = ZoomFor(theirs);
 
+            // Engraved into the room it will fill once magnified — see ShowOneAgainstTheEngraversOwnPicture.
             var element = new MusicScore(MusicDialect.Abc, abc, MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
-            element.Measure(new Size(width, double.PositiveInfinity));
+            element.Measure(new Size(width / zoom, double.PositiveInfinity));
 
             var size = element.DesiredSize;
             if (size.Width < 1 || size.Height < 1)

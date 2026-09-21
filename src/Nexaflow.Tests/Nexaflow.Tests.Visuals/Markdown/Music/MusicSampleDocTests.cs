@@ -27,11 +27,11 @@ public class MusicSampleDocTests
     [TestMethod]
     [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Build(ly, 900, Brushes.Black, 1.0)));
+        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Build(ly, 900, Brushes.Black)));
 
     [TestMethod]
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-abc.md", abc => AbcBuilder.Build(abc, 900, Brushes.Black, 1.0)));
+        AssertDoc("music-abc.md", abc => AbcBuilder.Build(abc, 900, Brushes.Black)));
 
     private static void AssertDoc(string file, Func<string, Laid> build)
     {

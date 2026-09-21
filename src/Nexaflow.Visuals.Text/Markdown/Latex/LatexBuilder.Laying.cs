@@ -61,7 +61,7 @@ public sealed partial class LatexBuilder
 
     /// <summary>Lays a formula already set, as a builder with nothing else to do would — what a test measures.</summary>
     internal static Placed LayFormula(Set formula, ContentReading reading, double scale) =>
-        new LatexBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Sequence, string.Empty)), scale, false, "Arial", 1.0, 0)
+        new LatexBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Sequence, string.Empty)), scale, false, "Arial", 0)
             .LayFormula(formula, reading);
 
     /// <summary>Lays a formula already set: its top at the origin, then the tree sealed and settled onto its ink.</summary>

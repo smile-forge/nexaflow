@@ -21,17 +21,15 @@ public sealed partial class LatexBuilder : ContentBuilder
     private readonly double _scale;
     private readonly bool _inline;
     private readonly string _systemFont;
-    private readonly double _pixelsPerDip;
+
     private readonly double _block;
 
-    private LatexBuilder(ContentReading reading, double scale, bool inline, string systemFont,
-                         double pixelsPerDip, double block)
+    private LatexBuilder(ContentReading reading, double scale, bool inline, string systemFont, double block)
         : base(reading)
     {
         _scale = scale;
         _inline = inline;
         _systemFont = systemFont;
-        _pixelsPerDip = pixelsPerDip;
         _block = block;
     }
 
@@ -48,7 +46,7 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
     public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
                              RawZone? shownAsWritten = null, bool placeholders = false,
-                             double pixelsPerDip = 1.0, double block = 0, int at = 0)
+                             double block = 0, int at = 0)
     {
         var editing = shownAsWritten is { } zone && zone.Length > 0 ? (zone.Start, zone.Length) : ((int, int)?)null;
 
@@ -57,7 +55,7 @@ public sealed partial class LatexBuilder : ContentBuilder
         // unreadable.
         var read = TexPipeline.Read(latex, Draws, editing, placeholders);
 
-        return new LatexBuilder(ContentReading.Of(read, at), scale, inline, systemFont, pixelsPerDip, block).Lay();
+        return new LatexBuilder(ContentReading.Of(read, at), scale, inline, systemFont, block).Lay();
     }
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
@@ -145,7 +143,7 @@ public sealed partial class LatexBuilder : ContentBuilder
             new Typeface("Consolas"),
             _scale * 0.6,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            _pixelsPerDip);
+            Editing.LayoutText.Density);
 
     /// <summary>
     /// Declares which cells of a matrix read across/down, so a drag over one behaves like a spreadsheet

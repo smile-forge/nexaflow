@@ -166,7 +166,7 @@ internal abstract partial class MusicBuilder
 
         if (system.ShowName && system.Row.Name is { Length: > 0 } name)
         {
-            var glyphs = ScoreText.Build(name, CreditSize, _ppd);
+            var glyphs = ScoreText.Build(name, CreditSize);
             var at = new Point(x, system.StaffTop + (StaffHeight / 2) - (glyphs.Height / 2));
 
             Open("voice", at: at);
@@ -637,7 +637,7 @@ internal abstract partial class MusicBuilder
         {
             if (text.Length == 0) continue;
 
-            var glyphs = ScoreText.Build(text, ChordSize, _ppd);
+            var glyphs = ScoreText.Build(text, ChordSize);
 
             var at = where switch
             {
@@ -736,12 +736,12 @@ internal abstract partial class MusicBuilder
     {
         if (ev.ChordSymbol is not { Length: > 0 } text) return;
 
-        var glyphs = ScoreText.Chord(text, ChordSize, _ppd);
+        var glyphs = ScoreText.Chord(text, ChordSize);
         var at = new Point(ev.X, system.StaffTop - system.Above);
 
         // Its own piece rather than a mark on the note, since a chord symbol is something a reader picks out on its own.
         var chord = Open("chord", ev.ChordPart, at);
-        var (top, height) = Letters(ScoreText.Chord("Hg", ChordSize, _ppd));
+        var (top, height) = Letters(ScoreText.Chord("Hg", ChordSize));
         _build.Reserves(top, height);
         _build.Draw(new TextMark(glyphs, default, null));
         Close();
@@ -768,13 +768,13 @@ internal abstract partial class MusicBuilder
 
             if (text.Length == 0) continue;
 
-            var glyphs = ScoreText.Build(hyphen ? text + "-" : text, LyricSize, _ppd);
+            var glyphs = ScoreText.Build(hyphen ? text + "-" : text, LyricSize);
             var at = new Point(ev.X + (_noteHead / 2) - (glyphs.Width / 2), y);
 
             // Layout position (under the note) and source part (written a line away) deliberately diverge —
             // that's what lets a syllable be picked out of a verse without the note coming with it.
             var sung = Open("syllable", part, at);
-            var (top, height) = Letters(ScoreText.Build("Hg", LyricSize, _ppd));
+            var (top, height) = Letters(ScoreText.Build("Hg", LyricSize));
             _build.Reserves(top, height);
             _build.Draw(new TextMark(glyphs, default, null));
             Close();
@@ -792,7 +792,7 @@ internal abstract partial class MusicBuilder
         // break has nothing before it on this line, so it starts at the head instead.
         var from = before is null ? ev.X : (before.X + (_noteHead / 2));
         if (before?.Lyrics.FirstOrDefault(l => l.Verse == verse) is { Text.Length: > 0 } sung)
-            from += (ScoreText.Width(sung.Text, LyricSize, _ppd) / 2) + (0.3 * S);
+            from += (ScoreText.Width(sung.Text, LyricSize) / 2) + (0.3 * S);
 
         if (to - from < 0.2 * S) return;
 
@@ -844,7 +844,7 @@ internal abstract partial class MusicBuilder
                 var down = Engraving.StemDown(halves);
                 var glyphs = ScoreText.Build(
                     bar.Events[at].TupletNumber.ToString(global::System.Globalization.CultureInfo.InvariantCulture),
-                    VoltaSize, _ppd, style: FontStyles.Italic);
+                    VoltaSize, style: FontStyles.Italic);
 
                 var left = events[0].X;
                 var right = events[^1].X + _noteHead;
@@ -1010,7 +1010,7 @@ internal abstract partial class MusicBuilder
 
             if (system.Bars[at].VoltaLabel is { Length: > 0 } label)
             {
-                var glyphs = ScoreText.Build(label + ".", VoltaSize, _ppd);
+                var glyphs = ScoreText.Build(label + ".", VoltaSize);
                 var where = In(new Point(left + (0.45 * S), y + (0.28 * S)));
                 _build.Draw(new TextMark(glyphs, where, null));
             }

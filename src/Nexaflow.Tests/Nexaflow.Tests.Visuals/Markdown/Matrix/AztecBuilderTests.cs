@@ -151,7 +151,7 @@ public class AztecBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => AztecBuilder.Build(source, MarkdownPalette.Light, 1.0);
+    private static Laid Build(string source) => AztecBuilder.Build(source, MarkdownPalette.Light);
 
     private static AztecBlock Read(string source)
     {

@@ -21,15 +21,15 @@ internal static class ScoreText
     /// </summary>
     public static readonly FontFamily ChordFont = new("Times New Roman, Georgia, serif");
 
-    public static FormattedText Build(string text, double size, double ppd,
+    public static FormattedText Build(string text, double size,
         FontWeight? weight = null, FontStyle? style = null, Brush? brush = null,
         FontFamily? family = null) =>
         new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
             new Typeface(family ?? BlockRenderer.BodyFont, style ?? FontStyles.Normal,
                 weight ?? FontWeights.Normal, FontStretches.Normal),
-            size, brush ?? Brushes.Black, ppd);
+            size, brush ?? Brushes.Black, Editing.LayoutText.Density);
 
-    public static double Width(string text, double size, double ppd) => Build(text, size, ppd).Width;
+    public static double Width(string text, double size) => Build(text, size).Width;
 
     /// <summary>
     /// A chord symbol: its letter set in the chord face, its accidental set as the symbol it means and
@@ -42,7 +42,7 @@ internal static class ScoreText
     /// weight are one decision, made here, where the chord's face is already decided.
     /// </para>
     /// </summary>
-    public static FormattedText Chord(string text, double size, double ppd, Brush? brush = null)
+    public static FormattedText Chord(string text, double size, Brush? brush = null)
     {
         var written = new System.Text.StringBuilder(text.Length);
         var signs = new List<int>();
@@ -64,7 +64,7 @@ internal static class ScoreText
             written.Append(text[at]);
         }
 
-        var glyphs = Build(written.ToString(), size, ppd, FontWeights.SemiBold, brush: brush,
+        var glyphs = Build(written.ToString(), size, FontWeights.SemiBold, brush: brush,
                            family: ChordFont);
 
         foreach (var at in signs) glyphs.SetFontWeight(FontWeights.Normal, at, 1);
@@ -73,10 +73,10 @@ internal static class ScoreText
     }
 
     /// <summary>Draws text anchored horizontally by <paramref name="align"/>, with <paramref name="y"/> the top.</summary>
-    public static void Draw(DrawingContext dc, string text, Point anchor, double size, Brush brush, double ppd,
+    public static void Draw(DrawingContext dc, string text, Point anchor, double size, Brush brush,
         TextAlignment align = TextAlignment.Left, FontWeight? weight = null, FontStyle? style = null)
     {
-        var ft = Build(text, size, ppd, weight, style, brush);
+        var ft = Build(text, size, weight, style, brush);
         double x = align switch
         {
             TextAlignment.Center => anchor.X - ft.Width / 2,

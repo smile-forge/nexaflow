@@ -94,19 +94,19 @@ internal abstract partial class MusicBuilder
         foreach (var (text, where) in ev.Annotations)
         {
             if (where is not (AnnotationPlacement.Left or AnnotationPlacement.Right)) continue;
-            ev.SlotWidth = Math.Max(ev.SlotWidth, fits + ScoreText.Width(text, ChordSize, _ppd) + (0.4 * S));
+            ev.SlotWidth = Math.Max(ev.SlotWidth, fits + ScoreText.Width(text, ChordSize) + (0.4 * S));
         }
 
         // A wide chord name over a short note must still clear the next note along.
         if (ev.ChordSymbol is { Length: > 0 } chord)
             ev.SlotWidth = Math.Max(ev.SlotWidth,
-                                    ScoreText.Chord(chord, ChordSize, _ppd).Width + (0.5 * S));
+                                    ScoreText.Chord(chord, ChordSize).Width + (0.5 * S));
 
         // Centred under its head, so it charges the note only half its width — full width made lines of long/short words lurch.
         foreach (var (_, text, _, _, _) in ev.Lyrics)
         {
             if (text.Length == 0) continue;
-            var wanted = (ScoreText.Width(text, LyricSize, _ppd) / 2) + LyricGap;
+            var wanted = (ScoreText.Width(text, LyricSize) / 2) + LyricGap;
             ev.SlotWidth = Math.Max(ev.SlotWidth, wanted + (_noteHead / 2));
         }
     }
@@ -213,7 +213,7 @@ internal abstract partial class MusicBuilder
     {
         // Paid for before the clef is placed, or every staff in a part song starts at a different x.
         var named = row is { Index: 0, Name: { Length: > 0 } name }
-            ? ScoreText.Width(name, CreditSize, _ppd) + (0.6 * S)
+            ? ScoreText.Width(name, CreditSize) + (0.6 * S)
             : 0;
 
         var width = LeftMargin + named + Smufl.Advance(StaffGeometry.For(row.Clef).ClefGlyph, S) + (0.6 * S);
@@ -674,7 +674,7 @@ internal abstract partial class MusicBuilder
 
     /// <summary>One row of words above/below the staff, tall enough for either face plus air — a fixed height had text sitting on the staff's top line.</summary>
     private double TextRow => _textRow ??= Math.Max(ChordRow,
-        Math.Max(ScoreText.Build("Hg", ChordSize, _ppd).Height, ScoreText.Chord("Hg", ChordSize, _ppd).Height) + (0.5 * S));
+        Math.Max(ScoreText.Build("Hg", ChordSize).Height, ScoreText.Chord("Hg", ChordSize).Height) + (0.5 * S));
 
     private double? _textRow;
 }

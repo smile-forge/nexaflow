@@ -60,15 +60,12 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// <summary>The narrowest a reason is set to, so a small symbol does not stack it a word to a line.</summary>
     private const double ReasonRoom = 240;
 
-    protected MatrixBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip) : base(reading)
+    protected MatrixBuilder(ContentReading reading, MarkdownPalette palette) : base(reading)
     {
         Palette = palette;
-        PixelsPerDip = pixelsPerDip;
     }
 
     protected MarkdownPalette Palette { get; }
-
-    protected double PixelsPerDip { get; }
 
     /// <summary>
     /// An encoded symbol and how to draw it. <paramref name="RowHeight"/> is a module's height as a multiple of its
@@ -96,10 +93,10 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
     /// <summary>The element a 2D-code block is shown in: read-only, because there is nothing in it to edit.</summary>
     protected static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                 Func<string, MarkdownPalette, double, Laid> build)
+                                                 Func<string, MarkdownPalette, Laid> build)
     {
         var element = new Editing.ContentElement(source, options.Palette,
-            (state, _, pixelsPerDip) => build(state.Source, options.Palette, pixelsPerDip))
+            (state, _) => build(state.Source, options.Palette))
         {
             IsReadOnly = true,
 
@@ -266,7 +263,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
             new Typeface(ReasonFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             ReasonSize,
             Palette.Danger,
-            PixelsPerDip)
+            Editing.LayoutText.Density)
         {
             MaxTextWidth = room,
         };
@@ -297,5 +294,5 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             ReasonSize,
             Brushes.Black,
-            PixelsPerDip);
+            Editing.LayoutText.Density);
 }

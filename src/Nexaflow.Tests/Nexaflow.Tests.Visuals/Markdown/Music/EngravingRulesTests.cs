@@ -181,7 +181,7 @@ public class EngravingRulesTests
     // ── Reading the picture ─────────────────────────────────────────────────
 
     private static List<Piece> Systems(string abc, double width) =>
-        All(AbcBuilder.Build(abc, width, Brushes.Black, 1.0).Root, "system");
+        All(AbcBuilder.Build(abc, width, Brushes.Black).Root, "system");
 
     private static List<Piece> All(Piece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 

@@ -15,6 +15,13 @@ namespace Nexaflow.Visuals.Text.Editing;
 public static class LayoutText
 {
     /// <summary>
+    /// What text is measured at, everywhere. A layout is in the content's own units and the element scales it as it
+    /// paints, so measurement must not vary with the screen it happened to be measured on — otherwise the same
+    /// source lays out differently on two monitors, and no test can measure either of them.
+    /// </summary>
+    public const double Density = 1.0;
+
+    /// <summary>
     /// Places one run of text into <paramref name="into"/> and hands back where the piece went. The text is
     /// aligned within <paramref name="room"/> by the type engine, which also breaks a long run into lines, so
     /// how much room it takes isn't known until broken. The <em>piece</em>'s extent is the letters, not the

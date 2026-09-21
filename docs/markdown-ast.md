@@ -26,6 +26,16 @@ constructor taking what was read, what is being written, the colours and whether
 capability that needs the tree changed is a stage rather than something a builder works out while drawing. The shape
 is held by `ContentBuilderRulesTests`.
 
+**A layout is at a standard size, in the content's own units.** Nothing in it knows the screen: text is measured at
+`LayoutText.Density`, and `ContentElement` scales the finished tree as it paints (`Zoom`, a transform on the drawing
+context, with pointer input divided back through `Unscaled`). So the same source and the same room give the same tree
+on any display, which is what makes a laid-out tree something a test can measure — and zooming costs a repaint rather
+than a re-lay.
+
+The one size that does reach a builder is the **room** it has, because where a line breaks is a layout decision and
+only what measures the text can make it. How big the content itself is set — a formula's text size, a score's staff
+size — is a fact about the content and reaches the builder as one.
+
 ## Where it lives
 
 `src/Nexaflow.Markdown/` — `net10.0`, no WPF, no dependencies.

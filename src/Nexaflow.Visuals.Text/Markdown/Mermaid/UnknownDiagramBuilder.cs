@@ -26,8 +26,8 @@ internal sealed class UnknownDiagramBuilder : MermaidBuilder
         new UnknownDiagramBuilder(reading, laying with { Writing = false }).Lay();
 
     /// <summary>The same, for a block nobody is writing in.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity) =>
-        Build(MermaidBuilders.Read(source), new DiagramLaying(palette, pixelsPerDip, room));
+    public static Laid Build(string source, MarkdownPalette palette, double room = double.PositiveInfinity) =>
+        Build(MermaidBuilders.Read(source), new DiagramLaying(palette, room));
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

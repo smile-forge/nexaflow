@@ -170,7 +170,7 @@ public class BlockToolbarTests
     /// <summary>Content that draws a block for everybody, and a second only where somebody can write in it.</summary>
     private sealed class Marked : Nexaflow.Visuals.Text.Editing.IContent
     {
-        public Nexaflow.Visuals.Text.Editing.Laid Lay(Nexaflow.Visuals.Text.Editing.EditState state, double room, double pixelsPerDip, bool readOnly)
+        public Nexaflow.Visuals.Text.Editing.Laid Lay(Nexaflow.Visuals.Text.Editing.EditState state, double room, bool readOnly)
         {
             var build = new Nexaflow.Visuals.Text.Editing.LayoutBuilder();
             build.Open("content");

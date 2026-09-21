@@ -26,12 +26,12 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
 
     private const string Sample = "Nexaflow";
 
-    private DataMatrixBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip)
-        : base(reading, palette, pixelsPerDip) { }
+    private DataMatrixBuilder(ContentReading reading, MarkdownPalette palette)
+        : base(reading, palette) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip) =>
-        new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source)), palette, pixelsPerDip).Lay();
+    public static Laid Build(string source, MarkdownPalette palette) =>
+        new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source)), palette).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

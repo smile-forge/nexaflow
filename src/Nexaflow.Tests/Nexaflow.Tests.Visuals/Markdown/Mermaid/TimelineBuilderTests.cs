@@ -45,7 +45,7 @@ public class TimelineBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 900) =>
-        TimelineBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        TimelineBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, room));
 
     [TestMethod]
     public void ThePeriodsSitOnASpineAcrossThePage_EachWithItsEventsBelowIt() => UiThread.Run(() =>

@@ -32,7 +32,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     private EditState _state;
     private Laid _laid = Laid.Nothing;
-    private double _ppd = 1.0;
     private double _laidFor;
 
     private DispatcherTimer? _blink;
@@ -73,7 +72,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
     /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
-    public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, double, Laid> lay)
+    public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, Laid> lay)
         : this(source, palette, Content.Of(lay)) { }
 
     public ContentElement(string source, MarkdownPalette palette, IContent content)
@@ -104,14 +103,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _state;
 
-    /// <summary>How many pixels of device per pixel of layout, for anything measuring its own text.</summary>
-    protected double PixelsPerDip => _ppd;
-
     // ── What a kind of content gets to say ──────────────────────────────────
 
     /// <summary>Lays the source out to fit the room given. Takes the whole state, not just the string, since a stretch shown as its own characters is set into the layout rather than painted over it.</summary>
-    private Laid Lay(EditState state, double room, double pixelsPerDip) =>
-        _content.Lay(state, room, pixelsPerDip, IsReadOnly);
+    private Laid Lay(EditState state, double room) => _content.Lay(state, room, IsReadOnly);
 
     /// <summary>The whole chain from source to picture; everything that differs by kind of content is behind it — see <see cref="IContent"/>.</summary>
     private readonly IContent _content;
@@ -211,9 +206,18 @@ public class ContentElement : FrameworkElement, IEditableBlock
     // ── Shape and colour ────────────────────────────────────────────────────
 
     /// <summary>
-    /// How large the content is drawn, as a multiple of its natural size. A render scale, not a bitmap one:
-    /// the content is laid out into <c>available / zoom</c>, so zooming out re-flows the line breaks rather
-    /// than shrinking a picture of the same ones — which is why the builder has to be told, not the painter.
+    /// How large the content is drawn, as a multiple of its natural size. Magnification, and nothing else: the
+    /// content is laid out into the room it has, at its own standard size, and scaled as it is painted. So
+    /// zooming settles nothing about the layout — the same tree, the same line breaks, drawn larger.
+    ///
+    /// <para>
+    /// A render scale, not a bitmap one. The transform goes on the drawing context, so text and every other mark
+    /// is drawn at the size it ends up, and a pointer coming the other way is divided back (<c>Unscaled</c>).
+    /// </para>
+    /// <para>
+    /// How big the content itself is set — a formula's text size, a score's staff size — is a different question
+    /// with a different answer: that is a fact about the content, and it reaches the builder as one.
+    /// </para>
     /// </summary>
     public double Zoom { get; init; } = 1.0;
 
@@ -907,7 +911,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         _previewOf = moved;
         _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
-        _preview = Lay(new EditState(moved.Source, moved.Caret), Room(), _ppd);
+        _preview = Lay(new EditState(moved.Source, moved.Caret), Room());
     }
 
     private void ClearPreview()
@@ -1025,18 +1029,18 @@ public class ContentElement : FrameworkElement, IEditableBlock
         InvalidateVisual();
     }
 
-    /// <summary>How much room the content has, in its own coordinates.</summary>
-    protected double Room() => (_laidFor > 0 ? _laidFor : 680) / Scale;
+    /// <summary>How much room the content has, in its own coordinates — which is the room it was given.</summary>
+    protected double Room() => _laidFor > 0 ? _laidFor : 680;
 
     /// <summary>Lays it out again from the state as it now stands.</summary>
-    protected void Rebuild() => _laid = Lay(_state, Room(), _ppd);
+    protected void Rebuild() => _laid = Lay(_state, Room());
 
     /// <summary>A picture of the content at its shown size/density, with nothing drawn only for the writer: no caret, selection, hole, trouble squiggle or raw-typed text.</summary>
     /// <param name="ground">What it is drawn on, or null for nothing behind what the content draws.</param>
     public BitmapSource Picture(Brush? ground = null)
     {
         var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), pixelsPerDip, readOnly: true);
+        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), readOnly: true);
         var size = new Size(Math.Max(1, Math.Ceiling(laid.Size.Width * Scale)), Math.Max(1, Math.Ceiling(laid.Size.Height * Scale)));
 
         var drawing = new DrawingVisual();
@@ -1061,8 +1065,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        _ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-
         var room = double.IsInfinity(availableSize.Width) || availableSize.Width <= 0 ? 680 : availableSize.Width;
         if (Math.Abs(room - _laidFor) > 0.5 || _laid.Tree.Count == 0)
         {

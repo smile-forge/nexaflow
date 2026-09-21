@@ -26,7 +26,7 @@ public class AbcCurveTests
     [TestMethod]
     public void ATieInsideABarGathersTheTwoNotesItJoins() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Build("X:1\nL:1/4\nK:C\nA- A B c |\n", 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/4\nK:C\nA- A B c |\n", 700, Brushes.Black);
 
         // Written as two groups, so the two notes are siblings in the bar. Written as one — `A-A` —
         // they would be siblings inside that written group instead and the tie would gather there: the
@@ -46,7 +46,7 @@ public class AbcCurveTests
         // Gathering these two would mean lifting a note out of each bar, and a bar that no longer holds
         // its own notes can never be selected as one. The line is the smallest thing that reaches across
         // a bar line, so that is where the tie goes.
-        var layout = AbcBuilder.Build("X:1\nL:1/4\nK:C\nA B-|B c |\n", 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/4\nK:C\nA B-|B c |\n", 700, Brushes.Black);
 
         var set = Only(layout, "tie-set");
 
@@ -63,7 +63,7 @@ public class AbcCurveTests
         // nodes, and a note moved out of its bar is a bar that can no longer be selected whole.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
+            var layout = AbcBuilder.Build(abc, 700, Brushes.Black);
 
             foreach (var note in layout.Root.SelfAndDescendants().Where(n => Kind(n) is "note" or "rest"))
                 Assert.IsTrue(note.Ancestors().Any(a => Kind(a) == "measure"),
@@ -76,7 +76,7 @@ public class AbcCurveTests
     {
         // "The two notes, note-sets or beam groups the curve connects" — whatever the two ends turn out
         // to be at the level they share, which for a note slurred to a beamed run is the run.
-        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:C\nA2(A2 GFGA) |\n", 700, Brushes.Black, 1.0);
+        var layout = AbcBuilder.Build("X:1\nL:1/8\nK:C\nA2(A2 GFGA) |\n", 700, Brushes.Black);
 
         var set = Only(layout, "slur-set");
 
@@ -91,7 +91,7 @@ public class AbcCurveTests
         // paints it twice and measures it twice, both invisibly.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcBuilder.Build(abc, 700, Brushes.Black, 1.0);
+            var layout = AbcBuilder.Build(abc, 700, Brushes.Black);
             var seen = new HashSet<Piece>();
 
             foreach (var node in layout.Root.SelfAndDescendants())

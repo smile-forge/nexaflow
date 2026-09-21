@@ -34,12 +34,12 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
 
     private const string Sample = "Nexaflow";
 
-    private Pdf417Builder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip)
-        : base(reading, palette, pixelsPerDip) { }
+    private Pdf417Builder(ContentReading reading, MarkdownPalette palette)
+        : base(reading, palette) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip) =>
-        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), palette, pixelsPerDip).Lay();
+    public static Laid Build(string source, MarkdownPalette palette) =>
+        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), palette).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

@@ -37,11 +37,10 @@ internal sealed class LatexContent(double scale, bool inline) : IContent
     /// offset into the source the reader is editing, with no mapping in between.
     /// </para>
     /// </summary>
-    public Laid Lay(EditState state, double room, double pixelsPerDip, bool readOnly)
+    public Laid Lay(EditState state, double room, bool readOnly)
     {
         var laid = LatexBuilder.Build(
-            state.Source, scale, inline, shownAsWritten: state.Raw, placeholders: !readOnly,
-            pixelsPerDip: pixelsPerDip, block: room);
+            state.Source, scale, inline, shownAsWritten: state.Raw, placeholders: !readOnly, block: room);
 
         return laid;
     }

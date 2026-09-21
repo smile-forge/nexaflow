@@ -109,7 +109,7 @@ public class DataMatrixBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => DataMatrixBuilder.Build(source, MarkdownPalette.Dark, 1.0);
+    private static Laid Build(string source) => DataMatrixBuilder.Build(source, MarkdownPalette.Dark);
 
     private static DataMatrixBlock Read(string source)
     {

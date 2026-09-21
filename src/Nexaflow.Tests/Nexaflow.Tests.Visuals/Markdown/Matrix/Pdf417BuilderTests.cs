@@ -133,7 +133,7 @@ public class Pdf417BuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Pdf417Builder.Build(source, MarkdownPalette.Dark, 1.0);
+    private static Laid Build(string source) => Pdf417Builder.Build(source, MarkdownPalette.Dark);
 
     private static Pdf417Block Read(string source)
     {

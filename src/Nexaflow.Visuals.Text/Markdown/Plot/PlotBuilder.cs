@@ -41,10 +41,8 @@ internal sealed class PlotBuilder : ContentBuilder
     private readonly PlotSettings _settings;
     private readonly string? _unreadable;
     private readonly double _room;
-    private readonly double _dpi;
-
     private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable,
-                        MarkdownPalette palette, double room, double pixelsPerDip)
+                        MarkdownPalette palette, double room)
         : base(reading)
     {
         _settings = settings;
@@ -52,16 +50,14 @@ internal sealed class PlotBuilder : ContentBuilder
         _palette = palette;
         _ink = new DiagramInk(palette);
         _room = room;
-        _dpi = pixelsPerDip;
     }
 
     /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
-    public static Laid Build(string source, PlotFence fence, MarkdownPalette palette, double room,
-                             double pixelsPerDip, int at = 0)
+    public static Laid Build(string source, PlotFence fence, MarkdownPalette palette, double room, int at = 0)
     {
         var tree = PlotPipeline.Read(source, fence, out var settings, out var unreadable);
 
-        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette, room, pixelsPerDip).Lay();
+        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette, room).Lay();
     }
 
     /// <summary>
@@ -69,7 +65,7 @@ internal sealed class PlotBuilder : ContentBuilder
     /// </summary>
     public static Editing.ContentElement Element(string source, PlotFence fence, DiagramRenderOptions options) =>
         new Editing.ContentElement(source, options.Palette,
-            (state, room, pixelsPerDip) => Build(state.Source, fence, options.Palette, room, pixelsPerDip))
+            (state, room) => Build(state.Source, fence, options.Palette, room))
         {
             // Where the block's lines sit inside the fence that produced them, so an edit to a value is
             // spliced back where it came from.
@@ -1236,7 +1232,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             new Typeface(WordFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             size,
             ink,
-            _dpi);
+            Editing.LayoutText.Density);
 
     protected override FormattedText Characters(string text) =>
         new(text,
@@ -1245,7 +1241,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             SourceSize,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 
     /// <summary>The block shown as written, with the reason it could not be drawn.</summary>
     private Laid Stopped(string reason) =>

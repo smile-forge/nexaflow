@@ -164,7 +164,7 @@ internal abstract partial class MusicBuilder
                            double size, TextAlignment align, double? at = null,
                            FontWeight? weight = null, FontStyle? style = null)
     {
-        var glyphs = ScoreText.Build(prose.Text, size, _ppd, weight, style);
+        var glyphs = ScoreText.Build(prose.Text, size, weight, style);
 
         LayoutText.Place(_build, glyphs, new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
                          Letters(prose));

@@ -58,7 +58,7 @@ public abstract class MermaidBuilderContract
 
     /// <summary>Lays a block out as the shared renderer would.</summary>
     protected Laid Lay(string source, double room = 700, bool writing = false) =>
-        Builder.Invoke(Read(source, writing), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
+        Builder.Invoke(Read(source, writing), new DiagramLaying(MarkdownPalette.Dark, room, writing));
 
     [TestMethod]
     public void EveryBlockDrawsReadOrWritten_WideOrNarrow() => UiThread.Run(() =>

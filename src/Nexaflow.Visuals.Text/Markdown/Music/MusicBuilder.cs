@@ -30,18 +30,16 @@ internal abstract partial class MusicBuilder : ContentBuilder
 
     private readonly double _width;
     private readonly Brush _ink;
-    private readonly double _ppd;
-
     /// <summary>How much air this engraving puts between things — see <see cref="ScoreSpacing"/>.</summary>
     private readonly ScoreSpacing _spacing;
 
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    protected MusicBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
+    protected MusicBuilder(ContentReading reading, double width, Brush ink, ScoreSpacing? spacing)
         : base(reading)
     {
         _width = width;
         _ink = ink;
-        _ppd = pixelsPerDip <= 0 ? 1.0 : pixelsPerDip;
+    
         _spacing = spacing ?? ScoreSpacing.Current;
     }
 
@@ -77,7 +75,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
             new Typeface("Consolas"),
             SourceSize,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            _ppd);
+            Editing.LayoutText.Density);
 
     // ── What there is to draw ───────────────────────────────────────────────
 

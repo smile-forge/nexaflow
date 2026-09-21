@@ -60,7 +60,7 @@ public class LayoutCostBench
         var lines = new List<string> { $"=== {DateTime.Now:yyyy-MM-dd HH:mm} — {Passes} passes each" };
 
         foreach (var (what, abc) in Tunes)
-            lines.Add(Measure(what, () => AbcBuilder.Build(abc, 700, Brushes.Black, 1.0),
+            lines.Add(Measure(what, () => AbcBuilder.Build(abc, 700, Brushes.Black),
                               layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black)))));
 
         foreach (var (what, latex) in Formulas)
