@@ -97,6 +97,15 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
     {
+        // Somebody is changing the markup rather than the words, so the markup is what is shown. Asked of the
+        // innermost block that holds the stretch: a block that holds blocks lets the one being written in answer.
+        if (!Holds(part) && Shown(part))
+        {
+            Sourced(into, part, x, room);
+
+            return;
+        }
+
         switch (part.Kind)
         {
             case MarkdownKinds.Heading: Heading(into, part, x, room); return;
@@ -115,6 +124,35 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
             default: Text(into, Body(part), x, room, Face.Plain); return;
         }
+    }
+
+    /// <summary>Whether this block is one somebody is being shown the characters of.</summary>
+    private bool Shown(ContentPart part) =>
+        State.Raw is { } zone && zone.Start < part.End && part.Start < zone.End;
+
+    /// <summary>Whether this block holds blocks, so there is something further in to ask.</summary>
+    private static bool Holds(ContentPart part) =>
+        part.Kind is MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.List or MarkdownKinds.Item;
+
+    /// <summary>
+    /// A block set as the characters it was written with. The same face unreadable source is set in, so it reads as
+    /// source at a glance — and the same kind of piece, so anything asking whether a reader is looking at markup has one
+    /// question to ask however it came to be showing.
+    /// </summary>
+    private void Sourced(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var shown = part.Print().TrimEnd('\n', '\r');
+        var face = Face.Plain with { Mono = true, Scale = 0.96 };
+
+        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, face);
+        glyphs.MaxTextWidth = Math.Max(1, room);
+
+        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left,
+                         new SourceSpan(part.Start, shown.Length), LayoutText.SourceKind,
+                         maps: shown.Length > 0, ink: Style.Text);
+
+        _y += glyphs.Height;
+        Reached(x + room);
     }
 
     /// <summary>
