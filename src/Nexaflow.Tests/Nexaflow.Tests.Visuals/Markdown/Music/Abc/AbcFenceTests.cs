@@ -36,7 +36,7 @@ public class AbcFenceTests
 
     [TestMethod]
     public void TheFenceIsALanguageTheRendererKnows() =>
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("abc"));
+        Assert.IsTrue(ContentLanguages.Reads("abc"));
 
     [TestMethod]
     public void AndItEngravesOnTheElementSurface() => UiThread.Run(() =>

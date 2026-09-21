@@ -45,7 +45,7 @@ public class MarkdownPipelineFactoryTests
         var fc = doc.OfType<FencedCodeBlock>().FirstOrDefault();
         Assert.IsNotNull(fc);
         Assert.AreEqual("mermaid", fc.Info);
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage(fc.Info));
+        Assert.IsTrue(ContentLanguages.Reads(fc.Info));
     }
 
     [TestMethod]

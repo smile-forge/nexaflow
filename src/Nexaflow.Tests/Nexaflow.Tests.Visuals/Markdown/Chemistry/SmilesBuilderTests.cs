@@ -23,9 +23,9 @@ public class SmilesBuilderTests
     [TestMethod]
     public void SmilesIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("smiles"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("SMILES"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("chemistry"), "the keyword opens a block; it does not name the fence");
+        Assert.IsTrue(ContentLanguages.Reads("smiles"));
+        Assert.IsTrue(ContentLanguages.Reads("SMILES"));
+        Assert.IsFalse(ContentLanguages.Reads("chemistry"), "the keyword opens a block; it does not name the fence");
     }
 
     [TestMethod]

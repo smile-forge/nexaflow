@@ -23,10 +23,10 @@ public class AztecBuilderTests
     [TestMethod]
     public void AztecIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("aztec"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("Aztec"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("aztec-code"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("azteca"));
+        Assert.IsTrue(ContentLanguages.Reads("aztec"));
+        Assert.IsTrue(ContentLanguages.Reads("Aztec"));
+        Assert.IsTrue(ContentLanguages.Reads("aztec-code"));
+        Assert.IsFalse(ContentLanguages.Reads("azteca"));
     }
 
     [TestMethod]

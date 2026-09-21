@@ -79,7 +79,7 @@ public static class MarkdownFlowDocument
                 MathBlock          => [UiFallback(block, raw, ctx)],
                 // Musical notation spelled #% … #%: the same page a fenced abc or lilypond block makes.
                 Music.MusicBlock   => [DiagramFallback(block, raw, ctx)],
-                FencedCodeBlock fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
+                FencedCodeBlock fc when ContentLanguages.Reads(fc.Info)
                                    => [DiagramFallback(block, raw, ctx)],
                 FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],
                 CodeBlock       cb => [Code(cb.Lines.ToString(), cb.Span, ctx)],

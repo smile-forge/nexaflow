@@ -207,8 +207,8 @@ public class PlotBuilderTests
     [TestMethod]
     public void TheCorrelationFencesAreDiagramLanguages()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("scatter"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("bubble"));
+        Assert.IsTrue(ContentLanguages.Reads("scatter"));
+        Assert.IsTrue(ContentLanguages.Reads("bubble"));
     }
 
     [TestMethod]

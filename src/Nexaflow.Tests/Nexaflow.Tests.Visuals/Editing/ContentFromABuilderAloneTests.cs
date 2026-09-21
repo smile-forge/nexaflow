@@ -2,7 +2,7 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 
-using Nexaflow.Visuals.Text.Markdown.Handlers;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 
 using Content = Nexaflow.Visuals.Text.Editing.ContentElement;
@@ -81,7 +81,7 @@ public class ContentFromABuilderAloneTests
     });
 
     private static Content Barcode(string source) =>
-        (Content)new BarcodeDiagramHandler().Render(source, DiagramRenderOptions.For(StyleFormat.Dark));
+        (Content)new BarcodeLanguage().Draw(source, DiagramRenderOptions.For(StyleFormat.Dark));
 
     /// <summary>Measured and arranged, because a caret is a place on a page that has been laid out.</summary>
     private static Content Laid(Content content)

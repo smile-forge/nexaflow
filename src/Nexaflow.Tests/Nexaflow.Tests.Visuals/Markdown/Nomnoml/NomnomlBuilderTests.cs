@@ -4,6 +4,7 @@ using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
@@ -25,7 +26,7 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     public override MermaidDiagram Diagram => MermaidDiagram.Unknown;
 
     /// <inheritdoc/>
-    public override string Language => NomnomlDiagramHandler.Language;
+    public override string Language => NomnomlLanguage.Name;
 
     /// <inheritdoc/>
     internal override MermaidBuilders.Make Builder =>

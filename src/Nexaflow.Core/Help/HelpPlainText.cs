@@ -53,7 +53,7 @@ internal static class HelpPlainText
 
     private static bool IsTypeset(string? info)
         => !string.IsNullOrWhiteSpace(info)
-           && (DiagramRenderer.IsDiagramLanguage(info) || TypesetFences.Contains(info.Trim().Split(' ')[0]));
+           && (ContentLanguages.Reads(info) || TypesetFences.Contains(info.Trim().Split(' ')[0]));
 
     private static void Line(StringBuilder sb, string text)
     {

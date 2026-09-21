@@ -22,10 +22,10 @@ public class DataMatrixBuilderTests
     [TestMethod]
     public void DataMatrixIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("datamatrix"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("DataMatrix"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("data-matrix"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("dm"));
+        Assert.IsTrue(ContentLanguages.Reads("datamatrix"));
+        Assert.IsTrue(ContentLanguages.Reads("DataMatrix"));
+        Assert.IsTrue(ContentLanguages.Reads("data-matrix"));
+        Assert.IsFalse(ContentLanguages.Reads("dm"));
     }
 
     [TestMethod]

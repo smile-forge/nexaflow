@@ -31,9 +31,9 @@ public class QrBuilderTests
     [TestMethod]
     public void QrIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("qr"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("QR"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("qrcode"));
+        Assert.IsTrue(ContentLanguages.Reads("qr"));
+        Assert.IsTrue(ContentLanguages.Reads("QR"));
+        Assert.IsFalse(ContentLanguages.Reads("qrcode"));
     }
 
     [TestMethod]

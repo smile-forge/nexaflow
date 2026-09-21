@@ -114,7 +114,7 @@ public static class BlockRenderer
                 // Musical notation (#%abc … #% / #%lilypond … #%) → sheet music
                 Music.MusicBlock   mus => Aligned(RenderMusicBlock(mus, rawMarkdown, ctx), ctx),
                 // Diagram blocks: check Info before falling through to generic code
-                FencedCodeBlock    fc when DiagramRenderer.IsDiagramLanguage(fc.Info)
+                FencedCodeBlock    fc when ContentLanguages.Reads(fc.Info)
                 => Aligned(RenderDiagramBlock(fc, rawMarkdown, ctx), ctx),
                 FencedCodeBlock    fc  => RenderCode(fc.Lines.ToString(), ctx),
                 CodeBlock          cb  => RenderCode(cb.Lines.ToString(), ctx),

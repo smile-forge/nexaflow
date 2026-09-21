@@ -1,5 +1,5 @@
 using Nexaflow.Markdown.Plot;
-using Nexaflow.Visuals.Text.Markdown.Handlers;
+
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,49 +29,31 @@ internal sealed class DiagramErrorView : System.Windows.Controls.Border;
 /// </summary>
 public static class DiagramRenderer
 {
-    private static readonly IDiagramHandler[] Handlers =
-    [
-        new MermaidDiagramHandler(),                           // mermaid (pie, flowchart, …)
-        new NomnomlDiagramHandler(),                           // nomnoml
-        new QrDiagramHandler(),                                // qr
-        new BarcodeDiagramHandler(),                           // barcode
-        new MusicDiagramHandler(Music.MusicDialect.Abc),       // abc (music)
-        new MusicDiagramHandler(Music.MusicDialect.LilyPond),  // lilypond, ly (music)
-        new DataMatrixDiagramHandler(),                        // datamatrix
-        new Pdf417DiagramHandler(),                            // pdf417
-        new AztecDiagramHandler(),                             // aztec
-        new SmilesDiagramHandler(),                            // smiles (chemical structures)
-        new WordCloudDiagramHandler(),                         // wordcloud
-        new PlotDiagramHandler(PlotFence.Scatter),             // scatter
-        new PlotDiagramHandler(PlotFence.Bubble),              // bubble
-        new PlotDiagramHandler(PlotFence.Heatmap),             // heatmap
-        new PlotDiagramHandler(PlotFence.Density2d),           // density2d
-    ];
-
     // ── Public API ─────────────────────────────────────────────────────────
 
-    public static bool IsDiagramLanguage(string? info) =>
-        info is not null && Handlers.Any(h => h.CanHandle(info));
+    /// <summary>
+    /// That block drawn, for a document made of WPF elements. A language nothing reads, or one that threw, comes
+    /// back as the house style for "this could not be drawn" rather than as nothing — a block that vanishes is
+    /// the one answer a reader cannot act on.
+    /// </summary>
+    public static FrameworkElement Render(string language, string source, DiagramRenderOptions options)
+    {
+        if (ContentLanguages.For(language) is not { } reads)
+            return ErrorElement($"No handler for diagram language '{language}'.", source);
+
+        try
+        {
+            return reads.Draw(source, options);
+        }
+        catch (Exception error)
+        {
+            return ErrorElement($"Diagram error: {error.Message}", source);
+        }
+    }
 
     public static FrameworkElement Render(string language, string source, StyleFormat? palette = null,
         Func<string, bool>? onNavigate = null)
         => Render(language, source, DiagramRenderOptions.For(palette ?? StyleFormat.FromTheme(), onNavigate));
-
-    public static FrameworkElement Render(string language, string source, DiagramRenderOptions options)
-    {
-        try
-        {
-            var handler = Handlers.FirstOrDefault(h => h.CanHandle(language));
-            if (handler is null)
-                return ErrorElement($"No handler for diagram language '{language}'.", source);
-
-            return handler.Render(source, options);
-        }
-        catch (Exception ex)
-        {
-            return ErrorElement($"Diagram error: {ex.Message}", source);
-        }
-    }
 
     // ── Error display ──────────────────────────────────────────────────────
 

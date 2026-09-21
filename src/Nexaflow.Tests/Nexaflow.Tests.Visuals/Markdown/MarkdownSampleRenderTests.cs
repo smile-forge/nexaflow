@@ -31,7 +31,7 @@ public class MarkdownSampleRenderTests
             var    doc = MdMarkdown.Parse(md, MarkdownPipelineFactory.Default);
 
             var fences = doc.OfType<FencedCodeBlock>()
-                            .Where(f => DiagramRenderer.IsDiagramLanguage(f.Info))
+                            .Where(f => ContentLanguages.Reads(f.Info))
                             .ToList();
 
             Assert.AreNotEqual(0, fences.Count, $"no diagram fence in {Path.GetFileName(path)}");

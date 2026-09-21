@@ -22,9 +22,9 @@ public class Pdf417BuilderTests
     [TestMethod]
     public void Pdf417IsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("pdf417"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("PDF417"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("pdf"));
+        Assert.IsTrue(ContentLanguages.Reads("pdf417"));
+        Assert.IsTrue(ContentLanguages.Reads("PDF417"));
+        Assert.IsFalse(ContentLanguages.Reads("pdf"));
     }
 
     [TestMethod]
