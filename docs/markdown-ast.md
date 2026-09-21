@@ -20,13 +20,20 @@ BUILDER     language-specific    → layout           reads the tree, decides wh
 LAYOUT      ILayoutNode + marks                     painting, hit-testing, the caret, selection.
 ```
 
+**Each arrow is somebody else's.** A builder is handed a `ContentReading` and gives back a `Laid`; it does not read
+source, does not choose stages, and does not outlive the drawing. That is why every builder is the same shape — one
+constructor taking what was read, what is being written, the colours and whether it is read-only — and why a
+capability that needs the tree changed is a stage rather than something a builder works out while drawing. The shape
+is held by `ContentBuilderRulesTests`.
+
 ## Where it lives
 
 `src/Nexaflow.Markdown/` — `net10.0`, no WPF, no dependencies.
 
 ```
-Ast/         ContentNode, ContentPart, ContentReading, ISourcePart, Roles, Kinds, AstWrite
-Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles
+Ast/         ContentNode, ContentPart, ContentReading, ContentWords, ContentLink, ISourcePart, Roles, Kinds, AstWrite
+Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles, Stages/WithBindings
+Binding/     IDataContext, ReflectionDataContext, BoundText — what a {{…}} is read against
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
 Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
 Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles

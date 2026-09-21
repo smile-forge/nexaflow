@@ -376,6 +376,18 @@ and shows each *declared-but-unlinked* test as a **non-gating advisory** with an
 fail the installer. Id validity is checked against the live `.product/tree.json` (gitignored → absent in CI, where
 the guard degrades to presence-only).
 
+### One shape for a builder (`ContentBuilderRulesTests`)
+
+A `ContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
+nothing. `ContentBuilderRulesTests` (in `Tests.Visuals`) reflects over every class deriving from it and requires one
+constructor, taking `(ContentReading, EditState, MarkdownPalette, bool)`; nothing told to it afterwards; and nothing
+named that `ContentBuilder` does not declare. Anything else a builder was going to be given is a fact about the
+content or about this showing of it, and belongs somewhere every builder can be given it the same way.
+
+It is a **ratchet**: builders that predate the rule are listed in
+`Editing/content-builders-not-yet-one-shape.txt`, and the two tests pull opposite ways — a new builder out of shape
+fails until it is fixed or listed, and a listed builder fails once it *is* in shape. So the list can only shrink.
+
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 
 A journey can only click what it can find, and on this shell that means an `AutomationProperties.AutomationId`

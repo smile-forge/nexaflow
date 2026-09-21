@@ -27,14 +27,12 @@ internal sealed record DiagramLaying(
     public DiagramViewState? View { get; init; }
 
     /// <summary>
-    /// What a <c>{{…}}</c> written in the diagram is read against, or null where nothing is — in which case a
-    /// binding is drawn as the characters it was written with.
+    /// The stretch being shown as its own characters rather than as what it says, because somebody is writing in
+    /// it — a title set from front matter, a binding, a block of another language. Null where nobody is.
     /// </summary>
-    public Nexaflow.Markdown.Binding.IDataContext? Data { get; init; }
-
-    /// <summary>
-    /// Where the block's first character stands in the document that holds it. Nought for a block of its own, and
-    /// the offset of the slice for one written inside another content.
-    /// </summary>
-    public int At { get; init; }
+    /// <remarks>
+    /// Nothing to do with editing, which the element owns. This is what a diagram draws while part of it is being
+    /// typed: the characters, so the caret stands between the ones the reader can see.
+    /// </remarks>
+    public Nexaflow.Visuals.Text.Editing.RawZone? Raw { get; init; }
 }

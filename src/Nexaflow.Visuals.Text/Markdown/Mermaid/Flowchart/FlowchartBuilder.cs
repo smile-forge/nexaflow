@@ -88,10 +88,10 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <summary>How solid a subgraph's background is, over the colour its place among the subgraphs gives it.</summary>
     private const double Wash = 0.14;
 
-    protected FlowchartBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    protected FlowchartBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a flowchart's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new FlowchartBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new FlowchartBuilder(reading, laying).Lay();
 
     /// <summary>
     /// How the chart's lanes are laid out, where a subgraph written outside them all is one: whether a link handed from one lane to

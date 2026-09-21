@@ -44,7 +44,7 @@ public class CynefinBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 900) =>
-        CynefinBuilder.Build(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        CynefinBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
 
     [TestMethod]
     public void TheDomainsGoInTheCorners_AndDisorderInTheMiddle() => UiThread.Run(() =>

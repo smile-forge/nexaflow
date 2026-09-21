@@ -55,7 +55,7 @@ public static class MermaidPiece
 
 /// <summary>What every Mermaid diagram's builder shares: reading the block once, the title over the
 /// diagram, trouble text, and the element it's shown in. Each diagram type draws its own way and is
-/// its own builder; <see cref="Draw"/> draws at the origin into its own layout, grafted under the
+/// its own builder; <see cref="Build"/> draws at the origin into its own layout, grafted under the
 /// title once the title's height is known, so no diagram has to know where its top is.</summary>
 internal abstract class MermaidBuilder : ContentBuilder
 {
@@ -82,10 +82,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     private const double Corner = 6;
 
     /// <param name="laying">What the diagram is drawn with, how much room it has, and whether anybody is writing in it.</param>
-    protected MermaidBuilder(EditState state, DiagramLaying laying)
-        : base(state.Source, laying.At)
+    protected MermaidBuilder(ContentReading reading, DiagramLaying laying)
+        : base(reading)
     {
-    State = state;
     Laying = laying;
     Palette = laying.Palette;
     PixelsPerDip = laying.PixelsPerDip;
@@ -101,12 +100,6 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
     protected DiagramInk Ink { get; }
-
-    /// <summary>
-    /// What is being written, and where: the source, the caret, and the stretch being shown as its own characters rather
-    /// than as what it says — which is how a title set from front matter is written in.
-    /// </summary>
-    protected EditState State { get; }
 
     /// <summary>
     /// Whether somebody is writing in the block rather than only reading it. A diagram being written draws what is still to
@@ -128,20 +121,29 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <summary>The element a Mermaid block is shown in: read-only (a diagram isn't typed into) but
     /// selectable, since what it draws carries the characters it was written as.</summary>
-    /// <param name="build">Lays a block's source out for a palette, pixel density, width, and whether it's being written in.</param>
+    /// <param name="build">Draws a block that has been read, for a palette, pixel density, width, and whether it's being written in.</param>
     /// <param name="readOnly">Whether the block is only looked at; the host decides whether keys reach it.</param>
+    /// <param name="grammar">What reads it, where the fence's language names the diagram rather than the first line.</param>
     internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                MermaidBuilders.Build build, bool readOnly = true)
+                                                MermaidBuilders.Build build, bool readOnly = true,
+                                                Nexaflow.Markdown.Mermaid.IMermaidGrammar? grammar = null)
     {
         var actions = new DiagramActions(options, source);
 
+        // What the host puts between reading the block and drawing it. Settled once, here, where what the host is
+        // showing the document against is in scope — a builder never learns that there is such a thing as binding.
+        var after = options.DataContext is { } data
+            ? new Nexaflow.Markdown.Pipeline.AstPipeline(new Nexaflow.Markdown.Pipeline.Stages.WithBindings(data))
+            : null;
+
         var element = new Editing.LinkedElement(source, options.Palette,
                                                 new MermaidContent((state, room, pixelsPerDip, looking) =>
-                                                    build(state, new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
-                                                                                                        {
-                                                                                                            View = actions.View,
-                                                                                                            Data = options.DataContext,
-                                                                                                        })),
+                                                    build(MermaidBuilders.Read(state.Source, holes: !looking, grammar: grammar, after: after),
+                                                          new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
+                                                          {
+                                                              View = actions.View,
+                                                              Raw = state.Raw,
+                                                          })),
                                                 actions)
         {
             IsReadOnly = readOnly,
@@ -166,16 +168,6 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);
-
-    /// <summary>
-    /// What reads the block, where the fence's language names the diagram rather than the block's first line — a
-    /// <c>nomnoml</c> block, say. Null for a Mermaid block, whose header names its own grammar.
-    /// </summary>
-    protected virtual Nexaflow.Markdown.Mermaid.IMermaidGrammar? Grammar => null;
-
-    /// <summary>Reads the block: parsed and run through its type's stages, with a hole wherever
-    /// something is still to be written (<see cref="MermaidParser.Read"/>).</summary>
-    protected ContentNode Reading(string source) => MermaidParser.Read(source, holes: Writing, grammar: Grammar);
 
     /// <summary>The title to set over the diagram: the diagram's own where it writes one, else the
     /// front matter's (<see cref="MermaidBlock.Title"/>).</summary>
@@ -205,9 +197,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </summary>
     protected void Beneath(LayoutTree tree, Size size, double gap) => this.beneath.Add((tree, size, gap));
 
-    protected sealed override Laid Read()
+    protected sealed override Laid Build()
     {
-        var block = MermaidBlock.Of(Reading(Source), At);
+        var block = MermaidBlock.Of(Reading);
 
         var diagram = new LayoutBuilder();
         var body = Draw(block, diagram);
@@ -235,7 +227,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         {
             // What was written, where the reader is writing in it — a front-matter title says one thing and is written
             // as another, quotes and all, and only the characters they typed can be typed into.
-            var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
+            var written = Laying.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
 
             says = written ? titlePart.Text : MermaidText.Decode(titleText!);
             ink = Ink.Written(TitleColour) ?? Palette.Heading;
@@ -310,14 +302,18 @@ internal abstract class MermaidBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What a part says once it is read rather than as it was written: its entity codes decoded, and each
-    /// <c>{{…}}</c> replaced by what it comes to. What is being written in is left exactly as written, so the caret
-    /// stands between the characters the reader can see.
+    /// What a part says, as against what it was written as: entity codes read back, bindings read against whatever
+    /// the diagram was given to read against.
+    ///
+    /// <para>
+    /// Which parts of it are which was settled when it was read, so this asks the tree and never the characters. While
+    /// the reader is writing inside it, it says exactly what they typed — there is nothing to show them but that.
+    /// </para>
     /// </summary>
     protected string Shown(ContentPart part) =>
-        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
-            ? part.Text
-            : BoundText.Bound(MermaidText.Decode(part.Text), Laying.Data);
+        Laying.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
+            ? part.Wrote()
+            : ContentWords.Says(part, MermaidText.Decode);
 
     /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
@@ -347,7 +343,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             return new DiagramWords(letter, part, null, letter, ink, maps: false, writes: false, inset);
 
         var says = Shown(part);
-        return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Text, writes: true);
+        return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Wrote(), writes: true);
     }
 
     /// <summary>As <see cref="Written"/>, wrapped to <paramref name="width"/>: broken at a <c>&lt;br&gt;</c>,
@@ -447,7 +443,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     protected ContentInset? Inset(ContentPart? part, double room)
     {
         if (part is not { Length: > 0 }) return null;
-        if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
+        if (Laying.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
         return ContentLanguages.Inset(part, Palette, PixelsPerDip, room);
     }
@@ -467,8 +463,8 @@ internal abstract class MermaidBuilder : ContentBuilder
 /// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
 /// title, trouble text, card — is <see cref="MermaidBuilder"/>'s.</summary>
 /// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(EditState state, DiagramLaying laying)
-    : MermaidBuilder(state, laying)
+internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, DiagramLaying laying)
+    : MermaidBuilder(reading, laying)
     where TDiagram : class
 {
     /// <summary>The diagram as it was read — null until it has been.</summary>

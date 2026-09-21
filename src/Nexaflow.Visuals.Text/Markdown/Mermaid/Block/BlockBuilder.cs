@@ -6,6 +6,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Block;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Block;
 
@@ -76,10 +77,10 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     private const double Shaft = 0.16;
     private const double Wing = 0.3;
 
-    private BlockBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private BlockBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new BlockBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new BlockBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override BlockDiagram Of(MermaidBlock block) => BlockDiagram.Of(block);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Git;
 using Nexaflow.Visuals.Text.Editing;
@@ -65,10 +66,10 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// <summary>How far an id is turned where the front matter asks for it, as Mermaid turns one.</summary>
     private const double Turned = 45;
 
-    private GitBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private GitBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new GitBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new GitBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override GitGraph Of(MermaidBlock block) => GitGraph.Of(block);

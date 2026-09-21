@@ -26,34 +26,19 @@ public readonly record struct ContentLink(ContentPart Part, string Language, str
     /// The content a part is a block of, or null where it is not one.
     ///
     /// <para>
-    /// Read off the characters as they were written, never off what they decode to, because what it works out is an
-    /// offset into the source and an entity code is not one character there.
+    /// Read off the node and never off the characters under it: the grammar settled which language it is and where
+    /// that language's source starts while it had the run in front of it, and put both in the tree. What comes back
+    /// is the source exactly as written, because what it works out is an offset into the document and an entity code
+    /// is not one character there.
     /// </para>
     /// </summary>
     public static ContentLink? Of(ContentPart? part)
     {
-        if (part is not { Length: > 0 } written) return null;
+        if (part is not { Kind: Kinds.Nested, Length: > 0 } block) return null;
+        if (block.Part(Roles.Name) is not { Length: > 0 } language) return null;
+        if (block.Part(Roles.Body) is not { Length: > 0 } source) return null;
 
-        // Only where the grammar said so. A language that has not declared that it holds other content never gets
-        // it by accident, however its own words happen to begin — which is the whole reason the tree says it.
-        if (written.Kind != Kinds.Nested && written.Parent?.Kind != Kinds.Nested) return null;
-
-        // What it prints as, not what its own node says: the node holding a block is a branch, and the characters
-        // are in the leaf under it.
-        var text = written.Print();
-        if (!text.StartsWith(Fence, StringComparison.Ordinal)) return null;
-
-        var named = Fence.Length;
-        while (named < text.Length && !char.IsWhiteSpace(text[named])) named++;
-
-        var language = text[Fence.Length..named];
-        if (language.Length == 0) return null;
-
-        var at = named;
-        while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
-        if (at >= text.Length) return null;
-
-        return new ContentLink(written, language, text[at..], written.Start + at);
+        return new ContentLink(block, language.Text, source.Text, source.Start);
     }
 
     /// <summary>Whether a run of characters opens a block of another language — the cheap question, asked while reading.</summary>

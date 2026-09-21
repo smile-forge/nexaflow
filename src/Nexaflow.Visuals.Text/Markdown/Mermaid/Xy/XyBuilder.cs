@@ -75,10 +75,10 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
     private const double LineWidth = 2;
 
-    private XyBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private XyBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new XyBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new XyBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override XyChart Of(MermaidBlock block) => XyChart.Of(block);

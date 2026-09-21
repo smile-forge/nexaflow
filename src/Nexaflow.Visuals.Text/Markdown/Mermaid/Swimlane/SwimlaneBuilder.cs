@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Markdown.Mermaid.Swimlane;
 using Nexaflow.Visuals.Text.Editing;
@@ -18,10 +19,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
 /// </summary>
 internal sealed class SwimlaneBuilder : FlowchartBuilder
 {
-    private SwimlaneBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private SwimlaneBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a swimlane's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new SwimlaneBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new SwimlaneBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram)

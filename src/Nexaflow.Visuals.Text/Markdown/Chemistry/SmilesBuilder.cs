@@ -54,7 +54,7 @@ internal sealed class SmilesBuilder : ContentBuilder
     private readonly double _dpi;
     private readonly double _room;
 
-    private SmilesBuilder(string source, MarkdownPalette palette, double pixelsPerDip, double room, int at) : base(source, at)
+    private SmilesBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip, double room) : base(reading)
     {
         _palette = palette;
         _dpi = pixelsPerDip;
@@ -64,7 +64,7 @@ internal sealed class SmilesBuilder : ContentBuilder
     /// <summary>Lays a block's source out to fit <paramref name="room"/>. Never null, and never throws.</summary>
     public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip, double room = double.PositiveInfinity,
                              int at = 0) =>
-        new SmilesBuilder(source, palette, pixelsPerDip, room, at).Lay();
+        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), palette, pixelsPerDip, room).Lay();
 
     /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
@@ -81,12 +81,9 @@ internal sealed class SmilesBuilder : ContentBuilder
             Margin = new Thickness(0, 4, 0, 10),
         };
 
-    protected override Laid? Read()
+    protected override Laid? Build()
     {
-        var tree = SmilesPipeline.Read(Source);
-        var reading = ContentReading.Of(tree, At);
-
-        var entries = reading.Root.SelfAndDescendants()
+        var entries = Reading.Root.SelfAndDescendants()
             .Where(part => part.Kind == SmilesKinds.Entry || (part.Kind == Kinds.Verbatim && part.Parent?.Kind == SmilesKinds.Line))
             .Select(Sketch)
             .ToList();
@@ -95,10 +92,10 @@ internal sealed class SmilesBuilder : ContentBuilder
 
         // One piece holds the block, because a layout has one root and every entry is a piece inside it.
         var build = new LayoutBuilder();
-        build.Open(MoleculePiece.Block, reading.Root);
+        build.Open(MoleculePiece.Block, Reading.Root);
         var size = Flow(build, entries);
         build.Close();
-        var trouble = reading.Root.SelfAndDescendants()
+        var trouble = Reading.Root.SelfAndDescendants()
             .Where(part => part.Trouble is not null && !part.Derived)
             .Select(part => new Diagnostic(part.Start, Math.Max(part.Length, 1), DiagnosticSeverity.Error, part.Trouble!))
             .ToList();

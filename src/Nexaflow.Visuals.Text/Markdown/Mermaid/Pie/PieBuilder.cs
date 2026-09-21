@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
@@ -77,10 +78,10 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     /// <summary>What each of the legend's columns is: a slice's label, its value, and its share.</summary>
     private static readonly string[] Columns = [PiePiece.Label, PiePiece.Value, PiePiece.Share];
 
-    private PieBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private PieBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new PieBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new PieBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override PieChart Of(MermaidBlock block) => PieChart.Of(block);

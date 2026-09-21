@@ -76,10 +76,10 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// <summary>How wide what is written on a relationship runs before it wraps.</summary>
     private const double Widest = 160;
 
-    private ErBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private ErBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays an ER diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new ErBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new ErBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override ErDiagram Of(MermaidBlock block) => ErDiagram.Of(block);

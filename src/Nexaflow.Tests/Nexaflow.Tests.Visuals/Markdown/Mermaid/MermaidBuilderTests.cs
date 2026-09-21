@@ -129,7 +129,7 @@ public class MermaidBuilderTests
         part is null ? "" : source.Substring(part.Start, part.Length);
 
     /// <summary>A diagram that is one box of a known size — what the frame is tested around.</summary>
-    private sealed class Box(string source, bool fail) : MermaidBuilder(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark))
+    private sealed class Box(string source, bool fail) : MermaidBuilder(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark))
     {
         public const string Kind = "Box";
         public const double Width = 120;

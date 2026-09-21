@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Mindmap;
 using Nexaflow.Visuals.Text.Editing;
@@ -47,10 +48,10 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
     private const double Thickest = 11;
     private const double Thinner = 3;
 
-    private MindmapBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private MindmapBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new MindmapBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new MindmapBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override MindmapTree Of(MermaidBlock block) => MindmapTree.Of(block);

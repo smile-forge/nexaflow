@@ -1,12 +1,16 @@
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Tests.Fixtures;
 using System.Collections.Generic;
 
 namespace Nexaflow.Tests.Markdown.Binding;
 
 /// <summary>
-/// What a <c>{{…}}</c> comes to: the path walked over an ordinary object, and the words it is written among kept
-/// exactly as they were.
+/// What a <c>{{…}}</c> comes to, end to end: the run read into parts that say which of it is a binding, the stage
+/// that works out what each one stands for, and what the whole run then says — with the words it was written among
+/// kept exactly as they were.
 /// </summary>
 [TestClass]
 [CoversNode("mermaid")]
@@ -31,7 +35,21 @@ public class BoundTextTests
 
     private static IDataContext Data(object? root = null) => new ReflectionDataContext(root ?? new Team());
 
-    private static string Bound(string text, object? root = null) => BoundText.Bound(text, Data(root));
+    private static string Bound(string text, object? root = null) => Said(text, Data(root));
+
+    /// <summary>
+    /// The whole path a binding takes: read into a run whose parts say which of it stands for a value, worked over
+    /// by the stage that settles what each one is, then asked what it says.
+    /// </summary>
+    private static string Said(string text, IDataContext? data)
+    {
+        // "words" stands for whatever the language calls a run of them; nothing here depends on which.
+        var run = ContentWords.Of(text, "words", Roles.Element);
+
+        Assert.AreEqual(text, run.Print(), "however it was split up, the run still prints as what was written");
+
+        return ContentWords.Says(ContentPart.Of(data is null ? run : new WithBindings(data).Run(run)));
+    }
 
     // ── Reading a path ──────────────────────────────────────────────────────
 
@@ -89,7 +107,7 @@ public class BoundTextTests
     [TestMethod, TestCategory("Unit")]
     public void With_nothing_to_read_against_a_binding_is_the_characters_it_was_written_with()
     {
-        Assert.AreEqual("{{Name}}", BoundText.Bound("{{Name}}", null),
+        Assert.AreEqual("{{Name}}", Said("{{Name}}", null),
                         "a document nobody has bound to still reads");
     }
 
@@ -117,5 +135,35 @@ public class BoundTextTests
         Assert.IsFalse(BoundText.Binds("Team"));
         Assert.IsFalse(BoundText.Binds("{{"), "too short to be one");
         Assert.IsTrue(BoundText.Binds("{{x}}"));
+    }
+
+    // ── What the tree says about it ─────────────────────────────────────────
+
+    [TestMethod, TestCategory("Unit")]
+    public void A_binding_is_a_part_of_its_own_with_the_path_named_inside_it()
+    {
+        var run = ContentWords.Of("Team {{ Name }}!", "words", Roles.Element);
+        var bound = run.Children.Single(child => child.Kind == Kinds.Bound);
+
+        Assert.AreEqual("Name", bound.Part(Roles.Name)?.Text,
+                        "the path is a part, so nothing downstream has to look at a brace to find it");
+        Assert.AreEqual("{{ Name }}", bound.Print(), "and the braces and the writer's space are still there");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void What_a_binding_stands_for_is_hung_underneath_and_takes_up_no_source()
+    {
+        var run = new WithBindings(Data()).Run(ContentWords.Of("{{Name}}", "words", Roles.Element));
+        var bound = run.Children.Single(child => child.Kind == Kinds.Bound);
+
+        Assert.AreEqual("Platform", bound.Said(ContentWords.Value));
+        Assert.AreEqual("{{Name}}", run.Print(), "which is a reading of the source and no part of it");
+    }
+
+    [TestMethod, TestCategory("Unit")]
+    public void Braces_naming_nothing_are_the_characters_they_are()
+    {
+        Assert.AreEqual("{{}}", Bound("{{}}"), "there is no path there to stand for anything");
+        Assert.IsTrue(ContentWords.Of("{{}}", "words", Roles.Element).IsLeaf, "so the run was never split up");
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 
@@ -24,12 +25,12 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
     /// <summary>What a stand-in symbol says. Anything short enough for the smallest version will do.</summary>
     private const string Sample = "Nexaflow";
 
-    private QrBuilder(string source, MarkdownPalette palette, double pixelsPerDip)
-        : base(source, palette, pixelsPerDip) { }
+    private QrBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip)
+        : base(reading, palette, pixelsPerDip) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
     public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip) =>
-        new QrBuilder(source, palette, pixelsPerDip).Lay();
+        new QrBuilder(ContentReading.Of(MatrixParser.Parse(source)), palette, pixelsPerDip).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

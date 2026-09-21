@@ -31,6 +31,10 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     internal override MermaidBuilders.Build Builder => NomnomlBuilder.Build;
 
     /// <inheritdoc/>
+    /// <remarks>Nothing inside a nomnoml block names its type — the fence's language does — so its grammar is named here.</remarks>
+    internal override Nexaflow.Markdown.Mermaid.IMermaidGrammar? Grammar => Nexaflow.Markdown.Nomnoml.NomnomlDiagram.Grammar;
+
+    /// <inheritdoc/>
     protected override IEnumerable<(string What, string Source)> Drawn { get; } =
     [
         ("a node on its own", "[Pirate]"),

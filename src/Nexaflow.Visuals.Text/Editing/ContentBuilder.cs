@@ -25,28 +25,34 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// <para>
 /// The promise is kept here rather than asked of each builder, because a promise each builder makes for
-/// itself is one each builder can break. <see cref="Read"/> is theirs and may return null or throw;
+/// itself is one each builder can break. <see cref="Build"/> is theirs and may return null or throw;
 /// <see cref="Lay"/> is not theirs, and cannot.
+/// </para>
+/// <para>
+/// A builder is handed content that has already been read and worked over, and turns it into a layout. It owns
+/// nothing and outlives nothing: reading the source is the parser's, what the source means together is the
+/// pipeline's, and what happens when somebody types into the picture is the element's. One step of the chain,
+/// with an <see cref="ContentReading"/> going in and a <see cref="Laid"/> coming out.
 /// </para>
 /// </summary>
 public abstract class ContentBuilder
 {
-    /// <param name="at">
-    /// Where this content's first character stands in the document that holds it. Nought for content that is a
-    /// document of its own, and the offset of the slice for content written inside another's — so every part it
-    /// reads names the characters a reader is actually selecting.
-    /// </param>
-    protected ContentBuilder(string? source, int at = 0)
+    protected ContentBuilder(ContentReading reading)
     {
-        Source = source ?? string.Empty;
-        At = at;
+        Reading = reading;
     }
 
-    /// <summary>The source this is laying out — what a selection over the result yields.</summary>
-    public string Source { get; }
+    /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
+    protected ContentReading Reading { get; }
 
-    /// <summary>Where <see cref="Source"/> begins in the document that holds it — see <see cref="ContentPart.Of"/>.</summary>
-    protected int At { get; }
+    /// <summary>The source this is laying out — what a selection over the result yields.</summary>
+    public string Source => Reading.Source;
+
+    /// <summary>
+    /// Where <see cref="Source"/> begins in the document that holds it: nought for content that is a document of
+    /// its own, and the offset of the slice for content written inside another's — see <see cref="ContentPart.Of"/>.
+    /// </summary>
+    protected int At => Reading.Root.Start;
 
     /// <summary>
     /// Lays the source out. Never null, and never throws.
@@ -55,7 +61,7 @@ public abstract class ContentBuilder
     {
         try
         {
-            return Read() ?? Shown([]);
+            return Build() ?? Shown([]);
         }
         catch (Exception error)
         {
@@ -69,15 +75,15 @@ public abstract class ContentBuilder
     }
 
     /// <summary>
-    /// Read the source and lay it out, or null where none of it could be read at all.
+    /// Lay the content out, or null where none of it is this builder's to draw.
     ///
     /// <para>
-    /// Null is for "nothing here is mine to draw", not for trouble: source that is partly readable comes
+    /// Null is for "nothing here is mine to draw", not for trouble: content that is partly drawable comes
     /// back as a layout with <see cref="Laid.Trouble"/> on it, which is how a half-typed command draws as
     /// a formula with a wave under one word rather than as a page of characters.
     /// </para>
     /// </summary>
-    protected abstract Laid? Read();
+    protected abstract Laid? Build();
 
     /// <summary>
     /// How this content sets raw characters — its typeface, its size — for the source it could not read.

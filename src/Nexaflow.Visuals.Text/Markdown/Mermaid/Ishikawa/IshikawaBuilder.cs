@@ -70,10 +70,10 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     private const int HeadLetters = 13;
     private const int CauseLetters = 15;
 
-    private IshikawaBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private IshikawaBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new IshikawaBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new IshikawaBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override IshikawaChart Of(MermaidBlock block) => IshikawaChart.Of(block);
