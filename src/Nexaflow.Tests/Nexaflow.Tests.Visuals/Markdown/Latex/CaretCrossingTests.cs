@@ -42,10 +42,10 @@ public class CaretCrossingTests
     [TestMethod]
     public void RightArrowOffTheEndOfTheTextEntersTheFormulaAtItsStart()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtEndOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
+            MarkdownEditorHarness.CaretAtEndOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Right);
 
             var formula = FocusedContent(editor);
             Assert.AreEqual(0, formula.Caret,
@@ -56,10 +56,10 @@ public class CaretCrossingTests
     [TestMethod]
     public void LeftArrowBackOutOfTheTextEntersTheFormulaAtItsEnd()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtStartOf(rtb, block: 2);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 2);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Left);
 
             var formula = FocusedContent(editor);
             Assert.AreEqual(Formula.Length, formula.Caret,
@@ -74,17 +74,17 @@ public class CaretCrossingTests
         // left and right, up and down agree with each other. Not the column the caret was in either:
         // landing part-way along would drop the reader into the middle of a subscript they were only
         // passing over.
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtEndOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Down);
+            MarkdownEditorHarness.CaretAtEndOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Down);
             Assert.AreEqual(0, FocusedContent(editor).Caret, "down from the line above");
         });
 
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtStartOf(rtb, block: 2);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Up);
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 2);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Up);
             Assert.AreEqual(0, FocusedContent(editor).Caret, "and up from the line below");
         });
     }
@@ -92,12 +92,12 @@ public class CaretCrossingTests
     [TestMethod]
     public void AnArrowThatStaysWithinTheTextLeavesTheFormulaAlone()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
             // Mid-line, so the step is to the next character rather than out of the block. Crossing
             // from here would snatch the caret out of a word every time a formula sat nearby.
-            CaretAtStartOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Right);
 
             Assert.IsNull(editor.FocusedContent, "the caret is still in the text it was in");
         });
@@ -105,7 +105,7 @@ public class CaretCrossingTests
 
     // ── Harness ─────────────────────────────────────────────────────────────
 
-    private static void RunInDocument(System.Action<InlineMarkdownEditor, RichTextBox> test) =>
+    private static void RunInDocument(System.Action<InlineMarkdownEditor> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Document, test));
 
     private static Nexaflow.Visuals.Text.Editing.ContentElement FocusedContent(InlineMarkdownEditor editor)
@@ -113,21 +113,5 @@ public class CaretCrossingTests
         var formula = editor.FocusedContent;
         Assert.IsNotNull(formula, "the arrow key handed the caret to the formula");
         return formula;
-    }
-
-    private static void CaretAtEndOf(RichTextBox rtb, int block) => PlaceCaret(rtb, block, atEnd: true);
-
-    private static void CaretAtStartOf(RichTextBox rtb, int block) => PlaceCaret(rtb, block, atEnd: false);
-
-    private static void PlaceCaret(RichTextBox rtb, int block, bool atEnd)
-    {
-        var para = rtb.Document.Blocks
-            .OfType<Paragraph>()
-            .FirstOrDefault(b => b.Tag is int tag && tag == block);
-        Assert.IsNotNull(para, $"block {block} rendered as prose");
-
-        rtb.CaretPosition = atEnd
-            ? para.ContentEnd.GetInsertionPosition(LogicalDirection.Backward)
-            : para.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
     }
 }

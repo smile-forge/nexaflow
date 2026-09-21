@@ -74,31 +74,31 @@ public class RenderedMarkdownSearchTests
             var tall = "top of the document\n\n"
                      + string.Concat(System.Linq.Enumerable.Repeat("filler paragraph line\n\n", 200))
                      + "the unmistakable zebra at the end\n";
-            MarkdownEditorHarness.Run(tall, (editor, rtb) =>
+            MarkdownEditorHarness.Run(tall, editor =>
             {
-                Assert.AreEqual(0d, rtb.VerticalOffset, "starts at the top");
+                Assert.AreEqual(0d, MarkdownEditorHarness.Scrolled(editor).Offset, "starts at the top");
 
                 var matches = editor.FindInRendered(Matcher("zebra"));
-                rtb.UpdateLayout();
+                editor.UpdateLayout();
+
+                var scrolled = MarkdownEditorHarness.Scrolled(editor);
 
                 Assert.AreEqual(1, matches.Count);
-                Assert.IsTrue(rtb.VerticalOffset > 0,
-                    $"offset={rtb.VerticalOffset} extent={rtb.ExtentHeight} viewport={rtb.ViewportHeight}");
+                Assert.IsTrue(scrolled.Offset > 0,
+                    $"offset={scrolled.Offset} extent={scrolled.Extent} viewport={scrolled.Viewport}");
             });
         });
 
     [TestMethod]
     public void ClearingSearch_RestoresTheDocument() =>
-        UiThread.Run(() => MarkdownEditorHarness.Run(Doc, (editor, rtb) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run(Doc, editor =>
         {
-            var before = new System.Windows.Documents.TextRange(
-                rtb.Document.ContentStart, rtb.Document.ContentEnd).Text;
+            var before = MarkdownEditorHarness.Showing(editor);
 
             editor.FindInRendered(Matcher("fig*"));
             editor.ClearSearch();
 
-            var after = new System.Windows.Documents.TextRange(
-                rtb.Document.ContentStart, rtb.Document.ContentEnd).Text;
-            Assert.AreEqual(before, after, "clearing the search leaves the rendered text unchanged");
+            Assert.AreEqual(before, MarkdownEditorHarness.Showing(editor),
+                "clearing the search leaves the rendered text unchanged");
         }));
 }

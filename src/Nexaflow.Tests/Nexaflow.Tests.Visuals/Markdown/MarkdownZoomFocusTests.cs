@@ -40,7 +40,7 @@ public class MarkdownZoomFocusTests
         {
             editor.Focus();
             Settle(editor);
-            Assert.IsTrue(Rtb(editor).IsKeyboardFocusWithin, "precondition: the caret is in the editor");
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor), "precondition: the caret is in the editor");
 
             editor.BaseFontSize = 30;
             Settle(editor);
@@ -50,13 +50,10 @@ public class MarkdownZoomFocusTests
         finally { window.Close(); }
     });
 
-    private static RichTextBox Rtb(InlineMarkdownEditor editor)
-        => Descendants(editor).OfType<RichTextBox>().First();
-
     /// <summary>Font size of the first rendered paragraph — what the reader actually sees. The document's
     /// own FontSize is not enough: every block carries an explicit size, so only a re-render moves them.</summary>
     private static double FirstParagraphSize(InlineMarkdownEditor editor)
-        => Rtb(editor).Document.Blocks.OfType<Paragraph>().First().FontSize;
+        => MarkdownEditorHarness.BodySize(editor);
 
     private static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

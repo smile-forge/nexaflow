@@ -37,13 +37,13 @@ public class PieEditingTests
     private const string Titled = "pie showData\n  title Pets\n  \"Dogs\" : 30\n  \"Cats\" : 10";
 
     /// <summary>Shows the pie as the whole document, and hands back the element it drew.</summary>
-    private static void Edited(Action<Nexaflow.Visuals.Text.Markdown.InlineMarkdownEditor, System.Windows.Controls.RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run(Markdown, (editor, rtb) =>
+    private static void Edited(Action<Nexaflow.Visuals.Text.Markdown.InlineMarkdownEditor, ContentElement> test) =>
+        MarkdownEditorHarness.Run(Markdown, editor =>
         {
             var pie = Find<ContentElement>(editor);
             Assert.IsNotNull(pie, "the pie did not render as content");
 
-            test(editor, rtb, pie!);
+            test(editor, pie!);
         },
         editor => editor.SingleBlock = "mermaid");
 
@@ -125,14 +125,14 @@ public class PieEditingTests
 
     [TestMethod]
     public void TypingInTheLegendChangesTheNumberItWasWrittenAs() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             Assert.IsFalse(pie.IsReadOnly, "a pie's values are written in");
 
             PressPastTheValue(pie, "30");
             Assert.IsTrue(pie.HasCaret, "a press in the legend takes the caret");
 
-            MarkdownEditorHarness.RaiseTextInput(rtb, "9");
+            MarkdownEditorHarness.RaiseTextInput(editor, "9");
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 309", $"the block now reads {pie.Source}");
@@ -141,12 +141,12 @@ public class PieEditingTests
 
     [TestMethod]
     public void AndTheChartIsDrawnFromWhatWasTyped() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             var before = Share(pie, "Dogs");
 
             PressPastTheValue(pie, "30");
-            MarkdownEditorHarness.RaiseTextInput(rtb, "9");
+            MarkdownEditorHarness.RaiseTextInput(editor, "9");
             MarkdownEditorHarness.Pump();
             pie.UpdateLayout();
 
@@ -155,10 +155,10 @@ public class PieEditingTests
 
     [TestMethod]
     public void BackspaceInAValueTakesOneDigitRatherThanTheWholeNumber() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Back);
+            MarkdownEditorHarness.RaiseKey(editor, System.Windows.Input.Key.Back);
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 3", $"the block now reads {pie.Source}");
@@ -167,7 +167,7 @@ public class PieEditingTests
 
     [TestMethod]
     public void BackspaceAtTheEndOfALabelTakesOneLetter() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             var label = pie.Laid.Root.SelfAndDescendants()
                 .First(piece => piece.Kind == PiePiece.Label
@@ -176,7 +176,7 @@ public class PieEditingTests
             pie.BeginPointerSelect(new Point(label.Bounds.Right - 1, label.Bounds.Y + (label.Bounds.Height / 2)));
             pie.EndPointerSelect();
 
-            MarkdownEditorHarness.RaiseKey(rtb, System.Windows.Input.Key.Back);
+            MarkdownEditorHarness.RaiseKey(editor, System.Windows.Input.Key.Back);
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(pie.Source, "\"Dog\" : 30", $"the block now reads {pie.Source}");
@@ -395,7 +395,7 @@ public class PieEditingTests
 
     [TestMethod]
     public void ThePointerIsABarOnlyOverWhatIsWrittenIn() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             var block = (IInteractiveBlock)pie;
             Piece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
@@ -423,7 +423,7 @@ public class PieEditingTests
 
     [TestMethod]
     public void DraggingInsideTheTitlePicksOutLetters() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run("pie title Browser share\n  \"Dogs\" : 30", (editor, rtb) =>
+        MarkdownEditorHarness.Run("pie title Browser share\n  \"Dogs\" : 30", editor =>
         {
             var pie = Find<ContentElement>(editor)!;
             var title = pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title);
@@ -441,7 +441,7 @@ public class PieEditingTests
 
     [TestMethod]
     public void TheShareWrittenOnASliceIsNowhereToPutACaret() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             var shares = pie.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PiePiece.Share).ToList();
 
@@ -452,7 +452,7 @@ public class PieEditingTests
 
     [TestMethod]
     public void AndSteppingGoesFromOneValueToTheNextLabel() => UiThread.Run(() =>
-        Edited((editor, rtb, pie) =>
+        Edited((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
             Assert.IsTrue(pie.MoveCaret(forward: true));

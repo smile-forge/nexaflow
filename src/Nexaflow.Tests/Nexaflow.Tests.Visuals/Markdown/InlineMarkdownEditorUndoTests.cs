@@ -21,11 +21,11 @@ public class InlineMarkdownEditorUndoTests
 {
     [TestMethod]
     public void Undo_RestoresTheBlockAsItWasBeforeTheEdit()
-        => UiThread.Run(() => MarkdownEditorHarness.Run("A paragraph.", (editor, rtb) =>
+        => UiThread.Run(() => MarkdownEditorHarness.Run("A paragraph.", editor =>
         {
-            var para = rtb.Document.Blocks.OfType<Paragraph>().First();
-            MarkdownEditorHarness.PlaceCaret(rtb, para, 0);
-            MarkdownEditorHarness.Type(rtb, "New ");
+            // the first block, at its start
+            MarkdownEditorHarness.CaretAtStartOf(editor, 0);
+            MarkdownEditorHarness.Type(editor, "New ");
             Assert.AreEqual("New A paragraph.", editor.Markdown, "Precondition: the edit landed.");
 
             editor.Undo();
@@ -35,11 +35,11 @@ public class InlineMarkdownEditorUndoTests
 
     [TestMethod]
     public void ManyEditsInOneBlock_CollapseIntoASingleUndoStep()
-        => UiThread.Run(() => MarkdownEditorHarness.Run("A paragraph.", (editor, rtb) =>
+        => UiThread.Run(() => MarkdownEditorHarness.Run("A paragraph.", editor =>
         {
-            var para = rtb.Document.Blocks.OfType<Paragraph>().First();
-            MarkdownEditorHarness.PlaceCaret(rtb, para, 0);
-            MarkdownEditorHarness.Type(rtb, "Several words typed ");
+            // the first block, at its start
+            MarkdownEditorHarness.CaretAtStartOf(editor, 0);
+            MarkdownEditorHarness.Type(editor, "Several words typed ");
 
             editor.Undo();   // one step, not one per character
 
@@ -48,15 +48,13 @@ public class InlineMarkdownEditorUndoTests
 
     [TestMethod]
     public void EachBlockEdited_IsItsOwnUndoStep()
-        => UiThread.Run(() => MarkdownEditorHarness.Run("First block.\n\nSecond block.", (editor, rtb) =>
+        => UiThread.Run(() => MarkdownEditorHarness.Run("First block.\n\nSecond block.", editor =>
         {
-            var paragraphs = rtb.Document.Blocks.OfType<Paragraph>().ToList();
-            Assert.IsTrue(paragraphs.Count >= 2, "Precondition: two rendered blocks.");
-
-            MarkdownEditorHarness.PlaceCaret(rtb, paragraphs[0], 0);
-            MarkdownEditorHarness.Type(rtb, "A");
-            MarkdownEditorHarness.PlaceCaret(rtb, rtb.Document.Blocks.OfType<Paragraph>().ElementAt(1), 0);
-            MarkdownEditorHarness.Type(rtb, "B");
+            // Each block in turn, at its start — putting the caret in one says it drew.
+            MarkdownEditorHarness.CaretAtStartOf(editor, 0);
+            MarkdownEditorHarness.Type(editor, "A");
+            MarkdownEditorHarness.CaretAtStartOf(editor, 1);
+            MarkdownEditorHarness.Type(editor, "B");
             Assert.AreEqual("AFirst block.\n\nBSecond block.", editor.Markdown, "Precondition: both edits landed.");
 
             editor.Undo();
@@ -68,7 +66,7 @@ public class InlineMarkdownEditorUndoTests
 
     [TestMethod]
     public void Undo_WithNothingToUndo_IsANoOp()
-        => UiThread.Run(() => MarkdownEditorHarness.Run("Untouched.", (editor, _) =>
+        => UiThread.Run(() => MarkdownEditorHarness.Run("Untouched.", editor =>
         {
             editor.Undo();
             editor.Undo();

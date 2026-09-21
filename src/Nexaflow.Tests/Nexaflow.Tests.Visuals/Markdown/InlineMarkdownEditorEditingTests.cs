@@ -41,8 +41,8 @@ public class InlineMarkdownEditorEditingTests
             var docBefore  = rtb.Document;
             var paraBefore = rtb.Document.Blocks.OfType<Paragraph>().First();
 
-            PlaceCaret(rtb, paraBefore, original.IndexOf("An installed", System.StringComparison.Ordinal));
-            foreach (var ch in typed) RaiseTextInput(rtb, ch.ToString());
+            PlaceCaret(editor, original.IndexOf("An installed", System.StringComparison.Ordinal));
+            foreach (var ch in typed) RaiseTextInput(editor, ch.ToString());
 
             Assert.AreEqual(expected, editor.Markdown);
 
@@ -59,11 +59,10 @@ public class InlineMarkdownEditorEditingTests
     {
         const string original = "Some plain text here.";
 
-        RunInEditor(original, (editor, rtb) =>
+        RunInEditor(original, editor =>
         {
-            var para = rtb.Document.Blocks.OfType<Paragraph>().First();
-            PlaceCaret(rtb, para, "Some ".Length);
-            foreach (var ch in "**bold**") RaiseTextInput(rtb, ch.ToString());
+            PlaceCaret(editor, "Some ".Length);
+            foreach (var ch in "**bold**") RaiseTextInput(editor, ch.ToString());
 
             // Typing never creates formatting: the asterisks are escaped so they re-render as the
             // literal characters the user typed.
@@ -76,11 +75,10 @@ public class InlineMarkdownEditorEditingTests
     {
         const string original = "A **bold** word.";
 
-        RunInEditor(original, (editor, rtb) =>
+        RunInEditor(original, editor =>
         {
-            var para = rtb.Document.Blocks.OfType<Paragraph>().First();
-            PlaceCaret(rtb, para, 0);                       // caret at the very start, before "A"
-            foreach (var ch in "Yes, ") RaiseTextInput(rtb, ch.ToString());
+            PlaceCaret(editor, 0);                       // caret at the very start, before "A"
+            foreach (var ch in "Yes, ") RaiseTextInput(editor, ch.ToString());
 
             Assert.AreEqual("Yes, A **bold** word.", editor.Markdown);
         });
@@ -93,10 +91,10 @@ public class InlineMarkdownEditorEditingTests
         // typing must fall back to source-edit mode and the character must land where the caret was.
         const string original = "line one\nline two";
 
-        RunInEditor(original, (editor, rtb) =>
+        RunInEditor(original, editor =>
         {
-            rtb.CaretPosition = rtb.Document.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
-            RaiseTextInput(rtb, "X");
+            PlaceCaret(editor, 0);
+            RaiseTextInput(editor, "X");
 
             Assert.AreEqual("Xline one\nline two", editor.Markdown);
         });
@@ -163,11 +161,14 @@ public class InlineMarkdownEditorEditingTests
     private static void RunInEditor(string markdown, System.Action<InlineMarkdownEditor, RichTextBox> test)
         => MarkdownEditorHarness.Run(markdown, test);
 
-    private static void RaiseTextInput(RichTextBox rtb, string text)
-        => MarkdownEditorHarness.RaiseTextInput(rtb, text);
+    private static void RunInEditor(string markdown, System.Action<InlineMarkdownEditor> test)
+        => MarkdownEditorHarness.Run(markdown, test);
 
-    private static void PlaceCaret(RichTextBox rtb, Paragraph para, int textOffset)
-        => MarkdownEditorHarness.PlaceCaret(rtb, para, textOffset);
+    private static void RaiseTextInput(InlineMarkdownEditor editor, string text)
+        => MarkdownEditorHarness.RaiseTextInput(editor, text);
+
+    private static void PlaceCaret(InlineMarkdownEditor editor, int at)
+        => MarkdownEditorHarness.PlaceCaret(editor, at);
 
     private static Paragraph FirstParagraph(string markdown)
     {

@@ -29,15 +29,15 @@ public class FocusAndPromptTests
     [TestMethod]
     public void AskingTheEditorForTheKeyboardWorks()
     {
-        UiThread.Run(() => MarkdownEditorHarness.Run("some prose", (editor, rtb) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run("some prose", editor =>
         {
             Keyboard.ClearFocus();
-            Assert.IsFalse(rtb.IsKeyboardFocusWithin, "nothing has it to begin with");
+            Assert.IsFalse(MarkdownEditorHarness.HasKeyboard(editor), "nothing has it to begin with");
 
             // Focus() comes back false, and that is right: focus went past this control to the text
             // inside it, so the control itself does not hold it. Where it ended up is the question.
             editor.Focus();
-            Assert.IsTrue(rtb.IsKeyboardFocusWithin,
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor),
                 "it passes focus through to the text — a host should not have to reach past the "
                 + "control to something private to put a caret in it");
         }));
@@ -46,7 +46,7 @@ public class FocusAndPromptTests
     [TestMethod]
     public void ThePromptStaysUntilSomethingIsWritten()
     {
-        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, (editor, rtb) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, editor =>
         {
             editor.Placeholder = "Type a formula…";
 

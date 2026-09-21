@@ -27,11 +27,11 @@ public class FormulaInEditorTests
     private const string OneFormula = "$$\nx+\n$$";
 
     /// <summary>The editor builds its document during a render pass, and WPF needs an STA thread.</summary>
-    private static void InEditor(string markdown, Action<InlineMarkdownEditor, RichTextBox> test) =>
+    private static void InEditor(string markdown, Action<InlineMarkdownEditor> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(markdown, test));
 
     [TestMethod]
-    public void APaletteSymbolLandsInsideTheFormula() => InEditor(OneFormula, (editor, _) =>
+    public void APaletteSymbolLandsInsideTheFormula() => InEditor(OneFormula, editor =>
     {
         Assert.IsTrue(editor.InsertLatexAtCaret(@"\alpha "), "the block is a formula, so there is one to type into");
 
@@ -41,7 +41,7 @@ public class FormulaInEditorTests
     });
 
     [TestMethod]
-    public void ATemplateLeavesTheCaretInsideIt() => InEditor(OneFormula, (editor, _) =>
+    public void ATemplateLeavesTheCaretInsideIt() => InEditor(OneFormula, editor =>
     {
         editor.InsertLatexAtCaret(@"\frac{}{}", caretBack: 3);
 
@@ -50,7 +50,7 @@ public class FormulaInEditorTests
     });
 
     [TestMethod]
-    public void WrappingBracketsTheFormula() => InEditor(OneFormula, (editor, _) =>
+    public void WrappingBracketsTheFormula() => InEditor(OneFormula, editor =>
     {
         // The braces are all that is written. An argument left empty becomes a hole when it is parsed,
         // and the hole draws itself — so the source stays what the reader asked for.
@@ -59,18 +59,18 @@ public class FormulaInEditorTests
     });
 
     [TestMethod]
-    public void TypingReachesTheFormulaAndTheModel() => InEditor(OneFormula, (editor, rtb) =>
+    public void TypingReachesTheFormulaAndTheModel() => InEditor(OneFormula, editor =>
     {
         // Adopt the formula the way a palette press does, then type as a keyboard would.
         editor.InsertLatexAtCaret("2");
-        MarkdownEditorHarness.Type(rtb, "+3");
+        MarkdownEditorHarness.Type(editor, "+3");
 
         StringAssert.Contains(editor.Markdown, "x+2+3",
             "keys typed while a formula holds the caret must reach it, and reach the block model");
     });
 
     [TestMethod]
-    public void ADocumentWithoutAFormulaSaysSo() => InEditor("just prose\n", (editor, _) =>
+    public void ADocumentWithoutAFormulaSaysSo() => InEditor("just prose\n", editor =>
         Assert.IsFalse(editor.InsertLatexAtCaret(@"\alpha"),
             "so the caller can fall back to inserting it as text"));
 

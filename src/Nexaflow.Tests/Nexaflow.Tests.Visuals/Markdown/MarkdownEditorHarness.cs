@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Reflection;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Linq;
+using System.Windows.Media;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -104,7 +105,11 @@ internal static class MarkdownEditorHarness
         var paragraphs = rtb.Document.Blocks.OfType<Paragraph>().ToList();
         if (paragraphs.Count == 0) return;
 
-        PlaceCaret(rtb, paragraphs[Math.Clamp(block, 0, paragraphs.Count - 1)], within);
+        // The editor tags each rendered paragraph with the block it came from; counting is the fallback.
+        var paragraph = paragraphs.FirstOrDefault(one => one.Tag is int tag && tag == block)
+                     ?? paragraphs[Math.Clamp(block, 0, paragraphs.Count - 1)];
+
+        PlaceCaret(rtb, paragraph, within);
     }
 
     /// <summary>Which block of <paramref name="source"/> an offset falls in, and how far into it.</summary>
@@ -129,7 +134,7 @@ internal static class MarkdownEditorHarness
     /// <summary>Raises a genuine <see cref="TextCompositionManager.PreviewTextInputEvent"/> for
     /// <paramref name="text"/> on <paramref name="rtb"/> — the same event WPF fires for a keystroke, so
     /// the editor's handler runs exactly as in the app.</summary>
-    public static void RaiseTextInput(RichTextBox rtb, string text)
+    private static void RaiseTextInput(RichTextBox rtb, string text)
     {
         var composition = new TextComposition(InputManager.Current, rtb, text);
         rtb.RaiseEvent(new TextCompositionEventArgs(InputManager.Current.PrimaryKeyboardDevice, composition)
@@ -139,7 +144,7 @@ internal static class MarkdownEditorHarness
     }
 
     /// <summary>Types <paramref name="text"/> one character at a time.</summary>
-    public static void Type(RichTextBox rtb, string text)
+    private static void Type(RichTextBox rtb, string text)
     {
         foreach (var ch in text) RaiseTextInput(rtb, ch.ToString());
     }
@@ -154,7 +159,7 @@ internal static class MarkdownEditorHarness
     /// state, not carried on the event, so a synthetic Shift or Ctrl cannot be pressed from in here —
     /// anything that turns on a modifier belongs in a UI journey, where the keys are real.
     /// </remarks>
-    public static void RaiseKey(RichTextBox rtb, Key key)
+    private static void RaiseKey(RichTextBox rtb, Key key)
     {
         var source = PresentationSource.FromVisual(rtb)
                      ?? throw new InvalidOperationException("the editor must be in a shown window");
@@ -171,7 +176,7 @@ internal static class MarkdownEditorHarness
 
     /// <summary>Places the caret <paramref name="textOffset"/> text characters into
     /// <paramref name="para"/>, counting Run text only (skipping element edges).</summary>
-    public static void PlaceCaret(RichTextBox rtb, Paragraph para, int textOffset)
+    private static void PlaceCaret(RichTextBox rtb, Paragraph para, int textOffset)
     {
         var tp = para.ContentStart;
         int remaining = textOffset;
@@ -187,5 +192,86 @@ internal static class MarkdownEditorHarness
             else tp = tp.GetNextContextPosition(LogicalDirection.Forward);
         }
         rtb.CaretPosition = tp ?? para.ContentEnd;
+    }
+
+    /// <summary>Whether the editor has the keyboard.</summary>
+    public static bool HasKeyboard(InlineMarkdownEditor editor) => RichTextBoxOf(editor).IsKeyboardFocusWithin;
+
+    /// <summary>How far down the editor is scrolled, and how much there is to scroll.</summary>
+    public static (double Offset, double Extent, double Viewport) Scrolled(InlineMarkdownEditor editor)
+    {
+        var rtb = RichTextBoxOf(editor);
+
+        return (rtb.VerticalOffset, rtb.ExtentHeight, rtb.ViewportHeight);
+    }
+
+    /// <summary>The text the editor is showing, as a reader reads it — not the markdown it was written as.</summary>
+    public static string Showing(InlineMarkdownEditor editor)
+    {
+        var document = RichTextBoxOf(editor).Document;
+
+        return new TextRange(document.ContentStart, document.ContentEnd).Text;
+    }
+
+    /// <summary>How big the editor is setting its body text.</summary>
+    public static double BodySize(InlineMarkdownEditor editor) =>
+        RichTextBoxOf(editor).Document.Blocks.OfType<Paragraph>().First().FontSize;
+
+    /// <summary>Puts the caret at the start of the <paramref name="block"/>th block the editor is showing.</summary>
+    public static void CaretAtStartOf(InlineMarkdownEditor editor, int block) => CaretIn(editor, block, atEnd: false);
+
+    /// <summary>Puts the caret at the end of the <paramref name="block"/>th block the editor is showing.</summary>
+    public static void CaretAtEndOf(InlineMarkdownEditor editor, int block) => CaretIn(editor, block, atEnd: true);
+
+    private static void CaretIn(InlineMarkdownEditor editor, int block, bool atEnd)
+    {
+        var rtb = RichTextBoxOf(editor);
+
+        // The editor tags each rendered paragraph with the block it came from, which is a surer answer than
+        // counting — a block does not always draw as exactly one paragraph.
+        var paragraph = rtb.Document.Blocks.OfType<Paragraph>()
+            .FirstOrDefault(one => one.Tag is int tag && tag == block);
+
+        Assert.IsNotNull(paragraph, $"block {block} rendered as prose");
+
+        rtb.CaretPosition = atEnd
+            ? paragraph!.ContentEnd.GetInsertionPosition(LogicalDirection.Backward)
+            : paragraph!.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+    }
+
+    /// <summary>
+    /// Whether the editor is hiding its own caret, because something inside it has the caret instead.
+    /// </summary>
+    public static bool CaretHidden(InlineMarkdownEditor editor) =>
+        Equals(RichTextBoxOf(editor).CaretBrush, Brushes.Transparent);
+
+    /// <summary>Sweeps a selection over everything the editor is showing.</summary>
+    public static void SelectAll(InlineMarkdownEditor editor)
+    {
+        var rtb = RichTextBoxOf(editor);
+        var start = rtb.Document.ContentStart.GetPositionAtOffset(1) ?? rtb.Document.ContentStart;
+
+        rtb.Selection.Select(start, rtb.Document.ContentEnd);
+    }
+
+    /// <summary>What is picked out in the editor, and whether anything is.</summary>
+    public static (bool Any, string Text) Picked(InlineMarkdownEditor editor)
+    {
+        var selection = RichTextBoxOf(editor).Selection;
+
+        return (!selection.IsEmpty, selection.Text);
+    }
+
+    /// <summary>The first thing of its kind the editor drew, or null where it drew none.</summary>
+    public static T? Drawn<T>(InlineMarkdownEditor editor) where T : DependencyObject => Drawn<T>((DependencyObject)editor);
+
+    private static T? Drawn<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T hit) return hit;
+
+        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
+            if (Drawn<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
+
+        return null;
     }
 }

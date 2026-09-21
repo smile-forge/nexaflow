@@ -27,8 +27,8 @@ public class BlockToolbarTests
     private const string Document = "Pets:\n\n```mermaid\npie showData\n  \"Dogs\" : 30\n  \"Cats\" : 10\n```\n\nThe end.\n";
 
     /// <summary>The document in an editor offering two buttons, and what each was pressed on.</summary>
-    private static void Offered(Action<InlineMarkdownEditor, RichTextBox, ContentElement, List<(string Button, RenderedBlock Block)>> test) =>
-        MarkdownEditorHarness.Run(Document, (editor, rtb) =>
+    private static void Offered(Action<InlineMarkdownEditor, ContentElement, List<(string Button, RenderedBlock Block)>> test) =>
+        MarkdownEditorHarness.Run(Document, editor =>
         {
             var pressed = new List<(string, RenderedBlock)>();
             editor.BlockActions =
@@ -40,7 +40,7 @@ public class BlockToolbarTests
             var pie = Find<ContentElement>(editor);
             Assert.IsNotNull(pie, "the pie did not render as content");
 
-            test(editor, rtb, pie!, pressed);
+            test(editor, pie!, pressed);
         });
 
     private static Rect Bounds(FrameworkElement element, Visual host) =>
@@ -48,9 +48,9 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void OnARenderedBlockTheHostsButtonsShowOverIt_FaintUntilThePointerComesNear() => UiThread.Run(() =>
-        Offered((editor, rtb, pie, pressed) =>
+        Offered((editor, pie, pressed) =>
         {
-            var block = Bounds(pie, rtb);
+            var block = Bounds(pie, editor);
 
             editor.HoverAt(new Point(block.Left + 20, block.Bottom - 20));
             var toolbar = editor.Toolbar()!;
@@ -62,7 +62,7 @@ public class BlockToolbarTests
                                       toolbar.Buttons.Select(AutomationProperties.GetAutomationId).ToArray());
             Assert.AreEqual(0.3, toolbar.ButtonOpacity, 1e-9, "faint, away from its corner");
 
-            var buttons = toolbar.Buttons.Select(button => Bounds(button, rtb)).Aggregate(Rect.Union);
+            var buttons = toolbar.Buttons.Select(button => Bounds(button, editor)).Aggregate(Rect.Union);
             Assert.IsTrue(block.Contains(buttons), $"in the block's own corner: {buttons} in {block}");
             Assert.IsTrue(buttons.Right > block.Right - 40 && buttons.Top < block.Top + 40, $"its top right: {buttons} in {block}");
 
@@ -72,9 +72,9 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void OffEveryBlockThereIsNoToolbar() => UiThread.Run(() =>
-        Offered((editor, rtb, pie, pressed) =>
+        Offered((editor, pie, pressed) =>
         {
-            var block = Bounds(pie, rtb);
+            var block = Bounds(pie, editor);
             editor.HoverAt(new Point(block.Left + 20, block.Top + 20));
 
             editor.HoverAt(new Point(block.Left + 5, block.Bottom + 30));
@@ -84,10 +84,10 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void WithNothingOfferedThereIsNoToolbar() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run(Document, (editor, rtb) =>
+        MarkdownEditorHarness.Run(Document, editor =>
         {
             var pie = Find<ContentElement>(editor)!;
-            var block = Bounds(pie, rtb);
+            var block = Bounds(pie, editor);
 
             editor.HoverAt(new Point(block.Left + 20, block.Top + 20));
             Assert.IsTrue(editor.Toolbar() is null or { Visibility: Visibility.Collapsed });
@@ -95,7 +95,7 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void AFormulaOnALineOfItsOwnHasTheToolbar_AndOneInASentenceDoesNot() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run("Area $\\pi r^2$ of a circle.\n\n$$\n\\frac{a}{b}\n$$\n", (editor, rtb) =>
+        MarkdownEditorHarness.Run("Area $\\pi r^2$ of a circle.\n\n$$\n\\frac{a}{b}\n$$\n", editor =>
         {
             editor.BlockActions = [new BlockAction("Copy", "Test_Copy", _ => { })];
 
@@ -104,7 +104,7 @@ public class BlockToolbarTests
 
             foreach (var formula in formulas)
             {
-                var bounds = Bounds(formula, rtb);
+                var bounds = Bounds(formula, editor);
                 editor.HoverAt(new Point(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2)));
 
                 var inline = formula.Source.Contains("pi", StringComparison.Ordinal);
@@ -123,9 +123,9 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void AButtonPressedIsHandedTheBlock_AndItsPicture() => UiThread.Run(() =>
-        Offered((editor, rtb, pie, pressed) =>
+        Offered((editor, pie, pressed) =>
         {
-            var block = Bounds(pie, rtb);
+            var block = Bounds(pie, editor);
             editor.HoverAt(new Point(block.Left + 20, block.Top + 20));
 
             var save = editor.Toolbar()!.Buttons.Single(button => AutomationProperties.GetAutomationId(button) == "Test_Save");
@@ -144,7 +144,7 @@ public class BlockToolbarTests
 
     [TestMethod]
     public void APictureLeavesOutWhatIsChosen() => UiThread.Run(() =>
-        Offered((editor, rtb, pie, pressed) =>
+        Offered((editor, pie, pressed) =>
         {
             Assert.IsTrue(editor.FocusBlockAtCaret());
             var plain = Pixels(pie.Picture(Brushes.White));
