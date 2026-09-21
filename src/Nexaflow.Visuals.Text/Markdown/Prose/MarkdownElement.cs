@@ -1,0 +1,55 @@
+using System.Windows;
+using System.Windows.Input;
+
+using Nexaflow.Visuals.Text.Editing;
+
+namespace Nexaflow.Visuals.Text.Markdown.Prose;
+
+/// <summary>
+/// A markdown document, drawn where it was written and written in where it is drawn.
+///
+/// <para>
+/// <strong>Almost nothing is here.</strong> Laying out, painting, the caret, the selection, the pointer, the arrow
+/// keys, backspace, dragging a stretch somewhere else, the wash and the wave — all of it is
+/// <see cref="ContentElement"/>, and it is the same code a formula, a tune and twenty-six diagrams run. What is left
+/// is the one thing only a markdown document knows: what a press on a tick means.
+/// </para>
+/// <para>
+/// <strong>The block answers its own verbs first, and the host is offered what it did not claim.</strong> That is the
+/// way round that matters. Ticking an item off is this document's business and needs nobody's help, so a host that
+/// wants none writes none; a host with a reason to take it on — a list that lives somewhere other than in the file —
+/// says so and is asked.
+/// </para>
+/// </summary>
+/// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
+public sealed class MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null)
+    : LinkedElement(source ?? string.Empty, palette, MarkdownContent.Of(palette), host)
+{
+    /// <summary>The markdown this is showing.</summary>
+    public string Markdown => Source;
+
+    /// <inheritdoc/>
+    /// <remarks>Only a plain press: Ctrl and Shift are adding to a selection, which is not what ticking an item is.</remarks>
+    protected override bool Pressed(Point at, ModifierKeys modifiers) =>
+        (modifiers == ModifierKeys.None && Ticked(at)) || base.Pressed(at, modifiers);
+
+    /// <summary>
+    /// Ticks the item a press landed on, where it landed on one.
+    ///
+    /// <para>
+    /// The whole of it is an edit. What is drawn is read off the tree, the tree is read off the source, and the source
+    /// is what this writes — so there is no state anywhere saying which items are done, nothing to keep in step, and
+    /// taking it back is the undo the reader already has.
+    /// </para>
+    /// </summary>
+    private bool Ticked(Point at)
+    {
+        if (IsReadOnly) return false;
+        if (Offered(at, LayoutGesture.Click) is not { Intent.Verb: MarkdownVerbs.Tick } act) return false;
+        if (MarkdownContent.Ticked(State, act.Part) is not { } ticked) return false;
+
+        Apply(ticked, notify: true);
+
+        return true;
+    }
+}

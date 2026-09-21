@@ -103,7 +103,7 @@ public class LinkedElement(string source, StyleFormat palette, IContent content,
     /// What the piece under a point means by <paramref name="gesture"/>: the innermost one that means anything by it,
     /// or null where none does.
     /// </summary>
-    private LayoutAct? Offered(Point at, LayoutGesture gesture)
+    protected LayoutAct? Offered(Point at, LayoutGesture gesture)
     {
         var found = default(Piece);
         LayoutIntent? meant = null;
