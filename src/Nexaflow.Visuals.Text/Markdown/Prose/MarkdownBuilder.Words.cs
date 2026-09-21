@@ -118,6 +118,12 @@ public sealed partial class MarkdownBuilder
                 runs.Add(new Run(WebUtility.HtmlDecode(part.Text), part, face, Maps: false));
                 return;
 
+            // Markdown reflows a line ending into a space unless the writer asked for a break, which they ask for
+            // with two spaces or a backslash before it.
+            case MarkdownKinds.Break:
+                runs.Add(new Run(Meant(part) ? string.Empty : " ", part, face, Maps: false));
+                return;
+
             // The item draws its own box; the three characters it stands for are the item's, not its words'.
             case MarkdownKinds.Task:
                 return;
@@ -182,6 +188,15 @@ public sealed partial class MarkdownBuilder
     /// </summary>
     private static string Flowed(string text) =>
         text.Contains('\n') || text.Contains('\r') ? text.Replace('\n', ' ').Replace('\r', ' ') : text;
+
+    /// <summary>Whether a line ending was meant as one, rather than as the space markdown reflows it into.</summary>
+    private bool Meant(ContentPart part)
+    {
+        var at = part.Start - At;
+
+        return (at >= 1 && Source[at - 1] == '\\')
+            || (at >= 2 && Source[at - 1] == ' ' && Source[at - 2] == ' ');
+    }
 
     // ── Where the lines break ───────────────────────────────────────────────
 

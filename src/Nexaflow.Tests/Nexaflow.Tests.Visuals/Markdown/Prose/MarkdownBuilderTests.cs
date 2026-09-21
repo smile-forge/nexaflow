@@ -164,6 +164,16 @@ public class MarkdownBuilderTests
         Assert.IsTrue(Lay(source, room: 90).Size.Height > Lay(source, room: 900).Size.Height);
     }
 
+    [TestMethod]
+    public void ALineEndingIsASpaceUnlessTheWriterAskedForABreak()
+    {
+        // Two spaces at the end of a line is the one way markdown has of saying "and start a new line here".
+        var flowed = Lay("one\ntwo\n", room: 900);
+        var broken = Lay("one  \ntwo\n", room: 900);
+
+        Assert.IsTrue(broken.Size.Height > flowed.Size.Height);
+    }
+
     // ── Lists ───────────────────────────────────────────────────────────────
 
     [TestMethod]
