@@ -24,29 +24,24 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 /// </summary>
 internal sealed partial class LilyPondBuilder : MusicBuilder
 {
-    private readonly (int Start, int Length)? _shownAsWritten;
-
     /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
-    public LilyPondBuilder(string ly, double width, Brush ink, double pixelsPerDip,
-                           (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0)
-        : base(ly, width, ink, pixelsPerDip, spacing, at) =>
-        _shownAsWritten = shownAsWritten;
+    public LilyPondBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
+        : base(reading, width, ink, pixelsPerDip, spacing) { }
 
-    /// <summary>Reads and engraves LilyPond in one call.</summary>
+    /// <summary>Reads a tune and engraves it. Never null, and never throws.</summary>
     public static Laid Build(string ly, double width, Brush ink, double pixelsPerDip,
                              (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0) =>
-        new LilyPondBuilder(ly, width, ink, pixelsPerDip, shownAsWritten, spacing, at).Lay();
+        new LilyPondBuilder(ContentReading.Of(LilyPondPipeline.Read(ly, shownAsWritten), at),
+                            width, ink, pixelsPerDip, spacing).Lay();
 
     protected override Tune ReadTune()
     {
-        var reading = ContentReading.Of(LilyPondPipeline.Read(Source, _shownAsWritten), At);
-
-        Pieces(reading.Root);
+        Pieces(Reading.Root);
         var rows = Rows();
         Sing();
         Name();
 
-        return new Tune(rows, Header(), reading);
+        return new Tune(rows, Header(), Reading);
     }
 
     // ── What the source holds ───────────────────────────────────────────────

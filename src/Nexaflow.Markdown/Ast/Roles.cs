@@ -126,6 +126,18 @@ public static class Kinds
     public const string Nested = "nested";
 
     /// <summary>
+    /// A run standing in for a value somebody else holds, rather than for itself: what a document says about data
+    /// it is shown against.
+    ///
+    /// <para>
+    /// The path it names is a part of its own, so reading one is asking the tree for that part and never looking at
+    /// a brace. What it stands for is worked out when the content is laid, so the same tree says different things
+    /// against different data, and the characters it was written as are still all there to be written in.
+    /// </para>
+    /// </summary>
+    public const string Bound = "bound";
+
+    /// <summary>
     /// Somewhere something still has to go: an argument or a cell written empty, on a surface that is
     /// being written on.
     /// <para>

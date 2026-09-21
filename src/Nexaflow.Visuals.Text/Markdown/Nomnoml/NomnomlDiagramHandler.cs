@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Visuals.Text.Markdown.Handlers;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using System.Windows;
@@ -21,5 +22,5 @@ public sealed class NomnomlDiagramHandler : IDiagramHandler
         => Render(source, DiagramRenderOptions.For(palette, onNavigate));
 
     public FrameworkElement Render(string source, DiagramRenderOptions options) =>
-        MermaidBuilder.Host(source, options, NomnomlBuilder.Build, options.ReadOnly);
+        MermaidBuilder.Host(source, options, NomnomlBuilder.Build, options.ReadOnly, NomnomlDiagram.Grammar);
 }

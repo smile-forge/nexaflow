@@ -34,8 +34,16 @@ public static class MermaidParts
     /// <summary>The hole a stage put in a part with nothing written in it — in its quotes or brackets too — or null where there is none.</summary>
     public static ContentPart? Hole(this ContentPart? part) => part.Inner(Kinds.Hole);
 
-    /// <summary>What a name, a label or a title says — its <see cref="MermaidKinds.Words"/>, without quotes or brackets — or null.</summary>
-    public static ContentPart? Words(this ContentPart? part) => part.Inner(MermaidKinds.Words);
+    /// <summary>
+    /// What a name, a label or a title says — its <see cref="MermaidKinds.Words"/>, without quotes or brackets — or
+    /// the whole other content written in its place, or null.
+    /// </summary>
+    /// <remarks>
+    /// One question with two answers, because a label holding a block of another language is still what the label
+    /// says. Which of the two came back shows in its kind, and only a builder that draws the second has to care.
+    /// </remarks>
+    public static ContentPart? Words(this ContentPart? part) =>
+        part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Nested);
 
     /// <summary>What a name or a list's names say, as text: empty for a name still to be written.</summary>
     public static IReadOnlyList<string> SaidNames(this ContentNode? names) =>

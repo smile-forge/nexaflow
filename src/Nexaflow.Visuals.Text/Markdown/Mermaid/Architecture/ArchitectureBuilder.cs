@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Architecture;
 using Nexaflow.Visuals.Text.Editing;
@@ -80,10 +81,10 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
     /// <summary>How solid a group's background is, over the colour it takes from the series.</summary>
     private const double Wash = 0.14;
 
-    private ArchitectureBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private ArchitectureBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new ArchitectureBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new ArchitectureBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override ArchitectureDiagram Of(MermaidBlock block) => ArchitectureDiagram.Of(block);

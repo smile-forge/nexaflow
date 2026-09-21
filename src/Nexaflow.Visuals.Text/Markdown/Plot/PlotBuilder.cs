@@ -38,24 +38,31 @@ internal sealed class PlotBuilder : ContentBuilder
 
     private readonly MarkdownPalette _palette;
     private readonly DiagramInk _ink;
-    private readonly PlotFence _fence;
+    private readonly PlotSettings _settings;
+    private readonly string? _unreadable;
     private readonly double _room;
     private readonly double _dpi;
 
-    private PlotBuilder(string source, PlotFence fence, MarkdownPalette palette, double room, double pixelsPerDip)
-        : base(source)
+    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable,
+                        MarkdownPalette palette, double room, double pixelsPerDip)
+        : base(reading)
     {
-        _fence = fence;
+        _settings = settings;
+        _unreadable = unreadable;
         _palette = palette;
         _ink = new DiagramInk(palette);
         _room = room;
         _dpi = pixelsPerDip;
     }
 
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
+    /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
     public static Laid Build(string source, PlotFence fence, MarkdownPalette palette, double room,
-                             double pixelsPerDip) =>
-        new PlotBuilder(source, fence, palette, room, pixelsPerDip).Lay();
+                             double pixelsPerDip, int at = 0)
+    {
+        var tree = PlotPipeline.Read(source, fence, out var settings, out var unreadable);
+
+        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette, room, pixelsPerDip).Lay();
+    }
 
     /// <summary>
     /// The element a plot is shown in. Editable, because every number in it is a number somebody typed.
@@ -73,12 +80,11 @@ internal sealed class PlotBuilder : ContentBuilder
             Margin = new Thickness(0, 6, 0, 10),
         };
 
-    protected override Laid? Read()
+    protected override Laid? Build()
     {
-        var tree = PlotPipeline.Read(Source, _fence, out var settings, out var error);
-        if (error is not null) return Stopped(error);
+        if (_unreadable is not null) return Stopped(_unreadable);
 
-        var chart = PlotChart.Of(ContentReading.Of(tree).Root, settings);
+        var chart = PlotChart.Of(Reading.Root, _settings);
 
         if (chart.Marks.Count == 0)
             return Stopped("An empty plot. It takes a row of values for each point — two columns for where "

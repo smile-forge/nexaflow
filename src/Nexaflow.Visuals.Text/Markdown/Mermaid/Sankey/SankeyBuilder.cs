@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Sankey;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sankey;
 
@@ -57,10 +58,10 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// <summary>How solid a ribbon is.</summary>
     private const double Wash = 0.45;
 
-    private SankeyBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private SankeyBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new SankeyBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new SankeyBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override SankeyChart Of(MermaidBlock block) => SankeyChart.Of(block);

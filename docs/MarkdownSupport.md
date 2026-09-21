@@ -975,11 +975,19 @@ nothing; a **call is arbitrary code driven by a string in a document**, so the h
 meant, one at a time. Every step is null-propagating and nothing throws — a path naming nothing leaves a gap, and a
 gap is what sends somebody to look at the path.
 
-Read when the words are set, never at parse time, so **the source is untouched**: the block still says `{{Team.Name}}`
-and the value is drawn over it. That is also what makes a binding writable in place — pressing one reveals the
-characters and puts the caret in them, exactly as an entity code does, because they are still there
-([`BoundText`](../src/Nexaflow.Markdown/Binding/BoundText.cs)). With no data context at all a binding is drawn as the
-text it is, so a document nobody has bound to still reads.
+**Which of a run is a binding is settled while it is read**, not later by whoever draws it: the grammar hands the run
+to [`ContentWords`](../src/Nexaflow.Markdown/Ast/ContentWords.cs), which gives each `{{…}}` a node of its own with the
+path it names as a part inside it. So nothing downstream looks at a brace to find a binding — it asks the tree.
+
+**What each one stands for is worked out by a pipeline stage**
+([`WithBindings`](../src/Nexaflow.Markdown/Pipeline/Stages/WithBindings.cs)), set up where the host's data meets the
+content, and hung underneath the binding as a derived part. A builder is handed a tree that already knows what it
+says and never learns that there is such a thing as binding.
+
+Hung underneath, so **the source is untouched**: the block still says `{{Team.Name}}` and the value is only what is
+drawn over it. That is also what makes a binding writable in place — pressing one reveals the characters and puts the
+caret in them, exactly as an entity code does, because they are still there. With no data context at all nothing is
+hung under it and a binding is drawn as the text it is, so a document nobody has bound to still reads.
 
 Nothing watches the object: a host that has changed what it holds calls `SelectableMarkdownView.RefreshDiagrams()`
 (or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.

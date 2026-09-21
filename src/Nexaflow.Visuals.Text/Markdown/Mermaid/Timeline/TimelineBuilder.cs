@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Timeline;
 using Nexaflow.Visuals.Text.Editing;
@@ -75,10 +76,10 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     private const double Banded = 0.16;
     private const double Tinted = 0.22;
 
-    private TimelineBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private TimelineBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new TimelineBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new TimelineBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override TimelineChart Of(MermaidBlock block) => TimelineChart.Of(block);

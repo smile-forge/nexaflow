@@ -68,10 +68,10 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    private RequirementBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private RequirementBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a requirement diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new RequirementBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new RequirementBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override RequirementDiagram Of(MermaidBlock block) => RequirementDiagram.Of(block);

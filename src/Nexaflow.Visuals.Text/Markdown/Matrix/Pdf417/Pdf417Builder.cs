@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
@@ -33,12 +34,12 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
 
     private const string Sample = "Nexaflow";
 
-    private Pdf417Builder(string source, MarkdownPalette palette, double pixelsPerDip)
-        : base(source, palette, pixelsPerDip) { }
+    private Pdf417Builder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip)
+        : base(reading, palette, pixelsPerDip) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
     public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip) =>
-        new Pdf417Builder(source, palette, pixelsPerDip).Lay();
+        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), palette, pixelsPerDip).Lay();
 
     public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
         Host(source, options, Build);

@@ -51,6 +51,9 @@ public sealed class MermaidBlock
     /// <summary>The block a tree reads as, positioned <paramref name="at"/> in the document that holds it.</summary>
     public static MermaidBlock Of(ContentNode tree, int at = 0) => new(ContentReading.Of(tree, at));
 
+    /// <summary>A block already read, taken as it stands.</summary>
+    public static MermaidBlock Of(ContentReading reading) => new(reading);
+
     /// <summary>The tree, with where each part sits.</summary>
     public ContentReading Reading { get; }
 

@@ -46,9 +46,19 @@ public abstract class MermaidBuilderContract
         MermaidBuilders.For(Diagram)
         ?? throw new AssertFailedException($"{Diagram} is drawn by no builder: MermaidBuilders names none.");
 
+    /// <summary>
+    /// What reads a block of this type, where the fence's language names the diagram rather than the block's first
+    /// line. Null for a Mermaid block, whose header names its own grammar.
+    /// </summary>
+    internal virtual Nexaflow.Markdown.Mermaid.IMermaidGrammar? Grammar => null;
+
+    /// <summary>A block read as the shared renderer reads it: parsed by its grammar and worked over by its stages.</summary>
+    protected Nexaflow.Markdown.Ast.ContentReading Read(string source, bool writing = false) =>
+        MermaidBuilders.Read(source, holes: writing, grammar: Grammar);
+
     /// <summary>Lays a block out as the shared renderer would.</summary>
     protected Laid Lay(string source, double room = 700, bool writing = false) =>
-        Builder.Invoke(EditState.For(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
+        Builder.Invoke(Read(source, writing), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
 
     [TestMethod]
     public void EveryBlockDrawsReadOrWritten_WideOrNarrow() => UiThread.Run(() =>

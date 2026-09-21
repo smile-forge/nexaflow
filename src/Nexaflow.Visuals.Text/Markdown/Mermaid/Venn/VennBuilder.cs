@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Visuals.Text.Editing;
@@ -85,10 +86,10 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
     private const double ItemGap = 2;
     private const double ItemApart = 10;
 
-    private VennBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private VennBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new VennBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new VennBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override VennDiagram Of(MermaidBlock block) => VennDiagram.Of(block);

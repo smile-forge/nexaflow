@@ -111,10 +111,10 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    protected ClassBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    protected ClassBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a class diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new ClassBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new ClassBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => ClassDiagram.Of(block);

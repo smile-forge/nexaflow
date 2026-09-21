@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -26,10 +27,11 @@ namespace Nexaflow.Tests.Visuals.Editing;
 [CoversNode("latex-source-map")]
 public class ContentBuilderTests
 {
-    /// <summary>A builder that reads nothing, however it is asked.</summary>
-    private sealed class Unwilling(string source, Func<Laid?> read) : ContentBuilder(source)
+    /// <summary>A builder that draws nothing, however it is asked.</summary>
+    private sealed class Unwilling(string source, Func<Laid?> read)
+        : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)))
     {
-        protected override Laid? Read() => read();
+        protected override Laid? Build() => read();
 
         protected override FormattedText Characters(string text) =>
             new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,

@@ -1,0 +1,52 @@
+# Builders not yet the one shape a builder is — see ContentBuilderRulesTests.
+#
+# The rule is: one constructor, taking (ContentReading, EditState, MarkdownPalette, bool), nothing told to it
+# afterwards, and nothing named that ContentBuilder does not declare. What is listed here predates the rule.
+#
+# Every one of these is told something as a fifth thing — a width, an ink, a palette, a spacing, a whole laying
+# record — that ought to reach it the way every builder is reached. Working through them is what takes the list
+# to nothing.
+#
+# This list may only shrink. A name that comes into shape has to come off it, which the second test enforces.
+Nexaflow.Visuals.Text.Markdown.Barcode.BarcodeBuilder
+Nexaflow.Visuals.Text.Markdown.Chemistry.SmilesBuilder
+Nexaflow.Visuals.Text.Markdown.Latex.LatexBuilder
+Nexaflow.Visuals.Text.Markdown.Matrix.Aztec.AztecBuilder
+Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix.DataMatrixBuilder
+Nexaflow.Visuals.Text.Markdown.Matrix.MatrixBuilder`1
+Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417.Pdf417Builder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Architecture.ArchitectureBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Block.BlockBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.C4.C4Builder
+Nexaflow.Visuals.Text.Markdown.Mermaid.C4.C4SequenceBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Class.ClassBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Cynefin.CynefinBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Er.ErBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart.FlowchartBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Git.GitBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Ishikawa.IshikawaBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Journey.JourneyBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Kanban.KanbanBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidBuilder`1
+Nexaflow.Visuals.Text.Markdown.Mermaid.Mindmap.MindmapBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Pie.PieBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Quadrant.QuadrantBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Radar.RadarBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Requirement.RequirementBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Sankey.SankeyBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence.SequenceBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.State.StateBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane.SwimlaneBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Timeline.TimelineBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.UnknownDiagramBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Venn.VennBuilder
+Nexaflow.Visuals.Text.Markdown.Mermaid.Xy.XyBuilder
+Nexaflow.Visuals.Text.Markdown.Music.Abc.AbcBuilder
+Nexaflow.Visuals.Text.Markdown.Music.LilyPond.LilyPondBuilder
+Nexaflow.Visuals.Text.Markdown.Music.MusicBuilder
+Nexaflow.Visuals.Text.Markdown.Nomnoml.NomnomlBuilder
+Nexaflow.Visuals.Text.Markdown.Plot.PlotBuilder
+Nexaflow.Visuals.Text.Markdown.Qr.QrBuilder
+Nexaflow.Visuals.Text.Markdown.WordCloud.WordCloudBuilder

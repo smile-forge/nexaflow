@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Gantt;
 using Nexaflow.Visuals.Text.Editing;
@@ -59,10 +60,10 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     private const double DateSize = 10;
     private const double MarkerSize = 15;
 
-    private GanttBuilder(EditState state, DiagramLaying laying) : base(state, laying) { }
+    private GanttBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new GanttBuilder(state, laying).Lay();
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new GanttBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override GanttChart Of(MermaidBlock block) => GanttChart.Of(block);

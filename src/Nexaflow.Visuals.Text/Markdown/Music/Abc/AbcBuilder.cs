@@ -19,27 +19,20 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 /// </summary>
 internal sealed class AbcBuilder : MusicBuilder
 {
-    private readonly (int Start, int Length)? _shownAsWritten;
-
     /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    public AbcBuilder(string abc, double width, Brush ink, double pixelsPerDip,
-                      (int Start, int Length)? shownAsWritten = null,
-                      ScoreSpacing? spacing = null, int at = 0)
-        : base(abc, width, ink, pixelsPerDip, spacing, at) =>
-        _shownAsWritten = shownAsWritten;
+    private AbcBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
+        : base(reading, width, ink, pixelsPerDip, spacing) { }
 
-    /// <summary>Reads and engraves a tune in one call — most callers want nothing else from a laid-out builder.</summary>
+    /// <summary>Reads a tune and engraves it. Never null, and never throws.</summary>
     public static Laid Build(string abc, double width, Brush ink, double pixelsPerDip,
                              (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0) =>
-        new AbcBuilder(abc, width, ink, pixelsPerDip, shownAsWritten, spacing, at).Lay();
+        new AbcBuilder(ContentReading.Of(AbcPipeline.Read(abc, Draws, shownAsWritten), at),
+                       width, ink, pixelsPerDip, spacing).Lay();
 
-    protected override Tune ReadTune()
-    {
-        // What can't be drawn and what's being typed are both settled before this, returned as parts that say so.
-        var reading = ContentReading.Of(AbcPipeline.Read(Source, Draws, _shownAsWritten), At);
-        return new Tune(Rows(reading), AbcHeader.Of(reading), reading);
-    }
+    /// <inheritdoc/>
+    /// <remarks>What cannot be drawn and what is being typed were both settled while it was read, as parts saying so.</remarks>
+    protected override Tune ReadTune() => new(Rows(Reading), AbcHeader.Of(Reading), Reading);
 
     /// <summary>Whether the engraver can draw a named decoration — asked of the builder, not a table, since drawability is a fact about the engraver.</summary>
     internal static bool Draws(string decoration) => Decorations.Contains(decoration.ToLowerInvariant());

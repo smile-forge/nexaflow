@@ -57,9 +57,9 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     private WordCloudSettings _settings = WordCloudSettings.Default;
 
-    private WordCloudBuilder(string source, MarkdownPalette palette, double room, double pixelsPerDip,
+    private WordCloudBuilder(ContentReading reading, MarkdownPalette palette, double room, double pixelsPerDip,
                              Func<string, ImageSource?>? pictures)
-        : base(source)
+        : base(reading)
     {
         _palette = palette;
         _room = room;
@@ -69,8 +69,8 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
     public static Laid Build(string source, MarkdownPalette palette, double room, double pixelsPerDip,
-                             Func<string, ImageSource?>? pictures = null) =>
-        new WordCloudBuilder(source, palette, room, pixelsPerDip, pictures).Lay();
+                             Func<string, ImageSource?>? pictures = null, int at = 0) =>
+        new WordCloudBuilder(ContentReading.Of(WordCloudParser.Parse(source), at), palette, room, pixelsPerDip, pictures).Lay();
 
     /// <summary>
     /// The element a cloud is shown in. Editable, because the words in it are words somebody typed — unlike a
@@ -90,11 +90,9 @@ internal sealed class WordCloudBuilder : ContentBuilder
             Margin = new Thickness(0, 6, 0, 10),
         };
 
-    protected override Laid? Read()
+    protected override Laid? Build()
     {
-        var reading = ContentReading.Of(WordCloudParser.Parse(Source));
-
-        if (!WordCloudReader.TryRead(reading.Root, out var chart, out var error)) return Stopped(error!);
+        if (!WordCloudReader.TryRead(Reading.Root, out var chart, out var error)) return Stopped(error!);
 
         _settings = chart!.Settings;
 

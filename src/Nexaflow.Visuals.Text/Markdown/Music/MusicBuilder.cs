@@ -36,8 +36,8 @@ internal abstract partial class MusicBuilder : ContentBuilder
     private readonly ScoreSpacing _spacing;
 
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    protected MusicBuilder(string source, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing, int at = 0)
-        : base(source, at)
+    protected MusicBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
+        : base(reading)
     {
         _width = width;
         _ink = ink;
@@ -48,11 +48,11 @@ internal abstract partial class MusicBuilder : ContentBuilder
     /// <summary>What a notation's reading hands the engraver, including where anything unreadable is reported.</summary>
     protected sealed record Tune(List<Row> Rows, MusicHeader Header, ContentReading Reading);
 
-    /// <summary>Reads the source into rows of bars of events. The one thing each notation writes for itself.</summary>
+    /// <summary>The reading as rows of bars of events. The one thing each notation works out for itself.</summary>
     protected abstract Tune ReadTune();
 
     /// <summary>Reads and engraves the tune, returning the laid-out tree, its size, and anything unreadable.</summary>
-    protected sealed override Laid? Read()
+    protected sealed override Laid? Build()
     {
         var tune = ReadTune();
         var (tree, size) = Engrave(tune, _width);

@@ -52,8 +52,10 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private double _labelSize;
     private double _barsLeft, _barsTop, _guardDrop;
 
+    // A barcode's value is one run of characters and has no grammar of its own, so what it is read as is that
+    // run: enough for the base to report the source and to show it when nothing can be drawn.
     private BarcodeBuilder(BarcodeBlock block, MarkdownPalette palette, double pixelsPerDip)
-        : base(block.Value)
+        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value)))
     {
         _block = block;
         _palette = palette;
@@ -94,7 +96,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         Brushes.Black,
         _dpi);
 
-        protected override Laid Read()
+        protected override Laid Build()
     {
         // Several formats add a check digit or move a group outside the bars, so the printed text comes
         // from the encoded pattern, not the raw value — except when it won't encode, where there's nothing else.

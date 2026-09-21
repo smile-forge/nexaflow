@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Markdown.Nomnoml;
@@ -17,14 +18,11 @@ namespace Nexaflow.Visuals.Text.Markdown.Nomnoml;
 /// <see cref="ClassBuilder"/>, and a fix there is a fix to both.
 /// </para>
 /// </summary>
-internal sealed class NomnomlBuilder(EditState state, DiagramLaying laying)
-    : ClassBuilder(state, laying)
+internal sealed class NomnomlBuilder(ContentReading reading, DiagramLaying laying)
+    : ClassBuilder(reading, laying)
 {
     /// <summary>Lays a nomnoml block's source out. Never null, and never throws.</summary>
-    public static Laid Build(EditState state, DiagramLaying laying) => new NomnomlBuilder(state, laying).Lay();
-
-    /// <inheritdoc/>
-    protected override IMermaidGrammar? Grammar => NomnomlDiagram.Grammar;
+    public static Laid Build(ContentReading reading, DiagramLaying laying) => new NomnomlBuilder(reading, laying).Lay();
 
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => NomnomlDiagram.Of(block);

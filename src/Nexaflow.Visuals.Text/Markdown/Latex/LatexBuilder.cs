@@ -21,20 +21,16 @@ public sealed partial class LatexBuilder : ContentBuilder
     private readonly double _scale;
     private readonly bool _inline;
     private readonly string _systemFont;
-    private readonly RawZone? _shownAsWritten;
-    private readonly bool _placeholders;
     private readonly double _pixelsPerDip;
     private readonly double _block;
 
-    private LatexBuilder(string latex, double scale, bool inline, string systemFont,
-                         RawZone? shownAsWritten, bool placeholders, double pixelsPerDip, double block, int at = 0)
-        : base(latex, at)
+    private LatexBuilder(ContentReading reading, double scale, bool inline, string systemFont,
+                         double pixelsPerDip, double block)
+        : base(reading)
     {
         _scale = scale;
         _inline = inline;
         _systemFont = systemFont;
-        _shownAsWritten = shownAsWritten;
-        _placeholders = placeholders;
         _pixelsPerDip = pixelsPerDip;
         _block = block;
     }
@@ -52,46 +48,46 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
     public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
                              RawZone? shownAsWritten = null, bool placeholders = false,
-                             double pixelsPerDip = 1.0, double block = 0, int at = 0) =>
-        new LatexBuilder(latex, scale, inline, systemFont, shownAsWritten, placeholders, pixelsPerDip, block, at).Lay();
+                             double pixelsPerDip = 1.0, double block = 0, int at = 0)
+    {
+        var editing = shownAsWritten is { } zone && zone.Length > 0 ? (zone.Start, zone.Length) : ((int, int)?)null;
+
+        // Draws() is asked of the builder rather than the typesetter's tables: the tables describe what the
+        // engine's own parser could read, a different question — asking them instead once showed `\ ` in red as
+        // unreadable.
+        var read = TexPipeline.Read(latex, Draws, editing, placeholders);
+
+        return new LatexBuilder(ContentReading.Of(read, at), scale, inline, systemFont, pixelsPerDip, block).Lay();
+    }
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>
         Draws(name, WpfTeXFormulaParser.Instance);
 
 
-    protected override Laid? Read()
+    protected override Laid? Build()
     {
         if (Source.Length == 0) return null;
 
         // The typesetter's own tables, not our reading — what a name means to it.
         var knowledge = WpfTeXFormulaParser.Instance;
 
-        var editing = _shownAsWritten is { } zone && zone.Length > 0
-            ? (zone.Start, zone.Length)
-            : ((int, int)?)null;
-
-        // Draws() is asked of the builder rather than the tables: the tables describe what the engine's own
-        // parser could read, a different question — asking them instead once showed `\ ` in red as unreadable.
-        var read = TexPipeline.Read(Source, Draws, editing, _placeholders);
-        var reading = ContentReading.Of(read, At);
-
         var environment = WpfTeXEnvironment.Create(
             style: _inline ? TexStyle.Text : TexStyle.Display,
             scale: _scale,
             systemTextFontName: _systemFont);
 
-        var formula = Formula(reading.Root, environment, knowledge);
+        var formula = Formula(Reading.Root, environment, knowledge);
 
         // Also settles the tree onto the origin: negative coordinates would put the caret outside the control
         // that draws it.
-        var placed = LayFormula(formula, reading);
+        var placed = LayFormula(formula, Reading);
         if (placed.Tree is not { } laid) return null;
 
 
         // Gathered after the fact rather than collected during read/lay, so a part being typed can pass
         // through without complaint.
-        var trouble = reading.Root.SelfAndDescendants()
+        var trouble = Reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
             .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
             .Concat(placed.Undrawn.Select(part => TexSourcePart.Trouble(
@@ -101,14 +97,14 @@ public sealed partial class LatexBuilder : ContentBuilder
             .ToList();
 
         // An equation's \tag number, set against the block's right edge — see Numbered.
-        var (tree, size) = Number(reading.Root, environment) is { } number
-            ? Numbered(placed, number, reading)
+        var (tree, size) = Number(Reading.Root, environment) is { } number
+            ? Numbered(placed, number, Reading)
             : (laid, placed.Size);
 
         var made = new Laid(tree, size, trouble);
 
         // Which cells of a matrix read across and which read down — said to the tree once it is sealed.
-        Order(reading, made.Root);
+        Order(Reading, made.Root);
 
         return made;
     }

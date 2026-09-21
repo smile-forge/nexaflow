@@ -60,7 +60,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// <summary>The narrowest a reason is set to, so a small symbol does not stack it a word to a line.</summary>
     private const double ReasonRoom = 240;
 
-    protected MatrixBuilder(string source, MarkdownPalette palette, double pixelsPerDip) : base(source)
+    protected MatrixBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip) : base(reading)
     {
         Palette = palette;
         PixelsPerDip = pixelsPerDip;
@@ -121,9 +121,9 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         return element;
     }
 
-    protected sealed override Laid Read()
+    protected sealed override Laid Build()
     {
-        var tree = MatrixParser.Parse(Source);
+        var tree = Reading.Root.Node;
 
         return Encode(tree, out string? trouble) is { } drawn
             ? Lay(drawn, trouble: null)
