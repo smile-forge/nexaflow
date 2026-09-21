@@ -20,18 +20,18 @@ public class ClassEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALabelAMemberARelationAndANoteChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a class diagram's words are written in where the host takes edits");
 
             PressPast(diagram, "The animal");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "+String beakColor");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "becomes");
-            Write(rtb, " a");
+            Write(editor, " a");
             PressPast(diagram, "mind this");
-            Write(rtb, " one");
+            Write(editor, " one");
 
             StringAssert.Contains(diagram.Source, "class Animal[\"The animals\"]", diagram.Source);
             StringAssert.Contains(diagram.Source, "+String beakColors", diagram.Source);
@@ -43,10 +43,10 @@ public class ClassEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareIdCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Duck");
-            Write(rtb, "-");
+            Write(editor, "-");
 
             StringAssert.Contains(diagram.Source, "Duck", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("Duck-", StringComparison.Ordinal),

@@ -28,16 +28,16 @@ public class CynefinEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInACardedItemOneInTheDisorderAndAMovementsLabelChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a Cynefin diagram's words are written in");
 
             PressPast(diagram, "Investigate root cause");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "Unclassified A");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "Stabilised");
-            Write(rtb, "?");
+            Write(editor, "?");
 
             StringAssert.Contains(diagram.Source, "\"Investigate root causes\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "\"Unclassified A!\"", diagram.Source);

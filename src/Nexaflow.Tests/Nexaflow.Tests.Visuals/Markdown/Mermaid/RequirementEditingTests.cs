@@ -20,14 +20,14 @@ public class RequirementEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInWhatAFieldIsSetToChangesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a requirement diagram's words are written in where the host takes edits");
 
             PressPast(diagram, "the test text");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "simulation");
-            Write(rtb, "s");
+            Write(editor, "s");
 
             StringAssert.Contains(diagram.Source, "text: the test texts", diagram.Source);
             StringAssert.Contains(diagram.Source, "type: simulations", diagram.Source);
@@ -37,10 +37,10 @@ public class RequirementEditingTests : MermaidEditing
 
     [TestMethod]
     public void RenamingARequirementCarriesToTheRelationThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "test_req");
-            Write(rtb, "2");
+            Write(editor, "2");
 
             StringAssert.Contains(diagram.Source, "requirement test_req2 {", diagram.Source);
             StringAssert.Contains(diagram.Source, "-> test_req2", diagram.Source);
@@ -49,10 +49,10 @@ public class RequirementEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareNameCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "widget");
-            Write(rtb, "-");
+            Write(editor, "-");
 
             StringAssert.Contains(diagram.Source, "element widget {", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("widget-", StringComparison.Ordinal),

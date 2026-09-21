@@ -80,8 +80,8 @@ public class PieEditingTests
     }
 
     /// <summary>The pie inside a document, fenced, which is how most are written.</summary>
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test, string diagram = Markdown) =>
-        MarkdownEditorHarness.Run("Pets:\n\n```mermaid\n" + diagram + "\n```\n", (editor, rtb) =>
+    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Markdown) =>
+        MarkdownEditorHarness.Run("Pets:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var pie = Find<ContentElement>(editor);
             Assert.IsNotNull(pie, "the pie did not render as content");
@@ -90,18 +90,18 @@ public class PieEditingTests
             // keyboard and hands its keys to the block.
             Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the pie to give the keys to");
 
-            test(editor, rtb, pie!);
+            test(editor, pie!);
         });
 
-    private static void Press(RichTextBox rtb, Key key)
+    private static void Press(InlineMarkdownEditor editor, Key key)
     {
-        MarkdownEditorHarness.RaiseKey(rtb, key);
+        MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(RichTextBox rtb, string text)
+    private static void Write(InlineMarkdownEditor editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
@@ -184,19 +184,19 @@ public class PieEditingTests
 
     [TestMethod]
     public void EnterAfterAValueStartsANewSliceToFillIn() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Enter);
+            Press(editor, Key.Enter);
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 30\n  \"\" : \n  \"Cats\" : 10", $"a slice of its own under it: {pie.Source}");
             Assert.AreEqual(0, pie.Diagnostics.Count, "with nothing wrong with it — only nothing in it yet");
             Assert.AreEqual(2, pie.Laid.Holes.Count, "a hole for its label and one for its value");
             Assert.AreEqual(pie.Laid.Holes[0].Sits().Start, pie.Caret, "and the caret in the first");
 
-            Write(rtb, "Birds");
-            Press(rtb, Key.Tab);
-            Write(rtb, "5");
+            Write(editor, "Birds");
+            Press(editor, Key.Tab);
+            Write(editor, "5");
 
             StringAssert.Contains(pie.Source, "\"Birds\" : 5", $"filled in by typing and tabbing: {pie.Source}");
             StringAssert.Contains(editor.Markdown, "\"Birds\" : 5", "and the document says so too");
@@ -205,10 +205,10 @@ public class PieEditingTests
 
     [TestMethod]
     public void EnterAtTheEndOfALabelStartsANewSliceRatherThanBreakingTheLabel() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheLabel(pie, "Dogs");
-            Press(rtb, Key.Enter);
+            Press(editor, Key.Enter);
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 30\n  \"\" : \n", $"under the slice, not through its label: {pie.Source}");
             Assert.AreEqual(0, pie.Diagnostics.Count, "and nothing is wrong");
@@ -216,43 +216,43 @@ public class PieEditingTests
 
     [TestMethod]
     public void DeletingAWholeValueLeavesAHoleToWriteANewOneIn() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Back);
-            Press(rtb, Key.Back);
+            Press(editor, Key.Back);
+            Press(editor, Key.Back);
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : \n", $"the number is gone: {pie.Source}");
             Assert.AreEqual(0, pie.Diagnostics.Count, "and nothing is wrong: it is only still to be written");
             Assert.AreEqual(1, pie.Laid.Holes.Count, "so a hole stands where it goes");
             Assert.AreEqual(pie.Laid.Holes[0].Sits().Start, pie.Caret, "with the caret in it");
 
-            Write(rtb, "7");
+            Write(editor, "7");
             StringAssert.Contains(pie.Source, "\"Dogs\" : 7\n", $"and what is typed goes where the hole was: {pie.Source}");
         }));
 
     [TestMethod]
     public void DeletingAWholeLabelLeavesAHoleToo() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheLabel(pie, "Cats");
-            for (var letter = 0; letter < "Cats".Length; letter++) Press(rtb, Key.Back);
+            for (var letter = 0; letter < "Cats".Length; letter++) Press(editor, Key.Back);
 
             StringAssert.Contains(pie.Source, "\"\" : 10", $"the label is gone: {pie.Source}");
             Assert.AreEqual(0, pie.Diagnostics.Count);
             Assert.AreEqual(1, pie.Laid.Holes.Count);
             Assert.AreEqual(pie.Laid.Holes[0].Sits().Start, pie.Caret);
 
-            Write(rtb, "Mice");
+            Write(editor, "Mice");
             StringAssert.Contains(pie.Source, "\"Mice\" : 10", pie.Source);
         }));
 
     [TestMethod]
     public void AQuoteTypedIntoALabelIsWrittenAsItsEntityCode() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheLabel(pie, "Dogs");
-            Write(rtb, "\"");
+            Write(editor, "\"");
 
             StringAssert.Contains(pie.Source, "\"Dogs#quot;\" : 30", pie.Source);
             Assert.AreEqual(0, pie.Diagnostics.Count, string.Join(" | ", pie.Diagnostics.Select(d => d.Message)));
@@ -261,13 +261,13 @@ public class PieEditingTests
 
     [TestMethod]
     public void BackspaceInASliceWithNothingWrittenInItTakesTheSliceBack() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             var before = pie.Source;
 
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Enter);
-            Press(rtb, Key.Back);
+            Press(editor, Key.Enter);
+            Press(editor, Key.Back);
 
             Assert.AreEqual(before, pie.Source, "Enter pressed once too often, and taken back");
             Assert.AreEqual(before.IndexOf("30", StringComparison.Ordinal) + 2, pie.Caret, "with the caret where it was");
@@ -275,12 +275,12 @@ public class PieEditingTests
 
     [TestMethod]
     public void BackspaceAtAValueStillToComeTakesNothingMore() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Back);
-            Press(rtb, Key.Back);
-            Press(rtb, Key.Back);
+            Press(editor, Key.Back);
+            Press(editor, Key.Back);
+            Press(editor, Key.Back);
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : \n", $"the colon is not taken: {pie.Source}");
             Assert.AreEqual(pie.Laid.Holes[0].Sits().Start, pie.Caret, "and the caret stays in the hole");
@@ -289,46 +289,46 @@ public class PieEditingTests
 
     [TestMethod]
     public void DeleteAtTheEndOfAValueOrALabelTakesNothingPastIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             var before = pie.Source;
 
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Delete);
+            Press(editor, Key.Delete);
             Assert.AreEqual(before, pie.Source, "past a value is the end of its line");
 
             PressPastTheLabel(pie, "Cats");
-            Press(rtb, Key.Delete);
+            Press(editor, Key.Delete);
             Assert.AreEqual(before, pie.Source, "past a label is its closing quote");
 
             PressPastTheValue(pie, "10");
-            Press(rtb, Key.Delete);
+            Press(editor, Key.Delete);
             Assert.AreEqual(before, pie.Source, "and past the last value, the end of the diagram");
             StringAssert.Contains(editor.Markdown, "\"Cats\" : 10\n```", "which the document keeps too");
         }));
 
     [TestMethod]
     public void DeleteAtTheEndOfTheTitleTakesNothingPastIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             var before = pie.Source;
 
             PressInTheTitle(pie, atEnd: true);
             Assert.AreEqual(before.IndexOf("Pets", StringComparison.Ordinal) + "Pets".Length, pie.Caret, "precondition: past the title");
 
-            Press(rtb, Key.Delete);
+            Press(editor, Key.Delete);
             Assert.AreEqual(before, pie.Source, "past the title is the end of its line");
         }, Titled));
 
     [TestMethod]
     public void BackspaceAtTheStartOfALabelTakesNothingBeforeIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             var before = pie.Source;
             var cats = before.IndexOf("Cats", StringComparison.Ordinal);
 
             pie.TakeCaret(cats);
-            Press(rtb, Key.Back);
+            Press(editor, Key.Back);
 
             Assert.AreEqual(before, pie.Source, "before a label is its opening quote");
             Assert.AreEqual(cats, pie.Caret);
@@ -336,50 +336,50 @@ public class PieEditingTests
 
     [TestMethod]
     public void DeleteInsideAWordStillTakesTheCharacterAfterTheCaret() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             pie.TakeCaret(pie.Source.IndexOf("30", StringComparison.Ordinal) + 1);
-            Press(rtb, Key.Delete);
+            Press(editor, Key.Delete);
 
             StringAssert.Contains(pie.Source, "\"Dogs\" : 3\n", pie.Source);
         }));
 
     [TestMethod]
     public void DownAndUpMoveBetweenTheRowsOfTheLegend() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
 
-            Press(rtb, Key.Down);
+            Press(editor, Key.Down);
             Assert.AreEqual(pie.Source.IndexOf("10", StringComparison.Ordinal) + 2, pie.Caret,
                             "down from the end of a value is the end of the value under it");
 
-            Press(rtb, Key.Up);
+            Press(editor, Key.Up);
             Assert.AreEqual(pie.Source.IndexOf("30", StringComparison.Ordinal) + 2, pie.Caret, "and up comes back");
         }));
 
     [TestMethod]
     public void DownFromTheTitleGoesIntoTheLegend_AndUpComesBack() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressInTheTitle(pie);
 
-            Press(rtb, Key.Down);
+            Press(editor, Key.Down);
             var dogs = pie.Source.IndexOf("Dogs", StringComparison.Ordinal);
             var thirty = pie.Source.IndexOf("30", StringComparison.Ordinal);
             Assert.IsTrue(pie.Caret >= dogs && pie.Caret <= thirty + 2, $"into the first row of the legend, but the caret is at {pie.Caret}");
 
-            Press(rtb, Key.Up);
+            Press(editor, Key.Up);
             var title = pie.Source.IndexOf("Pets", StringComparison.Ordinal);
             Assert.IsTrue(pie.Caret >= title && pie.Caret <= title + 4, $"and back up into the title, but the caret is at {pie.Caret}");
         }, Titled));
 
     [TestMethod]
     public void UndoTakesAnEditBackWithoutOpeningTheSource() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            Write(rtb, "9");
+            Write(editor, "9");
             StringAssert.Contains(editor.Markdown, "\"Dogs\" : 309", "precondition: the edit landed");
 
             editor.Undo();
@@ -411,10 +411,10 @@ public class PieEditingTests
 
     [TestMethod]
     public void AndOverAHole() => UiThread.Run(() =>
-        InADocument((editor, rtb, pie) =>
+        InADocument((editor, pie) =>
         {
             PressPastTheValue(pie, "30");
-            Press(rtb, Key.Enter);
+            Press(editor, Key.Enter);
 
             var hole = pie.Laid.Holes[0].Bounds;
             Assert.AreEqual(Cursors.IBeam, ((IInteractiveBlock)pie).PointerCursor(new Point(hole.X + (hole.Width / 2), hole.Y + (hole.Height / 2))),

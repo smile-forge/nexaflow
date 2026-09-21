@@ -19,16 +19,16 @@ public class BlockEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALabelAnIdAndALinksWordsChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a block diagram's words are written in");
 
             PressPast(diagram, "Store");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "feeds");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "lone");
-            Write(rtb, "r");
+            Write(editor, "r");
 
             StringAssert.Contains(diagram.Source, "db((\"Stores\"))", diagram.Source);
             StringAssert.Contains(diagram.Source, "-- \"feeds!\" -->", diagram.Source);
@@ -39,10 +39,10 @@ public class BlockEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareIdCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "lone");
-            Write(rtb, "[");
+            Write(editor, "[");
 
             StringAssert.Contains(diagram.Source, "lone", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("lone[", StringComparison.Ordinal), "a bracket would open a label rather than name the block");

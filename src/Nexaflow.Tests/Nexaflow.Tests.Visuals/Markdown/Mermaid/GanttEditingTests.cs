@@ -27,16 +27,16 @@ public class GanttEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInATasksNameInItsBarBesideItAndASectionsNameChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             Assert.IsFalse(chart.IsReadOnly, "a gantt chart's words are written in");
 
             PressPast(chart, "Design the whole thing");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(chart, "QA");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(chart, "Build");
-            Write(rtb, "ing");
+            Write(editor, "ing");
 
             StringAssert.Contains(chart.Source, "section Building\n  Design the whole thing! :a1", chart.Source);
             StringAssert.Contains(chart.Source, "QAs :after a1", chart.Source);
@@ -46,10 +46,10 @@ public class GanttEditingTests : MermaidEditing
 
     [TestMethod]
     public void AColonTypedIntoATasksNameIsNotWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             PressPast(chart, "QA");
-            Write(rtb, ":");
+            Write(editor, ":");
 
             StringAssert.Contains(chart.Source, "  QA :after a1, 1d", chart.Source);
         }));

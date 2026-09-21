@@ -25,14 +25,14 @@ public class XyEditingTests
 {
     private const string Sales = "xychart\n  x-axis \"Month\" [jan, feb]\n  bar \"Sold\" [1, 2]";
 
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test, string diagram = Sales) =>
-        MarkdownEditorHarness.Run("Sales:\n\n```mermaid\n" + diagram + "\n```\n", (editor, rtb) =>
+    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Sales) =>
+        MarkdownEditorHarness.Run("Sales:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var chart = Find<ContentElement>(editor);
             Assert.IsNotNull(chart, "the diagram did not render as content");
             Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
-            test(editor, rtb, chart!);
+            test(editor, chart!);
         });
 
     /// <summary>Presses just inside the end of words drawn for what starts where <paramref name="words"/> is written.</summary>
@@ -45,15 +45,15 @@ public class XyEditingTests
         chart.EndPointerSelect();
     }
 
-    private static void Press(RichTextBox rtb, Key key)
+    private static void Press(InlineMarkdownEditor editor, Key key)
     {
-        MarkdownEditorHarness.RaiseKey(rtb, key);
+        MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(RichTextBox rtb, string text)
+    private static void Write(InlineMarkdownEditor editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
@@ -61,12 +61,12 @@ public class XyEditingTests
 
     [TestMethod]
     public void TypingInACategoryChangesTheCategory() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             Assert.IsFalse(chart.IsReadOnly, "an xychart's words are written in");
 
             PressPast(chart, "jan");
-            Write(rtb, "e");
+            Write(editor, "e");
 
             StringAssert.Contains(chart.Source, "[jane, feb]", chart.Source);
             StringAssert.Contains(editor.Markdown, "[jane, feb]", "and so does the document");
@@ -74,11 +74,11 @@ public class XyEditingTests
 
     [TestMethod]
     public void ASpaceTypedIntoACategoryPutsItInQuotes() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             PressPast(chart, "feb");
-            Press(rtb, Key.Space);
-            Write(rtb, "2");
+            Press(editor, Key.Space);
+            Write(editor, "2");
 
             StringAssert.Contains(chart.Source, "[jan, \"feb 2\"]", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, Trouble(chart));
@@ -86,12 +86,12 @@ public class XyEditingTests
 
     [TestMethod]
     public void TypingInAnAxisTitleAndALegendRowChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             PressPast(chart, "Month");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(chart, "Sold");
-            Write(rtb, "!");
+            Write(editor, "!");
 
             StringAssert.Contains(chart.Source, "x-axis \"Months\"", chart.Source);
             StringAssert.Contains(chart.Source, "bar \"Sold!\"", chart.Source);
@@ -100,16 +100,16 @@ public class XyEditingTests
 
     [TestMethod]
     public void DeletingAWholeCategoryLeavesAHoleToWriteANewOneIn() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             PressPast(chart, "feb");
-            for (var letter = 0; letter < "feb".Length; letter++) Press(rtb, Key.Back);
+            for (var letter = 0; letter < "feb".Length; letter++) Press(editor, Key.Back);
 
             StringAssert.Contains(chart.Source, "[jan, ]", chart.Source);
             Assert.AreEqual(1, chart.Laid.Holes.Count, "a hole stands where it goes");
             Assert.AreEqual(chart.Laid.Holes[0].Sits().Start, chart.Caret);
 
-            Write(rtb, "mar");
+            Write(editor, "mar");
             StringAssert.Contains(chart.Source, "[jan, mar]", chart.Source);
         }));
 
@@ -125,14 +125,14 @@ public class XyEditingTests
 
     [TestMethod]
     public void TypingIntoTheTurnedAxisTitleWritesWhereThePointerIs() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             var title = chart.Laid.Root.SelfAndDescendants().First(piece => piece.Words is { Maps: true } && piece.Kind == XyPiece.AxisTitle);
 
             // The y-axis title is turned a quarter turn: its head is the end of its words, so a press there writes at the end.
             chart.BeginPointerSelect(new Point(title.Bounds.X + (title.Bounds.Width / 2), title.Bounds.Top + 1));
             chart.EndPointerSelect();
-            Write(rtb, "!");
+            Write(editor, "!");
 
             StringAssert.Contains(chart.Source, "y-axis \"Revenue!\"", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, Trouble(chart));

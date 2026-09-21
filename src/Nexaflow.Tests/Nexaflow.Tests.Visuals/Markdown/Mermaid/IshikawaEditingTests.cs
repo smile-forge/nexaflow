@@ -27,18 +27,18 @@ public class IshikawaEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInTheEventACauseAndACauseFurtherInChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "an ishikawa diagram's words are written in");
 
             PressPast(diagram, "Blurry Photo");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "Process");
-            Write(rtb, "es");
+            Write(editor, "es");
             PressPast(diagram, "Out of focus");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "Wrong mode");
-            Write(rtb, "?");
+            Write(editor, "?");
 
             StringAssert.Contains(diagram.Source, "  Blurry Photos\n  Processes\n    Out of focus!\n      Wrong mode?\n", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);

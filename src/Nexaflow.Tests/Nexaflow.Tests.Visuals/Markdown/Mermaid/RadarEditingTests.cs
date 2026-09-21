@@ -27,14 +27,14 @@ public class RadarEditingTests
     private const string Skills = "radar-beta\n  axis ui[\"UI\"], api\n  curve alice[\"Alice\"]{ ui: 3, api: 4 }\n  curve bob{2, 5}";
 
     /// <summary>The chart inside a document, fenced, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test, string diagram = Skills) =>
-        MarkdownEditorHarness.Run("Skills:\n\n```mermaid\n" + diagram + "\n```\n", (editor, rtb) =>
+    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Skills) =>
+        MarkdownEditorHarness.Run("Skills:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
             var radar = Find<ContentElement>(editor);
             Assert.IsNotNull(radar, "the diagram did not render as content");
             Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
-            test(editor, rtb, radar!);
+            test(editor, radar!);
         });
 
     /// <summary>Presses just inside the end of an axis's label or a curve's legend row, where it is drawn.</summary>
@@ -48,15 +48,15 @@ public class RadarEditingTests
         radar.EndPointerSelect();
     }
 
-    private static void Press(RichTextBox rtb, Key key)
+    private static void Press(InlineMarkdownEditor editor, Key key)
     {
-        MarkdownEditorHarness.RaiseKey(rtb, key);
+        MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(RichTextBox rtb, string text)
+    private static void Write(InlineMarkdownEditor editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
@@ -64,14 +64,14 @@ public class RadarEditingTests
 
     [TestMethod]
     public void TypingInAnAxisLabelChangesTheLabel() => UiThread.Run(() =>
-        InADocument((editor, rtb, radar) =>
+        InADocument((editor, radar) =>
         {
             Assert.IsFalse(radar.IsReadOnly, "a radar's labels are written in");
 
             PressPast(radar, "UI");
             Assert.IsTrue(radar.HasCaret, "a press on a label takes the caret");
 
-            Write(rtb, "X");
+            Write(editor, "X");
 
             StringAssert.Contains(radar.Source, "axis ui[\"UIX\"], api", radar.Source);
             StringAssert.Contains(editor.Markdown, "axis ui[\"UIX\"]", "and so does the document");
@@ -79,17 +79,17 @@ public class RadarEditingTests
 
     [TestMethod]
     public void RenamingAnAxisRenamesTheValuesThatNameIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, radar) =>
+        InADocument((editor, radar) =>
         {
             PressPast(radar, "api");
-            Write(rtb, "s");
+            Write(editor, "s");
 
             StringAssert.Contains(radar.Source, "axis ui[\"UI\"], apis\n", radar.Source);
             StringAssert.Contains(radar.Source, "{ ui: 3, apis: 4 }", $"the value still names it: {radar.Source}");
             Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
 
-            Press(rtb, Key.Space);
-            Write(rtb, "2");
+            Press(editor, Key.Space);
+            Write(editor, "2");
 
             StringAssert.Contains(radar.Source, "{ ui: 3, \"apis 2\": 4 }", $"quoted where it is used, as where it is declared: {radar.Source}");
             Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
@@ -98,10 +98,10 @@ public class RadarEditingTests
 
     [TestMethod]
     public void TypingInALegendRowChangesTheCurvesLabel() => UiThread.Run(() =>
-        InADocument((editor, rtb, radar) =>
+        InADocument((editor, radar) =>
         {
             PressPast(radar, "Alice");
-            Write(rtb, "a");
+            Write(editor, "a");
 
             StringAssert.Contains(radar.Source, "curve alice[\"Alicea\"]", radar.Source);
             Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
@@ -109,17 +109,17 @@ public class RadarEditingTests
 
     [TestMethod]
     public void EnterInALegendRowStartsAnotherCurveToName() => UiThread.Run(() =>
-        InADocument((editor, rtb, radar) =>
+        InADocument((editor, radar) =>
         {
             PressPast(radar, "bob");
-            Press(rtb, Key.Enter);
+            Press(editor, Key.Enter);
 
             StringAssert.Contains(radar.Source, "curve bob{2, 5}\n  curve ", radar.Source);
             Assert.AreEqual(0, radar.Diagnostics.Count, "with nothing wrong with it — only nothing in it yet");
             Assert.AreEqual(1, radar.Laid.Holes.Count, "a hole for its name");
             Assert.AreEqual(radar.Laid.Holes[0].Sits().Start, radar.Caret, "with the caret in it");
 
-            Write(rtb, "carol");
+            Write(editor, "carol");
 
             StringAssert.Contains(radar.Source, "curve carol", radar.Source);
             Assert.IsTrue(radar.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == RadarPiece.Name && piece.Words?.Glyphs.Text == "carol"),
@@ -128,17 +128,17 @@ public class RadarEditingTests
 
     [TestMethod]
     public void DeletingAWholeLabelLeavesAHoleToWriteANewOneIn() => UiThread.Run(() =>
-        InADocument((editor, rtb, radar) =>
+        InADocument((editor, radar) =>
         {
             PressPast(radar, "UI");
-            for (var letter = 0; letter < "UI".Length; letter++) Press(rtb, Key.Back);
+            for (var letter = 0; letter < "UI".Length; letter++) Press(editor, Key.Back);
 
             StringAssert.Contains(radar.Source, "axis ui[\"\"], api", $"the label is gone: {radar.Source}");
             Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
             Assert.AreEqual(1, radar.Laid.Holes.Count, "a hole stands where it goes");
             Assert.AreEqual(radar.Laid.Holes[0].Sits().Start, radar.Caret);
 
-            Write(rtb, "Front");
+            Write(editor, "Front");
             StringAssert.Contains(radar.Source, "axis ui[\"Front\"]", radar.Source);
         }));
 

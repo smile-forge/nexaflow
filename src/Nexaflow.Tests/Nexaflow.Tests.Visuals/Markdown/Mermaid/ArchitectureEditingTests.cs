@@ -29,14 +29,14 @@ public class ArchitectureEditingTests : MermaidEditing
                      ("plain", "s", "service plains"),
                  })
         {
-            InADocument((editor, rtb, diagram) =>
+            InADocument((editor, diagram) =>
             {
                 Assert.IsFalse(diagram.IsReadOnly, "an architecture diagram's words are written in");
 
                 PressPast(diagram, words);
                 Assert.AreEqual(words, diagram.SelectedText.Length == 0 ? diagram.Source[(diagram.Caret - words.Length)..diagram.Caret] : diagram.SelectedText,
                                 $"pressing past '{words}' puts the caret after it, and instead selected '{diagram.SelectedText}' at {diagram.Caret}");
-                Write(rtb, typed);
+                Write(editor, typed);
 
                 StringAssert.Contains(diagram.Source, said, diagram.Source);
                 Assert.AreEqual(0, diagram.Diagnostics.Count);
@@ -47,10 +47,10 @@ public class ArchitectureEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareIdCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "plain");
-            Write(rtb, "(");
+            Write(editor, "(");
 
             Assert.IsFalse(diagram.Source.Contains("plain(", StringComparison.Ordinal), "a bracket would open an icon rather than name the service");
             StringAssert.Contains(diagram.Source, "service plain", diagram.Source);

@@ -17,12 +17,12 @@ public class SankeyEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInANodesNameChangesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a sankey diagram's names are written in");
 
             PressPast(diagram, "Wind");
-            Write(rtb, "y");
+            Write(editor, "y");
 
             StringAssert.Contains(diagram.Source, "Windy,Grid,42", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
@@ -31,10 +31,10 @@ public class SankeyEditingTests : MermaidEditing
 
     [TestMethod]
     public void ANameGivenACommaIsPutInQuotes() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Homes");
-            Write(rtb, ",");
+            Write(editor, ",");
 
             StringAssert.Contains(diagram.Source, "\"Homes,\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);

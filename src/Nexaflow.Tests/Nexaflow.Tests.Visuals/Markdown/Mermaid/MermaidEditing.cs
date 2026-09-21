@@ -26,14 +26,14 @@ public abstract class MermaidEditing
     protected abstract string Source { get; }
 
     /// <summary>Shows the block in a document, and hands back the element it drew with the caret in it.</summary>
-    protected void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run("A diagram:\n\n```mermaid\n" + Source + "\n```\n", (editor, rtb) =>
+    protected void InADocument(Action<InlineMarkdownEditor, ContentElement> test) =>
+        MarkdownEditorHarness.Run("A diagram:\n\n```mermaid\n" + Source + "\n```\n", editor =>
         {
             var diagram = Find<ContentElement>(editor);
             Assert.IsNotNull(diagram, "the diagram did not render as content");
             Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
-            test(editor, rtb, diagram!);
+            test(editor, diagram!);
         });
 
     /// <summary>Presses just inside the end of the words the diagram draws for <paramref name="words"/>, putting the caret there.</summary>
@@ -47,9 +47,9 @@ public abstract class MermaidEditing
     }
 
     /// <summary>Types <paramref name="text"/> wherever the caret is, and lets the editor catch up.</summary>
-    protected static void Write(RichTextBox rtb, string text)
+    protected static void Write(InlineMarkdownEditor editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 

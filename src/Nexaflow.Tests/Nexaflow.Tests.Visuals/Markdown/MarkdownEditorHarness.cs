@@ -5,6 +5,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Reflection;
 using Nexaflow.Visuals.Text.Markdown;
+using System.Linq;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -58,6 +59,71 @@ internal static class MarkdownEditorHarness
             test(editor, rtb);
         }
         finally { window.Close(); }
+    }
+
+    // ── Driving the editor, rather than the surface it happens to be drawn on ────────────────────────
+    //
+    // The editor is a RichTextBox today and will be one element tomorrow. Everything below is written in
+    // terms of the editor and a source offset, so a test says what it means — put the caret here, type
+    // that — and nothing has to be rewritten when the surface underneath it changes.
+
+    /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
+    public static void Run(string markdown, Action<InlineMarkdownEditor> test,
+                           Action<InlineMarkdownEditor>? configure = null) =>
+        Run(markdown, (editor, _) => test(editor), configure);
+
+    /// <summary>Raises a genuine keystroke's worth of text on the editor.</summary>
+    public static void RaiseTextInput(InlineMarkdownEditor editor, string text) =>
+        RaiseTextInput(RichTextBoxOf(editor), text);
+
+    /// <summary>Types <paramref name="text"/> into the editor one character at a time.</summary>
+    public static void Type(InlineMarkdownEditor editor, string text)
+    {
+        foreach (var character in text) RaiseTextInput(editor, character.ToString());
+    }
+
+    /// <summary>Presses <paramref name="key"/> on the editor.</summary>
+    public static void RaiseKey(InlineMarkdownEditor editor, Key key) => RaiseKey(RichTextBoxOf(editor), key);
+
+    /// <summary>
+    /// Puts the caret <paramref name="at"/> characters into the markdown the editor is showing.
+    ///
+    /// <para>
+    /// A source offset, because that is the thing a test knows — it wrote the markdown. Resolved here by
+    /// finding the block the offset falls in and counting to its paragraph, which holds while a block draws
+    /// as one paragraph, and is exact for the single-block documents these tests use. Once the editor is one
+    /// element over one document this is a caret move and nothing else.
+    /// </para>
+    /// </summary>
+    public static void PlaceCaret(InlineMarkdownEditor editor, int at)
+    {
+        var source = editor.Markdown ?? string.Empty;
+        var (block, within) = Blocked(source, Math.Clamp(at, 0, source.Length));
+
+        var rtb = RichTextBoxOf(editor);
+        var paragraphs = rtb.Document.Blocks.OfType<Paragraph>().ToList();
+        if (paragraphs.Count == 0) return;
+
+        PlaceCaret(rtb, paragraphs[Math.Clamp(block, 0, paragraphs.Count - 1)], within);
+    }
+
+    /// <summary>Which block of <paramref name="source"/> an offset falls in, and how far into it.</summary>
+    private static (int Block, int Within) Blocked(string source, int at)
+    {
+        var blocks = MarkdownBlocks.Split(source);
+        var start = 0;
+
+        for (var index = 0; index < blocks.Count; index++)
+        {
+            var found = source.IndexOf(blocks[index], start, StringComparison.Ordinal);
+            if (found < 0) break;
+
+            if (at <= found + blocks[index].Length) return (index, Math.Max(at - found, 0));
+
+            start = found + blocks[index].Length;
+        }
+
+        return (Math.Max(blocks.Count - 1, 0), 0);
     }
 
     /// <summary>Raises a genuine <see cref="TextCompositionManager.PreviewTextInputEvent"/> for

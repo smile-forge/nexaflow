@@ -16,14 +16,14 @@ public class C4SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALabelAndInWhatARelationshipSaysChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a C4 sequence's words are written in where the host takes edits");
 
             PressPast(diagram, "Banking Customer");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "Submits credentials");
-            Write(rtb, " to it");
+            Write(editor, " to it");
 
             StringAssert.Contains(diagram.Source, "\"Banking Customers\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "\"Submits credentials to it\"", diagram.Source);
@@ -37,10 +37,10 @@ public class C4SequenceEditingTests : MermaidEditing
     /// </summary>
     [TestMethod]
     public void RenamingAParticipantCarriesToTheMacroThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Store");
-            Write(rtb, "s");
+            Write(editor, "s");
 
             StringAssert.Contains(diagram.Source, "participant Stores", diagram.Source);
             StringAssert.Contains(diagram.Source, "Rel(spa, Stores,", diagram.Source);
@@ -49,10 +49,10 @@ public class C4SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatWouldCloseAMacrosBracketsIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Store");
-            Write(rtb, ")");
+            Write(editor, ")");
 
             StringAssert.Contains(diagram.Source, "Rel(spa, Store,", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("Store)", StringComparison.Ordinal),

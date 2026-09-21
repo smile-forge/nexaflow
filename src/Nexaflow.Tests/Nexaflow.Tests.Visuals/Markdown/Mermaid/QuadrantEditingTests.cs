@@ -23,14 +23,14 @@ public class QuadrantEditingTests
 {
     private const string Plan = "quadrantChart\n  x-axis Urgent --> Later\n  quadrant-1 Plan\n  Task A:::hot: [0.3, 0.6]\n  classDef hot color: #ff0000";
 
-    private static void InADocument(Action<InlineMarkdownEditor, RichTextBox, ContentElement> test) =>
-        MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", (editor, rtb) =>
+    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test) =>
+        MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", editor =>
         {
             var chart = Find<ContentElement>(editor);
             Assert.IsNotNull(chart, "the diagram did not render as content");
             Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
-            test(editor, rtb, chart!);
+            test(editor, chart!);
         });
 
     private static void PressPast(ContentElement chart, string words)
@@ -42,9 +42,9 @@ public class QuadrantEditingTests
         chart.EndPointerSelect();
     }
 
-    private static void Write(RichTextBox rtb, string text)
+    private static void Write(InlineMarkdownEditor editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(rtb, text);
+        MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
@@ -52,16 +52,16 @@ public class QuadrantEditingTests
 
     [TestMethod]
     public void TypingInACaptionAnAxisEndAndAPointsNameChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             Assert.IsFalse(chart.IsReadOnly, "a quadrant chart's words are written in");
 
             PressPast(chart, "Plan");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(chart, "Later");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(chart, "Task A");
-            Write(rtb, "1");
+            Write(editor, "1");
 
             StringAssert.Contains(chart.Source, "quadrant-1 Plans", chart.Source);
             StringAssert.Contains(chart.Source, "--> Later!", chart.Source);
@@ -72,10 +72,10 @@ public class QuadrantEditingTests
 
     [TestMethod]
     public void AColonTypedIntoAPointsNamePutsItInQuotes() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             PressPast(chart, "Task A");
-            Write(rtb, ":");
+            Write(editor, ":");
 
             StringAssert.Contains(chart.Source, "\"Task A:\":::hot: [0.3, 0.6]", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, Trouble(chart));
