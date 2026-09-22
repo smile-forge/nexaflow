@@ -52,6 +52,10 @@ public sealed class NomnomlLanguage : IContentLanguage
 
     public bool Reads(string? language) => Name.Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
+    public Laid? Lay(ContentRequest request) =>
+        MermaidBuilders.Lay(static (r, s, f, o) => new NomnomlBuilder(r, s, f, o), NomnomlDiagram.Grammar,
+                            request.Source, request.Style, request.Room, request.At, request.Options);
+
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         MermaidBuilder.Host(source, options, static (r, s, f, o) => new NomnomlBuilder(r, s, f, o),
                             options.ReadOnly, NomnomlDiagram.Grammar);
@@ -151,8 +155,15 @@ public sealed class PlotLanguage(PlotFence fence) : IContentLanguage
 {
     public bool Reads(string? language) => PlotFences.Named(language ?? string.Empty) == fence;
 
+    public Laid? Lay(ContentRequest request) =>
+        PlotBuilder.Build(request.Source, fence, request.Style, Panel(request.Room), request.At);
+
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         PlotBuilder.Element(source, fence, options);
+
+    /// <summary>A width to plot against, since a panel given infinity has no axis to scale.</summary>
+    private static double Panel(double room) =>
+        double.IsFinite(room) && room > 0 ? Math.Min(room, 560) : 560;
 }
 
 /// <summary>A cloud of words sized by how often each is said.</summary>
@@ -171,6 +182,15 @@ public sealed class WordCloudLanguage : IContentLanguage
 public sealed class BarcodeLanguage : IContentLanguage
 {
     public bool Reads(string? language) => "barcode".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    public Laid? Lay(ContentRequest request)
+    {
+        // A block that will not read has no symbol in it to draw, and saying so is the caller's: what it puts
+        // there instead is the characters somebody typed, which is the only thing left to fix.
+        if (!BarcodeBlockParser.TryParse(request.Source, out var block, out _)) return null;
+
+        return BarcodeBuilder.Build(block!.At(block.ValueStart + request.At), request.Style);
+    }
 
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options)
     {

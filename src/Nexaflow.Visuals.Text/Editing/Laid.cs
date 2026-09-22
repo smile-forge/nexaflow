@@ -39,6 +39,37 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// <summary>Whether anything was laid out.</summary>
     public bool Exists => Tree.Count > 0;
 
+    /// <summary>
+    /// Whether anything actually reached the page: a run of words, or a mark of any kind.
+    ///
+    /// <para>
+    /// Not the same question as <see cref="Exists"/>, and the difference is where blocks go missing. A tree can
+    /// be built and still draw nothing — a reader handed something it could make no sense of leaves pieces
+    /// standing for source with nothing set in them — so a caller that took a tree's existence for a drawing
+    /// would put an empty box on the page where a block should be.
+    /// </para>
+    /// <para>
+    /// <strong>Something that drew nothing must never be what a document shows.</strong> A block that vanished
+    /// is one a reader cannot see is missing, cannot find to fix, and cannot put a caret in to repair — and
+    /// what is written is wrong most of the time, because half a diagram is what every diagram looks like on
+    /// the way to being one. Whoever asked draws the characters instead.
+    /// </para>
+    /// </summary>
+    public bool Draws => _draws ??= Drew();
+
+    private bool? _draws;
+
+    private bool Drew()
+    {
+        foreach (var piece in Root.SelfAndDescendants())
+        {
+            if (piece.Words is not null) return true;
+            if (piece.Marks.Length > 0) return true;
+        }
+
+        return false;
+    }
+
     // ── What a pointer means ────────────────────────────────────────────────
     //
     // The three questions that need more than the tree: where the content ends, which is what makes a press

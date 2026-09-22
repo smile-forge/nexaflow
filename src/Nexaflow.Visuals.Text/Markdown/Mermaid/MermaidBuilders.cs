@@ -102,4 +102,15 @@ internal static class MermaidBuilders
             ?.Invoke(Read(source, holes: writing, at: at, after: After(style, options)),
                      EditState.For(source), style, isReadOnly: !writing)
             .Lay(room);
+
+    /// <summary>
+    /// The same, for a diagram whose type is settled by the grammar reading it rather than by a keyword in a
+    /// header — nomnoml, which is a class diagram written another way and so has no keyword to look up.
+    /// </summary>
+    public static Laid Lay(Make make, Nexaflow.Markdown.Mermaid.IMermaidGrammar? grammar, string source,
+                           StyleFormat style, double room = double.PositiveInfinity, int at = 0,
+                           DiagramRenderOptions? options = null) =>
+        make(Read(source, at: at, grammar: grammar, after: After(style, options)),
+             EditState.For(source), style, isReadOnly: true)
+            .Lay(room);
 }

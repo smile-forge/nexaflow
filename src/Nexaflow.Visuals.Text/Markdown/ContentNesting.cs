@@ -42,6 +42,8 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
             Named = Named, Room = room, At = body.Start, Options = Options,
         });
 
-        return laid is { Exists: true } ? new ContentInset(laid) : null;
+        // Asked whether it drew rather than whether it exists: a language that built a tree and put nothing in
+        // it has nothing to show, and the characters are what goes there instead.
+        return laid is { Draws: true } ? new ContentInset(laid) : null;
     }
 }

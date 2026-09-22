@@ -40,13 +40,14 @@ public interface IContentLanguage
     bool ShowsWhatWasWritten => false;
 
     /// <summary>
-    /// That source, read and laid out at the size it was asked for — or null for a language whose builder has
-    /// no entry point of its own yet.
+    /// That source, read and laid out at the size it was asked for — or null where there is nothing in it to
+    /// draw, which a block that will not read at all is.
     ///
     /// <para>
-    /// Three are in that state (a barcode, the correlation plots, nomnoml), because their builders were only
-    /// ever reached through <see cref="Draw"/>. Until they have one they draw only where a document is made
-    /// of elements, which is what null says here rather than leaving a caller to find out.
+    /// <strong>Null does not mean nothing appears.</strong> It means this language has no picture of the
+    /// source to offer, and whoever asked draws the characters instead — so a block nothing could make sense
+    /// of is still on the page, still where it was written, and still somewhere the caret can go and repair
+    /// it. Every language answers, and every answer leads to something drawn.
     /// </para>
     /// </summary>
     Laid? Lay(ContentRequest request) => null;

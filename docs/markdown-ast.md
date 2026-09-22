@@ -213,6 +213,15 @@ across the page are laid out differently, and the walk order, the placement and 
 never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
 still every piece it was drawn as and a drag across the page picks up its bars.
 
+**Nothing drawn is never an answer.** A language either lays the content out or says it cannot, and what
+goes there then is the characters somebody typed — so a block nothing could make sense of is still on the
+page, still where it was written, still somewhere the caret can go and repair it. The seam asks `Laid.Draws`
+rather than `Laid.Exists`, because a tree can be built and hold nothing visible, and a caller that took the
+one for the other would put an empty box on the page where a block should be. What is written is wrong most
+of the time — half a diagram is what every diagram looks like on the way to being one — so this is the
+common path and not the corner case. `ContentLanguageDrawingTests` sweeps every language in the table
+against both.
+
 **Words are gathered into runs, broken into lines, and joined back up.** A line is set by collecting the
 constructs a writer spelled with punctuation into runs, cutting them where a line may break, and joining
 everything on one line that is set the same way and stands for the same part — which is how `a **bold**

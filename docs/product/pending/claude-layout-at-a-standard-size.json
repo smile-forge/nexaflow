@@ -221,11 +221,43 @@
           }
         ]
       }
+    },
+    "markdown-always-drawn": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Laid.cs",
+          "class": "Laid",
+          "method": "Drew"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentNesting.cs",
+          "class": "ContentNesting",
+          "method": "At"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "AsWritten"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentLanguageDrawingTests.cs",
+            "class": "ContentLanguageDrawingTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 14,
+  "changed_sets": 16,
   "touched_nodes": [
+    "markdown-always-drawn",
     "markdown-maths",
     "markdown-pictures",
     "md-code-highlighting",
