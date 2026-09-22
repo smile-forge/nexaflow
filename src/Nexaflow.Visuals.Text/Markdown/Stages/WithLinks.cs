@@ -101,6 +101,19 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
 /// </summary>
 /// <param name="Ink">What the words are drawn in, or null for the accent every other link uses.</param>
 /// <param name="Underline">Whether it is underlined. False for a link that says what it is some other way.</param>
-/// <param name="Badge">A mark set after the words — what tells a reader this one opens a pane rather than a page.</param>
+/// <param name="Before">A mark set in front of the words — a pin, for a link that points at the screen.</param>
+/// <param name="After">A mark set behind them — an arrow, for one that leaves the document.</param>
 /// <param name="Says">What resting on it says, where the host has something to say.</param>
-public sealed record LinkLook(Brush? Ink = null, bool Underline = true, string? Badge = null, string? Says = null);
+public sealed record LinkLook(
+    Brush? Ink = null,
+    bool Underline = true,
+    string? Before = null,
+    string? After = null,
+    string? Says = null)
+{
+    /// <summary>
+    /// What the marks are drawn in, where they are glyphs the reading face does not have — an icon font.
+    /// Null draws them in the same face as the words, which is right for an arrow and wrong for a pin.
+    /// </summary>
+    public FontFamily? MarkFont { get; init; }
+}

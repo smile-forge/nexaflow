@@ -63,12 +63,25 @@ public class MarkdownImageResolverTests
     [TestMethod]
     public void SelectableMarkdownView_ForwardsTheResolver() => UiThread.Run(() =>
     {
+        // The resolver is the host's and the asking is a stage's, so the one thing the view has to do is
+        // carry it between them.
         var pixel = Pixel();
         var view = new SelectableMarkdownView { ImageResolver = _ => pixel };
+
         view.Markdown = Doc;
 
-        var doc = ((RichTextBox)view.Content).Document;
-        Assert.AreSame(pixel, Images(doc).Single().Source);
+        view.Measure(new Size(640, 2000));
+        view.Arrange(new Rect(0, 0, 640, 2000));
+        view.UpdateLayout();
+
+        var shown = ((MarkdownSurface)view.Content).Shown;
+        var drawn = new List<System.Windows.Media.ImageSource>();
+
+        foreach (var piece in shown.Laid.Root.SelfAndDescendants())
+            foreach (var mark in piece.Marks)
+                if (mark is Nexaflow.Visuals.Text.Editing.PictureMark picture) drawn.Add(picture.Picture);
+
+        Assert.AreSame(pixel, drawn.Single());
     });
 
     private static FlowDocument Build(Func<string, ImageSource?> resolver, string? baseDirectory = null)

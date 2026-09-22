@@ -27,8 +27,10 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 public sealed class MarkdownElement : LinkedElement
 {
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
-    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null)
-        : base(source ?? string.Empty, palette, MarkdownContent.Of(palette), host)
+    /// <param name="options">What the host said about the content written inside the document.</param>
+    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null,
+                           DiagramRenderOptions? options = null)
+        : base(source ?? string.Empty, palette, MarkdownContent.Of(palette, options), host)
     {
         // A fenced block draws uncoloured until its language has been read against it, which happens off the
         // way to drawing. When it lands, this is what shows it — the same refresh a ticked item uses.

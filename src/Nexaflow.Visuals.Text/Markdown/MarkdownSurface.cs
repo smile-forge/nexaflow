@@ -41,6 +41,7 @@ public sealed class MarkdownSurface : UserControl
     /// <summary>What the element now on the page was built with, so it is only made again when that changes.</summary>
     private StyleFormat _drawn = StyleFormat.Dark;
     private bool _writable;
+    private DiagramRenderOptions? _asked;
 
     /// <summary>
     /// The document as it reads, kept beside the drawing. One read per document rather than one per
@@ -107,6 +108,16 @@ public sealed class MarkdownSurface : UserControl
     /// <summary>Whether a reader may write in it.</summary>
     public bool IsReadOnly { get; set; } = true;
 
+    /// <summary>
+    /// Whether this scrolls itself, or lets an outer scroller do it — the second being what a chat bubble
+    /// inside a conversation wants, where every bubble scrolling separately would be unusable.
+    /// </summary>
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => _scroller.VerticalScrollBarVisibility;
+        set => _scroller.VerticalScrollBarVisibility = value;
+    }
+
     /// <summary>The element the document is drawn on — where a caret, a selection and the tree live.</summary>
     public MarkdownElement Shown => _shown;
 
@@ -132,6 +143,51 @@ public sealed class MarkdownSurface : UserControl
         if (Found.Count > 0) Next();
 
         return Found.Count;
+    }
+
+    /// <summary>
+    /// The same, for a question more complicated than a word — what a search box worked out. Goes to the
+    /// first place it found.
+    /// </summary>
+    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
+    {
+        Found = MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences);
+        At = -1;
+
+        _shown.Showing = (Found, At);
+
+        if (Found.Count > 0) Next();
+
+        return Found.Count;
+    }
+
+    /// <summary>
+    /// Narrows what is shown to the places named by their order in <see cref="Found"/>, and says how many
+    /// are left — for a host whose own list of results has been filtered since.
+    /// </summary>
+    public int Restrict(IReadOnlySet<int> keep)
+    {
+        var kept = Found.Where((_, at) => keep.Contains(at)).ToList();
+
+        Found = kept;
+        At = kept.Count > 0 ? 0 : -1;
+
+        _shown.Showing = (Found, At);
+
+        if (At >= 0) _shown.Show(Found[At]);
+
+        return kept.Count;
+    }
+
+    /// <summary>What a place reads as, for a host listing what it found — the line it is on, tidied.</summary>
+    public string Preview(int at)
+    {
+        if (at < 0 || at >= Found.Count) return string.Empty;
+
+        var (start, _) = Found[at];
+        var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
+
+        return _shown.Markdown.Substring(line.Start, line.Length).Trim();
     }
 
     /// <summary>The next place, coming back round to the first.</summary>
@@ -166,8 +222,18 @@ public sealed class MarkdownSurface : UserControl
     /// <summary>Goes to a line, counting from one — and to the whole of whatever drew it, where a line is inside a picture.</summary>
     public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_shown.Markdown, line), choose: false);
 
-    /// <summary>Goes where a saved reference leads, or as far as it still does.</summary>
-    public bool GoTo(ContentPath path) => MarkdownFind.Followed(_read, path) is { } place && _shown.Show(place);
+    /// <summary>
+    /// Goes where a saved reference leads, or as far as it still does — and says whether the document had it
+    /// at all, which it can answer before anything has been laid out.
+    /// </summary>
+    public bool GoTo(ContentPath path)
+    {
+        if (MarkdownFind.Followed(_read, path) is not { } place) return false;
+
+        _shown.Show(place);
+
+        return true;
+    }
 
     /// <summary>How to find what is picked out again later, after the document has been written in.</summary>
     public ContentPath Reference() =>
@@ -320,11 +386,10 @@ public sealed class MarkdownSurface : UserControl
 
     private void Shows(string markdown)
     {
-        if (ReferenceEquals(_shown.Markdown, markdown)) return;
-
-        // A palette or a host set after the document is what a XAML host does, so the element is made
-        // again rather than asked to change what it was built with.
-        if (_writable == IsReadOnly || !ReferenceEquals(_drawn, Palette))
+        // What a language is asked, what a picture resolves against and how a link looks are all read when
+        // the element is built, so a host that has changed any of them needs a new one — setting the source
+        // on the old one would show the new document read the old way.
+        if (_writable == IsReadOnly || !ReferenceEquals(_drawn, Palette) || !ReferenceEquals(_asked, Options))
         {
             _shown = Made(markdown);
             _shown.SourceChanged += (_, _) => Reread();
@@ -341,9 +406,9 @@ public sealed class MarkdownSurface : UserControl
 
     private MarkdownElement Made(string markdown)
     {
-        (_drawn, _writable) = (Palette, !IsReadOnly);
+        (_drawn, _writable, _asked) = (Palette, !IsReadOnly, Options);
 
-        return new MarkdownElement(markdown, Palette, Host) { IsReadOnly = IsReadOnly };
+        return new MarkdownElement(markdown, Palette, Host, Options) { IsReadOnly = IsReadOnly };
     }
 
     /// <summary>Reads the document again, which is what a changed source means.</summary>

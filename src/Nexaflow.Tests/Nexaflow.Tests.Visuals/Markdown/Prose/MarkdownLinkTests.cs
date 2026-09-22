@@ -94,15 +94,21 @@ public class MarkdownLinkTests
     [TestMethod]
     public void TheHostHasItsSayInHowALinkLooksWithoutTouchingTheWords() => UiThread.Run(() =>
     {
-        // What the help pane does with a locate: link — say it opens a pane rather than a page, and leave
-        // the words the writer wrote exactly as they were.
+        // What the help pane does with a locate: link — put a pin in front of it so a reader can tell it
+        // points at the screen, and leave the words the writer wrote exactly as they were.
         var laid = Lay("[the Help button](locate:Chrome_HelpButton) and [the web](https://example.com/x)\n",
-                       (where, _) => where.StartsWith("locate:") ? new LinkLook(Brushes.Orange, Badge: " ⧉") : null);
+                       (where, _) => where.StartsWith("locate:")
+                           ? new LinkLook(Brushes.Orange, Before: "\U0001F4CD", After: "\u29c9")
+                           : null);
 
         var drawn = string.Concat(Words(laid).Select(piece => piece.Words!.Glyphs.Text));
 
         StringAssert.Contains(drawn, "the Help button", "the words are the writer's and are not disturbed");
-        StringAssert.Contains(drawn, "⧉", "and the mark the host asked for is set after them");
+        StringAssert.Contains(drawn, "\U0001F4CD", "with the mark the host asked for in front of them");
+        StringAssert.Contains(drawn, "\u29c9", "and the one it asked for behind");
+
+        Assert.IsTrue(drawn.IndexOf("\U0001F4CD", StringComparison.Ordinal) < drawn.IndexOf("the Help button", StringComparison.Ordinal),
+            "in front means in front");
     });
 
     [TestMethod]
@@ -136,6 +142,46 @@ public class MarkdownLinkTests
         StringAssert.Contains(drawn, "one");
         StringAssert.Contains(drawn, "two");
         Assert.AreEqual(2, Acts(laid).Count, "and both still go where they were written to go");
+    });
+
+    [TestMethod]
+    public void AndAHostWithNothingToSayLeavesEveryLinkAsItWasWritten() => UiThread.Run(() =>
+    {
+        const string source = "[the Help button](locate:Chrome_HelpButton), [the web](https://example.com/x) and <https://example.com/auto>\n";
+
+        var laid = Lay(source, null);
+        var drawn = string.Concat(Words(laid).Select(piece => piece.Words!.Glyphs.Text));
+
+        Assert.AreEqual(3, Acts(laid).Count, "three links, going where they were written to go");
+        StringAssert.Contains(drawn, "the Help button");
+        StringAssert.Contains(drawn, "https://example.com/auto", "a bare url is its own words");
+    });
+
+    [TestMethod]
+    public void AndTheViewHandsItsHookOnToWhatItIsShowing() => UiThread.Run(() =>
+    {
+        // The hook is the host's and the asking is the stage's, so the one thing the view has to do is carry
+        // it between them — which is the thing that quietly stops working when a surface is swapped underneath.
+        var offered = new List<string>();
+
+        var view = new SelectableMarkdownView
+        {
+            LinkDecorator = (where, _) =>
+            {
+                offered.Add(where);
+
+                return null;
+            },
+        };
+
+        view.Markdown = "[one](a) and [two](b)\n";
+
+        // The stage is asked while the document is being laid out, so nothing has asked it until something has.
+        view.Measure(new System.Windows.Size(640, 2000));
+        view.Arrange(new System.Windows.Rect(0, 0, 640, 2000));
+        view.UpdateLayout();
+
+        CollectionAssert.AreEqual(new[] { "a", "b" }, offered);
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────

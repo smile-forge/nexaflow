@@ -29,23 +29,38 @@ public static class MarkdownFind
     /// Everywhere <paramref name="term"/> is written in <paramref name="source"/>, in the order a reader
     /// would come to them. Case is not something a reader should have to match.
     /// </summary>
-    public static IReadOnlyList<(int Start, int Length)> Every(string? source, string? term)
+    public static IReadOnlyList<(int Start, int Length)> Every(string? source, string? term) =>
+        term is { Length: > 0 } looking ? Every(source, Looking(looking)) : [];
+
+    /// <summary>
+    /// The same, for a question more complicated than a word — several terms, a pattern, something a search
+    /// box worked out. Whatever it is, it is asked of one string, and that string is the source.
+    /// </summary>
+    public static IReadOnlyList<(int Start, int Length)> Every(
+        string? source, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
     {
-        if (source is not { Length: > 0 } text || term is not { Length: > 0 } looking) return [];
+        if (source is not { Length: > 0 } text || occurrences is null) return [];
 
-        var found = new List<(int, int)>();
-
-        for (var at = 0; at <= text.Length - looking.Length;)
-        {
-            var hit = text.IndexOf(looking, at, StringComparison.CurrentCultureIgnoreCase);
-            if (hit < 0) break;
-
-            found.Add((hit, looking.Length));
-            at = hit + 1;
-        }
-
-        return found;
+        return [.. occurrences(text).Where(one => one.Length > 0).Select(one => (one.Index, one.Length))];
     }
+
+    /// <summary>A plain word, asked the way a reader means it: anywhere in the text, in any case.</summary>
+    private static Func<string, IReadOnlyList<(int Index, int Length)>> Looking(string term) =>
+        text =>
+        {
+            var found = new List<(int, int)>();
+
+            for (var at = 0; at <= text.Length - term.Length;)
+            {
+                var hit = text.IndexOf(term, at, StringComparison.CurrentCultureIgnoreCase);
+                if (hit < 0) break;
+
+                found.Add((hit, term.Length));
+                at = hit + 1;
+            }
+
+            return found;
+        };
 
     /// <summary>
     /// Everywhere <paramref name="term"/> is on the page although it is nowhere in the source — and where in
@@ -64,16 +79,21 @@ public static class MarkdownFind
     /// given back is the source the run stands for, so a hit reads like any other.
     /// </para>
     /// </summary>
-    public static IReadOnlyList<(int Start, int Length)> Shown(Editing.Laid? laid, string? term)
+    public static IReadOnlyList<(int Start, int Length)> Shown(Editing.Laid? laid, string? term) =>
+        term is { Length: > 0 } looking ? Shown(laid, Looking(looking)) : [];
+
+    /// <summary>The same, for a question more complicated than a word.</summary>
+    public static IReadOnlyList<(int Start, int Length)> Shown(
+        Editing.Laid? laid, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
     {
-        if (laid is null || term is not { Length: > 0 } looking) return [];
+        if (laid is null || occurrences is null) return [];
 
         var found = new List<(int Start, int Length)>();
 
         foreach (var piece in laid.Root.SelfAndDescendants())
         {
             if (piece.Words is not { Maps: false } words) continue;
-            if (words.Glyphs.Text.IndexOf(looking, StringComparison.CurrentCultureIgnoreCase) < 0) continue;
+            if (occurrences(words.Glyphs.Text).Count == 0) continue;
 
             var sits = piece.Sits();
             if (sits.Length > 0) found.Add((sits.Start, sits.Length));
@@ -87,10 +107,15 @@ public static class MarkdownFind
     /// only drawn. In the order they come to them, each place once.
     /// </summary>
     public static IReadOnlyList<(int Start, int Length)> In(Editing.Laid? laid, string? source, string? term) =>
-        [.. Every(source, term).Concat(Shown(laid, term))
-                               .GroupBy(place => place.Start)
-                               .Select(same => same.First())
-                               .OrderBy(place => place.Start)];
+        term is { Length: > 0 } looking ? In(laid, source, Looking(looking)) : [];
+
+    /// <summary>The same, for a question more complicated than a word.</summary>
+    public static IReadOnlyList<(int Start, int Length)> In(
+        Editing.Laid? laid, string? source, Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences) =>
+        [.. Every(source, occurrences).Concat(Shown(laid, occurrences))
+                                      .GroupBy(place => place.Start)
+                                      .Select(same => same.First())
+                                      .OrderBy(place => place.Start)];
 
     /// <summary>
     /// Where a line begins and how long it is, counting from one.

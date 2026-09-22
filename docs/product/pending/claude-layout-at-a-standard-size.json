@@ -348,8 +348,8 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLinkDecoratorTests.cs",
-            "class": "MarkdownLinkDecoratorTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs",
+            "class": "MarkdownLinkTests"
           },
           {
             "type": "code",
@@ -523,21 +523,58 @@
           }
         ]
       }
+    },
+    "md-anchor-links": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownAnchors.cs",
+          "class": "MarkdownAnchors"
+        },
+        {
+          "type": "node",
+          "target": "markdown-anchors"
+        }
+      ]
+    },
+    "markdown-hosts": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/SelectableMarkdownView.cs",
+          "class": "SelectableMarkdownView"
+        },
+        {
+          "type": "node",
+          "target": "markdown-surface"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs",
+            "class": "MarkdownLinkTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 32,
+  "changed_sets": 35,
   "touched_nodes": [
     "markdown-always-drawn",
     "markdown-anchors",
     "markdown-copy",
     "markdown-finding",
+    "markdown-hosts",
     "markdown-maths",
     "markdown-offers",
     "markdown-pictures",
     "markdown-styling",
     "markdown-surface",
     "markdown-table-spans",
+    "md-anchor-links",
     "md-code-highlighting",
     "md-image-resolver",
     "md-link-decorator",

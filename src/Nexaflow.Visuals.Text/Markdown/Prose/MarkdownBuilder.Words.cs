@@ -45,6 +45,9 @@ public sealed partial class MarkdownBuilder
         /// <summary>A rule of dots under it: what says a word stands for more than itself.</summary>
         public bool Dotted { get; init; }
 
+        /// <summary>The face it is set in, where it is not the reading one — an icon font for a mark.</summary>
+        public FontFamily? Font { get; init; }
+
         public bool Mono { get; init; }
 
         /// <summary>How big, against the reader's text size.</summary>
@@ -215,16 +218,23 @@ public sealed partial class MarkdownBuilder
             return;
         }
 
+        // A mark the host asked for, set beside the words rather than into them — the words are the writer's.
+        if (look is { Before.Length: > 0 } opens)
+            runs.Add(new Run(opens.Before + " ", part, Marked(linked, look), Maps: false, Act: act));
+
         var at = runs.Count;
         Gather(body, linked, runs);
 
         // Whatever the words turned out to be, the whole of them answers the press.
         for (var index = at; index < runs.Count; index++) runs[index] = runs[index] with { Act = act };
 
-        // A mark the host asked for, set after the words rather than into them — the words are the writer's.
-        if (look is { Badge.Length: > 0 } marked)
-            runs.Add(new Run(marked.Badge, part, linked with { Underline = false }, Maps: false, Act: act));
+        if (look is { After.Length: > 0 } shuts)
+            runs.Add(new Run(" " + shuts.After, part, Marked(linked, look), Maps: false, Act: act));
     }
+
+    /// <summary>How a mark beside a link is set: the link's ink, no rule under it, and whatever face it needs.</summary>
+    private static Face Marked(Face linked, Stages.LinkLook look) =>
+        linked with { Underline = false, Font = look.MarkFont };
 
     /// <summary>
     /// A formula written in the middle of a sentence, typeset on the line it was written on.
@@ -510,7 +520,7 @@ public sealed partial class MarkdownBuilder
             text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(face.Mono ? new FontFamily(MonoFont) : Style.TextFont,
+            new Typeface(face.Font ?? (face.Mono ? new FontFamily(MonoFont) : Style.TextFont),
                          face.Italic ? FontStyles.Italic : FontStyles.Normal,
                          face.Bold ? FontWeights.Bold : FontWeights.Normal,
                          FontStretches.Normal),

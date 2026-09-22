@@ -18,8 +18,11 @@ public static class LocateLink
 {
     public const string Scheme = "locate";
 
-    private const string PinGlyph = "\uE707";   // Segoe MDL2 Assets: MapPin
-    private static readonly FontFamily IconFont = new("Segoe MDL2 Assets");
+    /// <summary>The mark a <c>locate:</c> link carries, so a reader can tell it points at the screen.</summary>
+    public const string PinGlyph = "\uE707";   // Segoe MDL2 Assets: MapPin
+
+    /// <summary>The face that glyph is in — it is not one a reading font has.</summary>
+    public static readonly FontFamily IconFont = new("Segoe MDL2 Assets");
 
     /// <summary>The ids a <c>locate:</c> link names, in order; false for any other link, or one that names nothing.</summary>
     public static bool TryParse(string? url, out IReadOnlyList<string> ids)
