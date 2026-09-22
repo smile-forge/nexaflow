@@ -179,7 +179,12 @@ public static class MarkdownParser
     /// </summary>
     private static ContentNode Block(Block block, string source)
     {
-        if (block is FencedCodeBlock fence) return Fenced(fence, source);
+        // A maths block IS a fenced block — Markdig derives one from the other — and it reads the same way: a
+        // delimiter, a body in another language, a delimiter. What differs is only that nobody writes the
+        // language after the fence, because the $$ is what says it.
+        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, source, MarkdownKinds.Math);
+
+        if (block is FencedCodeBlock fence) return Fenced(fence, source, MarkdownKinds.Fence);
 
         return ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
     }
@@ -190,7 +195,7 @@ public static class MarkdownParser
     /// characters in the source and they are still in the tree, where a paragraph has nothing written anywhere
     /// that says it is one.
     /// </summary>
-    private static ContentNode Fenced(FencedCodeBlock fence, string source)
+    private static ContentNode Fenced(FencedCodeBlock fence, string source, string kind)
     {
         var opens = 0;
         while (opens < source.Length && source[opens] == fence.FencedChar) opens++;
@@ -226,7 +231,7 @@ public static class MarkdownParser
         if (shut > body) parts.Add(ContentNode.Leaf(Kinds.Verbatim, source[body..shut], Roles.Body));
         if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close));
 
-        return ContentNode.Branch(MarkdownKinds.Fence, parts);
+        return ContentNode.Branch(kind, parts);
     }
 
     /// <summary>Which language reads a block's body.</summary>

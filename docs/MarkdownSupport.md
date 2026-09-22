@@ -92,7 +92,7 @@ unless noted otherwise.
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block + caption. |
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
-| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Rendered with **WpfMath** (LaTeX); falls back to the LaTeX source if unparseable. |
+| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Typeset by the repo's own LaTeX engine. A **display** formula keeps its typesetting whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; an **inline** one falls back to its source in a monospaced accent, because a sentence with a wave through the middle of it cannot be read. |
 | Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
 | Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music (see below). No block syntax of its own: it is a language in the fence table like every other. |
 

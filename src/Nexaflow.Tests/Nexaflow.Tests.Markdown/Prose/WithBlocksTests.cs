@@ -46,6 +46,13 @@ public class WithBlocksTests
         ("a table with a row missing", "| a | b |\n|---|---|\n"),
         ("a fence", "```csharp\nvar x = 1;\n```\n"),
         ("a fence never closed", "```csharp\nvar x = 1;\n"),
+        ("a formula on its own line", "$$\n\\frac{x^2}{2}\n$$\n"),
+        ("a formula never closed", "$$\n\\frac{x^2}{2}\n"),
+        ("an empty formula", "$$\n$$\n"),
+        ("a formula in a sentence", "The value $x^2$ and then some.\n"),
+        ("two formulas in a sentence", "From $a$ to $b$.\n"),
+        ("a formula holding a dollar", "Costs $\\$5$ exactly.\n"),
+        ("a formula nobody closed in a sentence", "The value $x^2 and then some.\n"),
         ("front matter", "---\ntitle: A Thing\n---\n\nwords\n"),
         ("indented code", "    indented\n    code\n"),
         ("everything at once",
@@ -280,6 +287,40 @@ public class WithBlocksTests
 
         Assert.AreEqual(Kinds.Verbatim, Body(fence).Kind);
         Assert.AreEqual("pie\n", Body(fence).Text);
+    }
+
+    [TestMethod]
+    public void AFormulaOnItsOwnLineIsAFenceSpelledWithDollars()
+    {
+        var maths = Blocks("$$\n\\frac{x^2}{2}\n$$\n")[0];
+
+        Assert.AreEqual(MarkdownKinds.Math, maths.Kind);
+
+        // The same shape a fence has, because it is the same thing: a delimiter, another language, a delimiter.
+        // Nobody writes the language after the $$, so there is no name — which is the only difference.
+        Assert.AreEqual("$$", maths.Part(Roles.Open)?.Text);
+        Assert.IsNull(maths.Part(Roles.Name));
+        Assert.AreEqual(Kinds.Verbatim, Body(maths).Kind);
+        Assert.AreEqual("\\frac{x^2}{2}\n", Body(maths).Text);
+        Assert.AreEqual("$$\n", maths.Part(Roles.Close)?.Text);
+    }
+
+    [TestMethod]
+    public void AFormulaInASentenceIsTheDollarsAndWhatIsBetweenThem()
+    {
+        var words = Blocks("The value $x^2$ and then some.\n")[0];
+
+        var maths = words.Part(Roles.Body)!.Children
+            .Where(child => child.Kind == MarkdownKinds.Formula)
+            .ToList();
+
+        Assert.AreEqual(1, maths.Count);
+        Assert.AreEqual("$", maths[0].Part(Roles.Open)?.Text);
+        Assert.AreEqual("x^2", maths[0].Part(Roles.Body)?.Text);
+        Assert.AreEqual("$", maths[0].Part(Roles.Close)?.Text);
+
+        // And it still prints as the sentence somebody typed, marks and all.
+        Assert.AreEqual("$x^2$", maths[0].Print());
     }
 
     [TestMethod]

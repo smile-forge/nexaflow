@@ -103,6 +103,9 @@ public static class MarkdownInline
 
             case LineBreakInline:
                 return read.Take(end, Roles.Separator, MarkdownKinds.Break);
+
+            case Markdig.Extensions.Mathematics.MathInline maths:
+                return Formula(maths, read, end);
         }
 
         var parts = new List<ContentNode>();
@@ -130,6 +133,33 @@ public static class MarkdownInline
         return parts.Count == 0
             ? read.Take(end, Roles.Element, Kind(inline))
             : ContentNode.Branch(Kind(inline), parts);
+    }
+
+    /// <summary>
+    /// A formula in the middle of a sentence, cut where its delimiters stop: the dollars that hold it, and the
+    /// LaTeX between them.
+    ///
+    /// <para>
+    /// Shaped like a fenced block for the same reason — what is between the delimiters is another language, and
+    /// whoever reads that language wants the body and not the marks. Where the delimiters cannot be told from
+    /// the body the whole of it is held as one, rather than guessed at.
+    /// </para>
+    /// </summary>
+    private static ContentNode Formula(Markdig.Extensions.Mathematics.MathInline maths, Cut read, int end)
+    {
+        var from = read.At;
+        var opens = Math.Clamp(maths.Content.Start, from, end);
+        var shuts = Math.Clamp(maths.Content.End + 1, opens, end);
+
+        if (shuts <= opens) return read.Take(end, Roles.Element, MarkdownKinds.Formula);
+
+        List<ContentNode> parts = [];
+
+        if (opens > from) parts.Add(read.Take(opens, Roles.Open, Kinds.Token));
+        parts.Add(read.Take(shuts, Roles.Body, Kinds.Verbatim));
+        if (end > shuts) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
+
+        return ContentNode.Branch(MarkdownKinds.Formula, parts);
     }
 
     /// <summary>
@@ -189,6 +219,7 @@ public static class MarkdownInline
         HtmlEntityInline => MarkdownKinds.Entity,
         HtmlInline => MarkdownKinds.Html,
         TaskList => MarkdownKinds.Task,
+        Markdig.Extensions.Mathematics.MathInline => MarkdownKinds.Formula,
         _ => MarkdownKinds.Word,
     };
 

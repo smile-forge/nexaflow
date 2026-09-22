@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
+using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -37,6 +38,11 @@ public class MarkdownBuilderTests
         ("a table", "| a | b |\n|---|---|\n| 1 | 2 |\n"),
         ("a table with alignment", "| a | b | c |\n|:--|:-:|--:|\n| 1 | 2 | 3 |\n"),
         ("a fence", "```csharp\nvar x = 1;\n```\n"),
+        ("a formula on its own line", "$$\n\\frac{x^2}{2}\n$$\n"),
+        ("an empty formula", "$$\n$$\n"),
+        ("an unreadable formula", "$$\n\\not_a_command{\n$$\n"),
+        ("a formula in a sentence", "The value $x^2$ and then some.\n"),
+        ("an unreadable formula in a sentence", "The value $\\not_a_command{$ and on.\n"),
         ("a diagram", "```mermaid\npie\n  \"a\" : 1\n```\n"),
         ("front matter", "---\ntitle: A Thing\n---\n\nwords\n"),
         ("a link", "see [the page](https://example.org)\n"),
@@ -270,6 +276,92 @@ public class MarkdownBuilderTests
         Assert.IsTrue(shown[0].Words!.Maps, "it is the source, so the caret goes straight into it");
     }
 
+    // ── Maths ───────────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void AFormulaOnItsOwnLineIsTypesetAndNotShownAsCharacters()
+    {
+        var drawn = Lay("$$\n\\frac{x^2}{2}\n$$\n");
+
+        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count, "it was typeset, not shown as its source");
+        Assert.IsTrue(drawn.Size.Height > 0);
+    }
+
+    [TestMethod]
+    public void AndItIsSetLargerThanTheSameFormulaInASentence()
+    {
+        // The one size a builder is not given: how big a formula is set is a fact about the content — whether
+        // it was written on its own line or in the middle of a sentence — so it is settled where every other
+        // fact about content is, and the builder only reads how big the answer came out.
+        var alone = Formula(Lay("$$\nx\n$$\n"));
+        var within = Formula(Lay("A $x$ here.\n"));
+
+        Assert.IsTrue(alone.Width > within.Width * 1.3,
+            $"the same formula came out {alone.Width:F1} wide on its own line and {within.Width:F1} in a sentence");
+    }
+
+    [TestMethod]
+    public void AndItIsCentredInTheRoomItWasGiven()
+    {
+        var wide = Pieces(Lay("$$\nx\n$$\n", room: 600), MarkdownPieces.Block);
+        var narrow = Pieces(Lay("$$\nx\n$$\n", room: 200), MarkdownPieces.Block);
+
+        Assert.IsTrue(wide.Count > 0 && narrow.Count > 0);
+        Assert.IsTrue(wide.Min(piece => piece.Bounds.X) > narrow.Min(piece => piece.Bounds.X),
+            "the more room it was given the further in it sat");
+    }
+
+    [TestMethod]
+    public void AFormulaThatCouldNotBeReadIsStillAFormula()
+    {
+        // Maths under a caret is invalid most of the time — every command is unreadable until its last letter
+        // is typed — so a formula that turned into a box of source as it was written would spend most of its
+        // life as a box of source. What could be read is set, and the reader's own parser waves under the rest.
+        var drawn = Lay("$$\n\\not_a_command{\n$$\n");
+
+        Assert.AreEqual(0, Pieces(drawn, MarkdownPieces.Verbatim).Count,
+            "an unreadable formula is still typeset, still somewhere the caret can go and repair it");
+        Assert.IsTrue(drawn.Size.Height > 0);
+    }
+
+    [TestMethod]
+    public void AFormulaInASentenceSitsOnTheLineTheSentenceIsOn()
+    {
+        var drawn = Lay("The value $x^2$ and then some.\n");
+
+        // The words either side are one line, so the formula did not push them apart.
+        var words = Words(drawn);
+
+        Assert.IsTrue(words.Count >= 2);
+        Assert.AreEqual(1, words.Select(piece => Math.Round(piece.Bounds.Y)).Distinct().Count(),
+            "the sentence broke into more than one line round a formula that should have sat in it");
+
+        // And the dollars are not drawn as characters: what is there is the formula.
+        StringAssert.DoesNotMatch(Drawn(drawn), new System.Text.RegularExpressions.Regex(@"\$"));
+    }
+
+    [TestMethod]
+    public void AnUnreadableFormulaInASentenceShowsItsSourceInstead()
+    {
+        // Where a display formula keeps its typesetting, an inline one does not: half a display formula still
+        // tells a reader where they are, but a sentence with a wave through the middle of it is a sentence
+        // nobody can read. So the dollars come back and the reader can see what to fix.
+        var drawn = Lay("The value $\\not_a_command{$ and on.\n");
+
+        StringAssert.Contains(Drawn(drawn), "$\\not_a_command{$");
+    }
+
+    [TestMethod]
+    public void AFormulaWithNothingInItIsTheCharactersItWasWrittenWith()
+    {
+        // There is no formula in "$$\n$$" to typeset, and the characters are the only place a caret could go —
+        // so they are what is drawn, and typing into them is what starts the formula off.
+        var shown = Pieces(Lay("$$\n$$\n"), MarkdownPieces.Verbatim);
+
+        Assert.AreEqual(1, shown.Count);
+        Assert.IsTrue(shown[0].Words!.Maps, "so the caret lands in the dollars and the next key writes maths");
+    }
+
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string source, double room = 480) =>
@@ -287,4 +379,12 @@ public class MarkdownBuilderTests
     /// <summary>How far into its cell a cell's words start.</summary>
     private static double Inset(Piece cell) =>
         cell.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Words).Bounds.X - cell.Bounds.X;
+
+    /// <summary>The box another language's content was grafted into — what a formula came out as.</summary>
+    private static Rect Formula(Laid laid) =>
+        Pieces(laid, MarkdownPieces.Block)
+            .Where(piece => piece.Bounds.Width > 0)
+            .OrderBy(piece => piece.Bounds.Width)
+            .First()
+            .Bounds;
 }

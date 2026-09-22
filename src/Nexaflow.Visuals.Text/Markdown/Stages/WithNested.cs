@@ -27,24 +27,55 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
 {
     public string Name => "content:nested";
 
+    /// <summary>What <c>$$ … $$</c> is written in, which nobody writes after the delimiter.</summary>
+    private const string Maths = "latex";
+
+    /// <summary>How much bigger than the words around it a formula on its own line is set.</summary>
+    private const double Display = 1.5;
+
     public ContentNode Run(ContentNode tree) => Read(tree);
 
-    /// <summary>Whether what is written inside this piece is a whole other content, named by the writer.</summary>
-    private static bool Nests(ContentNode node) =>
-        (node.Kind == Kinds.Nested || node.Kind == MarkdownKinds.Fence)
-        && node.Part(Roles.Name) is { Text.Length: > 0 }
-        && node.Part(Roles.Body) is { Text.Length: > 0 };
+    /// <summary>Whether what is written inside this piece is a whole other content.</summary>
+    private static bool Nests(ContentNode node) => Names(node) is not null && node.Part(Roles.Body) is not null;
+
+    /// <summary>
+    /// Which language a piece is written in: the one named after its fence, or the one its own kind implies.
+    ///
+    /// <para>
+    /// Maths names none, because the <c>$$</c> is the name — a writer does not spell "latex" after it and
+    /// never has. That is a fact about the delimiter rather than about the body, so it is settled here with
+    /// every other question of which language reads what.
+    /// </para>
+    /// </summary>
+    private static string? Names(ContentNode node) => node.Kind switch
+    {
+        MarkdownKinds.Math or MarkdownKinds.Formula => Maths,
+        Kinds.Nested or MarkdownKinds.Fence => node.Part(Roles.Name) is { Text.Length: > 0 } name ? name.Text.Trim() : null,
+        _ => null,
+    };
+
+    /// <summary>
+    /// How big a piece is set, which is a fact about the content and not about the room it lands in: a formula
+    /// on its own line is drawn half as big again as the words around it, and one in the middle of a sentence
+    /// at the size of the sentence.
+    /// </summary>
+    private StyleFormat Drawn(ContentNode node) => node.Kind switch
+    {
+        MarkdownKinds.Math => style with { TextSize = style.TextSize * Display, InlineMath = false },
+        MarkdownKinds.Formula => style with { InlineMath = true },
+        _ => style,
+    };
 
     private ContentNode Read(ContentNode node)
     {
-        if (node.IsLeaf) return node;
-
         // Already answered, which is what makes running this twice the same as running it once.
-        if (Nests(node) && !node.Children.Any(child => child.Held is ContentNesting)
-            && ContentLanguages.For(node.Part(Roles.Name)!.Text) is { } language)
+        if (!node.IsLeaf && Nests(node) && !node.Children.Any(child => child.Held is ContentNesting)
+            && Names(node) is { } named && ContentLanguages.For(named) is { } language)
             node = node.With([.. node.Children,
                               ContentNode.Holding(Kinds.Nested, Roles.Derived,
-                                                  new ContentNesting(language, node.Part(Roles.Name)!.Text.Trim(), style, options))]);
+                                                  new ContentNesting(language, named, Drawn(node), options))]);
+
+        if (node.IsLeaf) return node;
 
         var seen = new ContentNode[node.Children.Count];
         var moved = false;

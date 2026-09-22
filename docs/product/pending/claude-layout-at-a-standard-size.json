@@ -113,11 +113,59 @@
           }
         ]
       }
+    },
+    "markdown-maths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithNested.cs",
+          "class": "WithNested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Displayed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Formula"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/WithBlocksTests.cs",
+            "class": "WithBlocksTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 10,
   "touched_nodes": [
+    "markdown-maths",
     "md-code-highlighting",
     "md-task-toggle",
     "qr-render",

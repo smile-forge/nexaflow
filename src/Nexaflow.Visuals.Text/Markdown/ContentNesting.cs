@@ -35,7 +35,7 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
     /// </summary>
     public ContentInset? At(ContentPart? body, double room)
     {
-        if (body is not { Length: > 0 }) return null;
+        if (body is null) return null;
 
         var laid = Language.Lay(new ContentRequest(body.Text, Style)
         {

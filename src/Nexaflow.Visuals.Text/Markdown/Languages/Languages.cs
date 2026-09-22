@@ -120,7 +120,8 @@ public sealed class LatexLanguage : IContentLanguage
     public bool Reads(string? language) => language?.Trim().ToLowerInvariant() is "latex" or "math" or "tex";
 
     public Laid? Lay(ContentRequest request) =>
-        LatexBuilder.Lay(request.Source, request.Style, at: request.At);
+        LatexBuilder.Lay(request.Source, request.Style, at: request.At,
+                         block: double.IsFinite(request.Room) ? request.Room : 0);
 
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         new ContentElement(source, options.Palette,

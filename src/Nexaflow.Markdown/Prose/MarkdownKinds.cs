@@ -111,6 +111,16 @@ public static class MarkdownKinds
     /// </summary>
     public const string Fence = "fence";
 
+    /// <summary>
+    /// A formula written between two rows of <c>$$</c>. A fence spelled another way, with the language it holds
+    /// implied by the delimiter rather than written after it — so its body is LaTeX and its shape is a fence's:
+    /// an opening token, the body, a closing token.
+    /// </summary>
+    public const string Math = "math";
+
+    /// <summary><c>$x^2$</c> — a formula written in the middle of a sentence, set on the line it was written on.</summary>
+    public const string Formula = "formula";
+
     /// <summary><c>[words](where)</c>, and the bracketed and bare URL forms.</summary>
     public const string Link = "link";
 

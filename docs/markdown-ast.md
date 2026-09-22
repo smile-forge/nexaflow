@@ -178,6 +178,54 @@ therefore always right.
 A parser is not a stage. What a name is shorthand for, and where one token stops and the next begins, are
 facts about the text that no later stage can change.
 
+## Markdown
+
+**A document is a list of blocks, and each block is its own content.** `MarkdownParser` says only where each
+block starts and which of them it is — Markdig decides the boundaries and nothing else, because where one
+block stops and the next begins is a question with a decade of corner cases behind it. What a block *holds*
+is settled by whoever reads that kind, when it is read (`WithBlocks`): a paragraph, a heading and a table
+cell by `MarkdownInline`, a quote's and an alert's body by the block reader again, a list by `MarkdownList`,
+a table by `MarkdownTable`. That is what lets a keystroke re-read one paragraph rather than a thousand-line
+file, and what lets a kind nothing can read yet be shown exactly as it was typed.
+
+**A fence is a delimiter, another language, and a delimiter**, and so is a formula: `$$ … $$` is the same
+shape with the language implied by the marks instead of written after them, and `$x$` is that shape again,
+small. So `MarkdownKinds.Math` and `MarkdownKinds.Formula` are read exactly as `MarkdownKinds.Fence` is —
+an opening token, a verbatim body, a closing token — and nothing downstream has a third case to learn.
+
+| Stage | What it works out |
+|---|---|
+| `WithBlocks` | what each block holds, read by the parser its kind names |
+| `WithNested` | which language reads what is written inside a piece, and how big it is set |
+| `WithTokens` | what a grammar made of a stretch of code, where it has read one *(code fences)* |
+
+**`WithNested` hangs a language, never a picture.** It answers the one question a builder has no business
+asking — which of the languages the host assembled reads this — and hangs the answer on the node as a
+derived part (`ContentNesting`). It settles one more thing, because the tree is where facts about content
+live: **how big the content is set**. A formula on its own line is display maths and drawn half as big again
+as the words around it; one in the middle of a sentence is drawn at the size of the sentence. Neither is a
+fact about the room it lands in, which is the only size a builder is given.
+
+**The builder keeps every decision that was its.** By the time it sees the node the language is on it, and
+it asks for a `ContentInset` at a room *it* chose — so a fence in a narrow table cell and the same fence
+across the page are laid out differently, and the walk order, the placement and what has to sit around it
+never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
+still every piece it was drawn as and a drag across the page picks up its bars.
+
+**Words are gathered into runs, broken into lines, and joined back up.** A line is set by collecting the
+constructs a writer spelled with punctuation into runs, cutting them where a line may break, and joining
+everything on one line that is set the same way and stands for the same part — which is how `a **bold**
+word` comes out as three pieces rather than eleven. A run whose content is another language is one of those
+runs: it is measured by its inset rather than its glyphs, never broken, and sat centred on the middle of the
+words, because a formula has no baseline a sentence could share.
+
+**Trouble is answered differently in the two places maths is written.** A display formula keeps its
+typesetting whatever is wrong with it — maths under a caret is invalid most of the time, since every command
+is unreadable until its last letter is typed, so a formula that turned into a box of source as it was written
+would spend most of its life as a box of source. An inline one falls back to its own source in a monospaced
+accent, because half a display formula still tells a reader where they are and a sentence with a wave through
+the middle of it does not.
+
 ## ABC
 
 Nine actors, and the order is the only thing about it that is an argument:

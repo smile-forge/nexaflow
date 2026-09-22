@@ -121,6 +121,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Item: Item(into, part, x, room, 0); return;
             case MarkdownKinds.Table: Tabled(into, part, x, room); return;
             case MarkdownKinds.Fence: Fenced(into, part, x, room); return;
+            case MarkdownKinds.Math: Displayed(into, part, x, room); return;
 
             case MarkdownKinds.Code:
             case MarkdownKinds.Html:
@@ -377,6 +378,41 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
+    /// A formula on a line of its own: set half as big again as the words around it, centred, with air above
+    /// and below so it reads as a thing rather than as a tall line of a paragraph.
+    ///
+    /// <para>
+    /// <strong>Trouble in a formula does not cost it its typesetting.</strong> Maths under a caret is invalid
+    /// most of the time — every command is unreadable until its last letter is typed — so a formula that turned
+    /// into a box of its source as it was written would spend most of its life as a box of source. What could be
+    /// read is set and a wave goes under the rest, which is the reader's own parser's doing and not this one's.
+    /// Only a delimiter with nothing between it and its partner falls back, because there is no formula there to
+    /// draw and the characters are all there is to put a caret in.
+    /// </para>
+    /// </summary>
+    private void Displayed(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), room) is not { } inset)
+        {
+            AsWritten(into, part, x, room);
+
+            return;
+        }
+
+        var air = Style.TextSize * 0.5;
+        var left = x + Math.Max(0, (Fits(room) - inset.Width) / 2);
+
+        _y += air;
+
+        into.Open(MarkdownPieces.Block, part, new Point(left, _y));
+        inset.Set(into, default, MarkdownPieces.Block);
+        into.Close();
+
+        _y += inset.Height + air;
+        Reached(left + inset.Width);
+    }
+
+    /// <summary>
     /// Source held as written, set in a monospaced face on a panel of its own — a fence in a language nothing draws,
     /// indented code, raw markup, the front matter a document says about itself.
     ///
@@ -387,8 +423,11 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
+        // Printed rather than read off the node: a block with no body of its own — a fence or a formula with
+        // nothing between its marks — is a branch, and a branch holds no text. What it was written as is the
+        // characters under it, which is what Print says and what the caret has to land in.
         var body = part.Part(Roles.Body) ?? part;
-        var shown = body.Text.TrimEnd('\n', '\r');
+        var shown = body.Print().TrimEnd('\n', '\r');
         var pad = Style.TextSize * 0.55;
 
         var face = Face.Plain with { Mono = true, Scale = 0.94 };

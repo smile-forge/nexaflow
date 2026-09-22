@@ -66,7 +66,13 @@ public sealed partial class MarkdownBuilder
     /// Whether what is drawn is what was written, at the offsets it was written at. False for the few things that are
     /// not — an entity, a marker drawn as the number the item is — and a press on one of those shows the source.
     /// </param>
-    private readonly record struct Run(string Text, ContentPart Part, Face Face, bool Maps, LayoutIntent? Act = null);
+    /// <param name="Inset">
+    /// Another language's content, already laid out, where this run is one of those rather than letters. It takes the
+    /// place of the glyphs: it is measured for the line break, sat on the line, and grafted whole — so a formula in a
+    /// sentence is still every piece it was drawn as, and a drag through the sentence picks up its parts.
+    /// </param>
+    private readonly record struct Run(string Text, ContentPart Part, Face Face, bool Maps, LayoutIntent? Act = null,
+                                       ContentInset? Inset = null);
 
     /// <summary>Sets what a block says, breaking lines at the room it was given.</summary>
     private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face)
@@ -127,6 +133,10 @@ public sealed partial class MarkdownBuilder
             // The item draws its own box; the three characters it stands for are the item's, not its words'.
             case MarkdownKinds.Task:
                 return;
+
+            case MarkdownKinds.Formula:
+                Formula(part, face, runs);
+                return;
         }
 
         if (part.Children.Count > 0)
@@ -182,6 +192,34 @@ public sealed partial class MarkdownBuilder
     }
 
     /// <summary>
+    /// A formula written in the middle of a sentence, typeset on the line it was written on.
+    ///
+    /// <para>
+    /// <strong>An inline formula that could not be read shows its source instead, where one on its own line does
+    /// not.</strong> The two are different problems: a display formula is what the reader is looking at and half
+    /// a formula still tells them where they are, but a sentence with a wave through the middle of it is a
+    /// sentence nobody can read. So the dollars and what is between them are set in a monospaced face, in the
+    /// accent, which is a reader saying "this bit is still LaTeX" rather than hiding it.
+    /// </para>
+    /// </summary>
+    private void Formula(ContentPart part, Face face, List<Run> runs)
+    {
+        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), double.PositiveInfinity) is { Laid.Trouble.Count: 0 } set)
+        {
+            runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: set));
+
+            return;
+        }
+
+        // The marks and what is between them, which is a branch and so holds no text of its own.
+        var written = part.Print();
+
+        if (written.Length > 0)
+            runs.Add(new Run(written, part, face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent },
+                             Maps: true));
+    }
+
+    /// <summary>
     /// A line ending inside a run of words is a space: markdown reflows what was written to the room it has. Swapped
     /// character for character rather than collapsed, so every offset still lands where it did and the run still says
     /// it is the source.
@@ -215,7 +253,7 @@ public sealed partial class MarkdownBuilder
                 continue;
             }
 
-            var measured = Glyphs(text, run.Face).Width;
+            var measured = run.Inset?.Width ?? Glyphs(text, run.Face).Width;
 
             if (width > 0 && width + measured > room)
             {
@@ -245,6 +283,14 @@ public sealed partial class MarkdownBuilder
                 continue;
             }
 
+            // Content laid out by another language is one chunk: there is nothing in it this one can break.
+            if (run.Inset is not null)
+            {
+                yield return (run, string.Empty, false);
+
+                continue;
+            }
+
             var at = 0;
 
             while (at < run.Text.Length)
@@ -264,17 +310,33 @@ public sealed partial class MarkdownBuilder
     /// One line, set. Everything on it that is set the same way and stands for the same part is joined back into one
     /// piece, because a run of text is one piece — and the pieces are sat on a shared baseline, which is what keeps a
     /// superscript beside its word rather than above its own line.
+    ///
+    /// <para>
+    /// Content another language laid out sits on the same line, centred on the middle of the words rather than on
+    /// their baseline: a formula has no baseline the sentence could share, and centring it is what a reader means by
+    /// "in the middle of the line". Where it is taller than the words it makes the line taller, and where it reaches
+    /// above them the whole line moves down, so nothing is ever drawn above where the line starts.
+    /// </para>
     /// </summary>
     private void Row(LayoutBuilder into, List<(Run Run, string Text)> line, double x)
     {
         if (line.Count == 0) return;
 
-        var groups = new List<(Run Run, FormattedText Glyphs)>();
+        var groups = new List<(Run Run, FormattedText? Glyphs)>();
         var at = 0;
 
         while (at < line.Count)
         {
             var run = line[at].Run;
+
+            if (run.Inset is not null)
+            {
+                groups.Add((run, null));
+                at++;
+
+                continue;
+            }
+
             var text = new StringBuilder();
 
             while (at < line.Count && line[at].Run.Equals(run)) text.Append(line[at++].Text);
@@ -284,16 +346,30 @@ public sealed partial class MarkdownBuilder
 
         line.Clear();
 
-        var baseline = groups.Max(group => group.Glyphs.Baseline);
-        var height = groups.Max(group => group.Glyphs.Height + Math.Abs(group.Run.Face.Lift) * Style.TextSize);
+        var words = Glyphs(" ", Face.Plain);
+        var baseline = groups.Max(group => group.Glyphs?.Baseline ?? words.Baseline);
+        var middle = baseline - words.Baseline + (words.Height / 2);
+
+        var tops = groups
+            .Select(group => group.Glyphs is { } glyphs
+                ? baseline - glyphs.Baseline + (group.Run.Face.Lift * Style.TextSize)
+                : middle - (group.Run.Inset!.Height / 2))
+            .ToList();
+
+        // Anything reaching above where the line starts moves the whole line down rather than being drawn there.
+        var over = Math.Min(0, tops.Min());
+        var height = 0.0;
         var cursor = x;
 
-        foreach (var (run, glyphs) in groups)
+        for (var index = 0; index < groups.Count; index++)
         {
-            var top = _y + baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize);
+            var (run, glyphs) = groups[index];
+            var top = tops[index] - over;
 
-            Set(into, run, glyphs, cursor, top);
-            cursor += glyphs.Width;
+            Set(into, run, glyphs, cursor, _y + top);
+
+            cursor += glyphs?.Width ?? run.Inset!.Width;
+            height = Math.Max(height, top + (glyphs?.Height ?? run.Inset!.Height));
         }
 
         _y += height;
@@ -301,8 +377,20 @@ public sealed partial class MarkdownBuilder
     }
 
     /// <summary>One run of one line, with whatever is washed behind it and whatever a press on it means.</summary>
-    private void Set(LayoutBuilder into, Run run, FormattedText glyphs, double x, double top)
+    private void Set(LayoutBuilder into, Run run, FormattedText? glyphs, double x, double top)
     {
+        // Another language's content is grafted whole, so every piece it was laid out as is a piece of this tree.
+        if (run.Inset is { } inset)
+        {
+            into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
+            inset.Set(into, default, MarkdownPieces.Block);
+            into.Close();
+
+            return;
+        }
+
+        if (glyphs is null) return;
+
         if (run.Face.Wash is { } wash)
         {
             var pad = Style.TextSize * 0.12;
