@@ -11,6 +11,7 @@ using MdTable    = Markdig.Extensions.Tables.Table;
 using DefList    = Markdig.Extensions.DefinitionLists.DefinitionList;
 using MdFigure   = Markdig.Extensions.Figures.Figure;
 using MdFooter   = Markdig.Extensions.Footers.FooterBlock;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -25,7 +26,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 [CoversNode("vtext-selectable-markdown")]
 public class MarkdownExtensionsTests
 {
-    private static MarkdownDocument Parse(string src) => MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);
+    private static MarkdownDocument Parse(string src) => MdMarkdown.Parse(src, MarkdownParser.Pipeline);
 
     // ── Pipe tables (re-verification) ──────────────────────────────────────
 

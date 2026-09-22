@@ -209,6 +209,9 @@ public sealed class CodeLanguage : IContentLanguage
 {
     public bool Reads(string? language) => CodeGrammars.For(language) is not null;
 
+    /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
+    public bool ShowsWhatWasWritten => true;
+
     public Laid? Lay(ContentRequest request) =>
         CodeBuilder.Lay(request.Source, CodeGrammars.For(request.Named), request.Style, request.Room, request.At);
 

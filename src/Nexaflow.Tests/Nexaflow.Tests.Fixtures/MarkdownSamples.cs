@@ -10,7 +10,7 @@
 /// and environments, fonts/styling, AMS symbols) — a supported construct typesets, an unsupported one
 /// falls back to its raw source, so the docs double as a live map of engine support, which
 /// <c>MarkdownSampleRenderTests.LatexMathSamplesTypeset</c> holds them to. Two <c>music-*.md</c> references exercise the
-/// musical-notation engraver (<c>```abc</c> fences and <c>#%lilypond … #%</c> blocks → sheet music). Each
+/// musical-notation engraver (<c>```abc</c> and <c>```lilypond</c> fences → sheet music). Each
 /// document showcases several variations, so the fixtures double as a human-readable reference. The
 /// <c>mermaid-*</c> naming marks the diagram docs.
 /// </summary>
@@ -3251,8 +3251,8 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Musical notation — LilyPond
 
-        A `#%lilypond … #%` block engraves LilyPond to sheet music. It draws the same
-        engraver as the ABC blocks, so the two notations reach the same page — but three
+        A `lilypond` fence engraves LilyPond to sheet music. It draws the same
+        engraver as the ABC fences, so the two notations reach the same page — but three
         things LilyPond does are worth knowing, because they have no ABC counterpart:
 
         - **Bar lines come from the meter.** A `|` is a *check*, not a bar line; a tune with
@@ -3265,21 +3265,21 @@ internal sealed class MarkdownSamples : ISampleSet
 
         ## features
 
-        #%lilypond
+        ```lilypond
         \header { title = "Notes / pitches" }
         {
           \time 4/4
           c4 d e f | g a b c' | d' e' f' g' | a' b' c'' d'' |
           e'' f'' g'' a'' | b'' c''' d''' e''' \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Note lengths" }
         { \cadenzaOn \autoBeamOff c'\breve c'1 c'2 c'4 c'8 c'16 c'32 c'64 \bar "|." }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Beams — the meter decides" }
         \relative c'' {
           \time 4/4 c8 d e f g a b c |
@@ -3287,9 +3287,9 @@ internal sealed class MarkdownSamples : ISampleSet
           \time 3/4 c,8 d e f g a |
           \time 4/4 c,8[ d e] f[ g a b c] \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Bar lines" }
         \relative c'' {
           \time 4/4
@@ -3299,9 +3299,9 @@ internal sealed class MarkdownSamples : ISampleSet
           c c \bar ":|."
           c c \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Repeats and voltas" }
         \relative c'' {
           \time 4/4
@@ -3309,26 +3309,26 @@ internal sealed class MarkdownSamples : ISampleSet
           \repeat volta 2 { c4 b a g }
           \alternative { { f4 e d c } { a'4 b c d } }
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Tuplets" }
         \relative c'' {
           \time 4/4
           \tuplet 3/2 { c8 d e } \tuplet 3/2 { f g a } \tuplet 3/2 { b c d } \tuplet 3/2 { e d c } |
           \tuplet 5/4 { c,16 d e f g } \tuplet 6/4 { a b c d e f } c4 c \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Ties and slurs" }
         \relative c'' {
           \time 4/4
           c4( d e f) | g4( a) b( c) | c2~ c | c4\( d( e) f\) \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Accidentals" }
         \header { subtitle = "printed only where the note departs from the bar" }
         \relative c'' {
@@ -3337,43 +3337,43 @@ internal sealed class MarkdownSamples : ISampleSet
           \key d \major
           fis4 f fis fis fis \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Chord symbols" }
         <<
           \new ChordNames \chordmode { c1 | a1:m | d1:m7 | g1:7 }
           \new Staff \relative c' { \time 4/4 c4 d e f | e f g a | f g a b | b a g f \bar "|." }
         >>
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Articulations" }
         \relative c'' {
           \time 4/4
           c4-. d-> e-- f-^ | g\staccato a\accent b\tenuto c\marcato |
           c\fermata b\trill a\upbow g\downbow | f\mordent e\prall d\turn c\coda \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Grace notes" }
         \relative c'' {
           \time 6/8
           \grace d8 c4. \grace { d16 e } c4. |
           \acciaccatura d8 c4. \appoggiatura d8 c4. \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Chords" }
         \relative c' {
           \time 2/4
           <c e g c'>2 | <c e>4 <d f> | <e g>4 <f a> | <g b>4 <a c> | <c e g>2 \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Keys and modes" }
         \relative c'' {
           \time 4/4
@@ -3386,9 +3386,9 @@ internal sealed class MarkdownSamples : ISampleSet
           \key c \locrian    c4 des es f |
           \key c \aeolian    c4 d es f \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Meter" }
         \relative c'' {
           \time 4/4 c1 |
@@ -3397,17 +3397,17 @@ internal sealed class MarkdownSamples : ISampleSet
           \time 3/4 c2. |
           \time 6/8 c4. c \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Rests" }
         \relative c'' {
           \time 4/4
           c4 r c2 | r1 | R1 | c4 s c s \bar "|."
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Lyrics" }
         <<
           \new Staff \new Voice = "melody" \relative c' {
@@ -3423,9 +3423,9 @@ internal sealed class MarkdownSamples : ISampleSet
             Like a dia -- mond in the sky.
           }
         >>
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header { title = "Lyrics — extenders and skips" }
         <<
           \new Staff \new Voice = "tune" \relative c' {
@@ -3436,11 +3436,11 @@ internal sealed class MarkdownSamples : ISampleSet
             Held o -- ver __ _ two notes, then a _ skip.
           }
         >>
-        #%
+        ```
 
         ## songs
 
-        #%lilypond
+        ```lilypond
         \header {
           title = "Speed the Plough"
           composer = "Trad."
@@ -3457,9 +3457,9 @@ internal sealed class MarkdownSamples : ISampleSet
             g4 g8 fis g4 b,8 d | g4 fis e d | c4 e8 c b4 d8 b | a4 fis g2
           }
         }
-        #%
+        ```
 
-        #%lilypond
+        ```lilypond
         \header {
           title = "Ah! vous dirai-je, maman"
           subtitle = "with a pickup, a chord line and two verses"
@@ -3482,12 +3482,12 @@ internal sealed class MarkdownSamples : ISampleSet
             }
           >>
         }
-        #%
+        ```
 
         Each `\new Staff` is a staff, and voices that run in step are bracketed into one
         system, sharing a bar grid with the bar lines running through:
 
-        #%lilypond
+        ```lilypond
         \header {
           title = "Four-part harmony"
           subtitle = "four voices, one bracketed system"
@@ -3512,13 +3512,13 @@ internal sealed class MarkdownSamples : ISampleSet
             }
           >>
         }
-        #%
+        ```
 
         The complex "Exercise 3" — a real worksheet. Both staves of the `PianoStaff` engrave
         (the blank upper one the student writes into, and the given cantus firmus below it),
         and the Scheme, figured bass and `\markup` around them are tolerated and reported:
 
-        #%lilypond
+        ```lilypond
         #(set-global-staff-size 24)
         global = { \time 4/4 \numericTimeSignature \key c \major }
         cf = \relative {
@@ -3542,9 +3542,9 @@ internal sealed class MarkdownSamples : ISampleSet
           >>
           \layout {}
         }
-        #%
+        ```
 
-        The dialect is auto-detected when the tag is omitted (`#%` alone).
+        Either notation reaches the same engraver; the fence word says which it is.
         """;
 
     private const string Qr =

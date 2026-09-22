@@ -56,6 +56,19 @@ public class CodeLanguageTests
     }
 
     [TestMethod]
+    public void AndColouringCodeIsStillShowingIt()
+    {
+        // Everything else in the table draws a picture of what its source meant; code draws the source. A
+        // reader searching a page finds the words in a code fence and not the words inside a chart, and the
+        // help index goes looking for exactly this — it dropped every code fence the day code joined the table.
+        Assert.IsTrue(ContentLanguages.For("csharp")!.ShowsWhatWasWritten);
+        Assert.IsTrue(ContentLanguages.For("python")!.ShowsWhatWasWritten);
+
+        foreach (var drawn in new[] { "mermaid", "qr", "abc", "lilypond", "smiles" })
+            Assert.IsFalse(ContentLanguages.For(drawn)!.ShowsWhatWasWritten, $"{drawn} draws a picture");
+    }
+
+    [TestMethod]
     public void AskingForAReadingNeverWaitsForOne()
     {
         CodeSpans.Forget();

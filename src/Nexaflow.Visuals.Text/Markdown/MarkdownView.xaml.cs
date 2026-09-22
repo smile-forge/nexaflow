@@ -1,12 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
 using MdMarkdown = Markdig.Markdown;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
 /// Read-only markdown display control.  Parses <see cref="Markdown"/> with the
-/// shared <see cref="MarkdownPipelineFactory.Default"/> pipeline and renders
+/// shared <see cref="MarkdownParser.Pipeline"/> pipeline and renders
 /// each top-level block via <see cref="BlockRenderer"/>.
 ///
 /// Use this control for display surfaces (chat messages, log details, scratch
@@ -56,7 +57,7 @@ public partial class MarkdownView : UserControl
         var raw = Markdown ?? string.Empty;
         if (raw.Length == 0) return;
 
-        var doc      = MdMarkdown.Parse(raw, MarkdownPipelineFactory.Default);
+        var doc      = MdMarkdown.Parse(raw, MarkdownParser.Pipeline);
         var rawLines = raw.Split('\n');
 
         foreach (var block in doc)

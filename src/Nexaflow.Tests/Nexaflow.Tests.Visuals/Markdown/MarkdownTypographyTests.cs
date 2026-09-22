@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using MdMarkdown = Markdig.Markdown;
 using System.Collections.Generic;
 using System.Windows;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -31,7 +32,7 @@ public class MarkdownTypographyTests
     public void Cleanup() => TextTypography.BaseFontSize = TextTypography.DefaultBaseFontSize;
 
     private static MarkdownDocument Parse(string src) =>
-        MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);
+        MdMarkdown.Parse(src, MarkdownParser.Pipeline);
 
     private static MarkdownRenderContext At(double body) =>
         new() { Palette = StyleFormat.Dark, BaseFontSize = body };

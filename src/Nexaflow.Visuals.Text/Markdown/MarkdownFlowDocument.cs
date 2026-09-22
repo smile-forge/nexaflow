@@ -10,6 +10,7 @@ using MdTable          = Markdig.Extensions.Tables.Table;
 using MdTableRow       = Markdig.Extensions.Tables.TableRow;
 using MdTableCell      = Markdig.Extensions.Tables.TableCell;
 using TableColumnAlign = Markdig.Extensions.Tables.TableColumnAlign;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -47,7 +48,7 @@ public static class MarkdownFlowDocument
         var raw = markdown ?? string.Empty;
         if (raw.Length == 0) return doc;
 
-        var parsed   = Markdig.Markdown.Parse(raw, MarkdownPipelineFactory.Default);
+        var parsed   = Markdig.Markdown.Parse(raw, MarkdownParser.Pipeline);
         var rawLines = raw.Split('\n');
 
         foreach (var block in parsed)
@@ -77,8 +78,7 @@ public static class MarkdownFlowDocument
                 ListBlock       lb => [ListOf(lb, ctx)],
                 // MathBlock extends FencedCodeBlock — match first
                 MathBlock          => [UiFallback(block, raw, ctx)],
-                // Musical notation spelled #% … #%: the same page a fenced abc or lilypond block makes.
-                Music.MusicBlock   => [DiagramFallback(block, raw, ctx)],
+
                 FencedCodeBlock fc when ContentLanguages.Reads(fc.Info)
                                    => [DiagramFallback(block, raw, ctx)],
                 FencedCodeBlock fc => [Code(fc.Lines.ToString(), fc.Span, ctx)],

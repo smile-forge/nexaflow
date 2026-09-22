@@ -22,12 +22,106 @@
           }
         ]
       }
+    },
+    "vtext-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "How it\u0027s wired"
+          ]
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownPipelineTests.cs",
+            "class": "MarkdownPipelineTests"
+          }
+        ]
+      }
+    },
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithTokens.cs",
+          "class": "WithTokens"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeBuilder.cs",
+          "class": "CodeBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "CodeLanguage"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Code/CodeLanguageTests.cs",
+            "class": "CodeLanguageTests"
+          }
+        ]
+      }
+    },
+    "md-task-toggle": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownContent.cs",
+          "class": "MarkdownContent",
+          "method": "Ticked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownElementTests.cs",
+            "class": "MarkdownElementTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 8,
   "touched_nodes": [
+    "md-code-highlighting",
+    "md-task-toggle",
     "qr-render",
-    "smiles-render"
+    "smiles-render",
+    "vtext-pipeline"
   ]
 }

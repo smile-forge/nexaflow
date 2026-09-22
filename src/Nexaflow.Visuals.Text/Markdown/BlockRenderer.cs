@@ -111,8 +111,7 @@ public static class BlockRenderer
                 ListBlock          lb  => RenderList(lb, ctx),
                 // MathBlock extends FencedCodeBlock — must match first
                 MathBlock          mb  => Aligned(RenderMathBlock(mb, rawMarkdown, ctx), ctx),
-                // Musical notation (#%abc … #% / #%lilypond … #%) → sheet music
-                Music.MusicBlock   mus => Aligned(RenderMusicBlock(mus, rawMarkdown, ctx), ctx),
+
                 // Diagram blocks: check Info before falling through to generic code
                 FencedCodeBlock    fc when ContentLanguages.Reads(fc.Info)
                 => Aligned(RenderDiagramBlock(fc, rawMarkdown, ctx), ctx),
@@ -964,21 +963,6 @@ public static class BlockRenderer
         }
 
         return LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
-    }
-
-    /// <summary>A <c>#% … #%</c> block is a fenced <c>abc</c> or <c>lilypond</c> block spelled another way,
-    /// so it's rendered by the same handler and edited the same way.</summary>
-    private static FrameworkElement RenderMusicBlock(Music.MusicBlock mus, string rawMarkdown, MarkdownRenderContext ctx)
-    {
-        var content = ExtractFencedContent(rawMarkdown, mus.Source);
-
-        return DiagramRenderer.Render(mus.Dialect == Music.MusicDialect.LilyPond ? "lilypond" : "abc", content,
-            new DiagramRenderOptions
-            {
-                Palette      = ctx.Palette,
-                SourceOffset = FencedContentOffset(rawMarkdown, content),
-                OnNavigate   = ctx.OnNavigate,
-            });
     }
 
     /// <summary>Where the extracted content begins inside the raw block. Found by searching rather than

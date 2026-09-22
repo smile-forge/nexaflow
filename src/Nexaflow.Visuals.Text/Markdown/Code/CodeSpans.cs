@@ -37,6 +37,9 @@ internal static class CodeSpans
     private static readonly Dictionary<string, CodeHighlighter?> Readers = [];
     private static readonly Lock Gate = new();
 
+    /// <summary>How many times everything has been forgotten, so a reading in flight can be disowned.</summary>
+    private static int Age;
+
     /// <summary>Raised when a reading that was not known becomes known. Not on the thread that draws.</summary>
     public static event EventHandler? Ready;
 
@@ -47,19 +50,30 @@ internal static class CodeSpans
     public static IReadOnlyList<HighlightSpan>? For(string grammar, string source)
     {
         var key = (grammar, source);
+        int age;
 
         lock (Gate)
         {
             if (Known.TryGetValue(key, out var spans)) return spans;
             if (!Asked.Add(key)) return null;
+
+            age = Age;
         }
 
-        ThreadPool.QueueUserWorkItem(static what => Work(((string, string))what!), key);
+        ThreadPool.QueueUserWorkItem(static what => Work(what.Key, what.Age), (Key: key, Age: age), preferLocal: false);
 
         return null;
     }
 
-    /// <summary>Forgets everything, for a test that wants the unread state back.</summary>
+    /// <summary>
+    /// Forgets everything, for a test that wants the unread state back.
+    ///
+    /// <para>
+    /// A reading already under way is forgotten too. It cannot be stopped, but it can be disowned: the age
+    /// it was asked at no longer matches, so what it finds is dropped rather than landing a moment later in
+    /// a cache somebody has just emptied.
+    /// </para>
+    /// </summary>
     internal static void Forget()
     {
         lock (Gate)
@@ -67,10 +81,11 @@ internal static class CodeSpans
             Known.Clear();
             Order.Clear();
             Asked.Clear();
+            Age++;
         }
     }
 
-    private static void Work((string Grammar, string Source) key)
+    private static void Work((string Grammar, string Source) key, int age)
     {
         IReadOnlyList<HighlightSpan> spans = [];
 
@@ -87,6 +102,8 @@ internal static class CodeSpans
 
         lock (Gate)
         {
+            if (age != Age) return;   // disowned by Forget while this was reading
+
             Known[key] = spans;
             Order.Enqueue(key);
             Asked.Remove(key);

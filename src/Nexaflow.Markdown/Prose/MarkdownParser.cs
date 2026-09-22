@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Markdig;
+using Markdig.Extensions.AutoIdentifiers;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 
@@ -53,7 +54,10 @@ public static class MarkdownParser
     /// </summary>
     public static AstPipeline Reader { get; } = new(new WithBlocks());
 
-    /// <summary>The same options, so a host adding an extension of its own starts from what is already read.</summary>
+    /// <summary>
+    /// The same options, so a host adding an extension of its own starts from what is already read. Every
+    /// heading is given a GitHub-style id on the way, which is what an in-page link is resolved against.
+    /// </summary>
     public static MarkdownPipelineBuilder Reading(MarkdownPipelineBuilder builder) =>
         builder
             .UseYamlFrontMatter()
@@ -70,7 +74,8 @@ public static class MarkdownParser
             .UseFooters()
             .UseCitations()
             .UseMathematics()
-            .UseDiagrams();
+            .UseDiagrams()
+            .UseAutoIdentifiers(AutoIdentifierOptions.GitHub);
 
     /// <summary><paramref name="source"/> as the blocks it is written in.</summary>
     public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)

@@ -3,6 +3,7 @@ using Markdig.Extensions.Mathematics;
 using Markdig.Extensions.Yaml;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Core.Help;
@@ -15,14 +16,14 @@ namespace Nexaflow.Core.Help;
 /// </summary>
 internal static class HelpPlainText
 {
-    // Fences that render as something other than their text. Diagrams know themselves; these are the maths and the
-    // music the renderer typesets.
-    private static readonly HashSet<string> TypesetFences = new(StringComparer.OrdinalIgnoreCase) { "math", "latex", "tex", "abc" };
+    // Fences nothing has registered a language for that still render as something other than their text — the
+    // maths the renderer typesets. A registered language answers for itself.
+    private static readonly HashSet<string> TypesetFences = new(StringComparer.OrdinalIgnoreCase) { "math", "latex", "tex" };
 
     public static string Extract(string? markdown)
     {
         var sb = new StringBuilder();
-        foreach (var block in Markdig.Markdown.Parse(markdown ?? "", MarkdownPipelineFactory.Default))
+        foreach (var block in Markdig.Markdown.Parse(markdown ?? "", MarkdownParser.Pipeline))
             Append(block, sb);
         return sb.ToString();
     }
@@ -51,9 +52,15 @@ internal static class HelpPlainText
         }
     }
 
+    /// <summary>
+    /// Whether a fence draws as a picture rather than as its own words. A registered language says so itself —
+    /// code colours what was typed and still shows it, a chart does not — and what none of them claims is
+    /// only typeset if it is on the short list above.
+    /// </summary>
     private static bool IsTypeset(string? info)
         => !string.IsNullOrWhiteSpace(info)
-           && (ContentLanguages.Reads(info) || TypesetFences.Contains(info.Trim().Split(' ')[0]));
+           && (ContentLanguages.For(info) is { ShowsWhatWasWritten: false }
+               || TypesetFences.Contains(info.Trim().Split(' ')[0]));
 
     private static void Line(StringBuilder sb, string text)
     {

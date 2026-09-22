@@ -57,7 +57,7 @@ public class MusicSampleDocTests
             Assert.Fail($"{file}:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", broken));
     }
 
-    /// <summary>Every <c>#% … #%</c> block and every fenced block in a sample doc, flagged with whether it sits
+    /// <summary>Every fenced block in a sample doc, flagged with whether it sits
     /// above the "## songs" heading (and so is part of the coverage showcase rather than a real-world tune).</summary>
     private static List<(string Source, bool Features)> Blocks(string markdown)
     {
@@ -69,13 +69,11 @@ public class MusicSampleDocTests
         {
             if (lines[i].StartsWith("## songs", StringComparison.OrdinalIgnoreCase)) features = false;
 
-            // Either fence: the older `#%lilypond … #%`, or a ```abc code fence. A line that is only the
-            // closing mark is a closer with no opener above it, and is skipped.
+            // A line that is only the closing mark is a closer with no opener above it, and is skipped.
             var opener = lines[i].Trim();
-            var close = opener.StartsWith("#%", StringComparison.Ordinal) && opener != "#%" ? "#%"
-                      : opener.StartsWith("```", StringComparison.Ordinal) && opener != "```" ? "```"
-                      : null;
-            if (close is null) continue;
+            if (!opener.StartsWith("```", StringComparison.Ordinal) || opener == "```") continue;
+
+            const string close = "```";
 
             int end = i + 1;
             while (end < lines.Length && lines[end].Trim() != close) end++;

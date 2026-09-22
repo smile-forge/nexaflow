@@ -7,10 +7,11 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 ## How it's wired
 
 - **Parser:** Markdig **1.3.2** (`Markdig` package).
-- **Pipeline:** one shared config — [`MarkdownPipelineFactory.Default`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownPipelineFactory.cs).
-  Every surface parses with it: the read-only `MarkdownView`, the selectable
-  `SelectableMarkdownView` (via `MarkdownFlowDocument`), the AI overlay, AIChat, and
-  the block editor in `Nexaflow.Features.Markdown`. There is no second pipeline.
+- **Pipeline:** one extension list — [`MarkdownParser.Reading`](../src/Nexaflow.Markdown/Prose/MarkdownParser.cs),
+  built once as `MarkdownParser.Pipeline`. Every surface parses with it: the read-only `MarkdownView`,
+  the selectable `SelectableMarkdownView` (via `MarkdownFlowDocument`), the AI overlay, AIChat, and
+  the block editor in `Nexaflow.Features.Markdown`. There is no second pipeline, and a host wanting an
+  extension of its own starts from `Reading(new())` rather than writing the list again.
 - **Renderers:** Markdig's own HTML renderer is **not** used. Two custom WPF renderers
   walk the parsed AST:
   - [`BlockRenderer`](../src/Nexaflow.Visuals.Text/Markdown/BlockRenderer.cs) → `FrameworkElement` per block (display + editor).
@@ -91,9 +92,9 @@ unless noted otherwise.
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block + caption. |
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
-| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineFactoryTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Rendered with **WpfMath** (LaTeX); falls back to the LaTeX source if unparseable. |
-| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineFactoryTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
-| Musical notation | `UseMusicNotation()` (custom) | ✅ (custom) | ✅ | `MusicBlockParserTests`, `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks and the repo's own `#% … #%` block extension → engraved sheet music (see below). |
+| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Rendered with **WpfMath** (LaTeX); falls back to the LaTeX source if unparseable. |
+| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
+| Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music (see below). No block syntax of its own: it is a language in the fence table like every other. |
 
 > **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
 > citation delimiter the renderer matches is a doubled double-quote (`""…""`), not `^^`.
@@ -1565,10 +1566,11 @@ stays inside it — and no hover or click behaviour beyond the selection every b
 
 ABC and LilyPond are two ways of writing the same thing, and one engraver draws both.
 
-- **Where it is written.** A fenced ```abc or ```lilypond block; a `#% … #%` block, which is a fence
-  spelled another way (below); or a file of its own, `.abc` or `.ly`. Every one of them reaches
-  [`MusicDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/MusicDiagramHandler.cs) — one
-  registration per notation — so one path lights it up on both markdown surfaces.
+- **Where it is written.** A fenced ```abc or ```lilypond block, or a file of its own, `.abc` or `.ly`.
+  Both reach [`MusicLanguage`](../src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs) — one
+  registration per notation in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
+  so one path lights it up on both markdown surfaces. Music has no block syntax of its own: it is a
+  fenced language like Mermaid or a QR code, read by the same table.
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
   written, and worked over by a pipeline of stages —
   [`AbcPipeline`](../src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs) and
@@ -1630,20 +1632,7 @@ nothing here has ever looked at one. A ranking sweep against them — the shape 
 already has, with `GrayImage.InkOverlap` — is the missing oracle, and until it exists "it engraves" is the
 strongest claim available.
 
-**The `#% … #%` block** is the older spelling, kept because documents use it — the repo's only custom
-Markdig block extension ([`MusicBlockExtension`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBlockExtension.cs),
-registered via `UseMusicNotation()`). The opening fence carries an optional dialect tag, and the dialect
-is auto-detected when it is omitted; either way it draws exactly what the fenced block would:
 
-```
-#%abc                     #%lilypond                 #%
-X:1                       \relative c' {             X:1
-T:Speed the Plough          \clef treble             K:C
-M:4/4                       c4 d e f | g1            CDEF
-K:G                       }                          #%
-GABc dedB|c2A2 A2BA|      #%                        (untagged → auto-detected as ABC)
-#%
-```
 
 **One engraver, two readings.** Both notations are drawn with the bundled **Bravura** SMuFL font (SIL OFL)
 plus WPF geometry — no browser, no JS, matching the diagram engine's native approach. Ink follows the
@@ -1931,7 +1920,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 
 | File | Covers |
 |---|---|
-| [`Visuals/Markdown/MarkdownPipelineFactoryTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownPipelineFactoryTests.cs) | Pipeline parses pipe tables, math blocks, diagram fences; singleton reuse. |
+| [`Visuals/Markdown/MarkdownPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownPipelineTests.cs) | Pipeline parses pipe tables, math blocks, diagram and music fences; heading ids; singleton reuse. |
 | [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
 | [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
 | [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
@@ -1988,14 +1977,16 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 
 | Gap | Node | Why it is still open |
 |---|---|---|
-| **No syntax highlighting** in code blocks — monospace only | `md-code-highlighting` | The engine that would colour it is in the same solution and already resolves a grammar from the fence's language tag. The join is missing, and it has to land in **both** render paths or a document colours in one view and not the other |
+
 | **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature |
 | **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF `FlowDocument` should honour is the real question |
-| **Task-list checkboxes are display-only** | `md-task-toggle` | Toggling has to write back to the source, so it belongs with the inline editor's block model — the drawing half is done |
+
 | **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
 
 - **Every Mermaid family now renders** — nothing falls back to raw source.
+- **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the
+  reading never blocks a lay. **A task box is a real box**: clicking it rewrites `[ ]` / `[x]` in the source.
 
 If any of the disabled extensions are wanted, the change is usually a one-line
-`.UseX()` in `MarkdownPipelineFactory` **plus** renderer cases in both `BlockRenderer`
+`.UseX()` in `MarkdownParser.Reading` **plus** renderer cases in both `BlockRenderer`
 and `MarkdownFlowDocument` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Documents;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music.Abc;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -41,7 +42,7 @@ public class AbcFenceTests
     [TestMethod]
     public void AndItEngravesOnTheElementSurface() => UiThread.Run(() =>
     {
-        var block = Markdig.Markdown.Parse(Document, MarkdownPipelineFactory.Default)
+        var block = Markdig.Markdown.Parse(Document, MarkdownParser.Pipeline)
             .OfType<Markdig.Syntax.FencedCodeBlock>()
             .Single();
 

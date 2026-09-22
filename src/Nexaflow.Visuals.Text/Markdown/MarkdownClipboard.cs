@@ -2,6 +2,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Documents;
 using Markdig.Syntax;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -85,7 +86,7 @@ public static class MarkdownClipboard
         string plain = whole ? ToPlainText(source) : selection.Text;
 
         string html;
-        try   { html = Markdig.Markdown.ToHtml(markdown, MarkdownPipelineFactory.Default); }
+        try   { html = Markdig.Markdown.ToHtml(markdown, MarkdownParser.Pipeline); }
         catch { html = System.Net.WebUtility.HtmlEncode(plain); }
 
         var data = new DataObject();
@@ -99,7 +100,7 @@ public static class MarkdownClipboard
 
     private static string ToPlainText(string source)
     {
-        try   { return Markdig.Markdown.ToPlainText(source, MarkdownPipelineFactory.Default); }
+        try   { return Markdig.Markdown.ToPlainText(source, MarkdownParser.Pipeline); }
         catch { return source; }
     }
 

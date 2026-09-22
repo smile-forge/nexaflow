@@ -27,6 +27,19 @@ public interface IContentLanguage
     bool Reads(string? language);
 
     /// <summary>
+    /// Whether what this draws is still the words that were written. Code is — it is set in another face
+    /// and coloured, but every character a writer typed is on the page. A diagram, a formula, a score and
+    /// a barcode are not: what they draw is a picture of what the source <em>meant</em>.
+    ///
+    /// <para>
+    /// The question anything reading a document as text has to ask — a search index, a plain-text
+    /// extractor, a screen reader — and it is the language's to answer, because only it knows what it
+    /// made of the source. Default is no, because a language worth registering usually draws something.
+    /// </para>
+    /// </summary>
+    bool ShowsWhatWasWritten => false;
+
+    /// <summary>
     /// That source, read and laid out at the size it was asked for — or null for a language whose builder has
     /// no entry point of its own yet.
     ///

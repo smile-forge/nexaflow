@@ -17,21 +17,20 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 [TestClass]
 [TestCategory("Desktop")]
 [DoNotParallelize]   // spins an off-screen Window; concurrent WPF layout and focus make it flaky
-[CoversNode("music-block")]
+[CoversNode("abc-layout")]
 public class MusicFlowDocumentTests
 {
     /// <summary>
-    /// A document of the older <c>#%abc … #%</c> blocks, which draw onto the same page a fenced block does: one tune
-    /// with a title, one with notes, one with blank verse lines.
+    /// A document of <c>abc</c> fences: one tune with a title, one with notes, one with blank verse lines.
     /// </summary>
     private static string SampleDoc() =>
         """
-        # Old-style ABC blocks
+        # ABC fences
 
-        Three tunes in the older fence, with words between them: a reel, a slip jig whose fields carry
-        comments, and a lesson in lining words up under notes.
+        Three tunes, with words between them: a reel, a slip jig whose fields carry comments, and a
+        lesson in lining words up under notes.
 
-        #%abc
+        ```abc
         X:1
         T:Speed the Plough
         M:4/4
@@ -41,9 +40,9 @@ public class MusicFlowDocumentTests
           GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|
         |:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|
           g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Old Sir Simon the King (commented)
         C:Trad.               % composer
@@ -60,9 +59,9 @@ public class MusicFlowDocumentTests
         [2 E2E EFE E2E EFG|\
         M:9/8                 % change back again
         A2G F2E D2|]
-        #%
+        ```
 
-        #%abc
+        ```abc
         X:1
         T:Lyrics
         N:see https://www.youtube.com/watch?v=RWNeCjid0zc
@@ -110,7 +109,7 @@ public class MusicFlowDocumentTests
         W: Word, word, syl-la-ble!
         W: 
         %%writefields N
-        #%
+        ```
 
         """;
 

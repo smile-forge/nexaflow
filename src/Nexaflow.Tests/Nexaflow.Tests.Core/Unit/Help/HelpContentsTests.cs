@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
 using Nexaflow.Core.Help;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -39,7 +40,7 @@ public class HelpContentsTests
     public void EverySection_EndsWithALinkBackToTheList()
     {
         var result = HelpContents.AddTopics(Page);
-        var listId = MarkdownAnchors.IdOf(Markdig.Markdown.Parse(result, MarkdownPipelineFactory.Default)
+        var listId = MarkdownAnchors.IdOf(Markdig.Markdown.Parse(result, MarkdownParser.Pipeline)
                                                  .OfType<HeadingBlock>().First(h => h.Level == 2));
 
         var backs = Regex.Matches(result, @"\]\(#([^)]+)\)\s*$", RegexOptions.Multiline)

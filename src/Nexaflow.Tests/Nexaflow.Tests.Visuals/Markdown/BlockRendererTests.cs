@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using Nexaflow.Tests.Fixtures;
 using MdMarkdown = Markdig.Markdown;
 using MdTable    = Markdig.Extensions.Tables.Table;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -19,7 +20,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 public class BlockRendererTests
 {
     private static MarkdownDocument Parse(string src) =>
-        MdMarkdown.Parse(src, MarkdownPipelineFactory.Default);
+        MdMarkdown.Parse(src, MarkdownParser.Pipeline);
 
     [TestMethod]
     public void Heading_Level1_RendersStackWithUnderline() => UiThread.Run(() =>
