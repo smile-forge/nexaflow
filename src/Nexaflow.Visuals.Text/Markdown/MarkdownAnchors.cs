@@ -3,6 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using Markdig.Renderers.Html;
 using WpfBlock = System.Windows.Documents.Block;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -36,6 +39,38 @@ public static class MarkdownAnchors
         if (url is not { Length: > 1 } || url[0] != '#') return false;
         anchor = Uri.UnescapeDataString(url[1..]);
         return true;
+    }
+
+    /// <summary>
+    /// The piece a <c>#id</c> points at, on a laid-out document — the heading the reader wrote that name on,
+    /// or nothing where the document has no such heading.
+    /// </summary>
+    public static Piece Sought(Laid laid, string anchor)
+    {
+        foreach (var piece in laid.Root.SelfAndDescendants())
+            if (piece.Part is ContentPart part && Named(part) is { } id
+                && string.Equals(id, anchor, StringComparison.OrdinalIgnoreCase))
+                return piece;
+
+        return default;
+    }
+
+    /// <summary>The name a heading answers to, where the reader worked one out for it.</summary>
+    private static string? Named(ContentPart part)
+    {
+        for (var at = part; at is not null; at = at.Parent)
+        {
+            if (at.Kind != MarkdownKinds.Heading) continue;
+
+            foreach (var child in at.Children)
+                foreach (var held in child.Children)
+                    if (held.Node.Kind == MarkdownKinds.Anchor && held.Node.Held is string id)
+                        return id;
+
+            return null;
+        }
+
+        return null;
     }
 
     /// <summary>The block in <paramref name="document"/> carrying <paramref name="anchor"/>, looked for through sections,

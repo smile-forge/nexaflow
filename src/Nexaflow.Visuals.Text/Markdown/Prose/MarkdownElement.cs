@@ -40,7 +40,7 @@ public sealed class MarkdownElement : LinkedElement
     /// <inheritdoc/>
     /// <remarks>Only a plain press: Ctrl and Shift are adding to a selection, which is not what ticking an item is.</remarks>
     protected override bool Pressed(Point at, ModifierKeys modifiers) =>
-        (modifiers == ModifierKeys.None && Ticked(at)) || base.Pressed(at, modifiers);
+        (modifiers == ModifierKeys.None && (Ticked(at) || Anchored(at))) || base.Pressed(at, modifiers);
 
     /// <summary>
     /// Ticks the item a press landed on, where it landed on one.
@@ -58,6 +58,29 @@ public sealed class MarkdownElement : LinkedElement
         if (MarkdownContent.Ticked(State, act.Part) is not { } ticked) return false;
 
         Apply(ticked, notify: true);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Goes to the heading an in-page link names, where a press landed on one.
+    ///
+    /// <para>
+    /// <strong>A link into this document is never the host's.</strong> Nobody else can answer it: the heading
+    /// is on this page, laid out by this element, and a host handed <c>#getting-started</c> has no way to know
+    /// what that means or where it went. So it is answered here and not offered onwards — and a name this
+    /// document has no heading for is still not the host's, because it is still a link into this document. It
+    /// does nothing, which is what a reader sees when they follow a link to a section somebody deleted.
+    /// </para>
+    /// </summary>
+    private bool Anchored(Point at)
+    {
+        if (Offered(at, LayoutGesture.Click) is not { Intent: { Verb: LayoutVerbs.Navigate, Target: { } where } } ) return false;
+        if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
+
+        if (MarkdownAnchors.Sought(Laid, anchor) is { Exists: true } heading)
+            BringIntoView(new Rect(heading.Bounds.X * Zoom, heading.Bounds.Y * Zoom,
+                                   Math.Max(heading.Bounds.Width * Zoom, 1), Math.Max(heading.Bounds.Height * Zoom, 1)));
 
         return true;
     }

@@ -199,8 +199,13 @@ public sealed partial class MarkdownBuilder
         var says = part.Part(MarkdownRoles.Title)?.Text;
         var act = where is { Length: > 0 } ? new LayoutIntent(LayoutVerbs.Navigate, where, says) : (LayoutIntent?)null;
 
-        var linked = face with { Underline = true, Ink = Style.Accent };
+        // What this showing of the document wants a link to look like, settled by a stage before ever reaching
+        // here. Nothing said means the accent and a rule under it, which is what a link looks like.
+        var look = Stages.WithLinks.Of(part);
+        var linked = face with { Underline = look?.Underline ?? true, Ink = look?.Ink ?? Style.Accent };
         var body = part.Part(Roles.Body);
+
+        if (look is { Says.Length: > 0 } && act is { } meant) act = meant with { Tip = look.Says };
 
         if (body is null || body.Length == 0)
         {
@@ -215,6 +220,10 @@ public sealed partial class MarkdownBuilder
 
         // Whatever the words turned out to be, the whole of them answers the press.
         for (var index = at; index < runs.Count; index++) runs[index] = runs[index] with { Act = act };
+
+        // A mark the host asked for, set after the words rather than into them — the words are the writer's.
+        if (look is { Badge.Length: > 0 } marked)
+            runs.Add(new Run(marked.Badge, part, linked with { Underline = false }, Maps: false, Act: act));
     }
 
     /// <summary>

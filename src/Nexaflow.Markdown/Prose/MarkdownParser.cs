@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Markdig;
 using Markdig.Extensions.AutoIdentifiers;
 using Markdig.Extensions.Tables;
+using Markdig.Renderers.Html;
 using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
@@ -52,7 +53,7 @@ public static class MarkdownParser
     /// kind names. Here rather than at each surface, so an editor and a view read the same document the same
     /// way.
     /// </summary>
-    public static AstPipeline Reader { get; } = new(new WithBlocks());
+    public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithDefinitions());
 
     /// <summary>
     /// The same options, so a host adding an extension of its own starts from what is already read. Every
@@ -194,7 +195,15 @@ public static class MarkdownParser
 
         if (block is FencedCodeBlock fence) return Fenced(fence, source, MarkdownKinds.Fence);
 
-        return ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
+        var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
+
+        // The name a link can point at. Taken here rather than worked out later, because it is the reading of
+        // the whole document that settles it: two headings saying the same thing are told apart by their
+        // order, which nothing looking at one heading's characters can see.
+        if (block is HeadingBlock heading && heading.TryGetAttributes()?.Id is { Length: > 0 } named)
+            read = AstRewrite.Holding(read, MarkdownKinds.Anchor, Roles.Derived, named);
+
+        return read;
     }
 
     /// <summary>

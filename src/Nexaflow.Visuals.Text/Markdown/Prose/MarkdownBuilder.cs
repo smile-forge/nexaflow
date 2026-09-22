@@ -131,7 +131,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Fence: Fenced(into, part, x, room); return;
             case MarkdownKinds.Math: Displayed(into, part, x, room); return;
 
-            case MarkdownKinds.Definition: Defined(into, part, x, room); return;
+            case MarkdownKinds.Definition: Blocks(into, Body(part), x, room); return;
             case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = Style.DefTerm }); return;
             case MarkdownKinds.Described: Described(into, part, x, room); return;
             case MarkdownKinds.Figure: Figured(into, part, x, room); return;
@@ -591,34 +591,6 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var indent = Style.TextSize * 1.8;
 
         Blocks(into, Body(part), x + indent, Math.Max(room - indent, 1));
-    }
-
-    /// <summary>
-    /// A definition list: every term at the margin, and everything else set in from it.
-    ///
-    /// <para>
-    /// The indent is the builder's rather than the tree's, because there is nothing in the tree to hang it
-    /// on. A definition item holds the term and what it means together, so a reading that stopped at the item
-    /// would hand back the whole of what it was given — and one that goes through it, which is what the
-    /// document does, leaves the term and its paragraphs as the siblings they read as.
-    /// </para>
-    /// </summary>
-    private void Defined(LayoutBuilder into, ContentPart part, double x, double room)
-    {
-        var indent = Style.TextSize * 1.8;
-        var first = true;
-
-        foreach (var child in Body(part).Children)
-        {
-            if (child.Derived || child.Role == Roles.Trivia) continue;
-
-            if (!first) _y += Gap * 0.3;
-            first = false;
-
-            var left = child.Kind == MarkdownKinds.Term ? x : x + indent;
-
-            Block(into, child, left, Math.Max(room - (left - x), 1));
-        }
     }
 
     /// <summary>

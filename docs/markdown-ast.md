@@ -197,7 +197,9 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 |---|---|
 | `WithBlocks` | what each block holds, read by the parser its kind names |
 | `WithNested` | which language reads what is written inside a piece, and how big it is set |
+| `WithDefinitions` | which blocks explain which term, gathered back into the pairs a definition list is |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
+| `WithLinks` | how this showing of the document wants each link to look |
 
 A reader is also asked, while it still knows, the things the characters do not say: which way a table's
 column is set, how many squares a cell covers, whether a cell holds blocks or a run of words, and which
@@ -229,6 +231,13 @@ it asks for a `ContentInset` at a room *it* chose — so a fence in a narrow tab
 across the page are laid out differently, and the walk order, the placement and what has to sit around it
 never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
 still every piece it was drawn as and a drag across the page picks up its bars.
+
+**A link into the document is never the host's.** A heading is given the name a link points at while the
+whole document is being read — which heading `#notes-1` means is settled by the order they were written in,
+and nothing looking at one heading's characters could see it. Following such a link is answered by the
+element and not offered onwards, because a host handed `#getting-started` has no way to know what it means
+or where it went. A name the document has no heading for is still not the host's: it does nothing, which is
+what a reader sees when they follow a link to a section somebody deleted.
 
 **Nothing drawn is never an answer.** A language either lays the content out or says it cannot, and what
 goes there then is the characters somebody typed — so a block nothing could make sense of is still on the

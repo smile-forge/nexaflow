@@ -95,6 +95,13 @@ public sealed class DiagramRenderOptions
     public Func<string, System.Windows.Media.ImageSource?>? Pictures { get; init; }
 
     /// <summary>
+    /// The host's say in how a link looks, asked for every link with where it points and the words it was
+    /// written as. The help pane marks a <c>locate:</c> link this way, without disturbing those words. Null
+    /// where the host has nothing to say, which is most surfaces.
+    /// </summary>
+    public Func<string, string, Stages.LinkLook?>? Links { get; init; }
+
+    /// <summary>
     /// Expand/collapse handler. Return true when the host took it on (it will re-emit the diagram);
     /// return false, or leave it null, and the diagram opens the node itself.
     /// </summary>

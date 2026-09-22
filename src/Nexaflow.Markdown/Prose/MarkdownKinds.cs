@@ -173,6 +173,12 @@ public static class MarkdownKinds
 
     /// <summary>That what is written in a cell is blocks rather than a run of words.</summary>
     public const string Blocks = "blocks";
+
+    /// <summary>
+    /// The name a heading answers to when a link points at it. Derived: nobody writes it, the reader works
+    /// it out from the words, and two headings saying the same thing are told apart by where they are.
+    /// </summary>
+    public const string Anchor = "anchor";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>

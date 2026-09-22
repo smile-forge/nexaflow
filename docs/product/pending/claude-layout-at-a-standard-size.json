@@ -269,9 +269,8 @@
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
-          "class": "MarkdownBuilder",
-          "method": "Defined"
+          "doc": "src/Nexaflow.Markdown/Prose/Stages/WithDefinitions.cs",
+          "class": "WithDefinitions"
         },
         {
           "type": "code",
@@ -326,18 +325,84 @@
           }
         ]
       }
+    },
+    "md-link-decorator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
+          "class": "MarkdownRenderContext"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
+          "class": "WithLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
+          "class": "LinkLook"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownLinkDecoratorTests.cs",
+            "class": "MarkdownLinkDecoratorTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs",
+            "class": "MarkdownLinkTests"
+          }
+        ]
+      }
+    },
+    "markdown-anchors": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownAnchors.cs",
+          "class": "MarkdownAnchors",
+          "method": "Sought"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "Anchored"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs",
+            "class": "MarkdownLinkTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 20,
+  "changed_sets": 24,
   "touched_nodes": [
     "markdown-always-drawn",
+    "markdown-anchors",
     "markdown-maths",
     "markdown-pictures",
     "markdown-styling",
     "markdown-table-spans",
     "md-code-highlighting",
     "md-image-resolver",
+    "md-link-decorator",
     "md-task-toggle",
     "qr-render",
     "smiles-render",
