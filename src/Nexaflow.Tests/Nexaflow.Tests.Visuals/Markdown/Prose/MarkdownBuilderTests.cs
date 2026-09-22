@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 
+using System.Text.RegularExpressions;
 using System.Windows;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -45,6 +47,18 @@ public class MarkdownBuilderTests
         ("an unreadable formula in a sentence", "The value $\\not_a_command{$ and on.\n"),
         ("a diagram", "```mermaid\npie\n  \"a\" : 1\n```\n"),
         ("front matter", "---\ntitle: A Thing\n---\n\nwords\n"),
+        ("a definition list", "Term\n:   what it means\n"),
+        ("a figure", "^^^\nwords inside\n^^^ a caption\n"),
+        ("a footer", "^^ at the foot\n"),
+        ("a citation", "he said \"\"so\"\" once\n"),
+        ("an abbreviation", "*[HTML]: HyperText Markup Language\n\nHTML is a thing\n"),
+        ("a backslash escape", "not \\*emphasis\\* at all\n"),
+        ("a lettered list", "a. one\nb. two\n"),
+        ("a roman list", "i. one\nii. two\n"),
+        ("a list starting at seven", "7. seven\n8. eight\n"),
+        ("raw html", "<div>markup</div>\n"),
+        ("inline html", "words <b>and</b> more\n"),
+        ("a table with a cell across two", "| a | b |\n|---|---|\n| one | two |\n"),
         ("a link", "see [the page](https://example.org)\n"),
         ("an entity", "a &amp; b\n"),
         ("everything at once",
@@ -360,6 +374,181 @@ public class MarkdownBuilderTests
 
         Assert.AreEqual(1, shown.Count);
         Assert.IsTrue(shown[0].Words!.Maps, "so the caret lands in the dollars and the next key writes maths");
+    }
+
+    // ── What a construct is set as ──────────────────────────────────────────
+
+    [TestMethod]
+    public void AnAlertSaysWhatItIsInTheWordAReaderMeantByTheMarks()
+    {
+        // The writer typed [!WARNING]; what they meant by it is the word Warning, so that is what is drawn —
+        // and pressing it shows the marks, which is the same bargain a renumbered list marker makes.
+        StringAssert.Contains(Drawn(Lay("> [!WARNING]\n> Mind how you go.\n")), "Warning");
+
+        // A kind nobody has a colour for still gets its name back, tidied.
+        StringAssert.Contains(Drawn(Lay("> [!wibble]\n> Something.\n")), "Wibble");
+
+        // And a plain quotation calls itself nothing at all.
+        StringAssert.DoesNotMatch(Drawn(Lay("> just quoted\n")), new Regex("Note|Warning"));
+    }
+
+    [TestMethod]
+    public void AListIsCountedInWhicheverAlphabetItWasWrittenIn()
+    {
+        StringAssert.Contains(Markers(Lay("a. one\nb. two\n")), "a.");
+        StringAssert.Contains(Markers(Lay("a. one\nb. two\n")), "b.");
+
+        StringAssert.Contains(Markers(Lay("i. one\nii. two\niii. three\n")), "iii.");
+        StringAssert.Contains(Markers(Lay("I. one\nII. two\n")), "II.");
+
+        // Where it starts is the writer's, and renumbering keeps it rather than resetting to one.
+        StringAssert.Contains(Markers(Lay("7. seven\n8. eight\n")), "7.");
+        StringAssert.Contains(Markers(Lay("7. seven\n8. eight\n")), "8.");
+
+        // A writer who numbered every line 1. still meant a list, and gets one.
+        StringAssert.Contains(Markers(Lay("1. one\n1. two\n1. three\n")), "3.");
+    }
+
+    [TestMethod]
+    public void AHeadingThatOpensASectionIsRuledOffUnder()
+    {
+        Assert.AreEqual(1, Pieces(Lay("# Title\n\nwords\n"), MarkdownPieces.Rule).Count);
+        Assert.AreEqual(1, Pieces(Lay("## Part\n\nwords\n"), MarkdownPieces.Rule).Count);
+
+        Assert.AreEqual(0, Pieces(Lay("### Smaller\n\nwords\n"), MarkdownPieces.Rule).Count,
+            "a third-rank heading is a heading inside a section, not the start of one");
+    }
+
+    [TestMethod]
+    public void ATermIsSetApartFromWhatItMeans()
+    {
+        var laid = Lay("Term\n:   what it means\n");
+
+        var term = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("Term"));
+        var means = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("what it means"));
+
+        Assert.IsTrue(means.Bounds.X > term.Bounds.X, "what a term means is set in from the term");
+        Assert.IsTrue(means.Bounds.Y > term.Bounds.Y, "and under it");
+    }
+
+    [TestMethod]
+    public void AFigureIsAPanelWithItsCaptionUnderTheMiddleOfIt()
+    {
+        var laid = Lay("^^^\nwords inside\n^^^ a caption\n");
+
+        StringAssert.Contains(Drawn(laid), "words inside");
+        StringAssert.Contains(Drawn(laid), "a caption");
+
+        var inside = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("words inside"));
+        var caption = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("a caption"));
+
+        Assert.IsTrue(caption.Bounds.Y > inside.Bounds.Y, "a caption goes under what it names");
+        Assert.IsTrue(caption.Bounds.X > inside.Bounds.X, "and is centred, where the words it names start at the left");
+    }
+
+    [TestMethod]
+    public void AFooterIsRuledOffFromTheDocumentAbove()
+    {
+        var laid = Lay("words\n\n^^ at the foot\n");
+
+        StringAssert.Contains(Drawn(laid), "at the foot");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<RuleMark>().Any()),
+            "something has to say the document proper has ended");
+    }
+
+    [TestMethod]
+    public void FrontMatterIsWhatADocumentSaysAboutItselfAndIsNotOnThePage()
+    {
+        var laid = Lay("---\ntitle: A Thing\n---\n\nwords\n");
+
+        StringAssert.DoesNotMatch(Drawn(laid), new Regex("A Thing"));
+        StringAssert.Contains(Drawn(laid), "words", "and what the document does say is still there");
+    }
+
+    [TestMethod]
+    public void RawHtmlIsShownQuietlyAndInlineHtmlIsNotShownAtAll()
+    {
+        // A block of it is source a reader may want to see and fix, so it is shown as source — not as code,
+        // which it is not, and not as prose, which it would be pretending to be. A tag in the middle of a
+        // sentence is not something a sentence can show, so the words close up round it as a browser would.
+        var block = Pieces(Lay("<div>markup</div>\n"), MarkdownPieces.Verbatim).Single();
+
+        Assert.AreEqual("<div>markup</div>", block.Words!.Glyphs.Text);
+        Assert.IsTrue(block.Words.Maps, "and the caret goes into it, because it is the source");
+
+        var inline = Drawn(Lay("words <b>and</b> more\n"));
+
+        StringAssert.DoesNotMatch(inline, new Regex("<b>"));
+        StringAssert.Contains(inline, "and");
+    }
+
+    [TestMethod]
+    public void ABackslashDrawsTheCharacterItWasPutInFrontOf()
+    {
+        var drawn = Drawn(Lay("not \\*emphasis\\* at all\n"));
+
+        StringAssert.Contains(drawn, "*emphasis*", "the asterisks are drawn as themselves");
+        StringAssert.DoesNotMatch(drawn, new Regex(@"\\"), "and the backslashes that held them are not");
+
+        // Still two characters underneath, so a press on one shows what was typed.
+        var escape = Words(Lay("not \\*emphasis\\* at all\n")).First(piece => piece.Words!.Glyphs.Text == "*");
+        Assert.IsFalse(escape.Words!.Maps);
+    }
+
+    [TestMethod]
+    public void ACitationIsRaisedAndSetSmall()
+    {
+        var laid = Lay("he said \"\"so\"\" once\n");
+
+        var said = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("so"));
+        var plain = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("he said"));
+
+        Assert.IsTrue(said.Bounds.Height < plain.Bounds.Height, "a citation is set smaller than the words round it");
+        Assert.IsTrue(said.Bounds.Y < plain.Bounds.Bottom - (plain.Bounds.Height / 2), "and raised off the line");
+    }
+
+    [TestMethod]
+    public void AnAbbreviationsMeaningIsNeverDrawnIntoTheSentence()
+    {
+        // What an abbreviation means is written on a line of its own, somewhere else entirely. The sentence
+        // draws the word and only the word.
+        //
+        // It does not yet draw a rule of dots under it, and that is a consequence of the two-stage read
+        // rather than an oversight: a block's words are read from the block's own source, so a definition
+        // three paragraphs up is not in front of the reader when the sentence is read. The same is true of
+        // link reference definitions. Fixing it means giving the block reader what the document already
+        // worked out, which is a change to the seam rather than to this.
+        var laid = Lay("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n");
+
+        StringAssert.Contains(Drawn(laid), "HTML is a thing");
+        StringAssert.DoesNotMatch(Drawn(laid), new Regex("HyperText"));
+    }
+
+    [TestMethod]
+    public void ATableSaysWhatItsColumnsAreCalledDifferentlyFromWhatIsInThem()
+    {
+        var laid = Lay("| head | er |\n|---|---|\n| one | two |\n");
+
+        var head = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("head"));
+        var body = Words(laid).First(piece => piece.Words!.Glyphs.Text.Contains("one"));
+
+        Assert.AreNotEqual(head.Words!.Glyphs.Width / Math.Max(head.Words.Glyphs.Text.Length, 1),
+                           body.Words!.Glyphs.Width / Math.Max(body.Words.Glyphs.Text.Length, 1),
+            "the head is set differently from the rows under it");
+    }
+
+    // ── Reading the answers ─────────────────────────────────────────────────
+
+    private static string Markers(Laid laid) =>
+        string.Concat(Pieces(laid, MarkdownPieces.Marker).Select(piece => piece.Words!.Glyphs.Text));
+
+    private static List<LayoutMark> Marks(Piece piece)
+    {
+        var found = new List<LayoutMark>();
+
+        foreach (var mark in piece.Marks) found.Add(mark);
+
+        return found;
     }
 
     // ── Reading the answers ─────────────────────────────────────────────────

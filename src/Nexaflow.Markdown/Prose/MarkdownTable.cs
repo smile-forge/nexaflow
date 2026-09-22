@@ -100,8 +100,12 @@ public static class MarkdownTable
             };
 
             if (Aligned(table, at) is { } how) inside.Add(how);
+            if (Covers(cell) is { } spans) inside.Add(spans);
+            if (Blocked(cell)) inside.Add(ContentNode.Holding(MarkdownKinds.Blocks, Roles.Derived, true));
 
             parts.Add(ContentNode.Branch(MarkdownKinds.Cell, inside, Roles.Cell));
+
+            column += Math.Max(cell.ColumnSpan, 1) - 1;
         }
     }
 
@@ -141,4 +145,40 @@ public static class MarkdownTable
 
         return how is null ? null : ContentNode.Holding(MarkdownKinds.Aligned, Roles.Derived, how);
     }
+
+    /// <summary>
+    /// How many columns and rows a cell was written to cover, where it covers more than one.
+    ///
+    /// <para>
+    /// Derived, like the alignment and for the same reason: the characters of a cell say nothing about it.
+    /// What says it is the shape of the grid drawn round it, three lines up and two lines down, which only
+    /// the reader that took the whole table in has seen.
+    /// </para>
+    /// </summary>
+    private static ContentNode? Covers(TableCell cell)
+    {
+        var across = Math.Max(cell.ColumnSpan, 1);
+        var down = Math.Max(cell.RowSpan, 1);
+
+        return across == 1 && down == 1
+            ? null
+            : ContentNode.Holding(MarkdownKinds.Spans, Roles.Derived, new MarkdownSpans(across, down));
+    }
+
+    /// <summary>
+    /// Whether what is written in a cell is blocks rather than a run of words — a list, a quotation, two
+    /// paragraphs. A pipe table's cell is always one line of prose; a grid table's can hold a document.
+    ///
+    /// <para>
+    /// Settled here because only the reader that took the table in can tell: the characters of a cell look
+    /// the same either way, and which they are depends on the shape of the grid drawn round them.
+    /// </para>
+    /// </summary>
+    private static bool Blocked(TableCell cell) =>
+        cell.Count > 1 || (cell.Count == 1 && cell[0] is not ParagraphBlock);
 }
+
+/// <summary>How much of a grid one cell was written to cover.</summary>
+/// <param name="Across">How many columns, counting its own.</param>
+/// <param name="Down">How many rows, counting its own.</param>
+public sealed record MarkdownSpans(int Across, int Down);

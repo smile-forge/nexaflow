@@ -252,14 +252,90 @@
           }
         ]
       }
+    },
+    "markdown-styling": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Calls"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Numbered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Defined"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Figured"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Escaped"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests"
+          }
+        ]
+      }
+    },
+    "markdown-table-spans": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownTable.cs",
+          "class": "MarkdownTable",
+          "method": "Covers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
+          "method": "Placed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
+          "method": "Heights"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 16,
+  "changed_sets": 20,
   "touched_nodes": [
     "markdown-always-drawn",
     "markdown-maths",
     "markdown-pictures",
+    "markdown-styling",
+    "markdown-table-spans",
     "md-code-highlighting",
     "md-image-resolver",
     "md-task-toggle",

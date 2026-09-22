@@ -110,6 +110,12 @@ public static class MarkdownParser
     /// and is kept as the trivia it is, so the quote prints back as exactly what somebody typed while a builder
     /// draws its blocks and skips its marks, neither of them knowing about the other.
     /// </para>
+    /// <para>
+    /// A block covering the whole of what was handed over is the block being read rather than something inside
+    /// it, so the walk goes through it — twice over where it has to, because a definition list is one item and
+    /// the item is the term and what it means. Stopping at the first would hand back the same stretch of source
+    /// under a new name, which is a reading that learned nothing.
+    /// </para>
     /// </summary>
     public static ContentNode Inside(string? source, MarkdownPipeline? pipeline = null)
     {
@@ -121,9 +127,11 @@ public static class MarkdownParser
 
         try
         {
-            foreach (var block in Markdig.Markdown.Parse(text, pipeline ?? Pipeline))
-                if (block is ContainerBlock holds) Split(holds, parts, read);
-                else One(block, parts, read);
+            ContainerBlock blocks = Markdig.Markdown.Parse(text, pipeline ?? Pipeline);
+
+            while (blocks.Count == 1 && blocks[0] is ContainerBlock only && Whole(only, text)) blocks = only;
+
+            Split(blocks, parts, read);
         }
         catch
         {
@@ -135,11 +143,11 @@ public static class MarkdownParser
         return Checked(Kinds.Sequence, parts, text, Roles.Body);
     }
 
-    /// <summary>
-    /// Every block of <paramref name="blocks"/>, in order, with whatever fell between two of them kept where
-    /// the writer put it. The one move a markdown container makes, wherever it is — a document's blocks, a
-    /// quote's, a list item's.
-    /// </summary>
+    /// <summary>Whether a block is the whole of what was handed over rather than a part of it.</summary>
+    private static bool Whole(Block block, string text) =>
+        block.Span.Start <= 0 && block.Span.End >= text.TrimEnd('\n', '\r', ' ', '\t').Length - 1;
+
+    /// <summary>The blocks a container holds, each as its own piece.</summary>
     internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read)
     {
         foreach (var block in blocks) One(block, parts, read);
@@ -246,6 +254,11 @@ public static class MarkdownParser
         Markdig.Extensions.Yaml.YamlFrontMatterBlock => MarkdownKinds.FrontMatter,
         Markdig.Extensions.Footnotes.FootnoteGroup => MarkdownKinds.Footnote,
         Markdig.Extensions.DefinitionLists.DefinitionList => MarkdownKinds.Definition,
+        Markdig.Extensions.DefinitionLists.DefinitionTerm => MarkdownKinds.Term,
+        Markdig.Extensions.DefinitionLists.DefinitionItem => MarkdownKinds.Described,
+        Markdig.Extensions.Figures.FigureCaption => MarkdownKinds.Caption,
+        Markdig.Extensions.Figures.Figure => MarkdownKinds.Figure,
+        Markdig.Extensions.Footers.FooterBlock => MarkdownKinds.Footer,
         HtmlBlock => MarkdownKinds.Html,
         LinkReferenceDefinitionGroup => MarkdownKinds.Reference,
         CodeBlock => MarkdownKinds.Code,

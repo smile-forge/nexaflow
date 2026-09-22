@@ -198,6 +198,23 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 | `WithBlocks` | what each block holds, read by the parser its kind names |
 | `WithNested` | which language reads what is written inside a piece, and how big it is set |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
+
+A reader is also asked, while it still knows, the things the characters do not say: which way a table's
+column is set, how many squares a cell covers, whether a cell holds blocks or a run of words, and which
+alphabet a list counts in — <c>i.</c> being the roman numeral one or the ninth letter depending on what
+stands above it. Each is hung on its node as a derived part, which draws and is not source.
+
+**A reading that learned nothing is not kept.** Some blocks read as themselves when read alone: the `:`
+line of a definition is a definition item, and a footer's line is a footer. `WithBlocks` compares what came
+back against what it handed over and keeps the source where they are the same, so nothing reads itself for
+ever — and `MarkdownParser.Inside` goes through a block that covers the whole of what it was given, because
+that block *is* the one being read rather than something inside it.
+
+**What a construct means is not always in its characters.** An abbreviation's meaning is written on a line
+of its own somewhere else in the document, and a block's words are read from the block's own source — so a
+definition three paragraphs up is not in front of the reader when the sentence is read. The word draws as
+itself and nothing is invented. Giving the block reader what the document already worked out is a change to
+the seam between the two, and it is the one thing markdown's own constructs do not yet reach.
 | `WithTokens` | what a grammar made of a stretch of code, where it has read one *(code fences)* |
 
 **`WithNested` hangs a language, never a picture.** It answers the one question a builder has no business

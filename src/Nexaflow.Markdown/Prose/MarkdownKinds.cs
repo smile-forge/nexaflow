@@ -58,6 +58,9 @@ public static class MarkdownKinds
     /// <summary>The term of one.</summary>
     public const string Term = "term";
 
+    /// <summary>What a term is explained by — the <c>:</c> line under it.</summary>
+    public const string Described = "described";
+
     /// <summary>A note written at the foot and pointed at from the text.</summary>
     public const string Footnote = "footnote";
 
@@ -133,6 +136,24 @@ public static class MarkdownKinds
     /// <summary>The end of a line, hard or soft.</summary>
     public const string Break = "break";
 
+    /// <summary><c>\*</c> — a character written behind a backslash so markdown reads it as itself.</summary>
+    public const string Escape = "escape";
+
+    /// <summary><c>""quoted""</c> — a citation, raised and set small.</summary>
+    public const string Citation = "citation";
+
+    /// <summary>A word a <c>*[…]:</c> line elsewhere said what it stands for.</summary>
+    public const string Abbreviation = "abbreviation";
+
+    /// <summary>A block set apart with a caption under it.</summary>
+    public const string Figure = "figure";
+
+    /// <summary>What a figure calls itself, or the words under a page.</summary>
+    public const string Caption = "caption";
+
+    /// <summary><c>^^ …</c> — what stands at the foot of the page.</summary>
+    public const string Footer = "footer";
+
     // ── What a stage works out ──────────────────────────────────────────────
 
     /// <summary>
@@ -140,6 +161,18 @@ public static class MarkdownKinds
     /// are in a rule of their own, in another row.
     /// </summary>
     public const string Aligned = "aligned";
+
+    /// <summary>
+    /// How a list counts itself — which letters or numerals its markers are, and what the first one is.
+    /// Derived, because only the reader can tell <c>i.</c> the roman numeral from <c>i.</c> the ninth letter.
+    /// </summary>
+    public const string Numbering = "numbering";
+
+    /// <summary>How many columns or rows a cell was written to cover.</summary>
+    public const string Spans = "spans";
+
+    /// <summary>That what is written in a cell is blocks rather than a run of words.</summary>
+    public const string Blocks = "blocks";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>
@@ -159,6 +192,9 @@ public static class MarkdownRoles
 
     /// <summary>An item done.</summary>
     public const string Done = "done";
+
+    /// <summary>What an abbreviation or a cell's span is, where a stage worked it out.</summary>
+    public const string Means = "means";
 }
 
 /// <summary>Which way a column of a table is set, as the rule under its head says.</summary>

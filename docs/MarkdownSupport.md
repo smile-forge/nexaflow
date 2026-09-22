@@ -1982,6 +1982,7 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 | **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF `FlowDocument` should honour is the real question |
 
 | **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
+| **An abbreviation does not find its definition** on the layout tree — the word draws as itself | — | A block's words are read from that block's own source, which is what lets a keystroke re-read one paragraph rather than the file; a `*[…]:` line three paragraphs up is not in front of the reader at that moment. The fix is to hand the block reader what the document parse already worked out |
 
 - **Every Mermaid family now renders** — nothing falls back to raw source.
 - **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the

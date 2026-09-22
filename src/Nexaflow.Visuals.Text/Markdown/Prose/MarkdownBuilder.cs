@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 
@@ -96,6 +97,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         {
             if (part.Derived || part.Role == Roles.Trivia || part.Kind == MarkdownKinds.Task) continue;
 
+            // Front matter is what a document says about itself rather than anything it says, so it is not on
+            // the page at all — until somebody puts the caret in it, when it is the characters they are editing.
+            if (part.Kind == MarkdownKinds.FrontMatter && !Shown(part)) continue;
+
             if (!first) _y += Gap;
             first = false;
 
@@ -121,14 +126,23 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.Quote:
             case MarkdownKinds.Alert: Quoted(into, part, x, room); return;
             case MarkdownKinds.List: Listed(into, part, x, room); return;
-            case MarkdownKinds.Item: Item(into, part, x, room, 0); return;
+            case MarkdownKinds.Item: Item(into, part, x, room, null); return;
             case MarkdownKinds.Table: Tabled(into, part, x, room); return;
             case MarkdownKinds.Fence: Fenced(into, part, x, room); return;
             case MarkdownKinds.Math: Displayed(into, part, x, room); return;
 
+            case MarkdownKinds.Definition: Defined(into, part, x, room); return;
+            case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = Style.DefTerm }); return;
+            case MarkdownKinds.Described: Described(into, part, x, room); return;
+            case MarkdownKinds.Figure: Figured(into, part, x, room); return;
+            case MarkdownKinds.Caption: Captioned(into, part, x, room); return;
+            case MarkdownKinds.Footer: Footed(into, part, x, room); return;
+
+            // Passed through rather than drawn: what a browser would make of it is a question this renderer does
+            // not answer, so the source is shown quietly instead of pretending to have rendered it.
+            case MarkdownKinds.Html: Muted(into, part, x, room); return;
+
             case MarkdownKinds.Code:
-            case MarkdownKinds.Html:
-            case MarkdownKinds.FrontMatter:
             case MarkdownKinds.Reference: AsWritten(into, part, x, room); return;
 
             default: Text(into, Body(part), x, room, Face.Plain); return;
@@ -141,7 +155,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>Whether this block holds blocks, so there is something further in to ask.</summary>
     private static bool Holds(ContentPart part) =>
-        part.Kind is MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.List or MarkdownKinds.Item;
+        part.Kind is MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.List or MarkdownKinds.Item
+            or MarkdownKinds.Definition or MarkdownKinds.Described or MarkdownKinds.Figure or MarkdownKinds.Footer;
 
     /// <summary>
     /// A block set as the characters it was written with. The same face unreadable source is set in, so it reads as
@@ -181,6 +196,20 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             Scale = scales[Math.Clamp(rank, 1, scales.Length) - 1],
             Ink = Style.Heading,
         });
+
+        // The two ranks that open a document and its parts are ruled off under, which is what says a section
+        // started rather than a paragraph being loud.
+        if (rank > 2) return;
+
+        var thick = Math.Max(1, Style.TextSize / 16);
+
+        _y += Gap * 0.25;
+
+        into.Open(MarkdownPieces.Rule, part, new Point(x, _y));
+        into.Draw(new RuleMark(new Rect(0, 0, Math.Max(room, 1), thick), Style.Hr));
+        into.Close();
+
+        _y += thick;
     }
 
     /// <summary>How deep a heading is, counted off the hashes — or off which character underlined it, where it was written that way.</summary>
@@ -219,13 +248,23 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var pad = Style.TextSize * 0.6;
         var inside = Math.Max(room - bar - pad * 2, 1);
 
-        var (tree, size) = Apart(sub => Blocks(sub, Body(part), 0, inside));
+        var (ink, label) = Calls(part);
+
+        var (tree, size) = Apart(sub =>
+        {
+            // What it calls itself, said once at the top in the colour that says it. Drawn rather than read,
+            // because the reader wrote [!NOTE] and what they meant by it is the word Note.
+            if (label is not null) Labelled(sub, part, label, ink, inside);
+
+            Blocks(sub, Body(part), 0, inside);
+        });
+
         var height = size.Height + pad;
         var top = _y;
 
         into.Open(MarkdownPieces.Block, part, new Point(x, top));
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.QuoteBg));
-        into.Draw(new RuleMark(new Rect(0, 0, bar, height), Calls(part)));
+        into.Draw(new RuleMark(new Rect(0, 0, bar, height), ink));
         into.Graft(tree, new Point(bar + pad, pad * 0.5));
         into.Close();
 
@@ -233,24 +272,44 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Reached(x + room);
     }
 
-    /// <summary>What an alert calls itself, in the colour that says it — an ordinary quotation being the plain case.</summary>
-    private Brush Calls(ContentPart part)
+    /// <summary>
+    /// What an alert calls itself, and the colour that says it — an ordinary quotation being the plain case,
+    /// which calls itself nothing.
+    /// </summary>
+    private (Brush Ink, string? Label) Calls(ContentPart part)
     {
-        if (part.Kind != MarkdownKinds.Alert) return Style.TextMuted;
+        if (part.Kind != MarkdownKinds.Alert) return (Style.TextMuted, null);
 
         var said = part.Print();
         var opens = said.IndexOf('!');
         var shuts = opens < 0 ? -1 : said.IndexOf(']', opens);
-        var name = opens < 0 || shuts < 0 ? string.Empty : said[(opens + 1)..shuts].Trim().ToUpperInvariant();
+        var name = opens < 0 || shuts < 0 ? string.Empty : said[(opens + 1)..shuts].Trim();
 
-        return name switch
+        return name.ToUpperInvariant() switch
         {
-            "TIP" => Style.Success,
-            "WARNING" => Style.Warning,
-            "CAUTION" => Style.Danger,
-            "IMPORTANT" => Style.Important,
-            _ => Style.Accent,
+            "NOTE" => (Style.Accent, "Note"),
+            "TIP" => (Style.Success, "Tip"),
+            "IMPORTANT" => (Style.Important, "Important"),
+            "WARNING" => (Style.Warning, "Warning"),
+            "CAUTION" => (Style.Danger, "Caution"),
+            "" => (Style.Accent, null),
+            _ => (Style.Accent, char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant()),
         };
+    }
+
+    /// <summary>
+    /// The word an alert calls itself, set over what it says. It stands for the <c>[!NOTE]</c> that was
+    /// typed without being those characters, so pressing it shows them — the same bargain a renumbered list
+    /// marker makes.
+    /// </summary>
+    private void Labelled(LayoutBuilder into, ContentPart part, string label, Brush ink, double room)
+    {
+        var glyphs = Glyphs(label, Face.Plain with { Bold = true, Ink = ink });
+
+        LayoutText.Words(into, glyphs, new Point(0, _y), Math.Max(room, 1), TextAlignment.Left,
+                         part, MarkdownPieces.Words, maps: false, writes: true, ink: ink);
+
+        _y += glyphs.Height;
     }
 
     // ── Lists ───────────────────────────────────────────────────────────────
@@ -262,8 +321,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Listed(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var counts = Counted(part);
-        var number = 0;
+        var counting = Counted(part);
+        var number = counting?.Start ?? 0;
         var first = true;
 
         foreach (var item in Body(part).Children)
@@ -273,25 +332,23 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             if (!first) _y += Gap * 0.35;
             first = false;
 
-            Item(into, item, x, room, counts ? ++number : 0);
+            Item(into, item, x, room, counting is null ? null : new MarkdownNumbering(counting.Bullet, number++));
         }
     }
 
-    /// <summary>Whether this list numbers itself.</summary>
-    private static bool Counted(ContentPart part)
-    {
-        var text = part.Print().TrimStart();
+    /// <summary>How this list counts itself, or null where it does not count at all.</summary>
+    private static MarkdownNumbering? Counted(ContentPart part) =>
+        Body(part).Children
+            .Select(child => child.Node.Held as MarkdownNumbering)
+            .FirstOrDefault(counting => counting is not null);
 
-        return text.Length > 0 && char.IsDigit(text[0]);
-    }
-
-    private void Item(LayoutBuilder into, ContentPart item, double x, double room, int number)
+    private void Item(LayoutBuilder into, ContentPart item, double x, double room, MarkdownNumbering? counting)
     {
         var indent = Style.TextSize * 1.6;
         var tick = item.Children.FirstOrDefault(child => child.Kind == MarkdownKinds.Task);
 
         if (tick is not null) Ticked(into, tick, x + indent * 0.2);
-        else Marker(into, item, x, indent, number);
+        else Marker(into, item, x, indent, counting);
 
         Blocks(into, item, x + indent, Math.Max(room - indent, 1));
     }
@@ -300,15 +357,69 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// The bullet or the number, drawn where the marker was typed and standing for it: pressing it shows the characters
     /// the writer actually put there, which is how a list is renumbered by writing rather than by a command.
     /// </summary>
-    private void Marker(LayoutBuilder into, ContentPart item, double x, double indent, int number)
+    private void Marker(LayoutBuilder into, ContentPart item, double x, double indent, MarkdownNumbering? counting)
     {
         var written = item.Children.FirstOrDefault(child => child.Role == Roles.Trivia && !child.Derived);
         var face = Face.Plain with { Ink = Style.TextMuted };
-        var glyphs = Glyphs(number > 0 ? $"{number}." : "•", face);
+        var glyphs = Glyphs(Numbered(counting), face);
 
         LayoutText.Words(into, glyphs, new Point(x, _y), indent * 0.85,
                          TextAlignment.Left, written ?? item, MarkdownPieces.Marker,
                          maps: false, writes: written is not null, ink: face.Ink);
+    }
+
+    /// <summary>
+    /// What an item's marker is drawn as: a bullet where the list does not count, and otherwise its number in
+    /// whichever alphabet the list was written in.
+    /// </summary>
+    private static string Numbered(MarkdownNumbering? counting)
+    {
+        if (counting is not { Start: > 0 } at) return "\u2022";
+
+        return at.Bullet switch
+        {
+            'a' => $"{Lettered(at.Start)}.",
+            'A' => $"{Lettered(at.Start).ToUpperInvariant()}.",
+            'i' => $"{Roman(at.Start).ToLowerInvariant()}.",
+            'I' => $"{Roman(at.Start)}.",
+            _ => $"{at.Start}.",
+        };
+    }
+
+    /// <summary>A number in letters, carrying past z the way a spreadsheet's columns do.</summary>
+    private static string Lettered(int number)
+    {
+        var said = string.Empty;
+
+        for (var left = number; left > 0; left = (left - 1) / 26)
+            said = (char)('a' + ((left - 1) % 26)) + said;
+
+        return said;
+    }
+
+    /// <summary>A number in roman numerals, or itself where there is no such numeral.</summary>
+    private static string Roman(int number)
+    {
+        if (number < 1 || number > 3999) return number.ToString(CultureInfo.InvariantCulture);
+
+        (int Worth, string Sign)[] signs =
+        [
+            (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+        ];
+
+        var said = new StringBuilder();
+        var left = number;
+
+        foreach (var (worth, sign) in signs)
+            while (left >= worth)
+            {
+                said.Append(sign);
+                left -= worth;
+            }
+
+        return said.ToString();
     }
 
     /// <summary>
@@ -452,6 +563,129 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         _y = top + height;
         Reached(x + room);
     }
+
+    /// <summary>
+    /// Source shown quietly, with nothing drawn round it: what a block of raw HTML gets. It is not code and
+    /// it is not prose, and the panel a code block sits in would claim it was one.
+    /// </summary>
+    private void Muted(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var body = part.Part(Roles.Body) ?? part;
+        var shown = body.Print().TrimEnd('\n', '\r');
+
+        var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted };
+        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, face);
+        glyphs.MaxTextWidth = Math.Max(1, room);
+
+        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left,
+                         new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim,
+                         maps: shown.Length > 0, ink: face.Ink);
+
+        _y += glyphs.Height;
+        Reached(x + room);
+    }
+
+    /// <summary>What a term is explained by, set in from the term so the two read as a pair.</summary>
+    private void Described(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var indent = Style.TextSize * 1.8;
+
+        Blocks(into, Body(part), x + indent, Math.Max(room - indent, 1));
+    }
+
+    /// <summary>
+    /// A definition list: every term at the margin, and everything else set in from it.
+    ///
+    /// <para>
+    /// The indent is the builder's rather than the tree's, because there is nothing in the tree to hang it
+    /// on. A definition item holds the term and what it means together, so a reading that stopped at the item
+    /// would hand back the whole of what it was given — and one that goes through it, which is what the
+    /// document does, leaves the term and its paragraphs as the siblings they read as.
+    /// </para>
+    /// </summary>
+    private void Defined(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var indent = Style.TextSize * 1.8;
+        var first = true;
+
+        foreach (var child in Body(part).Children)
+        {
+            if (child.Derived || child.Role == Roles.Trivia) continue;
+
+            if (!first) _y += Gap * 0.3;
+            first = false;
+
+            var left = child.Kind == MarkdownKinds.Term ? x : x + indent;
+
+            Block(into, child, left, Math.Max(room - (left - x), 1));
+        }
+    }
+
+    /// <summary>
+    /// A figure: whatever was written inside it, set apart on a panel of its own so it reads as one thing
+    /// lifted out of the prose rather than as more prose.
+    /// </summary>
+    private void Figured(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var pad = Style.TextSize * 0.9;
+        var inside = Math.Max(room - (pad * 2), 1);
+
+        var (tree, size) = Apart(sub => Blocks(sub, Body(part), 0, inside));
+
+        var height = size.Height + (pad * 1.2);
+        var round = Math.Max(2, Style.TextSize * 0.3);
+        var top = _y;
+
+        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Draw(new GeometryMark(new RectangleGeometry(new Rect(0, 0, Math.Max(room, 1), height), round, round),
+                                   Style.FigureBg, Style.FigureBorder, 1));
+        into.Graft(tree, new Point(pad, pad * 0.6));
+        into.Close();
+
+        _y = top + height;
+        Reached(x + room);
+    }
+
+    /// <summary>What a figure calls itself: smaller, slanted, quiet, and under the middle of what it names.</summary>
+    private void Captioned(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var face = Face.Plain with { Italic = true, Scale = Caption, Ink = Style.TextMuted };
+        var (tree, size) = Apart(sub => Text(sub, Body(part), 0, room, face));
+
+        into.Open(MarkdownPieces.Block, part, new Point(x + Math.Max((room - size.Width) / 2, 0), _y));
+        into.Graft(tree, default);
+        into.Close();
+
+        _y += size.Height;
+        Reached(x + room);
+    }
+
+    /// <summary>
+    /// What stands at the foot of the page: a rule to say the document proper has ended, and then whatever
+    /// was written, quiet and small.
+    /// </summary>
+    private void Footed(LayoutBuilder into, ContentPart part, double x, double room)
+    {
+        var pad = Style.TextSize * 0.3;
+        var thick = Math.Max(1, Style.TextSize / 13.5);
+
+        var (tree, size) = Apart(sub => Blocks(sub, Body(part), 0, room));
+
+        var height = thick + (pad * 2) + size.Height;
+        var top = _y;
+
+        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Draw(new RuleMark(new Rect(0, 0, Math.Max(room, 1), thick), Style.Hr));
+        into.Draw(new WashMark(new Rect(0, thick, Math.Max(room, 1), height - thick), Style.FooterBg));
+        into.Graft(tree, new Point(0, thick + pad));
+        into.Close();
+
+        _y = top + height;
+        Reached(x + room);
+    }
+
+    /// <summary>How big a caption is set, against the reader's own text size.</summary>
+    private static double Caption => 12.0 / 13.5;
 
     // ── Keeping count ───────────────────────────────────────────────────────
 

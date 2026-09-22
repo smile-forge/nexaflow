@@ -42,6 +42,9 @@ public sealed partial class MarkdownBuilder
 
         public bool Underline { get; init; }
 
+        /// <summary>A rule of dots under it: what says a word stands for more than itself.</summary>
+        public bool Dotted { get; init; }
+
         public bool Mono { get; init; }
 
         /// <summary>How big, against the reader's text size.</summary>
@@ -125,6 +128,26 @@ public sealed partial class MarkdownBuilder
             // not what was written, and a press on it says so.
             case MarkdownKinds.Entity:
                 runs.Add(new Run(WebUtility.HtmlDecode(part.Text), part, face, Maps: false));
+                return;
+
+            // The same bargain, spelled with a backslash: two characters that mean the second one.
+            case MarkdownKinds.Escape when part.Text.Length > 1:
+                runs.Add(new Run(part.Text[1..], part, face, Maps: false));
+                return;
+
+            case MarkdownKinds.Citation:
+                Inside(part, face with { Scale = face.Scale * 0.85, Lift = -0.34, Ink = Style.Citation }, runs);
+                return;
+
+            // A dotted rule under it is how a reader is told there is more to a word than the word. What it stands
+            // for is on the tree, hung there by the reader, for whoever shows a tip to find.
+            case MarkdownKinds.Abbreviation:
+                runs.Add(new Run(part.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
+                return;
+
+            // Raw HTML is not rendered, so what is drawn for it is nothing at all — the words either side close up
+            // as if it had never been typed, which is what a browser would do with a tag it did not know.
+            case MarkdownKinds.Html:
                 return;
 
             // Markdown reflows a line ending into a space unless the writer asked for a break, which they ask for
@@ -486,15 +509,26 @@ public sealed partial class MarkdownBuilder
             face.Ink ?? Style.Text,
             LayoutText.Density);
 
-        if (face.Strike || face.Underline)
+        if (face.Strike || face.Underline || face.Dotted)
         {
             var decorations = new TextDecorationCollection();
+
             if (face.Strike) decorations.Add(TextDecorations.Strikethrough);
             if (face.Underline) decorations.Add(TextDecorations.Underline);
+            if (face.Dotted) decorations.Add(Dots(face.Ink ?? Style.TextMuted));
 
             glyphs.SetTextDecorations(decorations);
         }
 
         return glyphs;
+    }
+
+    /// <summary>A rule of dots, set a little below the letters so it reads as a hint rather than as a link.</summary>
+    private static TextDecoration Dots(Brush ink)
+    {
+        var pen = new Pen(ink, 1) { DashStyle = new DashStyle([1, 2], 0) };
+        pen.Freeze();
+
+        return new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen, PenOffset = 2 };
     }
 }

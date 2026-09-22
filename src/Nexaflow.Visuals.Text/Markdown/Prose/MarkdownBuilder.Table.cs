@@ -27,7 +27,8 @@ public sealed partial class MarkdownBuilder
     private void Tabled(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var rows = Body(part).Children.Where(child => child.Kind == MarkdownKinds.Row).ToList();
-        var columns = rows.Count == 0 ? 0 : rows.Max(row => Cells(row).Count);
+        var placed = Placed(rows);
+        var columns = placed.Count == 0 ? 0 : placed.Max(row => row.Count == 0 ? 0 : row.Max(cell => cell.Column + cell.Across));
 
         if (columns == 0)
         {
@@ -37,45 +38,148 @@ public sealed partial class MarkdownBuilder
         }
 
         var pad = Style.TextSize * 0.45;
-        var widths = Widths(rows, columns, room, pad);
-        var top = _y;
+        var widths = Widths(placed, columns, room, pad);
 
-        var cells = new int[rows.Count, columns];
-        for (var row = 0; row < rows.Count; row++)
+        // Laid before anything is placed, because a cell covering two rows has to know how tall both are —
+        // and a row is only as tall as the cells that end in it, or one covering it would stretch it twice.
+        var laid = placed
+            .Select((row, at) => row
+                .Select(cell => Apart(sub => Inside(sub, cell.Part, Across(widths, cell, pad), Faced(rows[at]))))
+                .ToList())
+            .ToList();
+        var heights = Heights(placed, laid, pad);
+
+        var top = _y;
+        var lines = new List<double> { top };
+        var cells = new int[placed.Count, columns];
+
+        for (var row = 0; row < placed.Count; row++)
             for (var column = 0; column < columns; column++) cells[row, column] = -1;
 
-        var lines = new List<double> { top };
-
-        for (var row = 0; row < rows.Count; row++)
+        for (var row = 0; row < placed.Count; row++)
         {
-            Rowed(into, rows[row], row, x, widths, pad, cells);
+            Rowed(into, rows[row], placed[row], laid[row], row, x, widths, heights, pad, cells);
             lines.Add(_y);
         }
 
-        Grid(into, part, x, widths, lines);
-        Reads(into, cells, rows.Count, columns);
+        Grid(into, part, x, widths, lines, placed, columns);
+        Reads(into, cells, placed.Count, columns);
 
         Reached(x + widths.Sum());
     }
 
-    /// <summary>One row: its cells laid apart so the row's height is known before any of them is put down.</summary>
-    private void Rowed(LayoutBuilder into, ContentPart row, int at, double x, double[] widths, double pad, int[,] cells)
+    /// <summary>
+    /// Where every cell sits in the grid, once the ones covering more than their own square are allowed for.
+    ///
+    /// <para>
+    /// A cell is written in the next square nobody has claimed, not in the next column — so a cell covering
+    /// two rows pushes the one under it along, exactly as it does on the page.
+    /// </para>
+    /// </summary>
+    private static List<List<Cell>> Placed(List<ContentPart> rows)
     {
-        var written = Cells(row);
-        var head = row.Role == MarkdownRoles.Head;
-        var face = head ? Face.Plain with { Bold = true } : Face.Plain;
+        var taken = new HashSet<(int Row, int Column)>();
+        var placed = new List<List<Cell>>();
 
-        var laid = new (LayoutTree Tree, Size Size)[written.Count];
-
-        for (var column = 0; column < written.Count; column++)
+        for (var row = 0; row < rows.Count; row++)
         {
-            var cell = written[column];
-            var inside = Math.Max(widths[Math.Min(column, widths.Length - 1)] - (pad * 2), 1);
+            var line = new List<Cell>();
+            var column = 0;
 
-            laid[column] = Apart(sub => Text(sub, Body(cell), 0, inside, face));
+            foreach (var part in Cells(rows[row]))
+            {
+                while (taken.Contains((row, column))) column++;
+
+                var spans = Spans(part);
+                var across = Math.Max(spans?.Across ?? 1, 1);
+                var down = Math.Max(spans?.Down ?? 1, 1);
+
+                for (var over = 0; over < down; over++)
+                    for (var along = 0; along < across; along++) taken.Add((row + over, column + along));
+
+                line.Add(new Cell(part, column, across, down));
+                column += across;
+            }
+
+            placed.Add(line);
         }
 
-        var height = (laid.Length == 0 ? Style.TextSize : laid.Max(one => one.Size.Height)) + (pad * 2);
+        return placed;
+    }
+
+    /// <summary>What a cell was written to cover, where a stage worked out that it covers more than one square.</summary>
+    private static MarkdownSpans? Spans(ContentPart cell) =>
+        cell.Children.Select(child => child.Node.Held as MarkdownSpans).FirstOrDefault(spans => spans is not null);
+
+    /// <summary>Whether what is in a cell is blocks rather than a run of words.</summary>
+    private static bool Blocked(ContentPart cell) =>
+        cell.Children.Any(child => child.Node.Held is bool held && held);
+
+    /// <summary>What is written in a cell, read as whichever of the two things it is.</summary>
+    private void Inside(LayoutBuilder into, ContentPart cell, double room, Face? face = null)
+    {
+        if (Blocked(cell)) Blocks(into, Body(cell), 0, room);
+        else Text(into, Body(cell), 0, room, face ?? Face.Plain);
+    }
+
+    /// <summary>How a row's words are set — the head being what the columns are called rather than more of the table.</summary>
+    private Face Faced(ContentPart row) =>
+        row.Role == MarkdownRoles.Head
+            ? Face.Plain with { Bold = true, Scale = 13.0 / 13.5, Ink = Style.Heading }
+            : Face.Plain;
+
+    /// <summary>How wide a cell is, which is every column it covers plus the lines between them.</summary>
+    private static double Across(double[] widths, Cell cell, double pad)
+    {
+        var wide = 0.0;
+
+        for (var at = cell.Column; at < cell.Column + cell.Across && at < widths.Length; at++) wide += widths[at];
+
+        return Math.Max(wide - (pad * 2), 1);
+    }
+
+    /// <summary>
+    /// How tall each row is. A cell is only allowed to make the row it <em>ends</em> in taller, and then only
+    /// by whatever it still needs after the rows it already covers — or a cell spanning three rows would make
+    /// each of them as tall as the whole of it.
+    /// </summary>
+    private double[] Heights(List<List<Cell>> placed, List<List<(LayoutTree Tree, Size Size)>> laid, double pad)
+    {
+        var heights = new double[placed.Count];
+        var least = Style.TextSize + (pad * 2);
+
+        for (var row = 0; row < placed.Count; row++) heights[row] = least;
+
+        for (var span = 1; span <= Math.Max(1, placed.Count); span++)
+            for (var row = 0; row < placed.Count; row++)
+                for (var at = 0; at < placed[row].Count; at++)
+                {
+                    var cell = placed[row][at];
+                    if (cell.Down != span) continue;
+
+                    var last = Math.Min(row + cell.Down - 1, placed.Count - 1);
+                    var has = 0.0;
+
+                    for (var over = row; over <= last; over++) has += heights[over];
+
+                    var wants = laid[row][at].Size.Height + (pad * 2);
+
+                    if (wants > has) heights[last] += wants - has;
+                }
+
+        return heights;
+    }
+
+    /// <summary>A cell, and the square of the grid it was written into.</summary>
+    private readonly record struct Cell(ContentPart Part, int Column, int Across, int Down);
+
+    /// <summary>One row: its cells put down at the widths and heights the whole grid settled on.</summary>
+    private void Rowed(LayoutBuilder into, ContentPart row, List<Cell> placed,
+                       List<(LayoutTree Tree, Size Size)> laid, int at, double x,
+                       double[] widths, double[] heights, double pad, int[,] cells)
+    {
+        var head = row.Role == MarkdownRoles.Head;
+        var height = heights[at];
         var top = _y;
 
         if (head || at % 2 == 1)
@@ -86,21 +190,26 @@ public sealed partial class MarkdownBuilder
             into.Close();
         }
 
-        var cursor = x;
-
-        for (var column = 0; column < written.Count && column < widths.Length; column++)
+        for (var index = 0; index < placed.Count; index++)
         {
-            var width = widths[column];
-            var cell = written[column];
+            var cell = placed[index];
+            if (cell.Column >= widths.Length) continue;
 
-            var piece = into.Open(MarkdownPieces.Cell, cell, new Point(cursor, top));
-            into.Graft(laid[column].Tree, new Point(Along(cell, width, laid[column].Size.Width, pad), pad));
-            into.Covers(new Rect(0, 0, width, height));
+            var left = x;
+            for (var before = 0; before < cell.Column && before < widths.Length; before++) left += widths[before];
+
+            var width = Across(widths, cell, pad) + (pad * 2);
+            var covers = height;
+
+            for (var over = 1; over < cell.Down && at + over < heights.Length; over++) covers += heights[at + over];
+
+            var piece = into.Open(MarkdownPieces.Cell, cell.Part, new Point(left, top));
+            into.Graft(laid[index].Tree, new Point(Along(cell.Part, width, laid[index].Size.Width, pad), pad));
+            into.Covers(new Rect(0, 0, width, covers));
             into.Close();
 
-            if (column < cells.GetLength(1)) cells[at, column] = piece;
-
-            cursor += width;
+            for (var along = 0; along < cell.Across && cell.Column + along < cells.GetLength(1); along++)
+                cells[at, cell.Column + along] = piece;
         }
 
         _y = top + height;
@@ -120,23 +229,26 @@ public sealed partial class MarkdownBuilder
     /// <summary>
     /// How wide each column wants to be, and how wide it gets. Measured by laying each cell apart at the whole room —
     /// asking what it would take rather than guessing — and then shared out only if they will not all fit.
+    ///
+    /// <para>
+    /// A cell covering several columns is left out of the asking. What it wants says nothing about any one of
+    /// the columns it lies across, and counting it against the first would make that column as wide as the
+    /// whole span.
+    /// </para>
     /// </summary>
-    private double[] Widths(List<ContentPart> rows, int columns, double room, double pad)
+    private double[] Widths(List<List<Cell>> placed, int columns, double room, double pad)
     {
         var wants = new double[columns];
 
-        foreach (var row in rows)
-        {
-            var cells = Cells(row);
-
-            for (var column = 0; column < cells.Count && column < columns; column++)
+        foreach (var row in placed)
+            foreach (var cell in row)
             {
-                var cell = cells[column];
-                var (_, size) = Apart(sub => Text(sub, Body(cell), 0, room, Face.Plain));
+                if (cell.Across != 1 || cell.Column >= columns) continue;
 
-                wants[column] = Math.Max(wants[column], size.Width + (pad * 2));
+                var (_, size) = Apart(sub => Inside(sub, cell.Part, room));
+
+                wants[cell.Column] = Math.Max(wants[cell.Column], size.Width + (pad * 2));
             }
-        }
 
         var total = wants.Sum();
         if (total <= 0) return [.. wants.Select(_ => Math.Max(room / columns, 1))];
@@ -148,27 +260,73 @@ public sealed partial class MarkdownBuilder
         return [.. wants.Select(want => Math.Max(want * share, least))];
     }
 
-    /// <summary>The lines between the cells, drawn over them, as a table's rules are.</summary>
-    private void Grid(LayoutBuilder into, ContentPart part, double x, double[] widths, List<double> lines)
+    /// <summary>
+    /// The lines between the cells, drawn over them, as a table's rules are — and not drawn through a cell
+    /// that was written to cover the square on the other side, because there is no edge there to rule.
+    /// </summary>
+    private void Grid(LayoutBuilder into, ContentPart part, double x, double[] widths, List<double> lines,
+                      List<List<Cell>> placed, int columns)
     {
         var thin = Math.Max(1, Style.TextSize / 16);
         var wide = widths.Sum();
+        var rows = lines.Count - 1;
+
+        var edges = new double[widths.Length + 1];
+        for (var column = 0; column < widths.Length; column++) edges[column + 1] = edges[column] + widths[column];
 
         into.Open(MarkdownPieces.Block, part, new Point(x, lines[0]));
 
-        foreach (var line in lines)
-            into.Draw(new RuleMark(new Rect(0, line - lines[0], wide, thin), Style.TableBorder));
-
-        var cursor = 0.0;
-
-        for (var column = 0; column <= widths.Length; column++)
+        // Across: the line under each row, in the stretches no cell reaches down through.
+        for (var row = 0; row <= rows; row++)
         {
-            into.Draw(new RuleMark(new Rect(cursor, 0, thin, lines[^1] - lines[0]), Style.TableBorder));
+            var from = 0.0;
 
-            if (column < widths.Length) cursor += widths[column];
+            for (var column = 0; column <= columns; column++)
+            {
+                if (column < columns && !Through(placed, row, column, down: true)) continue;
+
+                var to = column < columns ? edges[Math.Min(column, widths.Length)] : wide;
+
+                if (to > from) into.Draw(new RuleMark(new Rect(from, lines[row] - lines[0], to - from, thin), Style.TableBorder));
+
+                from = column < columns ? edges[Math.Min(column + 1, widths.Length)] : wide;
+            }
         }
 
+        // Down: the line beside each column, in the rows no cell reaches across it.
+        for (var column = 0; column <= widths.Length; column++)
+            for (var row = 0; row < rows; row++)
+            {
+                if (column > 0 && column < columns && Through(placed, row, column, down: false)) continue;
+
+                into.Draw(new RuleMark(new Rect(edges[Math.Min(column, edges.Length - 1)], lines[row] - lines[0],
+                                                thin, lines[row + 1] - lines[row]), Style.TableBorder));
+            }
+
         into.Close();
+    }
+
+    /// <summary>
+    /// Whether a cell covers the edge at this square — reaching down past the line under <paramref name="row"/>,
+    /// or across the line to the left of <paramref name="column"/>.
+    /// </summary>
+    private static bool Through(List<List<Cell>> placed, int row, int column, bool down)
+    {
+        foreach (var (line, at) in placed.Select((line, at) => (line, at)))
+            foreach (var cell in line)
+            {
+                if (down)
+                {
+                    if (at <= row && at + cell.Down > row + 1 && cell.Column <= column && cell.Column + cell.Across > column)
+                        return false;
+                }
+                else if (at == row && cell.Column < column && cell.Column + cell.Across > column)
+                {
+                    return true;
+                }
+            }
+
+        return down;
     }
 
     /// <summary>

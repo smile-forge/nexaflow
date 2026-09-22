@@ -31,9 +31,14 @@ public static class MarkdownList
         var read = new Cut(text);
         var parts = new List<ContentNode>();
 
+        MarkdownNumbering? counting = null;
+
         try
         {
-            Items(Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline), parts, read);
+            var document = Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline);
+
+            counting = Counting(document);
+            Items(document, parts, read);
         }
         catch
         {
@@ -41,6 +46,9 @@ public static class MarkdownList
         }
 
         read.Gap(parts, read.Length);
+
+        if (counting is not null)
+            parts.Add(ContentNode.Holding(MarkdownKinds.Numbering, Roles.Derived, counting));
 
         return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body);
     }
@@ -61,6 +69,46 @@ public static class MarkdownList
         foreach (var block in blocks)
             if (block is ListItemBlock item) One(item, parts, read);
             else if (block is ContainerBlock inner) Items(inner, parts, read);
+    }
+
+    /// <summary>
+    /// How this list counts itself, where it counts at all.
+    ///
+    /// <para>
+    /// Nobody can read it off the markers afterwards: <c>i.</c> is the roman numeral one in a list that
+    /// started <c>i. ii. iii.</c> and the ninth letter in one that started <c>a. b. c.</c>, and which it is
+    /// depends on what was written above it rather than on the characters. So the reader is asked while it
+    /// still knows, and the answer is hung on the list as the derived fact it is.
+    /// </para>
+    /// </summary>
+    private static MarkdownNumbering? Counting(ContainerBlock blocks)
+    {
+        foreach (var block in blocks)
+        {
+            if (block is ListBlock list)
+                return list.IsOrdered ? new MarkdownNumbering(list.BulletType, Started(list.OrderedStart)) : null;
+
+            if (block is ContainerBlock inner && Counting(inner) is { } found) return found;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// What the first item is numbered. The reader hands back what was written there, which for a lettered
+    /// or roman list is a letter — so it is counted back to a number, and anything that will not count is a
+    /// list starting at one.
+    /// </summary>
+    private static int Started(string? written)
+    {
+        var said = written?.Trim();
+
+        if (string.IsNullOrEmpty(said)) return 1;
+        if (int.TryParse(said, out var number)) return Math.Max(number, 1);
+
+        var letter = char.ToLowerInvariant(said[0]);
+
+        return said.Length == 1 && letter >= 'a' && letter <= 'z' ? letter - 'a' + 1 : 1;
     }
 
     /// <summary>One item: its marker, the box it can be ticked by, and the blocks written inside it.</summary>
@@ -110,3 +158,17 @@ public static class MarkdownList
             [read.Take(to, tick.Checked ? MarkdownRoles.Done : MarkdownRoles.Todo, Kinds.Token)]));
     }
 }
+
+/// <summary>
+/// How a list counts itself: which alphabet or numerals its markers are drawn from, and the number the
+/// first item is.
+///
+/// <para>
+/// Both are facts a builder needs and neither can be read off a marker: a list numbered <c>1. 1. 1.</c>
+/// still counts, one starting at <c>7.</c> still starts there when it is renumbered, and <c>i.</c> is a
+/// roman numeral or the ninth letter depending on what stands above it.
+/// </para>
+/// </summary>
+/// <param name="Bullet">The character the reader took the marker's alphabet from — <c>1</c>, <c>a</c>, <c>A</c>, <c>i</c> or <c>I</c>.</param>
+/// <param name="Start">What the first item is numbered.</param>
+public sealed record MarkdownNumbering(char Bullet, int Start);

@@ -7,6 +7,7 @@ using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Prose;
 
@@ -92,8 +93,15 @@ public static class MarkdownInline
                 return ContentNode.Branch(MarkdownKinds.Task,
                     [read.Take(end, task.Checked ? MarkdownRoles.Done : MarkdownRoles.Todo, Kinds.Token)]);
 
+            // What the abbreviation stands for is written on a line of its own somewhere else, so it is not in
+            // these characters and cannot be cut from them — it is hung on instead.
+            case Markdig.Extensions.Abbreviations.AbbreviationInline abbreviation:
+                return AstRewrite.Holding(read.Take(end, Roles.Element, MarkdownKinds.Abbreviation),
+                                          MarkdownKinds.Abbreviation, MarkdownRoles.Means,
+                                          abbreviation.Abbreviation.Text.ToString().Trim());
+
             case LiteralInline:
-                return read.Take(end, Roles.Element, MarkdownKinds.Word);
+                return Escaped(read, end);
 
             case HtmlEntityInline:
                 return read.Take(end, Roles.Element, MarkdownKinds.Entity);
@@ -134,6 +142,49 @@ public static class MarkdownInline
             ? read.Take(end, Roles.Element, Kind(inline))
             : ContentNode.Branch(Kind(inline), parts);
     }
+
+    /// <summary>
+    /// A run of ordinary text, with any backslash escape in it taken as the piece it is.
+    ///
+    /// <para>
+    /// <c>\*</c> is two characters that mean one, which is exactly what an entity is — so it is read as its
+    /// own piece, and drawn as the character it stands for while still being the two that were typed. Split
+    /// here rather than left to a builder, because where one token stops and the next begins is a fact about
+    /// the text and no later stage can change it.
+    /// </para>
+    /// </summary>
+    private static ContentNode Escaped(Cut read, int end)
+    {
+        var from = read.At;
+        var text = read.Between(from, end);
+
+        if (!text.Contains('\\')) return read.Take(end, Roles.Element, MarkdownKinds.Word);
+
+        var parts = new List<ContentNode>();
+        var taken = 0;
+
+        for (var at = 0; at + 1 < text.Length; at++)
+        {
+            if (text[at] != '\\' || !Escapes(text[at + 1])) continue;
+
+            if (at > taken) parts.Add(read.Take(from + at, Roles.Element, MarkdownKinds.Word));
+
+            parts.Add(read.Take(from + at + 2, Roles.Element, MarkdownKinds.Escape));
+
+            taken = at + 2;
+            at++;
+        }
+
+        if (parts.Count == 0) return read.Take(end, Roles.Element, MarkdownKinds.Word);
+
+        if (end > read.At) parts.Add(read.Take(end, Roles.Element, MarkdownKinds.Word));
+
+        return ContentNode.Branch(Kinds.Sequence, parts, Roles.Element);
+    }
+
+    /// <summary>Which characters a backslash can take the meaning off — CommonMark's ASCII punctuation, and no others.</summary>
+    private static bool Escapes(char what) =>
+        what is (>= '!' and <= '/') or (>= ':' and <= '@') or (>= '[' and <= '`') or (>= '{' and <= '~');
 
     /// <summary>
     /// A formula in the middle of a sentence, cut where its delimiters stop: the dollars that hold it, and the
@@ -219,12 +270,14 @@ public static class MarkdownInline
         HtmlEntityInline => MarkdownKinds.Entity,
         HtmlInline => MarkdownKinds.Html,
         TaskList => MarkdownKinds.Task,
+        Markdig.Extensions.Abbreviations.AbbreviationInline => MarkdownKinds.Abbreviation,
         Markdig.Extensions.Mathematics.MathInline => MarkdownKinds.Formula,
         _ => MarkdownKinds.Word,
     };
 
     private static string Emphasised(EmphasisInline emphasis) => (emphasis.DelimiterChar, emphasis.DelimiterCount) switch
     {
+        ('"', _) => MarkdownKinds.Citation,
         ('~', 2) => MarkdownKinds.Strike,
         ('~', _) => MarkdownKinds.Sub,
         ('^', _) => MarkdownKinds.Sup,

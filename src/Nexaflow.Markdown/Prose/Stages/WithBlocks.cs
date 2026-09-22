@@ -28,15 +28,25 @@ public sealed class WithBlocks : IAstStage
     public ContentNode Run(ContentNode tree) => Read(tree);
 
     /// <summary>
-    /// Which parser reads this kind of block, where one reads it. A kind that is not here is a kind nothing
-    /// can read yet, and what it holds stays exactly as it was typed.
+    /// Which parser reads this block, where one reads it. A kind that is not here is a kind nothing can read
+    /// yet, and what it holds stays exactly as it was typed.
+    ///
+    /// <para>
+    /// Asked of the node rather than of its kind alone, because one kind is read two ways: a cell of a pipe
+    /// table holds a run of words and a cell of a grid table can hold a whole document, and which it is was
+    /// settled by the reader that took the table in.
+    /// </para>
     /// </summary>
-    private static Func<string, ContentNode>? Reader(string kind) => kind switch
+    private static Func<string, ContentNode>? Reader(ContentNode node) => node.Kind switch
     {
-        MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell =>
+        MarkdownKinds.Cell when Holds(node) => source => MarkdownParser.Inside(source),
+
+        MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
+            or MarkdownKinds.Term or MarkdownKinds.Caption =>
             source => MarkdownInline.Read(source).As(Roles.Body),
 
-        MarkdownKinds.Quote or MarkdownKinds.Alert => source => MarkdownParser.Inside(source),
+        MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
+            or MarkdownKinds.Figure or MarkdownKinds.Footer => source => MarkdownParser.Inside(source),
 
         MarkdownKinds.List => source => MarkdownList.Read(source),
         MarkdownKinds.Table => source => MarkdownTable.Read(source),
@@ -44,21 +54,31 @@ public sealed class WithBlocks : IAstStage
         _ => null,
     };
 
+    /// <summary>Whether a stage said this piece holds blocks rather than words.</summary>
+    private static bool Holds(ContentNode node)
+    {
+        foreach (var child in node.Children)
+            foreach (var held in child.Children)
+                if (held.Kind == MarkdownKinds.Blocks) return true;
+
+        return false;
+    }
+
     /// <summary>
     /// This piece with its body read, and everything under it the same.
     ///
     /// <para>
     /// A body that is already a tree is left alone rather than read again, which is what makes running this
-    /// twice the same as running it once — and is the same test that stops a reading whose own source reads
-    /// back as itself from going round for ever.
+    /// twice the same as running it once.
     /// </para>
     /// </summary>
     private static ContentNode Read(ContentNode node)
     {
         if (node.IsLeaf) return node;
 
-        if (Reader(node.Kind) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body)
-            node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? reader(body.Text) : child)]);
+        if (Reader(node) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
+            && reader(body.Text) is { } read && !Circles(node, body, read))
+            node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
         var seen = new ContentNode[node.Children.Count];
         var moved = false;
@@ -70,5 +90,35 @@ public sealed class WithBlocks : IAstStage
         }
 
         return moved ? node.With(seen) : node;
+    }
+
+    /// <summary>
+    /// Whether a reading came back as the very block it was asked to look inside.
+    ///
+    /// <para>
+    /// Some blocks read as themselves when read alone: the <c>:</c> line of a definition is a definition item
+    /// on its own, and a footer's line is a footer. Nothing was learned, and reading it once more would never
+    /// stop — so the body stays the one stretch of source it was, which is what a kind with no reader gets
+    /// anyway.
+    /// </para>
+    /// <para>
+    /// Both halves are needed. The same kind alone is not enough, because a quotation inside a quotation is a
+    /// quotation holding a quotation and that is exactly right — what says it went nowhere is that the block
+    /// it found is the whole of what it was handed, character for character.
+    /// </para>
+    /// </summary>
+    private static bool Circles(ContentNode node, ContentNode body, ContentNode read)
+    {
+        ContentNode? only = null;
+
+        foreach (var child in read.Children)
+        {
+            if (child.Role == Roles.Trivia || child.IsDerived) continue;
+            if (only is not null) return false;
+
+            only = child;
+        }
+
+        return only is not null && only.Kind == node.Kind && only.Print() == body.Text;
     }
 }
