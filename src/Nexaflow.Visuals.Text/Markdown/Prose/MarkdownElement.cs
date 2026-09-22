@@ -87,6 +87,61 @@ public sealed class MarkdownElement : LinkedElement
     }
 
     /// <summary>
+    /// Brings a stretch of the source into view and picks it out.
+    ///
+    /// <para>
+    /// Where it lands is worked out from the offsets, which every piece carries whatever language drew it — so
+    /// a hit inside a diagram is found the same way a hit in a paragraph is, and neither had to be searched for
+    /// on the page.
+    /// </para>
+    /// <para>
+    /// <strong>What is scrolled to is not always what was found.</strong> A word inside a diagram is a few
+    /// pixels of a picture, and putting those few pixels at the top of the view shows a reader the middle of a
+    /// chart with no idea what they are looking at. So where the hit sits inside content another language laid
+    /// out, the whole of that is brought into view instead, with the hit still picked out inside it.
+    /// </para>
+    /// </summary>
+    /// <returns>Whether the document had it to show.</returns>
+    public bool Show((int Start, int Length) what, bool choose = true)
+    {
+        var found = Laid.Root.RangeRects(what.Start, what.Length);
+        if (found.Count == 0) return false;
+
+        var shown = Whole(what);
+
+        BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom,
+                               Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
+
+        if (choose && what.Length > 0) Apply(State.Select(what.Start, what.Length), notify: false);
+
+        return true;
+    }
+
+    /// <summary>
+    /// What a reader has to see for a place to mean anything: the place itself, unless it sits inside content
+    /// another language drew, in which case the whole of that.
+    /// </summary>
+    private Rect Whole((int Start, int Length) what)
+    {
+        var found = Laid.Root.RangeRects(what.Start, what.Length);
+        var place = found[0];
+
+        foreach (var rect in found) place = Rect.Union(place, rect);
+
+        for (var piece = Laid.Root.PieceAt(new Point(place.X + (place.Width / 2), place.Y + (place.Height / 2)));
+             piece.Exists;
+             piece = piece.Parent)
+        {
+            if (piece.Part is not ContentPart part) continue;
+            if (ContentNesting.Of(part) is null) continue;
+
+            return piece.Bounds;
+        }
+
+        return place;
+    }
+
+    /// <summary>
     /// What may be done where the gesture landed, asked of whatever language is being shown there.
     ///
     /// <para>

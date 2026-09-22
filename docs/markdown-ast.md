@@ -232,6 +232,23 @@ across the page are laid out differently, and the walk order, the placement and 
 never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
 still every piece it was drawn as and a drag across the page picks up its bars.
 
+**Finding a place is three questions with one answer each.** A search reads the **source**, never the
+drawing: the parser only ever copies, so the source is the one place the words are whole — in the drawing a
+label is broken wherever whatever drew it needed a break, a lyric is split by the notes it is sung on, and a
+wrapped word is two runs. The offsets come back out of the source and `LayoutQuery.RangeRects` turns them
+into places on the page, which works through every nested language already because each is laid at the
+offset its body starts at. Anything **drawn as something other than what was typed** — an entity, an escape,
+a renumbered marker, an alert's label — already says so on its run, because that is what makes a caret
+possible inside it, so those are found centrally too and nothing had to be told which constructs they are. A
+line number is arithmetic on the same source. A language is asked (`IContentLanguage.Finds`) only for what
+neither would catch, and nothing in the table has needed it yet.
+
+**A saved reference says what a thing is, not where it sits.** `heading:getting-started/list/item#2` — the
+shape a snaplink names a declaration with, because it is the same question asked of a different tree. It
+survives editing, reaches `table/row#1/cell#2` and `pie/slice:Chrome` with no code added for either since
+the kinds are open strings, and lands as far as it still goes where it no longer goes all the way: a deep
+link into a section somebody has reorganised should still land in the section.
+
 **A link into the document is never the host's.** A heading is given the name a link points at while the
 whole document is being read — which heading `#notes-1` means is settled by the order they were written in,
 and nothing looking at one heading's characters could see it. Following such a link is answered by the

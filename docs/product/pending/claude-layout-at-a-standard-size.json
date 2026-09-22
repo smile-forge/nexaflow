@@ -458,14 +458,50 @@
           }
         ]
       }
+    },
+    "markdown-finding": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentPath.cs",
+          "class": "ContentPath"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownFind.cs",
+          "class": "MarkdownFind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownFind.cs",
+          "class": "MarkdownFind",
+          "method": "Shown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "Show"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownFindTests.cs",
+            "class": "MarkdownFindTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 28,
+  "changed_sets": 30,
   "touched_nodes": [
     "markdown-always-drawn",
     "markdown-anchors",
     "markdown-copy",
+    "markdown-finding",
     "markdown-maths",
     "markdown-offers",
     "markdown-pictures",

@@ -77,6 +77,23 @@ public interface IContentLanguage
     BlockCorner Corner(ContentAsk ask) => BlockCorner.Usual;
 
     /// <summary>
+    /// Where this content puts <paramref name="looking"/> on the page although the source does not say it —
+    /// offsets into <see cref="ContentAsk.Source"/>.
+    ///
+    /// <para>
+    /// The escape hatch, and it should stay one. Almost everything is caught without asking: a search reads
+    /// the source, which is where the words are whole, and anything drawn as something other than what was
+    /// typed already says so on its run, so both are found centrally for every language at once.
+    /// </para>
+    /// <para>
+    /// What is left is content that shows a reader something which is neither of those — worked out rather
+    /// than written, and drawn as a picture rather than as a run. A language that has one of those says so
+    /// here, the way it says what an edit means rather than leaving a host to guess.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<(int Start, int Length)> Finds(ContentAsk ask, string looking) => [];
+
+    /// <summary>
     /// The same content as something a document made of WPF elements can hold.
     ///
     /// <para>

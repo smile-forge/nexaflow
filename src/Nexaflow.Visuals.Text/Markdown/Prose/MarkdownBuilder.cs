@@ -300,16 +300,26 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <summary>
     /// The word an alert calls itself, set over what it says. It stands for the <c>[!NOTE]</c> that was
     /// typed without being those characters, so pressing it shows them — the same bargain a renumbered list
-    /// marker makes.
+    /// marker makes, and what lets a search for the word a reader can see land on the marks it was drawn from.
     /// </summary>
     private void Labelled(LayoutBuilder into, ContentPart part, string label, Brush ink, double room)
     {
         var glyphs = Glyphs(label, Face.Plain with { Bold = true, Ink = ink });
 
         LayoutText.Words(into, glyphs, new Point(0, _y), Math.Max(room, 1), TextAlignment.Left,
-                         part, MarkdownPieces.Words, maps: false, writes: true, ink: ink);
+                         Marked(part) ?? (ISourcePart)part, MarkdownPieces.Words, maps: false, writes: true, ink: ink);
 
         _y += glyphs.Height;
+    }
+
+    /// <summary>The <c>[!NOTE]</c> itself, where it can be picked out of what the alert was written as.</summary>
+    private static SourceSpan? Marked(ContentPart part)
+    {
+        var said = part.Print();
+        var opens = said.IndexOf('[');
+        var shuts = opens < 0 ? -1 : said.IndexOf(']', opens);
+
+        return shuts < 0 ? null : new SourceSpan(part.Start + opens, shuts - opens + 1);
     }
 
     // ── Lists ───────────────────────────────────────────────────────────────
