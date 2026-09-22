@@ -30,25 +30,14 @@ internal sealed class DiagramRibbon : UserControl
 
         var rows = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(2) };
 
-        foreach (var offer in offers)
-        {
-            var button = new Button
-            {
-                Content = new TextBlock { Text = Names(offer) },
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                MinWidth = 140,
-                Margin = new Thickness(1),
-                Padding = new Thickness(8, 3, 8, 3),
-            };
+        // Adding something is browsing, and there are usually many; doing something to what is there is not,
+        // and a reader reaching for one of those knows what they want. So the first are gathered behind one
+        // button and the second stand where they can be reached.
+        var adds = offers.Where(offer => offer.Offer == LayoutOffer.Insert).ToList();
 
-            if (offer.Target is { Length: > 0 } target) button.ToolTip = new TextBlock { Text = target };
+        if (adds.Count > 0) rows.Children.Add(Inserting(adds, invoke));
 
-            AutomationProperties.SetAutomationId(button, "Diagram_Ribbon_" + offer.Verb);
-
-            var meant = offer;
-            button.Click += (_, _) => invoke(meant);
-            rows.Children.Add(button);
-        }
+        foreach (var offer in offers.Where(offer => offer.Offer != LayoutOffer.Insert)) rows.Children.Add(Offering(offer, invoke));
 
         Content = new Border
         {
@@ -59,6 +48,56 @@ internal sealed class DiagramRibbon : UserControl
             BorderThickness = new Thickness(1),
         };
     }
+
+    /// <summary>Everything that can be added, behind the one button a reader opens to look through them.</summary>
+    private static FrameworkElement Inserting(IReadOnlyList<LayoutIntent> adds, Action<LayoutIntent> invoke)
+    {
+        var menu = new Menu { Margin = new Thickness(1), Background = Brushes.Transparent };
+        var insert = new MenuItem { Header = Inserts, MinWidth = 140 };
+
+        foreach (var offer in adds)
+        {
+            var item = new MenuItem { Header = Names(offer) };
+            var meant = offer;
+
+            if (offer.Target is { Length: > 0 } target) item.ToolTip = new TextBlock { Text = target };
+
+            AutomationProperties.SetAutomationId(item, "Diagram_Ribbon_Insert_" + offer.Verb);
+
+            item.Click += (_, _) => invoke(meant);
+            insert.Items.Add(item);
+        }
+
+        AutomationProperties.SetAutomationId(insert, "Diagram_Ribbon_Insert");
+        menu.Items.Add(insert);
+
+        return menu;
+    }
+
+    /// <summary>One thing that may be done, standing on its own.</summary>
+    private static FrameworkElement Offering(LayoutIntent offer, Action<LayoutIntent> invoke)
+    {
+        var button = new Button
+        {
+            Content = new TextBlock { Text = Names(offer) },
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            MinWidth = 140,
+            Margin = new Thickness(1),
+            Padding = new Thickness(8, 3, 8, 3),
+        };
+
+        if (offer.Target is { Length: > 0 } target) button.ToolTip = new TextBlock { Text = target };
+
+        AutomationProperties.SetAutomationId(button, "Diagram_Ribbon_" + offer.Verb);
+
+        var meant = offer;
+        button.Click += (_, _) => invoke(meant);
+
+        return button;
+    }
+
+    /// <summary>What the button everything addable sits behind is called.</summary>
+    public const string Inserts = "Insert";
 
     /// <summary>What it is offering, in the order it offers them.</summary>
     public IReadOnlyList<LayoutIntent> Offers { get; }
@@ -72,6 +111,8 @@ internal sealed class DiagramRibbon : UserControl
         LayoutVerbs.Navigate => "Open link",
         LayoutVerbs.Expand => "Show what is behind this",
         LayoutVerbs.Collapse => "Fold this away",
+        LayoutVerbs.Copy => "Copy",
+        LayoutVerbs.Save => "Save as a picture",
         _ => intent.Tip is { Length: > 0 } said ? said : intent.Verb,
     };
 

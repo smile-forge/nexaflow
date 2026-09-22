@@ -389,14 +389,85 @@
           }
         ]
       }
+    },
+    "markdown-copy": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "CopySelection"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.cs",
+          "class": "InlineMarkdownEditor",
+          "method": "SelectedMarkdown"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
+          "class": "MarkdownClipboard",
+          "method": "Copied"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentOffersTests.cs",
+            "class": "ContentOffersTests"
+          }
+        ]
+      }
+    },
+    "markdown-offers": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "IContentLanguage",
+          "method": "Offers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs",
+          "class": "BlockCorner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "Offering"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon",
+          "method": "Inserting"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/ContentOffersTests.cs",
+            "class": "ContentOffersTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 24,
+  "changed_sets": 28,
   "touched_nodes": [
     "markdown-always-drawn",
     "markdown-anchors",
+    "markdown-copy",
     "markdown-maths",
+    "markdown-offers",
     "markdown-pictures",
     "markdown-styling",
     "markdown-table-spans",

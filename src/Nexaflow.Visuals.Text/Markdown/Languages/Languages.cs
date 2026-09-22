@@ -233,6 +233,12 @@ public sealed class CodeLanguage : IContentLanguage
     /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
     public bool ShowsWhatWasWritten => true;
 
+    /// <summary>
+    /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything —
+    /// so that is the one usual button this does not offer.
+    /// </summary>
+    public BlockCorner Corner(ContentAsk ask) => new(Saves: false);
+
     public Laid? Lay(ContentRequest request) =>
         CodeBuilder.Lay(request.Source, CodeGrammars.For(request.Named), request.Style, request.Room, request.At);
 

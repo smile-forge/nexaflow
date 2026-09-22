@@ -63,9 +63,20 @@ public class LinkedElement(string source, StyleFormat palette, IContent content,
         var act = new LayoutAct(LayoutGesture.ContextMenu, under?.Intent ?? default, over[0],
                                 over[0].Naming(), over[0].Naming() as ContentPart, over, where);
 
-        var offers = Shared(over).Concat(actions.Menu(act)).ToList();
+        var offers = Shared(over).Concat(Offering(act)).Concat(actions.Menu(act)).ToList();
         return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where));
     }
+
+    /// <summary>
+    /// What the content itself offers where the gesture landed, beside what its pieces answer to.
+    ///
+    /// <para>
+    /// Nothing, unless what is being shown knows better. A piece says what a press on <em>it</em> means; this
+    /// is for what may be done <em>there</em> — the things a reader can add, and the things they can do to
+    /// what is already around them, which only whatever is being shown knows.
+    /// </para>
+    /// </summary>
+    protected virtual IEnumerable<LayoutIntent> Offering(LayoutAct act) => [];
 
     /// <summary>What every one of <paramref name="over"/> offers, by verb, in the order the first of them says it.</summary>
     private static List<LayoutIntent> Shared(IReadOnlyList<Piece> over)

@@ -34,21 +34,53 @@ public static class LayoutVerbs
 
     /// <summary>The node <see cref="LayoutIntent.Target"/> names was chosen.</summary>
     public const string Select = "select";
+
+    /// <summary>
+    /// Put what is chosen where things are copied to.
+    ///
+    /// <para>
+    /// <strong>The renderer never touches a clipboard.</strong> It knows what was picked out and how to say it
+    /// as markdown, as plain words and as marked-up text; a clipboard is the application's, shared with every
+    /// other thing in the window, and a control that reached for it would be reaching past its host. So this
+    /// is raised and the host does it.
+    /// </para>
+    /// </summary>
+    public const string Copy = "copy";
+
+    /// <summary>Keep a picture of what is under the pointer. The host decides where, and whether at all.</summary>
+    public const string Save = "save";
 }
 
 /// <summary>
-/// What a gesture on a piece means: a verb and its argument, never a delegate.
-///
-/// <para>
-/// A builder is a static function handed a source and a palette — it cannot close over a host's state, and nothing it
-/// draws should have to know what a host will do about it. So it says what a press <em>means</em>, and the host decides.
-/// That is also what lets one diagram be drawn in a viewer, in an editor and in a test with no wiring of its own.
-/// </para>
+/// One thing that may be done, and what it would be done to.
 /// </summary>
-/// <param name="Verb">What is meant — one of <see cref="LayoutVerbs"/>, or a host's own.</param>
-/// <param name="Target">What it is meant about: a url, a node's id, whatever the verb takes.</param>
-/// <param name="Tip">What to say about it while it is pointed at, or in a menu — null to say the target itself.</param>
-public readonly record struct LayoutIntent(string Verb, string? Target = null, string? Tip = null);
+/// <param name="Verb">Which of the things it is — <see cref="LayoutVerbs"/>, or a content's own.</param>
+/// <param name="Target">What it would be done to, said the way the content that offered it says such things.</param>
+/// <param name="Tip">What it is called where a reader has to read it.</param>
+public readonly record struct LayoutIntent(string Verb, string? Target = null, string? Tip = null)
+{
+    /// <summary>
+    /// Which of the two kinds of thing this is.
+    ///
+    /// <para>
+    /// A reader choosing between them is doing two different things. Adding something means browsing what
+    /// there is to add, and there are usually many — so they are gathered behind one button and read as a
+    /// list. Doing something to what is already there is not browsing: a reader reaching for "Delete"
+    /// knows what they want, and hiding it one level down makes them hunt for it.
+    /// </para>
+    /// </summary>
+    public LayoutOffer Offer { get; init; }
+}
+
+/// <summary>Which of the two kinds of thing an offer is.</summary>
+public enum LayoutOffer
+{
+    /// <summary>Something done to what is there.</summary>
+    Change,
+
+    /// <summary>Something new, put where the gesture landed.</summary>
+    Insert,
+}
 
 /// <summary>
 /// What a piece answers to. Held in a table beside the pieces rather than a slot on each, as a run of words is

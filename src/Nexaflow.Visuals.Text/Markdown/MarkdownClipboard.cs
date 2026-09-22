@@ -25,6 +25,41 @@ public static class MarkdownClipboard
     public const string MarkdownFormat = "Markdown";
 
     /// <summary>
+    /// What a stretch of markdown amounts to in each of the ways a reader might want it pasted: as the
+    /// markdown itself, as the words with the marks taken off, and as marked-up text.
+    ///
+    /// <para>
+    /// <strong>Saying it is the renderer's; putting it anywhere is not.</strong> Which characters were chosen
+    /// and what they mean is what this knows. A clipboard is the application's — shared with every other thing
+    /// in the window, and subject to whatever the host has to say about what may leave it — so what comes back
+    /// is handed over rather than set.
+    /// </para>
+    /// </summary>
+    /// <param name="Markdown">The source, as written.</param>
+    /// <param name="Text">The words a reader sees, with the marks taken off.</param>
+    /// <param name="Html">The same, marked up — empty where it could not be.</param>
+    public sealed record ContentCopy(string Markdown, string Text, string Html);
+
+    /// <summary>
+    /// What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard —
+    /// the whole document where nothing is chosen.
+    /// </summary>
+    public static ContentCopy Copied(string source, (int Start, int Length)? chosen)
+    {
+        var markdown = chosen is { Length: > 0 } picked && picked.Start >= 0 && picked.Start + picked.Length <= source.Length
+            ? source.Substring(picked.Start, picked.Length)
+            : source;
+
+        var plain = ToPlainText(markdown);
+        string html;
+
+        try { html = WrapCfHtml(Markdig.Markdown.ToHtml(markdown, MarkdownParser.Pipeline)); }
+        catch { html = string.Empty; }
+
+        return new ContentCopy(markdown, plain, html);
+    }
+
+    /// <summary>
     /// Extracts the best markdown representation from a clipboard / drag payload:
     /// the custom <see cref="MarkdownFormat"/> if present, else HTML converted to
     /// markdown, else plain text. Returns null if the payload carries none of these.

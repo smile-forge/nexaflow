@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -83,6 +84,48 @@ public sealed class MarkdownElement : LinkedElement
                                    Math.Max(heading.Bounds.Width * Zoom, 1), Math.Max(heading.Bounds.Height * Zoom, 1)));
 
         return true;
+    }
+
+    /// <summary>
+    /// What may be done where the gesture landed, asked of whatever language is being shown there.
+    ///
+    /// <para>
+    /// Which language that is was settled by a stage and is hanging on the node, so nothing here looks one up:
+    /// the walk goes out from the piece that was pressed until it reaches something written in another
+    /// language, and asks that. A press in the prose reaches nothing and markdown answers for itself.
+    /// </para>
+    /// </summary>
+    protected override IEnumerable<LayoutIntent> Offering(LayoutAct act)
+    {
+        if (act.Part is not ContentPart part) return [];
+
+        for (var at = part; at is not null; at = at.Parent)
+        {
+            if (ContentNesting.Of(at) is not { } nesting) continue;
+
+            var body = at.Part(Roles.Body);
+            if (body is null) continue;
+
+            return nesting.Language.Offers(new ContentAsk(nesting.Named, body.Text)
+            {
+                Part = part,
+                Chosen = Chosen(body),
+                IsReadOnly = IsReadOnly,
+            });
+        }
+
+        return [];
+    }
+
+    /// <summary>What is picked out inside a piece of content, said as offsets into that content's own source.</summary>
+    private (int Start, int Length)? Chosen(ContentPart body)
+    {
+        if (!State.HasSelection) return null;
+
+        var from = Math.Max(State.SelectionStart, body.Start);
+        var to = Math.Min(State.SelectionStart + State.SelectionLength, body.End);
+
+        return to > from ? (from - body.Start, to - from) : null;
     }
 
     /// <summary>A reading landed somewhere. Laid again on the thread that draws, since it did not land there.</summary>
