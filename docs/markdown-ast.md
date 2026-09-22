@@ -197,6 +197,7 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 |---|---|
 | `WithBlocks` | what each block holds, read by the parser its kind names |
 | `WithNested` | which language reads what is written inside a piece, and how big it is set |
+| `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
 | `WithTokens` | what a grammar made of a stretch of code, where it has read one *(code fences)* |
 
 **`WithNested` hangs a language, never a picture.** It answers the one question a builder has no business
@@ -218,6 +219,14 @@ everything on one line that is set the same way and stands for the same part —
 word` comes out as three pieces rather than eleven. A run whose content is another language is one of those
 runs: it is measured by its inset rather than its glyphs, never broken, and sat centred on the middle of the
 words, because a formula has no baseline a sentence could share.
+
+**A picture is one mark, and where it came from is the host's.** `WithImages` asks this showing of the
+document what an `![alt](where)` names — the host first, then a file beside the document, one chain in
+`MarkdownPictures` because both surfaces ask the same question — and hangs the answer on the image. The
+builder fits it down to 600 either way and never up, and draws it as a `PictureMark` inside a piece standing
+for the characters it was written as, so it sits in the sentence it was written in and a drag across the line
+picks it up. An image nothing was found for draws the words written instead of it, which is what alt text is
+for.
 
 **Trouble is answered differently in the two places maths is written.** A display formula keeps its
 typesetting whatever is wrong with it — maths under a caret is invalid most of the time, since every command

@@ -849,43 +849,8 @@ public static class BlockRenderer
     /// <see cref="MarkdownRenderContext.ImageResolver"/> is asked first (how a document read from elsewhere
     /// than disk brings its pictures along); a null answer falls through to a local file. Remote
     /// <c>http(s)</c> sources are never fetched.</summary>
-    private static WpfInline? TryRenderImage(string? src, MarkdownRenderContext ctx)
-    {
-        if (string.IsNullOrWhiteSpace(src)) return null;
-
-        // A resolver that throws is a host bug, not a reason to lose the document — falls back to alt text.
-        ImageSource? source = null;
-        if (ctx.ImageResolver is { } resolve)
-        {
-            try { source = resolve(src); }
-            catch { return null; }
-        }
-
-        source ??= LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
-        return source is null ? null : ImageInline(source);
-    }
-
-    /// <summary>Loads a local image with <see cref="System.Windows.Media.Imaging.BitmapCacheOption.OnLoad"/>
-    /// (so the renderer holds no file handle) and freezes it. Null when there is no path or it won't decode.</summary>
-    private static ImageSource? LoadLocalBitmap(string? path)
-    {
-        if (path is null) return null;
-        try
-        {
-            var bmp = new System.Windows.Media.Imaging.BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption  = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-            bmp.CreateOptions = System.Windows.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
-            bmp.UriSource    = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    private static WpfInline? TryRenderImage(string src, MarkdownRenderContext ctx) =>
+        Picture(src, ctx) is { } source ? ImageInline(source) : null;
 
     /// <summary>An inline picture, scaled down (never up) to fit 600×600.</summary>
     private static WpfInline ImageInline(ImageSource source)
@@ -900,26 +865,6 @@ public static class BlockRenderer
             Margin           = new Thickness(0, 2, 0, 2),
         };
         return new InlineUIContainer(img) { BaselineAlignment = BaselineAlignment.Bottom };
-    }
-
-    /// <summary>Resolves a markdown image src to a local file path that exists, or null. Handles
-    /// <c>file:</c> URIs, rooted paths, and names relative to <paramref name="baseDir"/>; null for remote
-    /// schemes and missing files.</summary>
-    private static string? ResolveLocalImagePath(string? src, string? baseDir)
-    {
-        if (string.IsNullOrWhiteSpace(src)) return null;
-
-        if (Uri.TryCreate(src, UriKind.Absolute, out var abs))
-        {
-            if (abs.IsFile) return File.Exists(abs.LocalPath) ? abs.LocalPath : null;
-            return null;   // http(s)/data/etc. — not a local file
-        }
-
-        var candidate = src;
-        if (!Path.IsPathRooted(candidate) && !string.IsNullOrEmpty(baseDir))
-            candidate = Path.Combine(baseDir, Uri.UnescapeDataString(src));
-
-        return File.Exists(candidate) ? Path.GetFullPath(candidate) : null;
     }
 
     // ── Fenced-content extraction ─────────────────────────────────────────
@@ -949,21 +894,9 @@ public static class BlockRenderer
         });
     }
 
-    /// <summary>A picture named inside a block, found exactly as one named by an <c>![](…)</c> is: the
-    /// host's resolver, then the document's own folder. A resolver that throws falls through to the file.</summary>
-    private static ImageSource? Picture(string src, MarkdownRenderContext ctx)
-    {
-        if (ctx.ImageResolver is { } resolve)
-        {
-            try
-            {
-                if (resolve(src) is { } supplied) return supplied;
-            }
-            catch { /* fall through to the file */ }
-        }
-
-        return LoadLocalBitmap(ResolveLocalImagePath(src, ctx.BaseDirectory));
-    }
+    /// <summary>The picture a name means, asked the way every surface asks it.</summary>
+    private static ImageSource? Picture(string src, MarkdownRenderContext ctx) =>
+        MarkdownPictures.Found(ctx.ImageResolver, ctx.BaseDirectory)(src);
 
     /// <summary>Where the extracted content begins inside the raw block. Found by searching rather than
     /// counted, so it stays right however the extraction is written; zero when the content is empty or

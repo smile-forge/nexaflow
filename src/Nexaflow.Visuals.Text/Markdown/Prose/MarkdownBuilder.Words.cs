@@ -113,8 +113,11 @@ public sealed partial class MarkdownBuilder
                 runs.Add(new Run(code.Text, code, face with { Mono = true, Wash = Style.CodeBg }, Maps: true));
                 return;
 
-            case MarkdownKinds.Link:
             case MarkdownKinds.Image:
+                Pictured(part, face, runs);
+                return;
+
+            case MarkdownKinds.Link:
                 Linked(part, face, runs);
                 return;
 
@@ -217,6 +220,52 @@ public sealed partial class MarkdownBuilder
         if (written.Length > 0)
             runs.Add(new Run(written, part, face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent },
                              Maps: true));
+    }
+
+    /// <summary>
+    /// A picture, where this showing of the document found one — and the words written instead of it where it
+    /// did not, which is what alt text is for.
+    ///
+    /// <para>
+    /// Fitted rather than drawn at its own size: a photograph straight off a camera is several thousand pixels
+    /// across and would make the document as wide as itself. It is never scaled <em>up</em>, because a small
+    /// picture blown up to fill a column is worse than a small picture.
+    /// </para>
+    /// </summary>
+    private void Pictured(ContentPart part, Face face, List<Run> runs)
+    {
+        if (Stages.WithImages.Of(part) is not { } picture)
+        {
+            Linked(part, face, runs);
+
+            return;
+        }
+
+        var box = Fitted(picture);
+        var into = new LayoutBuilder();
+
+        into.Open(MarkdownPieces.Picture, part);
+        into.Draw(new PictureMark(picture, box));
+        into.Close();
+
+        runs.Add(new Run(string.Empty, part, face, Maps: false,
+                         Inset: new ContentInset(new Laid(into.Seal(), box.Size, []))));
+    }
+
+    /// <summary>
+    /// How big a picture is drawn: its own size, down to whatever fits, never up. A picture is measured in
+    /// pixels and a document in the reader's own text size, so the two only agree by accident — which is why
+    /// there is a cap at all.
+    /// </summary>
+    private static Rect Fitted(ImageSource picture)
+    {
+        var (wide, tall) = (picture.Width, picture.Height);
+
+        if (double.IsNaN(wide) || double.IsNaN(tall) || wide <= 0 || tall <= 0) return new Rect(0, 0, Biggest, Biggest);
+
+        var scale = Math.Min(1, Math.Min(Biggest / wide, Biggest / tall));
+
+        return new Rect(0, 0, Math.Max(1, wide * scale), Math.Max(1, tall * scale));
     }
 
     /// <summary>

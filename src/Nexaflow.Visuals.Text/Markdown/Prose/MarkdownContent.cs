@@ -37,7 +37,9 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay) : I
     /// </summary>
     public static MarkdownContent Of(StyleFormat style, DiagramRenderOptions? options = null)
     {
-        var read = MarkdownParser.Reader.Then(new Stages.WithNested(style, options));
+        var read = MarkdownParser.Reader
+            .Then(new Stages.WithNested(style, options))
+            .Then(new Stages.WithImages(options?.Pictures));
 
         return new((state, room, readOnly) =>
             MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly, reader: read));

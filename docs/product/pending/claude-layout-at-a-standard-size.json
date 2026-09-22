@@ -160,13 +160,76 @@
           }
         ]
       }
+    },
+    "md-image-resolver": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
+          "class": "MarkdownRenderContext"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPictures.cs",
+          "class": "MarkdownPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithImages.cs",
+          "class": "WithImages"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownImageResolverTests.cs",
+            "class": "MarkdownImageResolverTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownImageTests.cs",
+            "class": "MarkdownImageTests"
+          }
+        ]
+      }
+    },
+    "markdown-pictures": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutMark.cs",
+          "class": "PictureMark"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Pictured"
+        },
+        {
+          "type": "node",
+          "target": "md-image-resolver"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownImageTests.cs",
+            "class": "MarkdownImageTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 14,
   "touched_nodes": [
     "markdown-maths",
+    "markdown-pictures",
     "md-code-highlighting",
+    "md-image-resolver",
     "md-task-toggle",
     "qr-render",
     "smiles-render",

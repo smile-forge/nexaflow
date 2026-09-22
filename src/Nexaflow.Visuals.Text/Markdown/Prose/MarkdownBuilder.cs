@@ -31,6 +31,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <summary>How wide a document is set where nothing says. Prose with nowhere to break is no easier to read than none.</summary>
     private const double Widest = 640;
 
+    /// <summary>The most room a picture is given, either way, before it is fitted down into it.</summary>
+    private const double Biggest = 600;
+
     private const string MonoFont = "Consolas";
 
     /// <summary>How far down the next block goes, and how far right anything has reached.</summary>
@@ -499,6 +502,7 @@ public static class MarkdownPieces
     public const string Row = "MarkdownRow";
     public const string Cell = "MarkdownCell";
     public const string Verbatim = "MarkdownVerbatim";
+    public const string Picture = "MarkdownPicture";
 }
 
 /// <summary>What a press on a piece of a markdown document can mean, beside the shared <see cref="LayoutVerbs"/>.</summary>

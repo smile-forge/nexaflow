@@ -146,6 +146,23 @@ public sealed record RuleMark(Rect Bounds, Brush? Foreground) : LayoutMark
 }
 
 /// <summary>
+/// A picture, drawn into the box it was fitted to.
+///
+/// <para>
+/// The one mark whose content came from outside the document. Everything else in the vocabulary is
+/// something a builder worked out from the source; this is a thing a host handed over, and all the tree
+/// does with it is say where it goes. What it is — a file on disk, a frame of a language pack, bytes a
+/// viewer already had — is settled long before a builder sees it.
+/// </para>
+/// </summary>
+public sealed record PictureMark(ImageSource Picture, Rect Bounds) : LayoutMark
+{
+    public override Rect Covers => Bounds;
+
+    public override void PaintOn(DrawingContext dc, Brush fallback) => dc.DrawImage(Picture, Bounds);
+}
+
+/// <summary>
 /// A filled rectangle <em>behind</em> a piece rather than in it — a colour box, a highlight.
 ///
 /// <para>

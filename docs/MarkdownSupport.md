@@ -1978,7 +1978,7 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 | Gap | Node | Why it is still open |
 |---|---|---|
 
-| **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature |
+| **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature. Both surfaces ask one chain (`MarkdownPictures.Found`), so it is one place to change |
 | **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF `FlowDocument` should honour is the real question |
 
 | **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
