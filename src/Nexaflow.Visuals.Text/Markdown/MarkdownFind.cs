@@ -93,25 +93,35 @@ public static class MarkdownFind
                                .OrderBy(place => place.Start)];
 
     /// <summary>
-    /// Where a line begins and how long it is, counting from one — clamped to the document, because a
-    /// reference to line 900 of a file that has since been cut short should land at its end rather than
-    /// throw.
+    /// Where a line begins and how long it is, counting from one.
+    ///
+    /// <para>
+    /// A number past the end is the last line there is, rather than an empty place after it: a reference to
+    /// line 900 of a file somebody has since cut short should land at the end of what is left, which is what
+    /// a reader meant by it and what they can actually be shown.
+    /// </para>
     /// </summary>
     public static (int Start, int Length) Line(string? source, int number)
     {
         var text = source ?? string.Empty;
+        if (text.Length == 0) return (0, 0);
+
         var wanted = Math.Max(number, 1);
         var at = 0;
+        var last = 0;
 
         for (var line = 1; line < wanted; line++)
         {
             var ends = text.IndexOf('\n', at);
-            if (ends < 0) return Ending(text, at);
+            if (ends < 0) break;
 
+            last = at;
             at = ends + 1;
         }
 
-        return Ending(text, at);
+        // Past the end of a file that ends in a line ending, there is a place with nothing in it. The line
+        // a reader was asking for is the one before it.
+        return Ending(text, at < text.Length ? at : last);
     }
 
     /// <summary>Which line an offset is on, counting from one — the other way round, for saving a reference.</summary>

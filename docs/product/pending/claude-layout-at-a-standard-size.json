@@ -493,10 +493,40 @@
           }
         ]
       }
+    },
+    "markdown-surface": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "Blocked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "PaintOver"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSurfaceTests.cs",
+            "class": "MarkdownSurfaceTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 30,
+  "changed_sets": 32,
   "touched_nodes": [
     "markdown-always-drawn",
     "markdown-anchors",
@@ -506,6 +536,7 @@
     "markdown-offers",
     "markdown-pictures",
     "markdown-styling",
+    "markdown-surface",
     "markdown-table-spans",
     "md-code-highlighting",
     "md-image-resolver",

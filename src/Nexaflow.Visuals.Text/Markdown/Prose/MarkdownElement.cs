@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -35,8 +36,75 @@ public sealed class MarkdownElement : LinkedElement
         Unloaded += (_, _) => Code.CodeSpans.Ready -= Coloured;
     }
 
-    /// <summary>The markdown this is showing.</summary>
-    public string Markdown => Source;
+    /// <summary>
+    /// The markdown this is showing. Setting it re-reads and re-lays, without telling anybody the document
+    /// changed — because it did not: this is a host showing something else, not somebody writing.
+    /// </summary>
+    public string Markdown
+    {
+        get => Source;
+        set
+        {
+            if (string.Equals(Source, value, StringComparison.Ordinal)) return;
+
+            Apply(EditState.For(value ?? string.Empty), notify: false);
+        }
+    }
+
+    /// <summary>
+    /// The places a search turned up, and which of them is the one being looked at.
+    ///
+    /// <para>
+    /// <strong>Drawn over, never written into.</strong> A found word is washed at paint time from the offsets
+    /// it was found at; nothing in the tree is changed to mark it, so clearing a search costs a repaint and
+    /// there is no state to get out of step with the document. It is the same bargain the selection makes.
+    /// </para>
+    /// </summary>
+    public (IReadOnlyList<(int Start, int Length)> Places, int At) Showing
+    {
+        get => _showing;
+        set
+        {
+            _showing = (value.Places ?? [], value.At);
+
+            InvalidateVisual();
+        }
+    }
+
+    private (IReadOnlyList<(int Start, int Length)> Places, int At) _showing = ([], -1);
+
+    /// <inheritdoc/>
+    protected override void PaintOver(DrawingContext dc)
+    {
+        base.PaintOver(dc);
+
+        for (var at = 0; at < _showing.Places.Count; at++)
+        {
+            var (start, length) = _showing.Places[at];
+            var runs = LayoutQuery.Clusters(Laid.Root.RangeRects(start, length), 0);
+
+            foreach (var run in runs)
+                dc.DrawRectangle(at == _showing.At ? Palette.Marked : Palette.QuoteBg, Edge(at == _showing.At), run);
+        }
+    }
+
+    /// <summary>
+    /// What is drawn round a found word. The one being looked at is outlined as well as washed, because a
+    /// wash alone cannot say which of several is the one — and the glyphs are already down by the time this
+    /// paints, so their colour is not ours to change.
+    /// </summary>
+    private Pen? Edge(bool looking)
+    {
+        if (!looking) return null;
+
+        var pen = new Pen(Palette.Accent, Math.Max(1, Style.TextSize / 13.5));
+        pen.Freeze();
+
+        return pen;
+    }
+
+    /// <summary>What this is drawn in, which a host may swap for another theme.</summary>
+    private StyleFormat Style => Palette;
 
     /// <inheritdoc/>
     /// <remarks>Only a plain press: Ctrl and Shift are adding to a selection, which is not what ticking an item is.</remarks>

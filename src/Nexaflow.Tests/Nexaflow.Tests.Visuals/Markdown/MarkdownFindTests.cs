@@ -131,16 +131,17 @@ public class MarkdownFindTests
     }
 
     [TestMethod]
-    public void AndALineThatIsNoLongerThereLandsAtTheEndRatherThanThrowing()
+    public void AndALineThatIsNoLongerThereIsTheLastLineThereIs()
     {
+        // A reference to line 900 of a file somebody has since cut short should land at the end of what is
+        // left — which is a line with something on it, not the empty place after the last one.
         const string source = "one\ntwo\n";
 
-        var past = MarkdownFind.Line(source, 900);
-
-        Assert.IsTrue(past.Start <= source.Length);
-        Assert.AreEqual(source.Length, past.Start + past.Length);
+        Assert.AreEqual(MarkdownFind.Line(source, 2), MarkdownFind.Line(source, 900));
+        Assert.AreEqual("two", source.Substring(MarkdownFind.Line(source, 900).Start, MarkdownFind.Line(source, 900).Length));
 
         Assert.AreEqual(MarkdownFind.Line(source, 1), MarkdownFind.Line(source, 0), "and there is no line nought");
+        Assert.AreEqual((0, 0), MarkdownFind.Line("", 1), "nor any line at all in nothing");
     }
 
     [TestMethod]

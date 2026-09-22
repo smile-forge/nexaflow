@@ -232,6 +232,22 @@ across the page are laid out differently, and the walk order, the placement and 
 never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
 still every piece it was drawn as and a drag across the page picks up its bars.
 
+**A whole document is one element, not one per block.** `MarkdownSurface` owns the scroller, what a search
+turned up and the buttons a block offers in its corner; `MarkdownElement` owns the tree, the caret and the
+selection. Because the prose, the diagrams and the tunes are all pieces of one laid tree, a drag runs from a
+word into a chart with nothing forwarding gestures between controls.
+
+**What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
+picture of itself, because a picture of code is a worse copy of the code, and prose offers none either. What
+a reader may do *there* — the things to add, behind one Insert button, and the things to do to what is
+already there, standing on their own — is `IContentLanguage.Offers`, asked of whatever language is being
+shown at that point. Which language that is was settled by a stage and is on the node, so nothing looks one
+up.
+
+**Which block a point is in is asked of the tree that was read**, never of the one that was drawn. A piece
+knows the characters it came from but not always as a part of this document's tree — a code fence's runs
+carry plain spans, because what drew them was reading code. An offset is an offset whatever drew it.
+
 **Finding a place is three questions with one answer each.** A search reads the **source**, never the
 drawing: the parser only ever copies, so the source is the one place the words are whole — in the drawing a
 label is broken wherever whatever drew it needed a break, a lyric is split by the notes it is sung on, and a
