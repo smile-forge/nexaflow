@@ -214,7 +214,7 @@ public class PlotBuilderTests
     [TestMethod]
     public void AScatterBlockDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("scatter", Cars, StyleFormat.Dark);
+        var element = Alone.Drawn("scatter", Cars, StyleFormat.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element,
             "a plot is rendered content, not the source text it was written as");

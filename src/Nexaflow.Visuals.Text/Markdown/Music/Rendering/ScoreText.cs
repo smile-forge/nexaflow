@@ -21,11 +21,14 @@ internal static class ScoreText
     /// </summary>
     public static readonly FontFamily ChordFont = new("Times New Roman, Georgia, serif");
 
+    /// <summary>The face a score's words are set in where nothing names another: the one prose is set in.</summary>
+    private static readonly FontFamily Body = new("Segoe UI");
+
     public static FormattedText Build(string text, double size,
         FontWeight? weight = null, FontStyle? style = null, Brush? brush = null,
         FontFamily? family = null) =>
         new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(family ?? BlockRenderer.BodyFont, style ?? FontStyles.Normal,
+            new Typeface(family ?? Body, style ?? FontStyles.Normal,
                 weight ?? FontWeights.Normal, FontStretches.Normal),
             size, brush ?? Brushes.Black, Editing.LayoutText.Density);
 

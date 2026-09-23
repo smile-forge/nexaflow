@@ -86,10 +86,14 @@ public static class MarkdownParser
 
         var read = new Cut(text);
         var parts = new List<ContentNode>();
+        MarkdownDefinitions? defined = null;
 
         try
         {
-            Split(Markdig.Markdown.Parse(text, pipeline ?? Pipeline), parts, read);
+            var document = Markdig.Markdown.Parse(text, pipeline ?? Pipeline);
+
+            Split(document, parts, read);
+            defined = MarkdownDefinitions.In(document, text);
         }
         catch
         {
@@ -100,7 +104,10 @@ public static class MarkdownParser
 
         read.Gap(parts, read.Length);
 
-        return Checked(MarkdownKinds.Document, parts, text, Roles.Element);
+        var whole = Checked(MarkdownKinds.Document, parts, text, Roles.Element);
+
+        // Seen only by reading the whole document, and wanted by every block's words — see MarkdownDefinitions.
+        return defined is null ? whole : whole.Holding(MarkdownKinds.Definitions, Roles.Derived, defined);
     }
 
     /// <summary>
@@ -151,14 +158,20 @@ public static class MarkdownParser
     /// <summary>The blocks a container holds, each as its own piece.</summary>
     internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read)
     {
-        foreach (var block in blocks) One(block, parts, read);
+        for (var at = 0; at < blocks.Count; at++)
+            One(blocks[at], parts, read, at + 1 < blocks.Count ? blocks[at + 1].Span.Start : null);
     }
 
-    /// <summary>One block, with whatever was written in front of it.</summary>
-    private static void One(Block block, List<ContentNode> parts, Cut read)
+    /// <summary>
+    /// One block, with whatever was written in front of it — ending where the next begins, whatever its span says. A pipe
+    /// table written straight under a line of words is cut out of the paragraph it interrupted, and the paragraph's span is
+    /// left reaching over the table.
+    /// </summary>
+    private static void One(Block block, List<ContentNode> parts, Cut read, int? next)
     {
         var from = read.Starts(block);
         var to = read.Closes(block, from);
+        if (next is { } ceiling && ceiling > from && ceiling < to) to = ceiling;
         if (to == from) return;
 
         read.Gap(parts, from);

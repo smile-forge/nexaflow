@@ -9,12 +9,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// End-to-end check that every diagram in the sample markdown dataset parses and renders
-/// through the real markdown pipeline (Markdig → <see cref="BlockRenderer"/> → diagram handler).
+/// through the real markdown pipeline — read, its stages run, and laid by <see cref="MarkdownBuilder"/> with every fence laid by its language.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -36,13 +37,12 @@ public class MarkdownSampleRenderTests
                             .ToList();
 
             Assert.AreNotEqual(0, fences.Count, $"no diagram fence in {Path.GetFileName(path)}");
-            foreach (var fc in fences)
-                Assert.IsNotNull(BlockRenderer.Render(fc, md), $"render returned null for {Path.GetFileName(path)}");
+            Lays(md, fences, Path.GetFileName(path));
         }
     });
 
     /// <summary>The non-diagram extensions sample (emphasis extras, abbreviations, alert blocks)
-    /// renders every block through <see cref="BlockRenderer"/> without throwing, and produces the
+    /// lays without throwing, and produces the
     /// expected extension block/inline types.</summary>
     [TestMethod]
     public void ExtensionsSampleRenders() => UiThread.Run(() =>
@@ -50,8 +50,7 @@ public class MarkdownSampleRenderTests
         string md  = File.ReadAllText(TestSampleData.Path("markdown", "extensions.md"));
         var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
 
-        foreach (var block in doc)
-            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+        Lays(md, [], "the whole document");
 
         var kinds = doc.OfType<Markdig.Extensions.Alerts.AlertBlock>()
                        .Select(a => a.Kind.ToString().ToUpperInvariant()).ToHashSet();
@@ -62,8 +61,8 @@ public class MarkdownSampleRenderTests
     });
 
     /// <summary>The <c>latex-math-*.md</c> references render every block through
-    /// <see cref="BlockRenderer"/> without throwing. Unsupported LaTeX degrades to a styled
-    /// fallback rather than crashing, so every block still renders to a non-null element —
+    /// lay without throwing. Unsupported LaTeX degrades to a styled
+    /// fallback rather than crashing, so every block still draws something —
     /// which is exactly what lets the docs double as a live support map.</summary>
     [TestMethod]
     public void LatexMathSamplesRender() => UiThread.Run(() =>
@@ -77,9 +76,7 @@ public class MarkdownSampleRenderTests
         {
             string md  = File.ReadAllText(path);
             var    doc = MdMarkdown.Parse(md, MarkdownParser.Pipeline);
-            foreach (var block in doc)
-                Assert.IsNotNull(BlockRenderer.Render(block, md),
-                    $"render returned null in {Path.GetFileName(path)}");
+            Lays(md, [], Path.GetFileName(path));
         }
     });
 
@@ -142,7 +139,7 @@ public class MarkdownSampleRenderTests
     });
 
     /// <summary>The <c>music-*.md</c> references parse into <c>abc</c> / <c>lilypond</c> fences and engrave (or
-    /// gracefully fall back) through <see cref="BlockRenderer"/> without throwing — the docs double as a
+    /// gracefully fall back) without throwing — the docs double as a
     /// live map of the notation engine's support.</summary>
     [TestMethod]
     public void MusicSamplesRender() => UiThread.Run(() =>
@@ -159,9 +156,7 @@ public class MarkdownSampleRenderTests
             Assert.IsTrue(doc.OfType<Markdig.Syntax.FencedCodeBlock>()
                              .Any(fence => fence.Info is "abc" or "lilypond"),
                 $"no music fence parsed in {Path.GetFileName(path)}");
-            foreach (var block in doc)
-                Assert.IsNotNull(BlockRenderer.Render(block, md),
-                    $"render returned null in {Path.GetFileName(path)}");
+            Lays(md, [], Path.GetFileName(path));
         }
     });
 
@@ -183,11 +178,9 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 14, $"expected the reference to show every type, found {fences.Count} qr fences");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a qr fence");
+        Lays(md, fences, "qr");
 
-        foreach (var block in doc)
-            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+        Lays(md, [], "the whole document");
     });
 
     /// <summary>
@@ -212,11 +205,9 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 23, $"expected the reference to show every format, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a barcode fence");
+        Lays(md, fences, "barcode");
 
-        foreach (var block in doc)
-            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null");
+        Lays(md, [], "the whole document");
 
         // That the reference ends with a value the format cannot carry and a format that does not exist is
         // the point of it: both paths have to produce an element rather than take the document down, which
@@ -236,8 +227,7 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 9, $"expected the reference to show every type, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a datamatrix fence");
+        Lays(md, fences, "datamatrix");
     });
 
     [TestMethod]
@@ -252,8 +242,7 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 8, $"expected the reference to show every setting, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a pdf417 fence");
+        Lays(md, fences, "pdf417");
     });
 
     [TestMethod]
@@ -268,8 +257,7 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 12, $"expected the reference to show both families, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for an aztec fence");
+        Lays(md, fences, "aztec");
     });
 
     [TestMethod]
@@ -284,8 +272,7 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 6, $"expected every section of the reference, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a smiles fence");
+        Lays(md, fences, "smiles");
     });
 
     /// <summary>
@@ -305,8 +292,7 @@ public class MarkdownSampleRenderTests
 
         Assert.IsTrue(fences.Count >= 8, $"expected every section of the reference, found {fences.Count}");
 
-        foreach (var fence in fences)
-            Assert.IsNotNull(BlockRenderer.Render(fence, md), "render returned null for a wordcloud fence");
+        Lays(md, fences, "wordcloud");
     });
 
     /// <summary>
@@ -332,7 +318,23 @@ public class MarkdownSampleRenderTests
             Assert.IsTrue(blocks.Any(block => fence.Equals(block.Info, StringComparison.OrdinalIgnoreCase)),
                           $"the reference shows no {fence}");
 
-        foreach (var block in blocks)
-            Assert.IsNotNull(BlockRenderer.Render(block, md), "render returned null for a plot fence");
+        Lays(md, blocks, "plot");
     });
+
+    /// <summary>
+    /// The whole document laid as a reader is shown it, drawing something — and every one of <paramref name="fences"/>
+    /// drawn: something on the page standing for its characters, a picture or, where it could not be drawn, what was
+    /// written.
+    /// </summary>
+    private static void Lays(string md, IEnumerable<FencedCodeBlock> fences, string what)
+    {
+        var laid = MarkdownBuilder.Lay(md, StyleFormat.Dark, 700);
+        Assert.IsTrue(laid.Draws, $"{what}: the document drew nothing");
+
+        var drawn = laid.Root.SelfAndDescendants().Where(piece => piece.Part is not null).Select(piece => piece.Sits().Start).ToList();
+
+        foreach (var fence in fences)
+            Assert.IsTrue(drawn.Any(at => at >= fence.Span.Start && at <= fence.Span.End),
+                          $"{what}: nothing was drawn for the fence on line {fence.Line + 1}");
+    }
 }

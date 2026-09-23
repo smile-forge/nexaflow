@@ -145,7 +145,7 @@ public sealed partial class MarkdownBuilder
             // A dotted rule under it is how a reader is told there is more to a word than the word. What it stands
             // for is on the tree, hung there by the reader, for whoever shows a tip to find.
             case MarkdownKinds.Abbreviation:
-                runs.Add(new Run(part.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
+                runs.Add(new Run(part.Print(), part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
                 return;
 
             // Raw HTML is not rendered, so what is drawn for it is nothing at all — the words either side close up
@@ -218,7 +218,7 @@ public sealed partial class MarkdownBuilder
     /// </summary>
     private void Linked(ContentPart part, Face face, List<Run> runs)
     {
-        var where = part.Part(MarkdownRoles.Destination)?.Text;
+        var where = MarkdownLinks.Goes(part.Node);
         var says = part.Part(MarkdownRoles.Title)?.Text;
         var act = where is { Length: > 0 } ? new LayoutIntent(LayoutVerbs.Navigate, where, says) : (LayoutIntent?)null;
 

@@ -178,6 +178,47 @@ public class MarkdownParserTests
         Assert.AreEqual("csharp", fence.Part(Roles.Name)?.Text);
     }
 
+    [TestMethod]
+    public void WhatTheDocumentDefinesIsWrittenDownForItsWords()
+    {
+        var read = MarkdownParser.Read("see [one][ref] and HTML\n\n[ref]: https://example.org\n\n*[HTML]: HyperText Markup Language\n");
+
+        var defined = MarkdownDefinitions.Of(read)?.Text ?? string.Empty;
+
+        StringAssert.Contains(defined, "[ref]: https://example.org");
+        StringAssert.Contains(defined, "*[HTML]: HyperText Markup Language");
+        Assert.AreEqual("see [one][ref] and HTML\n\n[ref]: https://example.org\n\n*[HTML]: HyperText Markup Language\n", read.Print(),
+                        "and nothing of it is written twice");
+    }
+
+    [TestMethod]
+    public void ALinkNamingADefinitionGoesWhereTheDefinitionSays()
+    {
+        var read = MarkdownParser.Reader.Run(MarkdownParser.Read("see [one][ref]\n\n[ref]: https://example.org\n"));
+
+        var link = read.SelfAndDescendants().First(node => node.Kind == MarkdownKinds.Link);
+
+        Assert.AreEqual("https://example.org", MarkdownLinks.Goes(link));
+    }
+
+    [TestMethod]
+    public void AnAbbreviationDefinedElsewhereIsKnownInTheSentence()
+    {
+        var read = MarkdownParser.Reader.Run(MarkdownParser.Read("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n"));
+
+        Assert.IsTrue(read.SelfAndDescendants().Any(node => node.Kind == MarkdownKinds.Abbreviation));
+    }
+
+    [TestMethod]
+    public void APipeTableUnderALineOfWordsIsABlockOfItsOwn()
+    {
+        // GFM lets a table interrupt a paragraph, and the paragraph's own span is left reaching over it.
+        var read = MarkdownParser.Read("Some intro text\n| a | b |\n|---|---|\n| 1 | 2 |\n");
+
+        CollectionAssert.AreEqual(new[] { MarkdownKinds.Paragraph, MarkdownKinds.Table },
+                                  read.Children.Where(child => child.Role != Roles.Trivia && !child.IsDerived).Select(child => child.Kind).ToArray());
+    }
+
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static IReadOnlyList<ContentNode> Blocks(string source) =>

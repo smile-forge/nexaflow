@@ -11,6 +11,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
+using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
@@ -80,7 +82,7 @@ public class MatrixSelectionPicture
 
     private static RenderTargetBitmap Shot(string from, string to)
     {
-        var formula = new FormulaElement(Latex, StyleFormat.Light with { TextSize = 26 });
+        var formula = Alone.Drawn("latex", Latex, new DiagramRenderOptions { Palette = StyleFormat.Light with { TextSize = 26 }, ReadOnly = false });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
 
@@ -98,7 +100,7 @@ public class MatrixSelectionPicture
         return shot;
     }
 
-    private static Piece Cell(FormulaElement formula, string digit) =>
+    private static Piece Cell(ContentElement formula, string digit) =>
         formula.Laid.Root.Leaves()
             .Single(n => n.Sits() is { Length: > 0 } at && Latex.Substring(at.Start, at.Length) == digit);
 

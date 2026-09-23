@@ -67,11 +67,5 @@ public sealed class WithImages(Func<string, ImageSource?>? find) : IAstStage
     }
 
     /// <summary>Where an image says it points, which is the only part of it that names a picture.</summary>
-    private static string? Said(ContentNode node)
-    {
-        foreach (var child in node.Children)
-            if (child.Role == MarkdownRoles.Destination) return child.Text;
-
-        return null;
-    }
+    private static string? Said(ContentNode node) => MarkdownLinks.Goes(node);
 }

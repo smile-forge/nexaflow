@@ -90,11 +90,6 @@ internal static class MermaidBuilders
         _ => null,
     };
 
-    /// <summary>The element a block is shown and written in, or null where its diagram is not drawn on the shared tree.</summary>
-    /// <remarks>Read-only where the host takes no edits, which leaves a diagram there looked at, selected and followed.</remarks>
-    public static Editing.ContentElement? Element(string source, MermaidDiagram diagram, DiagramRenderOptions options) =>
-        For(diagram) is { } make ? MermaidBuilder.Host(source, options, make, options.ReadOnly) : null;
-
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
     public static Laid? Lay(string source, StyleFormat style, double room = double.PositiveInfinity,
                             bool writing = false, int at = 0, DiagramRenderOptions? options = null, RawZone? shown = null) =>

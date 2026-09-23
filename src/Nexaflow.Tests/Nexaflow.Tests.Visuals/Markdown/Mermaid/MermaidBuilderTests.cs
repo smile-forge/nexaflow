@@ -83,9 +83,8 @@ public class MermaidBuilderTests
     public void AHeaderNamingNoTypeDispatchesToTheBlockAsWritten() => UiThread.Run(() =>
     {
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
-        var content = (ContentElement)DiagramRenderer.Render("mermaid", source, StyleFormat.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
 
-        Assert.IsTrue(content.IsReadOnly);
         content.Measure(new Size(600, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);
 
@@ -117,7 +116,7 @@ public class MermaidBuilderTests
                      "---\nconfig:\n  nexaflow:\n    collapsed:\n      - b\n---\nflowchart TD\n  a --> b",
                  })
         {
-            var drawn = (ContentElement)DiagramRenderer.Render("mermaid", source, StyleFormat.Dark);
+            var drawn = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
             Assert.IsFalse(drawn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), source);
         }
     });

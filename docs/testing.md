@@ -497,8 +497,8 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`BlockRenderer`, `MarkdownView`, extensions, pipeline factory, the diagram renderer and the layered layout), the
-LaTeX formula tree/layout/caret model, the music engraver, the inline markdown editor, `Visuals.Text`'s
+(`MarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
+LaTeX formula tree/layout/caret model, the music engraver, writing in a document, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 
 Its two WPF categories are split by what they *need*, not what they touch — see

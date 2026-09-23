@@ -33,7 +33,13 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
     /// <summary>How much bigger than the words around it a formula on its own line is set.</summary>
     private const double Display = 1.5;
 
-    public ContentNode Run(ContentNode tree) => Read(tree);
+    public ContentNode Run(ContentNode tree)
+    {
+        // Each reading hands the diagrams their states afresh, in the order they are written.
+        options?.Views?.Rewind();
+
+        return Read(tree);
+    }
 
     /// <summary>Whether what is written inside this piece is a whole other content.</summary>
     private static bool Nests(ContentNode node) => Names(node) is not null && node.Part(Roles.Body) is not null;
@@ -66,6 +72,13 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
         _ => style,
     };
 
+    /// <summary>
+    /// What the reader has opened in a diagram, which is the diagram's by the order it is written in — the one thing a
+    /// reading of the same document again keeps, where the source is exactly what may have changed.
+    /// </summary>
+    private StyleFormat Kept(ContentNode node, StyleFormat drawn) =>
+        node.Kind is MarkdownKinds.Fence or Kinds.Nested && options?.Views is { } views ? drawn with { Expansion = views.Next() } : drawn;
+
     private ContentNode Read(ContentNode node)
     {
         // Already answered, which is what makes running this twice the same as running it once.
@@ -73,7 +86,7 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
             && Names(node) is { } named && ContentLanguages.For(named) is { } language)
             node = node.With([.. node.Children,
                               ContentNode.Holding(Kinds.Nested, Roles.Derived,
-                                                  new ContentNesting(language, named, Drawn(node), options))]);
+                                                  new ContentNesting(language, named, Kept(node, Drawn(node)), options))]);
 
         if (node.IsLeaf) return node;
 

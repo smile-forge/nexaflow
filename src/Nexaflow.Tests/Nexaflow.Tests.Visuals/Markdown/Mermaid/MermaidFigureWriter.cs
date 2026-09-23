@@ -93,7 +93,7 @@ public class MermaidFigureWriter
     /// <summary>A block drawn as the help page's own figures are: in the dark theme, laid out for the page's width.</summary>
     private static ContentElement Drawn(string source)
     {
-        var block = (ContentElement)DiagramRenderer.Render("mermaid", source, StyleFormat.Dark);
+        var block = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark);
         block.Measure(new Size(720, double.PositiveInfinity));
         block.Arrange(new Rect(block.DesiredSize));
         return block;

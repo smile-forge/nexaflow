@@ -70,6 +70,9 @@ public static class MarkdownKinds
     /// <summary>A link's destination written once and named from several places.</summary>
     public const string Reference = "reference";
 
+    /// <summary>What a whole document defines for the words in it — hung on the document by its reading, never written anywhere as one (<see cref="MarkdownDefinitions"/>).</summary>
+    public const string Definitions = "definitions";
+
     /// <summary>Markup a writer put in by hand, held as written because it is not markdown.</summary>
     public const string Html = "html";
 

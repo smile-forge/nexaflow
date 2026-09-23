@@ -37,13 +37,11 @@ public class QrBuilderTests
     }
 
     [TestMethod]
-    public void DispatchesThroughDiagramRenderer_ToContentThatCannotBeEdited() => UiThread.Run(() =>
+    public void AQrFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("qr", Source, StyleFormat.Dark);
+        var element = Alone.Drawn("qr", Source, StyleFormat.Dark);
 
         var content = (ContentElement)element;
-        Assert.IsTrue(content.IsReadOnly);
-
         content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Assert.IsFalse(content.AcceptsCaret, "nothing drawn is anything typed, so the caret arrows over it");
         Assert.AreEqual(0, content.Diagnostics.Count);

@@ -123,7 +123,7 @@ public sealed partial class MarkdownSurface
                 return true;
 
             case Key.Enter or Key.Space:
-                ((IEditableBlock)_shown).Commit(key == Key.Enter ? "\n" : " ");
+                _shown.Settle(key == Key.Enter ? "\n" : " ");
                 _spaced = key == Key.Space;
                 return true;
 

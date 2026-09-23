@@ -41,9 +41,6 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
     internal static Laid Lay(string source, StyleFormat style) =>
         new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), EditState.For(source), style, isReadOnly: true).Lay();
 
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, static (r, s, f, o) => new Pdf417Builder(r, s, f, o));
-
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {
         if (!Pdf417BlockReader.TryRead(tree, out var block, out trouble)) return null;

@@ -11,6 +11,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Markdown.Stages;
+using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -345,21 +346,21 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>Where each diagram's opened nodes and zoom live between renders — on this control rather than on the element.</summary>
     private readonly DiagramViewStates _diagramStates = new();
 
-    /// <summary>Forgets what the reader had opened, chosen and zoomed to in every diagram here.</summary>
-    public void ResetDiagramViews() => _diagramStates.Clear();
+    /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
+    public void ResetDiagramViews()
+    {
+        _diagramStates.Clear();
+        _shown.Refresh();
+    }
 
     // ── Showing it ──────────────────────────────────────────────────────────
 
-    /// <summary>The colours and size it is drawn at, as they stand.</summary>
-    private StyleFormat Drawn
-    {
-        get
+    /// <summary>The colours and size it is drawn at, as they stand: the size the host gave, or the shell's where it gave none.</summary>
+    private StyleFormat Drawn =>
+        (Palette ?? StyleFormat.FromTheme()) with
         {
-            var style = Palette ?? StyleFormat.FromTheme();
-
-            return double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? style : style with { TextSize = BaseFontSize };
-        }
-    }
+            TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,
+        };
 
     /// <summary>What the host said about the content written inside the document, gathered once per element.</summary>
     private DiagramRenderOptions Asked(StyleFormat style) => new()
@@ -375,6 +376,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         FitToWidth = _fit || !IsReadOnly,
         OpenOnDoubleClick = _double,
         MaxHeight = MaxDiagramHeight,
+        Views = _diagramStates,
     };
 
     /// <summary>A new document from outside — not something written here, which never comes back this way.</summary>
@@ -382,7 +384,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     {
         if (_telling || string.Equals(Unframed(_shown.Markdown), markdown, StringComparison.Ordinal)) return;
 
-        _diagramStates.Rewind();
         _shown.Markdown = Framed(markdown);
 
         Settled();
@@ -552,8 +553,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
     public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
 
-    // A link into this document is answered by the element and never reaches here. Anything else is the host's.
+    // A link into this document is answered by the element and never reaches here. Anything else that says where it goes is
+    // the host's; a relative link that is not an anchor says nowhere, so nothing is handed on for it.
     private bool OpenLink(string url) => LinkNavigate?.Invoke(url) ?? false;
+
+    private static bool Leads(string url) => Uri.TryCreate(url, UriKind.Absolute, out _);
 
     /// <inheritdoc/>
     bool ILayoutActions.Invoke(LayoutAct act)
@@ -564,14 +568,38 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         switch (act.Intent.Verb)
         {
             case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
-                return OpenLink(where) || (Host?.Invoke(act) ?? false);
+                return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
 
             case LayoutVerbs.Copy when act.Intent.Target is { } what:
                 return Copy(MarkdownClipboard.Copied(what, null));
 
             default:
-                return Chose(act.Intent.Verb) || (Host?.Invoke(act) ?? false);
+                return Diagrammed(act) ?? (Chose(act.Intent.Verb) || (Host?.Invoke(act) ?? false));
         }
+    }
+
+    /// <summary>
+    /// A verb a diagram answers for itself — opening a node, folding it, choosing it — answered for the diagram it was raised
+    /// in: found up the layout from the piece pressed, and told that diagram's own state and what the host said about it.
+    /// Null where the verb is not one of those, or was raised in no diagram.
+    /// </summary>
+    private bool? Diagrammed(LayoutAct act)
+    {
+        if (act.Intent.Verb is not (LayoutVerbs.Expand or LayoutVerbs.Collapse or LayoutVerbs.Select)) return null;
+
+        for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
+        {
+            if (piece.Part is not ContentPart part || ContentNesting.Of(part) is not { } nesting) continue;
+            if (part.Part(Roles.Body) is not { } body) continue;
+
+            var (start, length) = ContentNesting.Own(body);
+            var options = nesting.Options ?? Asked(Drawn);
+
+            return new DiagramActions(options, _shown.Markdown.Substring(start, length), nesting.Style.Expansion) { Shown = _shown }
+                .Invoke(act);
+        }
+
+        return null;
     }
 
     /// <inheritdoc/>

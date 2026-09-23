@@ -132,6 +132,21 @@ public class MermaidBlockTests
     }
 
     [TestMethod]
+    public void ABlockWrittenInsideADocumentReadsTheSameAsOneOnItsOwn()
+    {
+        // A fenced diagram is read where it sits, so its parts are counted in the document. What is sliced out of its own
+        // source has to be counted from where that source starts, or a diagram in a document loses its configuration.
+        const string source = "---\nconfig:\n  theme: dark\n---\npie\n";
+
+        var alone = MermaidBlock.Read(source);
+        var held = MermaidBlock.Of(MermaidParser.Parse(source), at: 40);
+
+        Assert.AreEqual(alone.Config, held.Config);
+        Assert.AreEqual(alone.BodyStart, held.BodyStart);
+        Assert.AreEqual(alone.Body, held.Body);
+    }
+
+    [TestMethod]
     public void TheAccessibleTitleAndDescriptionAreRead()
     {
         // A diagram nothing reads, so its own line stays whole and the accessibility lines are all that is read out of it.

@@ -57,21 +57,6 @@ internal sealed class SmilesBuilder : ContentBuilder
         new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), EditState.For(source), style, isReadOnly: true)
             .Lay(room);
 
-    /// <summary>Read-only (a structure isn't typed into), but selectable — each atom carries its source text.</summary>
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        new(source, options.Palette, (state, room) => Lay(state.Source, options.Palette, room))
-        {
-            IsReadOnly = true,
-
-            // Where the molecules sit inside the fence, not just the block's own content.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            Cursor = Cursors.Arrow,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 10),
-        };
-
     protected override Laid? Build()
     {
         var entries = Reading.Root.SelfAndDescendants()

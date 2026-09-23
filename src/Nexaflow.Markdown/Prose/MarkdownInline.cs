@@ -30,8 +30,12 @@ namespace Nexaflow.Markdown.Prose;
 /// </summary>
 public static class MarkdownInline
 {
-    /// <summary><paramref name="source"/> as the words and marks it is made of.</summary>
-    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)
+    /// <summary>
+    /// <paramref name="source"/> as the words and marks it is made of — read beside <paramref name="besides"/>, the
+    /// definitions written elsewhere in the document it belongs to, so a <c>[text][name]</c> link and an abbreviation
+    /// mean what the document says they do. Nothing of those is read into what comes back.
+    /// </summary>
+    public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null)
     {
         var text = source ?? string.Empty;
         if (text.Length == 0) return ContentNode.Branch(MarkdownKinds.Words, []);
@@ -41,7 +45,9 @@ public static class MarkdownInline
 
         try
         {
-            Words(Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline), parts, read);
+            var told = besides is { Length: > 0 } ? $"{text}\n\n{besides}\n" : text;
+
+            Words(Markdig.Markdown.Parse(told, pipeline ?? MarkdownParser.Pipeline), parts, read);
         }
         catch
         {
@@ -59,7 +65,8 @@ public static class MarkdownInline
     /// </summary>
     private static void Words(ContainerBlock blocks, List<ContentNode> parts, Cut read)
     {
-        foreach (var block in blocks)
+        // What was read beside the text comes after it, and is never part of it.
+        foreach (var block in blocks.TakeWhile(block => block.Span.Start < read.Length))
             switch (block)
             {
                 case LeafBlock { Inline: not null } leaf: Inside(leaf.Inline, parts, read); break;
@@ -86,7 +93,9 @@ public static class MarkdownInline
             case CodeInline:
                 return Wrapped(read, end, MarkdownKinds.Code, Kinds.Verbatim, Roles.Body);
 
+            // An address written bare is a link to itself just as one in angle brackets is.
             case AutolinkInline:
+            case LinkInline { IsAutoLink: true }:
                 return Wrapped(read, end, MarkdownKinds.Link, MarkdownKinds.Word, MarkdownRoles.Destination);
 
             case TaskList task:
@@ -95,10 +104,11 @@ public static class MarkdownInline
 
             // What the abbreviation stands for is written on a line of its own somewhere else, so it is not in
             // these characters and cannot be cut from them — it is hung on instead.
+            // The word is a part of its own under the abbreviation, because what is hung on a piece is hung beside
+            // what it holds: a word hung with its meaning would be a piece holding nothing but the meaning.
             case Markdig.Extensions.Abbreviations.AbbreviationInline abbreviation:
-                return AstRewrite.Holding(read.Take(end, Roles.Element, MarkdownKinds.Abbreviation),
-                                          MarkdownKinds.Abbreviation, MarkdownRoles.Means,
-                                          abbreviation.Abbreviation.Text.ToString().Trim());
+                return ContentNode.Branch(MarkdownKinds.Abbreviation, [read.Take(end, Roles.Body, MarkdownKinds.Word)])
+                    .Holding(MarkdownKinds.Abbreviation, MarkdownRoles.Means, abbreviation.Abbreviation.Text.ToString().Trim());
 
             case LiteralInline:
                 return Escaped(read, end);
@@ -138,9 +148,14 @@ public static class MarkdownInline
 
         if (end > read.At) parts.AddRange(Tail(inline, read, end));
 
-        return parts.Count == 0
+        var node = parts.Count == 0
             ? read.Take(end, Roles.Element, Kind(inline))
             : ContentNode.Branch(Kind(inline), parts);
+
+        // A link naming a definition written elsewhere has no address in its own characters; the definition's is hung on it.
+        return inline is LinkInline { Url.Length: > 0 } link && MarkdownLinks.Goes(node) is null
+            ? node.Holding(Kind(inline), MarkdownRoles.Destination, link.Url)
+            : node;
     }
 
     /// <summary>

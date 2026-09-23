@@ -195,3 +195,9 @@ public sealed partial class MarkdownSurface
         }
     }
 }
+
+/// <summary>
+/// One place a search found in a document — its ordinal among them, which is the id a searchable page hands back and forth,
+/// and the line it is on, tidied, as a preview.
+/// </summary>
+public readonly record struct RenderedMatch(int Ordinal, string Preview);

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
@@ -34,7 +35,7 @@ public static class MarkdownTable
 
         try
         {
-            Tables(Markdig.Markdown.Parse(text, pipeline ?? MarkdownParser.Pipeline), parts, read);
+            Tables(Markdig.Markdown.Parse(Unquoted(text), pipeline ?? MarkdownParser.Pipeline), parts, read);
         }
         catch
         {
@@ -45,6 +46,16 @@ public static class MarkdownTable
 
         return MarkdownParser.Checked(Kinds.Sequence, parts, text, Roles.Body);
     }
+
+    /// <summary>
+    /// A table written inside a quote carries the quote's marks at the head of every line after its first — the quote's,
+    /// not the table's. They are read as the spaces they stand in for, a character for a character, so every cell is still
+    /// found where it was written and the marks stay in the source as the trivia they are.
+    /// </summary>
+    private static string Unquoted(string text) =>
+        QuoteMarks.Replace(text, marks => marks.Value.Replace('>', ' '));
+
+    private static readonly Regex QuoteMarks = new(@"^(?:[ \t]*>)+", RegexOptions.Multiline | RegexOptions.Compiled);
 
     /// <summary>
     /// Every table in the reading, for the same reason a list's items are gathered wherever they are found: a

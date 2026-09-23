@@ -25,7 +25,7 @@ public sealed class WithBlocks : IAstStage
 {
     public string Name => "markdown:blocks";
 
-    public ContentNode Run(ContentNode tree) => Read(tree);
+    public ContentNode Run(ContentNode tree) => Read(tree, MarkdownDefinitions.Of(tree)?.Text);
 
     /// <summary>
     /// Which parser reads this block, where one reads it. A kind that is not here is a kind nothing can read
@@ -37,13 +37,14 @@ public sealed class WithBlocks : IAstStage
     /// settled by the reader that took the table in.
     /// </para>
     /// </summary>
-    private static Func<string, ContentNode>? Reader(ContentNode node) => node.Kind switch
+    /// <param name="besides">What the document defines, which the words of a block are read beside.</param>
+    private static Func<string, ContentNode>? Reader(ContentNode node, string? besides) => node.Kind switch
     {
         MarkdownKinds.Cell when Holds(node) => source => MarkdownParser.Inside(source),
 
         MarkdownKinds.Paragraph or MarkdownKinds.Heading or MarkdownKinds.Cell
             or MarkdownKinds.Term or MarkdownKinds.Caption =>
-            source => MarkdownInline.Read(source).As(Roles.Body),
+            source => MarkdownInline.Read(source, besides: besides).As(Roles.Body),
 
         MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.Definition or MarkdownKinds.Described
             or MarkdownKinds.Figure or MarkdownKinds.Footer => source => MarkdownParser.Inside(source),
@@ -72,11 +73,11 @@ public sealed class WithBlocks : IAstStage
     /// twice the same as running it once.
     /// </para>
     /// </summary>
-    private static ContentNode Read(ContentNode node)
+    private static ContentNode Read(ContentNode node, string? besides)
     {
         if (node.IsLeaf) return node;
 
-        if (Reader(node) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
+        if (Reader(node, besides) is { } reader && node.Part(Roles.Body) is { IsLeaf: true, Kind: Kinds.Verbatim } body
             && reader(body.Text) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
@@ -85,7 +86,7 @@ public sealed class WithBlocks : IAstStage
 
         for (var at = 0; at < seen.Length; at++)
         {
-            seen[at] = Read(node.Children[at]);
+            seen[at] = Read(node.Children[at], besides);
             moved |= !ReferenceEquals(seen[at], node.Children[at]);
         }
 

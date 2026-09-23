@@ -118,7 +118,7 @@ public abstract class MermaidBuilderContract
     public void ItIsWhatTheMarkdownRendererShows() => UiThread.Run(() =>
     {
         var (what, source) = Drawn.First();
-        var element = DiagramRenderer.Render(Language, source, StyleFormat.Dark);
+        var element = Alone.Drawn(Language, source, StyleFormat.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element, $"{what}: drawn on the shared layout tree");
 

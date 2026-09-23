@@ -97,47 +97,6 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </summary>
     protected double Space => double.IsInfinity(Room) ? Room : Math.Max(1, Room - (Pad * 2));
 
-    /// <summary>The element a Mermaid block is shown in: read-only (a diagram isn't typed into) but
-    /// selectable, since what it draws carries the characters it was written as.</summary>
-    /// <param name="build">Draws a block that has been read, for a palette, a width, and whether it's being written in.</param>
-    /// <param name="readOnly">Whether the block is only looked at; the host decides whether keys reach it.</param>
-    /// <param name="grammar">What reads it, where the fence's language names the diagram rather than the first line.</param>
-    internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                MermaidBuilders.Make make, bool readOnly = true,
-                                                Nexaflow.Markdown.Mermaid.IMermaidGrammar? grammar = null)
-    {
-        var actions = new DiagramActions(options, source);
-
-        var drawn = options.Palette with { Expansion = actions.View };
-        var after = MermaidBuilders.After(drawn, options);
-
-        var element = new Editing.LinkedElement(source, options.Palette,
-                                                new MermaidContent((state, room, looking) =>
-                                                    make(MermaidBuilders.Read(state.Source, holes: !looking, grammar: grammar, after: after),
-                                                         state,
-                                                         drawn,
-                                                         isReadOnly: looking).Lay(room)),
-                                                actions)
-        {
-            IsReadOnly = readOnly,
-
-            // Where the diagram sits inside the fence, so the host never mistakes the block for one that is its
-            // content and nothing else.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            // Where the pointer is over something that can be written in, the element says so itself.
-            Cursor = Cursors.Arrow,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 10),
-        };
-
-        // What a verb this answers itself redraws: the element lays out from the source again, reading back whatever
-        // the press just wrote into the view state.
-        actions.Shown = element;
-        return element;
-    }
-
     /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);

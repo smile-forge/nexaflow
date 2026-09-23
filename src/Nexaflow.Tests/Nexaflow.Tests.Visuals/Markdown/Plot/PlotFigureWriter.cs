@@ -428,7 +428,7 @@ public class PlotFigureWriter
         {
             Background = ground,
             Padding = new Thickness(16),
-            Child = PlotBuilder.Element(source, fence, DiagramRenderOptions.For(palette)),
+            Child = Alone.Drawn(fence.ToString().ToLowerInvariant(), source, palette),
         };
 
         host.Measure(new Size(width, double.PositiveInfinity));

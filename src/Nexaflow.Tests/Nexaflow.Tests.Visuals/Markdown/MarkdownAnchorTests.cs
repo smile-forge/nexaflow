@@ -1,16 +1,15 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Navigation;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// In-page links (<see cref="MarkdownAnchors"/>): every heading carries a GitHub-style id, a <c>#id</c> link is resolved
 /// by the surface it sits in — scrolling to the heading — and is never handed to the host or the shell, while any other
-/// relative link stays inert. UI category: FlowDocuments are built on an STA thread; no window opens.
+/// relative link stays inert. UI category: text is set on an STA thread; no window opens.
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
@@ -24,13 +23,14 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build(Doc, StyleFormat.Dark);
+        var laid = MarkdownBuilder.Lay(Doc, StyleFormat.Dark, 640);
 
-        var ids = doc.Blocks.Select(MarkdownAnchors.GetId).Where(id => id is not null).ToList();
+        foreach (var id in new[] { "intro", "opening-and-closing-help", "searching", "searching-1" })
+            Assert.IsTrue(MarkdownAnchors.Sought(laid, id).Exists, $"a heading answers to #{id}");
 
-        CollectionAssert.AreEqual(new[] { "intro", "opening-and-closing-help", "searching", "searching-1" }, ids);
-        Assert.IsNotNull(MarkdownAnchors.Find(doc, "Searching"), "an anchor matches whatever its case");
-        Assert.IsNull(MarkdownAnchors.Find(doc, "nowhere"));
+        Assert.IsTrue(MarkdownAnchors.Sought(laid, "Searching").Exists, "an anchor matches whatever its case");
+        Assert.IsFalse(MarkdownAnchors.Sought(laid, "searching-2").Exists, "and there are only as many as were written");
+        Assert.IsFalse(MarkdownAnchors.Sought(laid, "nowhere").Exists);
     });
 
     [TestMethod]
@@ -79,23 +79,12 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void ARelativeLinkThatIsNotAnAnchor_StaysInert() => UiThread.Run(() =>
     {
-        var doc = MarkdownFlowDocument.Build("[notes](notes.md)\n", StyleFormat.Dark);
+        var handed = new List<string>();
+        var view = new MarkdownSurface { LinkNavigate = url => { handed.Add(url); return true; } };
 
-        Assert.IsNull(Links(doc).Single().NavigateUri, "nothing to navigate to, so nothing is handed to the shell");
+        view.Markdown = "[notes](notes.md)\n";
+        Press(view, "notes");
+
+        Assert.AreEqual(0, handed.Count, "nothing to navigate to, so nothing is handed to the host");
     });
-
-    private static void Click(Hyperlink link)
-        => link.RaiseEvent(new RequestNavigateEventArgs(link.NavigateUri, null) { RoutedEvent = Hyperlink.RequestNavigateEvent });
-
-    private static List<Hyperlink> Links(DependencyObject root)
-    {
-        var found = new List<Hyperlink>();
-        void Walk(DependencyObject node)
-        {
-            if (node is Hyperlink link) found.Add(link);
-            foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>()) Walk(child);
-        }
-        Walk(root);
-        return found;
-    }
 }

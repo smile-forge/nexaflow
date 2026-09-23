@@ -8,23 +8,20 @@ using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
 
 /// <summary>
-/// The ```abc fence, from markdown to an engraved tune, on both surfaces.
+/// The ```abc fence, from markdown to an engraved tune in a document.
 ///
 /// <para>
-/// One registration lights it up on both, and this is the test that says so — the element renderer and the
-/// FlowDocument renderer are separate switches that both gate on the same question, and a language added
-/// to one and not the other looks registered and is not.
-/// </para>
-/// <para>
-/// The offset is the other half. The parser is handed the fence's <em>body</em> and reports offsets into
-/// it; the editing host splices into the whole markdown block, fence lines and all. Without the bias every
-/// edit would land a couple of lines early, which is a fault nothing but arithmetic can catch.
+/// The offset is the other half. The engraver is handed the fence's <em>body</em>; an edit lands in the whole
+/// document, fence lines and all. Without the bias every edit would land a couple of lines early, which is a fault
+/// nothing but arithmetic can catch.
 /// </para>
 /// </summary>
 [TestClass]
@@ -40,28 +37,31 @@ public class AbcFenceTests
         Assert.IsTrue(ContentLanguages.Reads("abc"));
 
     [TestMethod]
-    public void AndItEngravesOnTheElementSurface() => UiThread.Run(() =>
+    public void AndItEngravesInADocument() => UiThread.Run(() =>
     {
-        var block = Markdig.Markdown.Parse(Document, MarkdownParser.Pipeline)
-            .OfType<Markdig.Syntax.FencedCodeBlock>()
-            .Single();
+        var laid = MarkdownBuilder.Lay(Document, StyleFormat.Dark, 700);
 
-        var element = BlockRenderer.Render(block, Document, StyleFormat.Dark);
-
-        Assert.IsNotNull(Inside(element), "no score came out of the fence");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicPiece.Page), "no score came out of the fence");
+        Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MarkdownPieces.Verbatim),
+                       "and the fence is not shown as the characters it was written as");
     });
 
     [TestMethod]
-    public void AndOnTheFlowDocumentSurfaceTheEditorUses() => UiThread.Run(() =>
+    public void EveryNoteStandsWhereItWasWrittenInTheDocument() => UiThread.Run(() =>
     {
-        var document = MarkdownFlowDocument.Build(Document, StyleFormat.Dark);
+        // The engraver reads the fence's body, and every piece it draws has to name the characters in the whole
+        // document: laid at the offset the body starts at, not at the top of it.
+        var laid = MarkdownBuilder.Lay(Document, StyleFormat.Dark, 700);
+        var notes = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == "note").ToList();
 
-        var scores = document.Blocks
-            .SelectMany(b => b is BlockUIContainer { Child: { } child } ? Descendants(child) : [])
-            .OfType<Nexaflow.Visuals.Text.Editing.ContentElement>()
-            .ToList();
+        Assert.AreEqual(4, notes.Count);
 
-        Assert.AreEqual(1, scores.Count, "the editor's surface has to render it too, or the caret has nothing to enter");
+        foreach (var note in notes)
+        {
+            var at = note.Sits();
+            StringAssert.Contains("CDEF", Document.Substring(at.Start, at.Length),
+                                  $"a note names {at.Start}+{at.Length}, which is not where a note was written");
+        }
     });
 
     [TestMethod]
@@ -123,39 +123,4 @@ public class AbcFenceTests
         Assert.IsFalse(swept.IsEmpty, "a drag from the title to a note selected nothing");
         Assert.IsTrue(swept.Pieces.Contains(title), "…and it did not include the title it started on");
     });
-
-    private static Nexaflow.Visuals.Text.Editing.ContentElement? Inside(DependencyObject root) => Descendants(root).OfType<Nexaflow.Visuals.Text.Editing.ContentElement>().FirstOrDefault();
-
-    /// <summary>
-    /// Everything under a root, by both trees, each thing once.
-    /// <para>
-    /// Both trees, because an element that has never been measured has no visual children and the block is
-    /// only reachable logically — and each thing once, because the two trees overlap and a walk that
-    /// followed them independently visits the same element down two paths until the stack runs out.
-    /// </para>
-    /// </summary>
-    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
-    {
-        var seen = new HashSet<DependencyObject>();
-        var pending = new Stack<DependencyObject>([root]);
-
-        while (pending.Count > 0)
-        {
-            var node = pending.Pop();
-            if (!seen.Add(node)) continue;
-            yield return node;
-
-            // Only a Visual has visual children, and the logical tree holds things that are not one — a
-            // Grid's ColumnDefinitions among them, which the visual helper throws on rather than skipping.
-            if (node is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D)
-            {
-                var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
-                for (var i = 0; i < count; i++) pending.Push(System.Windows.Media.VisualTreeHelper.GetChild(node, i));
-            }
-
-            if (node is not FrameworkElement element) continue;
-            foreach (var child in LogicalTreeHelper.GetChildren(element).OfType<DependencyObject>())
-                pending.Push(child);
-        }
-    }
 }

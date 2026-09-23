@@ -55,7 +55,7 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
             foreach (var held in child.Children)
                 if (held.Role == Look) return node;
 
-        var where = Said(node, MarkdownRoles.Destination) ?? node.Print();
+        var where = MarkdownLinks.Goes(node) ?? node.Print();
         if (where.Length == 0) return node;
 
         LinkLook? look;
@@ -73,15 +73,6 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
         return look is null ? node : AstRewrite.Holding(node, MarkdownKinds.Link, Look, look);
     }
 
-    /// <summary>Where a link points, as it was written.</summary>
-    private static string? Said(ContentNode node, string role)
-    {
-        foreach (var child in node.Children)
-            if (child.Role == role) return child.Text;
-
-        return null;
-    }
-
     /// <summary>
     /// The words a link was written as — which for a bare or bracketed URL is the URL itself, because that is
     /// what a reader sees and what the builder draws. The angle brackets round an autolink are machinery and
@@ -92,7 +83,7 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
         foreach (var child in node.Children)
             if (child.Role == Roles.Body) return child.Print();
 
-        return Said(node, MarkdownRoles.Destination) ?? node.Print();
+        return MarkdownLinks.Goes(node) ?? node.Print();
     }
 }
 

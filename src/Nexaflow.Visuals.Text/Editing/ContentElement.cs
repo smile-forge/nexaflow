@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// geometrically and drives these methods instead.
 /// </para>
 /// </summary>
-public class ContentElement : FrameworkElement, IEditableBlock
+public class ContentElement : FrameworkElement
 {
     private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(600);
 
@@ -66,9 +66,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     /// <summary>Raised when the reader's own editing changed the source.</summary>
     public event EventHandler? SourceChanged;
-
-    /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
-    public event EventHandler<BlockExit>? Exited;
 
     /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
     /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
@@ -269,22 +266,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return brush;
     }
 
-    // ── What the document around it needs (IEditableBlock) ──────────────────
+    // ── What is being written ───────────────────────────────────────────────
 
     /// <inheritdoc />
     public string Source => _state.Source;
-
-    /// <summary>
-    /// Where this content's source sits inside the block that produced it, delimiters excluded — what a
-    /// host needs to put an edit back where it came from. Negative when the whole block is this content.
-    /// </summary>
-    public int SourceStart { get; set; } = -1;
-
-    /// <summary>How much of the block's source this occupies. Kept current as it is edited.</summary>
-    public int SourceLength { get; set; }
-
-    /// <summary>Whether the whole markdown block is this content rather than a run inside one.</summary>
-    public bool IsWholeBlock => SourceStart < 0;
 
     /// <inheritdoc />
     public Piece Root => _laid.Root;
@@ -309,37 +294,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (HasCaret) StartBlinking();
     }
 
-
-    public void TakeCaretArriving(CaretArrival arrival)
-    {
-        // Nothing drawn here is source, so the caret passes straight through — arrowed over like a word,
-        // not into content where no key would do anything.
-        if (!AcceptsCaret)
-        {
-            Exited?.Invoke(this, arrival.Edge == BlockExit.Before ? BlockExit.After : BlockExit.Before);
-            return;
-        }
-
-        var stops = _laid.Stops;
-        if (stops.Count == 0)
-        {
-            // Empty content has no stops only because there is nothing yet to stand against; the caret still
-            // belongs at 0. Non-empty content with no stop really has nowhere, so it's passed on.
-            if (_state.Source.Length == 0) TakeCaret(0);
-            else Exited?.Invoke(this, arrival.Edge);
-            return;
-        }
-
-        // Content wide enough for a column to mean something takes a caret arriving from the line above
-        // under where it left, rather than at the beginning.
-        if (arrival is { Step: CaretStep.Line, Column: { } column }) { TakeCaret(Nearest(column)); return; }
-        if (arrival.Edge == BlockExit.Before) { TakeCaret(stops[0]); return; }
-
-        // Takes the outermost place at the end — landing on the innermost could put it inside a trailing
-        // exponent instead of past it.
-        var end = Snap(stops[^1]);
-                TakeCaret(end, _laid.Root.StopAt(end, outermost: true));
-    }
 
     /// <summary>The caret stop nearest a column, for a caret arriving from another line.</summary>
     private int Nearest(double column)
@@ -418,7 +372,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         _blink?.Start();
     }
 
-    /// <summary>Moves the caret one stop. False when it ran off an end, having raised <see cref="Exited"/> for the host to take over.</summary>
+    /// <summary>Moves the caret one stop. False when it ran off an end, where there is nowhere further to go.</summary>
     public bool MoveCaret(bool forward, bool extend = false)
     {
         // A stretch being shown as its characters is text, and moves like text: one character at a time.
@@ -435,11 +389,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // stretch shown as its own characters leaves behind — the nearest one past the offset it is at.
         var next = _at >= 0 ? _laid.Step(_at, forward) : Rejoining(forward);
 
-        if (next is not { } landed)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
+        if (next is not { } landed) return false;
 
         MoveTo(_laid.Places[landed].Offset, landed, extend);
         return true;
@@ -579,15 +529,16 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>Settles whatever is half-written, as space or Enter does — just writes the character; the ending rule lives with the content's typing rule, not here, to avoid two rules disagreeing.</summary>
-    bool IEditableBlock.Commit(string text) { if (!IsReadOnly) Settle(text); return true; }
-
     /// <summary>
-    /// Ends whatever is half-written — what space and Enter mean. The content's rule, not the element's;
-    /// see <see cref="IContent.Settle"/>.
+    /// Ends whatever is half-written — what Space and Enter mean. The content's rule, not the element's; see
+    /// <see cref="IContent.Settle"/>.
     /// </summary>
-    protected void Settle(string separator) =>
+    public void Settle(string separator)
+    {
+        if (IsReadOnly) return;
+
         Apply(_content.Settle(Landing, separator), notify: true);
+    }
 
     /// <summary>Selects the next place still waiting to be written in, so an inserted construct can be filled by typing and tabbing. False when there is none.</summary>
     public bool SelectNextPlaceholder(bool forward = true)
@@ -640,7 +591,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (!_state.HasSelection) return;
 
         Apply(_state.Select(0, 0), notify: false);
-        InteractiveSelection.Release(this);
+
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -685,7 +636,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
     {
-        InteractiveSelection.Own(this);
+
 
         var at = Unscaled(pointInElement);
         _pressedAt = pointInElement;
@@ -808,8 +759,8 @@ public class ContentElement : FrameworkElement, IEditableBlock
     protected virtual Cursor Pointing(Point at) =>
         !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
 
-    /// <inheritdoc/>
-    Cursor? IInteractiveBlock.PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
+    /// <summary>What the pointer is over a point on this content: a bar only where something can be written in.</summary>
+    public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
     /// <summary>
     /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is

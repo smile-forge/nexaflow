@@ -14,7 +14,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// </summary>
 /// <param name="source">The block, for the front matter — which is where a node's own name for the host is written.</param>
-internal sealed class DiagramActions(DiagramRenderOptions options, string source) : ILayoutActions
+/// <param name="view">This diagram's own state, where whatever shows it keeps one per diagram.</param>
+internal sealed class DiagramActions(DiagramRenderOptions options, string source, DiagramViewState? view = null) : ILayoutActions
 {
     /// <summary>
     /// Where what the reader opens and folds is kept: the host's, where it keeps one, and this element's own where it
@@ -25,7 +26,7 @@ internal sealed class DiagramActions(DiagramRenderOptions options, string source
     /// so there is always somewhere to write the opening down, even if it lives only as long as the element does.
     /// </para>
     /// </summary>
-    public DiagramViewState View { get; } = options.ViewState ?? new DiagramViewState();
+    public DiagramViewState View { get; } = view ?? options.ViewState ?? new DiagramViewState();
 
     /// <summary>The element the diagram is shown in, once there is one: what a verb answered here redraws.</summary>
     public Editing.ContentElement? Shown { get; set; }

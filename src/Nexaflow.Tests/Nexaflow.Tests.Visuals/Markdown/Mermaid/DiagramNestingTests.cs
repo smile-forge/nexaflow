@@ -25,7 +25,7 @@ public class DiagramNestingTests
 
     private static ContentElement Drawn(string source)
     {
-        var element = (ContentElement)DiagramRenderer.Render("mermaid", source,
+        var element = (ContentElement)Alone.Drawn("mermaid", source,
             new DiagramRenderOptions { Palette = StyleFormat.Dark });
 
         element.Measure(new Size(900, 900));
@@ -97,7 +97,7 @@ public class DiagramNestingTests
     [TestMethod]
     public void TheSourceIsUntouchedByWhatIsDrawnInsideIt() => UiThread.Run(() =>
     {
-        Assert.AreEqual(Src, ((IEditableBlock)Drawn(Src)).Source);
+        Assert.AreEqual(Src, Drawn(Src).Source);
     });
 
     [TestMethod]

@@ -143,7 +143,7 @@ public class DiagramSnapshotTests
     /// <summary>Renders one fence at the fixed host width and returns the PNG bytes.</summary>
     private static byte[] Render(string source, StyleFormat palette)
     {
-        var host = new Border { Width = HostWidth, Child = DiagramRenderer.Render("mermaid", source, palette) };
+        var host = new Border { Width = HostWidth, Child = Alone.Drawn("mermaid", source, palette) };
         host.Measure(new Size(HostWidth, double.PositiveInfinity));
         host.Arrange(new Rect(0, 0, HostWidth, host.DesiredSize.Height));
         host.UpdateLayout();

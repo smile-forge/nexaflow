@@ -97,9 +97,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         {
             if (part.Derived || part.Role == Roles.Trivia || part.Kind == MarkdownKinds.Task) continue;
 
-            // Front matter is what a document says about itself rather than anything it says, so it is not on
-            // the page at all — until somebody puts the caret in it, when it is the characters they are editing.
-            if (part.Kind == MarkdownKinds.FrontMatter && !Shown(part)) continue;
+            // Front matter is what a document says about itself rather than anything it says, and a link's definition
+            // says where a link goes rather than anything a reader reads, so neither is on the page at all — until
+            // somebody puts the caret in it, when it is the characters they are editing.
+            if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference && !Shown(part)) continue;
 
             if (!first) _y += Gap;
             first = false;

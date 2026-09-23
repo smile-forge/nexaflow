@@ -28,9 +28,6 @@ internal sealed class UnknownDiagramBuilder : MermaidBuilder
     internal static Laid Lay(string source, StyleFormat style, double room = double.PositiveInfinity) =>
         new UnknownDiagramBuilder(MermaidBuilders.Read(source), EditState.For(source), style, isReadOnly: true).Lay(room);
 
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, static (r, s, f, o) => new UnknownDiagramBuilder(r, s, f, o));
-
     protected override Size Draw(MermaidBlock block, LayoutBuilder build) => AsWritten(build);
 
     /// <summary>None: the front matter is part of what is shown, so its title is already on the page.</summary>

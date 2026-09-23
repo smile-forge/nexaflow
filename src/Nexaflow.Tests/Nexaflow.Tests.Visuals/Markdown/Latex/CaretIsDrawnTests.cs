@@ -6,6 +6,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
+using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
@@ -63,9 +65,9 @@ public class CaretIsDrawnTests
     });
 
     /// <summary>A formula laid out and measured, so it has a render size to draw into.</summary>
-    private static FormulaElement Measured(string latex)
+    private static ContentElement Measured(string latex)
     {
-        var formula = new FormulaElement(latex, StyleFormat.Dark with { TextSize = 16 });
+        var formula = Alone.Drawn("latex", latex, new DiagramRenderOptions { Palette = StyleFormat.Dark with { TextSize = 16 }, ReadOnly = false });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
         return formula;
@@ -76,7 +78,7 @@ public class CaretIsDrawnTests
     /// and one more than whatever a written one draws for its own sake — which is why each case counts
     /// from its own baseline.
     /// </summary>
-    private static int LinesDrawnBy(FormulaElement formula)
+    private static int LinesDrawnBy(ContentElement formula)
     {
         formula.InvalidateVisual();
         formula.UpdateLayout();

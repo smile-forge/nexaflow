@@ -75,25 +75,6 @@ internal sealed class WordCloudBuilder : ContentBuilder
                                     EditState.For(source), style, isReadOnly: true).Lay(room);
     }
 
-    /// <summary>
-    /// The element a cloud is shown in. Editable, because the words in it are words somebody typed — unlike a
-    /// 2D code, where everything drawn was worked out from what was typed and none of it can be typed back
-    /// into.
-    /// </summary>
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        new Editing.ContentElement(source, options.Palette,
-            (state, room) => Lay(state.Source, options.Palette, room,
-                                 new Nexaflow.Markdown.Pipeline.AstPipeline(new Stages.WithPictures(options.Pictures))))
-        {
-            // Where the block's lines sit inside the fence that produced them, so an edit to a word is
-            // spliced back where it came from rather than a couple of lines early.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 10),
-        };
-
     protected override Laid? Build()
     {
         if (!WordCloudReader.TryRead(Reading.Root, out var chart, out var error)) return Stopped(error!);

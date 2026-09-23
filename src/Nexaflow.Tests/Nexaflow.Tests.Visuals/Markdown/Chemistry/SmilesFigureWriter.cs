@@ -62,7 +62,7 @@ public class SmilesFigureWriter
             Background = ground,
             Padding = new Thickness(16),
             Width = width,
-            Child = SmilesBuilder.Element(source, DiagramRenderOptions.For(palette)),
+            Child = Alone.Drawn("smiles", source, palette),
         };
 
         host.Measure(new Size(width, double.PositiveInfinity));

@@ -165,11 +165,6 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
-          "class": "MarkdownRenderContext"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownPictures.cs",
           "class": "MarkdownPictures"
         },
@@ -177,6 +172,12 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithImages.cs",
           "class": "WithImages"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "ImageResolver"
         }
       ],
       "concerns": {
@@ -330,11 +331,6 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownRenderContext.cs",
-          "class": "MarkdownRenderContext"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
           "class": "WithLinks"
         },
@@ -342,6 +338,12 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithLinks.cs",
           "class": "LinkLook"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "LinkDecorator"
         }
       ],
       "concerns": {
@@ -392,13 +394,6 @@
     },
     "markdown-copy": {
       "links": [
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
-          "class": "MarkdownClipboard",
-          "method": "CopySelection"
-        },
         {
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownClipboard.cs",
@@ -611,13 +606,6 @@
       "links": [
         {
           "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs",
-          "class": "IEditableBlock",
-          "method": "TakeCaretArriving"
-        },
-        {
-          "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
           "class": "ContentElement",
           "method": "MoveCaret"
@@ -669,14 +657,13 @@
         "tests": [
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/InlineMarkdownEditorUndoTests.cs",
-            "class": "InlineMarkdownEditorUndoTests",
-            "method": "ManyEditsInOneBlock_CollapseIntoASingleUndoStep"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/EditHistoryTests.cs",
+            "class": "EditHistoryTests"
           },
           {
             "type": "code",
-            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/EditHistoryTests.cs",
-            "class": "EditHistoryTests"
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DocumentTypingTests.cs",
+            "class": "DocumentTypingTests"
           }
         ]
       }
@@ -927,7 +914,29 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
           "class": "LatexEdits"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/LatexEditStateTests.cs",
+            "class": "EditStateTests"
+          },
+          {
+            "type": "code",
+            "status": "done",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/FormulaInEditorTests.cs",
+            "class": "FormulaInEditorTests",
+            "method": "TypingReachesTheFormulaAndTheModel"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Latex/FormulaEditingTests.cs",
+            "class": "FormulaEditingTests"
+          }
+        ]
+      }
     },
     "latex-document-seam": {
       "links": [
@@ -936,12 +945,6 @@
           "status": "done",
           "doc": "src/Nexaflow.Visuals.Text/Editing/DocumentSelection.cs",
           "class": "DocumentSelection"
-        },
-        {
-          "type": "code",
-          "status": "done",
-          "doc": "src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs",
-          "class": "IEditableBlock"
         },
         {
           "type": "code",
@@ -954,6 +957,11 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentNesting.cs",
           "class": "ContentNesting",
           "method": "Own"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnEdit.cs",
+          "class": "IOnEdit"
         }
       ]
     },
@@ -964,8 +972,29 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Keys.cs",
           "class": "MarkdownSurface",
           "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs",
+          "class": "BarcodePart",
+          "method": "At"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeLayoutTests.cs",
+            "class": "BarcodeLayoutTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentFromABuilderAloneTests.cs",
+            "class": "ContentFromABuilderAloneTests",
+            "method": "ABarcodeTakesACaretAndIsTypedInto"
+          }
+        ]
+      }
     },
     "vtext-selectable-markdown": {
       "links": [
@@ -981,13 +1010,101 @@
             "type": "code",
             "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs"
           }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/DocumentMenuTests.cs",
+            "class": "DocumentMenuTests",
+            "method": "OnlyBeingReadItOffersToCopyAndNothingThatWrites"
+          }
         ]
       }
+    },
+    "pie-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidEdits.cs",
+          "class": "MermaidEdits"
+        }
+      ]
+    },
+    "markdown-find": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.Search.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Find.cs",
+          "class": "MarkdownSurface",
+          "method": "FindInRendered"
+        }
+      ]
+    },
+    "markdown-rendering": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownParityTests.cs",
+            "class": "MarkdownParityTests"
+          }
+        ]
+      }
+    },
+    "markdown-zoom": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/ViewModels/MarkdownViewModel.cs",
+          "class": "MarkdownViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "BaseFontSize"
+        }
+      ]
+    },
+    "abc-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs",
+          "class": "AbcBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcHeader.cs",
+          "class": "AbcHeader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "MusicLanguage"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 61,
+  "changed_sets": 69,
   "touched_nodes": [
+    "abc-layout",
     "barcode-editing",
     "latex-document-seam",
     "latex-editing",
@@ -1000,6 +1117,7 @@
     "markdown-context-menu",
     "markdown-copy",
     "markdown-dragdrop",
+    "markdown-find",
     "markdown-finding",
     "markdown-fmt-codeblock",
     "markdown-fmt-headings",
@@ -1013,15 +1131,18 @@
     "markdown-offers",
     "markdown-paste",
     "markdown-pictures",
+    "markdown-rendering",
     "markdown-scroll-anchor",
     "markdown-styling",
     "markdown-surface",
     "markdown-table-spans",
+    "markdown-zoom",
     "md-anchor-links",
     "md-code-highlighting",
     "md-image-resolver",
     "md-link-decorator",
     "md-task-toggle",
+    "pie-writing",
     "qr-render",
     "smiles-render",
     "solver-latex-fence",

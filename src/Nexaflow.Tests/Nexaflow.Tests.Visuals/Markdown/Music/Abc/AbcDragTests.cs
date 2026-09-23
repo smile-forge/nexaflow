@@ -8,6 +8,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music.Abc;
@@ -95,7 +96,7 @@ public class AbcDragTests
 
         const string One = "X:1\nL:1/8\nK:G\n{g}A {/g}B {^d}c {gAG}d |\n";
 
-        var element = MusicScore.Engraved(MusicDialect.Abc, One, StyleFormat.Light, zoom: 4.0);
+        var element = Alone.Engraved(MusicDialect.Abc, One, StyleFormat.Light, zoom: 4.0);
         element.Measure(new System.Windows.Size(1600, double.PositiveInfinity));
         element.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), element.DesiredSize));
 
@@ -112,11 +113,11 @@ public class AbcDragTests
     [TestMethod]
     public void AScoreFillsThePageItIsGivenAndSitsInTheMiddleOfIt() => UiThread.Run(() =>
     {
-        // What a window hands a block, and what the block does with it. The music is set into a share of
-        // the width and centred in the rest — so what it must never do is take a width of its own choosing.
+        // What a window hands a block, and what the block does with it. The music is set into a share of the width and
+        // centred in the rest — so what it must never do is take a width of its own choosing.
         const double Given = 1284;
 
-        var score = new MusicScore(MusicDialect.Abc, AuldGreyCat, StyleFormat.Light, 0);
+        var score = Alone.Drawn("abc", AuldGreyCat, StyleFormat.Light);
         score.Measure(new System.Windows.Size(Given, double.PositiveInfinity));
         score.Arrange(new System.Windows.Rect(new System.Windows.Point(0, 0), score.DesiredSize));
         score.UpdateLayout();
@@ -124,11 +125,13 @@ public class AbcDragTests
         Assert.AreEqual(Given, score.DesiredSize.Width, 1,
                         "the block is the page: it takes the whole width and puts the margins inside");
 
-        var music = score.Score.Laid.Size.Width * 1.0;
-        var wanted = Given * score.PageWidth;
+    // Where the ink is: every staff line runs the whole width of the music.
+        var music = score.Laid.Root.Leaves().Select(piece => piece.Bounds).Where(box => !box.IsEmpty).Aggregate(System.Windows.Rect.Union);
+        var wanted = Given * MusicLanguage.PageWidth;
 
-        Assert.IsTrue(music > wanted * 0.9,
-                      $"the music engraved to {music:F0} of the {wanted:F0} it was given — it is not filling the page");
+        Assert.IsTrue(music.Width > wanted * 0.9,
+                      $"the music engraved to {music.Width:F0} of the {wanted:F0} it was given — it is not filling the page");
+        Assert.AreEqual(Given - music.Right, music.Left, Given * 0.01, "and it sits in the middle, the margins either side alike");
     });
 
     [TestMethod]

@@ -59,22 +59,6 @@ internal sealed class PlotBuilder : ContentBuilder
         return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette).Lay(room);
     }
 
-    /// <summary>
-    /// The element a plot is shown in. Editable, because every number in it is a number somebody typed.
-    /// </summary>
-    public static Editing.ContentElement Element(string source, PlotFence fence, DiagramRenderOptions options) =>
-        new Editing.ContentElement(source, options.Palette,
-            (state, room) => Build(state.Source, fence, options.Palette, room))
-        {
-            // Where the block's lines sit inside the fence that produced them, so an edit to a value is
-            // spliced back where it came from.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 10),
-        };
-
     protected override Laid? Build()
     {
         if (_unreadable is not null) return Stopped(_unreadable);

@@ -113,29 +113,6 @@ public static class MarkdownClipboard
         return null;
     }
 
-    public static void CopySelection(TextSelection selection, FlowDocument document, string source)
-    {
-        bool whole = selection.IsEmpty || SpansWholeDocument(selection, document);
-
-        string markdown = whole
-            ? source
-            : (SliceFromSelection(selection, source) ?? selection.Text);
-
-        string plain = whole ? ToPlainText(source) : selection.Text;
-
-        string html;
-        try   { html = Markdig.Markdown.ToHtml(markdown, MarkdownParser.Pipeline); }
-        catch { html = System.Net.WebUtility.HtmlEncode(plain); }
-
-        var data = new DataObject();
-        data.SetData(DataFormats.UnicodeText, plain);
-        data.SetData(DataFormats.Text,        plain);
-        data.SetData(MarkdownFormat,          markdown);
-        try { data.SetData(DataFormats.Html, WrapCfHtml(html)); } catch { /* HTML optional */ }
-
-        Clipboard.SetDataObject(data, copy: true);
-    }
-
     private static string ToPlainText(string source)
     {
         try   { return Markdig.Markdown.ToPlainText(source, MarkdownParser.Pipeline); }
@@ -143,45 +120,6 @@ public static class MarkdownClipboard
     }
 
     // ── Selection → source range ────────────────────────────────────────────
-
-    private static bool SpansWholeDocument(TextSelection sel, FlowDocument doc)
-        => sel.Start.CompareTo(doc.ContentStart.GetInsertionPosition(LogicalDirection.Forward)) <= 0
-        && sel.End.CompareTo(doc.ContentEnd.GetInsertionPosition(LogicalDirection.Backward)) >= 0;
-
-    private static string? SliceFromSelection(TextSelection sel, string source)
-    {
-        int min = int.MaxValue, max = -1;
-        foreach (var run in RunsIn(sel))
-        {
-            if (run.Tag is not SourceSpan span || span.IsEmpty) continue;
-            if (span.Start < min) min = span.Start;
-            if (span.End   > max) max = span.End;
-        }
-        if (max < 0 || min > max) return null;
-
-        min = Math.Clamp(min, 0, source.Length);
-        int end = Math.Clamp(max + 1, min, source.Length);   // SourceSpan.End is inclusive
-        return source[min..end];
-    }
-
-    /// <summary>Leaf runs whose text range intersects the selection.</summary>
-    private static IEnumerable<Run> RunsIn(TextSelection sel)
-    {
-        // The run the selection begins inside (its ElementStart is before sel.Start,
-        // so the forward walk below would miss it).
-        if (sel.Start.Parent is Run startRun)
-            yield return startRun;
-
-        TextPointer? p = sel.Start;
-        var end = sel.End;
-        while (p is not null && p.CompareTo(end) < 0)
-        {
-            if (p.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.ElementStart
-                && p.GetAdjacentElement(LogicalDirection.Forward) is Run r)
-                yield return r;
-            p = p.GetNextContextPosition(LogicalDirection.Forward);
-        }
-    }
 
     // ── CF_HTML packaging ────────────────────────────────────────────────────
 

@@ -238,7 +238,7 @@ public class VennBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var content = (ContentElement)DiagramRenderer.Render("mermaid", Sized, StyleFormat.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", Sized, StyleFormat.Dark);
 
         content.Measure(new Size(700, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);

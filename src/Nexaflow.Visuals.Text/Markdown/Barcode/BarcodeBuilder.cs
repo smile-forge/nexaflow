@@ -51,9 +51,10 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private double _barsLeft, _barsTop, _guardDrop;
 
     // A barcode's value is one run of characters and has no grammar of its own, so what it is read as is that
-    // run: enough for the base to report the source and to show it when nothing can be drawn.
+    // run: enough for the base to report the source and to show it when nothing can be drawn. It is read where it
+    // sits, so every place in the caption names the character it shows in the document holding it.
     private BarcodeBuilder(BarcodeBlock block, StyleFormat palette)
-        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value)),
+        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value), block.ValueStart),
                EditState.For(block.Value), palette, isReadOnly: true)
     {
         _block = block;
@@ -106,7 +107,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         // No encoded symbol to read when the value is broken, so read the raw value instead — keeps a
         // publication's caption line even when the number itself won't encode.
-        var symbol = _pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken());
+        var symbol = (_pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken())).At(At);
 
         var barsWidth = PatternWidth * _block.BarWidth;
 

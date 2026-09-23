@@ -104,16 +104,6 @@ public interface IContentLanguage
     /// </para>
     /// </summary>
     Editing.IOnEdit? OnEdit => null;
-
-    /// <summary>
-    /// The same content as something a document made of WPF elements can hold.
-    ///
-    /// <para>
-    /// The older of the two surfaces, drawn only by the legacy <c>BlockRenderer</c>. It goes when that does,
-    /// and every language's <see cref="Lay"/> is what is left.
-    /// </para>
-    /// </summary>
-    FrameworkElement Draw(string language, string source, DiagramRenderOptions options);
 }
 
 /// <summary>

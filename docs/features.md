@@ -405,10 +405,10 @@ So a viewer holds a `TextZoom` on its ViewModel, binds `Zoom.FontSize` onto what
 needs disposing — `TextTypography` holds its listeners weakly, so a closed tab's zoom is simply collected.
 
 A surface with a typographic ladder of its own expresses it as **ratios of the body size**, never as absolute
-points — see `BlockRenderer`'s role accessors (`Body`/`Heading`/`Code`/`Caption`/`TableHeader`), which is why a
-markdown document scales without flattening. Markdown gets this for free: `MarkdownRenderContext.BaseFontSize`
-defaults to the live shell setting, so every markdown surface in the app honours Options with no wiring, and
-only a host that adds zoom has to set it.
+points — every size `MarkdownBuilder` sets is a multiple of the style's `TextSize`, which is why a markdown document
+scales without flattening. Markdown gets this for free: `MarkdownSurface.BaseFontSize` left unset is the live shell
+setting, so every markdown surface in the app honours Options with no wiring, and only a host that adds zoom has to
+set it.
 
 
 ### External components (`Dependencies/`)

@@ -60,6 +60,12 @@ public sealed class MermaidBlock
     /// <summary>The source the block was read from.</summary>
     public string Source => Reading.Source;
 
+    /// <summary>
+    /// Where <see cref="Source"/> begins in the document that holds it. Every part is counted in the document; a slice of
+    /// the source is counted from here.
+    /// </summary>
+    private int Origin => Reading.Root.Start;
+
     /// <summary>The <c>---</c> … <c>---</c> block the diagram opens with, fences included, or null.</summary>
     public ContentPart? FrontMatter { get; }
 
@@ -115,13 +121,16 @@ public sealed class MermaidBlock
         {
             if (FrontMatter is not { Children: [var open, .., var close] }) return null;
 
-            var inner = Source[open.End..close.Start];
+            var inner = Source[(open.End - Origin)..(close.Start - Origin)];
             return inner.EndsWith('\n') ? inner[..^1] : inner;
         }
     }
 
-    /// <summary>Where the diagram starts: past the front matter where there is one, and the start of the block where there is not.</summary>
-    public int BodyStart => FrontMatter?.End ?? 0;
+    /// <summary>
+    /// Where the diagram starts, in <see cref="Source"/>: past the front matter where there is one, and the start of the
+    /// block where there is not.
+    /// </summary>
+    public int BodyStart => FrontMatter is { } front ? front.End - Origin : 0;
 
     /// <summary>The block from <see cref="BodyStart"/> on — the header, and everything the diagram says.</summary>
     public string Body => Source[BodyStart..];

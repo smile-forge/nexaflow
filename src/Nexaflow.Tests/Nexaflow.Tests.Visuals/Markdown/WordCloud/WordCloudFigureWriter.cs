@@ -770,7 +770,7 @@ public class WordCloudFigureWriter
         {
             Background = ground,
             Padding = new Thickness(16),
-            Child = WordCloudBuilder.Element(source, DiagramRenderOptions.For(palette)),
+            Child = Alone.Drawn("wordcloud", source, palette),
         };
 
         host.Measure(new Size(width, double.PositiveInfinity));

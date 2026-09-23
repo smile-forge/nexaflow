@@ -20,7 +20,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
 public class LinkedElement(string source, StyleFormat palette, IContent content, ILayoutActions? actions)
-    : ContentElement(source, palette, content), IEditableBlock
+    : ContentElement(source, palette, content)
 {
     /// <inheritdoc/>
     protected override Cursor Pointing(Point at)

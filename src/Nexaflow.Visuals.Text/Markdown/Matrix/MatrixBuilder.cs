@@ -91,33 +91,6 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// </summary>
     protected abstract IReadOnlyList<Region> Regions(TSymbol symbol);
 
-    /// <summary>The element a 2D-code block is shown in: read-only, because there is nothing in it to edit.</summary>
-    protected static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                 Func<ContentReading, EditState, StyleFormat, bool, ContentBuilder> make)
-    {
-        var element = new Editing.ContentElement(source, options.Palette,
-            (state, _) => make(ContentReading.Of(MatrixParser.Parse(state.Source)), state, options.Palette, true).Lay())
-        {
-            IsReadOnly = true,
-
-            // Where the fields sit inside the fence, so the host never mistakes the block for one that is its
-            // content and nothing else.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            Cursor = Cursors.Arrow,
-            UseLayoutRounding = true,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 10),
-        };
-
-        // Module edges land on device pixels. A half-pixel seam between two dark modules reads as a light line to
-        // a camera, which is the whole difference between a code that scans and one that does not.
-        RenderOptions.SetEdgeMode(element, EdgeMode.Aliased);
-
-        return element;
-    }
-
     protected sealed override Laid Build()
     {
         var tree = Reading.Root.Node;

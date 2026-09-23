@@ -41,10 +41,6 @@ public sealed class MermaidLanguage : IContentLanguage
         ?? UnknownDiagramBuilder.Lay(request.Source, request.Style, request.Room);
 
     public IOnEdit OnEdit => MermaidEdits.Instance;
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        MermaidBuilders.Element(source, MermaidBlock.Read(source).Diagram, options)
-        ?? UnknownDiagramBuilder.Element(source, options);
 }
 
 /// <summary>UML class notation written shorter — <see href="https://www.nomnoml.com/"/>.</summary>
@@ -58,10 +54,6 @@ public sealed class NomnomlLanguage : IContentLanguage
     public Laid? Lay(ContentRequest request) =>
         MermaidBuilders.Lay(static (r, s, f, o) => new NomnomlBuilder(r, s, f, o), NomnomlDiagram.Grammar,
                             request.Source, request.Style, request.Room, request.At, request.Options);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        MermaidBuilder.Host(source, options, static (r, s, f, o) => new NomnomlBuilder(r, s, f, o),
-                            options.ReadOnly, NomnomlDiagram.Grammar);
 }
 
 /// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
@@ -70,8 +62,6 @@ public sealed class QrLanguage : IContentLanguage
     public bool Reads(string? language) => "qr".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public Laid? Lay(ContentRequest request) => QrBuilder.Lay(request.Source, request.Style);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => QrBuilder.Element(source, options);
 }
 
 /// <summary>An Aztec symbol.</summary>
@@ -81,8 +71,6 @@ public sealed class AztecLanguage : IContentLanguage
         language?.Trim().ToLowerInvariant() is "aztec" or "aztec-code";
 
     public Laid? Lay(ContentRequest request) => AztecBuilder.Lay(request.Source, request.Style);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => AztecBuilder.Element(source, options);
 }
 
 /// <summary>A Data Matrix symbol.</summary>
@@ -92,8 +80,6 @@ public sealed class DataMatrixLanguage : IContentLanguage
         language?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix";
 
     public Laid? Lay(ContentRequest request) => DataMatrixBuilder.Lay(request.Source, request.Style);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => DataMatrixBuilder.Element(source, options);
 }
 
 /// <summary>A PDF417 symbol.</summary>
@@ -102,8 +88,6 @@ public sealed class Pdf417Language : IContentLanguage
     public bool Reads(string? language) => "pdf417".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public Laid? Lay(ContentRequest request) => Pdf417Builder.Lay(request.Source, request.Style);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => Pdf417Builder.Element(source, options);
 }
 
 /// <summary>A chemical structure written as SMILES.</summary>
@@ -113,15 +97,9 @@ public sealed class SmilesLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) =>
         SmilesBuilder.Lay(request.Source, request.Style, request.Room, request.At);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) => SmilesBuilder.Element(source, options);
 }
 
-/// <summary>A formula, written in LaTeX.</summary>
-/// <remarks>
-/// Drawn by <see cref="FormulaElement"/> rather than by a <c>ContentElement</c> of its own, because a formula
-/// is the one content that is also written inline in a sentence.
-/// </remarks>
+/// <summary>A formula, written in LaTeX — on a line of its own, or in the middle of a sentence.</summary>
 public sealed class LatexLanguage : IContentLanguage
 {
     public bool Reads(string? language) => language?.Trim().ToLowerInvariant() is "latex" or "math" or "tex";
@@ -134,28 +112,53 @@ public sealed class LatexLanguage : IContentLanguage
                          at: request.At);
 
     public IOnEdit OnEdit => LatexEdits.Instance;
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        new ContentElement(source, options.Palette,
-                           (state, _) => LatexBuilder.Lay(state.Source, options.Palette)) { IsReadOnly = true };
 }
 
-/// <summary>A tune, in whichever notation names itself.</summary>
+/// <summary>
+/// A tune, in whichever notation it was written — ABC or LilyPond, which decides only which engraver reads it.
+///
+/// <para>
+/// Given a page, the music takes a share of its width and sits in the middle of it, the block being the whole width with
+/// the margins inside. A score set edge to edge across a wide window is a score nobody can read: the eye has to travel
+/// the whole width to follow one system, and the systems stop looking like lines of music. Printed music has margins for
+/// the same reason prose does. What fills the share is the engraver's; how wide the share is belongs to the page.
+/// </para>
+/// </summary>
 public sealed class MusicLanguage(MusicDialect dialect) : IContentLanguage
 {
+    /// <summary>How much of a page's width the music takes.</summary>
+    public const double PageWidth = 0.8;
+
+    /// <summary>A width to engrave against where there is no page, since a score set to infinity has nowhere to break.</summary>
+    private const double Unbounded = 420;
+
     public bool Reads(string? language) => MusicDialectExtensions.FromTag(language ?? string.Empty) == dialect;
 
-    public Laid? Lay(ContentRequest request) =>
+    public Laid? Lay(ContentRequest request)
+    {
+        if (!double.IsFinite(request.Room) || request.Room <= 0) return Engraved(request, Unbounded);
+
+        if (Engraved(request, request.Room * PageWidth) is not { } score) return null;
+
+        var page = new LayoutBuilder();
+        var width = Math.Max(request.Room, score.Size.Width);
+
+        new ContentInset(score).Set(page, new Point((width - score.Size.Width) / 2, 0), MusicPiece.Page);
+
+        return new Laid(page.Seal(), new Size(width, score.Size.Height), score.Trouble);
+    }
+
+    private Laid? Engraved(ContentRequest request, double room) =>
         dialect == MusicDialect.LilyPond
-            ? LilyPondBuilder.Lay(request.Source, Engraved(request.Room), request.Style, at: request.At)
-            : AbcBuilder.Lay(request.Source, Engraved(request.Room), request.Style, at: request.At);
+            ? LilyPondBuilder.Lay(request.Source, room, request.Style, at: request.At)
+            : AbcBuilder.Lay(request.Source, room, request.Style, at: request.At);
+}
 
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        new MusicScore(dialect, source, options.Palette, options.SourceOffset);
-
-    /// <summary>A width to engrave against, since a score set to infinity has nowhere to break.</summary>
-    private static double Engraved(double room) =>
-        double.IsFinite(room) && room > 0 ? Math.Min(room, 420) : 420;
+/// <summary>The kinds of piece a score's page is made of, round what its engraver drew.</summary>
+public static class MusicPiece
+{
+    /// <summary>The whole width a score was given, the music set in the middle of it.</summary>
+    public const string Page = "MusicPage";
 }
 
 /// <summary>A table of values against a pair of axes.</summary>
@@ -165,9 +168,6 @@ public sealed class PlotLanguage(PlotFence fence) : IContentLanguage
 
     public Laid? Lay(ContentRequest request) =>
         PlotBuilder.Build(request.Source, fence, request.Style, Panel(request.Room), request.At);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        PlotBuilder.Element(source, fence, options);
 
     /// <summary>A width to plot against, since a panel given infinity has no axis to scale.</summary>
     private static double Panel(double room) =>
@@ -181,9 +181,6 @@ public sealed class WordCloudLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) =>
         WordCloudBuilder.Lay(request.Source, request.Style, request.Room, at: request.At);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        WordCloudBuilder.Element(source, options);
 }
 
 /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
@@ -198,30 +195,6 @@ public sealed class BarcodeLanguage : IContentLanguage
         if (!BarcodeBlockParser.TryParse(request.Source, out var block, out _)) return null;
 
         return BarcodeBuilder.Build(block!.At(block.ValueStart + request.At), request.Style);
-    }
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options)
-    {
-        if (!BarcodeBlockParser.TryParse(source, out var block, out string? error))
-            return DiagramRenderer.ErrorElement(error!, source);
-
-        var placed = block!.At(block.ValueStart + options.SourceOffset);
-
-        return new ContentElement(placed.Value, options.Palette,
-            (state, _) => BarcodeBuilder.Build(placed.With(state.Source), options.Palette))
-        {
-            // Where the value sits inside the fence that produced it. Without it the host reads this as a
-            // block that IS its content — which only a $$…$$ formula is — and puts the delimiters back on
-            // every edit, so typing a digit into a barcode turned it into a formula.
-            SourceStart = placed.ValueStart,
-            SourceLength = placed.Value.Length,
-
-            // Air between one barcode and the next. The quiet zone inside the symbol is part of the symbol —
-            // it is what a scanner needs either side of the bars — and being the same white as the ground it
-            // separates nothing to the eye: a page of barcodes ran together into one field with bars in it.
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 10),
-        };
     }
 }
 
@@ -249,11 +222,4 @@ public sealed class CodeLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) =>
         CodeBuilder.Lay(request.Source, CodeGrammars.For(request.Named), request.Style, request.Room, request.At);
-
-    public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
-        new ContentElement(source, options.Palette,
-                           (state, room) => CodeBuilder.Lay(state.Source, CodeGrammars.For(language), options.Palette, room, options.SourceOffset))
-        {
-            IsReadOnly = true,
-        };
 }

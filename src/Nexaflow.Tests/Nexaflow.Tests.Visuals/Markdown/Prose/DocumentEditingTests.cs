@@ -191,7 +191,7 @@ public class DocumentEditingTests
         return element;
     }
 
-    private static void Settle(MarkdownElement element, string separator) => ((IEditableBlock)element).Commit(separator);
+    private static void Settle(MarkdownElement element, string separator) => element.Settle(separator);
 
     private static bool Sourced(MarkdownElement element) =>
         element.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind);

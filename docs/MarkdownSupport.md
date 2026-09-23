@@ -6,26 +6,33 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 ## How it's wired
 
-- **Parser:** Markdig **1.3.2** (`Markdig` package).
+- **Parser:** Markdig **1.3.2** (`Markdig` package), used for its spans only: every piece of the tree is cut from the
+  source at them, so a document always prints back as exactly what was written
+  ([markdown-ast.md](markdown-ast.md)).
 - **Pipeline:** one extension list — [`MarkdownParser.Reading`](../src/Nexaflow.Markdown/Prose/MarkdownParser.cs),
-  built once as `MarkdownParser.Pipeline`. Every surface parses with it: `MarkdownSurface`, which every
-  document in the app is shown and written on, and the legacy `MarkdownView` over `MarkdownFlowDocument`.
-  There is no second pipeline, and a host wanting an
-  extension of its own starts from `Reading(new())` rather than writing the list again.
-- **Renderers:** Markdig's own HTML renderer is **not** used. Two custom WPF renderers
-  walk the parsed AST:
-  - [`BlockRenderer`](../src/Nexaflow.Visuals.Text/Markdown/BlockRenderer.cs) → `FrameworkElement` per block (display + editor).
-  - [`MarkdownFlowDocument`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownFlowDocument.cs) → a selectable `FlowDocument`; text blocks become real selectable text, everything else falls back to `BlockRenderer` wrapped in a `BlockUIContainer`.
-- **Consequence:** a feature can be *parsed* by an enabled extension yet not *drawn* if
-  neither renderer has a case for it. The tables below track **rendered** support, which
-  is what actually matters.
+  built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
+  starts from `Reading(new())` rather than writing the list again.
+- **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
+  abbreviations — `MarkdownDefinitions`); the stages then read each block's body by the parser its kind names
+  (`WithBlocks`, each block's words read beside those definitions), pair definition lists, and say which language
+  every fence and formula is written in (`WithNested`, `WithImages`, `WithLinks`). Markdig's own HTML renderer is
+  **not** used.
+- **Drawing:** one builder, [`MarkdownBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs), turns
+  the tree into the shared layout tree; another language's content is laid by that language
+  (`IContentLanguage.Lay`) and grafted in where its fence was, so its pieces are selectable in the document that holds
+  them.
+- **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
+  markdown host uses — read-only or written in, a whole document or one block of a language (`SingleBlock`). It
+  draws the whole document on one element; there is no text box underneath.
+- **Consequence:** a feature can be *parsed* by an enabled extension yet not *drawn* if the builder has no case for
+  it. The tables below track **drawn** support, which is what actually matters.
 
 ### Legend
 
-- **Status** — rendered support: ✅ full · ⚠️ partial · ❌ none.
-- **Tests** — does a test exercise the parser/renderer path for *this* feature?
+- **Status** — drawn support: ✅ full · ⚠️ partial · ❌ none.
+- **Tests** — does a test exercise the read/draw path for *this* feature?
   ✅ direct test · ⚠️ indirect (parse-only or covered by a broad smoke test) · ❌ none.
-  "Tested" means the markdown **render/parse** path; editor-model tests
+  "Tested" means the markdown **read/draw** path; editor-model tests
   (`MarkdownBlocksTests`) and HTML-paste tests (`HtmlToMarkdownTests`) cover different
   concerns and are **not** counted here. Test files are listed under
   [Test coverage](#test-coverage).
@@ -34,91 +41,75 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 ## CommonMark (base spec)
 
-The base CommonMark block/inline set is always on. Rendering status:
-
-All inline-level rows below are covered by `BlockRendererTests` (the inline tests render a
-paragraph and assert on the resulting WPF inline tree).
+The base CommonMark block/inline set is always on. Every row is asked of the laid tree — what is drawn, what each piece
+stands for — in `MarkdownBuilderTests` and `MarkdownParityTests`.
 
 | Feature | Status | Tests | Notes |
 |---|---|---|---|
-| ATX headings (`#`…`######`) | ✅ | ✅ | `BlockRendererTests`, `MarkdownViewTests`. H1/H2 get an underline rule. |
-| Setext headings (`===` / `---`) | ✅ | ✅ | `BlockRendererTests`. Parsed to the same `HeadingBlock`. |
-| Paragraphs | ✅ | ✅ | `BlockRendererTests`, `MarkdownViewTests`. |
-| Thematic breaks (`---`, `***`, `___`) | ✅ | ✅ | `BlockRendererTests`. |
-| Block quotes | ✅ | ✅ | `BlockRendererTests`. Nested quotes render recursively. |
-| Unordered lists | ✅ | ✅ | `BlockRendererTests`, `MarkdownViewTests`. |
-| Ordered lists | ✅ | ✅ | `BlockRendererTests` (honours a custom start number). |
-| Nested / loose lists | ✅ | ✅ | `BlockRendererTests` (nested sub-list + loose-list cases). |
-| Indented code blocks | ✅ | ✅ | `BlockRendererTests`. Plain monospace. |
-| Fenced code blocks | ✅ | ✅ | `BlockRendererTests`. **No syntax highlighting** — the language tag only routes diagram/math fences. |
-| Inline code | ✅ | ✅ | Monospace run. |
-| Emphasis (`*` / `_`) | ✅ | ✅ | Italic span. |
-| Strong (`**` / `__`) | ✅ | ✅ | Bold span. |
-| Inline links | ✅ | ✅ | In-app navigation hook, else OS browser. |
-| Reference links | ✅ | ✅ | Resolved by the parser to the same link inline. |
-| Images `![]()` | ⚠️ | ✅ | **Local files only** (absolute, `file:`, or relative to the doc's base dir). Remote `http(s)`/`data:` images are never fetched — alt text is shown instead. Both paths tested. |
-| Autolinks `<https://…>` | ✅ | ✅ | `AutolinkInline` → hyperlink (incl. `mailto:` for `<user@host>`). |
+| ATX headings (`#`…`######`) | ✅ | ✅ | `MarkdownBuilderTests`. H1/H2 are ruled off under. |
+| Setext headings (`===` / `---`) | ✅ | ✅ | `MarkdownParityTests`. Set as a heading written with hashes is. |
+| Paragraphs | ✅ | ✅ | `MarkdownBuilderTests`. |
+| Thematic breaks (`---`, `***`, `___`) | ✅ | ✅ | `MarkdownParityTests`. A rule drawn across. |
+| Block quotes | ✅ | ✅ | `MarkdownParityTests`. A bar beside the words; the marks are not drawn. |
+| Unordered lists | ✅ | ✅ | `MarkdownBuilderTests`. |
+| Ordered lists | ✅ | ✅ | `MarkdownBuilderTests` (drawn with the number the item is, keeping what was typed). |
+| Nested / loose lists | ✅ | ✅ | `MarkdownBuilderTests`, `MarkdownParityTests`. |
+| Indented code blocks | ✅ | ✅ | `MarkdownParityTests`. On a panel, monospaced, as written. |
+| Fenced code blocks | ✅ | ✅ | `MarkdownBuilderTests`, `CodeLanguageTests`. Coloured by the fence's grammar once its reading lands; drawn plain until then. |
+| Inline code | ✅ | ✅ | Its own piece, monospaced, without the backticks. |
+| Emphasis (`*` / `_`) | ✅ | ✅ | Italic piece. |
+| Strong (`**` / `__`) | ✅ | ✅ | Bold piece. |
+| Inline links | ✅ | ✅ | `MarkdownLinkTests`. A `#anchor` is the document's to answer; anything else goes to the host. A relative link that is not an anchor says nowhere and is inert. |
+| Reference links | ✅ | ✅ | `MarkdownParityTests`. The definition may be anywhere in the document — in a list, a quote, after the words — and is not drawn. |
+| Images `![]()` | ⚠️ | ✅ | `MarkdownImageTests`. **Local files only** (the host's resolver, then absolute, `file:`, or relative to the doc's base dir). Remote `http(s)`/`data:` images are never fetched — alt text is shown instead. |
+| Autolinks `<https://…>` | ✅ | ✅ | A link to itself, the brackets not drawn. |
 | Hard line breaks | ✅ | ✅ | Two trailing spaces / backslash. |
-| Soft line breaks | ✅ | ✅ | Rendered as a space. |
-| Backslash escapes | ✅ | ✅ | Parser-level; suppresses emphasis. |
-| Entity & numeric refs (`&amp;`, `&#9731;`) | ✅ | ✅ | `HtmlEntityInline` → decoded text. |
-| Raw inline HTML (`<b>`, `<br>`, …) | ❌ | ✅ | Silently **dropped** (drop behaviour is asserted). |
-| Raw HTML blocks (`<div>…`) | ❌ | ❌ | Not interpreted; shown as muted raw source text. |
-
-> `<autolinks>` and `&entity;`/`&#nn;` references are distinct Markdig inline types
-> (`AutolinkInline`, `HtmlEntityInline`), each with its own case in `BlockRenderer.AddInlines`.
+| Soft line breaks | ✅ | ✅ | Drawn as a space. |
+| Backslash escapes | ✅ | ✅ | Drawn as the character escaped, still the two typed underneath. |
+| Entity & numeric refs (`&amp;`, `&#9731;`) | ✅ | ✅ | Drawn as the character they stand for. |
+| Raw inline HTML (`<b>`, `<br>`, …) | ❌ | ✅ | Not drawn (asserted). |
+| Raw HTML blocks (`<div>…`) | ❌ | ✅ | Not interpreted; shown as muted raw source text. |
 
 ---
 
 ## Markdig extensions — enabled
 
-These are turned on in the pipeline **and** have renderer support.
-
-All rows are tested in `MarkdownExtensionsTests` (parse-triggered + rendered-content assertions)
-unless noted otherwise.
+These are turned on in the pipeline **and** drawn by the builder. Every row is asserted in `MarkdownBuilderTests` or
+`MarkdownParityTests` unless noted otherwise.
 
 | Extension | Pipeline call | Status | Tests | Notes |
 |---|---|---|---|---|
-| Pipe tables | `UsePipeTables()` | ✅ | ✅ | `MarkdownExtensionsTests` (minimal, no-outer-pipes, alignment, inline formatting, CRLF, empty/escaped cells, ragged rows, in-blockquote, paragraph-interrupt) + `BlockRendererTests`. |
-| Grid tables | `UseGridTables()` | ✅ | ✅ | `MarkdownExtensionsTests` (columns, `colspan`, **block-content cells**). |
-| Task lists | `UseTaskLists()` | ✅ | ✅ | `[ ]` / `[x]` → ☐ / ☑ glyphs (display only, not interactive). |
-| Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `MarkdownExtensionsTests`. `~~strike~~` (strikethrough), `~sub~`, `^super^`, `==mark==` (highlight wash, `Marked` palette token), `++ins++` (underline). All map to `EmphasisInline` distinguished by `DelimiterChar`/`DelimiterCount` in `BlockRenderer.AddInlines`. |
-| Auto links | `UseAutoLinks()` | ✅ | ✅ | Bare `https://…` / `www.` URLs become links. |
-| Definition lists | `UseDefinitionLists()` | ✅ | ✅ | Term + definition styling. |
+| Pipe tables | `UsePipeTables()` | ✅ | ✅ | A piece per cell (minimal, no outer pipes, alignment, words set in cells, CRLF, empty and escaped cells, ragged rows, inside a quote, straight under a line of words). |
+| Grid tables | `UseGridTables()` | ✅ | ✅ | Columns, cells spanning columns, and cells holding blocks — a list in a cell is drawn as one. |
+| Task lists | `UseTaskLists()` | ✅ | ✅ | A tick that says what pressing it means; the host writes the box. |
+| Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `~~strike~~`, `~sub~` and `^super^` (set smaller), `==mark==` (a wash behind, `Marked` token), `++ins++` (underlined) — each its own piece, the marks not drawn. |
+| Auto links | `UseAutoLinks()` | ✅ | ✅ | A bare `https://…` address is a link to itself. |
+| Definition lists | `UseDefinitionLists()` | ✅ | ✅ | The term set apart from what it means. |
 | List extras | `UseListExtras()` | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
-| Abbreviations | `UseAbbreviations()` | ✅ | ✅ | `MarkdownExtensionsTests`. `*[HTML]: HyperText…` defines an abbreviation; each occurrence renders dotted-underlined with the definition as a hover tooltip. The definition line itself is consumed (not shown). |
-| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `MarkdownExtensionsTests` + `extensions.md` sample render. GitHub callouts `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → coloured left-border callout with a bold kind label. Each kind maps to a semantic accent (`Accent`/`Success`/`Important`/`Warning`/`Danger` palette tokens). `AlertBlock` extends `QuoteBlock`, so it's matched before the generic quote case. The selectable path renders alerts **natively** (a styled `Section`, mirroring the quote path) so callout text is drag-selectable. |
-| YAML front matter | `UseYamlFrontMatter()` | ✅ (stripped) | ✅ | `MarkdownExtensionsTests`. A leading `--- … ---` metadata block is parsed as a `YamlFrontMatterBlock` and **not rendered** (matches Markdig's HTML renderer). Both paths suppress it — block renderer returns a collapsed placeholder, the selectable path emits nothing. |
-| Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block + caption. |
-| Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`. |
+| Abbreviations | `UseAbbreviations()` | ⚠️ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and what it stands for is hung on the tree. Nothing shows it as a tip yet. The definition line is not drawn. |
+| Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
+| YAML front matter | `UseYamlFrontMatter()` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
+| Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
+| Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`, ruled off from the document above. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
-| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` (`MarkdownPipelineTests` + `BlockRendererTests`) and inline `$…$` (`MarkdownExtensionsTests`). Typeset by the repo's own LaTeX engine. A **display** formula keeps its typesetting whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; an **inline** one falls back to its source in a monospaced accent, because a sentence with a wave through the middle of it cannot be read. |
-| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `BlockRendererTests`, `MarkdownSampleRenderTests`. Rendering is **fully custom** (see below). |
-| Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music (see below). No block syntax of its own: it is a language in the fence table like every other. |
+| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A **display** formula keeps its typesetting whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; an **inline** one falls back to its source, because a sentence with a wave through the middle of it cannot be read. |
+| Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
+| Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music, filling a share of the page and centred in it (see below). |
 
 > **Citation delimiter.** `UseCitations()` emits `""text""` with `DelimiterChar == '"'`, so the
-> citation delimiter the renderer matches is a doubled double-quote (`""…""`), not `^^`.
+> citation delimiter is a doubled double-quote (`""…""`), not `^^`.
 
-> **Grid-table block cells.** Both renderers render every child block of a cell, so a cell holding a
-> list or multiple paragraphs renders fully; a single-paragraph cell takes a styled/aligned fast-path.
-> Covered by tests in both `BlockRenderer` and `MarkdownFlowDocument`.
-
-> Note: in `MarkdownFlowDocument` (the selectable path), definition lists, figures, footers,
-> math and diagrams are rendered via the `BlockRenderer` UIElement fallback, so they display
-> correctly but their text is **not drag-selectable**. Headings, paragraphs, lists, code, quotes,
-> tables and **alert blocks** are fully selectable (alerts render as a native styled `Section`).
-> Music blocks are a special case: not text-selectable, but **interactively selectable** — the
-> embedded score owns its own click/drag (a note, a beamed group or a run, see Musical Notation
-> below), found under the mouse with a geometric visual hit-test (the text container's event-source
-> attribution over embedded UIElement islands is unreliable) and driven directly. Making diagram label text
-> selectable is tracked as backlog (`product:diagram-text-selection`).
+> **Everything is one page.** Every block — prose, tables, formulas, diagrams, scores — is pieces of the one laid tree,
+> so a drag runs from a heading through a diagram's labels to a note of a score, and each piece still stands for the
+> characters it was written as.
 
 ---
 
 ## Diagrams — sub-support
 
-Diagram fences are intercepted by [`DiagramRenderer`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRenderer.cs)
-and drawn natively in WPF (no JS/Mermaid.js, no browser).
+Diagram fences are laid by their language ([`IContentLanguage`](../src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs),
+found in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) and drawn natively in WPF (no
+JS/Mermaid.js, no browser).
 
 **Languages:**
 
@@ -989,8 +980,8 @@ drawn over it. That is also what makes a binding writable in place — pressing 
 caret in them, exactly as an entity code does, because they are still there. With no data context at all nothing is
 hung under it and a binding is drawn as the text it is, so a document nobody has bound to still reads.
 
-Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`
-(or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.
+Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`, which
+lays out from the source again.
 
 ### Nested content — one content inside another
 
@@ -1174,7 +1165,8 @@ and the renderer never learns what an EAN is.
 **The parser does not encode.** That split is the whole design:
 
 - A **structural** fault (unknown key, no such format, a width that isn't a number) means the block
-  cannot be understood, and it falls back to its source with the reason — `DiagramRenderer.ErrorElement`.
+  cannot be understood, and it falls back to its source with the reason — the characters the writer typed, as
+  every language that cannot draw does.
 - A value the format **cannot carry** is not structural. The block is well formed and the value is the
   part being edited, so it must keep rendering: a valid sample value's bars are drawn faint, struck
   through, with a red wave under the value and the reason on hover. A value is invalid for every
@@ -1190,10 +1182,9 @@ outside the retail family returns nothing and is centred underneath.
 This matters more than it sounds: an EAN printed as one centred string reads as the wrong barcode even
 when every module is right, which is exactly what the reference images caught.
 
-**Editing.** `BarcodeElement` implements
-[`IEditableBlock`](../src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs); in a document it is pieces of the
-same laid tree as the words round it, so the caret steps into it, selects and types there as it does anywhere
-else, and a key means what it means to the characters — a barcode registers no edit hook of its own.
+**Editing.** In a document a barcode is pieces of the same laid tree as the words round it, so the caret steps into
+it, selects and types there as it does anywhere else, and a key means what it means to the characters — a barcode
+registers no edit hook of its own.
 It contributes a **layout tree** ([`BarcodeLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeLayout.cs)),
 built from a parse tree of the symbol's text
 ([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
@@ -1208,9 +1199,9 @@ and the bars get none at all. A piece with no part is drawn and is not selectabl
 caret is never offered inside a check digit, and why an ISBN takes it in the caption (the number as it
 was written) and not under the bars.
 
-`BarcodeBlock.ValueStart` is relative to the fence's **content**, while the editing host splices into
-the whole block — `DiagramRenderOptions.SourceOffset` carries the difference, set by `BlockRenderer`,
-which is the only place that holds both strings.
+The encoder counts the caption from the value's first character, because that is all it is told. The language lays the
+block at `BarcodeBlock.ValueStart` — where the value sits in the document — and the builder moves every caption part
+there (`BarcodePart.At`), so a caret in the caption stands between the characters of the document it is written in.
 
 **Settings**: `width` (0.5–20, default 2 — the width of one *bar*, not of the symbol), `height`
 (4–1000, default 100), `displayValue` (default true), `fontSize` (4–200, default 20), `textAlign`
@@ -1542,9 +1533,8 @@ side of it apart — which is what a fixed canvas, as `wordcloud2.js` has, would
 somebody counted, and one multiplier cannot suit counts in the tens and counts in the thousands alike.
 
 **Editable where it is drawn.** Every word is a run of text carrying the characters it was written with, so
-the caret stands in it, a drag picks out its letters, and typing into the picture edits the block — the same
-`IEditableBlock` seam that drives a formula and a barcode. The weights are drawn nowhere and are edited in
-the block's source.
+the caret stands in it, a drag picks out its letters, and typing into the picture edits the block, as it does in a
+formula and a barcode. The weights are drawn nowhere and are edited in the block's source.
 
 **Two kinds of failure.** A setting given something it cannot take, or a line that is not a pair, stops the
 block being a cloud at all: its lines are shown as they were written with the reason waved under them, which
@@ -1581,8 +1571,9 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
   into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
   the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
-  reader can click, select and edit in place. [`MusicScore`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicScore.cs)
-  is the page it sits on. Design: [docs/markdown-ast.md](markdown-ast.md).
+  reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
+  of it — a page decision, made by the language (`MusicLanguage.PageWidth`) rather than by the engraver, which fills
+  whatever width it is handed. Design: [docs/markdown-ast.md](markdown-ast.md).
 
 A notation's builder does only what that notation leaves to it. ABC writes down where its bars and beams
 go; LilyPond leaves bars, beams and printed accidentals to whoever engraves it, so its builder plays the
@@ -1675,10 +1666,7 @@ instead of a fence — and was called `SingleFormula`. ABC is what made it worth
 Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
 the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.
 
-**One thing this fixed on the way past.** The editor only ever adopted a `FormulaElement` when a single
-block took focus, so any other language rendered and then could not be typed into — a caret no keystroke
-reached. Adoption now goes through the `IEditableBlock` seam, which is the same behaviour for maths and the
-only thing that makes the rest of them editable at all.
+
 
 ### ABC coverage
 
@@ -1920,9 +1908,9 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | File | Covers |
 |---|---|
 | [`Visuals/Markdown/MarkdownPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownPipelineTests.cs) | Pipeline parses pipe tables, math blocks, diagram and music fences; heading ids; singleton reuse. |
-| [`Visuals/Markdown/BlockRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/BlockRendererTests.cs) | Per-block render (headings incl. setext, paragraph, HR, quote, lists incl. nested/loose, indented + fenced code, table, diagram dispatch, math block) **and the full CommonMark inline layer** (inline code, emphasis, strong, links, reference links, autolinks, images local + remote, line breaks, escapes, entities, raw-HTML drop). (UI category.) |
-| [`Visuals/Markdown/MarkdownViewTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownViewTests.cs) | `MarkdownView` populates its block panel. (UI category.) |
-| [`Visuals/Markdown/MarkdownExtensionsTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownExtensionsTests.cs) | Enabled extensions (grid tables, task lists, emphasis extras, auto links, definition lists, list extras, abbreviations, alert blocks, figures, footers, citations, inline math) + expanded pipe-table edge cases + selectable `MarkdownFlowDocument` tables. (UI category.) |
+| [`Markdown/Prose/MarkdownBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs) | A document on the layout tree: every document draws and keeps drawing while typed, everything drawn stands for characters that are there, headings, lists, ticks, tables, fences, formulas (display and inline, readable or not), alerts, definition lists, figures, footers, front matter, raw HTML, escapes, citations. (UI category.) |
+| [`Markdown/Prose/MarkdownParityTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownParityTests.cs) | The corners of CommonMark and its extensions: setext headings, rules, quotes, loose lists, indented code, code spans, reference links wherever their definition is, autolinks bare and bracketed, remote pictures never fetched, emphasis extras, abbreviations, the Important alert, and every pipe- and grid-table edge case. (UI category.) |
+| [`Markdown/Prose/MarkdownLinkTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownLinkTests.cs) · [`MarkdownAnchorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownAnchorTests.cs) | Where a link goes, in-page anchors resolved by the document and never the host, relative links inert, and the host's say in how a link looks. (UI category.) |
 | [`Visuals/Markdown/DiagramRendererTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/DiagramRendererTests.cs) | WPF render smoke tests for state, class, requirement and sequence drawn on the shared layout tree; sankey (CSV routing, front-matter config + node colours); ER drawn on the shared layout tree; architecture (grid routing not raw text, groups/icons/cross-group edges/junction); block (grid routing not raw text, nested groups + every shape + block arrows + edges + front-matter padding); front-matter pie routing. (UI category.) |
 | [`Unit/Markdown/DiagramParsersTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Markdown/DiagramParsersTests.cs) | WPF-free parser tests: the legacy sequence reader a C4 sequence still uses (extensive), flowchart, sankey + `SankeyConfig` (CSV quoting/doubled-quotes/comments, shared nodes, enums + `nodeColors`), architecture + `ArchitectureConfig` (groups/services/icons/membership, nested groups, edge sides + all four arrow forms, cross-group edges, junctions, alignment, custom icon packs); swimlane (direction, top-level subgraph lanes, node shapes, edge styles/labels, cross-lane edges, accessibility lines); block + `BlockConfig` (columns/widths/shapes, every bracket shape, nested groups with own columns, spaces + block arrows incl. combined directions, edges with labels + inline shapes, style/classDef/class incl. forward references, entity/`<br>` labels, header variants); front-matter. |
 | [`Visuals/Markdown/MarkdownSampleRenderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Core/Visuals/Markdown/MarkdownSampleRenderTests.cs) | End-to-end: every diagram in the sample dataset parses + renders, plus the `extensions.md` sample (emphasis extras, abbreviations, alert blocks) renders every block. (UI category.) |
@@ -1931,12 +1919,12 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Qr/QrEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs) | The QR encoder: round trips through every version and level via `QrTestDecoder`, non-ASCII, the capacity boundary, and the published capacity / alignment-centre / format-code-word tables. |
 | [`Matrix/MatrixParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Matrix/MatrixParserTests.cs) | The 2D block tree: every block and every prefix of it prints back as written, every leaf is copied from the source, a field's key / colon / value, and a line that is not a field held with its reason. |
 | [`Markdown/Qr/QrBlockReaderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockReaderTests.cs) | The `qr` block's fields: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
-| [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | QR dispatch through `DiagramRenderer` to read-only content, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — drawing a struck-through code with its reason. (UI category.) |
+| [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | A `qr` fence drawn by its language with nowhere in it to write, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — drawing a struck-through code with its reason. (UI category.) |
 | [`Markdown/Barcode/BarcodeEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs) | Every one of the twenty-three formats down to the module: published symbol tables, computed and verified check digits, Code 128 subset switching, and each value a format refuses. |
 | [`Markdown/Barcode/BarcodeReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeReferenceImageTests.cs) | Reads externally generated PNGs back to modules and compares. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; inconclusive without it. |
 | [`Markdown/Barcode/BarcodeBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs) | The `barcode` block body: every setting and its bounds, the value offset, and each structural diagnostic — separately from a value the format cannot carry, which is not one. |
-| [`Markdown/Barcode/BarcodeElementTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeElementTests.cs) | The element itself: measurement, the error presentation, caret placement, selection and the typing verbs. (UI category.) |
-| [`Markdown/Barcode/BarcodeInEditorTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeInEditorTests.cs) | The barcode driven through the editor's block seam — arrowing in and out, typing, space, Home/End, undo, cut, and editing a value whose printed form differs from it. (Desktop category.) |
+| [`Markdown/Barcode/BarcodeLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeLayoutTests.cs) | The laid symbol: a stop between every typed character and none inside a worked-out digit, the caption of a publication, a refused letter still editable, and the bars standing for nothing. (UI category.) |
+| [`Editing/ContentFromABuilderAloneTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentFromABuilderAloneTests.cs) | A tune and a barcode take a caret and are typed into — a barcode's typing landing in its value, where it sits in the fence. (UI category.) |
 | [`Markdown/Matrix/DataMatrixEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixEncoderTests.cs) | The Data Matrix encoder: the standard's worked example as a golden vector, placement invariants over all thirty sizes, both encodations and every C40 ending, ECI, GS1, Macro 06, multi-block interleaving, shapes and forced sizes. |
 | [`Markdown/Matrix/DataMatrixBlockReaderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBlockReaderTests.cs) | The `datamatrix` block's fields: the shared types, the exact wire form `gs1`, `ppn`, `ntin` and `mailmark` write (check digits included), `shape:` / `size:`, and each diagnostic. |
 | [`Markdown/Matrix/DataMatrixBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixBuilderTests.cs) | Dispatch, a rectangular symbol measuring to its own width and height, a finder and clock on every region, ink covering each dark module once across several regions, a bad block still drawing a code, and the picture rasterised and read back through the test decoder. (UI category.) |
@@ -1959,9 +1947,7 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, s
 
 **Where coverage is thin:**
 
-- **`MarkdownFlowDocument`** (the selectable path) is only tested for tables; its other
-  block types (headings, lists, code, quotes) rely on the shared `BlockRenderer` but have
-  no FlowDocument-specific assertions.
+
 - **`nomnoml`** is read and drawn by its own tests (`NomnomlGrammarTests`, `NomnomlBuilderTests`) and has a sample
   fixture, but none of the classifier shapes beyond a class box are drawn — see [nomnoml](#nomnoml--sub-support).
 - The base CommonMark renderer, the enabled extensions, and the Mermaid parser family are
@@ -1978,15 +1964,15 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 |---|---|---|
 
 | **No remote images** — local files only; remote URLs degrade to alt text | `md-remote-images` | Needs a cache, a size cap and a failure state, and would be the first thing in the renderer to touch the network — policy as much as feature. Both surfaces ask one chain (`MarkdownPictures.Found`), so it is one place to change |
-| **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF `FlowDocument` should honour is the real question |
+| **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF page should honour is the real question |
 
 | **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
-| **An abbreviation does not find its definition** on the layout tree — the word draws as itself | — | A block's words are read from that block's own source, which is what lets a keystroke re-read one paragraph rather than the file; a `*[…]:` line three paragraphs up is not in front of the reader at that moment. The fix is to hand the block reader what the document parse already worked out |
+| **An abbreviation's meaning is not shown** — the word is drawn with its dotted rule, and what it stands for is on the tree | — | A tip is shown for what a press on a piece means, and an abbreviation means nothing to press. Showing one on hover wants a tip that is not an action |
 
 - **Every Mermaid family now renders** — nothing falls back to raw source.
 - **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the
   reading never blocks a lay. **A task box is a real box**: clicking it rewrites `[ ]` / `[x]` in the source.
 
 If any of the disabled extensions are wanted, the change is usually a one-line
-`.UseX()` in `MarkdownParser.Reading` **plus** renderer cases in both `BlockRenderer`
-and `MarkdownFlowDocument` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).
+`.UseX()` in `MarkdownParser.Reading` **plus** a reading of what it makes (`MarkdownInline` or a stage) and a case in
+`MarkdownBuilder` (and, ideally, a sample + test in `MarkdownSampleRenderTests`).

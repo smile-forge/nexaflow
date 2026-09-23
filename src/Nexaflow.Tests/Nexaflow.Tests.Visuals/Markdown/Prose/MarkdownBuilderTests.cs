@@ -527,13 +527,7 @@ public class MarkdownBuilderTests
     public void AnAbbreviationsMeaningIsNeverDrawnIntoTheSentence()
     {
         // What an abbreviation means is written on a line of its own, somewhere else entirely. The sentence
-        // draws the word and only the word.
-        //
-        // It does not yet draw a rule of dots under it, and that is a consequence of the two-stage read
-        // rather than an oversight: a block's words are read from the block's own source, so a definition
-        // three paragraphs up is not in front of the reader when the sentence is read. The same is true of
-        // link reference definitions. Fixing it means giving the block reader what the document already
-        // worked out, which is a change to the seam rather than to this.
+        // draws the word and only the word — with a rule of dots under it, which is the parity tests' to hold.
         var laid = Lay("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n");
 
         StringAssert.Contains(Drawn(laid), "HTML is a thing");

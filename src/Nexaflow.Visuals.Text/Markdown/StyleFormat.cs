@@ -12,8 +12,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// is the same source.
 ///
 /// <para>
-/// The same renderer (<see cref="BlockRenderer"/>, <see cref="MarkdownFlowDocument"/>) serves dark surfaces (AI
-/// overlay, AIChat, markdown editor) and light ones (scratchpad post-its) by swapping this. The light values use
+/// The same builders serve dark surfaces (AI overlay, AIChat, the Markdown page) and light ones (scratchpad
+/// post-its) by swapping this. The light values use
 /// semi-transparent black for fills and borders, so code blocks, quotes and tables tint whatever note colour sits
 /// behind them.
 /// </para>
@@ -93,7 +93,7 @@ public sealed record StyleFormat
 
     private static readonly FontFamily DefaultTextFont = new("Segoe UI");
 
-    /// <summary>The size this document's typography was designed against — see <c>BlockRenderer.DesignBodySize</c>.</summary>
+    /// <summary>The size this document's typography was designed against: every other size in it is a multiple of this.</summary>
     private const double DefaultTextSize = 13.5;
 
     private static readonly Brush DefaultQrDark  = Frozen(0x0B, 0x0B, 0x0F);

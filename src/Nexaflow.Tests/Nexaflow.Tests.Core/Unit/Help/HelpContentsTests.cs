@@ -4,6 +4,7 @@ using Nexaflow.Core.Help;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -70,9 +71,9 @@ public class HelpContentsTests
     public void EveryLinkItAdds_LandsOnARenderedHeading() => UiThread.Run(() =>
     {
         var result = HelpContents.AddTopics(Page);
-        var doc = MarkdownFlowDocument.Build(result, StyleFormat.Dark);
+        var laid = MarkdownBuilder.Lay(result, StyleFormat.Dark, 600);
 
         foreach (Match link in Regex.Matches(result, @"\]\(#([^)]+)\)"))
-            Assert.IsNotNull(MarkdownAnchors.Find(doc, link.Groups[1].Value), $"#{link.Groups[1].Value} has a heading to land on");
+            Assert.IsTrue(MarkdownAnchors.Sought(laid, link.Groups[1].Value).Exists, $"#{link.Groups[1].Value} has a heading to land on");
     });
 }

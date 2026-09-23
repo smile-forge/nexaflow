@@ -327,7 +327,7 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public void EndPointerSelect() => Element.EndPointerSelect();
 
     /// <summary>What the pointer is over a point on the page.</summary>
-    public Cursor? PointerCursor(Point at) => ((IInteractiveBlock)Element).PointerCursor(at);
+    public Cursor? PointerCursor(Point at) => Element.PointerCursor(at);
 
     /// <summary>A picture of the block as it is on the page.</summary>
     public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.Picture(Holder, ground);

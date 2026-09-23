@@ -28,7 +28,7 @@ public class DiagramBindingTests
 
     private static ContentElement Drawn(string source, IDataContext? data)
     {
-        var element = (ContentElement)DiagramRenderer.Render("mermaid", source, new DiagramRenderOptions
+        var element = (ContentElement)Alone.Drawn("mermaid", source, new DiagramRenderOptions
         {
             Palette = StyleFormat.Dark,
             DataContext = data,
@@ -77,7 +77,7 @@ public class DiagramBindingTests
     {
         var element = Drawn(Src, new ReflectionDataContext(new Owner()));
 
-        Assert.AreEqual(Src, ((Nexaflow.Visuals.Text.Editing.IEditableBlock)element).Source,
+        Assert.AreEqual(Src, element.Source,
                         "what is drawn is a reading of the source, never a rewrite of it");
     });
 

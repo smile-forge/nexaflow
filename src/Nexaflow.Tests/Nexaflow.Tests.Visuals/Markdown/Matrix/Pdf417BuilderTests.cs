@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using System.Windows;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -28,11 +29,12 @@ public class Pdf417BuilderTests
     }
 
     [TestMethod]
-    public void DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    public void APdf417FenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("pdf417", "type: text\ntext: hello", StyleFormat.Dark);
+        var element = Alone.Drawn("pdf417", "type: text\ntext: hello", StyleFormat.Dark);
 
-        Assert.IsTrue(((ContentElement)element).IsReadOnly);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        Assert.IsFalse(element.AcceptsCaret, "a symbol has nowhere in it to write");
     });
 
     [TestMethod]
@@ -113,7 +115,7 @@ public class Pdf417BuilderTests
         var block = Read(source);
         var symbol = Encoded(source);
 
-        var drawn = MatrixLayouts.ReadBack(Pdf417Builder.Element(source, DiagramRenderOptions.For(StyleFormat.Dark)),
+        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("pdf417", source, StyleFormat.Dark),
                                            symbol.Width, symbol.Height, block.Settings, block.RowHeight);
         var decoded = Pdf417TestDecoder.Decode(drawn);
 

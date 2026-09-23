@@ -29,12 +29,11 @@ public class SmilesBuilderTests
     }
 
     [TestMethod]
-    public void DispatchesThroughDiagramRenderer_ToContentThatCannotBeEdited() => UiThread.Run(() =>
+    public void ASmilesFenceIsDrawnByItsLanguage() => UiThread.Run(() =>
     {
-        var content = (ContentElement)DiagramRenderer.Render("smiles", "chemistry\nCCO \"Ethanol\"", StyleFormat.Dark);
-        Assert.IsTrue(content.IsReadOnly);
-
+        var content = (ContentElement)Alone.Drawn("smiles", "chemistry\nCCO \"Ethanol\"", StyleFormat.Dark);
         content.Measure(new Size(600, double.PositiveInfinity));
+
         Assert.AreEqual(0, content.Diagnostics.Count);
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);
     });

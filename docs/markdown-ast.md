@@ -101,8 +101,8 @@ naming it as their region and the styles styling it, and an item by a style nami
 grammar writes a name there, bare or in quotes. Only a name declared once is carried, and only onto one nothing else is
 declared as — two sets of one name, or a rename onto another's, are left alone rather than guessed at.
 
-**Shift and Ctrl choose as they do anywhere else.** The host hands a press the modifier keys held
-(`IInteractiveBlock.BeginPointerSelect(point, modifiers)`). Shift chooses from where the choosing started — the caret,
+**Shift and Ctrl choose as they do anywhere else.** A press is handed the modifier keys held
+(`ContentElement.BeginPointerSelect(point, modifiers)`). Shift chooses from where the choosing started — the caret,
 where nothing is chosen yet — to the press, as a drag there would; Ctrl adds what is pressed to what is chosen, or takes
 it back out. A selection of several stretches is what `EditState` already holds for a matrix's column.
 
