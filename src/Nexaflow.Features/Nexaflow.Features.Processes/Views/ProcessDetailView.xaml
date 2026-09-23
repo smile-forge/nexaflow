@@ -5,7 +5,8 @@
              xmlns:conv="clr-namespace:Nexaflow.Features.Processes.Converters"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -186,13 +187,13 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <vc:SearchStatusChip PagePrefix="ProcessDetail" Margin="0,0,12,0"/>
-                <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
-                              ToolTip="Auto-refresh once per second while this tab is active"
+                <ToggleButton Content="{loc:Str Processes.Toolbar.Live}" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
+                              ToolTip="{loc:Str Processes.Toolbar.LiveTip}"
                               AutomationProperties.AutomationId="ProcessDetail_ToggleLive"/>
                 <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
-                        FontSize="14" ToolTip="Refresh now" AutomationProperties.AutomationId="ProcessDetail_Refresh"/>
+                        FontSize="14" ToolTip="{loc:Str Processes.Toolbar.RefreshTip}" AutomationProperties.AutomationId="ProcessDetail_Refresh"/>
                 <Separator Style="{StaticResource TbSep}"/>
-                <Button Content="Kill" Command="{Binding KillCommand}" Style="{StaticResource TbBtn}"
+                <Button Content="{loc:Str Processes.Toolbar.Kill}" Command="{Binding KillCommand}" Style="{StaticResource TbBtn}"
                         Foreground="{StaticResource DangerBrush}"
                         AutomationProperties.AutomationId="ProcessDetail_Kill"/>
             </StackPanel>
@@ -210,7 +211,7 @@
                                    Visibility="{Binding IsGone, Converter={StaticResource InvBoolToVis}}">
 
                 <!-- General -->
-                <vc:VerticalTabItem Header="General" Tag="General">
+                <vc:VerticalTabItem Header="{loc:Str Processes.Detail.Tab.General}" Tag="General">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -226,42 +227,42 @@
                                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Image"       Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Image}"       Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="0" Grid.Column="1" Text="{Binding Detail.Name}" Style="{StaticResource FieldValue}"/>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Description" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Description}" Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="1" Grid.Column="1" Text="{Binding Detail.Description}" Style="{StaticResource FieldValue}"/>
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Company"     Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Company}"     Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="2" Grid.Column="1" Text="{Binding Detail.Company}" Style="{StaticResource FieldValue}"/>
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Version"     Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Version}"     Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="3" Grid.Column="1" Text="{Binding Detail.FileVersion}" Style="{StaticResource FieldValue}"/>
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Path"        Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Path}"        Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="4" Grid.Column="1" Text="{Binding Detail.Path}" Style="{StaticResource FieldValue}"/>
-                            <Button    Grid.Row="4" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
+                            <Button    Grid.Row="4" Grid.Column="2" Content="{loc:Str Processes.Detail.Copy}" Style="{StaticResource TbBtn}" FontSize="11"
                                        Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.Path}" AutomationProperties.AutomationId="ProcessDetail_CopyPath"/>
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Command line" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.CommandLine}" Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="5" Grid.Column="1" Text="{Binding Detail.CommandLine}" Style="{StaticResource FieldValue}"/>
-                            <Button    Grid.Row="5" Grid.Column="2" Content="Copy" Style="{StaticResource TbBtn}" FontSize="11"
+                            <Button    Grid.Row="5" Grid.Column="2" Content="{loc:Str Processes.Detail.Copy}" Style="{StaticResource TbBtn}" FontSize="11"
                                        Command="{Binding CopyTextCommand}" CommandParameter="{Binding Detail.CommandLine}" AutomationProperties.AutomationId="ProcessDetail_CopyCommandLine"/>
 
-                            <TextBlock Grid.Row="6" Grid.Column="0" Text="User"        Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.User}"        Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="6" Grid.Column="1" Text="{Binding Detail.User}" Style="{StaticResource FieldValue}"/>
 
-                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Parent"      Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Parent}"      Style="{StaticResource FieldLabel}"/>
                             <TextBox   Grid.Row="7" Grid.Column="1" Style="{StaticResource FieldValue}">
                                 <TextBox.Text>
-                                    <MultiBinding StringFormat="{}{0} (PID {1})">
+                                    <MultiBinding StringFormat="{loc:Str Processes.Detail.Field.ParentFormat}">
                                         <Binding Path="Detail.ParentName"/>
                                         <Binding Path="Detail.ParentPid"/>
                                     </MultiBinding>
                                 </TextBox.Text>
                             </TextBox>
 
-                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Architecture / started" Style="{StaticResource FieldLabel}" TextWrapping="Wrap"/>
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.ArchitectureStarted}" Style="{StaticResource FieldLabel}" TextWrapping="Wrap"/>
                             <TextBox   Grid.Row="8" Grid.Column="1" Style="{StaticResource FieldValue}">
                                 <TextBox.Text>
                                     <MultiBinding StringFormat="{}{0}  ·  {1:g}">
@@ -271,17 +272,23 @@
                                 </TextBox.Text>
                             </TextBox>
 
-                            <TextBlock Grid.Row="9" Grid.Column="0" Text="Priority"    Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Grid.Row="9" Grid.Column="0" Text="{loc:Str Processes.Detail.Field.Priority}"    Style="{StaticResource FieldLabel}"/>
                             <ComboBox  Grid.Row="9" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,4"
                                        Style="{StaticResource DarkComboBox}"
                                        ItemsSource="{Binding PriorityClasses}"
-                                       SelectedItem="{Binding SelectedPriority, Mode=TwoWay}"/>
+                                       SelectedItem="{Binding SelectedPriority, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={x:Static conv:PriorityClassLabelConverter.Instance}}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </Grid>
                     </ScrollViewer>
                 </vc:VerticalTabItem>
 
                 <!-- Performance -->
-                <vc:VerticalTabItem Header="Performance" Tag="Performance">
+                <vc:VerticalTabItem Header="{loc:Str Processes.Detail.Tab.Performance}" Tag="Performance">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
                         <StackPanel>
                             <Grid Margin="0,0,0,6">
@@ -289,9 +296,9 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="CPU usage" Style="{StaticResource MetricLabel}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="0" Text="{loc:Str Processes.Detail.Perf.CpuUsage}" Style="{StaticResource MetricLabel}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" VerticalAlignment="Center"
-                                           Text="{Binding CpuHistoryMax, StringFormat=scale 0–{0:0}%}"/>
+                                           Text="{Binding CpuHistoryMax, StringFormat={loc:Str Processes.Detail.Perf.ScaleFormat}}"/>
                             </Grid>
                             <Border Background="{StaticResource DeepBgBrush}" BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1" CornerRadius="4" Height="74" Margin="0,0,0,4">
@@ -300,35 +307,35 @@
                                                    Fill="{StaticResource AccentSubtleBrush}" Margin="3"/>
                             </Border>
                             <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,14"
-                                       Text="{Binding Detail.CpuPercent, StringFormat={}{0:0.0}% now}"/>
+                                       Text="{Binding Detail.CpuPercent, StringFormat={loc:Str Processes.Detail.Perf.NowFormat}}"/>
 
                             <UniformGrid Columns="4">
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="Private bytes" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.PrivateBytes}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.PrivateBytes, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="Working set" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.WorkingSet}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.WorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="Peak working set" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.PeakWorkingSet}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.PeakWorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="Threads" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.Threads}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.ThreadCount}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="Handles" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.Handles}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.HandleCount}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="GDI objects" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.GdiObjects}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.GdiObjects}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,0,0,14">
-                                    <TextBlock Text="USER objects" Style="{StaticResource MetricLabel}"/>
+                                    <TextBlock Text="{loc:Str Processes.Detail.Perf.UserObjects}" Style="{StaticResource MetricLabel}"/>
                                     <TextBlock Text="{Binding Detail.UserObjects}" Style="{StaticResource MetricValue}"/>
                                 </StackPanel>
                             </UniformGrid>
@@ -337,7 +344,7 @@
                 </vc:VerticalTabItem>
 
                 <!-- Threads -->
-                <vc:VerticalTabItem Header="Threads" Tag="Threads">
+                <vc:VerticalTabItem Header="{loc:Str Processes.Detail.Tab.Threads}" Tag="Threads">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -345,7 +352,7 @@
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Style="{StaticResource DeniedBanner}"
                                 Visibility="{Binding ThreadsDenied, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="Thread details require administrator rights to read."
+                            <TextBlock Text="{loc:Str Processes.Detail.Threads.Denied}"
                                        Foreground="{StaticResource TextBrush}" FontSize="12"/>
                         </Border>
                         <ListView Grid.Row="1" ItemsSource="{Binding ThreadsView}" Style="{StaticResource GridListView}"
@@ -353,7 +360,7 @@
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.Resources>
                                 <ContextMenu x:Key="ThreadMenu" x:Shared="False">
-                                    <MenuItem Header="Copy"
+                                    <MenuItem Header="{loc:Str Processes.Menu.Copy}"
                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext.RowText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                 </ContextMenu>
@@ -366,11 +373,11 @@
                             </ListView.ItemContainerStyle>
                             <ListView.View>
                                 <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
-                                    <GridViewColumn Header="TID"      Width="80"  DisplayMemberBinding="{Binding Tid}"/>
-                                    <GridViewColumn Header="State"    Width="120" DisplayMemberBinding="{Binding State}"/>
-                                    <GridViewColumn Header="Priority" Width="120" DisplayMemberBinding="{Binding Priority}"/>
-                                    <GridViewColumn Header="CPU time" Width="100" DisplayMemberBinding="{Binding CpuTimeText}"/>
-                                    <GridViewColumn Header="Started"  Width="150" DisplayMemberBinding="{Binding StartedText}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Threads.Tid}"      Width="80"  DisplayMemberBinding="{Binding Tid}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Threads.State}"    Width="120" DisplayMemberBinding="{Binding State}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Threads.Priority}" Width="120" DisplayMemberBinding="{Binding Priority}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Threads.CpuTime}" Width="100" DisplayMemberBinding="{Binding CpuTimeText}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Threads.Started}"  Width="150" DisplayMemberBinding="{Binding StartedText}"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
@@ -378,7 +385,7 @@
                 </vc:VerticalTabItem>
 
                 <!-- Modules -->
-                <vc:VerticalTabItem Header="Modules" Tag="Modules">
+                <vc:VerticalTabItem Header="{loc:Str Processes.Detail.Tab.Modules}" Tag="Modules">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -387,9 +394,9 @@
                         <Border Grid.Row="0" Style="{StaticResource DeniedBanner}"
                                 Visibility="{Binding ModulesDenied, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Module details require administrator rights to read."
+                                <TextBlock Text="{loc:Str Processes.Detail.Modules.Denied}"
                                            Foreground="{StaticResource TextBrush}" FontSize="12" VerticalAlignment="Center"/>
-                                <Button Content="Load with admin" Command="{Binding LoadHandlesCommand}"
+                                <Button Content="{loc:Str Processes.Detail.Modules.LoadWithAdmin}" Command="{Binding LoadHandlesCommand}"
                                         Style="{StaticResource TbBtn}" FontSize="11" Margin="12,0,0,0" AutomationProperties.AutomationId="ProcessDetail_LoadModulesAdmin"/>
                             </StackPanel>
                         </Border>
@@ -399,10 +406,10 @@
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.Resources>
                                 <ContextMenu x:Key="ModuleMenu" x:Shared="False">
-                                    <MenuItem Header="Open file location"
+                                    <MenuItem Header="{loc:Str Processes.Menu.OpenLocation}"
                                               Command="{Binding PlacementTarget.Tag.OpenModuleLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                    <MenuItem Header="Copy path"
+                                    <MenuItem Header="{loc:Str Processes.Menu.CopyPath}"
                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext.Path, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                 </ContextMenu>
@@ -417,19 +424,19 @@
                                 <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
                                     <GridViewColumn Width="200" HeaderTemplate="{StaticResource ModuleSortHeader}"
                                                     DisplayMemberBinding="{Binding Name}">
-                                        <GridViewColumn.Header><vm:SortableHeader Label="Module" Key="Name"/></GridViewColumn.Header>
+                                        <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Detail.Modules.Module}" Key="Name"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                     <GridViewColumn Width="120" HeaderTemplate="{StaticResource ModuleSortHeader}"
                                                     DisplayMemberBinding="{Binding Version}">
-                                        <GridViewColumn.Header><vm:SortableHeader Label="Version" Key="Version"/></GridViewColumn.Header>
+                                        <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Detail.Modules.Version}" Key="Version"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                     <GridViewColumn Width="90" HeaderTemplate="{StaticResource ModuleSortHeader}"
                                                     DisplayMemberBinding="{Binding Size, Converter={x:Static vcc:BytesToTextConverter.Instance}}">
-                                        <GridViewColumn.Header><vm:SortableHeader Label="Size" Key="Size"/></GridViewColumn.Header>
+                                        <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Detail.Modules.Size}" Key="Size"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                     <GridViewColumn Width="420" HeaderTemplate="{StaticResource ModuleSortHeader}"
                                                     DisplayMemberBinding="{Binding Path}">
-                                        <GridViewColumn.Header><vm:SortableHeader Label="Path" Key="Path"/></GridViewColumn.Header>
+                                        <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Detail.Modules.Path}" Key="Path"/></GridViewColumn.Header>
                                     </GridViewColumn>
                                 </GridView>
                             </ListView.View>
@@ -438,7 +445,7 @@
                 </vc:VerticalTabItem>
 
                 <!-- Handles (loaded on demand via one elevated process.inspect) -->
-                <vc:VerticalTabItem Header="Handles" Tag="Handles">
+                <vc:VerticalTabItem Header="{loc:Str Processes.Detail.Tab.Handles}" Tag="Handles">
                     <Grid Margin="14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -448,9 +455,9 @@
                         <!-- Loaded: count + reload, then the list -->
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8"
                                     Visibility="{Binding HandlesLoaded, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding Handles.Count, StringFormat='{}{0} open handles'}"
+                            <TextBlock Text="{Binding Handles.Count, StringFormat={loc:Str Processes.Detail.Handles.CountFormat}}"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
-                            <Button Content="↻ Reload (admin)" Command="{Binding LoadHandlesCommand}"
+                            <Button Content="{loc:Str Processes.Detail.Handles.Reload}" Command="{Binding LoadHandlesCommand}"
                                     Style="{StaticResource TbBtn}" FontSize="11" Margin="10,0,0,0" AutomationProperties.AutomationId="ProcessDetail_ReloadHandles"/>
                         </StackPanel>
                         <ListView Grid.Row="1" ItemsSource="{Binding HandlesView}" Style="{StaticResource GridListView}"
@@ -459,10 +466,10 @@
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListView.Resources>
                                 <ContextMenu x:Key="HandleMenu" x:Shared="False">
-                                    <MenuItem Header="Copy"
+                                    <MenuItem Header="{loc:Str Processes.Menu.Copy}"
                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext.RowText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                    <MenuItem Header="Copy name"
+                                    <MenuItem Header="{loc:Str Processes.Menu.CopyName}"
                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                               CommandParameter="{Binding PlacementTarget.DataContext.Name, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                 </ContextMenu>
@@ -475,10 +482,10 @@
                             </ListView.ItemContainerStyle>
                             <ListView.View>
                                 <GridView ColumnHeaderContainerStyle="{StaticResource PlainHeader}">
-                                    <GridViewColumn Header="Type"   Width="120" DisplayMemberBinding="{Binding Type}"/>
-                                    <GridViewColumn Header="Handle" Width="90"  DisplayMemberBinding="{Binding HandleValue}"/>
-                                    <GridViewColumn Header="Access" Width="100" DisplayMemberBinding="{Binding Access}"/>
-                                    <GridViewColumn Header="Name"   Width="420" DisplayMemberBinding="{Binding Name}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Handles.Type}"   Width="120" DisplayMemberBinding="{Binding Type}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Handles.Handle}" Width="90"  DisplayMemberBinding="{Binding HandleValue}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Handles.Access}" Width="100" DisplayMemberBinding="{Binding Access}"/>
+                                    <GridViewColumn Header="{loc:Str Processes.Detail.Handles.Name}"   Width="420" DisplayMemberBinding="{Binding Name}"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
@@ -486,14 +493,14 @@
                         <!-- Not loaded: call-to-action / progress / error -->
                         <StackPanel Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center"
                                     Visibility="{Binding HandlesLoaded, Converter={StaticResource InvBoolToVis}}">
-                            <TextBlock Text="Open handles require administrator rights to read."
+                            <TextBlock Text="{loc:Str Processes.Detail.Handles.Denied}"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="13"
                                        HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,12"/>
-                            <Button Content="Load handles (admin)" Command="{Binding LoadHandlesCommand}"
+                            <Button Content="{loc:Str Processes.Detail.Handles.Load}" Command="{Binding LoadHandlesCommand}"
                                     Style="{StaticResource TbBtn}" HorizontalAlignment="Center"
                                     Visibility="{Binding HandlesLoading, Converter={StaticResource InvBoolToVis}}"
                                     AutomationProperties.AutomationId="ProcessDetail_LoadHandles"/>
-                            <TextBlock Text="Enumerating handles…" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                            <TextBlock Text="{loc:Str Processes.Detail.Handles.Enumerating}" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                        HorizontalAlignment="Center"
                                        Visibility="{Binding HandlesLoading, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="{Binding HandlesError}" Foreground="{StaticResource DangerBrush}" FontSize="12"
@@ -508,7 +515,7 @@
             <!-- Process-exited overlay -->
             <Border Background="{StaticResource BgBrush}"
                     Visibility="{Binding IsGone, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="This process has exited." Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{loc:Str Processes.Detail.Exited}" Foreground="{StaticResource TextMutedBrush}"
                            FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
         </Grid>

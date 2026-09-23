@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.Services;
 
@@ -86,9 +87,9 @@ public static partial class AmsiScanner
         {
             var info = new FileInfo(path);
             if (!info.Exists)
-                return new AmsiResult(AmsiVerdict.Unavailable, 0, "The file no longer exists.", false);
+                return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.TheFileNoLongerExists"), false);
             if (info.Length == 0)
-                return new AmsiResult(AmsiVerdict.Clean, 0, "The file is empty.", false);
+                return new AmsiResult(AmsiVerdict.Clean, 0, Str.Get("Executable.Inspector.TheFileIsEmpty"), false);
 
             // Only a file beyond what a 32-bit length can express is genuinely out of reach.
             bool truncated = info.Length > MaxScanBytes;
@@ -115,7 +116,7 @@ public static partial class AmsiScanner
         catch (OperationCanceledException) { throw; }
         catch (Exception e)
         {
-            return new AmsiResult(AmsiVerdict.Unavailable, 0, $"The file could not be read: {e.Message}", false);
+            return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Format("Executable.Amsi.ReadFailedFormat", e.Message), false);
         }
     }
 
@@ -133,7 +134,7 @@ public static partial class AmsiScanner
         {
             if (AmsiInitialize("Nexaflow", out context) != 0 || context == IntPtr.Zero)
                 return new AmsiResult(AmsiVerdict.Unavailable, 0,
-                    "AMSI could not be initialised; no antivirus provider is available.", truncated);
+                    Str.Get("Executable.Inspector.AMSICouldNotBeInitialisedNo"), truncated);
 
             // A session correlates several scans of the same object. One buffer still benefits:
             // without it the provider treats each call as unrelated content.
@@ -142,23 +143,23 @@ public static partial class AmsiScanner
             int hr = AmsiScanBuffer(context, content, (uint)length, contentName, session, out int result);
             if (hr != 0)
                 return new AmsiResult(AmsiVerdict.Unavailable, result,
-                    $"The antivirus provider returned an error (0x{hr:X8}).", truncated);
+                    Str.Format("Executable.Amsi.ProviderErrorFormat", hr), truncated);
 
             return Translate(result, truncated);
         }
         catch (DllNotFoundException)
         {
             return new AmsiResult(AmsiVerdict.Unavailable, 0,
-                "amsi.dll is not present on this system, so no scan could be performed.", truncated);
+                Str.Get("Executable.Inspector.AmsiDllIsNotPresentOn"), truncated);
         }
         catch (EntryPointNotFoundException)
         {
             return new AmsiResult(AmsiVerdict.Unavailable, 0,
-                "This build of AMSI does not expose the scanning entry points.", truncated);
+                Str.Get("Executable.Inspector.ThisBuildOfAMSIDoesNot"), truncated);
         }
         catch (Exception e)
         {
-            return new AmsiResult(AmsiVerdict.Unavailable, 0, $"The scan failed: {e.Message}", truncated);
+            return new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Format("Executable.Amsi.ScanFailedFormat", e.Message), truncated);
         }
         finally
         {
@@ -169,19 +170,19 @@ public static partial class AmsiScanner
 
     private static AmsiResult Translate(int result, bool truncated) => result switch
     {
-        ResultClean       => new(AmsiVerdict.Clean, result, "No threat was found.", truncated),
+        ResultClean       => new(AmsiVerdict.Clean, result, Str.Get("Executable.Inspector.NoThreatWasFound"), truncated),
         ResultNotDetected => new(AmsiVerdict.NotDetected, result,
-                                 "The provider examined the content and detected nothing.", truncated),
+                                 Str.Get("Executable.Inspector.TheProviderExaminedTheContentAnd"), truncated),
 
         >= ResultBlockedByAdminMin and <= ResultBlockedByAdminMax =>
             new(AmsiVerdict.BlockedByAdmin, result,
-                "This content is blocked by administrative policy.", truncated),
+                Str.Get("Executable.Inspector.ThisContentIsBlockedByAdministrative"), truncated),
 
         >= ResultDetected => new(AmsiVerdict.Detected, result,
-                                 "The antivirus provider identified this content as malware.", truncated),
+                                 Str.Get("Executable.Inspector.TheAntivirusProviderIdentifiedThisContent"), truncated),
 
         // 2..31: the provider is increasingly suspicious but has not committed to a detection.
         _ => new(AmsiVerdict.NotDetected, result,
-                 $"The provider returned an inconclusive result ({result}).", truncated),
+                 Str.Format("Executable.Amsi.InconclusiveFormat", result), truncated),
     };
 }

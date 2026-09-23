@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.Services;
 
@@ -9,7 +10,7 @@ namespace Nexaflow.Features.SystemInfo.Services;
 /// </summary>
 public sealed class LoadSystemInfoTask(SystemInfoCollector collector) : IBackgroundTask
 {
-    public string Description => "Gathering system information";
+    public string Description => Str.Get("SystemInfo.Task.GatheringSystem");
 
     public SystemInfoSnapshot? Result { get; private set; }
 

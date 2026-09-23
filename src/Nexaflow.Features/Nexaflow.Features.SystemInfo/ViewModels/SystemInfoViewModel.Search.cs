@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.ViewModels;
 
@@ -50,8 +51,8 @@ public sealed partial class SystemInfoViewModel : ISearchable
     {
         if (Sections.Count == 0)
             return SearchOutcome.None(IsLoading
-                ? "The device summary is still being gathered — try again in a moment."
-                : "There is no device summary to search.");
+                ? Str.Get("SystemInfo.Search.StillGathering")
+                : Str.Get("SystemInfo.Search.NoSummary"));
 
         var hits = Facts()
             .Where(f => matcher.Matches(f.Item.Label) || matcher.Matches(f.Item.Value))

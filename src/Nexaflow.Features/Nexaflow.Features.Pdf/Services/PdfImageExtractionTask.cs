@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Reading;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.Services;
 
@@ -29,8 +30,8 @@ public sealed record PdfImageExtractionResult(
 public sealed class PdfImageExtractionTask(IReadOnlyList<string> pdfPaths, string targetRoot) : IBackgroundTask
 {
     public string Description => pdfPaths.Count == 1
-        ? $"Extracting images from {Path.GetFileName(pdfPaths[0])}"
-        : $"Extracting images from {pdfPaths.Count} PDFs";
+        ? Str.Format("Pdf.Extract.TaskOneFormat", Path.GetFileName(pdfPaths[0]))
+        : Str.Format("Pdf.Extract.TaskManyFormat", pdfPaths.Count);
 
     /// <summary>Per-document outcome, populated as the run proceeds and read by the completion callback.</summary>
     public List<PdfImageExtractionResult> Results { get; } = [];
@@ -51,7 +52,7 @@ public sealed class PdfImageExtractionTask(IReadOnlyList<string> pdfPaths, strin
     {
         using var scope = PdfDocumentScope.TryOpen(pdfPath, ct);
         if (scope is null)
-            return new PdfImageExtractionResult(pdfPath, null, 0, 0, 0, "could not be read");
+            return new PdfImageExtractionResult(pdfPath, null, 0, 0, 0, Str.Get("Pdf.Extract.CouldNotBeRead"));
 
         // The folder is created only once the first image is in hand, so a PDF with no images leaves no
         // empty directory behind to explain.

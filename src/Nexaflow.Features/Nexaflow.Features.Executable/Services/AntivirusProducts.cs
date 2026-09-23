@@ -1,5 +1,6 @@
 using System.Management;
 using System.Runtime.Versioning;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.Services;
 
@@ -10,9 +11,9 @@ public sealed record AntivirusProduct(string Name, bool IsEnabled, bool IsUpToDa
 {
     public string Status => (IsEnabled, IsUpToDate) switch
     {
-        (true,  true)  => "enabled, definitions up to date",
-        (true,  false) => "enabled, definitions out of date",
-        (false, _)     => "disabled",
+        (true,  true)  => Str.Get("Executable.Inspector.EnabledDefinitionsUpToDate"),
+        (true,  false) => Str.Get("Executable.Inspector.EnabledDefinitionsOutOfDate"),
+        (false, _)     => Str.Get("Executable.Av.ProductDisabled"),
     };
 }
 
@@ -40,7 +41,7 @@ public static class AntivirusProducts
             foreach (var item in searcher.Get())
             {
                 using var product = (ManagementObject)item;
-                string name = product["displayName"] as string ?? "(unnamed)";
+                string name = product["displayName"] as string ?? Str.Get("Executable.Unnamed");
                 uint   state = product["productState"] is { } raw ? Convert.ToUInt32(raw) : 0;
                 var (enabled, upToDate) = DecodeState(state);
                 products.Add(new AntivirusProduct(name, enabled, upToDate));

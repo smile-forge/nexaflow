@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.FileActions;
 
@@ -14,11 +15,11 @@ public sealed class ExtractImagesAction(IShellServices shell) : IFileAction, ICa
 {
     public static string? StaticExperienceId => "/document/pdf";
     public string ExperienceId => "/document/pdf";
-    public string ExperienceDescription => "PDF document";
+    public string ExperienceDescription => Str.Get("Pdf.Action.ExtractImagesDescription");
 
-    public string DisplayName => "Extract images";
+    public string DisplayName => Str.Get("Pdf.Action.ExtractImages");
     public string Icon => "🖼";
-    public string? Tooltip => "Save the images embedded in this PDF to a folder";
+    public string? Tooltip => Str.Get("Pdf.Action.ExtractImagesTip");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => true;

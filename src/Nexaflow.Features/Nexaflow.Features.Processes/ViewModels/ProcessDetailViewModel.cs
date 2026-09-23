@@ -8,6 +8,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Features.Processes.Services;
 using Nexaflow.Visuals.Common.Converters;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -50,7 +51,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     public IReadOnlyList<string> PriorityClasses { get; } =
         ["Idle", "BelowNormal", "Normal", "AboveNormal", "High", "RealTime"];
 
-    [ObservableProperty] private string _title = "Process";
+    [ObservableProperty] private string _title = Str.Get("Processes.Detail.Title");
     [ObservableProperty] private ProcessDetail? _detail;
     [ObservableProperty] private bool _threadsDenied;
     [ObservableProperty] private bool _modulesDenied;
@@ -78,7 +79,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
         _shell  = shell;
         _source = source;
         _pid    = pid;
-        Title   = $"Process {pid}";
+        Title   = Str.Format("Processes.Detail.TitleFormat", pid);
         ModulesView = CollectionViewSource.GetDefaultView(Modules);
         ThreadsView = CollectionViewSource.GetDefaultView(Threads);
         HandlesView = CollectionViewSource.GetDefaultView(Handles);
@@ -129,7 +130,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     {
         if (pid == _pid) { TriggerRefresh(); return; }
         _pid = pid;
-        Title = $"Process {pid}";
+        Title = Str.Format("Processes.Detail.TitleFormat", pid);
         IsGone = false;
         _cpuBuf.Clear();
         Threads.Clear();
@@ -203,9 +204,9 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     [RelayCommand]
     private async Task Kill()
     {
-        var name = Detail?.Name ?? $"PID {_pid}";
-        if (!await _shell.ConfirmAsync($"Kill {name} (PID {_pid})?",
-                "This terminates the process immediately. Unsaved work is lost."))
+        var name = Detail?.Name ?? Str.Format("Processes.PidFormat", _pid);
+        if (!await _shell.ConfirmAsync(Str.Format("Processes.Kill.ConfirmTitleFormat", name, _pid),
+                Str.Get("Processes.Kill.ConfirmBody")))
             return;
         await ProcessActions.KillAsync(_shell, _pid, name, tree: false);
         TriggerRefresh();
@@ -229,7 +230,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
 
     internal void ApplyInspect(ProcessInspect.InspectResult r)
     {
-        if (r.Declined) { HandlesError = "Administrator approval was declined."; return; }
+        if (r.Declined) { HandlesError = Str.Get("Processes.Detail.Handles.Declined"); return; }
         if (!r.Success) { HandlesError = r.Message; _shell.ShowError(r.Message); return; }
 
         Reconcile(Handles, r.Handles, h => $"{h.HandleValue}|{h.Type}");
@@ -248,7 +249,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     private void OpenLocation()
     {
         var dir = string.IsNullOrWhiteSpace(Detail?.Path) ? null : System.IO.Path.GetDirectoryName(Detail!.Path);
-        if (string.IsNullOrEmpty(dir)) { _shell.ShowError("The image path isn't available."); return; }
+        if (string.IsNullOrEmpty(dir)) { _shell.ShowError(Str.Get("Processes.Error.ImagePathUnavailable")); return; }
         _shell.OpenTab("FileSystem", new Dictionary<string, string>
         {
             ["mode"]  = "path",
@@ -261,7 +262,7 @@ public sealed partial class ProcessDetailViewModel : ObservableObject, IPageView
     private void OpenModuleLocation(ModuleInfo? module)
     {
         var dir = string.IsNullOrWhiteSpace(module?.Path) ? null : System.IO.Path.GetDirectoryName(module!.Path);
-        if (string.IsNullOrEmpty(dir)) { _shell.ShowError("The module path isn't available."); return; }
+        if (string.IsNullOrEmpty(dir)) { _shell.ShowError(Str.Get("Processes.Error.ModulePathUnavailable")); return; }
         _shell.OpenTab("FileSystem", new Dictionary<string, string>
         {
             ["mode"]  = "path",

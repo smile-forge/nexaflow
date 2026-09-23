@@ -8,7 +8,8 @@
              xmlns:vcl="clr-namespace:Nexaflow.Visuals.Common.Layout;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ScratchpadView"
              Background="{StaticResource BgBrush}"
-             Focusable="True">
+             Focusable="True"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <!-- The picker resolves the PostIt.* bank exactly as the notes do. The bank arrives as a
@@ -179,29 +180,29 @@
 
                     <!-- Color row 1: Yellow Blue Green Pink -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorYellow" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="Yellow">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorYellow" Tag="Yellow" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Yellow}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorBlue" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="Blue">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorBlue" Tag="Blue" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Blue}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorGreen" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="Green">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorGreen" Tag="Green" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Green}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPink" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="Pink">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPink" Tag="Pink" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Pink}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
                     </StackPanel>
 
                     <!-- Color row 2: Orange Purple White -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorOrange" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="Orange">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorOrange" Tag="Orange" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Orange}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPurple" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="Purple">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorPurple" Tag="Purple" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.Purple}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"/>
                         </Button>
-                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorWhite" Tag="White" Click="RibbonColorBtn_Click" ToolTip="White">
+                        <Button Style="{StaticResource ColorDotBtn}" AutomationProperties.AutomationId="Scratchpad_NoteColorWhite" Tag="White" Click="RibbonColorBtn_Click" ToolTip="{loc:Str Scratchpad.Color.White}">
                             <Ellipse Width="18" Height="18" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource ColorBrush}}"
                                      Stroke="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}, Converter={StaticResource HeaderBrush}}" StrokeThickness="1"/>
                         </Button>
@@ -214,7 +215,7 @@
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,2">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⬜" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Square" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Scratchpad.Shape.Square}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
@@ -225,7 +226,7 @@
                             <Border Width="13" Height="13" CornerRadius="3"
                                     BorderBrush="{StaticResource TextBrush}" BorderThickness="2"
                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Rounded" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Scratchpad.Shape.Rounded}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
@@ -236,7 +237,7 @@
                             <Border Width="13" Height="13" CornerRadius="5,0,5,0"
                                     BorderBrush="{StaticResource TextBrush}" BorderThickness="2"
                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Diagonals" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Scratchpad.Shape.Diagonals}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
@@ -245,7 +246,7 @@
                             Style="{StaticResource RibbonBtn}" HorizontalAlignment="Stretch" Margin="0,0,0,8">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💬" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Speech bubble" VerticalAlignment="Center"/>
+                            <TextBlock Text="{loc:Str Scratchpad.Shape.SpeechBubble}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
@@ -253,16 +254,16 @@
 
                     <!-- Bring to Front / Send to Back -->
                     <StackPanel Orientation="Horizontal">
-                        <Button AutomationProperties.AutomationId="Scratchpad_NoteFront" Click="RibbonBringToFront_Click" Style="{StaticResource RibbonBtn}" ToolTip="Bring to front" Padding="6,4">
+                        <Button AutomationProperties.AutomationId="Scratchpad_NoteFront" Click="RibbonBringToFront_Click" Style="{StaticResource RibbonBtn}" ToolTip="{loc:Str Scratchpad.Note.FrontTip}" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⬆" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Front" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Str Scratchpad.Note.Front}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                        <Button AutomationProperties.AutomationId="Scratchpad_NoteBack" Click="RibbonSendToBack_Click" Style="{StaticResource RibbonBtn}" ToolTip="Send to back" Padding="6,4">
+                        <Button AutomationProperties.AutomationId="Scratchpad_NoteBack" Click="RibbonSendToBack_Click" Style="{StaticResource RibbonBtn}" ToolTip="{loc:Str Scratchpad.Note.BackTip}" Padding="6,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⬇" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="Back" VerticalAlignment="Center"/>
+                                <TextBlock Text="{loc:Str Scratchpad.Note.Back}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -280,20 +281,20 @@
 
                 <!-- Left: New + Zoom to Fit -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
-                    <Button Content="＋ New" Style="{StaticResource TbBtn}"
+                    <Button Content="{loc:Str Scratchpad.Toolbar.New}" Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Scratchpad_AddNote"
-                            Click="AddNote_Click" ToolTip="Add a new post-it (or double-click canvas)"/>
+                            Click="AddNote_Click" ToolTip="{loc:Str Scratchpad.Toolbar.NewTip}"/>
                     <vcc:SearchStatusChip PagePrefix="Scratchpad" Margin="12,0,0,0"/>
-                    <Button Content="⤡ Fit" Style="{StaticResource TbBtn}"
+                    <Button Content="{loc:Str Scratchpad.Toolbar.Fit}" Style="{StaticResource TbBtn}"
                             AutomationProperties.AutomationId="Scratchpad_ZoomToFit"
-                            Click="ZoomToFit_Click" ToolTip="Zoom to fit all notes"/>
+                            Click="ZoomToFit_Click" ToolTip="{loc:Str Scratchpad.Toolbar.FitTip}"/>
                 </StackPanel>
 
                 <!-- Right: Recycle Bin split button -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
 
                     <!-- Left part: toggle bin view -->
-                    <Button Click="ToggleBin_Click" ToolTip="View / hide Recycle Bin" Padding="8,5" Cursor="Hand" Margin="0"
+                    <Button Click="ToggleBin_Click" ToolTip="{loc:Str Scratchpad.Toolbar.BinTip}" Padding="8,5" Cursor="Hand" Margin="0"
                             AutomationProperties.AutomationId="Scratchpad_RecycleBin">
                         <Button.Style>
                             <Style TargetType="Button">
@@ -328,16 +329,16 @@
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
-                        <TextBlock Text="🗑 Recycle Bin" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Str Scratchpad.Bin.Title}" VerticalAlignment="Center"/>
                     </Button>
 
                     <!-- Right part: dropdown arrow (ContextMenu stays within window bounds) -->
                     <Button x:Name="BinDropBtn" Style="{StaticResource SplitArrowBtn}"
                             AutomationProperties.AutomationId="Scratchpad_BinOptions"
-                            Content="▾" Click="BinDrop_Click" ToolTip="Recycle bin options">
+                            Content="▾" Click="BinDrop_Click" ToolTip="{loc:Str Scratchpad.Toolbar.BinOptionsTip}">
                         <Button.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="Empty Recycle Bin" Click="EmptyBin_Click"/>
+                                <MenuItem Header="{loc:Str Scratchpad.Bin.Empty}" Click="EmptyBin_Click"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -368,8 +369,8 @@
 
                 <vcl:PanZoomSurface.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="New post-it here" Click="NewNoteHere_Click"/>
-                        <MenuItem x:Name="CanvasPasteItem" Header="Paste as post-it" Click="PasteHere_Click"/>
+                        <MenuItem Header="{loc:Str Scratchpad.Canvas.NewHere}" Click="NewNoteHere_Click"/>
+                        <MenuItem x:Name="CanvasPasteItem" Header="{loc:Str Scratchpad.Canvas.PasteHere}" Click="PasteHere_Click"/>
                     </ContextMenu>
                 </vcl:PanZoomSurface.ContextMenu>
 
@@ -451,7 +452,7 @@
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="12,8">
-                        <TextBlock Text="🗑 Recycle Bin"
+                        <TextBlock Text="{loc:Str Scratchpad.Bin.Title}"
                                    Foreground="{StaticResource TextBrush}"
                                    FontSize="13" FontWeight="SemiBold"/>
                     </Border>
@@ -480,12 +481,12 @@
 
                                             <StackPanel Grid.Row="1" Orientation="Horizontal"
                                                         HorizontalAlignment="Right" Margin="0,6,0,0">
-                                                <Button Content="↩ Restore"
+                                                <Button Content="{loc:Str Scratchpad.Bin.Restore}"
                                                         AutomationProperties.AutomationId="Scratchpad_BinRestore" Style="{StaticResource BinRestoreBtn}"
                                                         Command="{Binding DataContext.RestoreNoteCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"/>
-                                                <Button Content="✕ Delete"
+                                                <Button Content="{loc:Str Scratchpad.Bin.Delete}"
                                                         AutomationProperties.AutomationId="Scratchpad_BinDelete" Style="{StaticResource BinActionBtn}"
                                                         Command="{Binding DataContext.DeleteFromBinCommand,
                                                             RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -500,7 +501,7 @@
                                 <ControlTemplate TargetType="ItemsControl">
                                     <StackPanel>
                                         <ItemsPresenter/>
-                                        <TextBlock Text="No items in recycle bin"
+                                        <TextBlock Text="{loc:Str Scratchpad.Bin.NoItems}"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="12"
                                                    HorizontalAlignment="Center"
@@ -540,7 +541,7 @@
                            Margin="20,0,0,0"
                            Padding="6,3"
                            Cursor="Hand"
-                           ToolTip="Click to set zoom"
+                           ToolTip="{loc:Str Scratchpad.Status.ZoomTip}"
                            MouseLeftButtonUp="ZoomLabel_Click"/>
 
                 <Popup x:Name="ZoomPopup"

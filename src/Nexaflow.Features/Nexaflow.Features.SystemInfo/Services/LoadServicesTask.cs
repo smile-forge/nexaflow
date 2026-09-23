@@ -1,12 +1,13 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.Services;
 
 /// <summary>Runs the (blocking) service WMI scan off the UI thread via the shell's activity queue.</summary>
 public sealed class LoadServicesTask(ServicesCollector collector) : IBackgroundTask
 {
-    public string Description => "Gathering Windows services";
+    public string Description => Str.Get("SystemInfo.Task.GatheringServices");
 
     public IReadOnlyList<ServiceRow>? Result { get; private set; }
 

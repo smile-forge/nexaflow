@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
 using Nexaflow.Features.SystemInfo.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
 
@@ -16,9 +17,9 @@ public sealed class ServicesPageRegistration(IShellServices shellServices) : IPa
     {
         var page = new Page
         {
-            Title       = "Services",
+            Title       = Str.Get("SystemInfo.Page.Services"),
             Icon        = "⚙️",
-            Breadcrumbs = { new BreadcrumbSegment { Label = "Services" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.Services") } },
         };
         // Capture the page so background work is cancelled when the tab is permanently closed.
         page.ContentFactory = () =>

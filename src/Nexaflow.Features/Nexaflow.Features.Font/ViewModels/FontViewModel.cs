@@ -14,6 +14,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Font.ClientTools;
 using Nexaflow.Features.Font.Decoding;
 using Nexaflow.Features.Font.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.ViewModels;
 
@@ -123,7 +124,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
             if (uri is null)
             {
                 var ext = Path.GetExtension(path);
-                first = AddFailed(path, $"WPF can't render {ext} fonts (only .ttf/.otf/.ttc, and .woff via decode).");
+                first = AddFailed(path, Str.Format("Font.Error.UnsupportedFormat", ext));
             }
             else
             {
@@ -131,7 +132,7 @@ public sealed partial class FontViewModel : ObservableObject, IPageViewModel, IC
                     StringComparison.OrdinalIgnoreCase);
                 var families = FontFileLoader.LoadFamilies(uri);
                 if (families.Count == 0)
-                    first = AddFailed(path, "No font families found in the file.");
+                    first = AddFailed(path, Str.Get("Font.Error.NoFamilies"));
                 foreach (var family in families)
                 {
                     var item = FontItemViewModel.FromFile(family, path, decoded);

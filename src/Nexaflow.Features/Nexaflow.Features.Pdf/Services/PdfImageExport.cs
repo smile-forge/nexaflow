@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf.Services;
 
@@ -40,7 +41,7 @@ internal static class PdfImageExport
 
         if (!ok && results.Count == 0)
         {
-            shell.ShowError("Extracting images failed.");
+            shell.ShowError(Str.Get("Pdf.Extract.Failed"));
             return;
         }
 
@@ -51,37 +52,38 @@ internal static class PdfImageExport
         if (extracted == 0 && failed.Count == results.Count)
         {
             shell.ShowError(results.Count == 1
-                ? $"{Name(results[0].PdfPath)} {results[0].Error}."
-                : $"None of the {results.Count} PDFs could be read.");
+                ? Str.Format("Pdf.Extract.FileErrorFormat", Name(results[0].PdfPath), results[0].Error)
+                : Str.Format("Pdf.Extract.NoneReadableFormat", results.Count));
             return;
         }
 
         if (extracted == 0)
         {
             shell.ShowNotification(results.Count == 1
-                ? $"No images found in {Name(results[0].PdfPath)}."
-                : $"No images found in the {results.Count} selected PDFs.");
+                ? Str.Format("Pdf.Extract.NoImagesOneFormat", Name(results[0].PdfPath))
+                : Str.Format("Pdf.Extract.NoImagesManyFormat", results.Count));
             return;
         }
 
         var message = results.Count == 1
-            ? $"Extracted {Count(extracted)} from {Name(results[0].PdfPath)}"
-            : $"Extracted {Count(extracted)} from {results.Count - failed.Count} PDFs";
+            ? Str.Format("Pdf.Extract.DoneOneFormat", Count(extracted), Name(results[0].PdfPath))
+            : Str.Format("Pdf.Extract.DoneManyFormat", Count(extracted), results.Count - failed.Count);
 
         // Skipped images are worth naming: silence would make "40 images, 3 extracted" look like data loss.
         var duplicates = results.Sum(r => r.Duplicates);
         var undecodable = results.Sum(r => r.Undecodable);
         var notes = new List<string>();
-        if (duplicates > 0)  notes.Add($"{duplicates} repeated");
-        if (undecodable > 0) notes.Add($"{undecodable} in an unsupported format");
-        if (failed.Count > 0) notes.Add($"{failed.Count} unreadable");
-        if (notes.Count > 0) message += $" ({string.Join(", ", notes)} skipped)";
+        if (duplicates > 0)  notes.Add(Str.Format("Pdf.Extract.RepeatedFormat", duplicates));
+        if (undecodable > 0) notes.Add(Str.Format("Pdf.Extract.UnsupportedFormat", undecodable));
+        if (failed.Count > 0) notes.Add(Str.Format("Pdf.Extract.UnreadableFormat", failed.Count));
 
-        shell.ShowNotification(message + ".");
+        shell.ShowNotification(notes.Count > 0
+            ? Str.Format("Pdf.Extract.SkippedFormat", message, string.Join(", ", notes))
+            : Str.Format("Pdf.Extract.DoneSentenceFormat", message));
         shell.RequestRefresh();
     }
 
     private static string Name(string path) => Path.GetFileName(path);
 
-    private static string Count(int n) => n == 1 ? "1 image" : $"{n} images";
+    private static string Count(int n) => n == 1 ? Str.Get("Pdf.Extract.ImagesOne") : Str.Format("Pdf.Extract.ImagesManyFormat", n);
 }

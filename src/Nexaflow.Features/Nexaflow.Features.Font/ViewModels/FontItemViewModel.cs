@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.ViewModels;
 
@@ -56,9 +57,9 @@ public sealed partial class FontItemViewModel : ObservableObject
             decoded: false, canRender: false, error: error);
 
     public string SourceLabel =>
-        !CanRender ? "Could not load"
-        : SourcePath is null ? "Installed"
-        : IsDecoded ? "WOFF → decoded"
+        !CanRender ? Str.Get("Font.Source.CouldNotLoad")
+        : SourcePath is null ? Str.Get("Font.Source.Installed")
+        : IsDecoded ? Str.Get("Font.Source.WoffDecoded")
         : SourcePath;
 
     // ── Faces (lazy) ─────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ public sealed partial class FontItemViewModel : ObservableObject
     {
         get
         {
-            if (!CanRender) return [new DetailRow("Status", LoadError ?? "Could not load font.")];
+            if (!CanRender) return [new DetailRow(Str.Get("Font.Detail.Status"), LoadError ?? Str.Get("Font.Detail.CouldNotLoadFont"))];
             var rows = new List<DetailRow>();
             AddIdentityRows(rows, Representative, SelectedFace ?? Representative);
             return rows;
@@ -147,12 +148,12 @@ public sealed partial class FontItemViewModel : ObservableObject
     /// two can never drift.</summary>
     private void AddIdentityRows(List<DetailRow> rows, FontFaceViewModel? rep, FontFaceViewModel? face)
     {
-        Add(rows, "Family", DisplayName);
-        Add(rows, "Face", face?.FaceName);
-        Add(rows, "Sample text", face?.SampleText);
-        Add(rows, "Source", SourceLabel);
-        Add(rows, "Format", DescribeFormat(rep));
-        Add(rows, "Faces in file", Faces.Count.ToString());
+        Add(rows, Str.Get("Font.Detail.Family"), DisplayName);
+        Add(rows, Str.Get("Font.Detail.Face"), face?.FaceName);
+        Add(rows, Str.Get("Font.Detail.SampleText"), face?.SampleText);
+        Add(rows, Str.Get("Font.Detail.Source"), SourceLabel);
+        Add(rows, Str.Get("Font.Detail.Format"), DescribeFormat(rep));
+        Add(rows, Str.Get("Font.Detail.FacesInFile"), Faces.Count.ToString());
     }
 
     partial void OnSelectedFaceChanged(FontFaceViewModel? oldValue, FontFaceViewModel? newValue)
@@ -183,8 +184,8 @@ public sealed partial class FontItemViewModel : ObservableObject
         var rows = new List<DetailRow>();
         if (!CanRender)
         {
-            rows.Add(DetailRow.Header("Font"));
-            rows.Add(new DetailRow("Status", LoadError ?? "Could not load font."));
+            rows.Add(DetailRow.Header(Str.Get("Font.Detail.Header.Font")));
+            rows.Add(new DetailRow(Str.Get("Font.Detail.Status"), LoadError ?? Str.Get("Font.Detail.CouldNotLoadFont")));
             return rows;
         }
 
@@ -192,7 +193,7 @@ public sealed partial class FontItemViewModel : ObservableObject
         var face = SelectedFace ?? rep;
 
         // Identity
-        rows.Add(DetailRow.Header("Identity"));
+        rows.Add(DetailRow.Header(Str.Get("Font.Detail.Header.Identity")));
         AddIdentityRows(rows, rep, face);
 
         // Style & metrics (per selected face)
@@ -201,22 +202,22 @@ public sealed partial class FontItemViewModel : ObservableObject
         // Legal & licensing (family-level, from the representative face)
         if (rep is not null)
         {
-            var legal = new List<DetailRow> { DetailRow.Header("Legal & licensing") };
-            Add(legal, "Copyright", FontNames.Pick(rep.Glyph.Copyrights));
-            Add(legal, "Trademark", FontNames.Pick(rep.Glyph.Trademarks));
-            Add(legal, "License", FontNames.Pick(rep.Glyph.LicenseDescriptions));
-            Add(legal, "Embedding rights", rep.Glyph.EmbeddingRights.ToString());
-            Add(legal, "Manufacturer", FontNames.Pick(rep.Glyph.ManufacturerNames));
-            Add(legal, "Designer", FontNames.Pick(rep.Glyph.DesignerNames));
-            Add(legal, "Designer URL", FontNames.Pick(rep.Glyph.DesignerUrls));
-            Add(legal, "Vendor URL", FontNames.Pick(rep.Glyph.VendorUrls));
+            var legal = new List<DetailRow> { DetailRow.Header(Str.Get("Font.Detail.Header.Legal")) };
+            Add(legal, Str.Get("Font.Detail.Copyright"), FontNames.Pick(rep.Glyph.Copyrights));
+            Add(legal, Str.Get("Font.Detail.Trademark"), FontNames.Pick(rep.Glyph.Trademarks));
+            Add(legal, Str.Get("Font.Detail.License"), FontNames.Pick(rep.Glyph.LicenseDescriptions));
+            Add(legal, Str.Get("Font.Detail.EmbeddingRights"), rep.Glyph.EmbeddingRights.ToString());
+            Add(legal, Str.Get("Font.Detail.Manufacturer"), FontNames.Pick(rep.Glyph.ManufacturerNames));
+            Add(legal, Str.Get("Font.Detail.Designer"), FontNames.Pick(rep.Glyph.DesignerNames));
+            Add(legal, Str.Get("Font.Detail.DesignerUrl"), FontNames.Pick(rep.Glyph.DesignerUrls));
+            Add(legal, Str.Get("Font.Detail.VendorUrl"), FontNames.Pick(rep.Glyph.VendorUrls));
             if (legal.Count > 1) rows.AddRange(legal);
 
             // Technical
-            var tech = new List<DetailRow> { DetailRow.Header("Technical") };
-            Add(tech, "Version", FontNames.Pick(rep.Glyph.VersionStrings) ?? rep.Glyph.Version.ToString("0.0"));
-            Add(tech, "Font file", rep.Glyph.FontUri?.LocalPath);
-            Add(tech, "Description", FontNames.Pick(rep.Glyph.Descriptions));
+            var tech = new List<DetailRow> { DetailRow.Header(Str.Get("Font.Detail.Header.Technical")) };
+            Add(tech, Str.Get("Font.Detail.Version"), FontNames.Pick(rep.Glyph.VersionStrings) ?? rep.Glyph.Version.ToString("0.0"));
+            Add(tech, Str.Get("Font.Detail.FontFile"), rep.Glyph.FontUri?.LocalPath);
+            Add(tech, Str.Get("Font.Detail.Description"), FontNames.Pick(rep.Glyph.Descriptions));
             if (tech.Count > 1) rows.AddRange(tech);
         }
 
@@ -269,10 +270,10 @@ public sealed partial class FontItemViewModel : ObservableObject
         get
         {
             int total = AllCodePoints.Count;
-            if (total == 0) return "No glyphs.";
+            if (total == 0) return Str.Get("Font.Glyphs.None");
             int start = GlyphPage * GlyphPageSize + 1;
             int end = Math.Min(start + GlyphPageSize - 1, total);
-            return $"Glyphs {start:N0}–{end:N0} of {total:N0}";
+            return Str.Format("Font.Glyphs.PageFormat", start, end, total);
         }
     }
 

@@ -6,6 +6,7 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Font;
 
@@ -331,7 +332,7 @@ public class FontViewModelTests
 
         // Whatever the identity group shows in the details panel is what the preview shows — same source.
         var fromDetails = item.Details
-            .SkipWhile(r => !(r.IsHeader && r.Label == "Identity")).Skip(1)
+            .SkipWhile(r => !(r.IsHeader && r.Label == Str.Get("Font.Detail.Header.Identity"))).Skip(1)
             .TakeWhile(r => !r.IsHeader)
             .Select(r => $"{r.Label}={r.Value}")
             .ToArray();

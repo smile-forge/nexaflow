@@ -1,0 +1,3 @@
+{
+  "Web.Runtime.Description": "Renders PDFs and web pages inside Nexaflow. Without it those tabs fall back to a summary panel and offer to open the file in your default application instead."
+}

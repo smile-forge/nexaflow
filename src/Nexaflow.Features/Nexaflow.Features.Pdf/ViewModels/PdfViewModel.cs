@@ -6,6 +6,7 @@ using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.Reading;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -70,7 +71,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     private bool _isMetadataLoading = true;
 
     /// <summary>What the panel says while it has nothing else to show — loading, or why it never will.</summary>
-    [ObservableProperty] private string _panelStatus = "Reading document…";
+    [ObservableProperty] private string _panelStatus = Str.Get("Pdf.Panel.Reading");
 
     [ObservableProperty] private bool _isPanelOpen = true;
 
@@ -89,8 +90,8 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     /// <summary>Shown in the Contents tab when the document simply has no outline — the common case.</summary>
     public string ContentsEmptyMessage => IsMetadataLoading
-        ? "Reading document…"
-        : "This PDF has no table of contents.";
+        ? Str.Get("Pdf.Panel.Reading")
+        : Str.Get("Pdf.Panel.NoContents");
 
     /// <summary>
     /// Whether the renderer honours "go to page N". Probed on the first jump: some builds of the embedded
@@ -151,6 +152,9 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
     // ── Panel load ────────────────────────────────────────────────────────
 
+    /// <summary>The document's own metadata once read — what <see cref="GetContext"/> describes, independent of the translated property rows.</summary>
+    private PdfDocumentInfo? _info;
+
     /// <summary>
     /// Reads everything cheap about the document and fills the panel. Runs entirely off the UI thread; the
     /// renderer paints in parallel and never waits for this.
@@ -178,13 +182,13 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
         if (info is null)
         {
-            PanelStatus = "Nexaflow couldn't read this PDF's structure — it may be damaged, or protected "
-                        + "with a password. The page view above may still render it.";
+            PanelStatus = Str.Get("Pdf.Panel.Unreadable");
             IsMetadataLoading = false;
             OnPropertyChanged(nameof(ContentsEmptyMessage));
             return;
         }
 
+        _info = info;
         foreach (var row in BuildPropertyRows(info)) Properties.Add(row);
         foreach (var entry in info.Outline)
             Contents.Add(new PdfOutlineItem(entry.Title, entry.Level, entry.PageNumber, entry.OffsetFromTop)
@@ -205,31 +209,31 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     /// </summary>
     private IEnumerable<PdfInfoRow> BuildPropertyRows(PdfDocumentInfo info)
     {
-        yield return new PdfInfoRow("File", FileName);
+        yield return new PdfInfoRow(Str.Get("Pdf.Property.File"), FileName);
 
         var size = TryFileSize();
-        if (size is long bytes) yield return new PdfInfoRow("Size", SizeFormatter.FormatBytes(bytes));
+        if (size is long bytes) yield return new PdfInfoRow(Str.Get("Pdf.Property.Size"), SizeFormatter.FormatBytes(bytes));
 
-        yield return new PdfInfoRow("Pages", info.PageCount.ToString());
-        yield return new PdfInfoRow("PDF version", info.PdfVersion);
+        yield return new PdfInfoRow(Str.Get("Pdf.Property.Pages"), info.PageCount.ToString());
+        yield return new PdfInfoRow(Str.Get("Pdf.Property.PdfVersion"), info.PdfVersion);
 
         if (info.IsEncrypted)
             // Worth saying plainly: the document IS encrypted, and it opened anyway because it only carries
             // an owner password (a "no copying" flag any reader ignores). Claiming it isn't protected would
             // be wrong; claiming we broke a password would be worse.
-            yield return new PdfInfoRow("Protection", "Protected — opened read-only");
+            yield return new PdfInfoRow(Str.Get("Pdf.Property.Protection"), Str.Get("Pdf.Property.Protected"));
 
         if (info.HasForm)
-            yield return new PdfInfoRow("Form", $"{info.FormFieldCount} field{(info.FormFieldCount == 1 ? "" : "s")}");
+            yield return new PdfInfoRow(Str.Get("Pdf.Property.Form"), info.FormFieldCount == 1 ? Str.Format("Pdf.Property.FieldsOneFormat", info.FormFieldCount) : Str.Format("Pdf.Property.FieldsManyFormat", info.FormFieldCount));
 
-        if (info.Title      is { } t) yield return new PdfInfoRow("Title", t);
-        if (info.Author     is { } a) yield return new PdfInfoRow("Author", a);
-        if (info.Subject    is { } s) yield return new PdfInfoRow("Subject", s);
-        if (info.Keywords   is { } k) yield return new PdfInfoRow("Keywords", k);
-        if (info.Creator    is { } c) yield return new PdfInfoRow("Creator", c);
-        if (info.Producer   is { } p) yield return new PdfInfoRow("Producer", p);
-        if (info.CreationDate is { } cd) yield return new PdfInfoRow("Created", cd);
-        if (info.ModifiedDate is { } md) yield return new PdfInfoRow("Modified", md);
+        if (info.Title      is { } t) yield return new PdfInfoRow(Str.Get("Pdf.Property.Title"), t);
+        if (info.Author     is { } a) yield return new PdfInfoRow(Str.Get("Pdf.Property.Author"), a);
+        if (info.Subject    is { } s) yield return new PdfInfoRow(Str.Get("Pdf.Property.Subject"), s);
+        if (info.Keywords   is { } k) yield return new PdfInfoRow(Str.Get("Pdf.Property.Keywords"), k);
+        if (info.Creator    is { } c) yield return new PdfInfoRow(Str.Get("Pdf.Property.Creator"), c);
+        if (info.Producer   is { } p) yield return new PdfInfoRow(Str.Get("Pdf.Property.Producer"), p);
+        if (info.CreationDate is { } cd) yield return new PdfInfoRow(Str.Get("Pdf.Property.Created"), cd);
+        if (info.ModifiedDate is { } md) yield return new PdfInfoRow(Str.Get("Pdf.Property.Modified"), md);
     }
 
     private long? TryFileSize()
@@ -254,8 +258,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
 
         var max = (long)_config.ViewerMaxFileSizeMb * 1024 * 1024;
         return bytes > max
-            ? $"This PDF is {SizeFormatter.FormatBytes(bytes)}, past the {_config.ViewerMaxFileSizeMb} MB "
-              + "limit for reading a document's structure. The page view above still renders it."
+            ? Str.Format("Pdf.Panel.OversizeFormat", SizeFormatter.FormatBytes(bytes), _config.ViewerMaxFileSizeMb)
             : null;
     }
 
@@ -347,7 +350,7 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
     {
         if (Properties.Count == 0) return;
         try { System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, Properties)); }
-        catch { _shell.ShowError("Couldn't copy to the clipboard."); }
+        catch { _shell.ShowError(Str.Get("Pdf.Error.Clipboard")); }
     }
 
     /// <summary>Copies the whole table of contents, indentation and page numbers included.</summary>
@@ -380,13 +383,12 @@ public sealed partial class PdfViewModel : ObservableObject, IPageViewModel, IDi
         var sb = new StringBuilder();
         sb.Append($"PDF reader: '{FileName}'");
 
-        var pages = Properties.FirstOrDefault(p => p.Label == "Pages")?.Value;
-        if (pages is not null) sb.Append($", {pages} page(s)");
-
-        if (Properties.FirstOrDefault(p => p.Label == "Title")?.Value is { } title)
-            sb.Append($", titled \"{title}\"");
-        if (Properties.FirstOrDefault(p => p.Label == "Author")?.Value is { } author)
-            sb.Append($", by {author}");
+        if (_info is { } info)
+        {
+            sb.Append($", {info.PageCount} page(s)");
+            if (info.Title is { } title) sb.Append($", titled \"{title}\"");
+            if (info.Author is { } author) sb.Append($", by {author}");
+        }
 
         sb.Append('.');
 

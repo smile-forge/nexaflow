@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.ViewModels;
 
@@ -32,7 +33,7 @@ public sealed partial class FontFaceViewModel : ObservableObject
         Glyph.Weight == FontWeights.Normal &&
         Glyph.Stretch == FontStretches.Normal;
 
-    public string FaceName => FontNames.Pick(Glyph.FaceNames) ?? "Regular";
+    public string FaceName => FontNames.Pick(Glyph.FaceNames) ?? Str.Get("Font.Detail.Regular");
 
     /// <summary>Chip caption in the Faces strip.</summary>
     public string ChipLabel => FaceName;
@@ -48,19 +49,19 @@ public sealed partial class FontFaceViewModel : ObservableObject
 
     private List<DetailRow> BuildMetricRows()
     {
-        var rows = new List<DetailRow> { DetailRow.Header("Style & metrics") };
-        Add(rows, "Weight", DescribeWeight(Glyph.Weight));
-        Add(rows, "Style", Glyph.Style.ToString());
-        Add(rows, "Stretch", Glyph.Stretch.ToString());
-        Add(rows, "Symbol font", Glyph.Symbol ? "Yes" : "No");
-        Add(rows, "Glyphs", Glyph.GlyphCount.ToString(CultureInfo.InvariantCulture));
-        Add(rows, "Mapped characters", Glyph.CharacterToGlyphMap.Count.ToString(CultureInfo.InvariantCulture));
-        Add(rows, "Cap height", Em(Glyph.CapsHeight));
-        Add(rows, "x-height", Em(Glyph.XHeight));
-        Add(rows, "Height", Em(Glyph.Height));
-        Add(rows, "Baseline", Em(Glyph.Baseline));
-        Add(rows, "Underline", $"{Em(Glyph.UnderlinePosition)} @ {Em(Glyph.UnderlineThickness)}");
-        Add(rows, "Strikethrough", $"{Em(Glyph.StrikethroughPosition)} @ {Em(Glyph.StrikethroughThickness)}");
+        var rows = new List<DetailRow> { DetailRow.Header(Str.Get("Font.Detail.Header.StyleMetrics")) };
+        Add(rows, Str.Get("Font.Detail.Weight"), DescribeWeight(Glyph.Weight));
+        Add(rows, Str.Get("Font.Detail.Style"), Glyph.Style.ToString());
+        Add(rows, Str.Get("Font.Detail.Stretch"), Glyph.Stretch.ToString());
+        Add(rows, Str.Get("Font.Detail.SymbolFont"), Glyph.Symbol ? Str.Get("Font.Detail.Yes") : Str.Get("Font.Detail.No"));
+        Add(rows, Str.Get("Font.Detail.Glyphs"), Glyph.GlyphCount.ToString(CultureInfo.InvariantCulture));
+        Add(rows, Str.Get("Font.Detail.MappedCharacters"), Glyph.CharacterToGlyphMap.Count.ToString(CultureInfo.InvariantCulture));
+        Add(rows, Str.Get("Font.Detail.CapHeight"), Em(Glyph.CapsHeight));
+        Add(rows, Str.Get("Font.Detail.XHeight"), Em(Glyph.XHeight));
+        Add(rows, Str.Get("Font.Detail.Height"), Em(Glyph.Height));
+        Add(rows, Str.Get("Font.Detail.Baseline"), Em(Glyph.Baseline));
+        Add(rows, Str.Get("Font.Detail.Underline"), $"{Em(Glyph.UnderlinePosition)} @ {Em(Glyph.UnderlineThickness)}");
+        Add(rows, Str.Get("Font.Detail.Strikethrough"), $"{Em(Glyph.StrikethroughPosition)} @ {Em(Glyph.StrikethroughThickness)}");
         return rows;
     }
 
@@ -72,5 +73,5 @@ public sealed partial class FontFaceViewModel : ObservableObject
     private static string Em(double v) => v.ToString("0.###", CultureInfo.InvariantCulture) + " em";
 
     private static string DescribeWeight(FontWeight w) =>
-        w == FontWeights.Normal ? "Regular (400)" : $"{w} ({w.ToOpenTypeWeight()})";
+        w == FontWeights.Normal ? Str.Format("Font.Detail.RegularWeightFormat", 400) : $"{w} ({w.ToOpenTypeWeight()})";
 }

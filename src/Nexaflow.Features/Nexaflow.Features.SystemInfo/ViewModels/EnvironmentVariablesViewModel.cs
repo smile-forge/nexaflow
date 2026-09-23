@@ -9,6 +9,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.SystemInfo.ClientTools;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Features.SystemInfo.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.ViewModels;
 
@@ -210,15 +211,16 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
     private async Task Delete()
     {
         if (SelectedVariable is not { } row) return;
-        var confirmed = await _shell.ConfirmAsync("Delete variable",
-            $"Delete {Scope(row.Scope)} variable '{row.Name}'?");
+        var confirmed = await _shell.ConfirmAsync(Str.Get("SystemInfo.EnvVars.DeleteTitle"),
+            row.Scope == EnvScope.User ? Str.Format("SystemInfo.EnvVars.DeleteUserFormat", row.Name)
+                                       : Str.Format("SystemInfo.EnvVars.DeleteMachineFormat", row.Name));
         if (confirmed) await DeleteVariableAsync(row.Scope, row.Name);
     }
 
     [RelayCommand]
     private void AddNew()
     {
-        _shell.ShowPrompt("New variable", "Name", "",
+        _shell.ShowPrompt(Str.Get("SystemInfo.EnvVars.NewTitle"), Str.Get("SystemInfo.EnvVars.NewLabel"), "",
             onConfirm: name =>
             {
                 if (!string.IsNullOrWhiteSpace(name))
@@ -272,7 +274,7 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
     private bool TrySetUser(string name, string? value)
     {
         try { Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.User); return true; }
-        catch (Exception ex) { _shell.ShowError($"Could not update '{name}': {ex.Message}"); return false; }
+        catch (Exception ex) { _shell.ShowError(Str.Format("SystemInfo.EnvVars.UpdateFailedFormat", name, ex.Message)); return false; }
     }
 
     internal EnvVarsBundle? Bundle => _bundle;
@@ -291,8 +293,6 @@ public sealed partial class EnvironmentVariablesViewModel : ObservableObject, IP
             $"Use the environment tools to read a full value (e.g. PATH) or to set/delete a variable " +
             $"(user-scope is immediate; machine-scope requires admin approval via a UAC prompt).";
     }
-
-    private static string Scope(EnvScope s) => s == EnvScope.User ? "user" : "machine";
 
     // ── IPageViewModel ──────────────────────────────────────────────────────────────────────────
     public string GetContext() =>

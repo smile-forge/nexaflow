@@ -3,6 +3,7 @@ using Nexaflow.Features.Scratchpad.Converters;
 using Nexaflow.Features.Scratchpad.Services;
 using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Visuals.Common.Layout;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -124,7 +125,7 @@ public partial class ScratchpadView : System.Windows.Controls.UserControl, IKeyb
     public bool IsSelfDrop(IDataObject data, string destinationPath) => false;
 
     public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
-        => "Create post-it";
+        => Str.Get("Scratchpad.Drop.CreatePostIt");
 
     // IDropTarget.Drop carries no coordinates, so intra-app drops land at the viewport centre.
     public new void Drop(IDataObject data, string destinationPath, bool move)

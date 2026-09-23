@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -24,7 +25,7 @@ public sealed class UrlPreviewTask(string url, string attachmentDir) : IBackgrou
     /// <summary>The built preview markdown, or null if nothing useful was extracted.</summary>
     public string? PreviewMarkdown { get; private set; }
 
-    public string Description => $"Fetching preview: {url}";
+    public string Description => Str.Format("Scratchpad.Task.FetchingPreviewFormat", url);
 
     public async Task RunAsync(CancellationToken ct)
     {

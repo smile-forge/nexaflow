@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.FileActions;
 
@@ -11,9 +12,9 @@ public sealed class OpenAsFontAction(IShellServices shell) : IFileAction, ICache
 {
     public static string? StaticExperienceId => "/font";
     public string ExperienceId => "/font";
-    public string ExperienceDescription => "Font file";
+    public string ExperienceDescription => Str.Get("Font.Action.Description");
 
-    public string DisplayName => "As Font";
+    public string DisplayName => Str.Get("Font.Action.AsFont");
     public string Icon => "🔤";
 
     public bool IsDestructive => false;

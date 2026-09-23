@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.FileActions;
 
@@ -27,9 +28,9 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
     public string ExperienceDescription =>
         "Scan the file with the antivirus engine registered on this machine (via AMSI).";
 
-    public string DisplayName => "AV Scan";
+    public string DisplayName => Str.Get("Executable.Inspector.AVScan");
     public string Icon        => "🛡";
-    public string? Tooltip    => "Scan this file with the registered antivirus";
+    public string? Tooltip    => Str.Get("Executable.Inspector.ScanThisFileWithTheRegistered");
 
     public bool IsDestructive         => false;
     public bool SupportsMultipleFiles => true;
@@ -54,8 +55,8 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
     private sealed class ScanTask(IShellServices shell, IReadOnlyList<string> paths) : IBackgroundTask
     {
         public string Description => paths.Count == 1
-            ? $"Scanning {Path.GetFileName(paths[0])}…"
-            : $"Scanning {paths.Count} files…";
+            ? Str.Format("Executable.Av.ScanningOneFormat", Path.GetFileName(paths[0]))
+            : Str.Format("Executable.Av.ScanningManyFormat", paths.Count);
 
         public async Task RunAsync(CancellationToken ct)
         {
@@ -83,8 +84,8 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
             if (threats.Count > 0)
             {
                 shell.ShowError(threats.Count == 1
-                    ? $"Threat found — {threats[0]}"
-                    : $"Threats found in {threats.Count} files:\n{string.Join("\n", threats)}");
+                    ? Str.Format("Executable.Av.ThreatFoundFormat", threats[0])
+                    : Str.Format("Executable.Av.ThreatsFoundFormat", threats.Count, string.Join("\n", threats)));
                 return;
             }
 
@@ -92,13 +93,13 @@ public sealed class AvScanAction(IShellServices shell) : IFileAction, ICacheable
             if (unusable.Count > 0 && clean == 0)
             {
                 shell.ShowError(unusable.Count == 1
-                    ? $"Could not scan — {unusable[0]}"
-                    : $"Could not scan {unusable.Count} files; no antivirus provider answered.");
+                    ? Str.Format("Executable.Av.CouldNotScanFormat", unusable[0])
+                    : Str.Format("Executable.Av.CouldNotScanManyFormat", unusable.Count));
                 return;
             }
 
-            string message = clean == 1 ? "No threat found." : $"No threats found in {clean} files.";
-            if (unusable.Count > 0) message += $" {unusable.Count} could not be scanned.";
+            string message = clean == 1 ? Str.Get("Executable.Av.NoThreat") : Str.Format("Executable.Av.NoThreatsFormat", clean);
+            if (unusable.Count > 0) message = Str.Format("Executable.Av.UnscannedFormat", message, unusable.Count);
             shell.ShowNotification(message);
         }
     }

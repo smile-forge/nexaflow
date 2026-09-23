@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font.ViewModels;
 
@@ -18,7 +19,7 @@ public sealed partial class FontPreviewOptions : ObservableObject
     public string SpecimenText { get; } =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789  &@#$%^*()[]{}/\\.,;:!?—“”";
 
-    [ObservableProperty] private string _previewText = "The quick brown fox jumps over the lazy dog";
+    [ObservableProperty] private string _previewText = Str.Get("Font.Preview.DefaultText");
     [ObservableProperty] private double _previewSizePt = 16;
 
     /// <summary>WPF FontSize is in DIPs (1/96"); the sliders are in points, so convert (pt × 4/3).</summary>

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -35,10 +36,10 @@ public sealed partial class ProcessesViewModel : ISearchable
         // image path would answer "which processes run from a *.exe" — a question this list doesn't ask.
         if (request.HasNameOnlyTerms)
             return Task.FromResult(SearchOutcome.Unsupported(
-                "Filename filters don't apply to the process list — search by name, PID, company or path."));
+                Str.Get("Processes.Search.NoFilenameFilters")));
 
         if (!request.TryValidate(out var invalid))
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("Processes.Search.InvalidRegexFormat", invalid)));
 
         return _shell.RunOnUiAsync(() => Task.FromResult(RunSearch(request, display)));
     }

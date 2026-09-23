@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -69,7 +70,7 @@ public sealed partial class ExecutableViewModel : ISearchable
     private SearchOutcome RunSearch(TextSearchMatcher matcher, SearchRequest request, bool display)
     {
         if (_image is null)
-            return SearchOutcome.Unsupported("The binary is still being parsed.");
+            return SearchOutcome.Unsupported(Str.Get("Executable.Inspector.TheBinaryIsStillBeingParsed"));
 
         var hits = Candidates(SelectedSection)
                    .Where(c => matcher.Matches(TextOf(c)))

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Pdf.FileActions;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Pdf;
@@ -44,6 +45,6 @@ public class ShowPdfActionTests
     {
         var (action, _) = Subject();
 
-        Assert.AreEqual("As Pdf", action.DisplayName);
+        Assert.AreEqual(Str.Get("Pdf.Action.AsPdf"), action.DisplayName);
     }
 }

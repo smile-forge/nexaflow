@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Scratchpad.ViewModels;
 
@@ -61,7 +62,7 @@ public sealed partial class ScratchpadViewModel : ISearchable
     private SearchOutcome RunSearch(TextSearchMatcher matcher, SearchRequest request, bool display)
     {
         if (Notes.Count == 0)
-            return SearchOutcome.None("There are no notes on this board to search.");
+            return SearchOutcome.None(Str.Get("Scratchpad.Search.NoNotes"));
 
         // The recycle bin is deliberately out of scope: a binned note is not on the board, and hiding the
         // board to show one would be a strange answer to "find this".

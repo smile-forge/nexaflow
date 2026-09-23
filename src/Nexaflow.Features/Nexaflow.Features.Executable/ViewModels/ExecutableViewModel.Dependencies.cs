@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -33,7 +34,7 @@ public sealed partial class ExecutableViewModel
 
     private sealed class DependencyTask(ExecutableViewModel owner) : IBackgroundTask
     {
-        public string Description => $"Mapping dependencies of {owner.FileName}…";
+        public string Description => Str.Format("Executable.Task.MappingFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
@@ -68,8 +69,8 @@ public sealed partial class ExecutableViewModel
 
         int expandable = Flatten(graph.Root).Count(n => n.CanExpand);
         DependencySummary = expandable == 0
-            ? $"{graph.NodeCount} modules — everything reachable is shown."
-            : $"{graph.NodeCount} modules · {expandable} can be expanded — click a node's + chip to open it up.";
+            ? Str.Format("Executable.Deps.AllShownFormat", graph.NodeCount)
+            : Str.Format("Executable.Deps.ExpandableFormat", graph.NodeCount, expandable);
     }
 
     private static IEnumerable<DependencyNode> Flatten(DependencyNode node)
@@ -104,17 +105,17 @@ public sealed partial class ExecutableViewModel
 
             var parts = new List<string>(3)
             {
-                SelectedDependencyIsRoot ? "Current file" : node.Kind switch
+                SelectedDependencyIsRoot ? Str.Get("Executable.Inspector.CurrentFile") : node.Kind switch
                 {
-                    DependencyKind.ApiSet  => "API set — resolved by the loader through the API set schema",
-                    DependencyKind.Missing => "Not found on the loader search path",
-                    DependencyKind.Cycle   => "Already shown elsewhere in the tree",
-                    DependencyKind.Elided  => "Not expanded — the walk hit its limit",
-                    _                      => node.Path ?? "Resolved",
+                    DependencyKind.ApiSet  => Str.Get("Executable.Inspector.APISetResolvedByTheLoader"),
+                    DependencyKind.Missing => Str.Get("Executable.Inspector.NotFoundOnTheLoaderSearch"),
+                    DependencyKind.Cycle   => Str.Get("Executable.Inspector.AlreadyShownElsewhereInTheTree"),
+                    DependencyKind.Elided  => Str.Get("Executable.Inspector.NotExpandedTheWalkHitIts"),
+                    _                      => node.Path ?? Str.Get("Executable.Inspector.Resolved"),
                 },
             };
-            if (node.IsDelayLoad) parts.Add("delay-loaded");
-            if (node.Walked)      parts.Add($"{node.Children.Count} modules behind it");
+            if (node.IsDelayLoad) parts.Add(Str.Get("Executable.Deps.DelayLoaded"));
+            if (node.Walked)      parts.Add(Str.Format("Executable.Deps.ModulesBehindFormat", node.Children.Count));
 
             return string.Join(" · ", parts);
         }
@@ -134,12 +135,12 @@ public sealed partial class ExecutableViewModel
         null                                     => string.Empty,
         // The root is the file you opened: the list is empty because nothing here imports *from* it,
         // not because it is a leaf. Saying "nothing is imported" would read as a fact about the file.
-        _ when SelectedDependencyIsRoot          => "This is the file you are inspecting, so nothing here imports from it.",
+        _ when SelectedDependencyIsRoot          => Str.Get("Executable.Inspector.ThisIsTheFileYouAre"),
         { ImportedFunctionCount: 0 } n when n.Kind == DependencyKind.Cycle
-                                                 => "Shown here as a repeat — see the first occurrence for what it is used for.",
-        { ImportedFunctionCount: 0 }             => "Nothing is imported from it by name (it may be bound, or imported by ordinal only).",
-        { ImportedFunctionCount: 1 }             => "The 1 function used from it:",
-        var n                                    => $"The {n.ImportedFunctionCount} functions used from it:",
+                                                 => Str.Get("Executable.Inspector.ShownHereAsARepeatSee"),
+        { ImportedFunctionCount: 0 }             => Str.Get("Executable.Inspector.NothingIsImportedFromItBy"),
+        { ImportedFunctionCount: 1 }             => Str.Get("Executable.Inspector.The1FunctionUsedFromIt"),
+        var n                                    => Str.Format("Executable.Deps.FunctionsUsedCaptionFormat", n.ImportedFunctionCount),
     };
 
     /// <summary>Jumps to the tab that does have the root's function detail.</summary>
@@ -234,19 +235,19 @@ public sealed partial class ExecutableViewModel
     {
         string detail = node.Kind switch
         {
-            DependencyKind.ApiSet  => "API set — resolved by the loader through the API set schema",
-            DependencyKind.Missing => "Not found on the loader search path",
-            DependencyKind.Cycle   => $"already shown above{(node.Path is { } p ? $" — {p}" : "")}",
-            DependencyKind.Elided  => "not expanded (limit reached)",
+            DependencyKind.ApiSet  => Str.Get("Executable.Inspector.APISetResolvedByTheLoader"),
+            DependencyKind.Missing => Str.Get("Executable.Inspector.NotFoundOnTheLoaderSearch"),
+            DependencyKind.Cycle   => node.Path is { } p ? Str.Format("Executable.Deps.AlreadyShownAboveFormat", p) : Str.Get("Executable.Deps.AlreadyShownAbove"),
+            DependencyKind.Elided  => Str.Get("Executable.Inspector.NotExpandedLimitReached"),
             _                      => node.Path ?? "",
         };
         // "N functions used", not "N imports": the number counts what the parent pulls out of this
         // module, which says nothing about how many modules open up behind it.
         if (node.ImportedFunctionCount > 0)
-            detail = $"{node.ImportedFunctionCount} function{(node.ImportedFunctionCount == 1 ? "" : "s")} used · {detail}";
+            detail = node.ImportedFunctionCount == 1 ? Str.Format("Executable.Deps.FunctionUsedFormat", node.ImportedFunctionCount, detail) : Str.Format("Executable.Deps.FunctionsUsedFormat", node.ImportedFunctionCount, detail);
         if (node.Walked && node.Children.Count > 0)
-            detail = $"{node.Children.Count} modules · {detail}";
-        if (node.IsDelayLoad)     detail = "delay-loaded · " + detail;
+            detail = Str.Format("Executable.Deps.ModulesPrefixFormat", node.Children.Count, detail);
+        if (node.IsDelayLoad)     detail = Str.Format("Executable.Deps.DelayLoadedPrefixFormat", detail);
 
         // A tree row is text, so it marks an unopened module with a "+" where the diagram draws a chip.
         var inspector = new InspectorNode(node.CanExpand ? $"+ {node.Name}" : node.Name, detail)
@@ -311,8 +312,7 @@ public sealed partial class ExecutableViewModel
         if (isApiSet)
         {
             _shell.ShowNotification(
-                $"{name} is an API set — a name the loader redirects through the API set schema, " +
-                "not a file on disk.");
+                Str.Format("Executable.Deps.ApiSetNoticeFormat", name));
             return;
         }
 
@@ -322,12 +322,12 @@ public sealed partial class ExecutableViewModel
 
         if (resolved is null || !File.Exists(resolved))
         {
-            _shell.ShowError($"{name} was not found on the loader search path.");
+            _shell.ShowError(Str.Format("Executable.Deps.NotFoundFormat", name));
             return;
         }
 
         string? folder = Path.GetDirectoryName(resolved);
         if (folder is null || !_shell.HandleObject(folder))
-            _shell.ShowError($"Could not open the folder containing {name}.");
+            _shell.ShowError(Str.Format("Executable.Deps.OpenFolderFailedFormat", name));
     }
 }

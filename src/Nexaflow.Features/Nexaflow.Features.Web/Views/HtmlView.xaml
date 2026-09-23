@@ -4,7 +4,8 @@
              xmlns:vw="clr-namespace:Nexaflow.Visuals.Web.Controls;assembly=Nexaflow.Visuals.Web"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="Web_View"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -107,7 +108,7 @@
                             AutomationProperties.AutomationId="Web_Back"
                             IsEnabled="False"
                             Click="Back_Click"
-                            ToolTip="Back"
+                            ToolTip="{loc:Str Web.Toolbar.Back}"
                             Margin="0,0,4,0">
                         <TextBlock Text="◀" FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}"/>
@@ -117,7 +118,7 @@
                             AutomationProperties.AutomationId="Web_Forward"
                             IsEnabled="False"
                             Click="Forward_Click"
-                            ToolTip="Forward">
+                            ToolTip="{loc:Str Web.Toolbar.Forward}">
                         <TextBlock Text="▶" FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
@@ -146,14 +147,14 @@
                     <Button Style="{StaticResource ToolbarBtnStyle}"
                             AutomationProperties.AutomationId="Web_Reload"
                             Click="Reload_Click"
-                            ToolTip="Reload">
+                            ToolTip="{loc:Str Web.Toolbar.Reload}">
                         <TextBlock Text="↺" FontSize="14"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                     </Button>
                     <Button Style="{StaticResource ToolbarBtnStyle}"
                             AutomationProperties.AutomationId="Web_OpenExternal"
                             Click="OpenExternal_Click"
-                            ToolTip="Open in your default browser"
+                            ToolTip="{loc:Str Web.Toolbar.OpenExternal}"
                             Margin="6,0,0,0">
                         <TextBlock Text="↗" FontSize="14"
                                    Foreground="{StaticResource TextMutedBrush}"/>
@@ -167,7 +168,7 @@
                 Background="{StaticResource BgBrush}"
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="10">
-            <TextBlock Text="Loading…"
+            <TextBlock Text="{loc:Str Web.Loading}"
                        Foreground="{StaticResource TextMutedBrush}"
                        FontSize="14"
                        HorizontalAlignment="Center"
@@ -198,7 +199,7 @@
                            HorizontalAlignment="Center"
                            Opacity="0.6"
                            Margin="0,0,0,12"/>
-                <TextBlock Text="Can't show the embedded browser"
+                <TextBlock Text="{loc:Str Web.Fallback.Title}"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="16"
                            FontWeight="SemiBold"
@@ -223,7 +224,7 @@
                         AutomationProperties.AutomationId="Web_FallbackOpenExternal"
                         HorizontalAlignment="Center"
                         Click="OpenExternal_Click"
-                        Content="Open in your default browser"/>
+                        Content="{loc:Str Web.Fallback.OpenExternal}"/>
 
                 <!-- Only shown when the failure is a missing WebView2 runtime -->
                 <TextBlock HorizontalAlignment="Center"
@@ -233,8 +234,8 @@
                            Visibility="{Binding RuntimeMissing, Converter={StaticResource BoolToVis}}">
                     <Hyperlink NavigateUri="https://developer.microsoft.com/en-us/microsoft-edge/webview2/consumer/"
                                Foreground="{StaticResource AccentBrush}"
-                               RequestNavigate="InstallRuntime_RequestNavigate">
-                        Install the Microsoft Edge WebView2 runtime
+                    RequestNavigate="InstallRuntime_RequestNavigate">
+                        <Run Text="{loc:Str Web.Fallback.InstallRuntime}"/>
                     </Hyperlink>
                 </TextBlock>
             </StackPanel>

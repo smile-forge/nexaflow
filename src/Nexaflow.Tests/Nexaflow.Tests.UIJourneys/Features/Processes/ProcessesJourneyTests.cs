@@ -90,7 +90,7 @@ public class ProcessesJourneyTests : UiJourneyTestBase
                 if (row is null) return false;
                 row.RightClick();
                 Wait.UntilInputIsProcessed();
-                return PickMenuItem("View details") && WaitForId("ProcessDetail_Kill", 10) is not null;
+                return PickMenuItemById("Proc_ViewDetails") && WaitForId("ProcessDetail_Kill", 10) is not null;
             });
 
             // ── Header: sampling ──────────────────────────────────────────────────

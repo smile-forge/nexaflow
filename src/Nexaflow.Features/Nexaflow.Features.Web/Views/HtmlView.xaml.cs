@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Web;
 using System;
 using System.Diagnostics;
@@ -107,8 +108,8 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         // Proactively offer to open it externally; the in-tab panel stays as a fallback if they decline.
         if (CanOpenExternally())
             _shell.ShowConfirmation(
-                "Browser unavailable",
-                $"{ViewModel.FailureMessage} Open this page in your default web browser instead?",
+                Str.Get("Web.Fallback.UnavailableTitle"),
+                Str.Format("Web.Fallback.UnavailableFormat", ViewModel.FailureMessage),
                 onConfirm: OpenInDefaultBrowser,
                 onCancel: static () => { });
     }
@@ -119,7 +120,7 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
     {
         e.Handled = true;
         try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception ex) { _shell.ShowError($"Couldn't open the download page: {ex.Message}"); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Web.Error.OpenDownloadPageFormat", ex.Message)); }
     }
 
     private void OpenInDefaultBrowser()
@@ -136,7 +137,7 @@ public partial class HtmlView : UserControl, IPageView, IAirspaceContent, IDispo
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Couldn't open your default browser: {ex.Message}");
+            _shell.ShowError(Str.Format("Web.Error.OpenBrowserFormat", ex.Message));
         }
     }
 

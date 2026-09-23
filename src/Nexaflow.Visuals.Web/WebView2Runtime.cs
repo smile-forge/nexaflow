@@ -1,4 +1,5 @@
 using Microsoft.Web.WebView2.Core;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Visuals.Web;
 
@@ -13,6 +14,10 @@ namespace Nexaflow.Visuals.Web;
 /// </summary>
 public static class WebView2Runtime
 {
+    /// <summary>What the runtime is for, as the About page lists it. Every feature that declares the runtime
+    /// describes it with this, so the merged row reads the same whichever declaration the registry meets first.</summary>
+    public static string Description => Str.Get("Web.Runtime.Description");
+
     /// <summary>
     /// The installed Evergreen runtime's version, or null when it isn't installed. Never throws:
     /// the underlying call throws rather than returning null when no runtime is found, and a machine

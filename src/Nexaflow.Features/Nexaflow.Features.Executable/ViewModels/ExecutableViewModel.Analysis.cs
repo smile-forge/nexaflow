@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -30,11 +31,10 @@ public sealed partial class ExecutableViewModel
     private void BuildAnalysis(PeImage image)
     {
         EntropyBuckets = image.Entropy.Buckets;
-        EntropySummary = $"{image.Entropy.Overall:F3} bits/byte overall · " +
-                         $"{image.Entropy.Buckets.Count} samples of {FormatSize(image.Entropy.BucketBytes)}";
+        EntropySummary = Str.Format("Executable.Analysis.EntropySummaryFormat", image.Entropy.Overall, image.Entropy.Buckets.Count, FormatSize(image.Entropy.BucketBytes));
 
         var entropyRows = image.Sections.Select(s => new InspectorRow(
-            s.Name.Length > 0 ? s.Name : "(unnamed)",
+            s.Name.Length > 0 ? s.Name : Str.Get("Executable.Unnamed"),
             s.Entropy is { } h ? $"{h:F3}" : "—",
             $"{s.Permissions}  {FormatSize(s.RawSize)}",
             s.RawSize > 0 ? Range(s.RawPointer, s.RawSize, s.Name) : null)
@@ -47,12 +47,11 @@ public sealed partial class ExecutableViewModel
         }).ToList();
 
         var packed = PackedSections(image).ToList();
-        AnalysisCards.Add(new InspectorCard("Entropy by section", entropyRows)
+        AnalysisCards.Add(new InspectorCard(Str.Get("Executable.Inspector.EntropyBySection"), entropyRows)
         {
             Note = packed.Count > 0
-                ? $"High entropy in executable code: {string.Join(", ", packed)} — this is what packed or " +
-                  "encrypted code looks like."
-                : "No executable section is above the packing threshold.",
+                ? Str.Format("Executable.Analysis.PackedFormat", string.Join(", ", packed))
+                : Str.Get("Executable.Inspector.NoExecutableSectionIsAboveThe"),
         });
 
         BuildIntegrityCard(image);
@@ -64,8 +63,8 @@ public sealed partial class ExecutableViewModel
         var rows = new List<InspectorRow>();
 
         foreach (var section in image.Sections.Where(s => s.IsWritableExecutable))
-            rows.Add(new InspectorRow(section.Name, "Writable and executable",
-                "Legitimate code rarely needs both") { StatusBrushKey = "DangerBrush" });
+            rows.Add(new InspectorRow(section.Name, Str.Get("Executable.Inspector.WritableAndExecutable"),
+                Str.Get("Executable.Inspector.LegitimateCodeRarelyNeedsBoth")) { StatusBrushKey = "DangerBrush" });
 
         if (image.OptionalHeader is { } oh)
         {
@@ -74,18 +73,18 @@ public sealed partial class ExecutableViewModel
                 { StatusBrushKey = present ? null : "WarningBrush" });
 
             Flag("ASLR",  oh.DllCharacteristics.HasFlag(PeDllCharacteristics.DynamicBase),
-                 "Enabled (DYNAMICBASE)", "Not enabled — the image loads at a fixed address");
+                 Str.Get("Executable.Inspector.EnabledDYNAMICBASE"), Str.Get("Executable.Inspector.NotEnabledTheImageLoadsAt"));
             Flag("DEP",   oh.DllCharacteristics.HasFlag(PeDllCharacteristics.NxCompat),
-                 "Enabled (NXCOMPAT)", "Not enabled");
+                 Str.Get("Executable.Inspector.EnabledNXCOMPAT"), Str.Get("Executable.Inspector.NotEnabled"));
             Flag("CFG",   oh.DllCharacteristics.HasFlag(PeDllCharacteristics.GuardCf),
-                 "Enabled (GUARD_CF)", "Not enabled");
+                 Str.Get("Executable.Inspector.EnabledGUARDCF"), Str.Get("Executable.Inspector.NotEnabled"));
             Flag("SEH",   !oh.DllCharacteristics.HasFlag(PeDllCharacteristics.NoSeh),
-                 "Structured exception handling present", "NO_SEH");
-            Flag("High-entropy ASLR", oh.DllCharacteristics.HasFlag(PeDllCharacteristics.HighEntropyVa),
-                 "Enabled", "Not enabled");
+                 Str.Get("Executable.Inspector.StructuredExceptionHandlingPresent"), "NO_SEH");
+            Flag(Str.Get("Executable.Inspector.HighEntropyASLR"), oh.DllCharacteristics.HasFlag(PeDllCharacteristics.HighEntropyVa),
+                 Str.Get("Executable.Inspector.Enabled"), Str.Get("Executable.Inspector.NotEnabled"));
         }
 
-        AnalysisCards.Add(new InspectorCard("Hardening", rows));
+        AnalysisCards.Add(new InspectorCard(Str.Get("Executable.Inspector.Hardening"), rows));
     }
 
     private void BuildDebugAndTlsCard(PeImage image)
@@ -94,43 +93,43 @@ public sealed partial class ExecutableViewModel
         var debug = image.Debug;
 
         if (debug.Entries.Count > 0)
-            rows.Add(new InspectorRow("Debug directory",
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.DebugDirectory"),
                 string.Join(" · ", debug.Entries.Select(e => e.Type.ToString()))));
 
         if (debug.PdbPath is { Length: > 0 } pdb)
         {
             rows.Add(new InspectorRow("PDB", pdb,
-                debug.PdbGuid is { } guid ? $"{guid:D} age {debug.PdbAge}" : null)
+                debug.PdbGuid is { } guid ? Str.Format("Executable.Analysis.PdbAgeFormat", guid, debug.PdbAge) : null)
             {
                 // An absolute build-machine path is a genuine information leak, not a curiosity.
                 StatusBrushKey = debug.LeaksBuildPath ? "WarningBrush" : null,
             });
             if (debug.LeaksBuildPath)
-                rows.Add(new InspectorRow("Build path", "The PDB path is absolute — it discloses the build machine's layout")
+                rows.Add(new InspectorRow(Str.Get("Executable.Inspector.BuildPath"), Str.Get("Executable.Inspector.ThePDBPathIsAbsoluteIt"))
                 { StatusBrushKey = "WarningBrush" });
         }
 
         if (debug.IsDeterministic)
-            rows.Add(new InspectorRow("Reproducible build",
-                "Yes — the COFF timestamp is a content hash, not a build time"));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.ReproducibleBuild"),
+                Str.Get("Executable.Inspector.YesTheCOFFTimestampIsA")));
         if (debug.HasEmbeddedPdb)
-            rows.Add(new InspectorRow("Embedded PDB", "Symbols are carried inside the image"));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.EmbeddedPDB"), Str.Get("Executable.Inspector.SymbolsAreCarriedInsideTheImage")));
 
         var tls = image.Tls;
         if (!tls.IsPresent)
         {
-            rows.Add(new InspectorRow("TLS", "No thread-local storage directory"));
+            rows.Add(new InspectorRow("TLS", Str.Get("Executable.Inspector.NoThreadLocalStorageDirectory")));
         }
         else
         {
-            rows.Add(new InspectorRow("TLS directory", $"0x{tls.AddressOfCallBacks:X}",
-                $"{tls.Callbacks.Count} callbacks"));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.TLSDirectory"), $"0x{tls.AddressOfCallBacks:X}",
+                Str.Format("Executable.Analysis.TlsCallbacksFormat", tls.Callbacks.Count)));
 
             foreach (var callback in tls.Callbacks)
-                rows.Add(new InspectorRow("TLS callback",
+                rows.Add(new InspectorRow(Str.Get("Executable.Inspector.TLSCallback"),
                     $"0x{callback.VirtualAddress:X}",
-                    callback.FileOffset is { } offset ? $"file offset 0x{offset:X}" : "unmapped",
-                    callback.FileOffset is { } o ? Range(o, 64, "TLS callback") : null)
+                    callback.FileOffset is { } offset ? Str.Format("Executable.Analysis.FileOffsetFormat", offset) : Str.Get("Executable.Analysis.Unmapped"),
+                    callback.FileOffset is { } o ? Range(o, 64, Str.Get("Executable.Inspector.TLSCallback")) : null)
                 {
                     // A TLS callback runs before the entry point on every thread attach — the classic
                     // anti-debugging and unpacking hook.
@@ -138,12 +137,11 @@ public sealed partial class ExecutableViewModel
                 });
 
             if (tls.HasCallbacks)
-                rows.Add(new InspectorRow("Note",
-                    "TLS callbacks run before the entry point on every thread attach — a common " +
-                    "anti-analysis and self-unpacking technique."));
+                rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Note"),
+                    Str.Get("Executable.Analysis.TlsNote")));
         }
 
-        AnalysisCards.Add(new InspectorCard("Debug & TLS", rows));
+        AnalysisCards.Add(new InspectorCard(Str.Get("Executable.Inspector.DebugTLS"), rows));
     }
 
     // ── Signature (lazy) ──────────────────────────────────────────────────────
@@ -159,7 +157,7 @@ public sealed partial class ExecutableViewModel
 
     private sealed class SignatureTask(ExecutableViewModel owner) : IBackgroundTask
     {
-        public string Description => $"Verifying {owner.FileName}…";
+        public string Description => Str.Format("Executable.Task.VerifyingFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
@@ -197,15 +195,15 @@ public sealed partial class ExecutableViewModel
 
         var rows = new List<InspectorRow>
         {
-            new("Verdict", security.Verdict switch
+            new(Str.Get("Executable.Inspector.Verdict"), security.Verdict switch
             {
-                PeTrustVerdict.Valid     => "Valid and trusted",
-                PeTrustVerdict.Unsigned  => "Not signed",
-                PeTrustVerdict.Untrusted => "Signed, but not trusted",
-                PeTrustVerdict.Expired   => "Signed with an expired certificate",
-                PeTrustVerdict.Revoked   => "Signed with a revoked certificate",
-                PeTrustVerdict.Malformed => "The signature is present but invalid",
-                _                        => "Not checked",
+                PeTrustVerdict.Valid     => Str.Get("Executable.Inspector.ValidAndTrusted"),
+                PeTrustVerdict.Unsigned  => Str.Get("Executable.Inspector.NotSigned"),
+                PeTrustVerdict.Untrusted => Str.Get("Executable.Inspector.SignedButNotTrusted"),
+                PeTrustVerdict.Expired   => Str.Get("Executable.Inspector.SignedWithAnExpiredCertificate"),
+                PeTrustVerdict.Revoked   => Str.Get("Executable.Inspector.SignedWithARevokedCertificate"),
+                PeTrustVerdict.Malformed => Str.Get("Executable.Inspector.TheSignatureIsPresentButInvalid"),
+                _                        => Str.Get("Executable.Inspector.NotChecked"),
             })
             {
                 StatusBrushKey = security.Verdict switch
@@ -219,34 +217,34 @@ public sealed partial class ExecutableViewModel
         };
 
         if (security.VerdictDetail is { Length: > 0 } detail)
-            rows.Add(new InspectorRow("Detail", detail));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Detail"), detail));
 
         if (security.IsCatalogSigned && security.CatalogPath is { } catalog)
-            rows.Add(new InspectorRow("Catalog", Path.GetFileName(catalog), catalog));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Catalog"), Path.GetFileName(catalog), catalog));
 
         if (security.Signer is { } signer)
         {
-            rows.Add(new InspectorRow("Signer", signer.CommonName, signer.Subject));
-            rows.Add(new InspectorRow("Issuer", signer.Issuer));
-            rows.Add(new InspectorRow("Thumbprint", signer.Thumbprint));
-            rows.Add(new InspectorRow("Valid", $"{signer.NotBefore:u} → {signer.NotAfter:u}")
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Signer"), signer.CommonName, signer.Subject));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Issuer"), signer.Issuer));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Thumbprint"), signer.Thumbprint));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Valid"), $"{signer.NotBefore:u} → {signer.NotAfter:u}")
             { StatusBrushKey = signer.IsExpired ? "WarningBrush" : null });
         }
-        if (security.DigestAlgorithm is { } digest) rows.Add(new InspectorRow("Digest", digest));
+        if (security.DigestAlgorithm is { } digest) rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Digest"), digest));
         if (security.SigningTime is { } signed)
-            rows.Add(new InspectorRow("Timestamped", signed.ToString("u"),
-                "the chain is validated as at this time"));
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Timestamped"), signed.ToString("u"),
+                Str.Get("Executable.Inspector.TheChainIsValidatedAsAt")));
 
         foreach (var element in security.Chain)
-            rows.Add(new InspectorRow("Chain", element.Certificate.CommonName,
+            rows.Add(new InspectorRow(Str.Get("Executable.Inspector.Chain"), element.Certificate.CommonName,
                 element.IsOk ? "OK" : string.Join("; ", element.StatusMessages))
             { StatusBrushKey = element.IsOk ? null : "DangerBrush" });
 
-        AnalysisCards.Insert(0, new InspectorCard("Signature", rows));
+        AnalysisCards.Insert(0, new InspectorCard(Str.Get("Executable.Inspector.Signature"), rows));
 
         AntivirusProduct = products.Count > 0
             ? string.Join(", ", products.Select(p => $"{p.Name} ({p.Status})"))
-            : "No antivirus product is registered with Windows Security Center.";
+            : Str.Get("Executable.Inspector.NoAntivirusProductIsRegisteredWith");
     }
 
     // ── Antivirus scan ────────────────────────────────────────────────────────
@@ -256,7 +254,7 @@ public sealed partial class ExecutableViewModel
     {
         if (ScanRunning) return;
         ScanRunning = true;
-        ScanResult  = "Scanning…";
+        ScanResult  = Str.Get("Executable.Inspector.Scanning");
         ScanBrushKey = null;
 
         _shell.QueueBackgroundTask(new ScanTask(this), ct: _cts.Token);
@@ -264,23 +262,22 @@ public sealed partial class ExecutableViewModel
 
     private sealed class ScanTask(ExecutableViewModel owner) : IBackgroundTask
     {
-        public string Description => $"Scanning {owner.FileName}…";
+        public string Description => Str.Format("Executable.Task.ScanningFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
             var result = await Task.Run(
                 () => OperatingSystem.IsWindows()
                     ? AmsiScanner.ScanFile(owner.FilePath, ct)
-                    : new AmsiResult(AmsiVerdict.Unavailable, 0, "AMSI is only available on Windows.", false),
+                    : new AmsiResult(AmsiVerdict.Unavailable, 0, Str.Get("Executable.Inspector.AMSIIsOnlyAvailableOnWindows"), false),
                 ct);
 
             await owner._shell.RunOnUiAsync(() =>
             {
                 owner.ScanRunning = false;
-                owner.ScanResult  = result.Message + (result.Truncated
-                    ? $" (the file exceeds the {FormatSize(AmsiScanner.MaxScanBytes)} a single AMSI " +
-                      "call can express, so only that much was scanned)"
-                    : "");
+                owner.ScanResult  = result.Truncated
+                    ? Str.Format("Executable.Analysis.TruncatedFormat", result.Message, FormatSize(AmsiScanner.MaxScanBytes))
+                    : result.Message;
                 owner.ScanBrushKey = result.Verdict switch
                 {
                     AmsiVerdict.Clean or AmsiVerdict.NotDetected => "SuccessBrush",
@@ -304,7 +301,7 @@ public sealed partial class ExecutableViewModel
 
     private sealed class StringsTask(ExecutableViewModel owner) : IBackgroundTask
     {
-        public string Description => $"Extracting strings from {owner.FileName}…";
+        public string Description => Str.Format("Executable.Task.ExtractingStringsFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
@@ -336,7 +333,7 @@ public sealed partial class ExecutableViewModel
                         shown,
                         $"0x{hit.Offset:X8}",
                         $"{hit.Encoding}{(hit.Section is { } s ? $"  {s}" : "")}" +
-                        (long_ ? $"  ({hit.Value.Length:N0} chars)" : ""),
+                        (long_ ? "  " + Str.Format("Executable.Strings.CharsFormat", hit.Value.Length) : ""),
                         owner.Range(hit.Offset,
                                     hit.Value.Length * (hit.Encoding == PeStringEncoding.Utf16 ? 2 : 1),
                                     "String"))
@@ -353,9 +350,9 @@ public sealed partial class ExecutableViewModel
                 owner.StringsLoading = false;
                 owner.PublishStrings(rows);
                 owner.StringSummary =
-                    $"{rows.Count:N0} runs of {minimum}+ characters " +
-                    $"({ascii:N0} ASCII, {utf16:N0} UTF-16)" +
-                    (rows.Count >= MaxRows ? " — capped" : "");
+                    rows.Count >= MaxRows
+                        ? Str.Format("Executable.Strings.SummaryCappedFormat", rows.Count, minimum, ascii, utf16)
+                        : Str.Format("Executable.Strings.SummaryFormat", rows.Count, minimum, ascii, utf16);
             });
         }
 
@@ -406,7 +403,7 @@ public sealed partial class ExecutableViewModel
         var  bytes       = isIconGroup ? PeIcons.Build(_image, resource) ?? [] : _image.ReadResource(resource);
         if (bytes.Length == 0)
         {
-            _shell.ShowError("That resource has no readable data.");
+            _shell.ShowError(Str.Get("Executable.Inspector.ThatResourceHasNoReadableData"));
             return;
         }
 
@@ -419,11 +416,11 @@ public sealed partial class ExecutableViewModel
         try
         {
             await File.WriteAllBytesAsync(target, bytes, _cts.Token);
-            _shell.ShowNotification($"Extracted {FormatSize(bytes.Length)} to {Path.GetFileName(target)}");
+            _shell.ShowNotification(Str.Format("Executable.Resources.ExtractedOneFormat", FormatSize(bytes.Length), Path.GetFileName(target)));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            _shell.ShowError($"Could not write the file: {e.Message}");
+            _shell.ShowError(Str.Format("Executable.Resources.WriteFailedFormat", e.Message));
         }
     }
 
@@ -453,8 +450,8 @@ public sealed partial class ExecutableViewModel
         }
 
         _shell.ShowNotification(failed == 0
-            ? $"Extracted {written} resources to {folder}"
-            : $"Extracted {written} resources to {folder}; {failed} could not be written.");
+            ? Str.Format("Executable.Resources.ExtractedAllFormat", written, folder)
+            : Str.Format("Executable.Resources.ExtractedSomeFormat", written, folder, failed));
     }
 
     /// <summary>

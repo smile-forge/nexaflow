@@ -5,6 +5,7 @@ using Nexaflow.Features.Common.ClientTools;
 using Nexaflow.Features.Scratchpad.ClientTools;
 using Nexaflow.Features.Scratchpad.Models;
 using Nexaflow.Features.Scratchpad.Services;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
@@ -241,8 +242,8 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
         if (_shellServices is null) { EmptyRecycleBinConfirmed(); return; }
 
         _shellServices.ShowConfirmation(
-            "Empty Recycle Bin",
-            "Permanently delete all notes in the recycle bin?",
+            Str.Get("Scratchpad.Bin.Empty"),
+            Str.Get("Scratchpad.Bin.EmptyConfirm"),
             onConfirm: EmptyRecycleBinConfirmed,
             onCancel:  () => { });
     }
@@ -369,7 +370,8 @@ public sealed partial class ScratchpadViewModel : ObservableObject, IDisposable,
     }
 
     private void UpdateStatus()
-        => StatusText = $"{Notes.Count} note{(Notes.Count == 1 ? "" : "s")}";
+        => StatusText = Notes.Count == 1 ? Str.Format("Scratchpad.Status.NoteCountOneFormat", Notes.Count)
+                                         : Str.Format("Scratchpad.Status.NoteCountManyFormat", Notes.Count);
 
     private Point ViewportCenter() => new(-OffsetX / Scale + 400, -OffsetY / Scale + 300);
 

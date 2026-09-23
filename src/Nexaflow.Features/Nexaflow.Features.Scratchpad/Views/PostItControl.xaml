@@ -5,7 +5,8 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              Width="{Binding Width}" Height="{Binding Height}"
              RenderTransformOrigin="0.5,0.5"
-             UseLayoutRounding="True">
+             UseLayoutRounding="True"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.RenderTransform>
         <RotateTransform Angle="{Binding Rotation}"/>
@@ -71,7 +72,7 @@
                             CornerRadius="7"
                             Background="#30000000"
                             Cursor="Hand"
-                            ToolTip="Drag to rotate"
+                            ToolTip="{loc:Str Scratchpad.Note.RotateTip}"
                             Margin="0,0,4,0"
                             VerticalAlignment="Center"
                             MouseDown="RotateHandle_MouseDown"
@@ -92,7 +93,7 @@
                             Margin="0,0,4,0"
                             Padding="3,1"
                             CornerRadius="3"
-                            ToolTip="Click to pin/unpin"
+                            ToolTip="{loc:Str Scratchpad.Note.PinTip}"
                             MouseLeftButtonDown="TimerBadge_MouseDown"
                             MouseLeftButtonUp="TimerBadge_Click">
                         <Border.Style>
@@ -117,7 +118,7 @@
                             Width="18" Height="18"
                             VerticalAlignment="Center"
                             Cursor="Hand"
-                            ToolTip="Remove note">
+                            ToolTip="{loc:Str Scratchpad.Note.RemoveTip}">
                         <Button.Style>
                             <Style TargetType="Button">
                                 <Setter Property="Background" Value="Transparent"/>

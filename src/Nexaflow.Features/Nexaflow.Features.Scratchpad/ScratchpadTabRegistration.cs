@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Scratchpad.ViewModels;
 using Nexaflow.Features.Scratchpad.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Scratchpad;
 
@@ -14,9 +15,9 @@ public sealed class ScratchpadTabRegistration(ScratchpadConfig config, IShellSer
 
     public Page CreatePageDefinition(Dictionary<string, string>? pageParams = null) => new()
     {
-        Title       = "Scratchpad",
+        Title       = Str.Get("Scratchpad.Page.Title"),
         Icon        = "📌",
-        Breadcrumbs = {new BreadcrumbSegment { Label = "Scratchpad" }},
+        Breadcrumbs = {new BreadcrumbSegment { Label = Str.Get("Scratchpad.Page.Title") }},
         ContentFactory = () => new ScratchpadView(new ScratchpadViewModel(config, shellServices))
     };
 }

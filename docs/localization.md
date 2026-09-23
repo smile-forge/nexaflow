@@ -44,6 +44,11 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
 - **Keys** are `<Area>.<Surface>.<Element>`. The area is the owning project's short name — `Markdown` for
   `Nexaflow.Features.Markdown` — and Core owns `Shell` and `Help`. Every project's table merges into one, so the
   area is what keeps them apart.
+- **One thing, one key.** Text that several features show for the same thing lives in the shared project they all
+  reference, not once per feature — the WebView2 runtime's description is `WebView2Runtime.Description` in
+  `Nexaflow.Visuals.Web`, read by both the Web and PDF declarations, so they cannot drift apart in translation.
+- **Compare ids, never text.** A row found by its label, or a name matched against a word, breaks the moment the word
+  is translated — keep the invariant value beside the display text and compare that.
 - **Fallback.** A key the active language lacks shows its English text; a key nobody defines shows the key itself
   — visible, never a crash. `Str.Format` shows a translation whose placeholders don't fit its arguments as written
   rather than throwing.

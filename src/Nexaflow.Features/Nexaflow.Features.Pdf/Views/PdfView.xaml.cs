@@ -3,6 +3,7 @@ using Nexaflow.Features.Common.Dependencies;
 using Nexaflow.Features.Pdf.Dependencies;
 using Nexaflow.Features.Pdf.Models;
 using Nexaflow.Features.Pdf.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Web;
 using System;
 using System.Collections.Generic;
@@ -204,8 +205,7 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         ViewModel.SurfaceAvailable = false;
         ViewModel.RuntimeMissing   = false;
         ViewModel.FailureMessage   =
-            "The embedded viewer couldn't be started on this PC. The document's properties and contents "
-            + "are still listed beside this panel.";
+            Str.Get("Pdf.Fallback.SurfaceFailed");
     }
 
     /// <summary>
@@ -217,8 +217,7 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         ViewModel.SurfaceAvailable = false;
         ViewModel.RuntimeMissing   = true;
         ViewModel.FailureMessage   =
-            "The Microsoft Edge WebView2 runtime isn't installed on this PC, so the document can't be "
-            + "shown here. Its properties and contents are still listed beside this panel.";
+            Str.Get("Pdf.Fallback.RuntimeMissing");
     }
 
     private void OpenExternal_Click(object sender, RoutedEventArgs e)
@@ -229,7 +228,7 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Couldn't open the document externally: {ex.Message}");
+            _shell.ShowError(Str.Format("Pdf.Error.OpenExternalFormat", ex.Message));
         }
     }
 
@@ -237,7 +236,7 @@ public partial class PdfView : UserControl, IPageView, IAirspaceContent, IDispos
     {
         e.Handled = true;
         try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception ex) { _shell.ShowError($"Couldn't open the download page: {ex.Message}"); }
+        catch (Exception ex) { _shell.ShowError(Str.Format("Pdf.Error.OpenDownloadPageFormat", ex.Message)); }
     }
 
     // ── IAirspaceContent ──────────────────────────────────────────────────

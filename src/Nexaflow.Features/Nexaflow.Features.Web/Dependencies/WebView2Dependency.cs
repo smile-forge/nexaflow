@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common.Dependencies;
+
 using Nexaflow.Visuals.Web;
 
 namespace Nexaflow.Features.Web.Dependencies;
@@ -7,9 +8,9 @@ namespace Nexaflow.Features.Web.Dependencies;
 /// The Web tab is a WebView2 host, so it needs the Evergreen WebView2 runtime.
 /// <para>
 /// The PDF reader declares the SAME id — the registry merges them into one About row naming both features.
-/// Keep the wording here and in <c>Nexaflow.Features.Pdf</c> identical: the merge keeps whichever
-/// declaration it meets first, so drift between the two would show up as a message that changes depending
-/// on assembly load order.
+/// Keep the name here and in <c>Nexaflow.Features.Pdf</c> identical, and take the description from
+/// <see cref="WebView2Runtime.Description"/>: the merge keeps whichever declaration it meets first, so drift
+/// between the two would show up as a message that changes depending on assembly load order.
 /// </para>
 /// </summary>
 public sealed class WebView2Dependency : IExternalDependency
@@ -21,8 +22,7 @@ public sealed class WebView2Dependency : IExternalDependency
     public string DisplayName => "Microsoft Edge WebView2 Runtime";
 
     public string Description =>
-        "Renders PDFs and web pages inside Nexaflow. Without it those tabs fall back to a summary panel "
-        + "and offer to open the file in your default application instead.";
+        WebView2Runtime.Description;
 
     public ExternalDependencyKind Kind => ExternalDependencyKind.Required;
 
