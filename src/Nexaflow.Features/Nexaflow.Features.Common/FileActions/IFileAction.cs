@@ -18,6 +18,10 @@ namespace Nexaflow.Features.Common
         string Icon { get; }
         string DisplayName { get; }
 
+        /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
+        /// language; an action built once per registered thing (a shell verb, an external app) names that thing.</summary>
+        string AutomationId => GetType().Name;
+
         /// <summary>
         /// Hierarchical experience identifier, e.g. "/binary/installer" or "/image".
         /// FileMapManager uses this to match the action against file selection criteria.

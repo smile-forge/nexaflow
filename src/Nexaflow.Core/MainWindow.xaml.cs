@@ -11,6 +11,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common;
 using TaskStatus = Nexaflow.Core.Models.TaskStatus;
 using WorkspaceRuntime = Nexaflow.Core.Models.WorkspaceRuntime;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -234,7 +235,7 @@ public partial class MainWindow : Window
         base.OnStateChanged(e);
         // Glyph: maximise (E922) when restored, restore (E923) when maximised.
         MaximizeRestoreButton.Content = ((char)(WindowState == WindowState.Maximized ? 0xE923 : 0xE922)).ToString();
-        MaximizeRestoreButton.ToolTip = WindowState == WindowState.Maximized ? "Restore" : "Maximise";
+        MaximizeRestoreButton.ToolTip = WindowState == WindowState.Maximized ? Str.Get("Shell.Caption.Restore") : Str.Get("Shell.Caption.Maximise");
         // A maximised WindowChrome frame extends past the screen edge and clips
         // content; pad to keep the caption buttons fully visible.
         RootGrid.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : default;

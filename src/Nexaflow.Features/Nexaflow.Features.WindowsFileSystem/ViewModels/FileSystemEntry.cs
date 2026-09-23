@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -77,7 +78,7 @@ public class FileSystemEntry : INotifyPropertyChanged
 
     public string TypeLabel => IsThisPcItem
         ? _driveKindLabel
-        : IsDirectory ? "Folder" : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
+        : IsDirectory ? Str.Get("WindowsFileSystem.Entry.Folder") : Path.GetExtension(Name).TrimStart('.').ToUpperInvariant();
 
     public string SizeLabel
     {
@@ -87,7 +88,7 @@ public class FileSystemEntry : INotifyPropertyChanged
             {
                 if (_driveTotalBytes <= 0) return string.Empty;
                 double pct = (double)_driveUsedBytes / _driveTotalBytes * 100.0;
-                return $"{FormatSize(_driveUsedBytes)} used ({pct:F0}%)";
+                return Str.Format("WindowsFileSystem.Entry.DriveUsedFormat", FormatSize(_driveUsedBytes), pct);
             }
             return IsDirectory ? string.Empty : FormatSize(SizeBytes);
         }

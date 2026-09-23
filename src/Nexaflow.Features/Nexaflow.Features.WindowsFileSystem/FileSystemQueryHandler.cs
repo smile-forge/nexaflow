@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -52,7 +53,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
     public Task<string?> ProcessAsync(string input, bool prefixed, IPageViewModel? pageVm = null)
     {
         if (pageVm is not FileSystemViewModel fs)
-            return Task.FromResult<string?>("No file system context available.");
+            return Task.FromResult<string?>(Str.Get("WindowsFileSystem.Navigate.NoContext"));
 
         var trimmed = input.Trim();
         var expanded = Environment.ExpandEnvironmentVariables(trimmed);
@@ -64,7 +65,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
                 fs.NavigateTo(expanded);
                 return Task.FromResult<string?>(null);
             }
-            return Task.FromResult<string?>($"Path not found: {expanded}");
+            return Task.FromResult<string?>(Str.Format("WindowsFileSystem.Navigate.PathNotFoundFormat", expanded));
         }
 
         if (ResolveRelative(trimmed, fs) is { } dir)
@@ -73,7 +74,7 @@ public sealed class FileSystemQueryHandler : IQueryHandler
             return Task.FromResult<string?>(null);
         }
 
-        return Task.FromResult<string?>($"Path not found: {trimmed}");
+        return Task.FromResult<string?>(Str.Format("WindowsFileSystem.Navigate.PathNotFoundFormat", trimmed));
     }
 
     // Resolves a relative path against the current folder, then the root, returning the first existing

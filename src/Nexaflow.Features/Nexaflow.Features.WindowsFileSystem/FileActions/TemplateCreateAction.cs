@@ -11,6 +11,8 @@ public sealed class TemplateCreateAction(string name, string icon, string extens
     : IFileCreateAction
 {
     public string Icon          => string.IsNullOrEmpty(icon) ? "📄" : icon;
+
+    public string AutomationId  => $"Template_{name}";
     public string DisplayName   => name;
     public string FileExtension => extension;
 

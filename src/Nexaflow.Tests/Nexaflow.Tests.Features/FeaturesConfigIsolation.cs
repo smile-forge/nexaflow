@@ -11,7 +11,11 @@ namespace Nexaflow.Tests.Features;
 public static class FeaturesConfigIsolation
 {
     [AssemblyInitialize]
-    public static void Init(TestContext _) => TestConfigRoot.Redirect("features");
+    public static void Init(TestContext _)
+    {
+        TestConfigRoot.Redirect("features");
+        Localization.EnglishStrings.Use();
+    }
 
     [AssemblyCleanup]
     public static void Cleanup() => TestConfigRoot.Restore();

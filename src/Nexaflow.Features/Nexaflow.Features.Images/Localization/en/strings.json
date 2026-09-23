@@ -1,0 +1,49 @@
+{
+  "Images.Page.TitleFormat": "Images ({0})",
+  "Images.Page.Fallback": "Images",
+  "Images.Page.AllImageFiles": "all image files",
+  "Images.Page.SelectionFormat": "{0} images",
+
+  "Images.Action.AsImage": "As Image",
+  "Images.Action.ViewerDescription": "Image Viewer",
+  "Images.Action.Album": "Album",
+  "Images.Action.Slideshow": "Slideshow",
+
+  "Images.Toolbar.Carousel": "Carousel",
+  "Images.Toolbar.CarouselTip": "Carousel — one image at a time",
+  "Images.Toolbar.Album": "Album",
+  "Images.Toolbar.AlbumTip": "Album — grid of thumbnails",
+  "Images.Toolbar.Explore": "Explore",
+  "Images.Toolbar.ExploreTip": "Explore — thumbnails left, selected image right",
+  "Images.Toolbar.Collage": "Collage",
+  "Images.Toolbar.CollageTip": "Collage — scattered canvas (drag to pan, wheel to zoom)",
+  "Images.Toolbar.Auto": "Auto",
+  "Images.Toolbar.AutoTip": "Auto-advance the slideshow",
+  "Images.Toolbar.SpeedTip": "Slideshow speed: Slow 10s · Medium 4s · Fast 1s",
+  "Images.Toolbar.FullScreenTip": "View full screen (Esc to exit)",
+
+  "Images.Speed.Slow": "Slow",
+  "Images.Speed.Medium": "Medium",
+  "Images.Speed.Fast": "Fast",
+
+  "Images.Header.ImageCountOne": "1 image",
+  "Images.Header.ImageCountManyFormat": "{0} images",
+
+  "Images.Tools.RotateLeft": "Rotate 90° left",
+  "Images.Tools.RotateRight": "Rotate 90° right",
+  "Images.Tools.ToggleFit": "Toggle fit to window / actual size",
+
+  "Images.Nav.Previous": "Previous image",
+  "Images.Nav.Next": "Next image",
+  "Images.Nav.PreviousPage": "Previous 20",
+  "Images.Nav.NextPage": "Next 20",
+
+  "Images.Menu.Delete": "Delete",
+  "Images.Delete.ConfirmTitle": "Delete image",
+  "Images.Delete.ConfirmMessageFormat": "Send '{0}' to the Recycle Bin?",
+  "Images.Delete.FailedFormat": "Couldn't delete '{0}'.",
+
+  "Images.FullScreen.Hint": "Esc exit · Space / → next · ← previous · click to navigate",
+
+  "Images.Status.LoadingThumbnailsFormat": "Loading {0} thumbnails"
+}

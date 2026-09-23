@@ -15,6 +15,10 @@ namespace Nexaflow.Features.Common
         string Icon { get; }
         string DisplayName { get; }
 
+        /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
+        /// language.</summary>
+        string AutomationId => GetType().Name;
+
         bool RequiresRefresh { get; }
         bool CanPerformAction { get; }
 

@@ -20,6 +20,8 @@ public sealed class FolderActionAdapter : IFileAction
     public bool         SupportsMultipleFiles => Inner.SupportsMultipleFiles;
     public string       Icon                  => Inner.Icon;
     public string       DisplayName           => Inner.DisplayName;
+
+    public string       AutomationId          => Inner.AutomationId;
     public static string? StaticExperienceId  => null;
     public string       ExperienceId          => string.Empty;
     public string       ExperienceDescription => string.Empty;

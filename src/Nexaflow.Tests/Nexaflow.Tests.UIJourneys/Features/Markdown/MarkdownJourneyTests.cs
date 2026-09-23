@@ -26,7 +26,7 @@ public class MarkdownJourneyTests : UiJourneyTestBase
     public void Markdown_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("markdown").First());
-        var view = OpenFileVia(TestSampleData.Path("markdown"), file, "Markdown", "MarkdownView");
+        var view = OpenFileVia(TestSampleData.Path("markdown"), file, "ShowMarkdownAction", "MarkdownView");
         Assert.IsNotNull(view, "MarkdownView did not open via the 'Markdown' action.");
 
         // Default surface: the rendered inline editor is visible, the raw-source box is not.

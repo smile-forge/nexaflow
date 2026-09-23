@@ -8,7 +8,7 @@ using FlaUI.Core.Input;
 namespace Nexaflow.Tests.Features.Json.UI;
 
 /// <summary>
-/// One-pass UI journey for the JSON viewer: opens a sample file via the explicit <b>"As Json"</b>
+/// One-pass UI journey for the JSON viewer: opens a sample file via the explicit <b>"ShowJsonAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar — the view-mode
 /// toggles (tree / text / table), a tree row's expander, the breadcrumb trail a selection builds, and the
 /// Format button — soft-asserting each so a single gap doesn't hide the rest. Format re-indents the doc,
@@ -25,7 +25,7 @@ public class JsonJourneyTests : UiJourneyTestBase
     public void Json_Toolbar_RespondsInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("json").First());
-        var view = OpenFileVia(TestSampleData.Path("json"), file, "As Json", "JsonView");
+        var view = OpenFileVia(TestSampleData.Path("json"), file, "ShowJsonAction", "JsonView");
         Assert.IsNotNull(view, "JsonView did not open via the 'As Json' action.");
 
         // View-mode toggles — always present in the toolbar. Tree is pressed so the rows below are the tree's.

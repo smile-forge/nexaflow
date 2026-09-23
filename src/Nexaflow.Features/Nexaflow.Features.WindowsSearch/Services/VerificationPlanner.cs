@@ -1,4 +1,6 @@
-﻿namespace Nexaflow.Features.WindowsSearch.Services;
+﻿using Nexaflow.Visuals.Common.Localization;
+
+namespace Nexaflow.Features.WindowsSearch.Services;
 
 /// <summary>What the verification banner is currently saying.</summary>
 public enum VerifyPhase
@@ -53,13 +55,19 @@ public static class VerificationPlanner
     /// </summary>
     public static string OriginPrefix(SearchOrigin origin, int total, bool truncated = false)
     {
-        var source = origin == SearchOrigin.FolderScan ? "Folder scan" : "Windows search index";
+        var scan = origin == SearchOrigin.FolderScan;
 
         // A capped result set is a different claim from a complete one: matches past the cap were never
         // considered, so "N files" without this reads as "that's all there was".
-        return truncated
-            ? $"{source} hit its {total}-file limit — narrow the search to be sure of the rest. "
-            : $"{source} returned {total} file(s). ";
+        var sentence = truncated
+            ? scan
+                ? Str.Format("WindowsSearch.Banner.OriginScanCappedFormat", total)
+                : Str.Format("WindowsSearch.Banner.OriginIndexCappedFormat", total)
+            : scan
+                ? Str.Format("WindowsSearch.Banner.OriginScanFormat", total)
+                : Str.Format("WindowsSearch.Banner.OriginIndexFormat", total);
+
+        return sentence + " ";
     }
 
     /// <summary>What to do with a freshly returned result set.</summary>
@@ -68,17 +76,17 @@ public static class VerificationPlanner
     {
         if (candidates <= 0)
             return new(VerifyPhase.Done, 0, originPrefix + (verified == 0
-                ? "No matches."
-                : $"{verified} matched by name. Nothing else to check."));
+                ? Str.Get("WindowsSearch.Banner.NoMatches")
+                : Str.Format("WindowsSearch.Banner.MatchedByNameFormat", verified)));
 
         if (candidates <= limit)
             return new(VerifyPhase.Running, candidates,
-                       originPrefix + $"Possible matches found — verifying {candidates}…");
+                       originPrefix + Str.Format("WindowsSearch.Banner.VerifyingFormat", candidates));
 
         // Sweep a first slice regardless so the list is immediately useful, and ask about the tail rather
         // than either stalling on thousands of file reads or silently skipping them.
         return new(VerifyPhase.Prompt, limit,
-                   originPrefix + $"{verified} matched by name. {candidates} more might match inside the file — check them?");
+                   originPrefix + Str.Format("WindowsSearch.Banner.MatchedAskFormat", verified, candidates));
     }
 
     /// <summary>
@@ -94,21 +102,21 @@ public static class VerificationPlanner
     public static VerifyPlan AfterSweep(
         int confirmed, int stillPending, int unreadable = 0, int uncertain = 0, string originPrefix = "")
     {
-        var notes = new List<string> { $"{confirmed} confirmed" };
-        if (uncertain > 0)  notes.Add($"{uncertain} probable (found in a file type we can't read properly)");
-        if (unreadable > 0) notes.Add($"{unreadable} couldn't be checked (text is compressed or encoded)");
+        var notes = new List<string> { Str.Format("WindowsSearch.Banner.ConfirmedFormat", confirmed) };
+        if (uncertain > 0)  notes.Add(Str.Format("WindowsSearch.Banner.ProbableFormat", uncertain));
+        if (unreadable > 0) notes.Add(Str.Format("WindowsSearch.Banner.UnreadableFormat", unreadable));
 
         var summary = originPrefix + string.Join(" · ", notes);
 
         return stillPending == 0
             ? new(VerifyPhase.Done, 0, summary + ".")
             : new(VerifyPhase.Prompt, 0,
-                  $"{summary} · {stillPending} more might match inside the file — check them?");
+                  summary + " · " + Str.Format("WindowsSearch.Banner.MoreMightMatchFormat", stillPending));
     }
 
     /// <summary>What to say when the user declines the rest.</summary>
     public static VerifyPlan AfterSkip(int confirmed, int unchecked_) =>
-        new(VerifyPhase.Done, 0, $"{confirmed} confirmed · {unchecked_} unchecked.");
+        new(VerifyPhase.Done, 0, Str.Format("WindowsSearch.Banner.SkippedFormat", confirmed, unchecked_));
 
     // ── The folder scan ───────────────────────────────────────────────────────
 
@@ -123,8 +131,8 @@ public static class VerificationPlanner
     /// </summary>
     public static VerifyPlan OfferScan(SearchOrigin origin) =>
         new(VerifyPhase.OfferScan, 0, origin == SearchOrigin.IndexUnavailable
-            ? "Windows Search isn't running, so nothing could be looked up. Scan this location manually (slow)?"
-            : "The Windows indexer didn't find anything like that in this location — scan it manually (slow)?");
+            ? Str.Get("WindowsSearch.Banner.IndexNotRunning")
+            : Str.Get("WindowsSearch.Banner.IndexFoundNothing"));
 
     /// <summary>
     /// What to say about a result set, given how much of the location the indexer actually covers.
@@ -141,19 +149,19 @@ public static class VerificationPlanner
     {
         IndexCoverageKind.None =>
             new(VerifyPhase.OfferScan, 0,
-                "This location is not indexed by Windows. Would you like to run a full (slow) scan anyway?"),
+                Str.Get("WindowsSearch.Banner.NotIndexed")),
 
         IndexCoverageKind.Partial =>
             new(VerifyPhase.OfferScan, 0,
-                "Not all folders in this location are indexed — you can also run a full (slow) scan."),
+                Str.Get("WindowsSearch.Banner.PartlyIndexed")),
 
         IndexCoverageKind.Full when !hasResults =>
             new(VerifyPhase.OfferScan, 0,
-                "The Windows indexer didn't find anything here — run a full (slow) scan anyway?"),
+                Str.Get("WindowsSearch.Banner.FullyIndexedNothing")),
 
         IndexCoverageKind.Full =>
             new(VerifyPhase.OfferScan, 0,
-                "The following results are reported by the Windows indexer. You can also run a full (slow) scan."),
+                Str.Get("WindowsSearch.Banner.FullyIndexedResults")),
 
         // Coverage unknown: say only what is certain, which is what the search itself did.
         _ => hasResults
@@ -169,7 +177,7 @@ public static class VerificationPlanner
     /// </summary>
     public static VerifyPlan OfferScanAfterSweep(string originPrefix = "") =>
         new(VerifyPhase.OfferScan, 0,
-            originPrefix + "None of them matched. Scan this location manually (slow)?");
+            originPrefix + Str.Get("WindowsSearch.Banner.NoneMatchedScan"));
 
     /// <summary>
     /// Offered when a refinement is typed at an empty result set. Narrowing nothing yields nothing, so
@@ -179,7 +187,7 @@ public static class VerificationPlanner
     /// </summary>
     public static VerifyPlan OfferNewSearch(string query) =>
         new(VerifyPhase.OfferNewSearch, 0,
-            $"There are no results here to search within. Run '{query}' as a new search in the same location?");
+            Str.Format("WindowsSearch.Banner.OfferNewSearchFormat", query));
 
     /// <summary>
     /// Shown when the index has been thinking for a while.
@@ -191,14 +199,16 @@ public static class VerificationPlanner
     /// </para>
     /// </summary>
     public static VerifyPlan WaitingForIndex() =>
-        new(VerifyPhase.Searching, 0, "Waiting for the Windows index service to respond…");
+        new(VerifyPhase.Searching, 0, Str.Get("WindowsSearch.Banner.WaitingForIndex"));
 
     /// <summary>Progress while a scan runs. Counts are what it has found so far, not a total — a scan
     /// can't know how many matches exist until it has finished looking.</summary>
     public static VerifyPlan Scanning(int found) =>
         new(VerifyPhase.Scanning, 0, found == 0
-            ? "Scanning… no matches yet."
-            : $"Scanning… {found} match{(found == 1 ? "" : "es")} so far.");
+            ? Str.Get("WindowsSearch.Banner.ScanningNone")
+            : found == 1
+                ? Str.Format("WindowsSearch.Banner.ScanningOneFormat", found)
+                : Str.Format("WindowsSearch.Banner.ScanningManyFormat", found));
 
     /// <summary>
     /// What a finished scan says. Both qualifiers matter for the same reason: they turn a total into a
@@ -209,10 +219,12 @@ public static class VerificationPlanner
     public static VerifyPlan AfterScan(int found, bool cancelled = false, bool truncated = false) => new(
         VerifyPhase.Done, 0,
         cancelled
-            ? $"Scan stopped — {found} match(es) found so far."
+            ? Str.Format("WindowsSearch.Banner.ScanStoppedFormat", found)
             : truncated
-                ? $"Folder scan stopped at its {found}-row limit — narrow the search to see the rest."
+                ? Str.Format("WindowsSearch.Banner.ScanCappedFormat", found)
                 : found == 0
-                    ? "Folder scan finished — no matches in this location."
-                    : $"Folder scan found {found} match{(found == 1 ? "" : "es")}.");
+                    ? Str.Get("WindowsSearch.Banner.ScanFinishedNone")
+                    : found == 1
+                        ? Str.Format("WindowsSearch.Banner.ScanFoundOneFormat", found)
+                        : Str.Format("WindowsSearch.Banner.ScanFoundManyFormat", found));
 }

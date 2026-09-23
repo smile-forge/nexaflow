@@ -1,7 +1,8 @@
 <UserControl x:Class="Nexaflow.Features.WindowsFileSystem.Controls.FileMapEditorControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common">
+             xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
@@ -94,7 +95,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="36"/>
                             </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="0" ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding TypeName}"
+                            <ComboBox Grid.Column="0" ItemsSource="{Binding TypeOptions}" SelectedValue="{Binding TypeName}"
+                                      SelectedValuePath="Value" DisplayMemberPath="Label"
                                       Style="{StaticResource DarkComboBox}" FontSize="11" Margin="0,0,4,0"/>
                             <Border Grid.Column="1" BorderThickness="1.5" CornerRadius="8" Margin="0,0,4,0">
                                 <Border.Style>
@@ -110,7 +112,7 @@
                                 <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource DarkTextBox}" FontSize="11"/>
                             </Border>
-                            <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="Remove criterion"
+                            <Button Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="{loc:Str WindowsFileSystem.FileMap.RemoveCriterion}"
                                     Tag="{Binding}" Click="RemoveCriterion_Click" AutomationProperties.AutomationId="FileMap_RemoveCriterion">
                                 <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             </Button>
@@ -157,7 +159,7 @@
 
             <!-- Right: criteria editor for selected experience -->
             <Grid Grid.Column="2" Margin="12,0,0,0">
-                <TextBlock Text="Select an experience on the left to edit its file matching criteria."
+                <TextBlock Text="{loc:Str WindowsFileSystem.FileMap.Empty}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" TextWrapping="Wrap"
                            VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -184,18 +186,18 @@
                         <Grid Visibility="{Binding ResetConfirmPending,
                                   RelativeSource={RelativeSource AncestorType=UserControl},
                                   Converter={StaticResource InverseBoolVis}}">
-                            <Button Content="+ Add Criterion"
+                            <Button Content="{loc:Str WindowsFileSystem.FileMap.AddCriterion}"
                                     HorizontalAlignment="Left"
                                     MinWidth="120"
                                     Style="{StaticResource IconButton}"
                                     Click="AddCriterion_Click"
                                     AutomationProperties.AutomationId="FileMap_AddCriterion"/>
-                            <Button Content="↺ Reset to Default"
+                            <Button Content="{loc:Str WindowsFileSystem.FileMap.ResetToDefault}"
                                     HorizontalAlignment="Right"
                                     MinWidth="120"
                                     Style="{StaticResource IconButton}"
                                     Click="ResetToDefault_Click"
-                                    ToolTip="Discard customizations and restore this experience's bundled default matching criteria"
+                                    ToolTip="{loc:Str WindowsFileSystem.FileMap.ResetToDefault.Tooltip}"
                                     Visibility="{Binding CanResetToDefault,
                                         RelativeSource={RelativeSource AncestorType=UserControl},
                                         Converter={StaticResource BoolVis}}"
@@ -206,11 +208,11 @@
                                    Visibility="{Binding ResetConfirmPending,
                                        RelativeSource={RelativeSource AncestorType=UserControl},
                                        Converter={StaticResource BoolVis}}">
-                            <Button DockPanel.Dock="Right" Content="Cancel" MinWidth="72" Margin="4,0,0,0"
+                            <Button DockPanel.Dock="Right" Content="{loc:Str WindowsFileSystem.Common.Cancel}" MinWidth="72" Margin="4,0,0,0"
                                     Style="{StaticResource IconButton}" Click="ResetCancel_Click" AutomationProperties.AutomationId="FileMap_ResetCancel"/>
-                            <Button DockPanel.Dock="Right" Content="Reset" MinWidth="72"
+                            <Button DockPanel.Dock="Right" Content="{loc:Str WindowsFileSystem.FileMap.Reset}" MinWidth="72"
                                     Style="{StaticResource IconButton}" Click="ResetConfirm_Click" AutomationProperties.AutomationId="FileMap_ResetConfirm"/>
-                            <TextBlock Text="Discard your customizations and restore the default criteria?"
+                            <TextBlock Text="{loc:Str WindowsFileSystem.FileMap.ResetConfirm}"
                                        VerticalAlignment="Center" TextWrapping="Wrap"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                         </DockPanel>
@@ -227,9 +229,9 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Type" Margin="2,0"
+                                    <TextBlock Grid.Column="0" Text="{loc:Str WindowsFileSystem.FileMap.Type}" Margin="2,0"
                                                Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                                    <TextBlock Grid.Column="1" Text="Value" Margin="2,0"
+                                    <TextBlock Grid.Column="1" Text="{loc:Str WindowsFileSystem.FileMap.Value}" Margin="2,0"
                                                Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
                                 </Grid>
                                 <ItemsControl x:Name="CriteriaItems" Style="{StaticResource RuleRows}"/>

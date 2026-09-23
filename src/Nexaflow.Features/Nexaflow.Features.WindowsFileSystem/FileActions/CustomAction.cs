@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -35,9 +36,11 @@ public sealed class CustomAction : IFileAction
     public bool   SupportsMultipleFiles => _def.MultiFile != MultiFileMode.SingleFileOnly;
     public string Icon                  => "🛠";
     public string DisplayName           => _def.DisplayName;
+
+    public string AutomationId => $"ExternalApp_{_def.Id}";
     public static string? StaticExperienceId => null;
     public string ExperienceId          => $"/customapp/{NormalizeExt(_def.Extension)}";
-    public string ExperienceDescription => $"External app: {_def.DisplayName}";
+    public string ExperienceDescription => Str.Format("WindowsFileSystem.Experiences.ExternalAppFormat", _def.DisplayName);
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
 

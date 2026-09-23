@@ -25,6 +25,8 @@ public partial class CreateActionViewModel : ObservableObject
     public string       Icon          => Action.Icon;
     public ImageSource? IconImage     => Action.IconImage;
     public string       DisplayName   => Action.DisplayName;
+
+    public string       AutomationId  => Action.AutomationId;
     public string       FileExtension => Action.FileExtension;
 
     /// <summary>True when this is the currently chosen type in the picker.</summary>

@@ -6,6 +6,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -63,7 +64,7 @@ public class FileSystemViewModelCreateTests
             Assert.AreEqual(2, vm.CreateActions.Count);
             Assert.IsNotNull(vm.SelectedCreateAction);
             Assert.IsTrue(vm.CreateActions[0].IsSelected);
-            Assert.AreEqual("New File.txt", vm.CreateFileName);
+            Assert.AreEqual(Str.Get("WindowsFileSystem.Create.NewFileName") + ".txt", vm.CreateFileName);
             Assert.IsTrue(vm.CanCreate);
             Assert.IsFalse(vm.CreateNameExists);
         }
@@ -84,7 +85,7 @@ public class FileSystemViewModelCreateTests
             Assert.AreSame(vm.CreateActions[1], vm.SelectedCreateAction);
             Assert.IsTrue(vm.CreateActions[1].IsSelected);
             Assert.IsFalse(vm.CreateActions[0].IsSelected);
-            Assert.AreEqual("New Folder", vm.CreateFileName);
+            Assert.AreEqual(Str.Format("WindowsFileSystem.Create.NewItemFormat", "Folder"), vm.CreateFileName);
         }
         finally { Directory.Delete(dir, true); }
     }

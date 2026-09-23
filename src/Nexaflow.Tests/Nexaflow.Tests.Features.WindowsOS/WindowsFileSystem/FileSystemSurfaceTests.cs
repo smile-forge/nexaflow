@@ -11,6 +11,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Threading.Tasks;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -101,7 +102,7 @@ public class FileSystemSurfaceTests
 
     [TestMethod]
     [CoversNode("winfs-footer-filter")]
-    public void TheCountsReadAsEnglish_SingularAndPlural()
+    public void TheCountsTakeTheSingularAndThePlural()
     {
         Directory.CreateDirectory(Path.Combine(_scratch, "one-folder"));
         File.WriteAllText(Path.Combine(_scratch, "a.txt"), "");
@@ -112,8 +113,8 @@ public class FileSystemSurfaceTests
         // before the text is: wait for the load to finish, not for them.
         Assert.IsTrue(SpinWaitFor(() => !vm.IsLoadingEntries && vm.HasFolders && vm.HasFiles), "the folder to finish loading");
 
-        Assert.AreEqual("1 folder", vm.FolderCountText);
-        Assert.AreEqual("2 files", vm.FileCountText);
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FolderCountOne", 1), vm.FolderCountText);
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FileCountMany", 2), vm.FileCountText);
         Assert.IsTrue(vm.ShowCountSeparator, "the dot between them only earns its place when both are there");
     }
 
@@ -124,7 +125,7 @@ public class FileSystemSurfaceTests
         var vm = AtScratch(out _);
 
         vm.OnSelectionChanged([new FileSystemEntry { Name = "a" }, new FileSystemEntry { Name = "b" }]);
-        StringAssert.Contains(vm.SelectionSummary, "2 selected");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.SelectedFormat", 2), vm.SelectionSummary);
 
         vm.OnSelectionChanged([]);
         Assert.AreEqual(string.Empty, vm.SelectionSummary);
@@ -140,8 +141,10 @@ public class FileSystemSurfaceTests
         var target = new FileSystemDropTarget(vm);
         var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
-        Assert.AreEqual("Copy to Projects", target.GetDropDescription(data, "Projects", isMove: false));
-        Assert.AreEqual("Move to Projects", target.GetDropDescription(data, "Projects", isMove: true),
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", "Projects"),
+                        target.GetDropDescription(data, "Projects", isMove: false));
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.MoveToFormat", "Projects"),
+                        target.GetDropDescription(data, "Projects", isMove: true),
                         "holding Shift turns a copy into a move — the tooltip is the only warning of that");
     }
 
@@ -153,8 +156,8 @@ public class FileSystemSurfaceTests
         var target = new FileSystemDropTarget(vm);
         var data = new DataObject(DataFormats.FileDrop, new[] { @"C:\a.txt" });
 
-        StringAssert.Contains(target.GetDropDescription(data, targetFolderName: null, isMove: false),
-                              Path.GetFileName(_scratch));
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.CopyToFormat", Path.GetFileName(_scratch)),
+                        target.GetDropDescription(data, targetFolderName: null, isMove: false));
     }
 
     [TestMethod]
@@ -255,9 +258,10 @@ public class FileSystemSurfaceTests
         var vm = AtScratch(out _);
         var target = new FileSystemDropTarget(vm);
 
-        Assert.AreEqual("Drop on Projects to choose", target.GetChoicePrompt("Projects"));
-        StringAssert.Contains(target.GetChoicePrompt(null), Path.GetFileName(_scratch),
-                              "over the background it is the current folder that would receive the drop");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", "Projects"), target.GetChoicePrompt("Projects"));
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", Path.GetFileName(_scratch)),
+                        target.GetChoicePrompt(null),
+                        "over the background it is the current folder that would receive the drop");
     }
 
     [TestMethod]

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -22,83 +23,120 @@ public class FileOperationErrorsTests
     private static string Describe(string verb, Exception ex) =>
         FileOperationErrors.Describe(verb, Source, Dest, ex);
 
+    /// <summary>The sentence <paramref name="key"/> makes of this fault: every one is handed the verb, the item's
+    /// name, the quoted destination folder and the CLR message, and uses the ones its grammar needs.</summary>
+    private static string Sentence(string key, string verb, Exception ex) =>
+        Str.Format(key, verb, "report.docx", "\"backup\"", ex.Message);
+
     [TestMethod]
     public void SharingViolation_SaysFileIsOpenElsewhere()
     {
-        var msg = Describe("move", Win32(32 /*ERROR_SHARING_VIOLATION*/));
-        StringAssert.Contains(msg, "report.docx");
-        StringAssert.Contains(msg, "open in another program");
+        var ex = Win32(32 /*ERROR_SHARING_VIOLATION*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.SharingViolationFormat", "move", ex), Describe("move", ex));
     }
 
     [TestMethod]
     public void LockViolation_SaysLocked()
-        => StringAssert.Contains(Describe("copy", Win32(33 /*ERROR_LOCK_VIOLATION*/)), "locked");
+    {
+        var ex = Win32(33 /*ERROR_LOCK_VIOLATION*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.LockViolationFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void AccessDenied_FromUnauthorizedAccess_MentionsPermission()
     {
-        var msg = Describe("move", new UnauthorizedAccessException());
-        StringAssert.Contains(msg, "access denied");
-        StringAssert.Contains(msg, "permission");
+        var ex = new UnauthorizedAccessException();
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.AccessDeniedFormat", "move", ex), Describe("move", ex));
     }
 
     [TestMethod]
     public void AccessDenied_FromWin32Code_MentionsPermission()
-        => StringAssert.Contains(Describe("copy", Win32(5 /*ERROR_ACCESS_DENIED*/)), "access denied");
+    {
+        var ex = Win32(5 /*ERROR_ACCESS_DENIED*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.AccessDeniedFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void DiskFull_SaysNotEnoughSpace()
     {
-        var msg = Describe("copy", Win32(112 /*ERROR_DISK_FULL*/));
-        StringAssert.Contains(msg, "enough free space");
-        StringAssert.Contains(msg, "backup");   // names the destination folder
+        var ex = Win32(112 /*ERROR_DISK_FULL*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.DiskFullFormat", "copy", ex), Describe("copy", ex));
     }
 
     [TestMethod]
     public void HandleDiskFull_SaysNotEnoughSpace()
-        => StringAssert.Contains(Describe("copy", Win32(39 /*ERROR_HANDLE_DISK_FULL*/)), "enough free space");
+    {
+        var ex = Win32(39 /*ERROR_HANDLE_DISK_FULL*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.DiskFullFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void AlreadyExists_SaysAlreadyExists()
-        => StringAssert.Contains(Describe("copy", Win32(183 /*ERROR_ALREADY_EXISTS*/)), "already exists");
+    {
+        var ex = Win32(183 /*ERROR_ALREADY_EXISTS*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.AlreadyExistsFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void FileExists_SaysAlreadyExists()
-        => StringAssert.Contains(Describe("copy", Win32(80 /*ERROR_FILE_EXISTS*/)), "already exists");
+    {
+        var ex = Win32(80 /*ERROR_FILE_EXISTS*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.AlreadyExistsFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void NotSameDevice_SaysDifferentDrive()
-        => StringAssert.Contains(Describe("move", Win32(17 /*ERROR_NOT_SAME_DEVICE*/)), "different drive");
+    {
+        var ex = Win32(17 /*ERROR_NOT_SAME_DEVICE*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.NotSameDeviceFormat", "move", ex), Describe("move", ex));
+    }
 
     [TestMethod]
     public void WriteProtected_SaysWriteProtected()
-        => StringAssert.Contains(Describe("copy", Win32(19 /*ERROR_WRITE_PROTECT*/)), "write-protected");
+    {
+        var ex = Win32(19 /*ERROR_WRITE_PROTECT*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.WriteProtectedFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void PathTooLong_FromTypeRegardlessOfHResult_SaysTooLong()
-        => StringAssert.Contains(Describe("copy", new PathTooLongException()), "too long");
+    {
+        var ex = new PathTooLongException();
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.PathTooLongFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void FilenameExcedRange_FromWin32Code_SaysTooLong()
-        => StringAssert.Contains(Describe("copy", Win32(206 /*ERROR_FILENAME_EXCED_RANGE*/)), "too long");
+    {
+        var ex = Win32(206 /*ERROR_FILENAME_EXCED_RANGE*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.PathTooLongFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void FileNotFound_SaysNoLongerExists()
-        => StringAssert.Contains(Describe("move", new FileNotFoundException()), "no longer exists");
+    {
+        var ex = new FileNotFoundException();
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.NotFoundFormat", "move", ex), Describe("move", ex));
+    }
 
     [TestMethod]
     public void DirectoryNotFound_SaysNoLongerExists()
-        => StringAssert.Contains(Describe("move", new DirectoryNotFoundException()), "no longer exists");
+    {
+        var ex = new DirectoryNotFoundException();
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.NotFoundFormat", "move", ex), Describe("move", ex));
+    }
 
     [TestMethod]
     public void InvalidName_SaysNameRejected()
-        => StringAssert.Contains(Describe("copy", Win32(123 /*ERROR_INVALID_NAME*/)), "name");
+    {
+        var ex = Win32(123 /*ERROR_INVALID_NAME*/);
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.InvalidNameFormat", "copy", ex), Describe("copy", ex));
+    }
 
     [TestMethod]
     public void UnknownFault_FallsBackToClrMessage()
     {
-        var msg = Describe("copy", new InvalidOperationException("weird native thing"));
-        StringAssert.Contains(msg, "report.docx");
-        StringAssert.Contains(msg, "weird native thing");
+        var ex = new InvalidOperationException("weird native thing");
+        Assert.AreEqual(Sentence("WindowsFileSystem.Errors.UnknownFormat", "copy", ex), Describe("copy", ex));
     }
 }

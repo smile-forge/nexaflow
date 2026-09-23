@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Controls;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -36,7 +37,7 @@ public sealed class TemplateDefinition
 public sealed class TemplatedCreateConfig : IFeatureConfig
 {
     public string ConfigName   => "templatedcreate";
-    public string FriendlyName => "Templated Create";
+    public string FriendlyName => Str.Get("WindowsFileSystem.Config.TemplatedCreate");
 
     public List<TemplateDefinition> Templates { get; set; } = new();
 }

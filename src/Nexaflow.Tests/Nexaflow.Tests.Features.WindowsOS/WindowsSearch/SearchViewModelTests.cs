@@ -9,6 +9,7 @@ using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using Nexaflow.Search;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
@@ -69,12 +70,18 @@ public class SearchViewModelTests
             Assert.AreEqual(0, vm.ResultCount);
             Assert.AreEqual(VerifyPhase.OfferScan, vm.VerificationPhase);
 
-            // Case-insensitive on purpose. Which wording appears depends on the MACHINE: with the indexer
-            // running it is the coverage sentence, without it the service-unavailable one, and they differ
-            // in whether "scan" starts a sentence. Both offer the scan, which is the whole assertion —
-            // pinning one spelling made this pass on a dev box and fail on CI.
-            Assert.IsTrue(vm.VerificationBanner.Contains("scan", StringComparison.OrdinalIgnoreCase),
-                vm.VerificationBanner);
+            // Any of the offers. Which one appears depends on the MACHINE: with the indexer running it is a
+            // coverage sentence, without it the service-unavailable one. All of them offer the scan, which is
+            // the whole assertion — pinning one made this pass on a dev box and fail on CI.
+            var offers = new[]
+            {
+                Str.Get("WindowsSearch.Banner.NotIndexed"),
+                Str.Get("WindowsSearch.Banner.PartlyIndexed"),
+                Str.Get("WindowsSearch.Banner.FullyIndexedNothing"),
+                Str.Get("WindowsSearch.Banner.IndexFoundNothing"),
+                Str.Get("WindowsSearch.Banner.IndexNotRunning"),
+            };
+            CollectionAssert.Contains(offers, vm.VerificationBanner, vm.VerificationBanner);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
@@ -231,8 +238,7 @@ public class SearchViewModelTests
             var outcome = await vm.SearchAsync(new SearchRequest("needle"), display: true, default);
 
             Assert.AreEqual(VerifyPhase.OfferNewSearch, vm.VerificationPhase);
-            StringAssert.Contains(vm.VerificationBanner, "no results here to search within");
-            StringAssert.Contains(vm.VerificationBanner, "needle");
+            Assert.AreEqual(Str.Format("WindowsSearch.Banner.OfferNewSearchFormat", "needle"), vm.VerificationBanner);
             Assert.IsFalse(outcome.Failed, "a question is not a failure");
         }
         finally { try { Directory.Delete(root, true); } catch { } }
@@ -329,7 +335,7 @@ public class SearchViewModelTests
             // Re-scanned rather than re-offered: the scan is already this location's answer, so the run
             // finishes with its own report instead of asking to scan a second time.
             Assert.AreEqual(VerifyPhase.Done, vm.VerificationPhase);
-            StringAssert.Contains(vm.VerificationBanner, "Folder scan");
+            Assert.AreEqual(Str.Get("WindowsSearch.Banner.ScanFinishedNone"), vm.VerificationBanner);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
@@ -414,7 +420,7 @@ public class SearchViewModelTests
     public void TheTabLabelNamesTheSearch()
     {
         Assert.AreEqual("needle", SearchViewModel.TabTitleFor("needle"));
-        Assert.AreEqual("Search",  SearchViewModel.TabTitleFor("   "));
+        Assert.AreEqual(Str.Get("WindowsSearch.Tab.Title"), SearchViewModel.TabTitleFor("   "));
 
         // The tab strip renders Page.Icon itself, so a magnifier here would be the second one.
         Assert.IsFalse(SearchViewModel.TabTitleFor("needle").Any(char.IsSurrogate),
@@ -442,7 +448,7 @@ public class SearchViewModelTests
         Assert.AreEqual(@"C:\temp", page.Breadcrumbs[0].Label);
         Assert.AreEqual(FileBreadcrumbs.FileSystemPageKind, page.Breadcrumbs[0].TargetPageKind,
             "the scope crumb should navigate, like every other feature's directory crumb");
-        StringAssert.Contains(page.Breadcrumbs[1].Label, "needle");
+        Assert.AreEqual(Str.Format("WindowsSearch.Breadcrumb.QueryFormat", "needle"), page.Breadcrumbs[1].Label);
     }
 
     [TestMethod]
@@ -451,7 +457,7 @@ public class SearchViewModelTests
         var page = new Page();
         _ = new SearchViewModel("needle", "", [@"C:\", @"D:\"], Shell()) { Tab = page };
 
-        Assert.AreEqual("This PC", page.Breadcrumbs[0].Label);
+        Assert.AreEqual(Str.Get("WindowsSearch.Breadcrumb.ThisPc"), page.Breadcrumbs[0].Label);
     }
 
     [TestMethod]
@@ -464,7 +470,7 @@ public class SearchViewModelTests
 
         vm.SearchQuery = "needle haystack";
 
-        StringAssert.Contains(page.Breadcrumbs[1].Label, "haystack");
+        Assert.AreEqual(Str.Format("WindowsSearch.Breadcrumb.QueryFormat", "needle haystack"), page.Breadcrumbs[1].Label);
         StringAssert.Contains(page.Title, "needle");
         Assert.AreEqual("needle haystack", page.PageParams!["query"],
             "a reopened tab is rebuilt from these, so they have to follow the query too");
@@ -529,7 +535,7 @@ public class SearchViewModelTests
 
         await vm.RunSearchAsync(CancellationToken.None);
 
-        Assert.AreEqual("Enter a search term.", vm.StatusText);
+        Assert.AreEqual(Str.Get("WindowsSearch.Status.EnterTerm"), vm.StatusText);
     }
 
     [TestMethod]
@@ -539,7 +545,7 @@ public class SearchViewModelTests
 
         await vm.RunSearchAsync(CancellationToken.None);
 
-        Assert.AreEqual("Enter a search term.", vm.StatusText);
+        Assert.AreEqual(Str.Get("WindowsSearch.Status.EnterTerm"), vm.StatusText);
     }
 
     [TestMethod]
@@ -549,7 +555,7 @@ public class SearchViewModelTests
 
         await vm.RunSearchAsync(CancellationToken.None);
 
-        Assert.AreEqual("Enter a search term.", vm.StatusText);
+        Assert.AreEqual(Str.Get("WindowsSearch.Status.EnterTerm"), vm.StatusText);
     }
 
     [TestMethod]

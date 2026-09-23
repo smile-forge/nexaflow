@@ -1,5 +1,6 @@
 using Nexaflow.Core.ViewModels.Overlays;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -69,8 +70,8 @@ public class OverlayCoordinatorTests
         var o = Make();
 
         o.ShowConfirmation("T", "P", () => { }, confirmLabel: " ", cancelLabel: null);
-        Assert.AreEqual("Confirm", o.Confirmation!.ConfirmLabel);
-        Assert.AreEqual("Cancel",  o.Confirmation.CancelLabel);
+        Assert.AreEqual(Str.Get("Shell.Prompt.Confirm"), o.Confirmation!.ConfirmLabel);
+        Assert.AreEqual(Str.Get("Shell.Prompt.Cancel"),  o.Confirmation.CancelLabel);
 
         o.ShowConfirmation("T", "P", () => { }, confirmLabel: "Delete", cancelLabel: "Keep");
         Assert.AreEqual("Delete", o.Confirmation!.ConfirmLabel);

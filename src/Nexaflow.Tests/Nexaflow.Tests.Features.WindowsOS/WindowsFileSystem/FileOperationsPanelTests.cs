@@ -8,6 +8,7 @@ using Nexaflow.IO.Common;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Collections.Generic;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -143,7 +144,7 @@ public class FileOperationsPanelTests
         await Task.Delay(300);
 
         // Same volume, so the second is behind the first rather than fighting it for the disk.
-        StringAssert.Contains(panel.Summary, "waiting");
+        StringAssert.Contains(panel.Summary, Str.Format("WindowsFileSystem.Operations.WaitingFormat", 1));
 
         first!.Cancel();
         second!.Cancel();
@@ -240,7 +241,7 @@ public class FileOperationsPanelTests
             CurrentItem: "a.txt", BytesPerSecond: 0, Remaining: null, Paused: null));
 
         Assert.AreEqual(0.25, op.Fraction, 0.001, "progress is counted in items when there are no bytes");
-        StringAssert.Contains(op.Detail, "3 of 12");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Operations.ProgressFormat", 3, 12), op.Detail);
     }
 
     [TestMethod]
@@ -313,7 +314,7 @@ public class FileOperationsPanelTests
         arriving.Attach();
 
         Assert.IsTrue(arriving.IsVisible, "no second countdown for work that is already under way");
-        StringAssert.Contains(arriving.Summary, "operation");
+        Assert.AreNotEqual(Str.Get("WindowsFileSystem.Operations.NothingInProgress"), arriving.Summary);
 
         op!.Cancel();
         arriving.Detach();

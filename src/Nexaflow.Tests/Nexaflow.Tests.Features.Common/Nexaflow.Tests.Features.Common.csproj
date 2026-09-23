@@ -38,6 +38,8 @@
     <!-- Contracts only (ISearchable, the search query language) plus the sample dataset. -->
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Common\Nexaflow.Features.Common.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Search\Nexaflow.Search.csproj" />
+    <!-- Str, for EnglishStrings: a shared visual leaf, not a feature. -->
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
     <ProjectReference Include="..\Nexaflow.Tests.Fixtures\Nexaflow.Tests.Fixtures.csproj" />
   </ItemGroup>
 

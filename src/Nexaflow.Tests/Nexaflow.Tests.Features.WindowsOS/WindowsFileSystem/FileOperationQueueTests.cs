@@ -13,6 +13,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -228,7 +229,7 @@ public class FileOperationQueueTests
 
         op.Cancel();
 
-        Assert.AreEqual("Stopping…", op.Detail, "the row has to say the click landed");
+        Assert.AreEqual(Str.Get("WindowsFileSystem.Operations.Stopping"), op.Detail, "the row has to say the click landed");
         Assert.AreNotEqual(runningDetail, op.Detail);
         Assert.AreNotEqual("↻", op.StatusGlyph, "a cancelling run must not wear the running glyph");
         Assert.IsFalse(op.CanCancel, "cancelling already — the button should stop inviting the same click");
@@ -239,7 +240,7 @@ public class FileOperationQueueTests
             TransferPhase.Running, BytesDone: 2_000, BytesTotal: 10_000, ItemsDone: 1, ItemsTotal: 3,
             CurrentItem: "big.bin", BytesPerSecond: 500, Remaining: TimeSpan.FromSeconds(16), Paused: null));
 
-        Assert.AreEqual("Stopping…", op.Detail);
+        Assert.AreEqual(Str.Get("WindowsFileSystem.Operations.Stopping"), op.Detail);
     }
 
     /// <summary>

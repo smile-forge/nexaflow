@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Model3D.UI;
 
 /// <summary>
-/// One-pass UI journey for the 3D model viewer: opens a sample model via the explicit <b>"As 3D Model"</b>
+/// One-pass UI journey for the 3D model viewer: opens a sample model via the explicit <b>"ShowModel3DAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar — wireframe toggle,
 /// reset-view button and the inspector toggle — soft-asserting each so a single gap doesn't hide the rest.
 /// The <c>triangle.gltf</c> fixture carries a named material, so the inspector toggle (visible only when
@@ -28,7 +28,7 @@ public class Model3DJourneyTests : UiJourneyTestBase
                                  .Select(Path.GetFileName)
                                  .First(f => f!.EndsWith(".gltf", System.StringComparison.OrdinalIgnoreCase));
 
-        var view = OpenFileVia(TestSampleData.Path("model3d"), file!, "As 3D Model", "Model3DView");
+        var view = OpenFileVia(TestSampleData.Path("model3d"), file!, "ShowModel3DAction", "Model3DView");
         Assert.IsNotNull(view, "Model3DView did not open via the 'As 3D Model' action.");
 
         // Toolbar — render mode + framing.

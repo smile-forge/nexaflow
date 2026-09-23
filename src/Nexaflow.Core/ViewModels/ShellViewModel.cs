@@ -15,6 +15,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Core.Localization;
 using Nexaflow.Core.Help;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -74,7 +75,7 @@ public partial class ShellViewModel : ObservableObject, IWindowHost, IHelpPaneHo
 
     void IWindowHost.ShowError(string message) => ShowError("Error", message);
     void IWindowHost.ShowNotification(string message)
-        => MessageCenter.Instance.Post(new NotificationItem { Title = "Info", Body = message });
+        => MessageCenter.Instance.Post(new NotificationItem { Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message });
     void IWindowHost.ShowConfirmation(string title, string prompt, Action onConfirm, Action? onCancel,
                                       string? confirmLabel, string? cancelLabel)
         => ShowConfirmation(title, prompt, onConfirm, onCancel, confirmLabel, cancelLabel);

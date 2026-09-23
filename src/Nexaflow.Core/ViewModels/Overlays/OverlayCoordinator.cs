@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Visuals.Common.Dialogs;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.ViewModels.Overlays;
 
@@ -107,8 +108,8 @@ public sealed class OverlayCoordinator : ObservableObject
         request = new ConfirmationRequest(title, prompt,
             onConfirm: () => { CloseConfirmation(request!); onConfirm(); },
             onCancel:  () => { CloseConfirmation(request!); onCancel?.Invoke(); },
-            confirmLabel: string.IsNullOrWhiteSpace(confirmLabel) ? "Confirm" : confirmLabel,
-            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? "Cancel"  : cancelLabel);
+            confirmLabel: string.IsNullOrWhiteSpace(confirmLabel) ? Str.Get("Shell.Prompt.Confirm") : confirmLabel,
+            cancelLabel:  string.IsNullOrWhiteSpace(cancelLabel)  ? Str.Get("Shell.Prompt.Cancel")  : cancelLabel);
         SetConfirmation(request);
     }
 

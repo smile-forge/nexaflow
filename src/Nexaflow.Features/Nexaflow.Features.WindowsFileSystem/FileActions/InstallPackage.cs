@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -15,10 +16,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "📦";
-        public string DisplayName            => "Install";
+        public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Install");
         public static string? StaticExperienceId => "/binary/installer";
         public string ExperienceId           => "/binary/installer";
-        public string ExperienceDescription  => "Windows installer packages (.msi, .msix, .msixbundle)";
+        public string ExperienceDescription  => Str.Get("WindowsFileSystem.Experiences.Installers");
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
 

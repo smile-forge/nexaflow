@@ -69,7 +69,7 @@ public class ExecutableJourneyTests : UiJourneyTestBase
     {
         string folder = StageSampleBinary();
 
-        var view = OpenFileVia(folder, SampleBinary, "Inspect", "ExecutableView", seconds: 25);
+        var view = OpenFileVia(folder, SampleBinary, "InspectPeAction", "ExecutableView", seconds: 25);
         Assert.IsNotNull(view, "ExecutableView did not open via the Inspect action.");
 
         // ── Overview: the parse has to land before anything else is meaningful ──

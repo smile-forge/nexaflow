@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 
@@ -17,12 +18,12 @@ internal sealed class NewMenuAction(Action openCreateOverlay) : IFolderAction
     public bool    IsDestructive         => false;
     public bool    SupportsMultipleFiles => false;
     public string  Icon                  => "➕";
-    public string  DisplayName           => "New";
+    public string  DisplayName           => Str.Get("WindowsFileSystem.Actions.New");
     public bool    RequiresRefresh       => false;
     public bool    CanPerformAction      => true;
     public bool    AppliesToRoot         => true;
     public bool    AppliesToDrives       => false;
-    public string? Tooltip               => "Create a new file or folder";
+    public string? Tooltip               => Str.Get("WindowsFileSystem.Actions.New.Tooltip");
     public bool    IsRibbonPinnable      => false;   // synthetic menu — can't be rehydrated from the ribbon
 
     public bool PerformAction(string folderPath)              { openCreateOverlay(); return false; }

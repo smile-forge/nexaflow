@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 using System.Windows.Media;
 
@@ -15,7 +16,11 @@ public sealed record ShellNewEntry(string Extension, string DisplayName, ImageSo
 public sealed class ShellNewCreateAction(ShellNewEntry entry) : IFileCreateAction
 {
     public string       Icon          => "📄";
-    public string       DisplayName   => entry.DisplayName;
+    public string       DisplayName   => string.IsNullOrWhiteSpace(entry.DisplayName)
+        ? Str.Format("WindowsFileSystem.Create.FileTypeFormat", entry.Extension.TrimStart('.').ToUpperInvariant())
+        : entry.DisplayName;
+
+    public string       AutomationId  => $"ShellNew_{entry.Extension.TrimStart('.')}";
     public string       FileExtension => entry.Extension;
     public ImageSource? IconImage     => entry.IconImage;
 

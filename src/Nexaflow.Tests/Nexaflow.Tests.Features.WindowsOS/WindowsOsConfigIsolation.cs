@@ -11,7 +11,11 @@ namespace Nexaflow.Tests.Features;
 public static class WindowsOsConfigIsolation
 {
     [AssemblyInitialize]
-    public static void Init(TestContext _) => TestConfigRoot.Redirect("windowsos");
+    public static void Init(TestContext _)
+    {
+        TestConfigRoot.Redirect("windowsos");
+        Localization.EnglishStrings.Use();
+    }
 
     [AssemblyCleanup]
     public static void Cleanup() => TestConfigRoot.Restore();

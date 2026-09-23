@@ -26,6 +26,7 @@ using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.ViewModels;
 
@@ -163,7 +164,9 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     {
         if (a is null) return string.Empty;
         // Extensionless types name the item after the type ("New Folder", "New Product"); files use "New File.ext".
-        return string.IsNullOrEmpty(a.FileExtension) ? "New " + a.DisplayName : "New File" + a.FileExtension;
+        return string.IsNullOrEmpty(a.FileExtension)
+            ? Str.Format("WindowsFileSystem.Create.NewItemFormat", a.DisplayName)
+            : Str.Get("WindowsFileSystem.Create.NewFileName") + a.FileExtension;
     }
 
     /// <summary>Applies the host extension rule: keep the user's extension, else append the type's.</summary>
@@ -208,7 +211,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         }
         catch (Exception ex)
         {
-            _shell.ShowError($"Could not create '{name}': {ex.Message}");
+            _shell.ShowError(Str.Format("WindowsFileSystem.Create.FailedFormat", name, ex.Message));
         }
         Refresh();
     }
@@ -750,9 +753,13 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         ShowCountSeparator = folders > 0 && files > 0;
         IsEmpty            = folders == 0 && files == 0;
 
-        FolderCountText  = $"{folders} {(folders == 1 ? "folder" : "folders")}";
-        FileCountText    = $"{files} {(files == 1 ? "file" : "files")}";
-        SelectionSummary = selectedCount > 0 ? $"{selectedCount} selected  ·  " : string.Empty;
+        FolderCountText  = folders == 1
+            ? Str.Format("WindowsFileSystem.Footer.FolderCountOne", folders)
+            : Str.Format("WindowsFileSystem.Footer.FolderCountMany", folders);
+        FileCountText    = files == 1
+            ? Str.Format("WindowsFileSystem.Footer.FileCountOne", files)
+            : Str.Format("WindowsFileSystem.Footer.FileCountMany", files);
+        SelectionSummary = selectedCount > 0 ? Str.Format("WindowsFileSystem.Footer.SelectedFormat", selectedCount) : string.Empty;
     }
 
     public ObservableCollection<FileSystemTreeNode>    TreeRoots { get; } = [];
@@ -789,7 +796,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         vm._isThisPcMode = true;
         vm.CurrentPath   = string.Empty;
 
-        var thisPc = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc)
+        var thisPc = new FileSystemTreeNode(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty, TreeNodeKind.ThisPc)
         {
             IsExpanded = true
         };
@@ -800,7 +807,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
 
         using (Timing.Measure("ThisPC.RecountEntries"))
             vm.RecountEntries();
-        vm.NavigationChanged?.Invoke([("This PC", string.Empty)]);
+        vm.NavigationChanged?.Invoke([(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty)]);
         return vm;
     }
 
@@ -1158,7 +1165,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             if (rebuildTree)
             {
                 TreeRoots.Clear();
-                thisPcNode = new FileSystemTreeNode("This PC", string.Empty, TreeNodeKind.ThisPc)
+                thisPcNode = new FileSystemTreeNode(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty, TreeNodeKind.ThisPc)
                 {
                     IsExpanded = true
                 };
@@ -1174,7 +1181,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             FillThisPc(thisPcNode, addTreeNodes: rebuildTree);
 
             RecountEntries();
-            NavigationChanged?.Invoke([("This PC", string.Empty)]);
+            NavigationChanged?.Invoke([(Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty)]);
 
             if (thisPcNode is not null)
             {
@@ -1244,7 +1251,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             // anything an action threw unwound out to the app-level dispatcher handler, which reports an
             // anonymous "something went wrong" naming neither the file nor the viewer. Name the file here.
             // A viewer that opens and then fails to build its view reports that itself, on its own tab.
-            _shell.ShowError($"Couldn't open {entry.Name}: {ex.Message}");
+            _shell.ShowError(Str.Format("WindowsFileSystem.Open.FailedFormat", entry.Name, ex.Message));
         }
     }
 
@@ -1503,12 +1510,12 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (request.IsRegex && !request.TryCompileRegex(out _, out var error))
-            return SearchOutcome.Unsupported($"Invalid regular expression: {error}");
+            return SearchOutcome.Unsupported(Str.Format("WindowsFileSystem.Search.InvalidRegexFormat", error));
 
         var context = GetContextObject() as FileSystemContext;
         var scoped  = new FileSearchRequest(request, context?.RootPath ?? RootPath, context?.AvailableDrives ?? []);
         if (!scoped.HasScope)
-            return SearchOutcome.Unsupported("There is no folder or drive here to search.");
+            return SearchOutcome.Unsupported(Str.Get("WindowsFileSystem.Search.NoScope"));
 
         if (!display)
         {
@@ -1542,7 +1549,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         // know, or need to know, that a Search tab is what appears.
         return _shell.HandleObject(scoped)
             ? SearchOutcome.None()      // the results surface is the feedback; nothing to say in chat
-            : SearchOutcome.Unsupported("Nothing in this install can show file search results.");
+            : SearchOutcome.Unsupported(Str.Get("WindowsFileSystem.Search.NoResultsSurface"));
     }
 
     private bool IsRootedOnDriveOrThisPc()
@@ -1566,7 +1573,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
         if (_isThisPcMode)
         {
             // Showing the "This PC" drive list — single root crumb only
-            segments.Add(("This PC", string.Empty));
+            segments.Add((Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty));
         }
         else if (string.IsNullOrEmpty(_rootPath))
         {
@@ -1574,7 +1581,7 @@ public partial class FileSystemViewModel : ObservableObject, IPageViewModel, ISe
             // Breadcrumb: This PC > C:\ > Folder > …, or This PC > OneDrive > Folder > …
             // The VFS segments it because only it knows where a mount root is and what to call it —
             // Path.GetPathRoot returns "" for a ::mount path and would collapse the trail.
-            segments.Add(("This PC", string.Empty));
+            segments.Add((Str.Get("WindowsFileSystem.ThisPc.Title"), string.Empty));
             segments.AddRange(Vfs.GetBreadcrumbs(path));
         }
         else

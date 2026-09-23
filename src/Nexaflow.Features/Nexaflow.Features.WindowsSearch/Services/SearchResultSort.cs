@@ -1,12 +1,12 @@
 namespace Nexaflow.Features.WindowsSearch.Services;
 
 /// <summary>
-/// The results grid's column sorting, in terms the view can apply: which property a clicked header sorts
+/// The results grid's column sorting, in terms the view can apply: which property a clicked column sorts
 /// by, and which way round the next click should go.
 /// <para>
-/// Pure because the header→property map is the part that breaks silently — rename a column in the XAML and
-/// clicking it simply stops sorting, with nothing to see. The arrow is baked into the header text, so
-/// reading the current column back means stripping it again; that round-trip is here too.
+/// Pure because the column→property map is the part that breaks silently — rename a column id in the view
+/// and clicking it simply stops sorting, with nothing to see. The arrow is baked into the header text, so
+/// swapping it between columns means stripping it again; that round-trip is here too.
 /// </para>
 /// </summary>
 public static class SearchResultSort
@@ -14,7 +14,7 @@ public static class SearchResultSort
     public const string Ascending = "  ↑";
     public const string Descending = "  ↓";
 
-    /// <summary>The result property a header sorts by, or null when the header is not sortable.</summary>
+    /// <summary>The result property a column id sorts by, or null when the column is not sortable.</summary>
     public static string? PropertyFor(string? header) => Strip(header) switch
     {
         "Name"     => "FileName",

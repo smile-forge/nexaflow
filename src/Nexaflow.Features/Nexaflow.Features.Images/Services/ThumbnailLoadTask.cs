@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,7 +38,7 @@ public sealed class ThumbnailLoadTask : IBackgroundTask
         _shell = shell;
     }
 
-    public string Description => $"Loading {_items.Count} thumbnails";
+    public string Description => Str.Format("Images.Status.LoadingThumbnailsFormat", _items.Count);
 
     public async Task RunAsync(CancellationToken ct)
     {

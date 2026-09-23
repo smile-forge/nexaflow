@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -109,7 +110,7 @@ public class VirtualNavigationTests
 
         var crumbs = Crumbs(vm);
         CollectionAssert.AreEqual(
-            new[] { "This PC", fx.Label, "Documents" },
+            new[] { Str.Get("WindowsFileSystem.ThisPc.Title"), fx.Label, "Documents" },
             crumbs.Select(c => c.Label).ToArray());
         Assert.IsFalse(crumbs.Any(c => c.Path.Contains(fx.RealRoot, StringComparison.OrdinalIgnoreCase)));
     }

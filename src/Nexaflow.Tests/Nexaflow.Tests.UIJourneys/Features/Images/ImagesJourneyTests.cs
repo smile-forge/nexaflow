@@ -27,7 +27,7 @@ public class ImagesJourneyTests : UiJourneyTestBase
     public void Image_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("images").First());
-        var view = OpenFileVia(TestSampleData.Path("images"), file, "As Image", "ImageView");
+        var view = OpenFileVia(TestSampleData.Path("images"), file, "ShowImageAction", "ImageView");
         Assert.IsNotNull(view, "ImageView did not open via the 'As Image' action.");
 
         // Floating image-tools toolbar (rotate / fit) — pure in-place state, safe to invoke.
@@ -50,7 +50,7 @@ public class ImagesJourneyTests : UiJourneyTestBase
     public void Image_Slideshow_ControlsRespondInOnePass()
     {
         NavigateFileBrowserTo(TestSampleData.Path("images"));
-        var slideshow = WaitForId("Slideshow", 8);
+        var slideshow = WaitForId("SlideshowFolderAction", 8);
         Assert.IsNotNull(slideshow, "The 'Slideshow' folder action did not appear for the image samples folder.");
         slideshow!.AsButton().Invoke();
         Assert.IsNotNull(WaitForId("ImageView", 15), "Slideshow did not open the image viewer.");

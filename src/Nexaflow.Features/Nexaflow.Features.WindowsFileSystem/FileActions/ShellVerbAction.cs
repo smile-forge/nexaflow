@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -46,7 +47,9 @@ public sealed class ShellVerbAction : IFileAction
     public string DisplayName           { get; }
     public static string? StaticExperienceId => null;
     public string ExperienceId          => _experienceId;
-    public string ExperienceDescription => $"Shell verb: {_verb}";
+    public string ExperienceDescription => Str.Format("WindowsFileSystem.Experiences.ShellVerbFormat", _verb);
+
+    public string AutomationId => $"ShellVerb_{_verb}";
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
 

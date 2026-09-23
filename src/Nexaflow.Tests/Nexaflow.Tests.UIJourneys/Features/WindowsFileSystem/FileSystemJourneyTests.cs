@@ -70,7 +70,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
     /// </summary>
     private bool OpenCreateOverlay(string typeName)
     {
-        var newBtn = WaitForId("New", 8);
+        var newBtn = WaitForId("NewMenuAction", 8);
         if (newBtn is null) return false;
         newBtn.AsButton().Invoke();
 
@@ -180,7 +180,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         // ── Creating a folder ────────────────────────────────────────────────────────────
         NavigateFileBrowserTo(_folder);
 
-        var opened = OpenCreateOverlay("Folder");
+        var opened = OpenCreateOverlay("NewFolderCreateAction");
         Check("Create overlay opens for a folder", () => opened);
         if (opened)
         {
@@ -195,7 +195,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         }
 
         // ── Creating a text file, with the name prefilled ────────────────────────────────
-        opened = OpenCreateOverlay("Text File");
+        opened = OpenCreateOverlay("BlankTextCreateAction");
         Check("Create overlay opens for a text file", () => opened);
         if (opened)
         {
@@ -212,7 +212,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         }
 
         // ── A name that already exists is refused, visibly ───────────────────────────────
-        opened = OpenCreateOverlay("Text File");
+        opened = OpenCreateOverlay("BlankTextCreateAction");
         Check("Create overlay opens for the existing-name case", () => opened);
         if (opened)
         {
@@ -240,7 +240,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
             Wait.UntilInputIsProcessed();
             System.Threading.Thread.Sleep(200);
 
-            CheckInvoke("Rename action", "Rename", 6);
+            CheckInvoke("Rename action", "RenameFile", 6);
 
             var box = CheckPresent("Rename prompt", "ShellPromptBox", 5);
             Check("The rename prompt is seeded with the current name",
@@ -261,7 +261,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
                 !File.Exists(Path.Combine(_folder, "changed-my-mind.txt")));
 
             // …and the page is still live: the same rename runs again, this time to completion.
-            CheckInvoke("Rename action after a cancel", "Rename", 6);
+            CheckInvoke("Rename action after a cancel", "RenameFile", 6);
             var box2 = CheckPresent("Rename prompt reopens after a cancel", "ShellPromptBox", 5);
             if (box2 is not null)
             {
@@ -334,7 +334,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         }
 
         // The tab is still on _folder, so the overlay should now offer the new type.
-        opened = OpenCreateOverlay("My Note");
+        opened = OpenCreateOverlay("Template_My Note");
         Check("The new template is offered in the create overlay", () => opened);
         if (opened)
         {
@@ -447,7 +447,7 @@ public class FileSystemJourneyTests : UiJourneyTestBase
         Wait.UntilInputIsProcessed();
         System.Threading.Thread.Sleep(250);
 
-        var anchor = WaitForId("Copy", 8) ?? WaitForId("Rename", 8) ?? WaitForId("New", 8);
+        var anchor = WaitForId("CopyFiles", 8) ?? WaitForId("RenameFile", 8) ?? WaitForId("NewMenuAction", 8);
         if (anchor is null) return false;
 
         var x = anchor.BoundingRectangle.Left + (anchor.BoundingRectangle.Width / 2);

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions
@@ -10,10 +11,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "📋";
-        public string DisplayName            => "Copy";
+        public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Copy");
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
-        public string ExperienceDescription  => "All files";
+        public string ExperienceDescription  => Str.Get("WindowsFileSystem.Experiences.AllFiles");
         public bool   RequiresRefresh        => true;
         public bool   CanPerformAction       => true;
 
@@ -22,7 +23,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         bool   IFolderAction.IsDestructive        => false;
         bool   IFolderAction.SupportsMultipleFiles => true;
         string IFolderAction.Icon                 => "📋";
-        string IFolderAction.DisplayName          => "Copy";
+        string IFolderAction.DisplayName          => Str.Get("WindowsFileSystem.Actions.Copy");
         bool   IFolderAction.RequiresRefresh       => true;
         bool   IFolderAction.CanPerformAction      => true;
         public bool   AppliesToRoot               => false;

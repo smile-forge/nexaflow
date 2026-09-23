@@ -30,7 +30,7 @@ public abstract class FileSystemUiTestBase : UITestBase
         Keyboard.Type(path);
         Keyboard.Press(VirtualKeyShort.RETURN);
 
-        Assert.IsNotNull(WaitForId("New", 10),
+        Assert.IsNotNull(WaitForId("NewMenuAction", 10),
             "File browser did not navigate to the target folder (the 'New' button never appeared).");
     }
 

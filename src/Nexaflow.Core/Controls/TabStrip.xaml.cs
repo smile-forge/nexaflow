@@ -13,6 +13,7 @@ using System.Windows.Shapes;
 using Nexaflow.Core.Converters;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -408,13 +409,13 @@ public partial class TabStrip : UserControl
         menu.Items.Clear();
 
         int splitGroup = menu.Items.Count;
-        AddIfExecutable(menu, "Split right",       SplitTabCommand,    tab);
-        AddIfExecutable(menu, "Close except this", CloseOthersCommand, tab);
+        AddIfExecutable(menu, Str.Get("Shell.Tabs.Menu.SplitRight"),  SplitTabCommand,    tab);
+        AddIfExecutable(menu, Str.Get("Shell.Tabs.Menu.CloseOthers"), CloseOthersCommand, tab);
         if (menu.Items.Count > splitGroup) menu.Items.Add(new Separator());
 
         AddPinItem(menu, tab);
-        menu.Items.Add(MakeItem("Open in New Window", TearOffTabCommand, tab));
-        AddIfExecutable(menu, "Close pane", ClosePaneCommand, Pane);
+        menu.Items.Add(MakeItem(Str.Get("Shell.Tabs.Menu.OpenInNewWindow"), TearOffTabCommand, tab));
+        AddIfExecutable(menu, Str.Get("Shell.Tabs.Menu.ClosePane"), ClosePaneCommand, Pane);
     }
 
     // Strip background (not on a tab): offer "Split" when unsplit, "Close pane" when split.
@@ -424,8 +425,8 @@ public partial class TabStrip : UserControl
 
         var menu = ContextMenu!;
         menu.Items.Clear();
-        AddIfExecutable(menu, "Split",      SplitEmptyCommand, null);
-        AddIfExecutable(menu, "Close pane", ClosePaneCommand,  Pane);
+        AddIfExecutable(menu, Str.Get("Shell.Tabs.Menu.Split"),     SplitEmptyCommand, null);
+        AddIfExecutable(menu, Str.Get("Shell.Tabs.Menu.ClosePane"), ClosePaneCommand,  Pane);
         if (menu.Items.Count == 0) e.Handled = true;  // nothing applicable → suppress the empty menu
     }
 
@@ -442,7 +443,7 @@ public partial class TabStrip : UserControl
 
     private void AddPinItem(ContextMenu menu, Page tab)
     {
-        var item = new MenuItem { Header = "Pin to Ribbon" };
+        var item = new MenuItem { Header = Str.Get("Shell.Tabs.Menu.PinToRibbon") };
         item.Click += (_, _) =>
         {
             var req = new TabPinRequest(tab);

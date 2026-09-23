@@ -5,7 +5,7 @@ using Nexaflow.Tests.UIJourneys.Infrastructure;
 namespace Nexaflow.Tests.Features.VirtualDisk.UI;
 
 /// <summary>
-/// One-pass UI journey for the "As Disk" inspector: opens the corpus VHD through the explicit <b>As Disk</b>
+/// One-pass UI journey for the "OpenAsDiskAction" inspector: opens the corpus VHD through the explicit <b>As Disk</b>
 /// action (a double-click browses <i>into</i> the image instead — that path is <see cref="VirtualDiskOpenUiTests"/>)
 /// and walks the contents tree's expand chevron and the action bar.
 /// <para>
@@ -28,7 +28,7 @@ public class VirtualDiskJourneyTests : UiJourneyTestBase
             RequiredFixture.File(Path.Combine("disk", "sample.vhd"),
                                  "DiskUiFixtureTests in Nexaflow.Tests.Features.Viewers"))!;
 
-        var view = OpenFileVia(dir, "sample.vhd", "As Disk", "VirtualDiskView");
+        var view = OpenFileVia(dir, "sample.vhd", "OpenAsDiskAction", "VirtualDiskView");
         Assert.IsNotNull(view, "VirtualDiskView did not open via the 'As Disk' action.");
 
         // One id on N controls: the chevron is in the row template and only renders for a row with children —

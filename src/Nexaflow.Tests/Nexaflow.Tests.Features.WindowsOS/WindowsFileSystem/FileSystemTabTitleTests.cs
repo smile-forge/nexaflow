@@ -7,6 +7,7 @@ using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -135,7 +136,7 @@ public class FileSystemTabTitleTests
     {
         var page = Registration().CreatePageDefinition(new Dictionary<string, string> { ["mode"] = "thispc" });
 
-        Assert.AreEqual("This PC", page.Title);
+        Assert.AreEqual(Str.Get("WindowsFileSystem.ThisPc.Title"), page.Title);
     }
 
     // ── The one rule, shared ──────────────────────────────────────────────────

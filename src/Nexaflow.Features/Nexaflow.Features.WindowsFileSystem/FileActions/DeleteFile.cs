@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
 
@@ -22,10 +23,10 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     public bool   IsDestructive          => true;
     public bool   SupportsMultipleFiles  => true;
     public string Icon                   => "🗑";
-    public string DisplayName            => "Delete";
+    public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Delete");
     public static string? StaticExperienceId => "/";
     public string ExperienceId           => "/";
-    public string ExperienceDescription  => "All files";
+    public string ExperienceDescription  => Str.Get("WindowsFileSystem.Experiences.AllFiles");
     public bool   RequiresRefresh        => false;  // refresh triggered inside callbacks
     public bool   CanPerformAction       => true;
 
@@ -34,7 +35,7 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
     bool   IFolderAction.IsDestructive        => true;
     bool   IFolderAction.SupportsMultipleFiles => true;
     string IFolderAction.Icon                 => "🗑";
-    string IFolderAction.DisplayName          => "Delete";
+    string IFolderAction.DisplayName          => Str.Get("WindowsFileSystem.Actions.Delete");
     bool   IFolderAction.RequiresRefresh       => false;
     bool   IFolderAction.CanPerformAction      => true;
     public bool   AppliesToRoot               => false;
@@ -73,13 +74,13 @@ public class DeleteFile : IFileAction, IFolderAction, ICacheable
             return true;
         }
 
-        string target = paths.Count == 1
-            ? $"\"{Path.GetFileName(paths[0])}\""
-            : $"{paths.Count} items";
+        string message = paths.Count == 1
+            ? Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", Path.GetFileName(paths[0]))
+            : Str.Format("WindowsFileSystem.Delete.ConfirmManyFormat", paths.Count);
 
         _shell.ShowConfirmation(
-            title:     "Move to Recycle Bin?",
-            message:   $"Send {target} to the Recycle Bin?",
+            title:     Str.Get("WindowsFileSystem.Delete.ConfirmTitle"),
+            message:   message,
             onConfirm: () => queue.EnqueueDelete(paths, permanent: false),
             onCancel:  () => { });
 

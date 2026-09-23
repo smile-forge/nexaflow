@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,10 +24,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "🏷";
-        public string DisplayName            => "Copy path";
+        public string DisplayName            => Str.Get("WindowsFileSystem.Actions.CopyPath");
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
-        public string ExperienceDescription  => "All files";
+        public string ExperienceDescription  => Str.Get("WindowsFileSystem.Experiences.AllFiles");
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
 
@@ -35,7 +36,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         bool   IFolderAction.IsDestructive         => false;
         bool   IFolderAction.SupportsMultipleFiles => true;
         string IFolderAction.Icon                  => "🏷";
-        string IFolderAction.DisplayName           => "Copy path";
+        string IFolderAction.DisplayName           => Str.Get("WindowsFileSystem.Actions.CopyPath");
         bool   IFolderAction.RequiresRefresh       => false;
         bool   IFolderAction.CanPerformAction      => true;
         /// <summary>The breadcrumb bar already offers the open folder's own path, so an empty selection

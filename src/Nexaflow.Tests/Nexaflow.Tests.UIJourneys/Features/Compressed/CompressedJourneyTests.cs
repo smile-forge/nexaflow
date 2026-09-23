@@ -4,7 +4,7 @@ using Nexaflow.Tests.UIJourneys.Infrastructure;
 namespace Nexaflow.Tests.Features.Compressed.UI;
 
 /// <summary>
-/// One-pass UI journey for the archive inspector: opens a zip via the explicit <b>"As Archive"</b>
+/// One-pass UI journey for the archive inspector: opens a zip via the explicit <b>"OpenAsArchiveAction"</b>
 /// action, expands a folder row, and round-trips each of the four overlay-raising action-bar buttons.
 /// <para>
 /// Two things shape this journey and are worth stating, because getting either wrong makes it report
@@ -61,7 +61,7 @@ public class CompressedJourneyTests : UiJourneyTestBase
         // archive with a real folder in it — sample.zip holds docs/data.json. Not nested.zip, whose name
         // promises a tree and delivers a zip inside a zip (top.txt + inner.zip), so every row is a leaf
         // and the chevron never renders.
-        var view = OpenFileVia(TestSampleData.Path("archive"), "sample.zip", "As Archive", "CompressedView");
+        var view = OpenFileVia(TestSampleData.Path("archive"), "sample.zip", "OpenAsArchiveAction", "CompressedView");
         Assert.IsNotNull(view, "CompressedView did not open via the 'As Archive' action.");
 
         // ── The tree ──────────────────────────────────────────────────────────

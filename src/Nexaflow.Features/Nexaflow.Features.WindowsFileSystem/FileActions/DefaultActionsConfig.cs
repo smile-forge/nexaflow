@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Controls;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -13,7 +14,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class DefaultActionsConfig : IFeatureConfig
 {
     public string ConfigName   => "defaultactions";
-    public string FriendlyName => "Default Actions";
+    public string FriendlyName => Str.Get("WindowsFileSystem.Config.DefaultActions");
 
     public List<DefaultActionOverride> Overrides { get; set; } = [];
 }

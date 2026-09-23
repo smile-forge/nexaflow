@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -66,7 +67,7 @@ public class FileOperationDestinationsTests
 
         Assert.AreEqual(0, items.Count);
         Assert.AreEqual(1, refusals.Count);
-        StringAssert.Contains(refusals[0], "into itself");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Operations.CantCopyIntoItselfFormat", "src"), refusals[0]);
     }
 
     [TestMethod]

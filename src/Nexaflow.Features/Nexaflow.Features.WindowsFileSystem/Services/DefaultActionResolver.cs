@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -68,19 +69,23 @@ internal static class DefaultActionResolver
         var applicable = FileMapManager.Instance.GetExperiencesForFile(new FileInfo("dummy" + ext));
         foreach (var expId in applicable.Where(id => id != "/" && viewerExperienceIds.Contains(id))
                                         .OrderBy(id => id, StringComparer.OrdinalIgnoreCase))
-            list.Add(new DefaultActionCandidate(DefaultActionKind.InternalViewer, expId, Pretty(expId), "Internal viewer"));
+            list.Add(new DefaultActionCandidate(DefaultActionKind.InternalViewer, expId, Pretty(expId),
+                                                Str.Get("WindowsFileSystem.DefaultActions.GroupInternal")));
 
         // ── External apps that match the extension.
         var entry = new FileSystemEntry { Name = "dummy" + ext, FullPath = @"C:\dummy" + ext, IsDirectory = false };
         foreach (var ca in ExternalAppRegistry.Instance.Resolve([entry]))
             if (!string.IsNullOrEmpty(ca.Definition.Id))
-                list.Add(new DefaultActionCandidate(DefaultActionKind.ExternalApp, ca.Definition.Id, ca.DisplayName, "External app"));
+                list.Add(new DefaultActionCandidate(DefaultActionKind.ExternalApp, ca.Definition.Id, ca.DisplayName,
+                                                    Str.Get("WindowsFileSystem.DefaultActions.GroupExternal")));
 
         // ── Windows shell verbs registered for the type.
         var info = ShellTypeResolver.Resolve(ext);
         if (info is not null)
             foreach (var v in info.Verbs)
-                list.Add(new DefaultActionCandidate(DefaultActionKind.WindowsVerb, v.Verb, "Windows: " + v.FriendlyName, "Windows"));
+                list.Add(new DefaultActionCandidate(DefaultActionKind.WindowsVerb, v.Verb,
+                                                    Str.Format("WindowsFileSystem.DefaultActions.WindowsVerbFormat", v.FriendlyName),
+                                                    Str.Get("WindowsFileSystem.DefaultActions.GroupWindows")));
 
         return list;
     }

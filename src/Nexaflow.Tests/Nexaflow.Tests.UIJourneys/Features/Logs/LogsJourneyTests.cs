@@ -7,7 +7,7 @@ using FlaUI.Core.AutomationElements;
 namespace Nexaflow.Tests.Features.Logs.UI;
 
 /// <summary>
-/// One-pass UI journey for the Logs viewer: opens a log sample via the explicit <b>"As Log"</b>
+/// One-pass UI journey for the Logs viewer: opens a log sample via the explicit <b>"ShowLogAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar — the level
 /// highlight toggles, the pause/follow monitoring toggles, the highlight-term box, the encoding
 /// selector, the filter-pattern box with its clear cross, and the time range — soft-asserting each so a single gap doesn't hide the rest.
@@ -24,7 +24,7 @@ public class LogsJourneyTests : UiJourneyTestBase
     public void Logs_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("logs").First());
-        var view = OpenFileVia(TestSampleData.Path("logs"), file, "As Log", "LogView");
+        var view = OpenFileVia(TestSampleData.Path("logs"), file, "ShowLogAction", "LogView");
         Assert.IsNotNull(view, "LogView did not open via the 'As Log' action.");
 
         // Level highlight toggles — always present; toggling is a safe view-only recolour.

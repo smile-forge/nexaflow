@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;            // IShellServices
 using Nexaflow.Features.Images.ViewModels;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Images;
 
@@ -190,10 +191,10 @@ public class ImagesViewModelTests
     public void AutoSpeed_RoundTrips_AndLabelsCorrectly()
     {
         var vm = Make("a.png", "b.png");
-        Assert.AreEqual("Medium", vm.AutoSpeedLabel);   // default speed = 1
+        Assert.AreEqual(Str.Get("Images.Speed.Medium"), vm.AutoSpeedLabel);   // default speed = 1
         vm.AutoSpeed = 0;
-        Assert.AreEqual("Slow", vm.AutoSpeedLabel);
+        Assert.AreEqual(Str.Get("Images.Speed.Slow"), vm.AutoSpeedLabel);
         vm.AutoSpeed = 2;
-        Assert.AreEqual("Fast", vm.AutoSpeedLabel);
+        Assert.AreEqual(Str.Get("Images.Speed.Fast"), vm.AutoSpeedLabel);
     }
 }

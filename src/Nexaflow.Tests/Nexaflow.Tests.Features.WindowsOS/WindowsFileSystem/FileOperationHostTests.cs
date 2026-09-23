@@ -13,6 +13,7 @@ using Nexaflow.Features.Compressed.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.Features.Common.ThisPc;
 using Nexaflow.Features.Common.Viewlets;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -47,7 +48,7 @@ public class FileOperationHostTests
         await host.Run(Request(), (_, _) => Task.FromResult(Ok()));
 
         var op = queue.Operations.Single();
-        Assert.AreEqual("Extracting photos.zip to photos", op.Title,
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Operations.TitleToFormat", "Extracting", "photos.zip", "photos"), op.Title,
             "the row reads as a sentence, the same way a copy's does");
         Assert.AreEqual(FileOperationState.Completed, op.State);
     }

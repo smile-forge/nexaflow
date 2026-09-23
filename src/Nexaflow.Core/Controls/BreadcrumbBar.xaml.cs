@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -181,7 +182,7 @@ public partial class BreadcrumbBar : UserControl
     private UIElement BuildCollapsedPlaceholder(IEnumerable<BreadcrumbSegment> hidden) =>
         new TextBlock
         {
-            Text       = "(long path)",
+            Text       = Str.Get("Shell.Breadcrumb.LongPath"),
             Foreground = (Brush)FindResource("TextMutedBrush"),
             FontSize   = 12,
             FontStyle  = FontStyles.Italic,
@@ -289,7 +290,7 @@ public partial class BreadcrumbBar : UserControl
 
         var item = new MenuItem
         {
-            Header           = "Copy path",
+            Header           = Str.Get("Shell.Breadcrumb.CopyPath"),
             Command          = CopyPathCommand,
             CommandParameter = path,
         };

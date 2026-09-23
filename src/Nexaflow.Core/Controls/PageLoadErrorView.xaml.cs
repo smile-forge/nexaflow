@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Dependencies;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -30,10 +31,8 @@ public partial class PageLoadErrorView : UserControl, IPageView
         InitializeComponent();
 
         var what = Describe(page);
-        HeadlineText.Text = what is null ? "This tab couldn't open" : $"{what} couldn't open";
-        SummaryText.Text  =
-            "The rest of Nexaflow is unaffected — you can close this tab and carry on. "
-            + "If it keeps happening, the detail below is what to report.";
+        HeadlineText.Text = what is null ? Str.Get("Shell.PageError.Headline") : Str.Format("Shell.PageError.HeadlineFormat", what);
+        SummaryText.Text  = Str.Get("Shell.PageError.Summary");
 
         _details       = BuildDetails(page, error);
         DetailBox.Text = _details;
@@ -46,7 +45,7 @@ public partial class PageLoadErrorView : UserControl, IPageView
         // Record it here, where the failure actually surfaces.
         if (error is not null) CrashLog.Instance.Record(error);
 
-        LogPathText.Text = $"Also written to {CrashLog.Instance.CurrentPath}";
+        LogPathText.Text = Str.Format("Shell.PageError.LogPathFormat", CrashLog.Instance.CurrentPath);
     }
 
     /// <summary>This page has no feature view-model — it exists because building one failed.</summary>

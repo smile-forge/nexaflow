@@ -19,6 +19,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Nexaflow.Core.Localization;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Services;
 
@@ -655,14 +656,14 @@ public sealed class ShellServices : IShellServices
     public void ShowNotification(string message) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = "Info", Body = message, Severity = MessageSeverity.Info,
+            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info,
         });
 
     public void ShowNotification(string message, Page tab) =>
         MessageCenter.Instance.Post(new NotificationItem
         {
-            Title = "Info", Body = message, Severity = MessageSeverity.Info, ShowToast = true,
-            Actions = [new MessageAction("Open", new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
+            Title = Str.Get("Shell.Notifications.InfoTitle"), Body = message, Severity = MessageSeverity.Info, ShowToast = true,
+            Actions = [new MessageAction(Str.Get("Shell.Notifications.Open"), new RelayCommand(() => ActivateTab(tab)), IsPrimary: true)],
         });
 
     /// <summary>Brings the window owning <paramref name="tab"/> to the front and selects it.</summary>
@@ -797,8 +798,8 @@ public sealed class ShellServices : IShellServices
         PageKind    = title,
         Breadcrumbs = {new BreadcrumbSegment { Label = title }},
         ContentFactory = () => new PlaceholderPage(
-            $"No feature in this build provides the page '{title}'.",
-            "Its assembly is missing from the install, or failed to load.")
+            Str.Format("Shell.Placeholder.MissingFeatureFormat", title),
+            Str.Get("Shell.Placeholder.MissingFeatureDetail"))
     };
 
     // ── Matching helpers ──────────────────────────────────────────────────

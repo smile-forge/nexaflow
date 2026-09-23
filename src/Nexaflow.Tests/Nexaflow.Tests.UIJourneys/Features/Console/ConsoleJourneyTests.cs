@@ -60,14 +60,14 @@ public class ConsoleJourneyTests : UiJourneyTestBase
         var viaRibbon = TryOpenTabWithElement("ConsoleView");
         if (viaRibbon is not null) return viaRibbon;
 
-        // "Cmd Here" is a folder action (CmdHereAction.DisplayName); with no file row selected it applies to
-        // the current folder and surfaces in the ActionStrip with AutomationId == its DisplayName.
+        // "Cmd Here" is a folder action (CmdHereAction); with no file row selected it applies to
+        // the current folder and surfaces in the ActionStrip with AutomationId == its type name.
         var folder = Directory.CreateDirectory(
             Path.Combine(Path.GetTempPath(), "nexaflow-consolejourney-" + Guid.NewGuid().ToString("N"))).FullName;
 
         NavigateFileBrowserTo(folder);
 
-        var action = WaitForId("Cmd Here", 8);
+        var action = WaitForId("CmdHereAction", 8);
         Assert.IsNotNull(action, "The 'Cmd Here' folder action did not appear in the ActionStrip for the temp folder.");
         action!.AsButton().Invoke();
         System.Threading.Thread.Sleep(300);   // let the Console tab spin up

@@ -59,7 +59,7 @@ public partial class SearchView : UserControl, IPageView
             || header.Role == GridViewColumnHeaderRole.Padding)
             return;
 
-        var propName = SearchResultSort.PropertyFor(header.Content?.ToString());
+        var propName = SearchResultSort.PropertyFor(ColumnId(header.Column));
         if (propName is null) return;
 
         var ascending = SearchResultSort.NextAscending(
@@ -77,4 +77,12 @@ public partial class SearchView : UserControl, IPageView
         _lastSortHeader = header;
         _lastSortDir    = dir;
     }
+
+    // By the column itself, never its header text: that is translated, and wears the sort arrow.
+    private string? ColumnId(GridViewColumn? column) =>
+        column == NameColumn     ? "Name"
+        : column == LocationColumn ? "Location"
+        : column == SizeColumn     ? "Size"
+        : column == ModifiedColumn ? "Modified"
+        : null;
 }

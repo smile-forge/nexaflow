@@ -2,6 +2,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Features.WindowsFileSystem.Views;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -46,7 +47,7 @@ public sealed class FileSystemPageRegistration(
     {
         var pages = new List<Page> { CreatePageDefinition(new() { ["mode"] = "thispc" }) };
         foreach (var (title, icon, path) in NamedFolders.Value)
-            pages.Add(FolderPage(title, icon, path));
+            pages.Add(FolderPage(title(), icon, path));
         return pages;
     }
 
@@ -59,21 +60,22 @@ public sealed class FileSystemPageRegistration(
     private static readonly Guid Desktop   = new("B4BFCC3A-DB2C-424C-B029-7FE99A87C641");
     private static readonly Guid Downloads = new("374DE290-123F-4565-9164-39C4925E467B");
 
-    /// <summary>Named Windows folders (title, icon, resolved path), resolved once per process.</summary>
-    private static readonly Lazy<IReadOnlyList<(string Title, string Icon, string Path)>> NamedFolders = new(() =>
+    /// <summary>Named Windows folders (title, icon, resolved path), resolved once per process. The title is looked
+    /// up when a page is built, not held here, so it follows the active language.</summary>
+    private static readonly Lazy<IReadOnlyList<(Func<string> Title, string Icon, string Path)>> NamedFolders = new(() =>
     {
-        var list = new List<(string, string, string)>();
-        void Add(string title, string icon, Guid folderId)
+        var list = new List<(Func<string>, string, string)>();
+        void Add(Func<string> title, string icon, Guid folderId)
         {
             var path = NativeMethods.GetKnownFolderPath(folderId);
             if (!string.IsNullOrEmpty(path)) list.Add((title, icon, path));
         }
-        Add("Desktop",   "📂", Desktop);
-        Add("Documents", "📄", Documents);
-        Add("Downloads", "📥", Downloads);
-        Add("Pictures",  "🖼", Pictures);
-        Add("Music",     "🎵", Music);
-        Add("Videos",    "🎬", Videos);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Desktop"),   "📂", Desktop);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Documents"), "📄", Documents);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Downloads"), "📥", Downloads);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Pictures"),  "🖼", Pictures);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Music"),     "🎵", Music);
+        Add(() => Str.Get("WindowsFileSystem.Folders.Videos"),    "🎬", Videos);
         return list;
     });
 
@@ -114,11 +116,11 @@ public sealed class FileSystemPageRegistration(
         {
             var tab = new Page
             {
-                Title       = "This PC",
+                Title       = Str.Get("WindowsFileSystem.ThisPc.Title"),
                 Icon        = "🖥",
                 PageKind    = PageKind,
                 PageParams  = pageParams ?? new() { ["mode"] = "thispc" },
-                Breadcrumbs = { new BreadcrumbSegment { Label = "This PC" } }
+                Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("WindowsFileSystem.ThisPc.Title") } }
             };
             tab.ContentFactory = () => CreateView(FileSystemViewModel.CreateThisPc(shell, ai, configs), tab);
             return tab;

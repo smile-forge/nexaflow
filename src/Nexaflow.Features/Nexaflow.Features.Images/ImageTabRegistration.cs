@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Features.Images.Views;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -43,7 +44,7 @@ public sealed class ImageTabRegistration : IPageRegistration
 
         var title = paths.Count == 1
             ? Path.GetFileName(paths[0])
-            : $"Images ({paths.Count})";
+            : Str.Format("Images.Page.TitleFormat", paths.Count);
 
         var page = new Page
         {
@@ -54,9 +55,9 @@ public sealed class ImageTabRegistration : IPageRegistration
 
         // Single image → "folder › name"; a folder view → "folder › all image files"; a selection → "folder › N images".
         if (paths.Count > 1)
-            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? "all image files" : $"{paths.Count} images");
+            page.SetMultiFileBreadcrumbs(paths, wholeFolder ? Str.Get("Images.Page.AllImageFiles") : Str.Format("Images.Page.SelectionFormat", paths.Count));
         else
-            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? title : "Images");
+            page.SetFileBreadcrumbs(paths.Count == 1 ? paths[0] : string.Empty, paths.Count == 1 ? title : Str.Get("Images.Page.Fallback"));
 
         return page;
     }

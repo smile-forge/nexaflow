@@ -8,7 +8,7 @@ using FlaUI.Core.Input;
 namespace Nexaflow.Tests.Features.Hex.UI;
 
 /// <summary>
-/// One-pass UI journey for the Hex (binary) viewer: opens a binary sample via the explicit <b>"As Hex"</b>
+/// One-pass UI journey for the Hex (binary) viewer: opens a binary sample via the explicit <b>"ShowBinaryAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar controls — edit-mode
 /// toggles, goto, undo/redo, save, and the evaluate-pane toggle — soft-asserting each so a single gap doesn't
 /// hide the rest. The buffer opens read-only; the one edit made (to reach the save menu) is undone, and Save is never pressed, so the sample file is never written.
@@ -24,7 +24,7 @@ public class HexJourneyTests : UiJourneyTestBase
     public void Hex_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("binary").First());
-        var view = OpenFileVia(TestSampleData.Path("binary"), file, "As Hex", "HexView");
+        var view = OpenFileVia(TestSampleData.Path("binary"), file, "ShowBinaryAction", "HexView");
         Assert.IsNotNull(view, "HexView did not open via the 'As Hex' action.");
 
         // Goto — jump to a hex offset (safe, read-only navigation).
