@@ -749,7 +749,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(font),
             size,
             ink ?? Style.Text,
             Editing.LayoutText.Density);
@@ -758,7 +758,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         new(trouble,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(LabelFont),
             ReasonSize,
             Style.Danger,
             Editing.LayoutText.Density)
@@ -771,7 +771,7 @@ internal sealed class SmilesBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Style.Text,
             Editing.LayoutText.Density);

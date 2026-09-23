@@ -351,6 +351,21 @@ Reach for it whenever a change touches shared rendering rather than one diagram 
 what a renderer was *asked* to draw; they cannot see a label drawn behind a box, a legend appended below the
 visible area, or a group dropped before it reached the canvas — a before/after render can.
 
+### Measuring markdown layout (opt-in, by hand)
+
+`MarkdownLayoutBench` times laying a document out, step by step, over the sample corpus and
+`docs/MarkdownSupport.md`: what **opening** a document costs, what **one keystroke** in the middle of it costs, and
+each step on its own — Markdig, every stage the document is read by, the builder (nested languages apart from
+markdown's own), painting — with corpus totals for every nested language, every stage of each language's own
+pipeline, and every kind of block. It writes one JSON file per run and asserts nothing.
+
+```powershell
+tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept in %LOCALAPPDATA%\Nexaflow\markdown-bench
+```
+
+Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the
+default because a Debug build checks every pipeline stage's output against its input, which a user never pays for.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`

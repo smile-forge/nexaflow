@@ -28,8 +28,7 @@ internal static class ScoreText
         FontWeight? weight = null, FontStyle? style = null, Brush? brush = null,
         FontFamily? family = null) =>
         new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(family ?? Body, style ?? FontStyles.Normal,
-                weight ?? FontWeights.Normal, FontStretches.Normal),
+            Typefaces.Of(family ?? Body, weight ?? FontWeights.Normal, style ?? FontStyles.Normal),
             size, brush ?? Brushes.Black, Editing.LayoutText.Density);
 
     public static double Width(string text, double size) => Build(text, size).Width;

@@ -158,6 +158,6 @@ public sealed class CodeBuilder : ContentBuilder
 
     private FormattedText Glyphs(string text, Brush ink) =>
         new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Consolas, Courier New"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(Style.MonoFont),
             Math.Max(1, Style.TextSize * 0.94), ink, LayoutText.Density);
 }

@@ -252,7 +252,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
+            Style.Face(BodyFont, weight, slant),
             size,
             ink,
             LayoutText.Density);
@@ -380,7 +380,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Palette.Text,
             LayoutText.Density);

@@ -354,8 +354,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
         new(word,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(new FontFamily(_settings.Font), FontStyles.Normal,
-                         _settings.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal),
+            Style.Face(Typefaces.Family(_settings.Font), _settings.Bold ? FontWeights.Bold : FontWeights.Normal),
             size,
             Brushes.Black,
             Editing.LayoutText.Density);
@@ -372,7 +371,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Brushes.Black,
             Editing.LayoutText.Density);

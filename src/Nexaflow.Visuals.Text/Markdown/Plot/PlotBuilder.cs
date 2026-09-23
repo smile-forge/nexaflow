@@ -1212,7 +1212,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         new(says,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(WordFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(WordFont),
             size,
             ink,
             Editing.LayoutText.Density);
@@ -1221,7 +1221,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Brushes.Black,
             Editing.LayoutText.Density);

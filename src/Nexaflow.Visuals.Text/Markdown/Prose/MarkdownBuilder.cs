@@ -35,8 +35,6 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <summary>The most room a picture is given, either way, before it is fitted down into it.</summary>
     private const double Biggest = 600;
 
-    private const string MonoFont = "Consolas";
-
     /// <summary>How far down the next block goes, and how far right anything has reached.</summary>
     private double _y;
     private double _reach;

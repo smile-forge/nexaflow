@@ -90,7 +90,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         text,
         CultureInfo.CurrentCulture,
         FlowDirection.LeftToRight,
-        new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+        Style.Face(LabelFont),
         size ?? LabelSize,
         Brushes.Black,
         Editing.LayoutText.Density);
@@ -409,7 +409,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(LabelFont),
             MinimumLabelSize,
             Brushes.Black,
             Editing.LayoutText.Density);

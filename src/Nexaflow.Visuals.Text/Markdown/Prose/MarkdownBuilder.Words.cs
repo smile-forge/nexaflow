@@ -355,7 +355,8 @@ public sealed partial class MarkdownBuilder
                 continue;
             }
 
-            var measured = run.Inset?.Width ?? Glyphs(text, run.Face).Width;
+            // Measured, not set: the line these words end up on is set as one run once it is known where it breaks.
+            var measured = run.Inset?.Width ?? TextWidths.Of(text, Typeface(run.Face), Size(run.Face));
 
             if (width > 0 && width + measured > room)
             {
@@ -448,7 +449,7 @@ public sealed partial class MarkdownBuilder
 
         line.Clear();
 
-        var words = Glyphs(" ", Face.Plain);
+        var words = Space;
         var baseline = groups.Max(group => group.Glyphs?.Baseline ?? words.Baseline);
         var middle = baseline - words.Baseline + (words.Height / 2);
 
@@ -527,17 +528,8 @@ public sealed partial class MarkdownBuilder
 
     private FormattedText Glyphs(string text, Face face)
     {
-        var glyphs = new FormattedText(
-            text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            new Typeface(face.Font ?? (face.Mono ? new FontFamily(MonoFont) : Style.TextFont),
-                         face.Italic ? FontStyles.Italic : FontStyles.Normal,
-                         face.Bold ? FontWeights.Bold : FontWeights.Normal,
-                         FontStretches.Normal),
-            Math.Max(1, Style.TextSize * (face.Scale <= 0 ? 1 : face.Scale)),
-            face.Ink ?? Style.Text,
-            LayoutText.Density);
+        var glyphs = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface(face), Size(face),
+                                       face.Ink ?? Style.Text, LayoutText.Density);
 
         if (face.Strike || face.Underline || face.Dotted)
         {
@@ -552,6 +544,23 @@ public sealed partial class MarkdownBuilder
 
         return glyphs;
     }
+
+    /// <summary>The typeface a face is set in: its own font, the fixed-pitch one, or the reading one.</summary>
+    private Typeface Typeface(Face face) =>
+        Style.Face(face.Font ?? (face.Mono ? Style.MonoFont : Style.TextFont),
+                   face.Bold ? FontWeights.Bold : FontWeights.Normal,
+                   face.Italic ? FontStyles.Italic : FontStyles.Normal);
+
+    /// <summary>How big a face is set.</summary>
+    private double Size(Face face) => Math.Max(1, Style.TextSize * (face.Scale <= 0 ? 1 : face.Scale));
+
+    /// <summary>
+    /// A space in the reading face: what a line of words is measured against for where its baseline and middle sit. Set
+    /// once for the whole document rather than once a line.
+    /// </summary>
+    private FormattedText Space => _space ??= Glyphs(" ", Face.Plain);
+
+    private FormattedText? _space;
 
     /// <summary>A rule of dots, set a little below the letters so it reads as a hint rather than as a link.</summary>
     private static TextDecoration Dots(Brush ink)

@@ -149,7 +149,7 @@ public sealed partial class LatexBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Consolas"),
+            Style.Face(Style.MonoFont),
             _scale * 0.6,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
             Editing.LayoutText.Density);

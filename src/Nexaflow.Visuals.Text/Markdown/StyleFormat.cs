@@ -67,6 +67,17 @@ public sealed record StyleFormat
     /// </summary>
     public FontFamily TextFont { get; init; } = DefaultTextFont;
 
+    /// <summary>The face code, and source shown as it was written, is set in — every character the same width.</summary>
+    public FontFamily MonoFont { get; init; } = DefaultMonoFont;
+
+    /// <summary>
+    /// The typeface for text in <paramref name="family"/> — the body face where none is named — at a weight and slant.
+    /// One object per face for the life of the process, shared by every builder (<see cref="Typefaces"/>), so setting a
+    /// run of words never looks a font up again.
+    /// </summary>
+    public Typeface Face(FontFamily? family = null, FontWeight? weight = null, FontStyle? style = null) =>
+        Typefaces.Of(family ?? TextFont, weight ?? FontWeights.Normal, style ?? FontStyles.Normal);
+
     /// <summary>
     /// How big body text is set. What a surface with its own text size sets, and what everything proportional to
     /// body text is worked out from — a display formula, a heading, a caption.
@@ -92,6 +103,8 @@ public sealed record StyleFormat
 
 
     private static readonly FontFamily DefaultTextFont = new("Segoe UI");
+
+    private static readonly FontFamily DefaultMonoFont = new("Consolas, Courier New");
 
     /// <summary>The size this document's typography was designed against: every other size in it is a multiple of this.</summary>
     private const double DefaultTextSize = 13.5;

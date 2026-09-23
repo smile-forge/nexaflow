@@ -74,7 +74,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Consolas"),
+            Style.Face(Style.MonoFont),
             SourceSize,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
             Editing.LayoutText.Density);

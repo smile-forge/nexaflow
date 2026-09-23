@@ -233,7 +233,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         new(trouble,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(ReasonFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(ReasonFont),
             ReasonSize,
             Palette.Danger,
             Editing.LayoutText.Density)
@@ -264,7 +264,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             ReasonSize,
             Brushes.Black,
             Editing.LayoutText.Density);
