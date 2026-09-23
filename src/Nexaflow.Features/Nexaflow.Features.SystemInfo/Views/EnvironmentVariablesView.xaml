@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="EnvVarsView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             xmlns:conv="clr-namespace:Nexaflow.Features.SystemInfo.Converters">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -86,11 +88,11 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Environment Variables"
+            <TextBlock Grid.Column="0" Text="{loc:Str SystemInfo.EnvVars.Title}"
                        Foreground="{StaticResource TextBrush}" FontSize="18" FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
 
-            <TextBlock Grid.Column="1" Text="Gathering…" Margin="14,0,0,0"
+            <TextBlock Grid.Column="1" Text="{loc:Str SystemInfo.Common.GatheringEllipsis}" Margin="14,0,0,0"
                        Foreground="{StaticResource TextMutedBrush}" FontSize="13" VerticalAlignment="Center"
                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"/>
 
@@ -100,9 +102,15 @@
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center" Margin="14,0,8,0">
-                <TextBlock Text="Scope:" Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{loc:Str SystemInfo.EnvVars.Scope}" Foreground="{StaticResource TextMutedBrush}"
                            VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <ComboBox AutomationProperties.AutomationId="EnvVars_Scope" Width="120" ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}"/>
+                <ComboBox AutomationProperties.AutomationId="EnvVars_Scope" Width="120" ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={x:Static conv:EnvScopeLabelConverter.Instance}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </StackPanel>
 
             <TextBox Grid.Column="3" Width="200" Margin="0,0,8,0"
@@ -112,10 +120,10 @@
                      BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                      AutomationProperties.AutomationId="EnvVars_Filter"
                      Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name or value"/>
+                     ToolTip="{loc:Str SystemInfo.EnvVars.FilterTip}"/>
 
-            <Button Grid.Column="4" AutomationProperties.AutomationId="EnvVars_Add" Content="Add" Command="{Binding AddNewCommand}" Style="{StaticResource ActionButton}"/>
-            <Button Grid.Column="5" AutomationProperties.AutomationId="EnvVars_Refresh" Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/>
+            <Button Grid.Column="4" AutomationProperties.AutomationId="EnvVars_Add" Content="{loc:Str SystemInfo.EnvVars.Add}" Command="{Binding AddNewCommand}" Style="{StaticResource ActionButton}"/>
+            <Button Grid.Column="5" AutomationProperties.AutomationId="EnvVars_Refresh" Content="{loc:Str SystemInfo.Common.Refresh}" Command="{Binding RefreshCommand}" Style="{StaticResource ActionButton}"/>
         </Grid>
 
         <!-- ── Master / detail ── -->
@@ -159,17 +167,17 @@
 
                     <!-- Selected name + scope -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                        <TextBlock Text="{Binding SelectedVariable.Name, FallbackValue='(no variable selected)'}"
+                        <TextBlock Text="{Binding SelectedVariable.Name, FallbackValue={loc:Str SystemInfo.EnvVars.NoneSelected}}"
                                    Foreground="{StaticResource TextBrush}" FontSize="15" FontWeight="SemiBold"/>
                         <Border Margin="10,0,0,0" Padding="6,1" CornerRadius="3"
                                 Background="{StaticResource DeepBgBrush}" VerticalAlignment="Center"
                                 Visibility="{Binding CanEditSelection, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding SelectedVariable.Scope}" FontSize="10"
+                            <TextBlock Text="{Binding SelectedVariable.Scope, Converter={x:Static conv:EnvScopeLabelConverter.Instance}}" FontSize="10"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                         </Border>
                     </StackPanel>
 
-                    <TextBlock Grid.Row="1" Text="Value" Foreground="{StaticResource TextMutedBrush}"
+                    <TextBlock Grid.Row="1" Text="{loc:Str SystemInfo.EnvVars.Value}" Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" Margin="0,0,0,4"/>
 
                     <!-- Generous multiline value editor -->
@@ -191,7 +199,7 @@
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
                             Background="{StaticResource DeepBgBrush}">
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Entries (one per ';' segment)"
+                            <TextBlock DockPanel.Dock="Top" Text="{loc:Str SystemInfo.EnvVars.Entries}"
                                        Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="8,6,8,4"/>
 
                             <!-- Add entry row -->
@@ -207,8 +215,8 @@
                                          AutomationProperties.AutomationId="EnvVars_NewEntry"
                                          Text="{Binding NewEntry, UpdateSourceTrigger=PropertyChanged}"
                                          IsEnabled="{Binding CanEditSelection}"
-                                         ToolTip="Add a new entry"/>
-                                <Button Grid.Column="1" AutomationProperties.AutomationId="EnvVars_AddEntry" Content="Add entry" Style="{StaticResource MiniButton}"
+                                         ToolTip="{loc:Str SystemInfo.EnvVars.NewEntryTip}"/>
+                                <Button Grid.Column="1" AutomationProperties.AutomationId="EnvVars_AddEntry" Content="{loc:Str SystemInfo.EnvVars.AddEntry}" Style="{StaticResource MiniButton}"
                                         IsEnabled="{Binding CanEditSelection}"
                                         Command="{Binding AddEntryCommand}"/>
                             </Grid>
@@ -249,9 +257,9 @@
 
                     <!-- Save / Delete -->
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button AutomationProperties.AutomationId="EnvVars_Save" Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource ActionButton}"/>
-                        <Button AutomationProperties.AutomationId="EnvVars_Delete" Content="Delete" Command="{Binding DeleteCommand}" Style="{StaticResource ActionButton}"/>
-                        <TextBlock Text="Machine-scope changes prompt for administrator approval."
+                        <Button AutomationProperties.AutomationId="EnvVars_Save" Content="{loc:Str SystemInfo.EnvVars.Save}" Command="{Binding SaveCommand}" Style="{StaticResource ActionButton}"/>
+                        <Button AutomationProperties.AutomationId="EnvVars_Delete" Content="{loc:Str SystemInfo.EnvVars.Delete}" Command="{Binding DeleteCommand}" Style="{StaticResource ActionButton}"/>
+                        <TextBlock Text="{loc:Str SystemInfo.EnvVars.MachineNeedsAdmin}"
                                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                    VerticalAlignment="Center" Margin="6,0,0,0"
                                    Visibility="{Binding CanEditSelection, Converter={StaticResource BoolToVis}}"/>

@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -19,11 +20,11 @@ public sealed class ShowPdfAction(IShellServices shell) : IFileAction, ICacheabl
 {
     public static string? StaticExperienceId => "/document/pdf/read";
     public string ExperienceId => "/document/pdf/read";
-    public string ExperienceDescription => "PDF reader";
+    public string ExperienceDescription => Str.Get("Pdf.Action.AsPdfDescription");
 
-    public string DisplayName => "As Pdf";
+    public string DisplayName => Str.Get("Pdf.Action.AsPdf");
     public string Icon => "📕";
-    public string? Tooltip => "Read this PDF in Nexaflow";
+    public string? Tooltip => Str.Get("Pdf.Action.AsPdfTip");
 
     public bool IsDestructive => false;
     public bool SupportsMultipleFiles => false;

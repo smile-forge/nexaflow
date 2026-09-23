@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
 
@@ -22,10 +23,10 @@ namespace Nexaflow.Features.Web.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;
         public string Icon                   => "🌐";
-        public string DisplayName            => "Browse";
+        public string DisplayName            => Str.Get("Web.Action.Browse");
         public static string? StaticExperienceId => "/text/html";
         public string ExperienceId           => "/text/html";
-        public string ExperienceDescription  => "Open A browser tab to display HTML content";
+        public string ExperienceDescription  => Str.Get("Web.Action.BrowseDescription");
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
         public bool   OpensViewer            => true;

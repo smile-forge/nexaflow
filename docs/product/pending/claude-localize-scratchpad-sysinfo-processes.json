@@ -1,0 +1,86 @@
+{
+  "branch": "claude/localize-scratchpad-sysinfo-processes",
+  "nodes": {
+    "scratchpad": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "sysinfo": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.SystemInfo/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "processes": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Processes/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "executable-inspector": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Executable/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "font": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Font/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "pdf": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Pdf/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "web-viewer": {
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Web/Localization/en/strings.json"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 7,
+  "touched_nodes": [
+    "executable-inspector",
+    "font",
+    "pdf",
+    "processes",
+    "scratchpad",
+    "sysinfo",
+    "web-viewer"
+  ]
+}

@@ -9,6 +9,7 @@ using Nexaflow.Features.Processes.ClientTools;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Visuals.Common.Converters;
 using Nexaflow.Features.Processes.Services;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -372,10 +373,9 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     private async Task ConfirmKill(ProcessRowViewModel? row, bool tree)
     {
         if (row is null) return;
-        var title = tree ? $"Kill {row.Name} and its child processes?" : $"Kill {row.Name} (PID {row.Pid})?";
-        var body  = tree
-            ? "This terminates the process and every process it started, immediately. Unsaved work is lost."
-            : "This terminates the process immediately. Unsaved work is lost.";
+        var title = tree ? Str.Format("Processes.Kill.ConfirmTreeTitleFormat", row.Name)
+                         : Str.Format("Processes.Kill.ConfirmTitleFormat", row.Name, row.Pid);
+        var body  = tree ? Str.Get("Processes.Kill.ConfirmTreeBody") : Str.Get("Processes.Kill.ConfirmBody");
         if (!await _shell.ConfirmAsync(title, body)) return;
 
         await ProcessActions.KillAsync(_shell, row.Pid, row.Name, tree);
@@ -390,7 +390,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
         var dir  = string.IsNullOrWhiteSpace(path) ? null : System.IO.Path.GetDirectoryName(path);
         if (string.IsNullOrEmpty(dir))
         {
-            _shell.ShowError($"Couldn't locate the image for {row.Name}.");
+            _shell.ShowError(Str.Format("Processes.Error.CannotLocateImageFormat", row.Name));
             return;
         }
         _shell.OpenTab("FileSystem", new Dictionary<string, string>
@@ -405,12 +405,13 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     private void CopyDetails(ProcessRowViewModel? row)
     {
         if (row is null) return;
-        var text = $"{row.Name} (PID {row.Pid})\n" +
-                   $"CPU: {(row.CpuText.Length == 0 ? "0" : row.CpuText)}%\n" +
-                   $"Private bytes: {BytesToTextConverter.Format(row.PrivateBytes)}\n" +
-                   $"Working set: {BytesToTextConverter.Format(row.WorkingSet)}\n" +
-                   $"{row.Description}{(row.Company.Length > 0 ? $" — {row.Company}" : "")}\n" +
-                   row.Path;
+        var text = Str.Format("Processes.CopyDetails.Format",
+            row.Name, row.Pid,
+            row.CpuText.Length == 0 ? "0" : row.CpuText,
+            BytesToTextConverter.Format(row.PrivateBytes),
+            BytesToTextConverter.Format(row.WorkingSet),
+            $"{row.Description}{(row.Company.Length > 0 ? $" — {row.Company}" : "")}",
+            row.Path);
         Copy(text);
     }
 
@@ -421,7 +422,7 @@ public sealed partial class ProcessesViewModel : ObservableObject, IPageViewMode
     private void CopyPath(ProcessRowViewModel? row)
     {
         if (row is null) return;
-        if (string.IsNullOrWhiteSpace(row.Path)) { _shell.ShowError($"No image path available for {row.Name}."); return; }
+        if (string.IsNullOrWhiteSpace(row.Path)) { _shell.ShowError(Str.Format("Processes.Error.NoImagePathFormat", row.Name)); return; }
         Copy(row.Path);
     }
 

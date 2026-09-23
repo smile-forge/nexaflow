@@ -37,7 +37,7 @@ public class ProcessesViewTests : UITestBase
 
         // Right-click → "View details" exercises the row context menu's command bindings and opens detail.
         row.RightClick();
-        var viewDetails = WaitForDesktopName("View details");
+        var viewDetails = WaitForDesktopId("Proc_ViewDetails");
         Assert.IsNotNull(viewDetails, "Right-clicking a process row should show a 'View details' menu item.");
         viewDetails!.Click();
 
@@ -99,12 +99,12 @@ public class ProcessesViewTests : UITestBase
     }
 
     // Context-menu popups live in their own window, so search the desktop, not the shell window.
-    private AutomationElement? WaitForDesktopName(string name)
+    private AutomationElement? WaitForDesktopId(string automationId)
     {
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed < TimeSpan.FromSeconds(5))
         {
-            var el = Automation.GetDesktop().FindFirstDescendant(cf => cf.ByName(name));
+            var el = Automation.GetDesktop().FindFirstDescendant(cf => cf.ByAutomationId(automationId));
             if (el is not null) return el;
             System.Threading.Thread.Sleep(150);
         }

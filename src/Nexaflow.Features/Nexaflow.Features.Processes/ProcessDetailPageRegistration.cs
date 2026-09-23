@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.ViewModels;
 using Nexaflow.Features.Processes.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes;
 
@@ -19,9 +20,9 @@ public sealed class ProcessDetailPageRegistration(IShellServices shellServices) 
         int pid = ParsePid(pageParams);
         var page = new Page
         {
-            Title       = $"Process {pid}",
+            Title       = Str.Format("Processes.Detail.TitleFormat", pid),
             Icon        = "🔬",
-            Breadcrumbs = { new BreadcrumbSegment { Label = $"Process {pid}" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Format("Processes.Detail.TitleFormat", pid) } },
             PageParams  = pageParams,
         };
         page.ContentFactory = () =>

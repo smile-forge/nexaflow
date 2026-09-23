@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.Services;
 
@@ -28,80 +29,84 @@ public sealed class SystemInfoCollector
     // ── Operating System ──────────────────────────────────────────────────────
     private static SystemInfoSection CollectOperatingSystem()
     {
-        var s  = new SystemInfoSection("Operating System", "🪟");
+        var s  = new SystemInfoSection(Str.Get("SystemInfo.Os.Title"), "🪟");
         var os = Wmi.First("Win32_OperatingSystem");
 
-        s.Add("Name", os?.Str("Caption") ?? RuntimeInformation.OSDescription);
+        s.Add(Str.Get("SystemInfo.Os.Name"), os?.Str("Caption") ?? RuntimeInformation.OSDescription);
 
         // DisplayVersion (e.g. 24H2) lives only in the registry; build + UBR give the precise number.
         using var cv = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
         var display = cv?.GetValue("DisplayVersion") as string;
         var build   = cv?.GetValue("CurrentBuild") as string ?? Environment.OSVersion.Version.Build.ToString();
         var ubr     = cv?.GetValue("UBR") as int?;
-        var version = display is null ? $"Build {build}" : $"{display} (Build {build}{(ubr is { } u ? $".{u}" : "")})";
-        s.Add("Version", version);
+        var fullBuild = $"{build}{(ubr is { } u ? $".{u}" : "")}";
+        var version = display is null ? Str.Format("SystemInfo.Os.BuildFormat", build)
+                                      : Str.Format("SystemInfo.Os.VersionFormat", display, fullBuild);
+        s.Add(Str.Get("SystemInfo.Os.Version"), version);
 
-        s.Add("Architecture", $"{RuntimeInformation.OSArchitecture}");
-        s.Add("Computer Name", Environment.MachineName);
-        s.Add("Logged-in User", $"{Environment.UserDomainName}\\{Environment.UserName}");
-        s.Add("Registered Owner", cv?.GetValue("RegisteredOwner") as string);
+        s.Add(Str.Get("SystemInfo.Os.Architecture"), $"{RuntimeInformation.OSArchitecture}");
+        s.Add(Str.Get("SystemInfo.Os.ComputerName"), Environment.MachineName);
+        s.Add(Str.Get("SystemInfo.Os.LoggedInUser"), $"{Environment.UserDomainName}\\{Environment.UserName}");
+        s.Add(Str.Get("SystemInfo.Os.RegisteredOwner"), cv?.GetValue("RegisteredOwner") as string);
 
         if (os?.CimDate("InstallDate") is { } installed)
-            s.Add("Installed", installed.ToString("yyyy-MM-dd"));
+            s.Add(Str.Get("SystemInfo.Os.Installed"), installed.ToString("yyyy-MM-dd"));
 
         if (os?.CimDate("LastBootUpTime") is { } boot)
         {
-            s.Add("Last Boot", boot.ToString("yyyy-MM-dd HH:mm"));
-            s.Add("Uptime", DurationFormatter.FormatUptime(DateTime.Now - boot));
+            s.Add(Str.Get("SystemInfo.Os.LastBoot"), boot.ToString("yyyy-MM-dd HH:mm"));
+            s.Add(Str.Get("SystemInfo.Os.Uptime"), DurationFormatter.FormatUptime(DateTime.Now - boot));
         }
 
-        s.Add("Time Zone", TimeZoneInfo.Local.DisplayName);
-        s.Add("System Locale", System.Globalization.CultureInfo.InstalledUICulture.DisplayName);
+        s.Add(Str.Get("SystemInfo.Os.TimeZone"), TimeZoneInfo.Local.DisplayName);
+        s.Add(Str.Get("SystemInfo.Os.SystemLocale"), System.Globalization.CultureInfo.InstalledUICulture.DisplayName);
         return s;
     }
 
     // ── Hardware ──────────────────────────────────────────────────────────────
     private static SystemInfoSection CollectHardware()
     {
-        var s    = new SystemInfoSection("Hardware", "🖥️");
+        var s    = new SystemInfoSection(Str.Get("SystemInfo.Hardware.Title"), "🖥️");
         var cs   = Wmi.First("Win32_ComputerSystem");
         var bios = Wmi.First("Win32_BIOS");
 
         var maker = cs?.Str("Manufacturer");
         var model = cs?.Str("Model");
-        s.Add("System", string.Join(" ", new[] { maker, model }.Where(x => x is not null)));
+        s.Add(Str.Get("SystemInfo.Hardware.System"), string.Join(" ", new[] { maker, model }.Where(x => x is not null)));
 
         // Motherboard (Win32_BaseBoard) — manufacturer / product / version.
         var board = Wmi.First("Win32_BaseBoard");
-        s.Add("Motherboard", string.Join(" ", new[] { board?.Str("Manufacturer"), board?.Str("Product") }
+        s.Add(Str.Get("SystemInfo.Hardware.Motherboard"), string.Join(" ", new[] { board?.Str("Manufacturer"), board?.Str("Product") }
                                                .Where(x => x is not null)));
-        s.Add("Board Version", board?.Str("Version"));
+        s.Add(Str.Get("SystemInfo.Hardware.BoardVersion"), board?.Str("Version"));
 
         // A machine can report several sockets; Win32_Processor yields one row per physical CPU.
         var cpus = Wmi.Query("Win32_Processor").ToList();
         if (cpus.FirstOrDefault() is { } cpu0)
         {
-            s.Add("Processor", cpu0.Str("Name"));
+            s.Add(Str.Get("SystemInfo.Hardware.Processor"), cpu0.Str("Name"));
             var cores   = cpus.Sum(c => (int)(c.Val<uint>("NumberOfCores") ?? 0));
             var logical = cpus.Sum(c => (int)(c.Val<uint>("NumberOfLogicalProcessors") ?? 0));
             var sockets = cpus.Count;
-            s.Add("Cores / Threads",
-                $"{cores} cores, {(logical > 0 ? logical : Environment.ProcessorCount)} threads"
-                + (sockets > 1 ? $" ({sockets} sockets)" : ""));
+            var threads = logical > 0 ? logical : Environment.ProcessorCount;
+            s.Add(Str.Get("SystemInfo.Hardware.CoresThreads"),
+                sockets > 1 ? Str.Format("SystemInfo.Hardware.CoresThreadsSocketsFormat", cores, threads, sockets)
+                            : Str.Format("SystemInfo.Hardware.CoresThreadsFormat", cores, threads));
             if (cpu0.Val<uint>("MaxClockSpeed") is { } mhz)
-                s.Add("Max Clock", $"{mhz / 1000.0:0.0} GHz");
+                s.Add(Str.Get("SystemInfo.Hardware.MaxClock"), $"{mhz / 1000.0:0.0} GHz");
         }
         else
         {
-            s.Add("Logical Processors", Environment.ProcessorCount.ToString());
+            s.Add(Str.Get("SystemInfo.Hardware.LogicalProcessors"), Environment.ProcessorCount.ToString());
         }
 
         var total = cs?.Val<ulong>("TotalPhysicalMemory");
         var freeKb = Wmi.First("Win32_OperatingSystem")?.Val<ulong>("FreePhysicalMemory");
         if (total is { } t)
         {
-            var used = freeKb is { } f ? $" ({SizeFormatter.FormatBytes(t - f * 1024)} in use)" : "";
-            s.Add("Memory", $"{SizeFormatter.FormatBytes(t)}{used}");
+            s.Add(Str.Get("SystemInfo.Hardware.Memory"), freeKb is { } f
+                ? Str.Format("SystemInfo.Hardware.MemoryInUseFormat", SizeFormatter.FormatBytes(t), SizeFormatter.FormatBytes(t - f * 1024))
+                : SizeFormatter.FormatBytes(t));
         }
 
         // Per-DIMM detail: speed + module count (common on the original psinfo-style report).
@@ -109,27 +114,35 @@ public sealed class SystemInfoCollector
         if (dimms.Count > 0)
         {
             var speed = dimms.Select(d => d.Val<uint>("Speed")).FirstOrDefault(v => v is not null);
-            s.Add("Memory Modules", $"{dimms.Count}" + (speed is { } sp ? $" @ {sp} MHz" : ""));
+            s.Add(Str.Get("SystemInfo.Hardware.MemoryModules"), $"{dimms.Count}" + (speed is { } sp ? $" @ {sp} MHz" : ""));
         }
 
-        s.Add("BIOS", string.Join(" ", new[] { bios?.Str("Manufacturer"), bios?.Str("SMBIOSBIOSVersion") }
+        s.Add(Str.Get("SystemInfo.Hardware.Bios"), string.Join(" ", new[] { bios?.Str("Manufacturer"), bios?.Str("SMBIOSBIOSVersion") }
                                           .Where(x => x is not null)));
         if (bios?.CimDate("ReleaseDate") is { } rel)
-            s.Add("BIOS Date", rel.ToString("yyyy-MM-dd"));
-        s.Add("Firmware Type", FirmwareType());
-        s.Add("Serial Number", bios?.Str("SerialNumber"));
+        s.Add(Str.Get("SystemInfo.Hardware.BiosDate"), rel.ToString("yyyy-MM-dd"));
+        s.Add(Str.Get("SystemInfo.Hardware.FirmwareType"), FirmwareType());
+        s.Add(Str.Get("SystemInfo.Hardware.SerialNumber"), bios?.Str("SerialNumber"));
         return s;
     }
 
     // ── Windows security features ─────────────────────────────────────────────
     private static SystemInfoSection CollectSecurity()
     {
-        var s = new SystemInfoSection("Windows Security", "🛡️");
+        var s = new SystemInfoSection(Str.Get("SystemInfo.Security.Title"), "🛡️");
+        var runningText = Str.Get("SystemInfo.State.Running");
+        var offText     = Str.Get("SystemInfo.State.Off");
+        var unknown     = Str.Get("SystemInfo.Unknown");
 
         // Secure Boot — registry is the reliable, non-elevated source.
         var secureBoot = SecureBootState();
-        s.Add("Secure Boot",
-            secureBoot switch { true => "Enabled", false => "Disabled", null => "Not supported" },
+        s.Add(Str.Get("SystemInfo.Security.SecureBoot"),
+            secureBoot switch
+            {
+                true  => Str.Get("SystemInfo.State.Enabled"),
+                false => Str.Get("SystemInfo.State.Disabled"),
+                null  => Str.Get("SystemInfo.State.NotSupported"),
+            },
             secureBoot == true ? SystemInfoStatus.Good : SystemInfoStatus.Warning);
 
         // Device Guard / VBS — root\Microsoft\Windows\DeviceGuard, class Win32_DeviceGuard.
@@ -139,27 +152,28 @@ public sealed class SystemInfoCollector
         {
             // VirtualizationBasedSecurityStatus: 0 off, 1 enabled-not-running, 2 enabled-and-running.
             var vbs = dg.Val<uint>("VirtualizationBasedSecurityStatus") ?? 0;
-            s.Add("Virtualization-based Security (VBS)",
-                vbs switch { 2 => "Running", 1 => "Enabled (not running)", _ => "Off" },
+            s.Add(Str.Get("SystemInfo.Security.Vbs"),
+                vbs switch { 2 => runningText, 1 => Str.Get("SystemInfo.State.EnabledNotRunning"), _ => offText },
                 vbs == 2 ? SystemInfoStatus.Good : SystemInfoStatus.Warning);
 
             var running   = dg.IntSet("SecurityServicesRunning");
             var available = dg.IntSet("AvailableSecurityProperties");
 
             // SecurityServices codes: 1 = Credential Guard, 2 = HVCI (memory integrity).
-            s.Add("Memory Integrity (HVCI)", running.Contains(2) ? "Running" : "Off",
+            s.Add(Str.Get("SystemInfo.Security.Hvci"), running.Contains(2) ? runningText : offText,
                   running.Contains(2) ? SystemInfoStatus.Good : SystemInfoStatus.Warning);
-            s.Add("Credential Guard", running.Contains(1) ? "Running" : "Off",
+            s.Add(Str.Get("SystemInfo.Security.CredentialGuard"), running.Contains(1) ? runningText : offText,
                   running.Contains(1) ? SystemInfoStatus.Good : SystemInfoStatus.Neutral);
 
             // AvailableSecurityProperties code 3 = DMA protection capability.
-            s.Add("Kernel DMA Protection", available.Contains(3) ? "Available" : "Not available",
+            s.Add(Str.Get("SystemInfo.Security.KernelDma"),
+                  available.Contains(3) ? Str.Get("SystemInfo.State.Available") : Str.Get("SystemInfo.State.NotAvailable"),
                   available.Contains(3) ? SystemInfoStatus.Good : SystemInfoStatus.Warning);
         }
         else
         {
-            s.Add("Virtualization-based Security (VBS)", "Unknown");
-            s.Add("Kernel DMA Protection", "Unknown");
+            s.Add(Str.Get("SystemInfo.Security.Vbs"), unknown);
+            s.Add(Str.Get("SystemInfo.Security.KernelDma"), unknown);
         }
 
         // TPM: Win32_Tpm requires elevation, so query the TPM Base Services (TBS) API instead — it
@@ -169,12 +183,16 @@ public sealed class SystemInfoCollector
         {
             var enabled = Wmi.Query(@"root\cimv2\Security\MicrosoftTpm", "SELECT * FROM Win32_Tpm")
                              .FirstOrDefault()?.Val<bool>("IsEnabled_InitialValue");
-            var enabledNote = enabled switch { true => ", enabled", false => ", disabled", _ => "" };
-            s.Add("TPM", $"Present (v{tpmVersion}){enabledNote}", SystemInfoStatus.Good);
+            s.Add("TPM", enabled switch
+            {
+                true  => Str.Format("SystemInfo.Security.TpmEnabledFormat", tpmVersion),
+                false => Str.Format("SystemInfo.Security.TpmDisabledFormat", tpmVersion),
+                _     => Str.Format("SystemInfo.Security.TpmPresentFormat", tpmVersion),
+            }, SystemInfoStatus.Good);
         }
         else
         {
-            s.Add("TPM", "Not detected", SystemInfoStatus.Warning);
+            s.Add("TPM", Str.Get("SystemInfo.Security.TpmNotDetected"), SystemInfoStatus.Warning);
         }
 
         return s;
@@ -183,12 +201,12 @@ public sealed class SystemInfoCollector
     // ── Storage ───────────────────────────────────────────────────────────────
     private static SystemInfoSection CollectStorage()
     {
-        var s = new SystemInfoSection("Storage", "💾", width: 580);
+        var s = new SystemInfoSection(Str.Get("SystemInfo.Storage.Title"), "💾", width: 580);
 
         // Physical disks first (model + media type), then the logical volumes users recognise.
         foreach (var disk in Wmi.Query("Win32_DiskDrive"))
         {
-            var model = disk.Str("Model") ?? "Disk";
+            var model = disk.Str("Model") ?? Str.Get("SystemInfo.Storage.Disk");
             var size  = disk.Val<ulong>("Size");
             var media = NormaliseMedia(disk.Str("MediaType"));
             var detail = string.Join(", ", new[]
@@ -208,10 +226,11 @@ public sealed class SystemInfoCollector
             {
                 var label = string.IsNullOrWhiteSpace(d.VolumeLabel) ? d.DriveType.ToString() : d.VolumeLabel;
                 var freePct = d.TotalSize > 0 ? d.AvailableFreeSpace * 100.0 / d.TotalSize : 0;
-                detail = $"{label} — {SizeFormatter.FormatBytes((ulong)d.AvailableFreeSpace)} free of {SizeFormatter.FormatBytes((ulong)d.TotalSize)} "
-                       + $"({freePct:0}% free, {d.DriveFormat})";
+                detail = Str.Format("SystemInfo.Storage.VolumeDetailFormat", label,
+                    SizeFormatter.FormatBytes((ulong)d.AvailableFreeSpace), SizeFormatter.FormatBytes((ulong)d.TotalSize),
+                    freePct, d.DriveFormat);
                 var status = freePct < 10 ? SystemInfoStatus.Warning : SystemInfoStatus.Neutral;
-                s.Add($"Volume {d.Name.TrimEnd('\\')}", detail, status);
+                s.Add(Str.Format("SystemInfo.Storage.VolumeFormat", d.Name.TrimEnd('\\')), detail, status);
             }
             catch { /* a drive can drop offline mid-enumeration */ }
         }
@@ -222,11 +241,11 @@ public sealed class SystemInfoCollector
     // ── Display (graphics + monitors) ──────────────────────────────────────────
     private static SystemInfoSection CollectDisplay()
     {
-        var s = new SystemInfoSection("Display", "🖼️");
+        var s = new SystemInfoSection(Str.Get("SystemInfo.Display.Title"), "🖼️");
 
         foreach (var gpu in Wmi.Query("Win32_VideoController"))
         {
-            var name = gpu.Str("Name") ?? "Display adapter";
+            var name = gpu.Str("Name") ?? Str.Get("SystemInfo.Display.Adapter");
 
             // Win32_VideoController.AdapterRAM is a uint32 — it wraps/caps at 4 GB on modern cards.
             // The driver's registry key holds the true size as a 64-bit value.
@@ -240,7 +259,7 @@ public sealed class SystemInfoCollector
             {
                 vram is { } v and > 0 ? SizeFormatter.FormatBytes(v) : null,
                 hres is { } w && vres is { } h && w > 0 ? $"{w}×{h}{(hz is { } r and > 0 ? $" @ {r} Hz" : "")}" : null,
-                driver is not null ? $"driver {driver}" : null,
+                driver is not null ? Str.Format("SystemInfo.Display.DriverFormat", driver) : null,
             }.Where(x => x is not null));
             s.Add(name, detail);
         }
@@ -250,11 +269,12 @@ public sealed class SystemInfoCollector
         {
             var friendly = DecodeWmiString(mon, "UserFriendlyName");
             var maker    = DecodeWmiString(mon, "ManufacturerName");
-            var label    = friendly ?? "Monitor";
-            s.Add($"Monitor — {label}", string.IsNullOrWhiteSpace(maker) ? "Connected" : maker);
+        var label    = friendly ?? Str.Get("SystemInfo.Display.Monitor");
+        s.Add(Str.Format("SystemInfo.Display.MonitorFormat", label),
+              string.IsNullOrWhiteSpace(maker) ? Str.Get("SystemInfo.Display.Connected") : maker);
         }
 
-        if (s.Items.Count == 0) s.Add("Display", "No adapters detected");
+        if (s.Items.Count == 0) s.Add(Str.Get("SystemInfo.Display.Title"), Str.Get("SystemInfo.Display.NoAdapters"));
         return s;
     }
 
@@ -318,7 +338,7 @@ public sealed class SystemInfoCollector
             // 0 = TBS_SUCCESS; any non-zero (incl. no-device) means no usable TPM.
             if (Tbsi_GetDeviceInfo((uint)Marshal.SizeOf<TpmDeviceInfo>(), out var info) != 0)
                 return null;
-            return info.TpmVersion switch { 2 => "2.0", 1 => "1.2", _ => "present" };
+            return info.TpmVersion switch { 2 => "2.0", 1 => "1.2", _ => "?" };
         }
         catch { return null; }
     }
@@ -343,15 +363,15 @@ public sealed class SystemInfoCollector
         try
         {
             if (GetFirmwareType(out var t))
-                return t switch { 1 => "Legacy BIOS", 2 => "UEFI", _ => "Unknown" };
+                return t switch { 1 => Str.Get("SystemInfo.Hardware.LegacyBios"), 2 => "UEFI", _ => Str.Get("SystemInfo.Unknown") };
         }
         catch { /* ignore */ }
-        return "Unknown";
+        return Str.Get("SystemInfo.Unknown");
     }
 
     private static string? NormaliseMedia(string? media)
         => media is null ? null
          : media.Contains("SSD", StringComparison.OrdinalIgnoreCase) ? "SSD"
-         : media.Contains("Fixed", StringComparison.OrdinalIgnoreCase) ? "Fixed disk"
+         : media.Contains("Fixed", StringComparison.OrdinalIgnoreCase) ? Str.Get("SystemInfo.Storage.FixedDisk")
          : media;
 }

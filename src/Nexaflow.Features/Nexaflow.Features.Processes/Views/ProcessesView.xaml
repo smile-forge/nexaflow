@@ -5,7 +5,8 @@
              xmlns:conv="clr-namespace:Nexaflow.Features.Processes.Converters"
              xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -14,30 +15,30 @@
              setter, which breaks WPF's connection-id wiring). The row's ListViewItem carries the page
              view-model in its Tag, so PlacementTarget.Tag → VM and PlacementTarget.DataContext → the row. -->
         <ContextMenu x:Key="RowMenu" x:Shared="False">
-            <MenuItem Header="View details"
+            <MenuItem Header="{loc:Str Processes.Menu.ViewDetails}" AutomationProperties.AutomationId="Proc_ViewDetails"
                       Command="{Binding PlacementTarget.Tag.ViewDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Open file location"
+            <MenuItem Header="{loc:Str Processes.Menu.OpenLocation}"
                       Command="{Binding PlacementTarget.Tag.OpenLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator/>
-            <MenuItem Header="Copy name"
+            <MenuItem Header="{loc:Str Processes.Menu.CopyName}"
                       Command="{Binding PlacementTarget.Tag.CopyNameCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy PID"
+            <MenuItem Header="{loc:Str Processes.Menu.CopyPid}"
                       Command="{Binding PlacementTarget.Tag.CopyPidCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy path"
+            <MenuItem Header="{loc:Str Processes.Menu.CopyPath}"
                       Command="{Binding PlacementTarget.Tag.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy details"
+            <MenuItem Header="{loc:Str Processes.Menu.CopyDetails}"
                       Command="{Binding PlacementTarget.Tag.CopyDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator/>
-            <MenuItem Header="Kill process" Foreground="{StaticResource DangerBrush}"
+            <MenuItem Header="{loc:Str Processes.Menu.Kill}" Foreground="{StaticResource DangerBrush}"
                       Command="{Binding PlacementTarget.Tag.KillCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Kill process tree" Foreground="{StaticResource DangerBrush}"
+            <MenuItem Header="{loc:Str Processes.Menu.KillTree}" Foreground="{StaticResource DangerBrush}"
                       Command="{Binding PlacementTarget.Tag.KillTreeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
         </ContextMenu>
@@ -202,19 +203,19 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Processes" Foreground="{StaticResource TextBrush}"
+                <TextBlock Text="{loc:Str Processes.Page.Title}" Foreground="{StaticResource TextBrush}"
                            FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <TextBlock VerticalAlignment="Bottom" Margin="10,0,0,2"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
-                           Text="{Binding Rows.Count, StringFormat={}{0} shown}"/>
+                           Text="{Binding Rows.Count, StringFormat={loc:Str Processes.Header.ShownFormat}}"/>
                 <TextBlock VerticalAlignment="Bottom" Margin="4,0,0,2"
                            Foreground="{StaticResource TextMutedBrush}" FontSize="12"
-                           Text="{Binding ProcessCount, StringFormat={}· {0} total}"/>
+                           Text="{Binding ProcessCount, StringFormat={loc:Str Processes.Header.TotalFormat}}"/>
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <TextBlock Text="CPU" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                    <TextBlock Text="{loc:Str Processes.Header.Cpu}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <Border Background="{StaticResource DeepBgBrush}" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" CornerRadius="4" Width="84" Height="28">
@@ -227,7 +228,7 @@
                                VerticalAlignment="Center" Margin="6,0,0,0" Width="34"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="RAM" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                    <TextBlock Text="{loc:Str Processes.Header.Ram}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <Border Background="{StaticResource DeepBgBrush}" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" CornerRadius="4" Width="84" Height="28">
@@ -276,7 +277,7 @@
                                  Foreground="{StaticResource TextBrush}" CaretBrush="{StaticResource AccentBrush}"
                                  VerticalContentAlignment="Center" FontSize="13"
                                  Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Search name, PID, company or path…" VerticalAlignment="Center" Margin="2,0,0,0"
+                        <TextBlock Text="{loc:Str Processes.Toolbar.SearchPlaceholder}" VerticalAlignment="Center" Margin="2,0,0,0"
                                    Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False"
                                    Visibility="{Binding FilterText, Converter={x:Static conv:EmptyToVisibleConverter.Instance}}"/>
                     </Grid>
@@ -289,22 +290,22 @@
 
             <!-- View controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ToggleButton Content="Tree" IsChecked="{Binding TreeMode}" Style="{StaticResource TbToggle}"
+                <ToggleButton Content="{loc:Str Processes.Toolbar.Tree}" IsChecked="{Binding TreeMode}" Style="{StaticResource TbToggle}"
                               AutomationProperties.AutomationId="Proc_ToggleTree"
-                              ToolTip="Group processes by parent → child"/>
-                <Button Content="Expand all" Command="{Binding ExpandAllCommand}" Style="{StaticResource TbBtn}"
+                              ToolTip="{loc:Str Processes.Toolbar.TreeTip}"/>
+                <Button Content="{loc:Str Processes.Toolbar.ExpandAll}" Command="{Binding ExpandAllCommand}" Style="{StaticResource TbBtn}"
                         AutomationProperties.AutomationId="Proc_ExpandAll"
                         Visibility="{Binding TreeMode, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="Collapse all" Command="{Binding CollapseAllCommand}" Style="{StaticResource TbBtn}"
+                <Button Content="{loc:Str Processes.Toolbar.CollapseAll}" Command="{Binding CollapseAllCommand}" Style="{StaticResource TbBtn}"
                         AutomationProperties.AutomationId="Proc_CollapseAll"
                         Visibility="{Binding TreeMode, Converter={StaticResource BoolToVis}}"/>
                 <Separator Style="{StaticResource TbSep}"/>
-                <ToggleButton Content="● Live" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
+                <ToggleButton Content="{loc:Str Processes.Toolbar.Live}" IsChecked="{Binding AutoRefreshEnabled}" Style="{StaticResource TbToggle}"
                               AutomationProperties.AutomationId="Proc_ToggleLive"
-                              ToolTip="Auto-refresh once per second while this tab is active"/>
+                              ToolTip="{loc:Str Processes.Toolbar.LiveTip}"/>
                 <Button Content="↻" Command="{Binding RefreshNowCommand}" Style="{StaticResource TbBtn}"
                         AutomationProperties.AutomationId="Proc_Refresh"
-                        FontSize="14" ToolTip="Refresh now"/>
+                        FontSize="14" ToolTip="{loc:Str Processes.Toolbar.RefreshTip}"/>
             </StackPanel>
         </Grid>
 
@@ -325,7 +326,7 @@
                 <ListView.View>
                     <GridView ColumnHeaderContainerStyle="{StaticResource GvHeader}">
                         <GridViewColumn Width="300" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="Name" Key="Name"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Name}" Key="Name"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <StackPanel Orientation="Horizontal"
@@ -374,7 +375,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="66" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="CPU" Key="CpuPercent"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Cpu}" Key="CpuPercent"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding CpuText}" Style="{StaticResource NumCell}"
@@ -384,7 +385,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="96" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="Private" Key="PrivateBytes"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Private}" Key="PrivateBytes"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding PrivateBytes, Converter={x:Static vcc:BytesToTextConverter.Instance}}"
@@ -394,7 +395,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="96" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="Memory" Key="WorkingSet"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Memory}" Key="WorkingSet"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding WorkingSet, Converter={x:Static vcc:BytesToTextConverter.Instance}}"
@@ -404,7 +405,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="64" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="PID" Key="Pid"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Pid}" Key="Pid"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding Pid}" Style="{StaticResource NumCell}"/>
@@ -413,7 +414,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="230" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="Description" Key="Description"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Description}" Key="Description"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding Description}" Style="{StaticResource Cell}"/>
@@ -422,7 +423,7 @@
                         </GridViewColumn>
 
                         <GridViewColumn Width="170" HeaderTemplate="{StaticResource SortHeader}">
-                            <GridViewColumn.Header><vm:SortableHeader Label="Company" Key="Company"/></GridViewColumn.Header>
+                            <GridViewColumn.Header><vm:SortableHeader Label="{loc:Str Processes.Column.Company}" Key="Company"/></GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
                                     <TextBlock Text="{Binding Company}" Style="{StaticResource Cell}"/>

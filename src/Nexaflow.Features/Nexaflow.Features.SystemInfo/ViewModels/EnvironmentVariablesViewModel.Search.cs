@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.SystemInfo.Models;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo.ViewModels;
 
@@ -60,10 +61,10 @@ public sealed partial class EnvironmentVariablesViewModel : ISearchable
                 "Filename filters don't apply to environment variables — search by variable name or value."));
 
         if (!request.TryValidate(out var invalid))
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("SystemInfo.Search.InvalidRegexFormat", invalid)));
 
         if (request.Terms.Count == 0)
-            return Task.FromResult(SearchOutcome.Unsupported("Nothing to search for."));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Get("SystemInfo.Search.NothingToSearch")));
 
         // Marshalled even when not displaying: Variables is the bound row list, and the agent reads it
         // from its own thread.

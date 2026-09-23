@@ -4,7 +4,8 @@
              xmlns:vw="clr-namespace:Nexaflow.Visuals.Web.Controls;assembly=Nexaflow.Visuals.Web"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="PdfView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -181,14 +182,14 @@
                             BorderThickness="0"
                             ItemContainerStyle="{StaticResource ThemedTabItem}">
 
-                    <TabItem Header="Properties" AutomationProperties.AutomationId="Pdf_Tab_Properties">
+                    <TabItem Header="{loc:Str Pdf.Tab.Properties}" AutomationProperties.AutomationId="Pdf_Tab_Properties">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding Properties}"
                                           AutomationProperties.AutomationId="Pdf_Properties"
                                           Margin="12,10,12,12">
                                 <ItemsControl.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Copy all properties"
+                                        <MenuItem Header="{loc:Str Pdf.Menu.CopyAllProperties}"
                                                   Command="{Binding PlacementTarget.DataContext.CopyAllPropertiesCommand,
                                                                     RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                     </ContextMenu>
@@ -219,7 +220,7 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <TabItem Header="Contents" AutomationProperties.AutomationId="Pdf_Tab_Contents">
+                    <TabItem Header="{loc:Str Pdf.Tab.Contents}" AutomationProperties.AutomationId="Pdf_Tab_Contents">
                         <Grid>
                             <TextBox Style="{StaticResource SelectableText}"
                                      AutomationProperties.AutomationId="Pdf_ContentsEmpty"
@@ -249,15 +250,15 @@
                                               Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                             <Grid.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Header="Copy title"
+                                                    <MenuItem Header="{loc:Str Pdf.Menu.CopyTitle}"
                                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand,
                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                               CommandParameter="{Binding CopyText}"/>
-                                                    <MenuItem Header="Copy title and page"
+                                                    <MenuItem Header="{loc:Str Pdf.Menu.CopyTitleAndPage}"
                                                               Command="{Binding PlacementTarget.Tag.CopyTextCommand,
                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                               CommandParameter="{Binding CopyWithPage}"/>
-                                                    <MenuItem Header="Copy whole outline"
+                                                    <MenuItem Header="{loc:Str Pdf.Menu.CopyOutline}"
                                                               Command="{Binding PlacementTarget.Tag.CopyOutlineCommand,
                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                 </ContextMenu>
@@ -336,7 +337,7 @@
                             Style="{StaticResource PdfToolbarBtn}"
                             AutomationProperties.AutomationId="Pdf_TogglePanel"
                             Command="{Binding TogglePanelCommand}"
-                            ToolTip="Show or hide the document panel">
+                            ToolTip="{loc:Str Pdf.Toolbar.PanelTip}">
                         <TextBlock Text="▤" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"/>
                     </Button>
 
@@ -354,7 +355,7 @@
                             Style="{StaticResource PdfToolbarBtn}"
                             AutomationProperties.AutomationId="Pdf_OpenExternal"
                             Click="OpenExternal_Click"
-                            ToolTip="Open in your default PDF application">
+                            ToolTip="{loc:Str Pdf.Toolbar.OpenExternalTip}">
                         <TextBlock Text="↗" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
                     </Button>
                 </Grid>
@@ -377,7 +378,7 @@
                     <TextBlock Text="📕" FontSize="40" HorizontalAlignment="Center"
                                Opacity="0.6" Margin="0,0,0,12"/>
                     <TextBox Style="{StaticResource SelectableText}"
-                             Text="Can't show the document here"
+                             Text="{loc:Str Pdf.Fallback.Title}"
                              Foreground="{DynamicResource TextBrush}"
                              FontSize="16" FontWeight="SemiBold"
                              TextAlignment="Center" Margin="0,0,0,8"/>
@@ -389,14 +390,14 @@
                             AutomationProperties.AutomationId="Pdf_FallbackOpenExternal"
                             HorizontalAlignment="Center"
                             Click="OpenExternal_Click"
-                            Content="Open in your default PDF application"/>
+                            Content="{loc:Str Pdf.Fallback.OpenExternal}"/>
                     <TextBlock HorizontalAlignment="Center" FontSize="12" Margin="0,16,0,0"
                                Foreground="{DynamicResource TextMutedBrush}"
                                Visibility="{Binding RuntimeMissing, Converter={StaticResource BoolToVis}}">
                         <Hyperlink NavigateUri="https://developer.microsoft.com/en-us/microsoft-edge/webview2/consumer/"
                                    Foreground="{DynamicResource AccentBrush}"
-                                   RequestNavigate="InstallRuntime_RequestNavigate">
-                            Install the Microsoft Edge WebView2 runtime
+                        RequestNavigate="InstallRuntime_RequestNavigate">
+                            <Run Text="{loc:Str Pdf.Fallback.InstallRuntime}"/>
                         </Hyperlink>
                     </TextBlock>
                 </StackPanel>

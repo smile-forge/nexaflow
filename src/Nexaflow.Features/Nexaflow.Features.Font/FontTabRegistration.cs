@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Font.ViewModels;
 using Nexaflow.Features.Font.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Font;
 
@@ -38,8 +39,8 @@ public sealed class FontTabRegistration(IShellServices shell) : IPageRegistratio
 
         if (paths.Count == 0)
         {
-            page.Title = "Fonts";
-            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = "System Fonts" });
+            page.Title = Str.Get("Font.Page.Title");
+            page.Breadcrumbs.Add(new BreadcrumbSegment { Label = Str.Get("Font.Page.SystemFonts") });
             // Give the standalone tab its own identity so it isn't a null-param singleton that swallows
             // every "As Font" open (FeatureManager keeps these when opened with no params).
             page.PageParams = new Dictionary<string, string> { ["source"] = "system" };
@@ -51,8 +52,8 @@ public sealed class FontTabRegistration(IShellServices shell) : IPageRegistratio
         }
         else
         {
-            page.Title = $"{paths.Count} fonts";
-            page.SetMultiFileBreadcrumbs(paths, $"{paths.Count} fonts");
+            page.Title = Str.Format("Font.Page.CountFormat", paths.Count);
+            page.SetMultiFileBreadcrumbs(paths, Str.Format("Font.Page.CountFormat", paths.Count));
         }
 
         page.ContentFactory = () =>

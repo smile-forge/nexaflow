@@ -1,0 +1,19 @@
+{
+  "Web.Action.Browse": "Browse",
+  "Web.Action.BrowseDescription": "Open a browser tab to display HTML content",
+
+  "Web.Toolbar.Back": "Back",
+  "Web.Toolbar.Forward": "Forward",
+  "Web.Toolbar.Reload": "Reload",
+  "Web.Toolbar.OpenExternal": "Open in your default browser",
+  "Web.Loading": "Loading…",
+
+  "Web.Fallback.Title": "Can't show the embedded browser",
+  "Web.Fallback.OpenExternal": "Open in your default browser",
+  "Web.Fallback.InstallRuntime": "Install the Microsoft Edge WebView2 runtime",
+  "Web.Fallback.UnavailableTitle": "Browser unavailable",
+  "Web.Fallback.UnavailableFormat": "{0} Open this page in your default web browser instead?",
+
+  "Web.Error.OpenDownloadPageFormat": "Couldn't open the download page: {0}",
+  "Web.Error.OpenBrowserFormat": "Couldn't open your default browser: {0}"
+}

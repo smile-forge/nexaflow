@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Processes.Models;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes.ViewModels;
 
@@ -83,7 +84,7 @@ public sealed partial class ProcessDetailViewModel : ISearchable
                 "Filename filters don't apply here — search the thread, module or handle lists as text."));
 
         if (!request.TryValidate(out var invalid))
-            return Task.FromResult(SearchOutcome.Unsupported($"Invalid regular expression: {invalid}"));
+            return Task.FromResult(SearchOutcome.Unsupported(Str.Format("Processes.Search.InvalidRegexFormat", invalid)));
 
         return _shell.RunOnUiAsync(() => Task.FromResult(RunSearch(request, display)));
     }
@@ -96,12 +97,11 @@ public sealed partial class ProcessDetailViewModel : ISearchable
         // a failure would read as "this page can't do regex", which is a different and untrue claim.
         if (section is not (Sections.Threads or Sections.Modules or Sections.Handles))
             return SearchOutcome.None(
-                $"The {section} tab has no list to search. Switch to Threads, Modules or Handles.");
+                Str.Format("Processes.Search.NoListOnTabFormat", SectionLabel(section)));
 
         if (section == Sections.Handles && !HandlesLoaded)
             return SearchOutcome.None(
-                "Handles haven't been loaded yet — they need one administrator-approved read. "
-                + "Use 'Load handles (admin)' on the Handles tab first.");
+                Str.Get("Processes.Search.HandlesNotLoaded"));
 
         var hits = MatchesIn(section, request);
 
@@ -109,6 +109,17 @@ public sealed partial class ProcessDetailViewModel : ISearchable
 
         return hits.Count == 0 ? SearchOutcome.None() : SearchOutcome.Found(hits);
     }
+
+    /// <summary>A section's tab header, in the user's language — <see cref="Sections"/> are the invariant ids.</summary>
+    private static string SectionLabel(string section) => section switch
+    {
+        Sections.General     => Str.Get("Processes.Detail.Tab.General"),
+        Sections.Performance => Str.Get("Processes.Detail.Tab.Performance"),
+        Sections.Threads     => Str.Get("Processes.Detail.Tab.Threads"),
+        Sections.Modules     => Str.Get("Processes.Detail.Tab.Modules"),
+        Sections.Handles     => Str.Get("Processes.Detail.Tab.Handles"),
+        _                    => section,
+    };
 
     /// <summary>Narrows the section's list to exactly the rows the agent chose.</summary>
     public Task<bool> ShowResultsAsync(IReadOnlyList<SearchHit> hits, CancellationToken ct)

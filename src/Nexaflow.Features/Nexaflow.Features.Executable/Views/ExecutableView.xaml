@@ -9,7 +9,8 @@
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
              xmlns:ae="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit"
              AutomationProperties.AutomationId="ExecutableView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -93,12 +94,12 @@
         </Style>
 
         <ContextMenu x:Key="RowMenu">
-            <MenuItem Header="View in hex"
+            <MenuItem Header="{loc:Str Executable.Menu.ViewInHex}"
                       Command="{Binding PlacementTarget.Tag.ViewInHexCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy value"
+            <MenuItem Header="{loc:Str Executable.Menu.CopyValue}"
                       Command="{Binding PlacementTarget.Tag.CopyValueCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.DataContext,
@@ -246,12 +247,12 @@
 
         <!-- Tree menus act on the clicked row, which the code-behind selects first. -->
         <ContextMenu x:Key="TreeMenu">
-            <MenuItem Header="View in hex"
+            <MenuItem Header="{loc:Str Executable.Menu.ViewInHex}"
                       Command="{Binding PlacementTarget.Tag.ViewInHexCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy value"
+            <MenuItem Header="{loc:Str Executable.Menu.CopyValue}"
                       Command="{Binding PlacementTarget.Tag.CopyValueCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
@@ -259,18 +260,18 @@
         </ContextMenu>
 
         <ContextMenu x:Key="ImportMenu">
-            <MenuItem Header="Locate on disk"
+            <MenuItem Header="{loc:Str Executable.Menu.LocateOnDisk}"
                       Command="{Binding PlacementTarget.Tag.LocateModuleCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator/>
-            <MenuItem Header="View in hex"
+            <MenuItem Header="{loc:Str Executable.Menu.ViewInHex}"
                       Command="{Binding PlacementTarget.Tag.ViewInHexCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Copy value"
+            <MenuItem Header="{loc:Str Executable.Menu.CopyValue}"
                       Command="{Binding PlacementTarget.Tag.CopyValueCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
@@ -278,23 +279,23 @@
         </ContextMenu>
 
         <ContextMenu x:Key="DependencyMenu">
-            <MenuItem Header="Expand this module"
+            <MenuItem Header="{loc:Str Executable.Menu.ExpandModule}"
                       Command="{Binding PlacementTarget.Tag.ExpandModuleNodeCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Collapse this module"
+            <MenuItem Header="{loc:Str Executable.Menu.CollapseModule}"
                       Command="{Binding PlacementTarget.Tag.CollapseModuleNodeCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <MenuItem Header="Inspect in a new tab"
+            <MenuItem Header="{loc:Str Executable.Menu.InspectInNewTab}"
                       Command="{Binding PlacementTarget.Tag.OpenDependencyNodeCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator/>
-            <MenuItem Header="Locate on disk"
+            <MenuItem Header="{loc:Str Executable.Menu.LocateOnDisk}"
                       Command="{Binding PlacementTarget.Tag.LocateModuleCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
@@ -302,13 +303,13 @@
         </ContextMenu>
 
         <ContextMenu x:Key="ResourceMenu">
-            <MenuItem Header="Extract…"
+            <MenuItem Header="{loc:Str Executable.Menu.Extract}"
                       Command="{Binding PlacementTarget.Tag.ExtractResourceCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator/>
-            <MenuItem Header="View in hex"
+            <MenuItem Header="{loc:Str Executable.Menu.ViewInHex}"
                       Command="{Binding PlacementTarget.Tag.ViewInHexCommand,
                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       CommandParameter="{Binding PlacementTarget.SelectedItem,
@@ -358,7 +359,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Parsing…" FontSize="12" Margin="0,0,12,0"
+                    <TextBlock Text="{loc:Str Executable.View.Parsing}" FontSize="12" Margin="0,0,12,0"
                                Foreground="{StaticResource TextMutedBrush}"
                                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"/>
                     <vc:SearchStatusChip PagePrefix="Executable"/>
@@ -371,12 +372,12 @@
                                SelectedValue="{Binding SelectedSection, Mode=TwoWay}">
 
             <!-- 1 · Overview -->
-            <vc:VerticalTabItem Header="Overview" Tag="Overview" AutomationProperties.AutomationId="Executable_Tab_Overview">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Overview}" Tag="Overview" AutomationProperties.AutomationId="Executable_Tab_Overview">
                 <ScrollViewer Style="{StaticResource PageScroll}">
                     <StackPanel>
                         <!-- Until the parse lands the page has nothing but headings, which reads as
                              an empty inspector rather than a busy one. -->
-                        <TextBlock Text="Scanning file, please wait…" FontSize="13" Margin="0,8,0,0"
+                        <TextBlock Text="{loc:Str Executable.View.ScanningFile}" FontSize="13" Margin="0,8,0,0"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center"
                                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"/>
@@ -385,9 +386,9 @@
                         <ItemsControl ItemsSource="{Binding OverviewCards}"
                                       ItemTemplate="{StaticResource CardTemplate}"/>
 
-                        <TextBlock Text="Sections" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,6"
+                        <TextBlock Text="{loc:Str Executable.View.Sections}" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,6"
                                    Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Text="Right-click a section to open it in the hex viewer."
+                        <TextBlock Text="{loc:Str Executable.View.SectionsHint}"
                                    FontSize="11" Margin="0,0,0,6"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                         <!-- The tree's own scroll viewer is switched off. A nested scrollable control
@@ -404,7 +405,7 @@
                                   ContextMenu="{StaticResource TreeMenu}"
                                   PreviewMouseRightButtonDown="Tree_PreviewMouseRightButtonDown"/>
 
-                        <TextBlock Text="Relocations" FontWeight="SemiBold" FontSize="13" Margin="0,16,0,4"
+                        <TextBlock Text="{loc:Str Executable.View.Relocations}" FontWeight="SemiBold" FontSize="13" Margin="0,16,0,4"
                                    Foreground="{StaticResource TextBrush}"/>
                         <TextBlock Text="{Binding RelocationSummary}" TextWrapping="Wrap" FontSize="11"
                                    Margin="0,0,0,6" Foreground="{StaticResource TextMutedBrush}"/>
@@ -417,7 +418,7 @@
             </vc:VerticalTabItem>
 
             <!-- 2 · Imports / exports -->
-            <vc:VerticalTabItem Header="Imports / Exports" Tag="ImportsExports" AutomationProperties.AutomationId="Executable_Tab_ImportsExports">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.ImportsExports}" Tag="ImportsExports" AutomationProperties.AutomationId="Executable_Tab_ImportsExports">
                 <Grid Margin="16,14">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="220"/>
@@ -427,7 +428,7 @@
 
                     <Border Grid.Column="0" Style="{StaticResource Pane}">
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Imports" FontWeight="SemiBold" FontSize="13"
+                            <TextBlock DockPanel.Dock="Top" Text="{loc:Str Executable.View.Imports}" FontWeight="SemiBold" FontSize="13"
                                        Foreground="{StaticResource TextBrush}"/>
                             <TextBlock DockPanel.Dock="Top" Text="{Binding ImportSummary}" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,2,0,6"
@@ -437,7 +438,7 @@
                                        Foreground="{StaticResource WarningBrush}"/>
                             <TextBlock DockPanel.Dock="Top" Margin="0,0,0,6" FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="Right-click a module to locate it on disk."/>
+                                       Text="{loc:Str Executable.View.ImportsHint}"/>
                             <TreeView ItemsSource="{Binding ImportNodes}" ScrollViewer.HorizontalScrollBarVisibility="Auto" Background="Transparent" Tag="{Binding}"
                                       AutomationProperties.AutomationId="Executable_ImportTree"
                                       BorderThickness="0" ItemContainerStyle="{StaticResource TreeItemStyle}"
@@ -453,7 +454,7 @@
 
                     <Border Grid.Column="2" Style="{StaticResource Pane}">
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Exports" FontWeight="SemiBold" FontSize="13"
+                            <TextBlock DockPanel.Dock="Top" Text="{loc:Str Executable.View.Exports}" FontWeight="SemiBold" FontSize="13"
                                        Foreground="{StaticResource TextBrush}"/>
                             <TextBlock DockPanel.Dock="Top" Text="{Binding ExportSummary}" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,2,0,6"
@@ -476,17 +477,17 @@
             </vc:VerticalTabItem>
 
             <!-- 3 · Dependencies -->
-            <vc:VerticalTabItem Header="Dependencies" Tag="Dependencies" AutomationProperties.AutomationId="Executable_Tab_Dependencies">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Dependencies}" Tag="Dependencies" AutomationProperties.AutomationId="Executable_Tab_Dependencies">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                        <ToggleButton Content="Tree" Style="{StaticResource TbToggle}"
+                        <ToggleButton Content="{loc:Str Executable.View.Tree}" Style="{StaticResource TbToggle}"
                                       AutomationProperties.AutomationId="Executable_DependencyTreeToggle"
                                       IsChecked="{Binding ShowDependencyTree, Mode=TwoWay}"
-                                      ToolTip="Switch between the diagram and the tree"/>
-                        <Button Content="Collapse all" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
+                                      ToolTip="{loc:Str Executable.View.TreeTip}"/>
+                        <Button Content="{loc:Str Executable.View.CollapseAll}" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
                                 AutomationProperties.AutomationId="Executable_CollapseDependencies"
                                 Command="{Binding CollapseDependenciesCommand}"/>
-                        <TextBlock Text="Mapping…" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
+                        <TextBlock Text="{loc:Str Executable.View.Mapping}" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Visibility="{Binding DependenciesLoading, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding DependencySummary}" VerticalAlignment="Center"
@@ -533,11 +534,11 @@
                                 <!-- Inspecting the file you are already in is a no-op, so the root
                                      only offers Locate. -->
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="Inspect" Style="{StaticResource TbBtn}"
+                                    <Button Content="{loc:Str Executable.View.Inspect}" Style="{StaticResource TbBtn}"
                                             AutomationProperties.AutomationId="Executable_DependencyDetailInspect"
                                             Visibility="{Binding SelectedDependencyIsRoot, Converter={StaticResource InvBoolVis}}"
                                             Command="{Binding OpenSelectedDependencyCommand}"/>
-                                    <Button Content="Locate" Style="{StaticResource TbBtn}" Margin="6,0,0,0"
+                                    <Button Content="{loc:Str Executable.View.Locate}" Style="{StaticResource TbBtn}" Margin="6,0,0,0"
                                             AutomationProperties.AutomationId="Executable_LocateDependency" Command="{Binding LocateSelectedDependencyCommand}"/>
                                 </StackPanel>
 
@@ -550,8 +551,8 @@
                                            Visibility="{Binding SelectedDependencyIsRoot, Converter={StaticResource BoolToVis}}">
                                     <Hyperlink Command="{Binding ShowImportsSectionCommand}"
                                                AutomationProperties.AutomationId="Executable_DependencyDetailImportsLink"
-                                               Foreground="{StaticResource AccentBrush}">
-                                        See Imports / Exports for function details
+                                    Foreground="{StaticResource AccentBrush}">
+                                        <Run Text="{loc:Str Executable.View.SeeImportsExports}"/>
                                     </Hyperlink>
                                 </TextBlock>
 
@@ -610,17 +611,17 @@
             </vc:VerticalTabItem>
 
             <!-- 4 · Resources -->
-            <vc:VerticalTabItem Header="Resources" Tag="Resources" AutomationProperties.AutomationId="Executable_Tab_Resources">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Resources}" Tag="Resources" AutomationProperties.AutomationId="Executable_Tab_Resources">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="{Binding ResourceSummary}" VerticalAlignment="Center" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"/>
-                        <Button Content="Extract all…" Style="{StaticResource TbBtn}" Margin="16,0,0,0"
+                        <Button Content="{loc:Str Executable.View.ExtractAll}" Style="{StaticResource TbBtn}" Margin="16,0,0,0"
                                 AutomationProperties.AutomationId="Executable_ExtractAllResources" Command="{Binding ExtractAllResourcesCommand}"/>
                     </StackPanel>
                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"
-                               Text="Right-click an entry to extract it, or to open its bytes in the hex viewer."/>
+                               Text="{loc:Str Executable.View.ResourcesHint}"/>
                     <TreeView ItemsSource="{Binding ResourceNodes}" ScrollViewer.HorizontalScrollBarVisibility="Auto" Background="Transparent" Tag="{Binding}"
                               BorderThickness="0"
                               AutomationProperties.AutomationId="Executable_ResourceTree"
@@ -632,16 +633,16 @@
             </vc:VerticalTabItem>
 
             <!-- 5 · Manifest -->
-            <vc:VerticalTabItem Header="Manifest" Tag="Manifest" AutomationProperties.AutomationId="Executable_Tab_Manifest">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Manifest}" Tag="Manifest" AutomationProperties.AutomationId="Executable_Tab_Manifest">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                        <ToggleButton Content="Show raw XML" Style="{StaticResource TbToggle}"
+                        <ToggleButton Content="{loc:Str Executable.View.ShowRawXml}" Style="{StaticResource TbToggle}"
                                       AutomationProperties.AutomationId="Executable_RawManifest"
                                       IsChecked="{Binding ShowRawManifest, Mode=TwoWay}"/>
                     </StackPanel>
 
                     <Grid>
-                        <TextBlock Text="This binary has no application manifest."
+                        <TextBlock Text="{loc:Str Executable.View.NoManifest}"
                                    FontSize="12" Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock.Style>
@@ -701,18 +702,18 @@
             </vc:VerticalTabItem>
 
             <!-- 7 · Strings -->
-            <vc:VerticalTabItem Header="Strings" Tag="Strings" AutomationProperties.AutomationId="Executable_Tab_Strings">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Strings}" Tag="Strings" AutomationProperties.AutomationId="Executable_Tab_Strings">
                 <DockPanel Margin="16,14">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                        <TextBlock Text="Minimum length" VerticalAlignment="Center" FontSize="12"
+                        <TextBlock Text="{loc:Str Executable.View.MinimumLength}" VerticalAlignment="Center" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,0,8,0"/>
                         <TextBox Text="{Binding MinimumStringLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource DarkTextBox}" Width="52"
                                  AutomationProperties.AutomationId="Executable_StringLength"/>
-                        <Button Content="Rescan" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
+                        <Button Content="{loc:Str Executable.View.Rescan}" Style="{StaticResource TbBtn}" Margin="8,0,0,0"
                                 AutomationProperties.AutomationId="Executable_RescanStrings"
                                 Command="{Binding RefreshStringsCommand}"/>
-                        <TextBlock Text="Scanning…" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
+                        <TextBlock Text="{loc:Str Executable.View.Scanning}" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Visibility="{Binding StringsLoading, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding StringSummary}" VerticalAlignment="Center" Margin="16,0,0,0"
@@ -724,7 +725,7 @@
                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}"
                                Visibility="{Binding IsSearchActive, Converter={StaticResource InvBoolVis}}"
-                               Text="Search with ? to narrow the list. Right-click a row to copy it or open it in the hex viewer."/>
+                               Text="{loc:Str Executable.View.StringsHint}"/>
                     <vc:SearchStatusChip DockPanel.Dock="Top" PagePrefix="ExecutableStrings"
                                          HorizontalAlignment="Left" Margin="0,0,0,8"/>
                     <ListBox x:Name="StringList" ItemsSource="{Binding StringView}"
@@ -743,14 +744,14 @@
             </vc:VerticalTabItem>
 
             <!-- 8 · Analysis -->
-            <vc:VerticalTabItem Header="Analysis" Tag="Analysis" AutomationProperties.AutomationId="Executable_Tab_Analysis">
+            <vc:VerticalTabItem Header="{loc:Str Executable.Tab.Analysis}" Tag="Analysis" AutomationProperties.AutomationId="Executable_Tab_Analysis">
                 <ScrollViewer Style="{StaticResource PageScroll}">
                     <StackPanel>
-                        <TextBlock Text="Entropy across the file" FontWeight="SemiBold" FontSize="13"
+                        <TextBlock Text="{loc:Str Executable.View.EntropyTitle}" FontWeight="SemiBold" FontSize="13"
                                    Foreground="{StaticResource TextBrush}"/>
                         <TextBlock Text="{Binding EntropySummary}" FontSize="11" Margin="0,2,0,2"
                                    Foreground="{StaticResource TextMutedBrush}"/>
-                        <TextBlock Text="Click anywhere on the strip to open those bytes in the hex viewer."
+                        <TextBlock Text="{loc:Str Executable.View.EntropyHint}"
                                    FontSize="11" Margin="0,0,0,6"
                                    Foreground="{StaticResource TextMutedBrush}"/>
                         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}"
@@ -767,12 +768,12 @@
                         <Border Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="Antivirus" FontWeight="SemiBold" FontSize="13"
+                                <TextBlock Text="{loc:Str Executable.View.Antivirus}" FontWeight="SemiBold" FontSize="13"
                                            Foreground="{StaticResource TextBrush}" Margin="0,0,0,6"/>
                                 <TextBlock Text="{Binding AntivirusProduct}" TextWrapping="Wrap" FontSize="12"
                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="Scan this file" Style="{StaticResource TbBtn}"
+                                    <Button Content="{loc:Str Executable.View.ScanThisFile}" Style="{StaticResource TbBtn}"
                                             AutomationProperties.AutomationId="Executable_ScanButton"
                                             Command="{Binding ScanWithAntivirusCommand}"/>
                                     <TextBlock Text="{Binding ScanResult}" VerticalAlignment="Center"
@@ -782,14 +783,14 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="Verifying signature…" FontSize="12" Margin="0,0,0,8"
+                        <TextBlock Text="{loc:Str Executable.View.VerifyingSignature}" FontSize="12" Margin="0,0,0,8"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Visibility="{Binding SignatureLoading, Converter={StaticResource BoolToVis}}"/>
 
                         <ItemsControl ItemsSource="{Binding AnalysisCards}"
                                       ItemTemplate="{StaticResource CardTemplate}"/>
 
-                        <TextBlock Text="Parse diagnostics" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,6"
+                        <TextBlock Text="{loc:Str Executable.View.ParseDiagnostics}" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,6"
                                    Foreground="{StaticResource TextBrush}"
                                    Visibility="{Binding HasDiagnostics, Converter={StaticResource BoolToVis}}"/>
                         <ItemsControl ItemsSource="{Binding Diagnostics}"

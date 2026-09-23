@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.FileActions;
 
@@ -18,10 +19,9 @@ public sealed class InspectPeAction(IShellServices shell) : IFileAction, ICachea
 
     public string ExperienceId => "/binary/pe";
     public string ExperienceDescription =>
-        "Inspect the Portable Executable structure — headers, sections, imports and exports, " +
-        "dependencies, resources, the manifest, and a signature and entropy analysis.";
+        Str.Get("Executable.Action.InspectDescription");
 
-    public string DisplayName => "Inspect";
+    public string DisplayName => Str.Get("Executable.Inspector.Inspect");
     public string Icon        => "🔬";
     public string? Tooltip    => "Inspect this binary's PE structure";
 

@@ -5,7 +5,8 @@
              xmlns:model="clr-namespace:Nexaflow.Features.SystemInfo.Models"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="SystemInfoView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -70,7 +71,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="System Information"
+            <TextBlock Grid.Column="0" Text="{loc:Str SystemInfo.Dashboard.Title}"
                        Foreground="{StaticResource TextBrush}" FontSize="18" FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
 
@@ -78,7 +79,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0"
                         VerticalAlignment="Center"
                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="Gathering" Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
+                <TextBlock Text="{loc:Str SystemInfo.Common.Gathering}" Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
                 <TextBlock Width="20" Foreground="{StaticResource TextMutedBrush}" FontSize="13">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -110,7 +111,7 @@
             <vcc:SearchStatusChip Grid.Column="1" PagePrefix="SysInfo"
                                   HorizontalAlignment="Right" Margin="0,0,12,0"/>
 
-            <Button Grid.Column="2" Content="Refresh" Command="{Binding RefreshCommand}"
+            <Button Grid.Column="2" Content="{loc:Str SystemInfo.Common.Refresh}" Command="{Binding RefreshCommand}"
                     AutomationProperties.AutomationId="SysInfo_Refresh"
                     Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"

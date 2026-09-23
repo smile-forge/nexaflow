@@ -4,7 +4,8 @@
              xmlns:conv="clr-namespace:Nexaflow.Features.SystemInfo.Converters"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="ServicesView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -57,11 +58,11 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Windows Services"
+            <TextBlock Grid.Column="0" Text="{loc:Str SystemInfo.Services.Title}"
                        Foreground="{StaticResource TextBrush}" FontSize="18" FontWeight="SemiBold"
                        VerticalAlignment="Center"/>
 
-            <TextBlock Grid.Column="1" Text="Gathering…" Margin="14,0,0,0"
+            <TextBlock Grid.Column="1" Text="{loc:Str SystemInfo.Common.GatheringEllipsis}" Margin="14,0,0,0"
                        Foreground="{StaticResource TextMutedBrush}" FontSize="13" VerticalAlignment="Center"
                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"/>
 
@@ -75,9 +76,9 @@
                      CaretBrush="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                      Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name or display name"/>
+                     ToolTip="{loc:Str SystemInfo.Services.FilterTip}"/>
 
-            <Button Grid.Column="3" AutomationProperties.AutomationId="Services_Refresh" Content="Refresh" Command="{Binding RefreshCommand}"
+            <Button Grid.Column="3" AutomationProperties.AutomationId="Services_Refresh" Content="{loc:Str SystemInfo.Common.Refresh}" Command="{Binding RefreshCommand}"
                     Foreground="{StaticResource TextBrush}" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     Padding="12,5" Cursor="Hand"/>
@@ -133,7 +134,7 @@
                 </DataGrid.RowStyle>
 
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="Service" Width="2*" CanUserSort="True"
+                    <DataGridTemplateColumn Header="{loc:Str SystemInfo.Services.Column.Service}" Width="2*" CanUserSort="True"
                                             SortMemberPath="DisplayName">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -148,53 +149,59 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Status" Width="120" SortMemberPath="Status">
+                    <DataGridTemplateColumn Header="{loc:Str SystemInfo.Services.Column.Status}" Width="120" SortMemberPath="Status">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Status}" Margin="8,0" VerticalAlignment="Center"
+                                <TextBlock Text="{Binding Status, Converter={x:Static conv:ServiceStatusLabelConverter.Instance}}" Margin="8,0" VerticalAlignment="Center"
                                            FontWeight="SemiBold"
                                            Foreground="{Binding Status, Converter={x:Static conv:ServiceStatusToBrushConverter.Instance}}"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Startup Type" Width="170" SortMemberPath="StartMode">
+                    <DataGridTemplateColumn Header="{loc:Str SystemInfo.Services.Column.StartupType}" Width="170" SortMemberPath="StartMode">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <ComboBox Margin="6,4" FontSize="11"
                                           ItemsSource="{Binding DataContext.StartModes,
                                                         RelativeSource={RelativeSource AncestorType=UserControl}}"
                                           SelectedItem="{Binding StartMode, Mode=OneWay}"
-                                          SelectionChanged="StartMode_SelectionChanged"/>
+                                          SelectionChanged="StartMode_SelectionChanged">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={x:Static conv:StartModeLabelConverter.Instance}}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="Actions" Width="2*" MinWidth="280">
+                    <DataGridTemplateColumn Header="{loc:Str SystemInfo.Services.Column.Actions}" Width="2*" MinWidth="280">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
-                                    <Button AutomationProperties.AutomationId="Services_Start" Content="Start" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Start" Content="{loc:Str SystemInfo.Services.Start}" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStart}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.StartServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button AutomationProperties.AutomationId="Services_Stop" Content="Stop" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Stop" Content="{loc:Str SystemInfo.Services.Stop}" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStop}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.StopServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button AutomationProperties.AutomationId="Services_Restart" Content="Restart" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Restart" Content="{loc:Str SystemInfo.Services.Restart}" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanStop}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.RestartServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button AutomationProperties.AutomationId="Services_Pause" Content="Pause" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Pause" Content="{loc:Str SystemInfo.Services.Pause}" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanPause}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.PauseServiceCommand,
                                                       RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button AutomationProperties.AutomationId="Services_Resume" Content="Resume" Style="{StaticResource RowButton}"
+                                    <Button AutomationProperties.AutomationId="Services_Resume" Content="{loc:Str SystemInfo.Services.Resume}" Style="{StaticResource RowButton}"
                                             IsEnabled="{Binding CanResume}"
                                             CommandParameter="{Binding}"
                                             Command="{Binding DataContext.ResumeServiceCommand,

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Processes.Models;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Processes.Services;
 
@@ -11,7 +12,7 @@ namespace Nexaflow.Features.Processes.Services;
 /// </summary>
 public sealed class LoadProcessSnapshotTask(IProcessSource source) : IBackgroundTask
 {
-    public string Description => "Gathering process list";
+    public string Description => Str.Get("Processes.Task.Gathering");
 
     public ProcessSnapshot? Result { get; private set; }
 

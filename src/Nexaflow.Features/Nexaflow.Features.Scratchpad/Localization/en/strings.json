@@ -1,0 +1,49 @@
+{
+  "Scratchpad.Page.Title": "Scratchpad",
+  "Scratchpad.Task.FetchingPreviewFormat": "Fetching preview: {0}",
+  "Scratchpad.Drop.CreatePostIt": "Create post-it",
+
+  "Scratchpad.Color.Yellow": "Yellow",
+  "Scratchpad.Color.Blue": "Blue",
+  "Scratchpad.Color.Green": "Green",
+  "Scratchpad.Color.Pink": "Pink",
+  "Scratchpad.Color.Orange": "Orange",
+  "Scratchpad.Color.Purple": "Purple",
+  "Scratchpad.Color.White": "White",
+
+  "Scratchpad.Shape.Square": "Square",
+  "Scratchpad.Shape.Rounded": "Rounded",
+  "Scratchpad.Shape.Diagonals": "Diagonals",
+  "Scratchpad.Shape.SpeechBubble": "Speech bubble",
+
+  "Scratchpad.Note.Front": "Front",
+  "Scratchpad.Note.FrontTip": "Bring to front",
+  "Scratchpad.Note.Back": "Back",
+  "Scratchpad.Note.BackTip": "Send to back",
+  "Scratchpad.Note.RotateTip": "Drag to rotate",
+  "Scratchpad.Note.PinTip": "Click to pin/unpin",
+  "Scratchpad.Note.RemoveTip": "Remove note",
+
+  "Scratchpad.Toolbar.New": "＋ New",
+  "Scratchpad.Toolbar.NewTip": "Add a new post-it (or double-click canvas)",
+  "Scratchpad.Toolbar.Fit": "⤡ Fit",
+  "Scratchpad.Toolbar.FitTip": "Zoom to fit all notes",
+  "Scratchpad.Toolbar.BinTip": "View / hide Recycle Bin",
+  "Scratchpad.Toolbar.BinOptionsTip": "Recycle bin options",
+
+  "Scratchpad.Canvas.NewHere": "New post-it here",
+  "Scratchpad.Canvas.PasteHere": "Paste as post-it",
+
+  "Scratchpad.Bin.Title": "🗑 Recycle Bin",
+  "Scratchpad.Bin.Empty": "Empty Recycle Bin",
+  "Scratchpad.Bin.EmptyConfirm": "Permanently delete all notes in the recycle bin?",
+  "Scratchpad.Bin.Restore": "↩ Restore",
+  "Scratchpad.Bin.Delete": "✕ Delete",
+  "Scratchpad.Bin.NoItems": "No items in recycle bin",
+
+  "Scratchpad.Status.NoteCountOneFormat": "{0} note",
+  "Scratchpad.Status.NoteCountManyFormat": "{0} notes",
+  "Scratchpad.Status.ZoomTip": "Click to set zoom",
+
+  "Scratchpad.Search.NoNotes": "There are no notes on this board to search."
+}

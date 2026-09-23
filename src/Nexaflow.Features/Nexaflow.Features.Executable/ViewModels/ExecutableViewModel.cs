@@ -14,6 +14,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
 
@@ -53,7 +54,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
     {
         _shell   = shell;
         FilePath = filePath;
-        FileName = string.IsNullOrEmpty(filePath) ? "Executable" : Path.GetFileName(filePath);
+        FileName = string.IsNullOrEmpty(filePath) ? Str.Get("Executable.Page.Title") : Path.GetFileName(filePath);
 
         BeginLoad();
     }
@@ -162,7 +163,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         if (string.IsNullOrWhiteSpace(FilePath) || !File.Exists(FilePath))
         {
             IsLoading = false;
-            LoadError = "No file to inspect.";
+            LoadError = Str.Get("Executable.Inspector.NoFileToInspect");
             return;
         }
         _shell.QueueBackgroundTask(new LoadTask(this), ct: _cts.Token);
@@ -170,7 +171,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
 
     private sealed class LoadTask(ExecutableViewModel owner) : IBackgroundTask
     {
-        public string Description => $"Inspecting {owner.FileName}…";
+        public string Description => Str.Format("Executable.Task.InspectingFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
@@ -194,7 +195,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         if (!image.IsPe)
         {
             LoadError = image.Diagnostics.FirstOrDefault(d => d.Severity == PeSeverity.Error)?.Message
-                        ?? "This file is not a Portable Executable.";
+                        ?? Str.Get("Executable.Inspector.ThisFileIsNotAPortable");
             PopulateDiagnostics(image);
             return;
         }
@@ -239,7 +240,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         if (image.OptionalHeader is { } oh) parts.Add(oh.Subsystem.ToString());
         if (image.IsDriver)      parts.Add("driver");
         else if (image.IsDll)    parts.Add("DLL");
-        if (image.Clr.IsManaged) parts.Add(image.Clr.IsWindowsRuntime ? "WinRT metadata" : ".NET");
+        if (image.Clr.IsManaged) parts.Add(image.Clr.IsWindowsRuntime ? Str.Get("Executable.Inspector.WinRTMetadata") : ".NET");
         parts.Add(FormatSize(image.Length));
         return string.Join(" · ", parts);
     }
@@ -281,12 +282,12 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
 
         if (range is null)
         {
-            _shell.ShowNotification("That row doesn't refer to a location in the file.");
+            _shell.ShowNotification(Str.Get("Executable.Inspector.ThatRowDoesnTReferTo"));
             return;
         }
 
         if (!_shell.HandleObject(range))
-            _shell.ShowError("Nothing could open that byte range.");
+            _shell.ShowError(Str.Get("Executable.Inspector.NothingCouldOpenThatByteRange"));
     }
 
     /// <summary>
@@ -306,7 +307,7 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         long length = Math.Min(bucketBytes, _image.Length - offset);
 
         _shell.HandleObject(new FileByteRange(FilePath, offset, length,
-            $"Entropy sample {bucketIndex + 1}"));
+            Str.Format("Executable.Analysis.EntropySampleFormat", bucketIndex + 1)));
     }
 
     /// <summary>Copies a row's value — the reason thumbprints and hashes are worth showing at all.</summary>
@@ -326,12 +327,12 @@ public sealed partial class ExecutableViewModel : ObservableObject, IPageViewMod
         try
         {
             System.Windows.Clipboard.SetText(text);
-            _shell.ShowNotification("Copied.");
+            _shell.ShowNotification(Str.Get("Executable.Inspector.Copied"));
         }
         catch (Exception)
         {
             // The clipboard is a shared OS resource and another process may hold it open.
-            _shell.ShowError("The clipboard is in use by another application.");
+            _shell.ShowError(Str.Get("Executable.Inspector.TheClipboardIsInUseBy"));
         }
     }
 

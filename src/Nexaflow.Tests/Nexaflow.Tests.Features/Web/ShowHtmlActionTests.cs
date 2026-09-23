@@ -3,6 +3,7 @@ using NSubstitute;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Web.FileActions;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Web;
 
@@ -71,7 +72,7 @@ public class ShowHtmlActionTests
     {
         var (action, _) = Subject();
 
-        Assert.AreEqual("Browse", action.DisplayName);
+        Assert.AreEqual(Str.Get("Web.Action.Browse"), action.DisplayName);
         Assert.AreEqual("/text/html", action.ExperienceId);
         Assert.AreEqual(ShowHtmlAction.StaticExperienceId, action.ExperienceId, "the static and instance ids must agree");
         Assert.IsTrue(action.OpensViewer);

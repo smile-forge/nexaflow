@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.SystemInfo.ViewModels;
 using Nexaflow.Features.SystemInfo.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.SystemInfo;
 
@@ -16,9 +17,9 @@ public sealed class EnvironmentVariablesPageRegistration(IShellServices shellSer
     {
         var page = new Page
         {
-            Title       = "Environment Variables",
+            Title       = Str.Get("SystemInfo.Page.EnvVars"),
             Icon        = "🧬",
-            Breadcrumbs = { new BreadcrumbSegment { Label = "Environment Variables" } },
+            Breadcrumbs = { new BreadcrumbSegment { Label = Str.Get("SystemInfo.Page.EnvVars") } },
         };
         page.ContentFactory = () =>
         {

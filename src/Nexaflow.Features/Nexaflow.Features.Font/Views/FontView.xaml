@@ -4,7 +4,8 @@
              xmlns:conv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:vcc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
              AutomationProperties.AutomationId="FontView"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -54,7 +55,7 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <vcc:SearchStatusChip PagePrefix="Font" Margin="0,0,12,0"/>
-                    <TextBlock Text="Size" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                    <TextBlock Text="{loc:Str Font.Toolbar.Size}" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <Slider Width="150" Minimum="8" Maximum="120" VerticalAlignment="Center"
                             AutomationProperties.AutomationId="FontSizeSlider"
@@ -84,7 +85,7 @@
                             <Border x:Name="Bd" Background="{StaticResource SurfaceBrush}"
                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                     CornerRadius="8" Padding="8">
-                                <TextBlock Text="+  Add font" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                <TextBlock Text="{loc:Str Font.List.Add}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold"/>
                             </Border>
                             <ControlTemplate.Triggers>
@@ -134,7 +135,7 @@
                                         <Button HorizontalAlignment="Right" VerticalAlignment="Top"
                                                 AutomationProperties.AutomationId="FontRemoveButton"
                                                 Style="{StaticResource IconButton}" Width="22" Height="22"
-                                                ToolTip="Remove"
+                                                ToolTip="{loc:Str Font.List.RemoveTip}"
                                                 Command="{Binding DataContext.RemoveFontCommand,
                                                           RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                 CommandParameter="{Binding}">
@@ -172,9 +173,9 @@
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                                 Visibility="{Binding HasFonts, Converter={StaticResource InvBoolToVis}}">
                         <TextBlock Text="🔤" FontSize="40" HorizontalAlignment="Center" Opacity="0.5"/>
-                        <TextBlock Text="No fonts yet" Foreground="{StaticResource TextBrush}" FontSize="15"
+                        <TextBlock Text="{loc:Str Font.Empty.Title}" Foreground="{StaticResource TextBrush}" FontSize="15"
                                    HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                        <TextBlock Text="Click “Add font” to compare installed fonts or open a font file."
+                        <TextBlock Text="{loc:Str Font.Empty.Hint}"
                                    Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                    HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="260" TextWrapping="Wrap"/>
                     </StackPanel>
@@ -190,7 +191,7 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
                 <Grid>
                     <!-- Placeholder when nothing is selected -->
-                    <TextBlock Text="Select a font to see its details"
+                    <TextBlock Text="{loc:Str Font.Details.Placeholder}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                Visibility="{Binding DataContext.SelectedFont, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NullToCollapsed}}"/>
@@ -213,10 +214,10 @@
                                            FontSize="11" TextWrapping="Wrap" Margin="0,2,0,10"/>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <Button Content="Copy name" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
+                                    <Button Content="{loc:Str Font.Details.CopyName}" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
                                             Margin="0,0,6,0" AutomationProperties.AutomationId="FontCopyName"
                                             Command="{Binding DataContext.CopyNameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <Button Content="Copy path" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
+                                    <Button Content="{loc:Str Font.Details.CopyPath}" Style="{StaticResource TbBtn}" Height="26" Padding="10,0"
                                             AutomationProperties.AutomationId="FontCopyPath"
                                             Command="{Binding DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             Visibility="{Binding SourcePath, Converter={StaticResource NullToVis}}"/>
@@ -276,7 +277,7 @@
                         </ScrollViewer>
 
                         <!-- Glyph map: its own scrollbar, a 3-row minimum height, and paging. -->
-                        <Expander Grid.Row="1" Header="Glyph map" IsExpanded="False" Margin="16,4,16,14"
+                        <Expander Grid.Row="1" Header="{loc:Str Font.Glyphs.Title}" IsExpanded="False" Margin="16,4,16,14"
                                   AutomationProperties.AutomationId="FontGlyphMap"
                                   Foreground="{StaticResource TextBrush}">
                             <StackPanel Margin="0,8,0,0">
@@ -290,11 +291,11 @@
                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal"
                                                 Visibility="{Binding HasGlyphPages, Converter={StaticResource BoolToVis}}">
-                                        <Button Content="‹ Prev" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
+                                        <Button Content="{loc:Str Font.Glyphs.Prev}" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
                                                 Margin="0,0,6,0" Command="{Binding PrevGlyphPageCommand}"
                                                 AutomationProperties.AutomationId="FontGlyphPrevPage"
                                                 IsEnabled="{Binding CanPrevGlyphPage}"/>
-                                        <Button Content="Next ›" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
+                                        <Button Content="{loc:Str Font.Glyphs.Next}" Style="{StaticResource TbBtn}" Height="24" Padding="8,0"
                                                 AutomationProperties.AutomationId="FontGlyphNextPage"
                                                 Command="{Binding NextGlyphPageCommand}"
                                                 IsEnabled="{Binding CanNextGlyphPage}"/>
@@ -311,11 +312,11 @@
                                             <DataTemplate>
                                                 <Border Width="34" Height="34" Margin="2"
                                                         Background="{StaticResource Surface2Brush}" CornerRadius="4"
-                                                        Cursor="Hand" ToolTip="Right-click to copy"
+                                                        Cursor="Hand" ToolTip="{loc:Str Font.Glyphs.CopyTip}"
                                                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                                                     <Border.ContextMenu>
                                                         <ContextMenu>
-                                                            <MenuItem Header="Copy"
+                                                            <MenuItem Header="{loc:Str Font.Glyphs.Copy}"
                                                                       Command="{Binding PlacementTarget.Tag.CopyGlyphCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                                       CommandParameter="{Binding}"/>
                                                         </ContextMenu>

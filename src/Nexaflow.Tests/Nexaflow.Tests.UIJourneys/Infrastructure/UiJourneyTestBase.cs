@@ -313,6 +313,19 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         return true;
     }
 
+    /// <summary><see cref="PickMenuItem"/> by AutomationId — for a menu item whose label is translated.</summary>
+    protected bool PickMenuItemById(string automationId)
+    {
+        var item = WaitFor(() => Automation.GetDesktop()
+            .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
+            .SelectMany(w => w.FindAllDescendants(cf => cf.ByAutomationId(automationId)))
+            .FirstOrDefault(), 5);
+        if (item is null) return false;
+        item.AsMenuItem().Invoke();
+        Wait.UntilInputIsProcessed();
+        return true;
+    }
+
     /// <summary>
     /// Presses a button in one of the app's own dialog windows (the file and folder pickers) and waits for the
     /// window to go. The dialog is modal and top-level, so it is searched for outside the shell window.
