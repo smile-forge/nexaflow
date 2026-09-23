@@ -216,7 +216,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// nothing it can draw shows.</summary>
     protected Size AsWritten(LayoutBuilder build)
     {
-        var shown = LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), []);
+        var shown = LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), [], At);
         build.Graft(shown.Tree);
         return shown.Size;
     }

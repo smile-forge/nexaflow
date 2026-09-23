@@ -37,8 +37,7 @@ public sealed class MermaidLanguage : IContentLanguage
 
     public Laid? Lay(ContentRequest request) =>
         MermaidBuilders.Lay(request.Source, request.Style, request.Room, writing: !request.IsReadOnly,
-                            at: request.At, options: request.Options, shown: request.Shown)
-        ?? UnknownDiagramBuilder.Lay(request.Source, request.Style, request.Room);
+                            at: request.At, options: request.Options, shown: request.Shown);
 
     public IOnEdit OnEdit => MermaidEdits.Instance;
 }
@@ -61,7 +60,7 @@ public sealed class QrLanguage : IContentLanguage
 {
     public bool Reads(string? language) => "qr".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    public Laid? Lay(ContentRequest request) => QrBuilder.Lay(request.Source, request.Style);
+    public Laid? Lay(ContentRequest request) => QrBuilder.Lay(request.Source, request.Style, request.At);
 }
 
 /// <summary>An Aztec symbol.</summary>
@@ -70,7 +69,7 @@ public sealed class AztecLanguage : IContentLanguage
     public bool Reads(string? language) =>
         language?.Trim().ToLowerInvariant() is "aztec" or "aztec-code";
 
-    public Laid? Lay(ContentRequest request) => AztecBuilder.Lay(request.Source, request.Style);
+    public Laid? Lay(ContentRequest request) => AztecBuilder.Lay(request.Source, request.Style, request.At);
 }
 
 /// <summary>A Data Matrix symbol.</summary>
@@ -79,7 +78,7 @@ public sealed class DataMatrixLanguage : IContentLanguage
     public bool Reads(string? language) =>
         language?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix";
 
-    public Laid? Lay(ContentRequest request) => DataMatrixBuilder.Lay(request.Source, request.Style);
+    public Laid? Lay(ContentRequest request) => DataMatrixBuilder.Lay(request.Source, request.Style, request.At);
 }
 
 /// <summary>A PDF417 symbol.</summary>
@@ -87,7 +86,7 @@ public sealed class Pdf417Language : IContentLanguage
 {
     public bool Reads(string? language) => "pdf417".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    public Laid? Lay(ContentRequest request) => Pdf417Builder.Lay(request.Source, request.Style);
+    public Laid? Lay(ContentRequest request) => Pdf417Builder.Lay(request.Source, request.Style, request.At);
 }
 
 /// <summary>A chemical structure written as SMILES.</summary>

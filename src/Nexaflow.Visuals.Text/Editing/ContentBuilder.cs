@@ -112,7 +112,7 @@ public abstract class ContentBuilder
             // method threw. The stretch is the whole source, because a builder that fell over has no
             // opinion about which part of it was to blame.
             return Shown([new Diagnostic(
-                0, Source.Length, DiagnosticSeverity.Error,
+                At, Source.Length, DiagnosticSeverity.Error,
                 $"This could not be set: {error.Message}")]);
         }
     }
@@ -139,5 +139,5 @@ public abstract class ContentBuilder
 
     /// <summary>The source as itself, with whatever there is to say about why.</summary>
     private Laid Shown(IReadOnlyList<Diagnostic> trouble) =>
-        LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), trouble);
+        LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), trouble, At);
 }

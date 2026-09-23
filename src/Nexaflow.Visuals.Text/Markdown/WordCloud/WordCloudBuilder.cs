@@ -365,7 +365,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// <summary>Shows the block as-typed with the error above it, for a block that isn't a cloud at all.</summary>
     private Laid Stopped(string reason) =>
         LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)]);
+                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
 
     protected override FormattedText Characters(string text) =>
         new(text,

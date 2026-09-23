@@ -30,8 +30,8 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
         : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style) =>
-        new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source)), EditState.For(source), style, isReadOnly: true).Lay();
+    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
+        new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
 
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {

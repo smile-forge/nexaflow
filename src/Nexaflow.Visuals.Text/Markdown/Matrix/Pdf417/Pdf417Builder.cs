@@ -38,8 +38,8 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
         : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style) =>
-        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source)), EditState.For(source), style, isReadOnly: true).Lay();
+    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
+        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
 
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {

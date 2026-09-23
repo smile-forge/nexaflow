@@ -168,21 +168,21 @@ public static class LayoutText
     /// has a height, and then the characters name nothing, which is correct.
     /// </param>
     /// <param name="trouble">What went wrong, or nothing where the source was simply empty.</param>
-    public static Laid Shown(string source, FormattedText text, IReadOnlyList<Diagnostic> trouble)
+    public static Laid Shown(string source, FormattedText text, IReadOnlyList<Diagnostic> trouble, int at = 0)
     {
         source ??= string.Empty;
 
         // Only where what is drawn is what was written. A blank standing in for empty source is not the
         // reader's character and must not become a place they can put the caret.
         var letters = text.Text.Length == source.Length
-            ? (IReadOnlyList<ISourcePart>)[.. Enumerable.Range(0, source.Length).Select(at => (ISourcePart)new SourceSpan(at, 1))]
+            ? (IReadOnlyList<ISourcePart>)[.. Enumerable.Range(at, source.Length).Select(letter => (ISourcePart)new SourceSpan(letter, 1))]
             : null;
 
         var width = text.WidthIncludingTrailingWhitespace;
         var height = text.Height;
 
         var build = new LayoutBuilder();
-        Place(build, text, default, width, TextAlignment.Left, new SourceSpan(0, source.Length), SourceKind, letters);
+        Place(build, text, default, width, TextAlignment.Left, new SourceSpan(at, source.Length), SourceKind, letters);
 
         return new Laid(build.Seal(), new Size(width, height), trouble);
     }

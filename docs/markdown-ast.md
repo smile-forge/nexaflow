@@ -174,7 +174,8 @@ contents would move it somewhere it is not true.
 **Nothing is incremental.** An edit can put anything anywhere — a closing brace that reshapes everything
 after it, a bar line that re-bars a whole tune — so "is this edit contained in that piece" is not worth
 answering cheaply. The tree prints itself back and the whole pipeline runs again: one path, always taken,
-therefore always right.
+therefore always right. What is saved is the laying out, which is where the time goes — see *a block that reads as
+it did is laid as it was*, under Markdown.
 
 A parser is not a stage. What a name is shorthand for, and where one token stops and the next begins, are
 facts about the text that no later stage can change.
@@ -201,6 +202,7 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 | `WithDefinitions` | which blocks explain which term, gathered back into the pairs a definition list is |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
 | `WithLinks` | how this showing of the document wants each link to look |
+| `WithUnchanged` | which blocks read exactly as they did the last time the document was read |
 
 A reader is also asked, while it still knows, the things the characters do not say: which way a table's
 column is set, how many squares a cell covers, whether a cell holds blocks or a run of words, and which
@@ -237,6 +239,17 @@ still every piece it was drawn as and a drag across the page picks up its bars.
 turned up and the buttons a block offers in its corner; `MarkdownElement` owns the tree, the caret and the
 selection. Because the prose, the diagrams and the tunes are all pieces of one laid tree, a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
+
+**A block that reads as it did is laid as it was.** `WithUnchanged` is the last stage, and one reads one document for as
+long as the host keeps it: it remembers the last reading's blocks and says which of this reading's are the same one —
+the same characters and everything the stages before it hung on them, so a paragraph whose link was defined again three
+paragraphs away is not the same. What the builder laid for such a block is set down again rather than laid again
+(`LaidBlocks`), and only what its pieces stand for is moved along, by the one amount everything after an edit moves. Each
+block of the document is a piece of its own at the top of its own frame and keeps the picture it was painted as
+(`LayoutKept`), so a keystroke lays and paints the block typed in, and a caret blinking paints nothing. What the
+characters do not say — which nodes of a diagram are opened — the host says with `IContent.Forget`, after which no
+block is the one it was. `LaidBlocksTests` holds every sample, typed into and taken back, to the same source laid from
+nothing.
 
 **What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
 picture of itself, because a picture of code is a worse copy of the code, and prose offers none either. What

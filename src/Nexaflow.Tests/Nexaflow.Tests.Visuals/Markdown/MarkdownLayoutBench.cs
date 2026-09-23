@@ -130,6 +130,9 @@ public class MarkdownLayoutBench
             new Nexaflow.Visuals.Text.Markdown.Stages.WithNested(style, options),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links),
+
+            // Timed against itself: from the second run every block is the one it was, so every block is compared whole.
+            new Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged(),
         ];
 
         var tree = read;
@@ -139,7 +142,10 @@ public class MarkdownLayoutBench
         {
             var input = tree;
             staged[stage.Name] = Round(Median(() => stage.Run(input)));
-            tree = stage.Run(input);
+
+            // What is built from below is built from nothing: a reading saying which blocks are unchanged would hand the
+            // second build what the first one laid.
+            if (stage is not Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged) tree = stage.Run(input);
         }
 
         // What reading every block beside the document's definitions costs: the same stage with none to read beside.
@@ -178,6 +184,14 @@ public class MarkdownLayoutBench
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
+        // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
+        // is drawn as it was, and only the block typed in is painted.
+        var painter = MarkdownContent.Of(style, options);
+        Painted(painter.Lay(EditState.For(text), Room, false), style);
+        var retyped = 0;
+        var editPaint = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
+                              typedIn => Painted(typedIn, style));
+
         return new Dictionary<string, object>
         {
             ["name"] = name,
@@ -196,6 +210,7 @@ public class MarkdownLayoutBench
             ["buildOwn"] = Round(Math.Max(0, build - nested)),
             ["paint"] = Round(paint),
             ["repaint"] = Round(repaint),
+            ["editPaint"] = Round(editPaint),
         };
     }
 
@@ -284,6 +299,7 @@ public class MarkdownLayoutBench
             ["buildOwn"] = Sum("buildOwn"),
             ["paint"] = Sum("paint"),
             ["repaint"] = Sum("repaint"),
+            ["editPaint"] = Sum("editPaint"),
         };
     }
 

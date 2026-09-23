@@ -42,6 +42,13 @@ public interface IContent
     /// <param name="before">Where the edit landed — the state it was made to, and what was drawn of it.</param>
     /// <param name="after">The state it made.</param>
     EditState Edited(Landing before, EditState after) => after;
+
+    /// <summary>
+    /// Says that something the source does not say has changed — which nodes of a diagram are opened, or how the host wants
+    /// something drawn — so nothing laid before is to be laid again as it was. Content that keeps nothing between one layout
+    /// and the next has nothing to forget.
+    /// </summary>
+    void Forget() { }
 }
 
 /// <summary>Content that is a builder and nothing else, which is most of it.</summary>

@@ -1039,6 +1039,8 @@ public class ContentElement : FrameworkElement
     /// <summary>Lays the content out again, because something outside it changed.</summary>
     public void Refresh()
     {
+        // Asked for because something the source does not say has changed, so nothing laid before still holds.
+        _content.Forget();
         Rebuild();
         InvalidateMeasure();
         InvalidateVisual();

@@ -97,9 +97,10 @@ internal static class MermaidBuilders
         // Read once: which diagram it is comes from the reading that is drawn, never from a second one.
         var reading = Read(source, holes: writing, at: at, after: After(style, options));
 
-        return For(MermaidBlock.Of(reading).Diagram)
-            ?.Invoke(reading, EditState.For(source) with { Raw = shown }, style, isReadOnly: !writing)
-            .Lay(room);
+        // A header naming no diagram is still drawn — as written, from this same reading, so it stands where it was written.
+        var make = For(MermaidBlock.Of(reading).Diagram) ?? (static (r, s, f, o) => new UnknownDiagramBuilder(r, s, f, o));
+
+        return make(reading, EditState.For(source) with { Raw = shown }, style, isReadOnly: !writing).Lay(room);
     }
 
     /// <summary>

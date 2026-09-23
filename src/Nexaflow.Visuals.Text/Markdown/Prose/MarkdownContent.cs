@@ -25,7 +25,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// </para>
 /// </summary>
 /// <param name="lay">Lays the state out at a width, told whether anybody can write in it — the builder, as the element asks for it.</param>
-public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay) : IContent
+/// <param name="forget">What is told that something the source does not say has changed — see <see cref="Forget"/>.</param>
+public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay, Action? forget = null) : IContent
 {
     /// <summary>
     /// The ordinary case: a document drawn in one style, by the one builder that draws markdown.
@@ -38,17 +39,24 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay) : I
     /// </summary>
     public static MarkdownContent Of(StyleFormat style, DiagramRenderOptions? options = null)
     {
+        // Last, because a block is only the same as it was when everything worked out about it is the same too.
+        var unchanged = new Stages.WithUnchanged();
+
         var read = MarkdownParser.Reader
             .Then(new Stages.WithNested(style, options))
             .Then(new Stages.WithImages(options?.Pictures))
-            .Then(new Stages.WithLinks(options?.Links));
+            .Then(new Stages.WithLinks(options?.Links))
+            .Then(unchanged);
 
         return new((state, room, readOnly) =>
-            MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly, reader: read));
+            MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly, reader: read), unchanged.Forget);
     }
 
     /// <inheritdoc/>
     public Laid Lay(EditState state, double room, bool readOnly) => lay(state, room, readOnly);
+
+    /// <inheritdoc/>
+    public void Forget() => forget?.Invoke();
 
     /// <inheritdoc/>
     public EditState? Typing(Landing landing, string text)

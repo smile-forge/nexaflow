@@ -152,7 +152,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
         return new Laid(build.Seal(), size, trouble is null
             ? []
-            : [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, trouble)]);
+            : [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, trouble)]);
     }
 
     /// <summary>

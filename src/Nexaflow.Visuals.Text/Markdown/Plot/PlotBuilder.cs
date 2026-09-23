@@ -200,12 +200,13 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Jitter offset for overlapping marks, seeded from the row's source position (not the clock)
     /// so the same block always renders identically.</summary>
-    private static (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
+    private (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
                                                     Placing across, Placing up)
     {
         if (chart.Settings.Jitter <= 0) return (0, 0);
 
-        var throws = new Random(mark.Part.Start * 397);
+        // Seeded by where the row is in the block, never in the document: typing above a plot must not shake its points.
+        var throws = new Random((mark.Part.Start - At) * 397);
 
         var wide = chart.Settings.Jitter * across.Slot * plot.Width;
         var tall = chart.Settings.Jitter * up.Slot * plot.Height;
@@ -290,7 +291,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                 continue;
             }
 
-            trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`gradient: {it.Gradient}` names no run of colours — `{colour}` is not "
                                        + $"a colour. The runs are {DiagramColours.Names}."));
 
@@ -299,7 +300,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         if (written.Count >= 2) return written;
 
-        trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+        trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                    $"`gradient: {it.Gradient}` is one colour, and a run takes at least two."));
 
         return DiagramColours.Stops(DiagramRamp.Viridis);
@@ -405,7 +406,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         if (points.Count < 3)
         {
             if (points.Count > 0)
-                trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+                trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                            "Too few rows to say how thickly they lie. A density takes at least three."));
 
             return null;
@@ -944,7 +945,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         var shapes = Ordered(named);
 
         if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
-            trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`shape: {it.Shape}` names neither a column nor a mark. "
                                        + $"The marks are {DiagramGlyphs.Names}."));
 
@@ -1229,5 +1230,5 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     /// <summary>The block shown as written, with the reason it could not be drawn.</summary>
     private Laid Stopped(string reason) =>
         LayoutText.Shown(Source, this.Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)]);
+                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
 }

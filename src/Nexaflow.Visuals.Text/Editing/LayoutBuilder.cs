@@ -223,7 +223,12 @@ public sealed class LayoutBuilder
     /// </summary>
     /// <param name="against">Which side of the block it stands against, if it stands against one.</param>
     /// <param name="clear">How much room it keeps from anything else it sits beside.</param>
-    public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0)
+    /// <param name="parts">
+    /// What each of its pieces stands for, by index, in place of what the tree says — for a tree laid from one reading and
+    /// set down in the layout of the next, where the same parts stand somewhere else.
+    /// </param>
+    public int Graft(LayoutTree tree, Point at = default, Side? against = null, double clear = 0,
+                     IReadOnlyList<ISourcePart?>? parts = null)
     {
         if (tree.Count == 0) return -1;
 
@@ -249,7 +254,7 @@ public sealed class LayoutBuilder
                 Marks = marks,
             });
 
-            _parts.Add(tree.PartOf(piece));
+            _parts.Add(parts is null ? tree.PartOf(piece) : parts[piece]);
             _kinds.Add(tree.KindOf(piece));
             _paints.Add(tree.PaintOf(piece));
             _regions.Add(tree.RegionOf(piece));

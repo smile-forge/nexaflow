@@ -1196,10 +1196,45 @@
           "class": "WithFolds"
         }
       ]
+    },
+    "markdown-laid-again": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithUnchanged.cs",
+          "class": "WithUnchanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/LaidBlocks.cs",
+          "class": "Laying",
+          "method": "At"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Whole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutKept.cs",
+          "class": "LayoutKept"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/LaidBlocksTests.cs",
+            "class": "LaidBlocksTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 72,
+  "changed_sets": 74,
   "touched_nodes": [
     "abbreviations",
     "abc-layout",
@@ -1226,6 +1261,7 @@
     "markdown-heading-scroll",
     "markdown-hosts",
     "markdown-inline-editor",
+    "markdown-laid-again",
     "markdown-maths",
     "markdown-offers",
     "markdown-paste",

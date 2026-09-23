@@ -59,12 +59,35 @@ public static class LayoutPainter
     {
         var pushed = Enter(dc, piece);
 
-        foreach (var mark in piece.Marks)
-            if (mark is WashMark == washes) mark.PaintOn(dc, foreground);
+        // A piece that keeps its picture is painted whole, both layers, when the washes go down: what keeps a picture is a
+        // block, and nothing of any other block is between its washes and its ink.
+        if (piece.Painting?.Kept is { } kept)
+        {
+            if (washes) dc.DrawDrawing(kept.For(foreground, into => Inside(into, piece, foreground)));
+        }
+        else
+        {
+            foreach (var mark in piece.Marks)
+                if (mark is WashMark == washes) mark.PaintOn(dc, foreground);
 
-        foreach (var child in piece.Children) Descend(dc, child, foreground, washes);
+            foreach (var child in piece.Children) Descend(dc, child, foreground, washes);
+        }
 
         for (var at = 0; at < pushed; at++) dc.Pop();
+    }
+
+    /// <summary>Everything a piece holds, both layers, in the piece's own frame — what a kept picture is recorded from.</summary>
+    private static void Inside(DrawingContext dc, Piece piece, Brush foreground)
+    {
+        foreach (var mark in piece.Marks)
+            if (mark is WashMark) mark.PaintOn(dc, foreground);
+
+        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: true);
+
+        foreach (var mark in piece.Marks)
+            if (mark is not WashMark) mark.PaintOn(dc, foreground);
+
+        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: false);
     }
 
     /// <summary>

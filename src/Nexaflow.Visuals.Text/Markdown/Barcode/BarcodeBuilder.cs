@@ -166,7 +166,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         // Diagnostic spans the whole value — that's what the reader would need to change.
         return new Laid(build.Seal(), size, _trouble is null
             ? []
-            : [new Diagnostic(0, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
+            : [new Diagnostic(At, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
     }
 
     /// <summary>The caption a publication keeps even when its value won't encode (ISBN/ISSN/ISMN only).</summary>

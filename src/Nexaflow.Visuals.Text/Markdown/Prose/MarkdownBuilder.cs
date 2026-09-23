@@ -91,6 +91,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         var first = true;
 
+        // The document's own blocks are each a piece of their own; a block inside another is part of that one's.
+        var whole = holder.Parent is null;
+        var laid = whole ? LaidBlocks.Of(holder) : null;
+
         foreach (var part in holder.Children)
         {
             if (part.Derived || part.Role == Roles.Trivia || part.Kind == MarkdownKinds.Task) continue;
@@ -103,8 +107,54 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             if (!first) _y += Gap;
             first = false;
 
-            Block(into, part, x, room);
+            if (whole) Whole(into, part, x, room, laid?.For(part.Node));
+            else Block(into, part, x, room);
         }
+    }
+
+    /// <summary>
+    /// One block of the document, as a piece of its own standing at the top of its own frame — so it means the same wherever
+    /// it is set down, and its picture is kept once painted (<see cref="LayoutKept"/>).
+    ///
+    /// <para>
+    /// Where the reading says the block reads exactly as it did last time (<see cref="LaidBlocks"/>), the layout it was
+    /// given then is set down again rather than laid again: the same block at the same room lays out the same. Only what its
+    /// pieces stand for has moved, and by one amount, since the block is the same characters wherever it now starts. Not
+    /// where somebody is being shown the characters of it, which is a different drawing of the same block, and not where a
+    /// part of it cannot be found again, which is laid afresh rather than guessed at.
+    /// </para>
+    /// </summary>
+    private void Whole(LayoutBuilder into, ContentPart part, double x, double room, LaidBlock? laid)
+    {
+        var shown = State.Raw is { } zone && zone.Start <= part.End && part.Start <= zone.End;
+
+        if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
+        {
+            into.Graft(last.Tree, new Point(0, _y), parts: moved.Parts);
+            _borrowed.AddRange(moved.Trouble);
+
+            _y += last.Height;
+            Reached(last.Reach);
+            return;
+        }
+
+        var (y, reach, borrowed) = (_y, _reach, _borrowed.Count);
+        (_y, _reach) = (0, 0);
+
+        var apart = new LayoutBuilder();
+        apart.Open(MarkdownPieces.Whole, stops: Stops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
+        Block(apart, part, x, room);
+        apart.Close();
+
+        var tree = apart.Seal();
+        var (height, reached) = (_y, _reach);
+        (_y, _reach) = (y, Math.Max(reach, reached));
+
+        into.Graft(tree, new Point(0, _y));
+        _y += height;
+
+        if (laid is not null)
+            laid.Last = shown ? null : new Laying(part, tree, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
     }
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
@@ -727,26 +777,4 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>The trouble of every language's content set down in this document.</summary>
     private readonly List<Diagnostic> _borrowed = [];
-}
-
-/// <summary>What a piece of a laid-out markdown document is. Kinds, so a test can say which piece it means.</summary>
-public static class MarkdownPieces
-{
-    public const string Document = "MarkdownDocument";
-    public const string Block = "MarkdownBlock";
-    public const string Words = "MarkdownWords";
-    public const string Marker = "MarkdownMarker";
-    public const string Tick = "MarkdownTick";
-    public const string Rule = "MarkdownRule";
-    public const string Row = "MarkdownRow";
-    public const string Cell = "MarkdownCell";
-    public const string Verbatim = "MarkdownVerbatim";
-    public const string Picture = "MarkdownPicture";
-}
-
-/// <summary>What a press on a piece of a markdown document can mean, beside the shared <see cref="LayoutVerbs"/>.</summary>
-public static class MarkdownVerbs
-{
-    /// <summary>Tick an item off, or take the tick back — <see cref="LayoutIntent.Target"/> says which way.</summary>
-    public const string Tick = "tick";
 }
