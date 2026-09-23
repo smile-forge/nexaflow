@@ -76,6 +76,12 @@ public static class Roles
     /// </para>
     /// </summary>
     public const string Derived = "derived";
+
+    /// <summary>
+    /// What a piece says while the pointer rests on it — what an abbreviation stands for. Held by a
+    /// <see cref="Derived"/> part, so it is found by asking the tree when the pointer arrives and is never laid out.
+    /// </summary>
+    public const string Tip = "tip";
 }
 
 /// <summary>

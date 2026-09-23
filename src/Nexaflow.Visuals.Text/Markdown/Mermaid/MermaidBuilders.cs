@@ -92,11 +92,15 @@ internal static class MermaidBuilders
 
     /// <summary>Lays a block out as its header names, with no caret in it — or null where its diagram is not drawn on the shared tree.</summary>
     public static Laid? Lay(string source, StyleFormat style, double room = double.PositiveInfinity,
-                            bool writing = false, int at = 0, DiagramRenderOptions? options = null, RawZone? shown = null) =>
-        For(MermaidBlock.Read(source).Diagram)
-            ?.Invoke(Read(source, holes: writing, at: at, after: After(style, options)),
-                     EditState.For(source) with { Raw = shown }, style, isReadOnly: !writing)
+                            bool writing = false, int at = 0, DiagramRenderOptions? options = null, RawZone? shown = null)
+    {
+        // Read once: which diagram it is comes from the reading that is drawn, never from a second one.
+        var reading = Read(source, holes: writing, at: at, after: After(style, options));
+
+        return For(MermaidBlock.Of(reading).Diagram)
+            ?.Invoke(reading, EditState.For(source) with { Raw = shown }, style, isReadOnly: !writing)
             .Lay(room);
+    }
 
     /// <summary>
     /// The same, for a diagram whose type is settled by the grammar reading it rather than by a keyword in a

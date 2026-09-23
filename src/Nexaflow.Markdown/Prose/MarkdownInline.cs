@@ -99,8 +99,7 @@ public static class MarkdownInline
                 return Wrapped(read, end, MarkdownKinds.Link, MarkdownKinds.Word, MarkdownRoles.Destination);
 
             case TaskList task:
-                return ContentNode.Branch(MarkdownKinds.Task,
-                    [read.Take(end, task.Checked ? MarkdownRoles.Done : MarkdownRoles.Todo, Kinds.Token)]);
+                return Task(read, end, task.Checked);
 
             // What the abbreviation stands for is written on a line of its own somewhere else, so it is not in
             // these characters and cannot be cut from them — it is hung on instead.
@@ -108,7 +107,7 @@ public static class MarkdownInline
             // what it holds: a word hung with its meaning would be a piece holding nothing but the meaning.
             case Markdig.Extensions.Abbreviations.AbbreviationInline abbreviation:
                 return ContentNode.Branch(MarkdownKinds.Abbreviation, [read.Take(end, Roles.Body, MarkdownKinds.Word)])
-                    .Holding(MarkdownKinds.Abbreviation, MarkdownRoles.Means, abbreviation.Abbreviation.Text.ToString().Trim());
+                    .Holding(MarkdownKinds.Abbreviation, Roles.Tip, abbreviation.Abbreviation.Text.ToString().Trim());
 
             case LiteralInline:
                 return Escaped(read, end);
@@ -119,8 +118,10 @@ public static class MarkdownInline
             case HtmlInline:
                 return read.Take(end, Roles.Element, MarkdownKinds.Html);
 
-            case LineBreakInline:
-                return read.Take(end, Roles.Separator, MarkdownKinds.Break);
+            // Whether the writer asked for the line to break is settled by what stands before the ending, which the reader
+            // has already looked at; it is said here so nothing after has to look again.
+            case LineBreakInline ending:
+                return read.Take(end, ending.IsHard ? MarkdownRoles.Hard : Roles.Separator, MarkdownKinds.Break);
 
             case Markdig.Extensions.Mathematics.MathInline maths:
                 return Formula(maths, read, end);
@@ -200,6 +201,21 @@ public static class MarkdownInline
     /// <summary>Which characters a backslash can take the meaning off — CommonMark's ASCII punctuation, and no others.</summary>
     private static bool Escapes(char what) =>
         what is (>= '!' and <= '/') or (>= ':' and <= '@') or (>= '[' and <= '`') or (>= '{' and <= '~');
+
+    /// <summary>
+    /// A task's box, <c>[x]</c>: its brackets, and between them the mark saying whether it is done — the one character a
+    /// press on the box rewrites, so what a press means is settled here rather than by anything reading the brackets again.
+    /// </summary>
+    internal static ContentNode Task(Cut read, int end, bool done)
+    {
+        var mark = done ? MarkdownRoles.Done : MarkdownRoles.Todo;
+        var at = read.At;
+
+        if (end - at != 3) return ContentNode.Branch(MarkdownKinds.Task, [read.Take(end, mark, Kinds.Token)]);
+
+        return ContentNode.Branch(MarkdownKinds.Task,
+            [read.Take(at + 1, Roles.Open, Kinds.Token), read.Take(at + 2, mark, Kinds.Token), read.Take(end, Roles.Close, Kinds.Token)]);
+    }
 
     /// <summary>
     /// A formula in the middle of a sentence, cut where its delimiters stop: the dollars that hold it, and the

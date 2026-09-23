@@ -3,6 +3,7 @@ using System.Windows.Input;
 
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -123,21 +124,17 @@ public sealed class MarkdownElement : LinkedElement
         (modifiers == ModifierKeys.None && (Ticked(at) || Anchored(at))) || base.Pressed(at, modifiers);
 
     /// <summary>
-    /// Ticks the item a press landed on, where it landed on one.
-    ///
-    /// <para>
-    /// The whole of it is an edit. What is drawn is read off the tree, the tree is read off the source, and
-    /// the source is what this writes — so there is no state anywhere saying which items are done, nothing to
-    /// keep in step, and taking it back is the undo the reader already has.
-    /// </para>
+    /// A press on a task's box: the mark between its brackets written over as the press means — an edit like any other,
+    /// through the document's own edit handling, told to whoever follows the document.
     /// </summary>
     private bool Ticked(Point at)
     {
         if (IsReadOnly) return false;
         if (Offered(at, LayoutGesture.Click) is not { Intent.Verb: MarkdownVerbs.Tick } act) return false;
-        if (MarkdownContent.Ticked(State, act.Part) is not { } ticked) return false;
+        if (act.Part is not ContentPart box
+            || (box.Part(MarkdownRoles.Done) ?? box.Part(MarkdownRoles.Todo)) is not { Length: 1 } mark) return false;
 
-        Apply(ticked, notify: true);
+        WriteOver(mark.Start, mark.Length, act.Intent.Target == "on" ? "x" : " ");
 
         return true;
     }

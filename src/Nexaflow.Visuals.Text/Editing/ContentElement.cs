@@ -460,6 +460,22 @@ public class ContentElement : FrameworkElement
     }
 
     /// <summary>
+    /// Writes <paramref name="text"/> over a stretch of the source as typing it there would — the content's rule, through the
+    /// same edit handling a key goes through — and leaves the caret where it was. What a press means when it is an edit
+    /// somewhere other than the caret: a tick on a task's box.
+    /// </summary>
+    protected void WriteOver(int start, int length, string text)
+    {
+        if (IsReadOnly) return;
+
+        var over = _state.Select(start, length);
+        var written = _content.Typing(new Landing(over, _laid, _at), text) ?? over.Write(text);
+        var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
+
+        Apply(written.MoveCaretTo(caret), notify: true);
+    }
+
+    /// <summary>
     /// Inserts text at the caret, replacing any selection — how a palette key types itself.
     /// <paramref name="caretBack"/> walks the caret into a template's first hole.
     /// </summary>
@@ -755,9 +771,34 @@ public class ContentElement : FrameworkElement
     /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
     private const double PointerReach = 4.0;
 
-    /// <summary>What the pointer should be at a point: see <see cref="OnMouseMove"/>.</summary>
-    protected virtual Cursor Pointing(Point at) =>
-        !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+    /// <summary>
+    /// What the pointer is over <paramref name="at"/>: a bar over what can be written in and an arrow elsewhere, and whatever
+    /// the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// </summary>
+    protected virtual Cursor Pointing(Point at)
+    {
+        var says = Says(Laid.Root.PieceAt(at));
+        if (!Equals(ToolTip, says)) ToolTip = says;
+
+        return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+    }
+
+    /// <summary>
+    /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
+    /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// </summary>
+    private static string? Says(Piece piece)
+    {
+        if (!piece.Exists || piece.Naming() is not ContentPart named) return null;
+
+        for (var part = named; part is not null; part = part.Parent)
+            foreach (var child in part.Node.Children)
+                if (child.IsDerived)
+                    foreach (var held in child.Children)
+                        if (held.Role == Roles.Tip && held.Held is string tip) return tip;
+
+        return null;
+    }
 
     /// <summary>What the pointer is over a point on this content: a bar only where something can be written in.</summary>
     public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));

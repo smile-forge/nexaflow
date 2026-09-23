@@ -159,7 +159,7 @@ public sealed partial class MarkdownBuilder
             // is not a place past the end of the words for the caret to stand.
             case MarkdownKinds.Break:
                 if (Closing(part)) return;
-                runs.Add(new Run(Meant(part) ? string.Empty : " ", part, face, Maps: false));
+                runs.Add(new Run(part.Role == MarkdownRoles.Hard ? string.Empty : " ", part, face, Maps: false));
                 return;
 
             // The item draws its own box; the three characters it stands for are the item's, not its words'.
@@ -337,15 +337,6 @@ public sealed partial class MarkdownBuilder
     /// </summary>
     private static string Flowed(string text) =>
         text.Contains('\n') || text.Contains('\r') ? text.Replace('\n', ' ').Replace('\r', ' ') : text;
-
-    /// <summary>Whether a line ending was meant as one, rather than as the space markdown reflows it into.</summary>
-    private bool Meant(ContentPart part)
-    {
-        var at = part.Start - At;
-
-        return (at >= 1 && Source[at - 1] == '\\')
-            || (at >= 2 && Source[at - 1] == ' ' && Source[at - 2] == ' ');
-    }
 
     // ── Where the lines break ───────────────────────────────────────────────
 

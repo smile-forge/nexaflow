@@ -97,44 +97,87 @@ public class MarkdownContentTests
     // ── Ticking ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void TickingWritesTheTickIntoTheSource()
-    {
-        var ticked = MarkdownContent.Ticked(new EditState("- [ ] to do\n", 0), new SourceSpan(2, 3));
-
-        Assert.AreEqual("- [x] to do\n", ticked?.Source);
-    }
+    public void TickingWritesTheTickIntoTheSource() => UiThread.Run(() =>
+        Assert.AreEqual("- [x] to do\n", Pressed("- [ ] to do\n", box: 0).Markdown));
 
     [TestMethod]
-    public void TickingSomethingAlreadyTickedTakesItBack()
-    {
-        var ticked = MarkdownContent.Ticked(new EditState("- [x] done\n", 0), new SourceSpan(2, 3));
-
-        Assert.AreEqual("- [ ] done\n", ticked?.Source);
-    }
+    public void TickingSomethingAlreadyTickedTakesItBack() => UiThread.Run(() =>
+        Assert.AreEqual("- [ ] done\n", Pressed("- [x] done\n", box: 0).Markdown));
 
     [TestMethod]
-    public void NothingIsWrittenWhereThereIsNoTick()
-    {
-        Assert.IsNull(MarkdownContent.Ticked(new EditState("- to do\n", 0), new SourceSpan(2, 3)));
-        Assert.IsNull(MarkdownContent.Ticked(new EditState("- [ ] to do\n", 0), null));
-    }
+    public void ADocumentOnlyBeingReadIsNotWrittenByAPress() => UiThread.Run(() =>
+        Assert.AreEqual("- [ ] to do\n", Pressed("- [ ] to do\n", box: 0, readOnly: true).Markdown));
 
     [TestMethod]
-    public void TheBoxTheBuilderDrewIsTheOneThatGetsWritten()
+    public void TheBoxPressedIsTheOneThatGetsWritten() => UiThread.Run(() =>
     {
-        // The whole of the arc in one test: the builder says which characters it drew a box over, and what a press on
-        // it means is written over exactly those characters.
         const string source = "- [ ] to do\n- [x] done\n";
 
-        var ticks = MarkdownBuilder.Lay(source, StyleFormat.Dark, 480).Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == MarkdownPieces.Tick)
-            .ToList();
+        Assert.AreEqual("- [x] to do\n- [x] done\n", Pressed(source, box: 0).Markdown);
+        Assert.AreEqual("- [ ] to do\n- [ ] done\n", Pressed(source, box: 1).Markdown);
+    });
 
-        Assert.AreEqual("- [x] to do\n- [x] done\n",
-                        MarkdownContent.Ticked(new EditState(source, 0), ticks[0].Part)?.Source);
+    [TestMethod]
+    public void TickingIsAnEditTheDocumentIsToldOf() => UiThread.Run(() =>
+    {
+        var told = 0;
 
-        Assert.AreEqual("- [ ] to do\n- [ ] done\n",
-                        MarkdownContent.Ticked(new EditState(source, 0), ticks[1].Part)?.Source);
+        Pressed("- [ ] to do\n", box: 0, before: element => element.SourceChanged += (_, _) => told++);
+
+        Assert.AreEqual(1, told, "whoever follows the document hears of it, as of any other edit");
+    });
+
+    // ── What a word says when the pointer rests on it ───────────────────────
+
+    [TestMethod]
+    public void AnAbbreviationSaysWhatItStandsForWhilePointedAt() => UiThread.Run(() =>
+    {
+        var element = Laid("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n");
+        var word = element.Laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == "HTML");
+
+        element.PointerCursor(Middle(word));
+
+        Assert.AreEqual("HyperText Markup Language", element.ToolTip);
+    });
+
+    [TestMethod]
+    public void AndWordsThatStandForNothingElseSayNothing() => UiThread.Run(() =>
+    {
+        var element = Laid("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n");
+        var abbreviation = element.Laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == "HTML");
+        var plain = element.Laid.Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text.Contains("is a thing") == true);
+
+        element.PointerCursor(Middle(abbreviation));
+        element.PointerCursor(Middle(plain));
+
+        Assert.IsNull(element.ToolTip, "moving off the word takes what it said away");
+    });
+
+    private static MarkdownElement Laid(string source)
+    {
+        var element = new MarkdownElement(source, StyleFormat.Dark);
+        element.Measure(new System.Windows.Size(480, 2000));
+        element.Arrange(new System.Windows.Rect(0, 0, 480, 2000));
+        return element;
+    }
+
+    private static System.Windows.Point Middle(Piece piece) =>
+        new(piece.Bounds.X + (piece.Bounds.Width / 2), piece.Bounds.Y + (piece.Bounds.Height / 2));
+
+    /// <summary>A document laid out, and its <paramref name="box"/>th task box pressed as a reader presses it.</summary>
+    private static MarkdownElement Pressed(string source, int box, bool readOnly = false, System.Action<MarkdownElement>? before = null)
+    {
+        var element = new MarkdownElement(source, StyleFormat.Dark) { IsReadOnly = readOnly };
+        element.Measure(new System.Windows.Size(480, 2000));
+        element.Arrange(new System.Windows.Rect(0, 0, 480, 2000));
+        before?.Invoke(element);
+
+        var tick = element.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Tick).ElementAt(box);
+
+        element.BeginPointerSelect(new System.Windows.Point(tick.Bounds.X + (tick.Bounds.Width / 2), tick.Bounds.Y + (tick.Bounds.Height / 2)));
+        element.EndPointerSelect();
+
+        return element;
     }
 
     // ── Reading the answers ─────────────────────────────────────────────────

@@ -106,34 +106,6 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay) : I
         return aimed.Holder is null || Inside(aimed.Edit, before.State.Source, after.Source) ? hook.Edited(aimed.Edit, after) : after;
     }
 
-    /// <summary>
-    /// What ticking an item off writes: the character between the brackets, swapped for the other one.
-    ///
-    /// <para>
-    /// Written into the source rather than held beside it, which is what makes this the whole of it. The tick is
-    /// recorded where a reader would look for it, so it survives being saved and read back; the document goes round
-    /// the same loop any other edit does, so the box is drawn from what the tree now says; and taking it back is the
-    /// undo the reader already has rather than a second one for ticks.
-    /// </para>
-    /// </summary>
-    /// <param name="tick">The three characters a box was drawn over — what the layout says the press landed on.</param>
-    public static EditState? Ticked(EditState state, ISourcePart? tick)
-    {
-        if (tick is not { Length: >= 3 } box) return null;
-
-        var source = state.Source;
-        var opens = box.Start;
-        if (opens < 0 || opens + 2 >= source.Length || source[opens] != '[' || source[opens + 2] != ']') return null;
-
-        var done = source[opens + 1] is not (' ' or '\t');
-
-        return state with
-        {
-            Source = source[..(opens + 1)] + (done ? " " : "x") + source[(opens + 2)..],
-            Selected = null,
-        };
-    }
-
     // ── Which language an edit landed in ────────────────────────────────────
 
     /// <summary>The language an edit landed in: what it says an edit means, where its source is, and the part holding it — null for markdown's own.</summary>

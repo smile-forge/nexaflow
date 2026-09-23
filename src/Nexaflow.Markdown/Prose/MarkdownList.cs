@@ -154,8 +154,7 @@ public static class MarkdownList
 
         read.Gap(parts, from);
 
-        parts.Add(ContentNode.Branch(MarkdownKinds.Task,
-            [read.Take(to, tick.Checked ? MarkdownRoles.Done : MarkdownRoles.Todo, Kinds.Token)]));
+        parts.Add(MarkdownInline.Task(read, to, tick.Checked));
     }
 }
 

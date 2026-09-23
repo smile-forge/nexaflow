@@ -94,14 +94,20 @@
       "links": [
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownContent.cs",
-          "class": "MarkdownContent",
-          "method": "Ticked"
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement"
         },
         {
           "type": "code",
-          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
-          "class": "MarkdownElement"
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Task"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "WriteOver"
         }
       ],
       "concerns": {
@@ -110,6 +116,12 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownElementTests.cs",
             "class": "MarkdownElementTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownContentTests.cs",
+            "class": "MarkdownContentTests",
+            "method": "TheBoxPressedIsTheOneThatGetsWritten"
           }
         ]
       }
@@ -1099,13 +1111,100 @@
           "class": "MusicLanguage"
         }
       ]
+    },
+    "abbreviations": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "One"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownDefinitions.cs",
+          "class": "MarkdownDefinitions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/ContentElement.cs",
+          "class": "ContentElement",
+          "method": "Says"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownContentTests.cs",
+            "class": "MarkdownContentTests",
+            "method": "AnAbbreviationSaysWhatItStandsForWhilePointedAt"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownParityTests.cs",
+            "class": "MarkdownParityTests",
+            "method": "AnAbbreviationIsKnownWhereverItsDefinitionIsWritten"
+          }
+        ]
+      }
+    },
+    "graph-expandable-nodes": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs",
+          "class": "DiagramExpansion"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/NexaflowConfig.cs",
+          "class": "NexaflowConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramChip.cs",
+          "class": "DiagramChip"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs",
+          "class": "DiagramActions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs",
+          "class": "LayoutActions"
+        },
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support",
+            "Nodes that fold (graph-family diagrams)"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramSpill.cs",
+          "class": "DiagramSpill"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithFolds.cs",
+          "class": "WithFolds"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 69,
+  "changed_sets": 72,
   "touched_nodes": [
+    "abbreviations",
     "abc-layout",
     "barcode-editing",
+    "graph-expandable-nodes",
     "latex-document-seam",
     "latex-editing",
     "markdown-always-drawn",

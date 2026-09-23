@@ -456,7 +456,7 @@ internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditSta
     protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
         Diagram = Of(block);
-        Folds = NexaflowConfig.Read(block.Config);
+        Folds = WithFolds.Of(block.Reading.Root.Node);
 
         // Worked out before anything is placed, so a node that is not drawn is never given a cell — rather than taken
         // out afterwards, which would leave a hole where it stood and a line running to nothing.

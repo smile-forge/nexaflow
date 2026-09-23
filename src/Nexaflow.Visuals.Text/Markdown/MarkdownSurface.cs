@@ -590,13 +590,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
         {
             if (piece.Part is not ContentPart part || ContentNesting.Of(part) is not { } nesting) continue;
-            if (part.Part(Roles.Body) is not { } body) continue;
 
-            var (start, length) = ContentNesting.Own(body);
-            var options = nesting.Options ?? Asked(Drawn);
-
-            return new DiagramActions(options, _shown.Markdown.Substring(start, length), nesting.Style.Expansion) { Shown = _shown }
-                .Invoke(act);
+            return new DiagramActions(nesting.Options ?? Asked(Drawn), nesting.Style.Expansion) { Shown = _shown }.Invoke(act);
         }
 
         return null;

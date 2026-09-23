@@ -190,6 +190,9 @@ public static class MarkdownRoles
     /// <summary>Where a link or an image points.</summary>
     public const string Destination = "destination";
 
+    /// <summary>A line ending the writer asked to keep — two spaces or a backslash before it — where any other is a space.</summary>
+    public const string Hard = "hard";
+
     /// <summary>What a link or an image says about itself when rested on.</summary>
     public const string Title = "title";
 
@@ -201,9 +204,6 @@ public static class MarkdownRoles
 
     /// <summary>An item done.</summary>
     public const string Done = "done";
-
-    /// <summary>What an abbreviation or a cell's span is, where a stage worked it out.</summary>
-    public const string Means = "means";
 }
 
 /// <summary>Which way a column of a table is set, as the rule under its head says.</summary>

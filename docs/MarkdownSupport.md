@@ -63,7 +63,7 @@ stands for — in `MarkdownBuilderTests` and `MarkdownParityTests`.
 | Reference links | ✅ | ✅ | `MarkdownParityTests`. The definition may be anywhere in the document — in a list, a quote, after the words — and is not drawn. |
 | Images `![]()` | ⚠️ | ✅ | `MarkdownImageTests`. **Local files only** (the host's resolver, then absolute, `file:`, or relative to the doc's base dir). Remote `http(s)`/`data:` images are never fetched — alt text is shown instead. |
 | Autolinks `<https://…>` | ✅ | ✅ | A link to itself, the brackets not drawn. |
-| Hard line breaks | ✅ | ✅ | Two trailing spaces / backslash. |
+| Hard line breaks | ✅ | ✅ | Two trailing spaces / backslash, told apart by the reader (`MarkdownRoles.Hard`). |
 | Soft line breaks | ✅ | ✅ | Drawn as a space. |
 | Backslash escapes | ✅ | ✅ | Drawn as the character escaped, still the two typed underneath. |
 | Entity & numeric refs (`&amp;`, `&#9731;`) | ✅ | ✅ | Drawn as the character they stand for. |
@@ -81,12 +81,12 @@ These are turned on in the pipeline **and** drawn by the builder. Every row is a
 |---|---|---|---|---|
 | Pipe tables | `UsePipeTables()` | ✅ | ✅ | A piece per cell (minimal, no outer pipes, alignment, words set in cells, CRLF, empty and escaped cells, ragged rows, inside a quote, straight under a line of words). |
 | Grid tables | `UseGridTables()` | ✅ | ✅ | Columns, cells spanning columns, and cells holding blocks — a list in a cell is drawn as one. |
-| Task lists | `UseTaskLists()` | ✅ | ✅ | A tick that says what pressing it means; the host writes the box. |
+| Task lists | `UseTaskLists()` | ✅ | ✅ | A tick that says what pressing it means. A press writes the mark between the brackets as an edit like any other — through the document's edit handling, onto the undo history. |
 | Emphasis extras | `UseEmphasisExtras()` | ✅ | ✅ | `~~strike~~`, `~sub~` and `^super^` (set smaller), `==mark==` (a wash behind, `Marked` token), `++ins++` (underlined) — each its own piece, the marks not drawn. |
 | Auto links | `UseAutoLinks()` | ✅ | ✅ | A bare `https://…` address is a link to itself. |
 | Definition lists | `UseDefinitionLists()` | ✅ | ✅ | The term set apart from what it means. |
 | List extras | `UseListExtras()` | ✅ | ✅ | `a.`/`A.` alphabetic and `i.`/`I.` roman ordered markers. |
-| Abbreviations | `UseAbbreviations()` | ⚠️ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and what it stands for is hung on the tree. Nothing shows it as a tip yet. The definition line is not drawn. |
+| Abbreviations | `UseAbbreviations()` | ✅ | ✅ | `*[HTML]: HyperText…` defines an abbreviation wherever it is written; each occurrence is drawn with a dotted rule under it, and says what it stands for while the pointer rests on it — hung on the tree as a tip (`Roles.Tip`) and looked up only when the pointer arrives. The definition line is not drawn. |
 | Alert blocks | `UseAlertBlocks()` | ✅ | ✅ | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` → the kind's word and colour (`Accent`/`Success`/`Important`/`Warning`/`Danger`). |
 | YAML front matter | `UseYamlFrontMatter()` | ✅ (not drawn) | ✅ | What a document says about itself is not on the page — until the caret is put in it. |
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
@@ -883,7 +883,10 @@ config:
 ---
 ```
 
-`expandDepth` is an older spelling of `defaultExpansion` and means the same depth.
+`expandDepth` is an older spelling of `defaultExpansion` and means the same depth. The block is read once, by a stage
+([`WithFolds`](../src/Nexaflow.Markdown/Mermaid/WithFolds.cs)) that hangs what it says on the diagram's tree; the builder
+draws from that, and a press on a chip finds the same by climbing the syntax tree from the piece pressed, so the key an
+opening is kept under is the one the drawing looked it up by and nothing after the reading reads the front matter again.
 
 [`DiagramExpansion`](../src/Nexaflow.Markdown/Mermaid/DiagramExpansion.cs) works out which ids are drawn, which carry a
 chip, and which have children left over, from that config plus whatever the reader has since opened. It runs while the
@@ -1967,7 +1970,7 @@ limitation nothing tracks is indistinguishable from a limitation nobody wants fi
 | **Raw HTML is not rendered** — inline HTML dropped, HTML blocks shown as source | `md-raw-html` | CommonMark passes HTML through; deciding how much of it a WPF page should honour is the real question |
 
 | **No emoji shortcodes** (`:tada:`) | `emoji-and-smilies` | One of four Markdig extensions still off; see the extensions table |
-| **An abbreviation's meaning is not shown** — the word is drawn with its dotted rule, and what it stands for is on the tree | — | A tip is shown for what a press on a piece means, and an abbreviation means nothing to press. Showing one on hover wants a tip that is not an action |
+
 
 - **Every Mermaid family now renders** — nothing falls back to raw source.
 - **A code fence colours itself** once a grammar has read it, and draws in one colour until then — the

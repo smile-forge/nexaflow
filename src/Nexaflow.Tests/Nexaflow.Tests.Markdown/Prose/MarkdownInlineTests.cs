@@ -181,6 +181,14 @@ public class MarkdownInlineTests
     }
 
     [TestMethod]
+    public void ABoxIsItsBracketsAndTheOneMarkBetweenThem()
+    {
+        var mark = One("- [x] done", MarkdownKinds.Task).Part(MarkdownRoles.Done);
+
+        Assert.AreEqual("x", mark?.Text, "the mark is the one character a press rewrites");
+    }
+
+    [TestMethod]
     public void TheMarksOfATickAreKeptSoItCanBeWrittenIn()
     {
         // What is drawn is a box; what is there is three characters, and ticking one writes over them.
