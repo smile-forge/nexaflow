@@ -8,7 +8,6 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Venn;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
@@ -27,34 +26,33 @@ public class VennEditingTests
     private const string Teams = "venn-beta\n  set A[\"Frontend\"]\n    text A1[\"React\"]\n  set B[\"Backend\"]\n  union A,B[\"Shared\"]";
 
     /// <summary>The diagram inside a document, fenced, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Teams) =>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Teams) =>
         MarkdownEditorHarness.Run("Teams:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
-            var venn = Find<ContentElement>(editor);
+            var venn = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(venn, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
             test(editor, venn!);
         });
 
     /// <summary>Presses just inside the end of what a region or an item says, where it is drawn.</summary>
-    private static void PressPast(ContentElement venn, string words)
+    private static void PressPast(DocumentBlock venn, string words)
     {
         var piece = venn.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Kind is VennPiece.Label or VennPiece.Text
-                            && piece.Sits().Start == venn.Source.IndexOf(words, StringComparison.Ordinal));
+                            && piece.Sits().Start == venn.Source.IndexOf(words, venn.Start, System.StringComparison.Ordinal));
 
         venn.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
         venn.EndPointerSelect();
     }
 
-    private static void Press(InlineMarkdownEditor editor, Key key)
+    private static void Press(MarkdownSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(InlineMarkdownEditor editor, string text)
+    private static void Write(MarkdownSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
@@ -82,14 +80,14 @@ public class VennEditingTests
             PressPast(venn, "Frontend");
             Write(editor, "\\");
 
-            var drawn = Find<ContentElement>(editor);
+            var drawn = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(drawn, $"the diagram is still drawn: {editor.Markdown}");
             StringAssert.Contains(drawn!.Source, "set A[\"Frontend\\\"]", $"the block reads {drawn.Source}");
             StringAssert.Contains(editor.Markdown, "set A[\"Frontend\\\"]", $"and so does the document: {editor.Markdown}");
             Assert.AreEqual(0, drawn.Diagnostics.Count, string.Join(" | ", drawn.Diagnostics.Select(d => d.Message)));
 
             Write(editor, "n");
-            StringAssert.Contains(Find<ContentElement>(editor)!.Source, "set A[\"Frontend\\n\"]", "and typing goes on after it");
+            StringAssert.Contains(MarkdownEditorHarness.Block(editor)!.Source, "set A[\"Frontend\\n\"]", "and typing goes on after it");
         }));
 
     /// <summary>Sets with nothing but their names, and a label in brackets without quotes.</summary>
@@ -235,22 +233,22 @@ public class VennEditingTests
         }));
 
     /// <summary>The piece drawing a run of words that starts where <paramref name="words"/> is written.</summary>
-    private static Piece Words(ContentElement venn, string words) =>
+    private static Piece Words(DocumentBlock venn, string words) =>
         venn.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is not null && piece.Sits().Start == venn.Source.IndexOf(words, StringComparison.Ordinal));
+            .First(piece => piece.Words is not null && piece.Sits().Start == venn.Source.IndexOf(words, venn.Start, System.StringComparison.Ordinal));
 
-    private static Point Middle(ContentElement venn, string words)
+    private static Point Middle(DocumentBlock venn, string words)
     {
         var bounds = Words(venn, words).Bounds;
         return new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
     }
 
     /// <summary>What is chosen, a stretch at a time.</summary>
-    private static string[] Chosen(ContentElement venn) =>
+    private static string[] Chosen(DocumentBlock venn) =>
         [.. venn.Selection.Select(range => venn.Source.Substring(range.Start, range.Length))];
 
     /// <summary>Whether a run of words reads <paramref name="text"/>.</summary>
-    private static bool Drawn(ContentElement venn, string text) =>
+    private static bool Drawn(DocumentBlock venn, string text) =>
         venn.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == text);
 
     [TestMethod]
@@ -339,7 +337,7 @@ public class VennEditingTests
             MarkdownEditorHarness.Pump();
 
             StringAssert.Contains(editor.Markdown, "set A[\"Frontend\"]", "the edit is taken back");
-            Assert.IsNotNull(Find<ContentElement>(editor), "and the diagram is still drawn, rather than opened as its source");
+            Assert.IsNotNull(MarkdownEditorHarness.Block(editor), "and the diagram is still drawn, rather than opened as its source");
         }));
 
     private static T? Find<T>(DependencyObject root) where T : DependencyObject

@@ -94,12 +94,23 @@ public interface IContentLanguage
     IReadOnlyList<(int Start, int Length)> Finds(ContentAsk ask, string looking) => [];
 
     /// <summary>
+    /// What an edit means in this language's own source, where that is something other than its characters — or
+    /// null, which is nearly every language: what is typed is inserted and what is taken back is a character.
+    ///
+    /// <para>
+    /// Asked only of the language an edit landed in. Editing is shared — the caret, the layout above it and the part
+    /// it stands in are the same whatever drew them — and which language wrote that part was settled by a stage and
+    /// hangs on the syntax tree, so the edit finds it rather than anything looking it up.
+    /// </para>
+    /// </summary>
+    Editing.IOnEdit? OnEdit => null;
+
+    /// <summary>
     /// The same content as something a document made of WPF elements can hold.
     ///
     /// <para>
-    /// The older of the two surfaces. It goes when the last document made of elements does — when
-    /// <c>SelectableMarkdownView</c> and <c>InlineMarkdownEditor</c> are both laid on the shared tree — and
-    /// every language's <see cref="Lay"/> is what is left.
+    /// The older of the two surfaces, drawn only by the legacy <c>BlockRenderer</c>. It goes when that does,
+    /// and every language's <see cref="Lay"/> is what is left.
     /// </para>
     /// </summary>
     FrameworkElement Draw(string language, string source, DiagramRenderOptions options);
@@ -130,6 +141,18 @@ public sealed record ContentRequest(string Source, StyleFormat Style)
     /// of it to fold. Null where nobody said anything, which is every surface that only reads.
     /// </summary>
     public DiagramRenderOptions? Options { get; init; }
+
+    /// <summary>
+    /// The stretch of <see cref="Source"/> being shown as the characters that were typed, because somebody is typing
+    /// in it — named in the document's offsets, as every part is — or null where all of it is read.
+    /// </summary>
+    public Editing.RawZone? Shown { get; init; }
+
+    /// <summary>
+    /// Whether the content is only being looked at. Content being written draws what is still to be written — a hole
+    /// where a label goes, a place for an argument — and content being read does not.
+    /// </summary>
+    public bool IsReadOnly { get; init; } = true;
 }
 
 /// <summary>

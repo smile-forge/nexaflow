@@ -53,6 +53,15 @@ public sealed class MarkdownElement : LinkedElement
         }
     }
 
+    /// <summary>The document as it is being written: its source, the caret, what is picked out, and what is shown as typed.</summary>
+    public EditState Current => State;
+
+    /// <summary>
+    /// Puts the document back as <paramref name="state"/> had it — an undo, a redo, a host holding it open as source — without
+    /// telling anybody it was written in, because whoever asked for it already knows.
+    /// </summary>
+    public void Restore(EditState state) => Apply(state, notify: false);
+
     /// <summary>
     /// The places a search turned up, and which of them is the one being looked at.
     ///

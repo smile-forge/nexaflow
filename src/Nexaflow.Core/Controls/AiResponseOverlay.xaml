@@ -90,7 +90,7 @@
 
                 <!-- Body: selectable markdown, or a centred status line while the agent works -->
                 <Grid Grid.Row="1">
-                    <md:SelectableMarkdownView x:Name="MarkdownBody"
+                    <md:MarkdownSurface x:Name="MarkdownBody"
                                                Markdown="{Binding AiResponseText}"
                                                VerticalScrollBarVisibility="Auto"
                                                Margin="20,14"

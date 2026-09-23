@@ -37,7 +37,7 @@ public class MarkdownAnchorTests
     public void AnInPageLink_IsTheViewsToResolve_NeverTheHosts() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new SelectableMarkdownView { LinkNavigate = url => { handed.Add(url); return true; } };
+        var view = new MarkdownSurface { LinkNavigate = url => { handed.Add(url); return true; } };
 
         view.Markdown = Doc;
 
@@ -51,7 +51,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void ScrollToAnchor_FindsItsHeading_AndSaysWhenThereIsNone() => UiThread.Run(() =>
     {
-        var view = new SelectableMarkdownView { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var view = new MarkdownSurface { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
         view.Markdown = Doc;
 
@@ -61,9 +61,9 @@ public class MarkdownAnchorTests
     });
 
     /// <summary>Presses the words of a link on the surface the view is showing.</summary>
-    private static void Press(SelectableMarkdownView view, string words)
+    private static void Press(MarkdownSurface view, string words)
     {
-        var shown = ((MarkdownSurface)view.Content).Shown;
+        var shown = view.Shown;
 
         shown.Measure(new Size(640, 2000));
         shown.Arrange(new Rect(0, 0, 640, 2000));

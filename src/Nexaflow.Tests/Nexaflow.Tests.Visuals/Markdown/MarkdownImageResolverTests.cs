@@ -61,12 +61,12 @@ public class MarkdownImageResolverTests
     });
 
     [TestMethod]
-    public void SelectableMarkdownView_ForwardsTheResolver() => UiThread.Run(() =>
+    public void TheSurfaceForwardsTheResolver() => UiThread.Run(() =>
     {
         // The resolver is the host's and the asking is a stage's, so the one thing the view has to do is
         // carry it between them.
         var pixel = Pixel();
-        var view = new SelectableMarkdownView { ImageResolver = _ => pixel };
+        var view = new MarkdownSurface { ImageResolver = _ => pixel };
 
         view.Markdown = Doc;
 
@@ -74,7 +74,7 @@ public class MarkdownImageResolverTests
         view.Arrange(new Rect(0, 0, 640, 2000));
         view.UpdateLayout();
 
-        var shown = ((MarkdownSurface)view.Content).Shown;
+        var shown = view.Shown;
         var drawn = new List<System.Windows.Media.ImageSource>();
 
         foreach (var piece in shown.Laid.Root.SelfAndDescendants())

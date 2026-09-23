@@ -148,7 +148,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ResultReadyTemplate">
-            <md:SelectableMarkdownView Markdown="{Binding Markdown}"
+            <md:MarkdownSurface Markdown="{Binding Markdown}"
                                        AutomationProperties.AutomationId="Solver_ResultBody"/>
         </DataTemplate>
     </UserControl.Resources>
@@ -230,7 +230,7 @@
                                  always inside a formula and typesets as you type, and no fence is
                                  ever typed or seen. Text is a full markdown document - blocks,
                                  headings, diagrams and maths of its own. -->
-                            <md:InlineMarkdownEditor x:Name="LatexInput"
+                            <md:MarkdownSurface x:Name="LatexInput" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                                      AutomationProperties.AutomationId="Solver_LatexInput"
                                                      Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
                                                      Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -241,7 +241,7 @@
 
                             <!-- Named for the prose it holds rather than for its tab: an x:Name of
                                  TextInput would hide UIElement.TextInput on the generated class. -->
-                            <md:InlineMarkdownEditor x:Name="ProseInput"
+                            <md:MarkdownSurface x:Name="ProseInput" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                                      AutomationProperties.AutomationId="Solver_TextInput"
                                                      Visibility="{Binding IsTextMode, Converter={StaticResource BoolToVis}}"
                                                      Markdown="{Binding TextText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

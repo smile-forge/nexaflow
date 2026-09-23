@@ -45,11 +45,10 @@
                     </Button>
                 </Grid>
 
-                <md:SelectableMarkdownView x:Name="Md" Grid.Row="1"
+                <md:MarkdownSurface x:Name="Md" Grid.Row="1"
                                            Margin="10,0,10,10"
                                            VerticalScrollBarVisibility="Auto"
                                            FitContentToWidth="True"
-                                           ScrollWideDiagrams="True"
                                            Markdown="{Binding IntelligenceMarkdown}"/>
             </Grid>
         </Border>

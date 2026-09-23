@@ -58,12 +58,15 @@ public class LinkedElement(string source, StyleFormat palette, IContent content,
         // A press outside what is picked out means the thing it landed on, which is what every editor does.
         if (under is { } one && !over.Any(piece => piece.At == one.Piece.At)) over = [one.Piece];
 
+        // Over words that answer to nothing themselves, the menu is still about where the caret is: what the content
+        // and the host offer there.
+        if (over.Count == 0 && Laid.Root.PieceAt(where) is { Exists: true } there) over = [there];
         if (over.Count == 0) return null;
 
         var act = new LayoutAct(LayoutGesture.ContextMenu, under?.Intent ?? default, over[0],
                                 over[0].Naming(), over[0].Naming() as ContentPart, over, where);
 
-        var offers = Shared(over).Concat(Offering(act)).Concat(actions.Menu(act)).ToList();
+        var offers = Shared(over).Concat(Offering(act)).Concat(actions.Menu(act)).DistinctBy(offer => offer.Verb).ToList();
         return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where));
     }
 
@@ -93,17 +96,28 @@ public class LinkedElement(string source, StyleFormat palette, IContent content,
                 .GroupBy(offer => offer.Verb)
                 .Select(one => one.First());
 
-    /// <summary>Does what was chosen from the menu, to each piece it was offered for.</summary>
+    /// <summary>
+    /// Does what was chosen from the menu: to each piece it was offered for, or — where no piece offered it, because the
+    /// content or the host did — once, for where the menu was opened.
+    /// </summary>
     private void Invoke(LayoutIntent meant, IReadOnlyList<Piece> over, Point where)
     {
         if (actions is null) return;
+
+        var asked = false;
 
         foreach (var piece in over)
             if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
             {
                 var part = piece.Naming();
                 actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part as ContentPart, over, where));
+                asked = true;
             }
+
+        if (asked || over.Count == 0) return;
+
+        var named = over[0].Naming();
+        actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));
     }
 
     /// <summary>Puts what the gesture meant to whatever answers it, and says whether that took it on.</summary>

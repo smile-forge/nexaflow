@@ -149,9 +149,19 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         }
     }
 
-    /// <summary>Whether this block is one somebody is being shown the characters of.</summary>
+    /// <summary>
+    /// Whether this block is one somebody is being shown the characters of. Not where the stretch is inside a formula or a
+    /// diagram the block holds: that is a command half spelled in another language, which that language shows.
+    /// </summary>
     private bool Shown(ContentPart part) =>
-        State.Raw is { } zone && zone.Start < part.End && part.Start < zone.End;
+        State.Raw is { } zone && zone.Start < part.End && part.Start < zone.End && !ContentNesting.Nests(part, zone);
+
+    /// <summary>
+    /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
+    /// written in it and whether anybody is writing, which it draws from as this builder does.
+    /// </summary>
+    private ContentInset? Nested(ContentPart part, double room) =>
+        ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
 
     /// <summary>Whether this block holds blocks, so there is something further in to ask.</summary>
     private static bool Holds(ContentPart part) =>
@@ -486,9 +496,11 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), room) is { } inset)
+        if (Nested(part, room) is { } inset)
         {
-            into.Open(MarkdownPieces.Block, part, new Point(x, _y));
+            _borrowed.AddRange(inset.Laid.Trouble);
+            // The card a language's drawing sits on is nowhere to write: what it drew says where the caret can go.
+            into.Open(MarkdownPieces.Block, part, new Point(x, _y), stops: Stops.None);
             inset.Set(into, default, MarkdownPieces.Block);
             into.Close();
 
@@ -516,19 +528,22 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Displayed(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), room) is not { } inset)
+        if (Nested(part, room) is not { } inset)
         {
             AsWritten(into, part, x, room);
 
             return;
         }
 
+        _borrowed.AddRange(inset.Laid.Trouble);
+
         var air = Style.TextSize * 0.5;
         var left = x + Math.Max(0, (Fits(room) - inset.Width) / 2);
 
         _y += air;
 
-        into.Open(MarkdownPieces.Block, part, new Point(left, _y));
+        // What stands round a formula is nowhere to write; the formula's own places are where the caret goes.
+        into.Open(MarkdownPieces.Block, part, new Point(left, _y), stops: Stops.None);
         inset.Set(into, default, MarkdownPieces.Block);
         into.Close();
 
@@ -700,10 +715,19 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <summary>What a block was read into, or the block itself where nothing read it.</summary>
     private static ContentPart Body(ContentPart part) => part.Part(Roles.Body) ?? part;
 
+    /// <summary>
+    /// What could not be read: markdown's own, and whatever the formulas and diagrams set down in it said about theirs —
+    /// each laid at the offset its source starts at, so what it reports already names the characters in this document,
+    /// and a wave goes under a broken diagram on the page as it would under one on its own.
+    /// </summary>
     private IReadOnlyList<Diagnostic> Trouble() =>
         [.. Reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
-            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Error, part.Node.Trouble!))];
+            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Error, part.Node.Trouble!)),
+         .. _borrowed];
+
+    /// <summary>The trouble of every language's content set down in this document.</summary>
+    private readonly List<Diagnostic> _borrowed = [];
 }
 
 /// <summary>What a piece of a laid-out markdown document is. Kinds, so a test can say which piece it means.</summary>

@@ -151,7 +151,7 @@
 
             <!-- Inline markdown editor: one surface; caret's block shows as source,
                  the rest render. Native caret/selection/copy span the whole note. -->
-            <md:InlineMarkdownEditor x:Name="Editor" Grid.Row="1"
+            <md:MarkdownSurface x:Name="Editor" Grid.Row="1" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                      Margin="8,6"
                                      Palette="{x:Static md:StyleFormat.Light}"
                                      Placeholder="Type to add a note…"

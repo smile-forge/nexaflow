@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -75,7 +76,14 @@ public class MarkdownBuilderTests
             var laid = Lay(source);
 
             Assert.IsTrue(laid.Size.Height > 0, $"{what}: nothing was drawn");
-            Assert.AreEqual(0, laid.Trouble.Count, $"{what}: {string.Join("; ", laid.Trouble.Select(one => one.Message))}");
+
+            // What a formula or a diagram could not read is said where it is, under it on the page; everything else read.
+            var said = string.Join("; ", laid.Trouble.Select(one => $"{one.Message} at {one.Start}+{one.Length}"));
+            // (A formula in a sentence that cannot be read is written out as its characters instead, which says so itself.)
+            if (what.Contains("unreadable", System.StringComparison.Ordinal))
+                Assert.IsTrue(laid.Trouble.All(one => InAnotherLanguage(laid, one)), $"{what}: {said}");
+            else
+                Assert.AreEqual(0, laid.Trouble.Count, $"{what}: {said}");
         }
     }
 
@@ -83,15 +91,23 @@ public class MarkdownBuilderTests
     public void EveryDocumentKeepsDrawingWhileItIsTyped()
     {
         // A builder reading what somebody is in the middle of typing is handed nonsense continually, and "the content
-        // vanished" is never the right way to say so.
+        // vanished" is never the right way to say so. Half a formula is trouble to the formula, which says where; the
+        // document around it reads whatever is typed.
         foreach (var (what, source) in Documents)
             for (var length = 1; length <= source.Length; length++)
             {
                 var laid = Lay(source[..length]);
 
-                Assert.AreEqual(0, laid.Trouble.Count, $"{what}: after {length} character(s)");
+            Assert.IsTrue(laid.Trouble.All(one => InAnotherLanguage(laid, one)), $"{what}: after {length} character(s)");
             }
     }
+
+    /// <summary>Whether some trouble lies in a formula's or a diagram's own text, rather than in markdown's.</summary>
+    private static bool InAnotherLanguage(Laid laid, Diagnostic trouble) =>
+        laid.Root.SelfAndDescendants()
+            .Select(piece => piece.Part as Nexaflow.Markdown.Ast.ContentPart)
+            .Any(part => part is { Kind: MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Formula }
+                         && part.Start <= trouble.Start && trouble.Start + trouble.Length <= part.End);
 
     [TestMethod]
     public void EverythingDrawnStandsForCharactersThatAreThere()

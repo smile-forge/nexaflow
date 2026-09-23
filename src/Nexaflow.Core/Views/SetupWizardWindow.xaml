@@ -22,7 +22,7 @@
 
         <!-- What's New markdown. -->
         <DataTemplate DataType="{x:Type vm:WizardMarkdownContent}">
-            <md:SelectableMarkdownView Markdown="{Binding Markdown}"
+            <md:MarkdownSurface Markdown="{Binding Markdown}"
                                        VerticalScrollBarVisibility="Auto"/>
         </DataTemplate>
 

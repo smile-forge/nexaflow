@@ -39,9 +39,9 @@ public interface IContent
     EditState? Erasing(Landing landing, bool forward) => null;
 
     /// <summary>Final pass over an edit once the content has applied its own side effects (e.g. a rename propagated to every use). Called for every edit regardless of how it was made — typed, erased, pasted, or dragged.</summary>
-    /// <param name="before">The state the edit was made to.</param>
+    /// <param name="before">Where the edit landed — the state it was made to, and what was drawn of it.</param>
     /// <param name="after">The state it made.</param>
-    EditState Edited(EditState before, EditState after) => after;
+    EditState Edited(Landing before, EditState after) => after;
 }
 
 /// <summary>Content that is a builder and nothing else, which is most of it.</summary>

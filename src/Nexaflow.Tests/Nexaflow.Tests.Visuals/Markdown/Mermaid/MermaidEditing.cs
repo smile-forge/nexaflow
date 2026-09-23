@@ -14,10 +14,10 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// a keystroke.
 ///
 /// <para>
-/// Driven through a real <see cref="InlineMarkdownEditor"/>, because that is the whole claim: the caret has to be adopted
-/// by the editor and the keystroke routed back into the block, neither of which the block can do for itself. A diagram's
-/// own tests say what to press and what should come of it; everything round that is the same for every diagram, and is
-/// here.
+/// Driven through a real <see cref="MarkdownSurface"/> being written in, because that is the whole claim: the diagram is
+/// pieces of the document's one laid tree, a press in it puts the document's caret among its words, and a key typed there
+/// is asked of the diagram's own language before anything else. A diagram's own tests say what to press and what should
+/// come of it; everything round that is the same for every diagram, and is here.
 /// </para>
 /// </summary>
 public abstract class MermaidEditing
@@ -25,42 +25,31 @@ public abstract class MermaidEditing
     /// <summary>The block being written in.</summary>
     protected abstract string Source { get; }
 
-    /// <summary>Shows the block in a document, and hands back the element it drew with the caret in it.</summary>
-    protected void InADocument(Action<InlineMarkdownEditor, ContentElement> test) =>
-        MarkdownEditorHarness.Run("A diagram:\n\n```mermaid\n" + Source + "\n```\n", editor =>
+    /// <summary>Shows the block in a document, and hands back a view of it.</summary>
+    internal void InADocument(Action<MarkdownSurface, DocumentBlock> test) =>
+        MarkdownEditorHarness.Run("Below:\n\n```mermaid\n" + Source + "\n```\n", editor =>
         {
-            var diagram = Find<ContentElement>(editor);
-            Assert.IsNotNull(diagram, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
+            var diagram = MarkdownEditorHarness.Block(editor);
+            Assert.AreEqual(Source, diagram.Latex.TrimEnd('\n'), "the diagram is a block of the document");
 
-            test(editor, diagram!);
+            test(editor, diagram);
         });
 
     /// <summary>Presses just inside the end of the words the diagram draws for <paramref name="words"/>, putting the caret there.</summary>
-    protected static void PressPast(ContentElement diagram, string words)
+    internal static void PressPast(DocumentBlock diagram, string words)
     {
+        var at = diagram.Source.IndexOf(words, diagram.Start, StringComparison.Ordinal);
         var piece = diagram.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == diagram.Source.IndexOf(words, StringComparison.Ordinal));
+            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == at);
 
         diagram.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
         diagram.EndPointerSelect();
     }
 
     /// <summary>Types <paramref name="text"/> wherever the caret is, and lets the editor catch up.</summary>
-    protected static void Write(InlineMarkdownEditor editor, string text)
+    protected static void Write(MarkdownSurface editor, string text)
     {
-        MarkdownEditorHarness.RaiseTextInput(editor, text);
+        MarkdownEditorHarness.Type(editor, text);
         MarkdownEditorHarness.Pump();
-    }
-
-    /// <summary>The first thing of its kind in the editor's visual tree.</summary>
-    private static T? Find<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is T hit) return hit;
-
-        for (var at = 0; at < VisualTreeHelper.GetChildrenCount(root); at++)
-            if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
-
-        return null;
     }
 }

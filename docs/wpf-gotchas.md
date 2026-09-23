@@ -43,5 +43,5 @@ screen is the usual symptom.
 routed event's `OriginalSource` over it is unreliable too — the text container attributes clicks to the container,
 the `FlowDocument`, or even a *neighbouring* `Paragraph`/`Run` depending on the region. To give an embedded element
 its own mouse interaction, hook the `RichTextBox`'s Preview event, find the element with a geometric
-`VisualTreeHelper.HitTest`, and drive it directly (see `IInteractiveBlock` + `InlineMarkdownEditor` /
-`SelectableMarkdownView`).
+`VisualTreeHelper.HitTest`, and drive it directly (see `IInteractiveBlock`). A markdown document needs none of this:
+`MarkdownSurface` draws it on one element with no text box underneath.

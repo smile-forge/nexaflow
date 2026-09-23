@@ -36,8 +36,8 @@ public class RenderedMarkdownSearchTests
         """;
 
     // The editor must be built and driven on an STA thread (UiThread.Run), like the other editor UI tests.
-    private static void InEditor(System.Action<InlineMarkdownEditor> test) =>
-        UiThread.Run(() => MarkdownEditorHarness.Run(Doc, (editor, _) => test(editor)));
+    private static void InEditor(System.Action<MarkdownSurface> test) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run(Doc, test));
 
     [TestMethod]
     public void WildcardPrefix_MatchesWholeWordsInRenderedText() => InEditor(editor =>

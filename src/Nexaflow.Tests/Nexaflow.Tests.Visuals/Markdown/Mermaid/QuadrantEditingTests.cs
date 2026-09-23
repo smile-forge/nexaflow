@@ -7,7 +7,6 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -23,32 +22,31 @@ public class QuadrantEditingTests
 {
     private const string Plan = "quadrantChart\n  x-axis Urgent --> Later\n  quadrant-1 Plan\n  Task A:::hot: [0.3, 0.6]\n  classDef hot color: #ff0000";
 
-    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test) =>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test) =>
         MarkdownEditorHarness.Run("Plan:\n\n```mermaid\n" + Plan + "\n```\n", editor =>
         {
-            var chart = Find<ContentElement>(editor);
+            var chart = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(chart, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
             test(editor, chart!);
         });
 
-    private static void PressPast(ContentElement chart, string words)
+    private static void PressPast(DocumentBlock chart, string words)
     {
         var piece = chart.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, StringComparison.Ordinal));
+            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, chart.Start, System.StringComparison.Ordinal));
 
         chart.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
         chart.EndPointerSelect();
     }
 
-    private static void Write(InlineMarkdownEditor editor, string text)
+    private static void Write(MarkdownSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static string Trouble(ContentElement chart) => string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message));
+    private static string Trouble(DocumentBlock chart) => string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message));
 
     [TestMethod]
     public void TypingInACaptionAnAxisEndAndAPointsNameChangesThem() => UiThread.Run(() =>

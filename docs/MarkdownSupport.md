@@ -8,9 +8,9 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
 
 - **Parser:** Markdig **1.3.2** (`Markdig` package).
 - **Pipeline:** one extension list — [`MarkdownParser.Reading`](../src/Nexaflow.Markdown/Prose/MarkdownParser.cs),
-  built once as `MarkdownParser.Pipeline`. Every surface parses with it: the read-only `MarkdownView`,
-  the selectable `SelectableMarkdownView` (via `MarkdownFlowDocument`), the AI overlay, AIChat, and
-  the block editor in `Nexaflow.Features.Markdown`. There is no second pipeline, and a host wanting an
+  built once as `MarkdownParser.Pipeline`. Every surface parses with it: `MarkdownSurface`, which every
+  document in the app is shown and written on, and the legacy `MarkdownView` over `MarkdownFlowDocument`.
+  There is no second pipeline, and a host wanting an
   extension of its own starts from `Reading(new())` rather than writing the list again.
 - **Renderers:** Markdig's own HTML renderer is **not** used. Two custom WPF renderers
   walk the parsed AST:
@@ -109,9 +109,8 @@ unless noted otherwise.
 > tables and **alert blocks** are fully selectable (alerts render as a native styled `Section`).
 > Music blocks are a special case: not text-selectable, but **interactively selectable** — the
 > embedded score owns its own click/drag (a note, a beamed group or a run, see Musical Notation
-> below); both `InlineMarkdownEditor` and `SelectableMarkdownView` locate the score under the
-> mouse with a geometric visual hit-test (the text container's event-source attribution over
-> embedded UIElement islands is unreliable) and drive it directly. Making diagram label text
+> below), found under the mouse with a geometric visual hit-test (the text container's event-source
+> attribution over embedded UIElement islands is unreliable) and driven directly. Making diagram label text
 > selectable is tracked as backlog (`product:diagram-text-selection`).
 
 ---
@@ -937,7 +936,7 @@ sits under its parent — and a rank too wide for the room wraps onto further ro
 
 **Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
 minimap. `DiagramRenderOptions.ZoomOnWheel`, `MaxHeight`, `FitToWidth` and `OpenOnDoubleClick` — and the
-`DiagramZoomOnWheel` / `DiagramOpenOnDoubleClick` properties on `SelectableMarkdownView` that set them — are the seam
+`DiagramOpenOnDoubleClick` property on `MarkdownSurface` that sets the last — are the seam
 those will be wired back through, and nothing reads them today.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
@@ -960,8 +959,8 @@ mechanism.
 ### Bound words (every diagram on the shared tree)
 
 Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
-renderer (`SelectableMarkdownView.DiagramData` / `InlineMarkdownEditor.DiagramData` →
-`MarkdownRenderContext.DataContext` → [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
+renderer (`MarkdownSurface.DiagramData` → `DiagramRenderOptions.DataContext` →
+[`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
 
 ```
 graph TD
@@ -990,7 +989,7 @@ drawn over it. That is also what makes a binding writable in place — pressing 
 caret in them, exactly as an entity code does, because they are still there. With no data context at all nothing is
 hung under it and a binding is drawn as the text it is, so a document nobody has bound to still reads.
 
-Nothing watches the object: a host that has changed what it holds calls `SelectableMarkdownView.RefreshDiagrams()`
+Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`
 (or `IInteractiveBlock.Refresh()` on one block), which lays out from the source again.
 
 ### Nested content — one content inside another
@@ -1192,9 +1191,9 @@ This matters more than it sounds: an EAN printed as one centred string reads as 
 when every module is right, which is exactly what the reference images caught.
 
 **Editing.** `BarcodeElement` implements
-[`IEditableBlock`](../src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs), so the caret crosses into
-it, selects, types and leaves through the same host code that drives a formula — see
-[`InlineMarkdownEditor.Blocks.cs`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.Blocks.cs).
+[`IEditableBlock`](../src/Nexaflow.Visuals.Text/Editing/IEditableBlock.cs); in a document it is pieces of the
+same laid tree as the words round it, so the caret steps into it, selects and types there as it does anywhere
+else, and a key means what it means to the characters — a barcode registers no edit hook of its own.
 It contributes a **layout tree** ([`BarcodeLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeLayout.cs)),
 built from a parse tree of the symbol's text
 ([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
@@ -1655,8 +1654,8 @@ in the wrong place, a duration mis-scaled — moves a head, and that is where it
 `.abc` and `.ly` open in the **markdown tab**, each as the one block it is rather than as a document that
 contains one.
 
-The mechanism is `InlineMarkdownEditor.SingleBlock` — a fenced language name, or empty for a document. The
-editor owns the fence: the host hands it the tune, the editor puts a ```` ```abc ```` or ```` ```lilypond ````
+The mechanism is `MarkdownSurface.SingleBlock` — a fenced language name, or empty for a document. The
+surface owns the fence: the host hands it the tune, the surface puts a ```` ```abc ```` or ```` ```lilypond ````
 around it to render, and takes it off again on the way out. So `MarkdownViewModel.Markdown` holds the tune
 and nothing else, `Save`
 writes exactly what was read, and **the bytes on disk never carry a wrapper**. A file that was never
@@ -1671,7 +1670,7 @@ instead of a fence — and was called `SingleFormula`. ABC is what made it worth
 | Which extensions are one block, and in what language | [`SingleBlockFiles`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/SingleBlockFiles.cs) — one row per file type |
 | The tab that opens | [`ShowMusicAction`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/FileActions/ShowMusicAction.cs), experience `/text/music` |
 | The extension → experience mapping | `default-filemap.json` |
-| The editor property | [`InlineMarkdownEditor.SingleBlock`](../src/Nexaflow.Visuals.Text/Markdown/InlineMarkdownEditor.cs) |
+| The editor property | [`MarkdownSurface.SingleBlock`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) |
 
 Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
 the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.

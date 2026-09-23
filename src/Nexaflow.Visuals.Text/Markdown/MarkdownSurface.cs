@@ -9,52 +9,67 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using System.Windows.Media;
+using Nexaflow.Visuals.Text.Markdown.Stages;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// A whole markdown document on one page: the scroller, the element that draws it, what a search turned up,
-/// and the buttons a block offers in its own corner.
+/// Markdown, shown and written in: the one control a document is put on, wherever it is put.
 ///
 /// <para>
-/// <strong>One element, not one per block.</strong> Everything in the document is pieces of a single laid
-/// tree — the prose, the diagrams, the tunes — so a drag runs from a word into a chart without anything
-/// forwarding gestures between controls, and a search looks in one place.
+/// <strong>Two things decide what it is.</strong> <see cref="IsReadOnly"/> — a reply from the assistant is only read,
+/// a document open in its own tab is written in — and <see cref="SingleBlock"/>, which makes it one block of one
+/// language rather than a document: the Solver's formula field is this control holding nothing but LaTeX. Everything
+/// else is how it is drawn and what the host is told.
 /// </para>
 /// <para>
-/// <strong>It says what things mean and the host does them.</strong> Copying, saving a picture and
-/// following a link out of the document are all raised as verbs (<see cref="ILayoutActions"/>) rather than
-/// done here: a clipboard, a file and a browser are the application's, shared with everything else in the
-/// window. What is this surface's is what only it can know — where in the document something is, and what
-/// is on the page.
+/// <strong>One element, not one per block.</strong> Everything in the document is pieces of a single laid tree — the
+/// prose, the diagrams, the tunes — so a drag runs from a word into a chart without anything forwarding gestures between
+/// controls, a search looks in one place, and the caret goes from a sentence into a formula by the same arrow key it
+/// moves along the sentence with.
+/// </para>
+/// <para>
+/// <strong>It says what things mean and the host does them.</strong> Copying, pasting, saving a picture and following a
+/// link out of the document are raised — copying and pasting as routed events the application handles once
+/// (<see cref="CopyingEvent"/>, <see cref="PastingEvent"/>), the rest as verbs (<see cref="ILayoutActions"/>) — rather than
+/// done here: a clipboard, a file and a browser are the application's, shared with everything else in the window. What
+/// is this control's is what only it can know — where in the document something is, what is on the page, and what was
+/// written, so that it can be taken back.
 /// </para>
 /// </summary>
-public sealed class MarkdownSurface : UserControl
+public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 {
     private readonly ScrollViewer _scroller;
     private readonly Border _corner;
     private readonly StackPanel _buttons;
+    private readonly TextBlock _prompt;
 
     private MarkdownElement _shown;
     private ContentPart? _over;
 
     /// <summary>What the element now on the page was built with, so it is only made again when that changes.</summary>
-    private StyleFormat _drawn = StyleFormat.Dark;
-    private bool _writable;
-    private DiagramRenderOptions? _asked;
+    private (StyleFormat Style, bool Writable, DiagramRenderOptions Options)? _built;
 
     /// <summary>
-    /// The document as it reads, kept beside the drawing. One read per document rather than one per
-    /// pointer move — and it is what says what the document is <em>made of</em>, which the drawing does
-    /// not: a paragraph that needed no piece of its own is still a paragraph.
+    /// The document as it was read — the tree the laid layout was drawn from, reached through any part it drew, so the
+    /// document is read once and every question about what it is made of is asked of that one reading. A paragraph that
+    /// needed no piece of its own is still a paragraph in it.
     /// </summary>
-    private ContentPart _read = ContentPart.Of(ContentNode.Branch(MarkdownKinds.Document, []));
+    private ContentPart Read =>
+        _shown.Laid.Root.Part is ContentPart drawn ? drawn.Ancestors().LastOrDefault() ?? drawn : Unread;
+
+    /// <summary>A document with nothing in it, for before anything has been laid.</summary>
+    private static readonly ContentPart Unread = ContentPart.Of(ContentNode.Branch(MarkdownKinds.Document, []));
+
+    /// <summary>Set while this control is telling a binding what was written, so the value coming back is not taken for a new document.</summary>
+    private bool _telling;
 
     public MarkdownSurface()
     {
         Focusable = true;
-        _shown = Made(string.Empty);
-        _shown.SourceChanged += (_, _) => Reread();
+        FocusVisualStyle = null;
+        Background = Brushes.Transparent;
 
         _buttons = new StackPanel { Orientation = Orientation.Horizontal };
 
@@ -71,24 +86,52 @@ public sealed class MarkdownSurface : UserControl
             CornerRadius = new CornerRadius(3),
         };
 
+        // Over the document rather than in it, where the first thing written will go, and never in the way of a press.
+        _prompt = new TextBlock
+        {
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _prompt.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+
         _scroller = new ScrollViewer
         {
-            Content = _shown,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false,
         };
 
-        base.Content = new Grid { Children = { _scroller, _corner } };
+        _shown = Made(string.Empty);
+
+        base.Content = new Grid { Children = { _scroller, _prompt, _corner } };
 
         MouseMove += (_, args) => Over(args.GetPosition(_shown));
         MouseLeave += (_, _) => Over(null);
+        PreviewMouseLeftButtonDown += (_, _) => { if (!IsKeyboardFocusWithin) Focus(); };
+
+        // A scroller that is not to scroll still takes the wheel, and a document in a conversation would then stop the
+        // conversation scrolling wherever the pointer rested on it. So the wheel goes on to whatever holds this.
+        _scroller.PreviewMouseWheel += (_, args) =>
+        {
+            if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled || args.Handled) return;
+
+            args.Handled = true;
+            (Parent as UIElement ?? VisualTreeHelper.GetParent(this) as UIElement)?.RaiseEvent(
+                new MouseWheelEventArgs(args.MouseDevice, args.Timestamp, args.Delta) { RoutedEvent = MouseWheelEvent, Source = this });
+        };
     }
 
-    /// <summary>What is being shown.</summary>
+    // ── What it is ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The markdown shown — and, where it is written in, what was written. Binds both ways: a host hands a document in and
+    /// is told every edit, but the text it is told is never taken back for a new document.
+    /// </summary>
     public static readonly DependencyProperty MarkdownProperty = DependencyProperty.Register(
         nameof(Markdown), typeof(string), typeof(MarkdownSurface),
-        new FrameworkPropertyMetadata(string.Empty, (surface, args) =>
-            ((MarkdownSurface)surface).Shows((string?)args.NewValue ?? string.Empty)));
+        new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+            (surface, args) => ((MarkdownSurface)surface).Shows((string?)args.NewValue ?? string.Empty)));
 
     public string Markdown
     {
@@ -96,21 +139,137 @@ public sealed class MarkdownSurface : UserControl
         set => SetValue(MarkdownProperty, value);
     }
 
-    /// <summary>What answers the verbs this document raises and cannot answer itself.</summary>
-    public ILayoutActions? Host { get; set; }
+    /// <summary>Whether it is only read. A read document can still be selected, searched and copied from.</summary>
+    public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
+        nameof(IsReadOnly), typeof(bool), typeof(MarkdownSurface),
+        new PropertyMetadata(true, (surface, _) => ((MarkdownSurface)surface).Remake()));
 
-    /// <summary>What it is drawn in, and what the host said about the things inside it.</summary>
-    public StyleFormat Palette { get; set; } = StyleFormat.Dark;
-
-    /// <summary>What the host said about the content written inside the document.</summary>
-    public DiagramRenderOptions? Options { get; set; }
-
-    /// <summary>Whether a reader may write in it.</summary>
-    public bool IsReadOnly { get; set; } = true;
+    public bool IsReadOnly
+    {
+        get => (bool)GetValue(IsReadOnlyProperty);
+        set => SetValue(IsReadOnlyProperty, value);
+    }
 
     /// <summary>
-    /// Whether this scrolls itself, or lets an outer scroller do it — the second being what a chat bubble
-    /// inside a conversation wants, where every bubble scrolling separately would be unusable.
+    /// Makes this one block of one language rather than a document — <c>latex</c>, <c>abc</c>, any fenced language —
+    /// with <see cref="Markdown"/> carrying only that language's own text. What says "this is maths" (<c>$$</c>) or "this
+    /// is a tune" (a fence) is put round it to be drawn and taken off again on the way out, so the host never sees or has
+    /// to keep it. Empty, the default, for a document.
+    /// </summary>
+    public static readonly DependencyProperty SingleBlockProperty = DependencyProperty.Register(
+        nameof(SingleBlock), typeof(string), typeof(MarkdownSurface),
+        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Reframe()));
+
+    public string? SingleBlock
+    {
+        get => (string?)GetValue(SingleBlockProperty);
+        set => SetValue(SingleBlockProperty, value);
+    }
+
+    /// <summary>
+    /// Shows the characters written rather than what they draw — for when the drawing itself is the trouble, a formula that
+    /// will not set. Everything else about writing in it carries on as it was.
+    /// </summary>
+    public static readonly DependencyProperty EditAsSourceProperty = DependencyProperty.Register(
+        nameof(EditAsSource), typeof(bool), typeof(MarkdownSurface),
+        new PropertyMetadata(false, (surface, _) => ((MarkdownSurface)surface).HoldAsWritten()));
+
+    public bool EditAsSource
+    {
+        get => (bool)GetValue(EditAsSourceProperty);
+        set => SetValue(EditAsSourceProperty, value);
+    }
+
+    // ── How it is drawn ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The colours it is drawn in. Unset, it follows the theme (<see cref="StyleFormat.FromTheme"/>); a fixed light
+    /// surface — a post-it — says <see cref="StyleFormat.Light"/>.
+    /// </summary>
+    public static readonly DependencyProperty PaletteProperty = DependencyProperty.Register(
+        nameof(Palette), typeof(StyleFormat), typeof(MarkdownSurface),
+        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
+
+    public StyleFormat? Palette
+    {
+        get => (StyleFormat?)GetValue(PaletteProperty);
+        set => SetValue(PaletteProperty, value);
+    }
+
+    /// <summary>
+    /// The size body text is set at, with everything else in proportion. Unset (<c>NaN</c>) it is the shell's text
+    /// size; a host with a zoom of its own binds the zoomed size here, and it applies at once even while being written in.
+    /// </summary>
+    public static readonly DependencyProperty BaseFontSizeProperty = DependencyProperty.Register(
+        nameof(BaseFontSize), typeof(double), typeof(MarkdownSurface),
+        new PropertyMetadata(double.NaN, (surface, _) => ((MarkdownSurface)surface).Remake()));
+
+    public double BaseFontSize
+    {
+        get => (double)GetValue(BaseFontSizeProperty);
+        set => SetValue(BaseFontSizeProperty, value);
+    }
+
+    /// <summary>What is shown where nothing is written yet, until something is.</summary>
+    public static readonly DependencyProperty PlaceholderProperty = DependencyProperty.Register(
+        nameof(Placeholder), typeof(string), typeof(MarkdownSurface),
+        new PropertyMetadata(string.Empty, (surface, _) => ((MarkdownSurface)surface).Prompted()));
+
+    public string Placeholder
+    {
+        get => (string)GetValue(PlaceholderProperty);
+        set => SetValue(PlaceholderProperty, value);
+    }
+
+    /// <summary>
+    /// Room left round the document inside the scroller, rather than a margin outside it — a margin would push the
+    /// scrollbar in too, leaving a gap before anything beside it.
+    /// </summary>
+    public static readonly DependencyProperty ContentPaddingProperty = DependencyProperty.Register(
+        nameof(ContentPadding), typeof(Thickness), typeof(MarkdownSurface),
+        new PropertyMetadata(default(Thickness), (surface, _) => ((MarkdownSurface)surface).Padded()));
+
+    public Thickness ContentPadding
+    {
+        get => (Thickness)GetValue(ContentPaddingProperty);
+        set => SetValue(ContentPaddingProperty, value);
+    }
+
+    /// <summary>
+    /// Height a diagram may take, for a pane that is entirely one diagram: bind it to the pane and the diagram fills it
+    /// instead of running past the bottom. Zero, the default, uses the built-in cap.
+    /// </summary>
+    public static readonly DependencyProperty MaxDiagramHeightProperty = DependencyProperty.Register(
+        nameof(MaxDiagramHeight), typeof(double), typeof(MarkdownSurface),
+        new PropertyMetadata(0.0, (surface, args) =>
+        {
+            // A pane resize walks this through every pixel on the way; a diagram does not care about a few of them.
+            if (Math.Abs((double)args.NewValue - (double)args.OldValue) >= 24) ((MarkdownSurface)surface).Remake();
+        }));
+
+    public double MaxDiagramHeight
+    {
+        get => (double)GetValue(MaxDiagramHeightProperty);
+        set => SetValue(MaxDiagramHeightProperty, value);
+    }
+
+    /// <summary>
+    /// Where a relative <c>![](file.png)</c> is looked for. Null leaves only absolute and <c>file:</c> pictures, and
+    /// whatever <see cref="ImageResolver"/> finds.
+    /// </summary>
+    public static readonly DependencyProperty BaseDirectoryProperty = DependencyProperty.Register(
+        nameof(BaseDirectory), typeof(string), typeof(MarkdownSurface),
+        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
+
+    public string? BaseDirectory
+    {
+        get => (string?)GetValue(BaseDirectoryProperty);
+        set => SetValue(BaseDirectoryProperty, value);
+    }
+
+    /// <summary>
+    /// Whether this scrolls itself, or lets whatever holds it do the scrolling — the second being what a reply in a
+    /// conversation wants, where every reply scrolling separately would be unusable, and so the default.
     /// </summary>
     public ScrollBarVisibility VerticalScrollBarVisibility
     {
@@ -118,126 +277,305 @@ public sealed class MarkdownSurface : UserControl
         set => _scroller.VerticalScrollBarVisibility = value;
     }
 
-    /// <summary>The element the document is drawn on — where a caret, a selection and the tree live.</summary>
+    // ── What the host says ──────────────────────────────────────────────────
+
+    /// <summary>What answers the verbs this document raises and does not answer itself — saving a picture, and anything a language offers.</summary>
+    public ILayoutActions? Host { get; set; }
+
+    /// <summary>A link out of the document. True where the host took it; false leaves it to open as links do.</summary>
+    public Func<string, bool>? LinkNavigate { get; set; }
+
+    /// <summary>The host's say in where a picture comes from, asked before <see cref="BaseDirectory"/>.</summary>
+    public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Remake(); } }
+
+    private Func<string, ImageSource?>? _pictures;
+
+    /// <summary>
+    /// The host's say in how a link looks, asked for every link with the URL as written and the words it was written as —
+    /// which is what lets the help pane mark a <c>locate:</c> link without disturbing those words.
+    /// </summary>
+    public Func<string, string, LinkLook?>? LinkDecorator { get => _links; set { _links = value; Remake(); } }
+
+    private Func<string, string, LinkLook?>? _links;
+
+    /// <summary>
+    /// A diagram node's expand chip was pressed. True claims it — a host that generated the diagram writes
+    /// <see cref="Markdown"/> again with more of the tree walked. Null lets the diagram open the node from what its source
+    /// already says.
+    /// </summary>
+    public Func<DiagramExpandRequest, bool>? DiagramExpand { get => _expand; set { _expand = value; Remake(); } }
+
+    private Func<DiagramExpandRequest, bool>? _expand;
+
+    /// <summary>A diagram's chosen node changed — for a host showing detail beside the diagram. The key is null when nothing is chosen.</summary>
+    public Action<DiagramSelection>? DiagramSelect { get => _select; set { _select = value; Remake(); } }
+
+    private Action<DiagramSelection>? _select;
+
+    /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
+    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Remake(); } }
+
+    private Nexaflow.Markdown.Binding.IDataContext? _data;
+
+    /// <summary>In a diagram, a single press chooses a node and two open it — for a pane where opening one costs something.</summary>
+    public bool DiagramOpenOnDoubleClick { get => _double; set { _double = value; Remake(); } }
+
+    private bool _double;
+
+    /// <summary>When true, a diagram scales down to the width it is given rather than being cut off.</summary>
+    public bool FitContentToWidth { get => _fit; set { _fit = value; Remake(); } }
+
+    private bool _fit;
+
+    /// <summary>
+    /// The host's say in something dropped here — a picture, a file, a link. True where it took it (usually through
+    /// <see cref="InsertMarkdownAt"/>); false leaves it to be written in as text, so a host can say "not mine".
+    /// </summary>
+    public Func<IDataObject, Point, bool>? ContentDropped { get; set; }
+
+    /// <summary>The same for something pasted: true where the host took it, false leaves it to be written in as text.</summary>
+    public Func<IDataObject, bool>? ContentPasted { get; set; }
+
+    /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;
 
-    // ── Looking for something ───────────────────────────────────────────────
+    /// <summary>Lays everything out again — what a host calls once what <see cref="DiagramData"/> holds has changed.</summary>
+    public void RefreshDiagrams() => _shown.Refresh();
 
-    /// <summary>Everywhere the document says <paramref name="term"/>, in the order a reader comes to them.</summary>
-    public IReadOnlyList<(int Start, int Length)> Found { get; private set; } = [];
+    /// <summary>Where each diagram's opened nodes and zoom live between renders — on this control rather than on the element.</summary>
+    private readonly DiagramViewStates _diagramStates = new();
 
-    /// <summary>Which of them is being looked at, or -1 for none.</summary>
-    public int At { get; private set; } = -1;
+    /// <summary>Forgets what the reader had opened, chosen and zoomed to in every diagram here.</summary>
+    public void ResetDiagramViews() => _diagramStates.Clear();
 
-    /// <summary>
-    /// Looks for <paramref name="term"/> and goes to the first place it is — both where it is written and
-    /// where it is only drawn, which is what a reader means by what the page says.
-    /// </summary>
-    public int Find(string? term)
+    // ── Showing it ──────────────────────────────────────────────────────────
+
+    /// <summary>The colours and size it is drawn at, as they stand.</summary>
+    private StyleFormat Drawn
     {
-        Found = MarkdownFind.In(_shown.Laid, _shown.Markdown, term);
-        At = -1;
+        get
+        {
+            var style = Palette ?? StyleFormat.FromTheme();
 
-        _shown.Showing = (Found, At);
+            return double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? style : style with { TextSize = BaseFontSize };
+        }
+    }
 
-        if (Found.Count > 0) Next();
+    /// <summary>What the host said about the content written inside the document, gathered once per element.</summary>
+    private DiagramRenderOptions Asked(StyleFormat style) => new()
+    {
+        Palette = style,
+        ReadOnly = IsReadOnly,
+        OnNavigate = OpenLink,
+        OnExpand = _expand,
+        OnSelect = _select,
+        DataContext = _data,
+        Pictures = MarkdownPictures.Found(_pictures, BaseDirectory),
+        Links = _links,
+        FitToWidth = _fit || !IsReadOnly,
+        OpenOnDoubleClick = _double,
+        MaxHeight = MaxDiagramHeight,
+    };
 
-        return Found.Count;
+    /// <summary>A new document from outside — not something written here, which never comes back this way.</summary>
+    private void Shows(string markdown)
+    {
+        if (_telling || string.Equals(Unframed(_shown.Markdown), markdown, StringComparison.Ordinal)) return;
+
+        _diagramStates.Rewind();
+        _shown.Markdown = Framed(markdown);
+
+        Settled();
+    }
+
+    /// <summary>After a different document is shown: nothing of the last one can be taken back, found or held open.</summary>
+    private void Settled()
+    {
+        _history.Clear();
+
+        // A field holding one block is written at the end of what it holds; a document is read from its top.
+        var (start, length) = Inner;
+        _shown.Restore(_shown.Current.MoveCaretTo(string.IsNullOrEmpty(SingleBlock) ? 0 : start + length));
+
+        HoldAsWritten();
+        _last = _shown.Current;
+
+        Stop();
+        Prompted();
     }
 
     /// <summary>
-    /// The same, for a question more complicated than a word — what a search box worked out. Goes to the
-    /// first place it found.
+    /// Makes the element again, keeping what is being written and where — for whatever the element is built with and
+    /// cannot change: its colours, its size, whether it may be written in, and what the host said about what it holds.
     /// </summary>
-    public int Find(Func<string, IReadOnlyList<(int Index, int Length)>>? occurrences)
+    private void Remake()
     {
-        Found = MarkdownFind.In(_shown.Laid, _shown.Markdown, occurrences);
-        At = -1;
+        if (_shown is null) return;
 
-        _shown.Showing = (Found, At);
+        var state = _shown.Current;
+        var caret = _shown.HasCaret;
 
-        if (Found.Count > 0) Next();
+        _shown = Made(state.Source);
+        _shown.Restore(state);
 
-        return Found.Count;
+        // Laid now rather than at the next layout pass, so what is asked of it in between — a selection, a search, the
+        // formula under the caret — has a tree to ask.
+        _shown.Refresh();
+        if (caret) _shown.TakeCaret(state.Caret);
+
+        _last = _shown.Current;
+    }
+
+    private MarkdownElement Made(string source)
+    {
+        var style = Drawn;
+        var options = Asked(style);
+
+        _built = (style, !IsReadOnly, options);
+
+        var element = new MarkdownElement(source, style, this, options)
+        {
+            IsReadOnly = IsReadOnly,
+            Margin = ContentPadding,
+        };
+
+        element.SourceChanged += (_, _) => Written();
+        element.CaretMoved += (_, _) => { Confined(); Moved(); Reveal(); };
+        element.SelectionChanged += (_, _) => Moved();
+
+        _scroller.Content = element;
+
+        return element;
     }
 
     /// <summary>
-    /// Narrows what is shown to the places named by their order in <see cref="Found"/>, and says how many
-    /// are left — for a host whose own list of results has been filtered since.
+    /// In one block of a language, keeps the caret in the host's own text: past either end are the delimiters that were
+    /// put round it to draw it, which are nobody's to write in.
     /// </summary>
-    public int Restrict(IReadOnlySet<int> keep)
+    private void Confined()
     {
-        var kept = Found.Where((_, at) => keep.Contains(at)).ToList();
+        if (string.IsNullOrEmpty(SingleBlock)) return;
 
-        Found = kept;
-        At = kept.Count > 0 ? 0 : -1;
+        var (start, length) = Inner;
+        var caret = _shown.Caret;
 
-        _shown.Showing = (Found, At);
-
-        if (At >= 0) _shown.Show(Found[At]);
-
-        return kept.Count;
+        if (caret < start || caret > start + length) _shown.Restore(_shown.Current.MoveCaretTo(Math.Clamp(caret, start, start + length)));
     }
 
-    /// <summary>What a place reads as, for a host listing what it found — the line it is on, tidied.</summary>
-    public string Preview(int at)
+    private void Padded()
     {
-        if (at < 0 || at >= Found.Count) return string.Empty;
+        _shown.Margin = ContentPadding;
 
-        var (start, _) = Found[at];
-        var line = MarkdownFind.Line(_shown.Markdown, MarkdownFind.LineAt(_shown.Markdown, start));
-
-        return _shown.Markdown.Substring(line.Start, line.Length).Trim();
+        // The prompt stands where the first word would, so it is inset as the document is.
+        _prompt.Margin = ContentPadding;
     }
 
-    /// <summary>The next place, coming back round to the first.</summary>
-    public bool Next() => Goes(At + 1);
-
-    /// <summary>The one before, coming back round to the last.</summary>
-    public bool Previous() => Goes(At - 1);
-
-    /// <summary>Stops looking, which is a repaint and nothing else.</summary>
-    public void Stop()
+    /// <summary>Shows the prompt while nothing is written, and takes it away the moment something is.</summary>
+    private void Prompted()
     {
-        Found = [];
-        At = -1;
-
-        _shown.Showing = ([], -1);
+        _prompt.Text = Placeholder ?? string.Empty;
+        _prompt.FontSize = Drawn.TextSize;
+        _prompt.Visibility = !string.IsNullOrEmpty(Placeholder) && Markdown.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private bool Goes(int to)
+    // ── One block of one language ───────────────────────────────────────────
+
+    /// <summary>What goes either side of the text to make it the block it is. Maths is delimited, not fenced — a <c>```latex</c> block would be a listing of LaTeX, not a formula.</summary>
+    private (string Open, string Close) Fence =>
+        SingleBlock?.Trim().ToLowerInvariant() switch
+        {
+            null or "" => (string.Empty, string.Empty),
+            "latex" or "math" or "tex" => ("$$\n", "\n$$"),
+            var language => ("```" + language + "\n", "\n```"),
+        };
+
+    /// <summary>What the element is given for what the host said: the text inside whatever makes it the block it is.</summary>
+    private string Framed(string markdown) => Fence.Open + markdown + Fence.Close;
+
+    /// <summary>What the host is told for what the element holds: the text without what was put round it to draw it.</summary>
+    private string Unframed(string source)
     {
-        if (Found.Count == 0) return false;
+        var (open, close) = Fence;
+        if (open.Length == 0) return source;
 
-        At = (to + Found.Count) % Found.Count;
-
-        _shown.Showing = (Found, At);
-        _shown.Show(Found[At]);
-
-        return true;
+        return source.Length >= open.Length + close.Length
+               && source.StartsWith(open, StringComparison.Ordinal)
+               && source.EndsWith(close, StringComparison.Ordinal)
+            ? source[open.Length..^close.Length]
+            : source;
     }
 
-    // ── Going to a place ────────────────────────────────────────────────────
+    /// <summary>Where the host's own text lies in what the element holds.</summary>
+    private (int Start, int Length) Inner
+    {
+        get
+        {
+            var source = _shown.Markdown;
+            var (open, close) = Fence;
+            var framed = open.Length > 0 && !ReferenceEquals(Unframed(source), source);
 
-    /// <summary>Goes to a line, counting from one — and to the whole of whatever drew it, where a line is inside a picture.</summary>
-    public bool GoTo(int line) => _shown.Show(MarkdownFind.Line(_shown.Markdown, line), choose: false);
+            return framed ? (open.Length, source.Length - open.Length - close.Length) : (0, source.Length);
+        }
+    }
+
+    /// <summary>Re-reads the same text as the block it now is — a document, or one block of a language.</summary>
+    private void Reframe()
+    {
+        if (_shown is null) return;
+
+        _shown.Markdown = Framed(Markdown ?? string.Empty);
+        Settled();
+    }
 
     /// <summary>
-    /// Goes where a saved reference leads, or as far as it still does — and says whether the document had it
-    /// at all, which it can answer before anything has been laid out.
+    /// Keeps the text shown as it was written while <see cref="EditAsSource"/> says so — the whole of it, or the whole of
+    /// the block's own text where it is one block, so the delimiters that were never the host's are not shown either.
     /// </summary>
-    public bool GoTo(ContentPath path)
+    private void HoldAsWritten()
     {
-        if (MarkdownFind.Followed(_read, path) is not { } place) return false;
+        if (_shown is null) return;
 
-        _shown.Show(place);
+        var state = _shown.Current;
+        var (start, length) = Inner;
+        var whole = new RawZone(start, start + length);
 
-        return true;
+        // Let go of only what this held open: a command being spelled is the writer's, and stays shown as they spell it.
+        RawZone? wanted = EditAsSource ? whole : state.Raw == whole ? null : state.Raw;
+        if (state.Raw == wanted) return;
+
+        _shown.Restore(state with { Raw = wanted });
+        _last = _shown.Current;
     }
 
-    /// <summary>How to find what is picked out again later, after the document has been written in.</summary>
-    public ContentPath Reference() =>
-        ContentPath.Of(_shown.Laid.Root.PieceAt(Middle()).Part as ContentPart);
+    // ── Links ───────────────────────────────────────────────────────────────
+
+    /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
+    public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
+
+    // A link into this document is answered by the element and never reaches here. Anything else is the host's.
+    private bool OpenLink(string url) => LinkNavigate?.Invoke(url) ?? false;
+
+    /// <inheritdoc/>
+    bool ILayoutActions.Invoke(LayoutAct act)
+    {
+        // A choice made from the menu closes it, whatever it turned out to be.
+        if (act.Gesture == LayoutGesture.ContextMenu && _ribbon is { IsOpen: true }) _ribbon.IsOpen = false;
+
+        switch (act.Intent.Verb)
+        {
+            case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
+                return OpenLink(where) || (Host?.Invoke(act) ?? false);
+
+            case LayoutVerbs.Copy when act.Intent.Target is { } what:
+                return Copy(MarkdownClipboard.Copied(what, null));
+
+            default:
+                return Chose(act.Intent.Verb) || (Host?.Invoke(act) ?? false);
+        }
+    }
+
+    /// <inheritdoc/>
+    IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => [.. Offered(), .. Host?.Menu(act) ?? []];
 
     // ── What a block offers ─────────────────────────────────────────────────
 
@@ -245,8 +583,8 @@ public sealed class MarkdownSurface : UserControl
     /// Shows the buttons for whatever block the pointer is over, and takes them away when it leaves.
     ///
     /// <para>
-    /// What they are is the language's to say — a picture of a diagram is worth keeping and a picture of a
-    /// code fence is a worse copy of the code — so this asks rather than deciding.
+    /// What they are is the language's to say — a picture of a diagram is worth keeping and a picture of a code fence is
+    /// a worse copy of the code — so this asks rather than deciding.
     /// </para>
     /// </summary>
     private void Over(Point? at)
@@ -274,15 +612,14 @@ public sealed class MarkdownSurface : UserControl
     }
 
     /// <summary>
-    /// The block a point is in: not the word or the run under it, but the thing the document is made of that
-    /// holds them — a paragraph, a table, a fence.
+    /// The block a point is in: not the word or the run under it, but the thing the document is made of that holds them
+    /// — a paragraph, a table, a fence — and nothing where the point is on none of them.
     ///
     /// <para>
-    /// Found by the offset rather than by walking up from the piece. A piece knows the characters it was drawn
-    /// from, but not always as a part of this document's tree: a code fence's runs carry plain spans, because
-    /// the thing that drew them was reading code and not markdown. An offset is an offset whatever drew it,
-    /// and every language is laid at the offset its body starts at — so this is the one question that works
-    /// the same everywhere.
+    /// Found by the offset rather than by walking up from the piece. A piece knows the characters it was drawn from, but
+    /// not always as a part of this document's tree: a code fence's runs carry plain spans, because the thing that drew
+    /// them was reading code and not markdown. An offset is an offset whatever drew it, and every language is laid at
+    /// the offset its body starts at — so this is the one question that works the same everywhere.
     /// </para>
     /// </summary>
     private ContentPart? Blocked(Point at)
@@ -290,9 +627,15 @@ public sealed class MarkdownSurface : UserControl
         var piece = _shown.Laid.Root.PieceAt(at);
         if (!piece.Exists) return null;
 
-        var offset = piece.Sits().Start;
+        // The nearest piece answers a point that is on nothing, which is a question about what is near and not about what
+        // the point is on.
+        return Blocked(piece.Sits().Start) is { } block && Where(block) is { IsEmpty: false } box && box.Contains(at) ? block : null;
+    }
 
-        foreach (var block in _read.Children)
+    /// <summary>The block of the document an offset is in.</summary>
+    private ContentPart? Blocked(int offset)
+    {
+        foreach (var block in Read.Children)
             if (!block.Derived && block.Role != Roles.Trivia && offset >= block.Start && offset < block.End)
                 return block;
 
@@ -312,17 +655,14 @@ public sealed class MarkdownSurface : UserControl
         return box;
     }
 
-    /// <summary>
-    /// What the block at a point offers in its corner — whichever of the usual buttons it allows, and
-    /// whatever it adds of its own.
-    /// </summary>
+    /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds of its own.</summary>
     public IReadOnlyList<LayoutIntent> Corner(Point at) =>
         Blocked(at) is { } block ? [.. Offered(block)] : [];
 
     /// <summary>What a block's corner offers: whichever of the usual ones it allows, and whatever it adds.</summary>
     private IEnumerable<LayoutIntent> Offered(ContentPart block)
     {
-        var corner = Asked(block);
+        var corner = CornerOf(block);
 
         if (corner.Copies) yield return new LayoutIntent(LayoutVerbs.Copy, null, "Copy");
         if (corner.Saves) yield return new LayoutIntent(LayoutVerbs.Save, null, "Save as a picture");
@@ -331,7 +671,7 @@ public sealed class MarkdownSurface : UserControl
     }
 
     /// <summary>What the language drawing a block says about its corner, or the usual where no language is.</summary>
-    private BlockCorner Asked(ContentPart block)
+    private BlockCorner CornerOf(ContentPart block)
     {
         for (var at = block; at is not null; at = at.Parent)
         {
@@ -355,66 +695,61 @@ public sealed class MarkdownSurface : UserControl
         };
 
     /// <summary>
-    /// Hands a verb to the host, with what it would need — the characters of the block, and what copying
-    /// them would amount to, so the host has only to put it somewhere.
+    /// What a corner button does. Copying is asked of whoever holds the clipboard, with what copying the block would put
+    /// there already worked out; anything else goes to the host with the block it was pressed on.
     /// </summary>
     public void Raise(LayoutIntent offer, Point at)
     {
-        if (Host is null || Blocked(at) is not { } block) return;
+        if (Blocked(at) is not { } block) return;
 
-        var said = offer.Verb == LayoutVerbs.Copy
-            ? offer with { Target = MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)).Markdown }
-            : offer;
+        if (offer.Verb == LayoutVerbs.Copy)
+        {
+            Copy(MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)));
+
+            return;
+        }
 
         var piece = _shown.Laid.Root.PieceAt(at);
 
-        Host.Invoke(new LayoutAct(LayoutGesture.Click, said, piece, block, block, [piece], at));
+        Host?.Invoke(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
     }
 
-    private void Raise(LayoutIntent offer, Piece block)
+    /// <summary>
+    /// A picture of one block as it is on the page, for a host keeping one of what a corner button was pressed on —
+    /// painted from the page's own tree, cut to where the block came out, so nothing is read again to make it.
+    /// </summary>
+    public System.Windows.Media.Imaging.BitmapSource? Picture(ContentPart block, Brush? ground = null)
     {
-        if (Host is null || block.Part is not ContentPart part) return;
+        var box = Where(block);
+        if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) return null;
 
-        var said = offer.Verb == LayoutVerbs.Copy
-            ? offer with { Target = MarkdownClipboard.Copied(_shown.Markdown, (part.Start, part.Length)).Markdown }
-            : offer;
+        var scale = _shown.Zoom;
+        var visual = new DrawingVisual();
 
-        Host.Invoke(new LayoutAct(LayoutGesture.Click, said, block, part, part, [block], block.Bounds.TopLeft));
-    }
-
-    // ── Showing it ──────────────────────────────────────────────────────────
-
-    private void Shows(string markdown)
-    {
-        // What a language is asked, what a picture resolves against and how a link looks are all read when
-        // the element is built, so a host that has changed any of them needs a new one — setting the source
-        // on the old one would show the new document read the old way.
-        if (_writable == IsReadOnly || !ReferenceEquals(_drawn, Palette) || !ReferenceEquals(_asked, Options))
+        using (var dc = visual.RenderOpen())
         {
-            _shown = Made(markdown);
-            _shown.SourceChanged += (_, _) => Reread();
-            _scroller.Content = _shown;
-        }
-        else
-        {
-            _shown.Markdown = markdown;
+            if (ground is not null) dc.DrawRectangle(ground, null, new Rect(0, 0, box.Width * scale, box.Height * scale));
+
+            dc.PushTransform(new ScaleTransform(scale, scale));
+            dc.PushTransform(new TranslateTransform(-box.X, -box.Y));
+            dc.PushClip(new RectangleGeometry(box));
+            LayoutPainter.Paint(dc, _shown.Laid.Root, (_built?.Style ?? Drawn).Text);
+            dc.Pop();
+            dc.Pop();
+            dc.Pop();
         }
 
-        Reread();
-        Stop();
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            Math.Max(1, (int)Math.Ceiling(box.Width * scale * dpi.DpiScaleX)),
+            Math.Max(1, (int)Math.Ceiling(box.Height * scale * dpi.DpiScaleY)),
+            dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+
+        bitmap.Render(visual);
+        bitmap.Freeze();
+
+        return bitmap;
     }
-
-    private MarkdownElement Made(string markdown)
-    {
-        (_drawn, _writable, _asked) = (Palette, !IsReadOnly, Options);
-
-        return new MarkdownElement(markdown, Palette, Host, Options) { IsReadOnly = IsReadOnly };
-    }
-
-    /// <summary>Reads the document again, which is what a changed source means.</summary>
-    private void Reread() =>
-        _read = ContentPart.Of(MarkdownParser.Reader.Run(MarkdownParser.Read(_shown.Markdown)));
-
     private Point Middle() =>
         new(_scroller.HorizontalOffset + (_scroller.ViewportWidth / 2),
             _scroller.VerticalOffset + (_scroller.ViewportHeight / 2));
@@ -422,7 +757,7 @@ public sealed class MarkdownSurface : UserControl
     /// <summary>A command that is one thing done, which is all a button in a corner needs.</summary>
     private sealed class Does(Action what) : ICommand
     {
-        public event EventHandler? CanExecuteChanged;
+        event EventHandler? ICommand.CanExecuteChanged { add { } remove { } }
 
         public bool CanExecute(object? parameter) => true;
 

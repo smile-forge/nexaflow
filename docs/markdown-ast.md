@@ -111,14 +111,15 @@ the nearest row with somewhere to stand, then the line of that row nearest the o
 column — between two letters where that is a run. A fraction's numerator goes to its denominator past the bar; a
 legend's row goes to the row under it; a title goes into a legend beside the chart, and the legend's top row back up.
 
-**Undo takes an edit back where it was made.** An edit inside rendered content records where that content starts in
-its block and where the caret was before the key, and undoing it builds the document again with the caret back in
-the content — rather than opening the block's source, which is where an edit made in markdown goes back to.
+**Undo takes back a stretch of writing** (`EditHistory`, held by the surface). A step is the whole document as it
+stood, so taking one back is that document read again — an edit inside a diagram and an edit to a paragraph are the
+same thing to take back, and nothing has to know how to reverse either. Writing that carries on from where the last
+edit left the caret joins its step; putting the caret anywhere else starts the next, from where it was put.
 
 **The pointer is a bar only over what can be written in** (`LayoutQuery.Writable`): on a piece that takes a caret, or
 within half a letter's height of one, or inside a construct that is itself somewhere to write, such as a fraction. A
-wedge, a swatch, a worked-out share and the card a diagram is drawn on show an arrow. A block inside a text box never
-sees the pointer, so the host asks it (`IInteractiveBlock.PointerCursor`) after the text box has set its own.
+wedge, a swatch, a worked-out share and the card a diagram is drawn on show an arrow. Inside such a card only what is
+on it counts: the page round it has nothing to say about a diagram's empty corner.
 
 ## The tree owns its text
 
@@ -646,27 +647,32 @@ Plain typing is not an edit operation. A letter inserted at the caret needs no r
 construct that must be bracketed when it grows — so the element splices it, exactly as the formula editor
 splices a character its own tree did not have to reshape.
 
-### The seam
+### Who answers a key
 
-`IEditableBlock` is the whole of what a document needs to drive rendered content: its source, its layout,
-what is selected, what could not be read, a caret that can be handed in at an edge and handed back out,
-and the keys that change it. A block that implements it is selected across, arrowed into, typed in and
-spliced back by host code that knows nothing about what it holds.
+**Editing is shared, and a language may say otherwise for its own source.** From the piece holding the caret, up the
+layout to the first piece that names a part of the syntax tree, then up the tree to the first part another language was
+written in — which `WithNested` hung there, so nothing is looked up — and that language's `IContentLanguage.OnEdit` is
+asked what the key means (`IOnEdit`: what typing, settling and taking back mean, and what an edit came to). Where it
+registered nothing, or says nothing, the key does to the characters what a key does. No such part means markdown's own
+source, and markdown's rules answer (`MarkdownEdits`, the root's hook in `MarkdownContent`).
 
-What is *not* shared is declared on the same interface rather than recognised by type:
-`HandleKey`, `MoveCaretVertically`, `Commit`, `SelectNextPlaceholder`, `BuildRibbon` — all defaulted to
-declining. A formula claims Space, Enter and Tab; a score claims Page Up, Page Down and the
-sharpen/lengthen keys; a barcode claims none, and says nothing. These used to be `is FormulaElement` tests
-in the host, which was honest while a formula was the only block with keys of its own and stopped being so
-at the second.
+A language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at: the
+caret, a hole and a run of words all agree without anything being moved, and `ContentEdit.Local` is there for what reads
+the language's own source from the top. That source stops before the line ending its closing delimiter stands after
+(`ContentNesting.Own`) — written into, that ending would carry what was typed onto the delimiter's line. A key taking back
+characters stops at the edges of it, and takes the whole construct once nothing is left inside.
 
-**What a host does with a block is the host's** (`InlineMarkdownEditor.BlockActions`). The editor shows a toolbar over
-a whole rendered block the pointer is on — the block's edge tinted, the buttons at its top right, faint until the
-pointer comes near (`BlockToolbar`, an adorner, because nothing inside a text box sees the pointer) — but the buttons
-are the host's: a label, an id and a callback (`BlockAction`), handed the block pressed (`RenderedBlock`). What a
-callback can ask of a block is its fence's language, its source and its `Picture`: what the content draws, laid out as
-it reads with nobody writing in it — no caret, selection, hole, underline or stretch shown as written. The renderer
-knows nothing of clipboards or files; the Markdown viewer's Copy and Save are its own.
+What each says: LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a
+place cannot hold, starts its next line on Enter and carries a rename to wherever the name is used (`MermaidEdits`);
+markdown writes typed markup behind a backslash — the document is written as a word processor's is, and kept as
+markdown — continues a list on Enter and joins two paragraphs on backspace. Whatever the edit came to, the whole
+document is read again from its source, because a bracket typed anywhere can change how everything after it nests.
+
+**The surface is what a host holds** (`MarkdownSurface`): one control, told whether it is only read and whether it is
+one block of a language. It drives the keyboard, keeps the history, raises copying and pasting as events the application
+answers once for every window (`MarkdownSurface.Copying`, `Pasting`), and adds cut, copy, paste and markdown's formatting
+to the context ribbon. A block's corner offers what its language says (`IContentLanguage.Corner`); Save goes to the host
+with the block pressed on, whose `Picture` is painted from the page's own tree.
 
 ## What a new language has to bring
 
@@ -674,8 +680,8 @@ knows nothing of clipboards or files; the Markdown viewer's Copy and Save are it
 2. Whatever stages it needs, each obeying the pipeline's rule.
 3. A builder that walks a `ContentReading` and emits `ILayoutNode`s, each carrying the `ContentPart` it
    was drawn from — or nothing at all where it was drawn from nothing anybody wrote.
-4. A `FrameworkElement` implementing `IEditableBlock`, which is what the caret, selection and the prose
-   seam are written against.
+4. Where a key means something in its source other than its characters, an `IOnEdit`, offered as
+   `IContentLanguage.OnEdit` and asked only for keys landing in that source.
 
-Everything else — `LayoutQuery`, `ContentSelection`, `CaretPlace`, `DocumentSelection`, and the whole of
-`InlineMarkdownEditor.Blocks.cs` — it gets for nothing.
+Everything else — `LayoutQuery`, `ContentSelection`, `CaretPlace`, the caret, choosing, undo and the clipboard — it
+gets for nothing.

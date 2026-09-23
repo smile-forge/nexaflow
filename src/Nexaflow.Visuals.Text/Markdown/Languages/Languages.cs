@@ -36,8 +36,11 @@ public sealed class MermaidLanguage : IContentLanguage
     public bool Reads(string? language) => "mermaid".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
     public Laid? Lay(ContentRequest request) =>
-        MermaidBuilders.Lay(request.Source, request.Style, request.Room, at: request.At, options: request.Options)
+        MermaidBuilders.Lay(request.Source, request.Style, request.Room, writing: !request.IsReadOnly,
+                            at: request.At, options: request.Options, shown: request.Shown)
         ?? UnknownDiagramBuilder.Lay(request.Source, request.Style, request.Room);
+
+    public IOnEdit OnEdit => MermaidEdits.Instance;
 
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         MermaidBuilders.Element(source, MermaidBlock.Read(source).Diagram, options)
@@ -124,8 +127,13 @@ public sealed class LatexLanguage : IContentLanguage
     public bool Reads(string? language) => language?.Trim().ToLowerInvariant() is "latex" or "math" or "tex";
 
     public Laid? Lay(ContentRequest request) =>
-        LatexBuilder.Lay(request.Source, request.Style, at: request.At,
-                         block: double.IsFinite(request.Room) ? request.Room : 0);
+        LatexBuilder.Lay(request.Source, request.Style,
+                         shownAsWritten: request.Shown is { } shown ? new RawZone(shown.Start - request.At, shown.End - request.At) : null,
+                         placeholders: !request.IsReadOnly,
+                         block: double.IsFinite(request.Room) ? request.Room : 0,
+                         at: request.At);
+
+    public IOnEdit OnEdit => LatexEdits.Instance;
 
     public FrameworkElement Draw(string language, string source, DiagramRenderOptions options) =>
         new ContentElement(source, options.Palette,

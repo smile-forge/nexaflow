@@ -104,6 +104,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException     += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException          += OnUnobservedTaskException;
 
+        // A document says what copying would put on the clipboard and asks; this is the one place that puts it there.
+        Services.DocumentClipboard.Register();
+
         bool prestart = e.Args.Any(a => string.Equals(a, "--prestart", StringComparison.OrdinalIgnoreCase));
         UiTest = e.Args.Any(a => string.Equals(a, "--uiTest", StringComparison.OrdinalIgnoreCase));
         _resetRequested = e.Args.Any(a => string.Equals(a, "--reset", StringComparison.OrdinalIgnoreCase));

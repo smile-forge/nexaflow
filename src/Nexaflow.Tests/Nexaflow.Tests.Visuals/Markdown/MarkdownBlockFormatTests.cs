@@ -5,7 +5,7 @@ namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
 /// The text rules behind the Markdown editing mini-toolbar's formatting buttons, asserted on
-/// <see cref="MarkdownBlockFormat"/> — the pure block transforms <c>InlineMarkdownEditor</c> applies.
+/// <see cref="MarkdownBlockFormat"/> — the pure block transforms a block's formatting is written with.
 /// Every button is a toggle, so each case asserts both directions and where the caret lands.
 /// </summary>
 [TestClass]

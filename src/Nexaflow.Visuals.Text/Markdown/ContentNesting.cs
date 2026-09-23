@@ -1,6 +1,7 @@
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -33,17 +34,53 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
     /// <paramref name="body"/> laid out to fit <paramref name="room"/>, ready to be set down — or null where
     /// that language cannot lay anything yet, which leaves the characters to be drawn as themselves.
     /// </summary>
-    public ContentInset? At(ContentPart? body, double room)
+    /// <param name="shown">
+    /// The stretch the document being written is showing as typed. Handed on only where it falls inside the body,
+    /// because then it is this language's stretch — a command half spelled — and nobody else's to draw.
+    /// </param>
+    /// <param name="isReadOnly">Whether anybody is writing, so a hole is drawn where something is still to be written.</param>
+    public ContentInset? At(ContentPart? body, double room, RawZone? shown = null, bool isReadOnly = true)
     {
         if (body is null) return null;
 
-        var laid = Language.Lay(new ContentRequest(body.Text, Style)
+        var (_, length) = Own(body);
+
+        var laid = Language.Lay(new ContentRequest(body.Print()[..length], Style)
         {
             Named = Named, Room = room, At = body.Start, Options = Options,
+            Shown = shown is { } zone && Holds(body, zone) ? zone : null,
+            IsReadOnly = isReadOnly,
         });
 
         // Asked whether it drew rather than whether it exists: a language that built a tree and put nothing in
         // it has nothing to show, and the characters are what goes there instead.
         return laid is { Draws: true } ? new ContentInset(laid) : null;
+    }
+
+    /// <summary>Whether a stretch shown as typed falls inside the body — this language's to show, not the document's.</summary>
+    public static bool Holds(ContentPart body, RawZone zone)
+    {
+        var (start, length) = Own(body);
+        return start <= zone.Start && zone.End <= start + length;
+    }
+
+    /// <summary>
+    /// Whether a stretch shown as typed lies inside another language's source somewhere in <paramref name="part"/>, so
+    /// that language is the one to show it and the document around it goes on drawing as it reads.
+    /// </summary>
+    public static bool Nests(ContentPart part, RawZone zone) =>
+        part.SelfAndDescendants().Any(inner => Of(inner) is not null && inner.Part(Roles.Body) is { } body && Holds(body, zone));
+
+    /// <summary>
+    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line. That
+    /// ending belongs to the line the closing delimiter stands on — written into, it would put what was typed on that line
+    /// and the delimiter would no longer close anything.
+    /// </summary>
+    public static (int Start, int Length) Own(ContentPart body)
+    {
+        var written = body.Print();
+        var closing = written.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : written.EndsWith('\n') ? 1 : 0;
+
+        return (body.Start, body.Length - closing);
     }
 }

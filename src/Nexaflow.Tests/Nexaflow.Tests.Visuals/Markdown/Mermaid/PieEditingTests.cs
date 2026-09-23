@@ -5,7 +5,6 @@ using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System;
 using System.Windows.Input;
 using System.Windows.Controls;
@@ -19,7 +18,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 /// puts the caret between its digits and a keystroke changes the chart.
 ///
 /// <para>
-/// Driven through a real <see cref="Nexaflow.Visuals.Text.Markdown.InlineMarkdownEditor"/>, because that is the whole
+/// Driven through a real <see cref="Nexaflow.Visuals.Text.Markdown.MarkdownSurface"/>, because that is the whole
 /// claim: the caret has to be adopted by the editor and the keystroke routed back into the block, neither of which the
 /// block can do for itself.
 /// </para>
@@ -37,10 +36,10 @@ public class PieEditingTests
     private const string Titled = "pie showData\n  title Pets\n  \"Dogs\" : 30\n  \"Cats\" : 10";
 
     /// <summary>Shows the pie as the whole document, and hands back the element it drew.</summary>
-    private static void Edited(Action<Nexaflow.Visuals.Text.Markdown.InlineMarkdownEditor, ContentElement> test) =>
+    private static void Edited(Action<MarkdownSurface, DocumentBlock> test) =>
         MarkdownEditorHarness.Run(Markdown, editor =>
         {
-            var pie = Find<ContentElement>(editor);
+            var pie = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(pie, "the pie did not render as content");
 
             test(editor, pie!);
@@ -48,29 +47,29 @@ public class PieEditingTests
         editor => editor.SingleBlock = "mermaid");
 
     /// <summary>Presses just past the last digit of a slice's value, where it is drawn in the legend.</summary>
-    private static void PressPastTheValue(ContentElement pie, string number)
+    private static void PressPastTheValue(DocumentBlock pie, string number)
     {
         var value = pie.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Kind == PiePiece.Value
-                            && piece.Sits().Start == pie.Source.IndexOf(number, System.StringComparison.Ordinal));
+                            && piece.Sits().Start == pie.Source.IndexOf(number, pie.Start, System.StringComparison.Ordinal));
 
         pie.BeginPointerSelect(new Point(value.Bounds.Right - 1, value.Bounds.Y + (value.Bounds.Height / 2)));
         pie.EndPointerSelect();
     }
 
     /// <summary>Presses just inside the end of a slice's label, where it is drawn in the legend.</summary>
-    private static void PressPastTheLabel(ContentElement pie, string name)
+    private static void PressPastTheLabel(DocumentBlock pie, string name)
     {
         var label = pie.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Kind == PiePiece.Label
-                            && piece.Sits().Start == pie.Source.IndexOf(name, StringComparison.Ordinal));
+                            && piece.Sits().Start == pie.Source.IndexOf(name, pie.Start, System.StringComparison.Ordinal));
 
         pie.BeginPointerSelect(new Point(label.Bounds.Right - 1, label.Bounds.Y + (label.Bounds.Height / 2)));
         pie.EndPointerSelect();
     }
 
     /// <summary>Presses in the title: at its middle, or just inside its end.</summary>
-    private static void PressInTheTitle(ContentElement pie, bool atEnd = false)
+    private static void PressInTheTitle(DocumentBlock pie, bool atEnd = false)
     {
         var title = pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title).Bounds;
         var x = atEnd ? title.Right - 1 : title.X + (title.Width / 2);
@@ -80,33 +79,29 @@ public class PieEditingTests
     }
 
     /// <summary>The pie inside a document, fenced, which is how most are written.</summary>
-    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Markdown) =>
-        MarkdownEditorHarness.Run("Pets:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Markdown) =>
+        MarkdownEditorHarness.Run("Below:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
-            var pie = Find<ContentElement>(editor);
+            var pie = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(pie, "the pie did not render as content");
-
-            // What a press on it does in the app, which a press made straight on the element cannot: the editor takes the
-            // keyboard and hands its keys to the block.
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the pie to give the keys to");
 
             test(editor, pie!);
         });
 
-    private static void Press(InlineMarkdownEditor editor, Key key)
+    private static void Press(MarkdownSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(InlineMarkdownEditor editor, string text)
+    private static void Write(MarkdownSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
     /// <summary>Somewhere inside the first wedge's own shape, and clear of the share written on it.</summary>
-    private static Point InsideAWedge(ContentElement pie)
+    private static Point InsideAWedge(DocumentBlock pie)
     {
         var wedge = pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == PiePiece.Wedge);
         var shares = pie.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PiePiece.Share).Select(piece => piece.Bounds).ToList();
@@ -148,7 +143,7 @@ public class PieEditingTests
             PressPastTheValue(pie, "30");
             MarkdownEditorHarness.RaiseTextInput(editor, "9");
             MarkdownEditorHarness.Pump();
-            pie.UpdateLayout();
+            editor.UpdateLayout();
 
             Assert.IsTrue(Share(pie, "Dogs") > before, "the wedge grew with the number");
         }));
@@ -387,9 +382,9 @@ public class PieEditingTests
 
             StringAssert.Contains(editor.Markdown, "\"Dogs\" : 30\n", "the edit is taken back");
 
-            var drawn = Find<ContentElement>(editor);
+            var drawn = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(drawn, "and the pie is still drawn, rather than opened as its source");
-            Assert.AreSame(drawn, editor.FocusedContent, "with the keys still going to it");
+            Assert.IsTrue(drawn.HasCaret, "with the keys still going to it");
             Assert.AreEqual(drawn!.Source.IndexOf("30", StringComparison.Ordinal) + 2, drawn.Caret, "and the caret where it was");
         }));
 
@@ -397,7 +392,7 @@ public class PieEditingTests
     public void ThePointerIsABarOnlyOverWhatIsWrittenIn() => UiThread.Run(() =>
         Edited((editor, pie) =>
         {
-            var block = (IInteractiveBlock)pie;
+            var block = pie;
             Piece First(string kind) => pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == kind);
             static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
 
@@ -417,7 +412,7 @@ public class PieEditingTests
             Press(editor, Key.Enter);
 
             var hole = pie.Laid.Holes[0].Bounds;
-            Assert.AreEqual(Cursors.IBeam, ((IInteractiveBlock)pie).PointerCursor(new Point(hole.X + (hole.Width / 2), hole.Y + (hole.Height / 2))),
+            Assert.AreEqual(Cursors.IBeam, pie.PointerCursor(new Point(hole.X + (hole.Width / 2), hole.Y + (hole.Height / 2))),
                             "a hole is where writing goes");
         }));
 
@@ -425,7 +420,7 @@ public class PieEditingTests
     public void DraggingInsideTheTitlePicksOutLetters() => UiThread.Run(() =>
         MarkdownEditorHarness.Run("pie title Browser share\n  \"Dogs\" : 30", editor =>
         {
-            var pie = Find<ContentElement>(editor)!;
+            var pie = MarkdownEditorHarness.Block(editor)!;
             var title = pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title);
             var middle = title.Bounds.Y + (title.Bounds.Height / 2);
 
@@ -462,7 +457,7 @@ public class PieEditingTests
         }));
 
     /// <summary>How much of the chart a slice's wedge covers, as a share of everything drawn.</summary>
-    private static double Share(ContentElement pie, string name)
+    private static double Share(DocumentBlock pie, string name)
     {
         var wedges = pie.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PiePiece.Wedge).ToList();
         var mine = wedges.First(piece => pie.Source.Substring(piece.Sits().Start, piece.Sits().Length).Contains(name));

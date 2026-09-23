@@ -155,7 +155,10 @@ public sealed partial class MarkdownBuilder
 
             // Markdown reflows a line ending into a space unless the writer asked for a break, which they ask for
             // with two spaces or a backslash before it.
+            // The line ending that closes the last line has no line after it to reflow into, so it is not drawn — and so
+            // is not a place past the end of the words for the caret to stand.
             case MarkdownKinds.Break:
+                if (Closing(part)) return;
                 runs.Add(new Run(Meant(part) ? string.Empty : " ", part, face, Maps: false));
                 return;
 
@@ -178,13 +181,30 @@ public sealed partial class MarkdownBuilder
         if (part.Role is Roles.Open or Roles.Close or Roles.Name or Roles.Trivia)
         {
             // Machinery is not drawn. Where it ran over a line ending, though, it stood between two words, and two
-            // words with nothing between them are one word.
-            if (part.Text.Contains('\n')) runs.Add(new Run(" ", part, face, Maps: false));
+            // words with nothing between them are one word — unless it closes them, and there is no word after it.
+            if (part.Text.Contains('\n') && !Closing(part)) runs.Add(new Run(" ", part, face, Maps: false));
 
             return;
         }
 
+        // A line ending that closes the words is not reflowed into a space either: nothing follows it.
+        if (part.Kind == Kinds.Space && part.Text.Contains('\n') && Closing(part)) return;
+
         if (part.Text.Length > 0) runs.Add(new Run(Flowed(part.Text), part, face, Maps: true));
+    }
+
+    /// <summary>Whether a line ending is the last thing its words hold, closing them rather than breaking them.</summary>
+    private static bool Closing(ContentPart part)
+    {
+        for (var at = part; at.Parent is { } holder; at = holder)
+        {
+            if (holder.Children.LastOrDefault(child => !child.Derived && child.Length > 0) != at) return false;
+            if (holder.Kind is not (MarkdownKinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
+                                    or MarkdownKinds.Mark or MarkdownKinds.Insert or MarkdownKinds.Link))
+                return true;
+        }
+
+        return true;
     }
 
     private void Inside(ContentPart part, Face face, List<Run> runs)
@@ -249,7 +269,7 @@ public sealed partial class MarkdownBuilder
     /// </summary>
     private void Formula(ContentPart part, Face face, List<Run> runs)
     {
-        if (ContentNesting.Of(part)?.At(part.Part(Roles.Body), double.PositiveInfinity) is { Laid.Trouble.Count: 0 } set)
+        if (Nested(part, double.PositiveInfinity) is { Laid.Trouble.Count: 0 } set)
         {
             runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: set));
 

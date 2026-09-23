@@ -151,7 +151,7 @@ public class SingleFormulaEditorTests
             // You are inside one expression, not between two paragraphs, so there is nowhere to split to.
             Assert.IsNotNull(ContentIn(editor), "still one formula");
             Assert.IsFalse(editor.Markdown.Contains("$$"), "and still no fence anywhere in the host's text");
-            Assert.AreEqual(formula, Focused(editor), "and the caret never left it");
+            Assert.IsTrue(Focused(editor).HasCaret, "and the caret never left it");
         });
     }
 
@@ -180,7 +180,8 @@ public class SingleFormulaEditorTests
         RunInFormula("a + 1", editor =>
         {
             var formula = Focused(editor);
-            var at = new System.Windows.Point(formula.ActualWidth - 2, formula.ActualHeight / 2);
+            var end = formula.Laid.Root.CaretRect(formula.Origin + formula.Latex.Length);
+            var at = new System.Windows.Point(end.X - 2, end.Y + (end.Height / 2));
 
             formula.BeginPointerSelect(at);
             formula.ExtendPointerSelect(new System.Windows.Point(at.X + 1, at.Y));   // a hand, not a drag
@@ -274,8 +275,8 @@ public class SingleFormulaEditorTests
 
             for (var i = 0; i < 3; i++) MarkdownEditorHarness.RaiseKey(editor, System.Windows.Input.Key.Right);
 
-            Assert.AreSame(formula, editor.FocusedContent, "the formula still has the caret");
-            Assert.AreEqual(end, formula.Caret, "and it is still at the end, where it ran out of formula");
+            Assert.IsTrue(formula.HasCaret, "the formula still has the caret");
+            Assert.AreEqual(end, formula.Caret - formula.Origin, "and it is still at the end, where it ran out of formula");
         });
     }
 
@@ -290,7 +291,7 @@ public class SingleFormulaEditorTests
             var formula = Focused(editor);
             var hole = formula.Laid.Holes.Single();
 
-            var washed = formula.Laid.Root.RangeRects(0, formula.Latex.Length);
+            var washed = formula.Laid.Root.RangeRects(formula.Origin, formula.Latex.Length);
             Assert.IsTrue(washed.Any(r => r.Contains(hole.Bounds.TopLeft) || r.IntersectsWith(hole.Bounds)),
                 "the hole is washed along with everything else");
         });
@@ -328,7 +329,7 @@ public class SingleFormulaEditorTests
             Assert.IsTrue(editor.PasteIntoFormula("\\frac{a}{b} + \\frac{c}{d}\r\n"));
 
             Assert.AreEqual(@"\frac{a}{b} + \frac{c}{d}", formula.Latex);
-            Assert.AreEqual(formula.Latex.Length, formula.Caret, "with the caret at the end of it");
+            Assert.AreEqual(formula.Latex.Length, formula.Caret - formula.Origin, "with the caret at the end of it");
         });
     }
 
@@ -339,10 +340,10 @@ public class SingleFormulaEditorTests
         // moment earlier — before anything had adopted one — went in through the other door with its
         // delimiters still attached, and the reader got a formula with dollar signs in it.
         Assert.AreEqual("x^2, x_i, x^{2n}, x_{i,j}",
-                        InlineMarkdownEditor.AsFormula("$x^2, x_i, x^{2n}, x_{i,j}$"));
+                        MarkdownClipboard.AsFormula("$x^2, x_i, x^{2n}, x_{i,j}$"));
 
-        Assert.AreEqual(@"\sqrt{x^2+1}", InlineMarkdownEditor.AsFormula("  \\[\\sqrt{x^2+1}\\]\r\n"));
-        Assert.AreEqual("a + b", InlineMarkdownEditor.AsFormula("a\r\n+ b\r\n"), "one expression, trimmed");
+        Assert.AreEqual(@"\sqrt{x^2+1}", MarkdownClipboard.AsFormula("  \\[\\sqrt{x^2+1}\\]\r\n"));
+        Assert.AreEqual("a + b", MarkdownClipboard.AsFormula("a\r\n+ b\r\n"), "one expression, trimmed");
     }
 
     [TestMethod]
@@ -363,7 +364,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"x + \alpha", editor.Markdown,
                 "the fence came off on the way in, exactly as it does for a paste");
-            Assert.IsNotNull(editor.FocusedContent,
+            Assert.IsTrue(editor.InFormula(),
                 "and the formula holds the caret, so the next thing typed carries on from the drop");
         });
     }
@@ -398,16 +399,16 @@ public class SingleFormulaEditorTests
         // $$ — it says what the text is and is not part of it — so it comes off with the rest.
         Assert.AreEqual(
             @"S (\omega)=\frac{\alpha g^2}{\omega^5}",
-            InlineMarkdownEditor.AsFormula("```\r\n\\begin{equation} S (\\omega)=\\frac{\\alpha g^2}{\\omega^5} \\end{equation}\r\n```"),
+            MarkdownClipboard.AsFormula("```\r\n\\begin{equation} S (\\omega)=\\frac{\\alpha g^2}{\\omega^5} \\end{equation}\r\n```"),
             "the fence and the environment inside it both come off");
 
-        Assert.AreEqual("x+1", InlineMarkdownEditor.AsFormula("```latex\nx+1\n```"),
+        Assert.AreEqual("x+1", MarkdownClipboard.AsFormula("```latex\nx+1\n```"),
             "an info string is a language name, not code");
 
         // Backticks that were actually typed stay: only a fence opening the first line and closing the
         // last is a wrapper, and a formula is not code so nothing else here should touch them.
-        Assert.AreEqual("a ` b", InlineMarkdownEditor.AsFormula("a ` b"));
-        Assert.AreEqual("``` x+1 ```", InlineMarkdownEditor.AsFormula("``` x+1 ```"),
+        Assert.AreEqual("a ` b", MarkdownClipboard.AsFormula("a ` b"));
+        Assert.AreEqual("``` x+1 ```", MarkdownClipboard.AsFormula("``` x+1 ```"),
             "all on one line is not a fenced block");
     }
 
@@ -470,10 +471,9 @@ public class SingleFormulaEditorTests
             editor.EditAsSource = true;
 
             Assert.IsNull(ContentIn(editor), "nothing is typeset while the source is being read");
-            StringAssert.Contains(MarkdownEditorHarness.Showing(editor), @"\frac{a}{b}", "the characters written are on show");
-            Assert.IsFalse(MarkdownEditorHarness.Showing(editor).Contains("$$"),
-                "but not the fence — that is the editor's own way of asking for maths, not something "
-                + "the reader wrote or should have to keep intact");
+            Assert.AreEqual((0, @"\frac{a}{b}".Length), MarkdownEditorHarness.Block(editor).ShownAsWritten,
+                "the characters written are on show, all of them and nothing more — not the fence, which is the "
+                + "editor's own way of asking for maths, not something the reader wrote or should have to keep intact");
 
             editor.EditAsSource = false;
             Assert.IsNotNull(ContentIn(editor), "and it typesets again on the way back");
@@ -523,50 +523,45 @@ public class SingleFormulaEditorTests
     // ── One caret ───────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void OnlyOneCaretIsEverDrawn()
+    public void TheCaretIsInTheFormulaTheMomentTheEditorHasTheKeyboard()
     {
-        // Both surfaces know how to draw a caret, and the document's sits at the text position its
-        // block occupies — right beside the formula's. Left visible, two carets blink at you and only
-        // one of them is where the keys are going.
+        // A caret is what "focused and editable" looks like, so the formula has it the moment the editor
+        // has the keyboard rather than waiting to be asked — waiting meant no caret until you typed. There
+        // is one document and one caret, so there is never a second one blinking beside it.
         RunInFormula("x", editor =>
         {
-            // Focused at all is enough: a caret is what "focused and editable" looks like, so the
-            // formula takes it the moment the editor has the keyboard rather than waiting to be asked.
-            // Before that it waited for the first keystroke, which meant no caret until you typed.
-            Assert.IsNotNull(editor.FocusedContent, "the formula holds the caret because the editor is focused");
-            Assert.IsTrue(MarkdownEditorHarness.CaretHidden(editor),
-                "and the document is not drawing a second one beside it");
+            Assert.IsTrue(editor.Shown.HasCaret, "the editor is focused, so there is a caret");
+            Assert.IsTrue(editor.InFormula(), "and it is in the formula");
 
-            editor.SingleBlock = null;   // rebuilds the document, which takes the caret back
-            Assert.IsNull(editor.FocusedContent);
-            Assert.IsFalse(MarkdownEditorHarness.CaretHidden(editor),
-                "the document draws it again once nothing else is");
+            editor.SingleBlock = null;   // the same text read as a document, where it is a word
+            Assert.IsFalse(editor.InFormula(), "a document's words are not a formula");
         });
     }
 
     // ── Harness ─────────────────────────────────────────────────────────────
 
     /// <summary>Runs <paramref name="test"/> against an editor holding <paramref name="latex"/> as one formula.</summary>
-    private static void RunInFormula(string latex, System.Action<InlineMarkdownEditor> test) =>
+    private static void RunInFormula(string latex, System.Action<MarkdownSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.SingleBlock = "latex"));
 
-    /// <summary>The formula holding the caret, having handed it the caret if nothing had it.</summary>
-    private static FormulaElement Focused(InlineMarkdownEditor editor)
+    /// <summary>The formula, with the caret put in it where it was not already.</summary>
+    private static DocumentBlock Focused(MarkdownSurface editor)
     {
         Assert.IsTrue(editor.FocusFormulaAtCaret(), "there is a formula to type into");
-        var formula = ContentIn(editor);
-        Assert.IsNotNull(formula);
-        return formula;
+        return MarkdownEditorHarness.Block(editor);
     }
 
     /// <summary>
-    /// The formula the editor is showing. Found in the document rather than in the visual tree: the document
-    /// is rebuilt before it is rendered, and the question here is what it now holds, not what is on screen.
+    /// The formula, where the editor is drawing it as maths — null where it is drawing all of it as the characters
+    /// written, which is what holding it open as source is.
     /// </summary>
-    private static FormulaElement? ContentIn(InlineMarkdownEditor editor) =>
-        MarkdownEditorHarness.RichTextBoxOf(editor).Document.Blocks
-            .OfType<BlockUIContainer>()
-            .Select(block => block.Child)
-            .OfType<FormulaElement>()
-            .FirstOrDefault();
+    private static DocumentBlock? ContentIn(MarkdownSurface editor)
+    {
+        if (MarkdownEditorHarness.Blocks(editor).Count == 0) return null;
+
+        var formula = MarkdownEditorHarness.Block(editor);
+        var shown = editor.Shown.ShownAsWritten;
+
+        return shown is { } all && all.Length >= editor.Markdown.Length && editor.Markdown.Length > 0 ? null : formula;
+    }
 }

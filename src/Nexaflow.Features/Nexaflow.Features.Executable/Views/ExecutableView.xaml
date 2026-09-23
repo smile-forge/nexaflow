@@ -585,10 +585,9 @@
                             <!-- The diagram is the whole pane, so it is sized to the pane: left to its
                                  own devices it caps itself at a fixed height and runs its minimap and
                                  frame off the bottom of the panel. -->
-                            <md:SelectableMarkdownView x:Name="DependencyDiagram"
+                            <md:MarkdownSurface x:Name="DependencyDiagram"
                                                        Markdown="{Binding DependencyMarkdown}"
                                                        DiagramOpenOnDoubleClick="True"
-                                                       DiagramZoomOnWheel="True"
                                                        MaxDiagramHeight="{Binding ActualHeight, ElementName=DependencyPane}"/>
                         </Border>
 

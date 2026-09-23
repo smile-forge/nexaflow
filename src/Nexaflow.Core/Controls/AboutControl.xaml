@@ -173,7 +173,7 @@
                 Visibility="{Binding IsChecked, ElementName=NoticesToggle, Converter={StaticResource BoolVis}}">
             <ScrollViewer Padding="12,8" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
-                <md:SelectableMarkdownView x:Name="NoticesView"/>
+                <md:MarkdownSurface x:Name="NoticesView"/>
             </ScrollViewer>
         </Border>
 

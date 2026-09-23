@@ -118,7 +118,7 @@ public class MarkdownExtensionsTests
     [TestMethod]
     public void FlowDocument_PipeTable_RendersSelectableTable() => UiThread.Run(() =>
     {
-        // The selectable path (SelectableMarkdownView → AI overlay / AIChat) uses MarkdownFlowDocument.
+        // The flow-document path, which the legacy renderer still draws with.
         var doc   = MarkdownFlowDocument.Build("| a | b |\n|---|---|\n| 1 | 2 |\n");
         var table = doc.Blocks.OfType<Table>().FirstOrDefault();
         Assert.IsNotNull(table, "selectable path should produce a FlowDocument Table");

@@ -139,9 +139,10 @@ public class MarkdownSurfaceTests
     public void CopyingIsSomethingTheHostIsAskedToDo() => UiThread.Run(() =>
     {
         // A clipboard is the application's, shared with every other thing in the window. The surface says
-        // what would go on it; it does not reach out and put it there.
-        var asked = new List<LayoutAct>();
-        var surface = Shown(Doc, new Host(asked));
+        // what would go on it and asks; it does not reach out and put it there.
+        var surface = Shown(Doc);
+        var asked = new List<MarkdownClipboard.ContentCopy>();
+        surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
         var at = Middle(surface, "Some words");
         var copy = surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy);
@@ -149,8 +150,8 @@ public class MarkdownSurfaceTests
         surface.Raise(copy, at);
 
         Assert.AreEqual(1, asked.Count);
-        Assert.AreEqual(LayoutVerbs.Copy, asked[0].Intent.Verb);
-        StringAssert.Contains(asked[0].Intent.Target, "chrome", "with what would go on the clipboard already worked out");
+        StringAssert.Contains(asked[0].Markdown, "chrome", "with what would go on the clipboard already worked out");
+        Assert.IsFalse(asked[0].Markdown.Contains("```", StringComparison.Ordinal), "the block pressed on, not the document");
     });
 
     [TestMethod]

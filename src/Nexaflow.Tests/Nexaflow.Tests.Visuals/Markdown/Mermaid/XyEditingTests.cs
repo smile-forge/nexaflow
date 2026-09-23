@@ -8,7 +8,6 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Xy;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
@@ -25,39 +24,38 @@ public class XyEditingTests
 {
     private const string Sales = "xychart\n  x-axis \"Month\" [jan, feb]\n  bar \"Sold\" [1, 2]";
 
-    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Sales) =>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Sales) =>
         MarkdownEditorHarness.Run("Sales:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
-            var chart = Find<ContentElement>(editor);
+            var chart = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(chart, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
             test(editor, chart!);
         });
 
     /// <summary>Presses just inside the end of words drawn for what starts where <paramref name="words"/> is written.</summary>
-    private static void PressPast(ContentElement chart, string words)
+    private static void PressPast(DocumentBlock chart, string words)
     {
         var piece = chart.Laid.Root.SelfAndDescendants()
-            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, StringComparison.Ordinal));
+            .First(piece => piece.Words is { Maps: true } && piece.Sits().Start == chart.Source.IndexOf(words, chart.Start, System.StringComparison.Ordinal));
 
         chart.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
         chart.EndPointerSelect();
     }
 
-    private static void Press(InlineMarkdownEditor editor, Key key)
+    private static void Press(MarkdownSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(InlineMarkdownEditor editor, string text)
+    private static void Write(MarkdownSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static string Trouble(ContentElement chart) => string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message));
+    private static string Trouble(DocumentBlock chart) => string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message));
 
     [TestMethod]
     public void TypingInACategoryChangesTheCategory() => UiThread.Run(() =>

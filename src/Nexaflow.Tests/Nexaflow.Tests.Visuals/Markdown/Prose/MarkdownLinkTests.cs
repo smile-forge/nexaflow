@@ -164,7 +164,7 @@ public class MarkdownLinkTests
         // it between them — which is the thing that quietly stops working when a surface is swapped underneath.
         var offered = new List<string>();
 
-        var view = new SelectableMarkdownView
+        var view = new MarkdownSurface
         {
             LinkDecorator = (where, _) =>
             {
@@ -181,7 +181,8 @@ public class MarkdownLinkTests
         view.Arrange(new System.Windows.Rect(0, 0, 640, 2000));
         view.UpdateLayout();
 
-        CollectionAssert.AreEqual(new[] { "a", "b" }, offered);
+        // Asked each time the document is laid out, which the view does as often as the room it is given changes.
+        CollectionAssert.AreEqual(new[] { "a", "b" }, offered.Distinct().ToArray());
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────

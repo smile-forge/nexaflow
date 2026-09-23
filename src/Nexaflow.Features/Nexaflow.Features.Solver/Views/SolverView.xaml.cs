@@ -67,7 +67,7 @@ public partial class SolverView : UserControl, IPageView
     public IPageViewModel ViewModel => _vm;
 
     /// <summary>The editor the current tab shows, or null on Calc - which has a plain field instead.</summary>
-    private InlineMarkdownEditor? Editor =>
+    private MarkdownSurface? Editor =>
         _vm.IsLatexMode ? LatexInput : _vm.IsTextMode ? ProseInput : null;
 
     /// <inheritdoc/>

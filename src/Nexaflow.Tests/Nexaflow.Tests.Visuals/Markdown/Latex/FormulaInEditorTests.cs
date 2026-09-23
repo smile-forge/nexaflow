@@ -27,7 +27,7 @@ public class FormulaInEditorTests
     private const string OneFormula = "$$\nx+\n$$";
 
     /// <summary>The editor builds its document during a render pass, and WPF needs an STA thread.</summary>
-    private static void InEditor(string markdown, Action<InlineMarkdownEditor> test) =>
+    private static void InEditor(string markdown, Action<MarkdownSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(markdown, test));
 
     [TestMethod]

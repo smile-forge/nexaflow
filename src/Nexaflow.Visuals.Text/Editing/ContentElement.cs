@@ -374,6 +374,17 @@ public class ContentElement : FrameworkElement, IEditableBlock
         InvalidateVisual();
     }
 
+    /// <summary>
+    /// Shows the caret where it already stands, without putting it at a place first — what gaining the keyboard means, and
+    /// what a host restoring a state it saved means. A caret put at a place is <see cref="TakeCaret(int)"/>.
+    /// </summary>
+    public void ShowCaret()
+    {
+        HasCaret = !IsReadOnly;
+        if (HasCaret) StartBlinking();
+        InvalidateVisual();
+    }
+
     /// <summary>Blinks the caret. Runs only while this content holds the caret and is torn down on unload, so a page of them leaves no timers behind.</summary>
     private void StartBlinking()
     {
@@ -446,6 +457,12 @@ public class ContentElement : FrameworkElement, IEditableBlock
         MoveTo(next, _laid.Root.StopAt(next), extend);
         return true;
     }
+
+    /// <summary>
+    /// Puts the caret at <paramref name="offset"/>, or stretches what is picked out to it — Home and End, and a caret put
+    /// somewhere by whoever is hosting this.
+    /// </summary>
+    public void MoveCaretTo(int offset, bool extend = false) => MoveTo(Snap(offset), -1, extend);
 
     private void MoveTo(int offset, int at, bool extend)
     {
@@ -627,8 +644,14 @@ public class ContentElement : FrameworkElement, IEditableBlock
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ExtendSelectionTo(int offset) =>
+    // Where nothing is picked out yet, what is picked out runs from the caret: Shift and an arrow start there, wherever the
+    // caret was put since the last press.
+    private void ExtendSelectionTo(int offset)
+    {
+        if (!_state.HasSelection) _anchor = _state.Caret;
+
         Select(Math.Min(_anchor, offset), Math.Abs(offset - _anchor));
+    }
 
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
     private void SelectNodes(ContentSelection selection)
@@ -982,7 +1005,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// </param>
     protected void Apply(EditState next, bool notify, int at = -1)
     {
-        if (notify && next.Source != _state.Source) next = _content.Edited(_state, next);
+        if (notify && next.Source != _state.Source) next = _content.Edited(Landing, next);
         next = Left(next);
 
         var resized = next.Source != _state.Source || next.Raw != _state.Raw;

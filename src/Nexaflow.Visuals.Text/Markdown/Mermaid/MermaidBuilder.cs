@@ -413,7 +413,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (part is not { Length: > 0 }) return null;
         if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return ContentNesting.Of(part)?.At(part.Part(Roles.Body), room);
+        return ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>

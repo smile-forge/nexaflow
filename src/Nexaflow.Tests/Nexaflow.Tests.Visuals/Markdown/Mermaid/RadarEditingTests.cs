@@ -8,7 +8,6 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Radar;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
@@ -27,40 +26,39 @@ public class RadarEditingTests
     private const string Skills = "radar-beta\n  axis ui[\"UI\"], api\n  curve alice[\"Alice\"]{ ui: 3, api: 4 }\n  curve bob{2, 5}";
 
     /// <summary>The chart inside a document, fenced, with the editor handing its keys to it.</summary>
-    private static void InADocument(Action<InlineMarkdownEditor, ContentElement> test, string diagram = Skills) =>
+    private static void InADocument(Action<MarkdownSurface, DocumentBlock> test, string diagram = Skills) =>
         MarkdownEditorHarness.Run("Skills:\n\n```mermaid\n" + diagram + "\n```\n", editor =>
         {
-            var radar = Find<ContentElement>(editor);
+            var radar = MarkdownEditorHarness.Block(editor);
             Assert.IsNotNull(radar, "the diagram did not render as content");
-            Assert.IsTrue(editor.FocusBlockAtCaret(), "the editor has the diagram to give the keys to");
 
             test(editor, radar!);
         });
 
     /// <summary>Presses just inside the end of an axis's label or a curve's legend row, where it is drawn.</summary>
-    private static void PressPast(ContentElement radar, string words)
+    private static void PressPast(DocumentBlock radar, string words)
     {
         var piece = radar.Laid.Root.SelfAndDescendants()
             .First(piece => piece.Kind is RadarPiece.Label or RadarPiece.Name
-                            && piece.Sits().Start == radar.Source.IndexOf(words, StringComparison.Ordinal));
+                            && piece.Sits().Start == radar.Source.IndexOf(words, radar.Start, System.StringComparison.Ordinal));
 
         radar.BeginPointerSelect(new Point(piece.Bounds.Right - 1, piece.Bounds.Y + (piece.Bounds.Height / 2)));
         radar.EndPointerSelect();
     }
 
-    private static void Press(InlineMarkdownEditor editor, Key key)
+    private static void Press(MarkdownSurface editor, Key key)
     {
         MarkdownEditorHarness.RaiseKey(editor, key);
         MarkdownEditorHarness.Pump();
     }
 
-    private static void Write(InlineMarkdownEditor editor, string text)
+    private static void Write(MarkdownSurface editor, string text)
     {
         MarkdownEditorHarness.RaiseTextInput(editor, text);
         MarkdownEditorHarness.Pump();
     }
 
-    private static string Trouble(ContentElement radar) => string.Join(" | ", radar.Diagnostics.Select(diagnostic => diagnostic.Message));
+    private static string Trouble(DocumentBlock radar) => string.Join(" | ", radar.Diagnostics.Select(diagnostic => diagnostic.Message));
 
     [TestMethod]
     public void TypingInAnAxisLabelChangesTheLabel() => UiThread.Run(() =>

@@ -65,7 +65,7 @@ internal sealed class LatexContent(StyleFormat style, bool inline) : IContent
     /// </para>
     /// </summary>
     public EditState? Typing(Landing landing, string text) =>
-        text.Length == 1 ? landing.State.Typing(text[0]) : null;
+        LatexEdits.Instance.Typing(new ContentEdit(landing, 0, landing.State.Source.Length), text);
 
     /// <summary>
     /// Ends a stretch being shown as written, keeping the space that says where a control word stopped —
@@ -76,5 +76,5 @@ internal sealed class LatexContent(StyleFormat style, bool inline) : IContent
     /// expression, so the line the reader pressed Enter on is the only line there is.
     /// </summary>
     public EditState Settle(Landing landing, string separator) =>
-        landing.State.Settle(separator == "\n" ? " " : separator);
+        LatexEdits.Instance.Settling(new ContentEdit(landing, 0, landing.State.Source.Length), separator) ?? landing.State;
 }
