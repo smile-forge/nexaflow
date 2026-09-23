@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Svg.UI;
 
 /// <summary>
-/// One-pass UI journey for the SVG viewer: opens the sample via the explicit <b>"As SVG"</b> ActionStrip
+/// One-pass UI journey for the SVG viewer: opens the sample via the explicit <b>"ShowSvgAction"</b> ActionStrip
 /// button, then works the toolbar — the checkerboard toggle both ways and Reset view — soft-asserting each
 /// so one gap doesn't hide the rest.
 /// <para>
@@ -22,7 +22,7 @@ public class SvgJourneyTests : UiJourneyTestBase
     [CoversNode("svg-reset-view")]
     public void Svg_Controls_RespondInOnePass()
     {
-        var view = OpenFileVia(TestSampleData.Path("svg"), "sample.svg", "As SVG", "SvgView");
+        var view = OpenFileVia(TestSampleData.Path("svg"), "sample.svg", "ShowSvgAction", "SvgView");
         Assert.IsNotNull(view, "SvgView did not open via the 'As SVG' action.");
 
         CheckInvoke("Checkerboard off", "Svg_Checkerboard");

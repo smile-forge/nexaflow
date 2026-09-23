@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
@@ -40,7 +41,7 @@ public class RibbonPinSelectionGuardTests
         var why = FileActionRibbonPinHandler.BlockedReason(Action(supportsMultiple: false), selectionCount: 2);
 
         Assert.IsNotNull(why, "this is the click that used to reach PerformAction(paths) and throw");
-        StringAssert.Contains(why, "Properties",
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Ribbon.OneFileAtATimeFormat", "Properties"), why,
             "name the action — the ribbon may hold several pinned buttons and the user has to know which refused");
     }
 

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Core.Unit;
 
@@ -51,7 +52,7 @@ public class BreadcrumbCopyPathTests
     /// <summary>What this element's own menu would copy, or null when it has no menu of its own.</summary>
     private static string? CopyTarget(FrameworkElement element)
         => element.ContextMenu?.Items.OfType<MenuItem>()
-                  .FirstOrDefault(i => (string?)i.Header == "Copy path")?.CommandParameter as string;
+                  .FirstOrDefault(i => (string?)i.Header == Str.Get("Shell.Breadcrumb.CopyPath"))?.CommandParameter as string;
 
     [TestMethod]
     public void EachCrumbCopiesItsOwnPath() => UiThread.Run(() =>

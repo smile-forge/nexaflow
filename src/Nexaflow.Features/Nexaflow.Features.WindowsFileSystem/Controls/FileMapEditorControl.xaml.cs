@@ -1,6 +1,8 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -83,8 +85,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
 
     public sealed class CriterionRow : INotifyPropertyChanged
     {
-        public static IReadOnlyList<string> TypeOptions { get; } =
-            Enum.GetNames<CriteriaType>();
+        public static IReadOnlyList<ChoiceOption> TypeOptions => ChoiceOption.CriteriaTypes(Enum.GetValues<CriteriaType>());
 
         private string _typeName = CriteriaType.Extension.ToString();
         private string _value    = string.Empty;
@@ -205,7 +206,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
         var ids = FileMapManager.Instance.GetAllExperienceIds();
 
         // "/" is always the single root — displayed as "File"
-        var rootNode = new ExperienceNode("File", "/");
+        var rootNode = new ExperienceNode(Str.Get("WindowsFileSystem.FileMap.RootNode"), "/");
         ExperienceTree.Items.Add(rootNode);
 
         foreach (var id in ids)
@@ -259,7 +260,7 @@ public partial class FileMapEditorControl : UserControl, ICustomConfigApply, ICo
 
         ExperienceIdLabel.Text   = SelectedMapping.ExperienceId;
         ExperienceDescLabel.Text = SelectedMapping.Source == MappingSource.Registry
-            ? "(registry-derived)"
+            ? Str.Get("WindowsFileSystem.FileMap.RegistryDerived")
             : string.Empty;
 
         foreach (var c in SelectedMapping.Criteria)

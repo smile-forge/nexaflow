@@ -110,7 +110,7 @@
                         </TextBox.InputBindings>
                     </TextBox>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancel" Command="{Binding CancelCommand}"
+                        <Button Content="{loc:Str Shell.Prompt.Cancel}" Command="{Binding CancelCommand}"
                                 AutomationProperties.AutomationId="ShellPromptCancel"
                                 Width="90" Height="32" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource Surface2Brush}" Foreground="{StaticResource TextBrush}"
@@ -131,7 +131,7 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <Button Content="OK" Command="{Binding ConfirmCommand}"
+                        <Button Content="{loc:Str Shell.Prompt.Ok}" Command="{Binding ConfirmCommand}"
                                 AutomationProperties.AutomationId="ShellPromptOk"
                                 Width="90" Height="32" FontSize="12" Cursor="Hand"
                                 Background="{StaticResource AccentBrush}" Foreground="White"
@@ -272,17 +272,17 @@
             <Button AutomationProperties.AutomationId="Chrome_Minimize" x:Name="MinimizeButton"
                     Style="{StaticResource CaptionButton}"
                     Content="&#xE921;"
-                    ToolTip="Minimise"
+                    ToolTip="{loc:Str Shell.Caption.Minimise}"
                     Click="OnMinimizeClick"/>
             <Button AutomationProperties.AutomationId="Chrome_MaximizeRestore" x:Name="MaximizeRestoreButton"
                     Style="{StaticResource CaptionButton}"
                     Content="&#xE922;"
-                    ToolTip="Maximise"
+                    ToolTip="{loc:Str Shell.Caption.Maximise}"
                     Click="OnMaximizeRestoreClick"/>
             <Button AutomationProperties.AutomationId="Chrome_Close" x:Name="CloseButton"
                     Style="{StaticResource CloseCaptionButton}"
                     Content="&#xE8BB;"
-                    ToolTip="Close"
+                    ToolTip="{loc:Str Shell.Caption.Close}"
                     Click="OnCloseClick"/>
         </StackPanel>
 
@@ -402,7 +402,7 @@
                             AutomationProperties.AutomationId="Chrome_OptionsButton"
                             HorizontalAlignment="Right"
                             Margin="0,0,0,6">
-                        <TextBlock Text="Options" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                        <TextBlock Text="{loc:Str Shell.TopBar.Options}" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
                     </Button>
 
                     <!-- Messages + badge -->
@@ -414,7 +414,7 @@
                             <Path Data="M2 2h12v9H9l-3 3V11H2z"
                                   Fill="{StaticResource TextMutedBrush}" Width="12" Height="12"
                                   Stretch="Uniform" Margin="0,0,5,0"/>
-                            <TextBlock Text="Messages" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,4,0"/>
+                            <TextBlock Text="{loc:Str Shell.TopBar.Messages}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,4,0"/>
                             <Border Background="{StaticResource AccentBrush}"
                                     CornerRadius="8" Padding="4,1"
                                     Visibility="{Binding UnreadCount, Converter={StaticResource CountVis}}">
@@ -499,7 +499,7 @@
 
                         <!-- Clear input -->
                         <Button AutomationProperties.AutomationId="AiBar_Clear" Style="{StaticResource IconButton}"
-                                ToolTip="Clear input"
+                                ToolTip="{loc:Str Shell.AiBar.Clear}"
                                 Command="{Binding ClearAiInputCommand}"
                                 IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
                                 Margin="0,6,0,0">
@@ -519,7 +519,7 @@
                         x:Name="AiInput"
                         AutomationProperties.AutomationId="AiInputBox"
                         MinHeight="62"
-                        Placeholder="Ask anything… summarise this view, find trends, generate a report…"
+                        Placeholder="{loc:Str Shell.AiBar.Placeholder}"
                         Text="{Binding AiInputText, UpdateSourceTrigger=PropertyChanged}"
                         Background="Transparent"
                         BorderThickness="0"
@@ -564,7 +564,7 @@
                      Takes the top half while busy (the main button drops to the bottom half). -->
                 <Button AutomationProperties.AutomationId="AiBar_Queue" Grid.Row="0" VerticalAlignment="Stretch" Margin="0,0,0,3"
                         Cursor="Hand" FontSize="14" Foreground="White"
-                        Content="➤＋" ToolTip="Queue message (delivered at the next step)"
+                        Content="➤＋" ToolTip="{loc:Str Shell.AiBar.Queue}"
                         Command="{Binding SendAiMessageCommand}">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -598,7 +598,7 @@
                         <Style TargetType="Button">
                             <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
                             <Setter Property="Content" Value="➤"/>
-                            <Setter Property="ToolTip" Value="Send (Enter)"/>
+                            <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Send}"/>
                             <Setter Property="Command" Value="{Binding SendAiMessageCommand}"/>
                             <!-- Idle: span both rows (full height). Busy: drop to the bottom half. -->
                             <Setter Property="Grid.Row" Value="0"/>
@@ -625,7 +625,7 @@
                                      and drop to the bottom half so the queue button sits above it. -->
                                 <DataTrigger Binding="{Binding AiIsBusy}" Value="True">
                                     <Setter Property="Content" Value="■"/>
-                                    <Setter Property="ToolTip" Value="Cancel"/>
+                                    <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Cancel}"/>
                                     <Setter Property="Command" Value="{Binding CancelAiCommand}"/>
                                     <Setter Property="Background" Value="#E11D48"/>
                                     <Setter Property="Grid.Row" Value="1"/>
@@ -634,7 +634,7 @@
                                 <!-- Listening: show a listening icon; click to stop early -->
                                 <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                     <Setter Property="Content" Value="👂"/>
-                                    <Setter Property="ToolTip" Value="Listening… (click to stop)"/>
+                                    <Setter Property="ToolTip" Value="{loc:Str Shell.AiBar.Listening}"/>
                                     <Setter Property="Command" Value="{Binding ToggleVoiceCommand}"/>
                                     <Setter Property="Background" Value="#06b6d4"/>
                                 </DataTrigger>
@@ -649,7 +649,7 @@
                         Background="{StaticResource AiBar.ClusterBg}" CornerRadius="10" Padding="7,8">
                     <StackPanel VerticalAlignment="Top">
 
-                        <ToggleButton AutomationProperties.AutomationId="AiBar_ContextToggle" ToolTip="Include page context"
+                        <ToggleButton AutomationProperties.AutomationId="AiBar_ContextToggle" ToolTip="{loc:Str Shell.AiBar.IncludeContext}"
                                       IsChecked="{Binding IncludeContext}"
                                       IsEnabled="{Binding AiIsBusy, Converter={StaticResource InvBool}}"
                                       Style="{StaticResource ContextToggleButton}">
@@ -657,7 +657,7 @@
                         </ToggleButton>
 
                         <!-- Mic button — enabled only when voice is available; red while listening -->
-                        <Button AutomationProperties.AutomationId="AiBar_Mic" ToolTip="Voice input (toggle)"
+                        <Button AutomationProperties.AutomationId="AiBar_Mic" ToolTip="{loc:Str Shell.AiBar.Voice}"
                                 Command="{Binding ToggleVoiceCommand}"
                                 Margin="0,6,0,0">
                             <Button.Style>
@@ -694,7 +694,7 @@
                 Style="{StaticResource PopupBorder}"
                 Padding="12" Panel.ZIndex="50">
             <StackPanel>
-                <TextBlock Text="Notifications" Foreground="{StaticResource TextBrush}"
+                <TextBlock Text="{loc:Str Shell.Notifications.Header}" Foreground="{StaticResource TextBrush}"
                            FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <ItemsControl ItemsSource="{Binding Notifications}">
                     <ItemsControl.ItemTemplate>
@@ -748,7 +748,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Text="No notifications"
+                <TextBlock Text="{loc:Str Shell.Notifications.Empty}"
                            Foreground="{StaticResource TextMutedBrush}"
                            FontSize="12" HorizontalAlignment="Center" Margin="0,12"
                            Visibility="{Binding Notifications.Count,

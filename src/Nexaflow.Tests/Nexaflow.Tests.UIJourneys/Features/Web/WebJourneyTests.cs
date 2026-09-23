@@ -75,8 +75,8 @@ public class WebJourneyTests : UiJourneyTestBase
     [CoversNode("web-toolbar")]
     public void Web_UserNavigatesForwardAndBack_ThroughRealHistory()
     {
-        // ── Open: "Browse" is ShowHtmlAction.DisplayName on the ActionStrip.
-        var view = OpenFileVia(PageFolder(), FirstPage, "Browse", "Web_View");
+        // ── Open: "Browse" is ShowHtmlAction on the ActionStrip.
+        var view = OpenFileVia(PageFolder(), FirstPage, "ShowHtmlAction", "Web_View");
         Assert.IsNotNull(view, "The Web view did not open via the 'Browse' action.");
 
         Assert.IsNull(MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("Web_FallbackPanel")),

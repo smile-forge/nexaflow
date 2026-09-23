@@ -67,9 +67,8 @@ public sealed class ShellNewRegistry
                     if (spec is null) continue;
 
                     var info = ShellTypeResolver.Resolve(name);
-                    string display = !string.IsNullOrWhiteSpace(info?.ProgIdDescription)
-                        ? info!.ProgIdDescription
-                        : name.TrimStart('.').ToUpperInvariant() + " File";
+                    // No description of its own: left empty, and named at use (ShellNewCreateAction) in the active language.
+                    string display = info?.ProgIdDescription ?? string.Empty;
                     var image = string.IsNullOrEmpty(info?.DefaultIconSpec)
                         ? null
                         : ShellIconLoader.Load(info!.DefaultIconSpec!);
@@ -84,7 +83,8 @@ public sealed class ShellNewRegistry
         _entries = list
             .GroupBy(e => e.Extension, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .OrderBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(e => string.IsNullOrWhiteSpace(e.DisplayName) ? e.Extension.TrimStart('.') : e.DisplayName,
+                     StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 

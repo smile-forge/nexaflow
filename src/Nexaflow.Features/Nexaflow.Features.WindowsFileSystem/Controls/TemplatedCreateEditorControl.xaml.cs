@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -150,7 +151,7 @@ public partial class TemplatedCreateEditorControl : UserControl, ICustomConfigAp
 
     private void AddTemplate_Click(object sender, RoutedEventArgs e)
     {
-        var row = new TemplateRow { Name = "New Template" };
+        var row = new TemplateRow { Name = Str.Get("WindowsFileSystem.Templates.NewTemplate") };
         row.PropertyChanged += OnRowPropertyChanged;
         _rows.Add(row);
         TemplatesList.SelectedItem = row;
@@ -170,12 +171,12 @@ public partial class TemplatedCreateEditorControl : UserControl, ICustomConfigAp
     private void BrowseTemplate_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedTemplate is null) return;
-        var dlg = new OpenFileDialog { Filter = "All files (*.*)|*.*" };
+        var dlg = new OpenFileDialog { Filter = Str.Get("WindowsFileSystem.Templates.AllFilesFilter") };
         if (dlg.ShowDialog() != true) return;
 
         SelectedTemplate.SourcePath = dlg.FileName;
         if (string.IsNullOrWhiteSpace(SelectedTemplate.Name) ||
-            SelectedTemplate.Name == "New Template")
+            SelectedTemplate.Name == Str.Get("WindowsFileSystem.Templates.NewTemplate"))
             SelectedTemplate.Name = Path.GetFileNameWithoutExtension(dlg.FileName);
         if (string.IsNullOrWhiteSpace(SelectedTemplate.FileExtension))
             SelectedTemplate.FileExtension = Path.GetExtension(dlg.FileName);

@@ -7,6 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 using NSubstitute;
 
 namespace Nexaflow.Tests.Features.Images;
@@ -43,11 +44,11 @@ public class ImagesSurfaceTests
         Assert.AreEqual("a.png", vm.HeaderText, "explore also features one image at a time");
 
         vm.ViewMode = ImageViewMode.Album;
-        Assert.AreEqual("3 images", vm.HeaderText, "a grid is about the set, not one file");
+        Assert.AreEqual(Str.Format("Images.Header.ImageCountManyFormat", 3), vm.HeaderText, "a grid is about the set, not one file");
 
         var single = Make("only.png");
         single.ViewMode = ImageViewMode.Album;
-        Assert.AreEqual("1 image", single.HeaderText, "and it reads naturally at one");
+        Assert.AreEqual(Str.Get("Images.Header.ImageCountOne"), single.HeaderText, "and it reads naturally at one");
     }
 
     // ── Thumbnail selection ───────────────────────────────────────────────────
@@ -222,11 +223,12 @@ public class ImagesSurfaceTests
     {
         var shell = Substitute.For<IShellServices>();
         shell.ConfirmAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        var vm = Make(shell, Path.Combine(Path.GetTempPath(), $"nexaflow_missing_{Guid.NewGuid():N}.png"));
+        var missing = Path.Combine(Path.GetTempPath(), $"nexaflow_missing_{Guid.NewGuid():N}.png");
+        var vm = Make(shell, missing);
 
         await vm.DeleteCommand.ExecuteAsync(0);
 
-        shell.Received().ShowError(Arg.Is<string>(m => m.Contains("Couldn't delete")));
+        shell.Received().ShowError(Arg.Is<string>(m => m == Str.Format("Images.Delete.FailedFormat", Path.GetFileName(missing))));
         Assert.AreEqual(1, vm.TotalImages, "a failed delete must not drop the image from the view anyway");
     }
 }

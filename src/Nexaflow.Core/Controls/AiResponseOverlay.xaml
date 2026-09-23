@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:md="clr-namespace:Nexaflow.Visuals.Text.Markdown;assembly=Nexaflow.Visuals.Text"
-             IsHitTestVisible="True">
+             IsHitTestVisible="True"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <cv:BoolToVisibilityConverter x:Key="BoolVis"/>
@@ -82,7 +83,7 @@
                         <Button Grid.Column="2"
                                 Style="{StaticResource TopBarAction}"
                                 Command="{Binding CloseAiResponseOverlayCommand}"
-                                ToolTip="Close">
+                                ToolTip="{loc:Str Shell.AiResponse.Close}">
                             <TextBlock Text="✕" FontSize="13" Foreground="{StaticResource OnAccentBrush}"/>
                         </Button>
                     </Grid>
@@ -143,7 +144,7 @@
                         <!-- Message / final state -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                     Visibility="{Binding AiOverlayIsMessage, Converter={StaticResource BoolVis}}">
-                            <Button Content="Continue as Conversation"
+                            <Button Content="{loc:Str Shell.AiResponse.ContinueAsConversation}"
                                     Command="{Binding ContinueAsConversationCommand}"
                                     FontSize="12"
                                     Background="{StaticResource AccentBrush}"
@@ -165,14 +166,14 @@
                                        VerticalAlignment="Center"
                                        Foreground="{StaticResource TextBrush}"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="Deny"
+                                <Button Content="{loc:Str Shell.AiResponse.Deny}"
                                         Command="{Binding DenyToolBatchCommand}"
                                         FontSize="12" Margin="0,0,8,0"
                                         Background="{StaticResource BorderBrush}"
                                         Foreground="{StaticResource TextBrush}"
                                         BorderThickness="0"
                                         Template="{StaticResource PillButton}"/>
-                                <Button Content="Accept"
+                                <Button Content="{loc:Str Shell.AiResponse.Accept}"
                                         Command="{Binding AcceptToolBatchCommand}"
                                         FontSize="12"
                                         Background="{StaticResource AccentBrush}"

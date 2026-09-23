@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Email.UI;
 
 /// <summary>
-/// One-pass UI journey for the Email viewer: opens the sample message via the explicit <b>"As Email"</b>
+/// One-pass UI journey for the Email viewer: opens the sample message via the explicit <b>"OpenAsEmailAction"</b>
 /// ActionStrip button, then walks the body-view toolbar and the raw-header expander, soft-asserting each so
 /// one gap doesn't hide the rest.
 /// <para>
@@ -22,7 +22,7 @@ public class EmailJourneyTests : UiJourneyTestBase
     [CoversNode("email-ui")]
     public void Email_Controls_RespondInOnePass()
     {
-        var view = OpenFileVia(TestSampleData.Path("email"), "simple.eml", "As Email", "EmailView");
+        var view = OpenFileVia(TestSampleData.Path("email"), "simple.eml", "OpenAsEmailAction", "EmailView");
         Assert.IsNotNull(view, "EmailView did not open via the 'As Email' action.");
 
         // The envelope is up before anything is clicked.

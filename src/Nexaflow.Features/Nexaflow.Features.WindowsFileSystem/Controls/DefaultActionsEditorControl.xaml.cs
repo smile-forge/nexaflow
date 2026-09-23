@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -127,8 +128,8 @@ public partial class DefaultActionsEditorControl : UserControl, ICustomConfigApp
         {
             IsAdding = true;
             AddTitle.Text = edit is null
-                ? "Add a default action"
-                : $"Edit default for .{NormalizeBare(edit.Extension)}";
+                ? Str.Get("WindowsFileSystem.DefaultActions.AddTitle")
+                : Str.Format("WindowsFileSystem.DefaultActions.EditTitleFormat", NormalizeBare(edit.Extension));
 
             ExtBox.Text = edit is null ? string.Empty : NormalizeBare(edit.Extension);
             RebuildCandidates();   // syncing → doesn't touch selection
@@ -156,7 +157,7 @@ public partial class DefaultActionsEditorControl : UserControl, ICustomConfigApp
         _currentExt = NormalizeBare(ExtBox.Text);
 
         _candidates.Clear();
-        _candidates.Add(new CandidateVm { Kind = null, Label = "Automatic (Nexaflow default)" });
+        _candidates.Add(new CandidateVm { Kind = null, Label = Str.Get("WindowsFileSystem.DefaultActions.Automatic") });
 
         if (!string.IsNullOrEmpty(_currentExt))
             foreach (var c in DefaultActionResolver.CandidatesFor(_currentExt))
@@ -164,8 +165,8 @@ public partial class DefaultActionsEditorControl : UserControl, ICustomConfigApp
 
         CanConfirm = !string.IsNullOrEmpty(_currentExt);
         CurrentExtLabel.Text = string.IsNullOrEmpty(_currentExt)
-            ? "Enter an extension above."
-            : $"Double-clicking a .{_currentExt} file will:";
+            ? Str.Get("WindowsFileSystem.DefaultActions.EnterExtension")
+            : Str.Format("WindowsFileSystem.DefaultActions.WillFormat", _currentExt);
 
         // Live edits default to Automatic; edit-mode preselection is set by EnterAddMode (while syncing).
         if (!_syncing)

@@ -19,6 +19,7 @@ using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Features.WindowsFileSystem;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Visuals.Common.Behaviors;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.Views;
 
@@ -710,7 +711,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
 
         // Shell-level pane action — not a file action, so it's appended here after a separator.
         if (actions.Count > 0) menu.Items.Add(BuildMenuSeparator());
-        var paneItem = BuildMenuItem("◨", "Open in right pane", ViewModel.OpenInRightPaneCommand,
+        var paneItem = BuildMenuItem("◨", Str.Get("WindowsFileSystem.Menu.OpenInRightPane"), ViewModel.OpenInRightPaneCommand,
             (Brush)Application.Current.Resources["TextBrush"],
             (Brush)Application.Current.Resources["Surface2Brush"]);
         paneItem.CommandParameter = node.FullPath;
@@ -740,7 +741,7 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
         // Plain ContextMenu + MenuItem so this matches the action-button menu (and the rest of the
         // app), which use the global MenuItem style rather than the file-list's custom template.
         var menu = new ContextMenu();
-        menu.Items.Add(new MenuItem { Header = "Define New…", Command = cmd });
+        menu.Items.Add(new MenuItem { Header = Str.Get("WindowsFileSystem.ActionStrip.DefineNew"), Command = cmd });
         OpenMenuOn(strip, menu);
         e.Handled = true;
     }
@@ -1369,14 +1370,14 @@ public partial class FileSystemView : UserControl, IPageView, ISelectionProvider
             if (choice is { } made) choices.Execute(plan, made);
         }
 
-        menu.Items.Add(BuildMenuItem("📋", "Copy here",
+        menu.Items.Add(BuildMenuItem("📋", Str.Get("WindowsFileSystem.Drop.CopyHere"),
             new RelayCommand(() => Answer(DropChoice.Copy), () => choices.CanExecute(plan, DropChoice.Copy)),
             textBrush, surface2Brush));
-        menu.Items.Add(BuildMenuItem("➡", "Move here",
+        menu.Items.Add(BuildMenuItem("➡", Str.Get("WindowsFileSystem.Drop.MoveHere"),
             new RelayCommand(() => Answer(DropChoice.Move), () => choices.CanExecute(plan, DropChoice.Move)),
             textBrush, surface2Brush));
         menu.Items.Add(BuildMenuSeparator());
-        menu.Items.Add(BuildMenuItem("✕", "Cancel",
+        menu.Items.Add(BuildMenuItem("✕", Str.Get("WindowsFileSystem.Common.Cancel"),
             new RelayCommand(() => Answer(null)), textBrush, surface2Brush));
 
         menu.Closed += (_, _) =>

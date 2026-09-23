@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -17,10 +18,10 @@ namespace Nexaflow.Features.Images.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => true;
         public string Icon                   => "🖼";
-        public string DisplayName            => "As Image";
+        public string DisplayName            => Str.Get("Images.Action.AsImage");
         public static string? StaticExperienceId => "/image";
         public string ExperienceId           => "/image";
-        public string ExperienceDescription  => "Image Viewer";
+        public string ExperienceDescription  => Str.Get("Images.Action.ViewerDescription");
         public bool   RequiresRefresh        => false;
         public bool   CanPerformAction       => true;
         public bool   OpensViewer            => true;

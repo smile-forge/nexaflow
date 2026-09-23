@@ -4,7 +4,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Dicom.UI;
 
 /// <summary>
-/// One-pass UI journey for the DICOM viewer: opens the sample instance via the explicit <b>"As DICOM"</b>
+/// One-pass UI journey for the DICOM viewer: opens the sample instance via the explicit <b>"ShowDicomAction"</b>
 /// ActionStrip button, then walks the toolbar — framing, invert, a measurement tool, a CT window preset —
 /// and opens the tag drawer, soft-asserting each so one gap doesn't hide the rest.
 /// <para>
@@ -22,7 +22,7 @@ public class DicomJourneyTests : UiJourneyTestBase
     [CoversNode("dicom-ui")]
     public void Dicom_Controls_RespondInOnePass()
     {
-        var view = OpenFileVia(TestSampleData.Path("dicom"), "ct.dcm", "As DICOM", "DicomView");
+        var view = OpenFileVia(TestSampleData.Path("dicom"), "ct.dcm", "ShowDicomAction", "DicomView");
         Assert.IsNotNull(view, "DicomView did not open via the 'As DICOM' action.");
 
         // Contents panel.

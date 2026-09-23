@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
@@ -26,7 +27,7 @@ public sealed class FileSystemTabPinHandler : ITabPinHandler
             return new RibbonPinResult
             {
                 PageKind   = FileSystemPageRegistration.PageKind,
-                Label      = isThisPc ? "This PC" : System.IO.Path.GetFileName(path) is { Length: > 0 } n ? n : path,
+                Label      = isThisPc ? Str.Get("WindowsFileSystem.ThisPc.Title") : System.IO.Path.GetFileName(path) is { Length: > 0 } n ? n : path,
                 Icon       = isThisPc ? "🖥" : "📁",
                 PageParams = isThisPc
                     ? new() { ["mode"] = "thispc" }

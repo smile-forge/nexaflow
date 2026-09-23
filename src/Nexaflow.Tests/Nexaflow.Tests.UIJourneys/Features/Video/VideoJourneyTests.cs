@@ -9,7 +9,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Video.UI;
 
 /// <summary>
-/// One-pass UI journey for the Video player: opens a sample clip via the explicit <b>"Play Video"</b>
+/// One-pass UI journey for the Video player: opens a sample clip via the explicit <b>"ShowVideoAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the transport-bar controls and
 /// the overlay toggles (scene strip, info panel) — soft-asserting each so a single gap doesn't hide the rest.
 /// <para>
@@ -41,7 +41,7 @@ public class VideoJourneyTests : UiJourneyTestBase
     public void Video_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("video").First());
-        var view = OpenFileVia(TestSampleData.Path("video"), file, "Play Video", "VideoView");
+        var view = OpenFileVia(TestSampleData.Path("video"), file, "ShowVideoAction", "VideoView");
         Assert.IsNotNull(view, "VideoView did not open via the 'Play Video' action.");
 
         // Transport bar — always present (its host isn't gated on playback / error state).

@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using Nexaflow.Features.WindowsFileSystem.Operations;
 using System.Linq;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem;
 
@@ -38,7 +39,9 @@ public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
 
     public string GetDropDescription(IDataObject data, string? targetFolderName, bool isMove)
     {
-        return $"{(isMove ? "Move" : "Copy")} to {FolderLabel(targetFolderName)}";
+        return isMove
+            ? Str.Format("WindowsFileSystem.Drop.MoveToFormat", FolderLabel(targetFolderName))
+            : Str.Format("WindowsFileSystem.Drop.CopyToFormat", FolderLabel(targetFolderName));
     }
 
     /// <summary>
@@ -101,7 +104,7 @@ public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
                out _).Count > 0;
 
     public string GetChoicePrompt(string? targetFolderName)
-        => $"Drop on {FolderLabel(targetFolderName)} to choose";
+        => Str.Format("WindowsFileSystem.Drop.ChoicePromptFormat", FolderLabel(targetFolderName));
 
     /// <summary>The folder's display name, falling back to the current directory and then to "here".</summary>
     private string FolderLabel(string? targetFolderName)
@@ -109,5 +112,5 @@ public sealed class FileSystemDropTarget : IDropTarget, IDropChoiceTarget
             ? targetFolderName
             : !string.IsNullOrEmpty(_viewModel.CurrentPath)
                 ? Path.GetFileName(_viewModel.CurrentPath)
-                : "here";
+                : Str.Get("WindowsFileSystem.Drop.Here");
 }

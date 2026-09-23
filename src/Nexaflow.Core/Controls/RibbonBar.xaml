@@ -4,7 +4,8 @@
              xmlns:m="clr-namespace:Nexaflow.Core.Models"
              xmlns:cvn="clr-namespace:Nexaflow.Core.Converters"
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
-             AllowDrop="True">
+             AllowDrop="True"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
     <UserControl.Resources>
         <cvn:RibbonKindVisibilityConverter x:Key="RibbonKindVis"/>
         <cv:BoolToVisibilityConverter     x:Key="BoolVis"/>
@@ -29,7 +30,7 @@
                 Grid.Column="1"
                 Visibility="Collapsed"
                 VerticalAlignment="Stretch"
-                ToolTip="More ribbon items"
+                ToolTip="{loc:Str Shell.Ribbon.More.Tooltip}"
                 Padding="8,0"
                 Cursor="Hand"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -38,7 +39,7 @@
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="root" Background="Transparent">
-                        <TextBlock Text="More…"
+                        <TextBlock Text="{loc:Str Shell.Ribbon.More}"
                                    FontSize="11"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center"
@@ -75,7 +76,7 @@
                 Grid.Column="2"
                 AutomationProperties.AutomationId="Chrome_RibbonEdit"
                 VerticalAlignment="Stretch"
-                ToolTip="Customise ribbon"
+                ToolTip="{loc:Str Shell.Ribbon.Customise.Tooltip}"
                 Width="28" Padding="0"
                 Cursor="Hand"
                 BorderBrush="{StaticResource BorderBrush}"

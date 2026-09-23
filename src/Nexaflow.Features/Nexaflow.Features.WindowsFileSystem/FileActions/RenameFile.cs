@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.IO;
 
@@ -15,10 +16,10 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         public bool   IsDestructive          => false;
         public bool   SupportsMultipleFiles  => false;   // rename only makes sense for one item
         public string Icon                   => "✏";
-        public string DisplayName            => "Rename";
+        public string DisplayName            => Str.Get("WindowsFileSystem.Actions.Rename");
         public static string? StaticExperienceId => "/";
         public string ExperienceId           => "/";
-        public string ExperienceDescription  => "All files";
+        public string ExperienceDescription  => Str.Get("WindowsFileSystem.Experiences.AllFiles");
         public bool   RequiresRefresh        => false;   // refresh is triggered by the confirm callback
         public bool   CanPerformAction       => true;
 
@@ -27,7 +28,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
         bool   IFolderAction.IsDestructive        => false;
         bool   IFolderAction.SupportsMultipleFiles => false;
         string IFolderAction.Icon                 => "✏";
-        string IFolderAction.DisplayName          => "Rename";
+        string IFolderAction.DisplayName          => Str.Get("WindowsFileSystem.Actions.Rename");
         bool   IFolderAction.RequiresRefresh       => false;
         bool   IFolderAction.CanPerformAction      => true;
         public bool   AppliesToRoot               => false;
@@ -41,11 +42,11 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions
             bool isDir     = Directory.Exists(path);
             string dir     = Path.GetDirectoryName(path)!;
             string oldName = Path.GetFileName(path);
-            string title   = isDir ? "Rename Folder" : "Rename File";
+            string title   = isDir ? Str.Get("WindowsFileSystem.Rename.FolderTitle") : Str.Get("WindowsFileSystem.Rename.FileTitle");
 
             _shell.ShowPrompt(
                 title:        title,
-                label:        "New name:",
+                label:        Str.Get("WindowsFileSystem.Rename.Label"),
                 initialValue: oldName,
                 onConfirm: newName =>
                 {

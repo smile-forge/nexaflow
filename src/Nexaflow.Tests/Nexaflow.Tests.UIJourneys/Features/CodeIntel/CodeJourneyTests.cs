@@ -6,8 +6,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.CodeIntel.UI;
 
 /// <summary>
-/// The one UI journey for the "As Code" page — the integration test registered at the feature's UI node.
-/// It opens a structured C# sample via the explicit <b>"As Code"</b> ActionStrip button and drives every
+/// The one UI journey for the "ShowCodeAction" page — the integration test registered at the feature's UI node.
+/// It opens a structured C# sample via the explicit <b>"ShowCodeAction"</b> ActionStrip button and drives every
 /// interactive surface in a single pass: the editor toolbar (encoding / EOL selectors, line-number toggle,
 /// Save), the floating command panel, the status bar's line-operations button, and the code-map collapse /
 /// reopen pair. Each check is soft, so one gap doesn't hide the rest.
@@ -31,7 +31,7 @@ public class CodeJourneyTests : UiJourneyTestBase
         var file = "hello.cs";
         Check("code sample exists", () => TestSampleData.Files("code").Any(p => Path.GetFileName(p) == file));
 
-        var view = OpenFileVia(TestSampleData.Path("code"), file, "As Code", "CodeView");
+        var view = OpenFileVia(TestSampleData.Path("code"), file, "ShowCodeAction", "CodeView");
         Assert.IsNotNull(view, "CodeView did not open via the 'As Code' action.");
 
         // ── Editor toolbar ────────────────────────────────────────────────────

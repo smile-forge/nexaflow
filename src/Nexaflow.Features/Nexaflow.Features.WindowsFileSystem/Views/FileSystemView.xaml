@@ -7,7 +7,8 @@
              xmlns:cv="clr-namespace:Nexaflow.Visuals.Common.Converters;assembly=Nexaflow.Visuals.Common"
              xmlns:beh="clr-namespace:Nexaflow.Visuals.Common.Behaviors;assembly=Nexaflow.Visuals.Common"
                           xmlns:views="clr-namespace:Nexaflow.Features.WindowsFileSystem.Views"
-             Background="{StaticResource BgBrush}">
+             Background="{StaticResource BgBrush}"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -69,10 +70,10 @@
         <!-- Right-click token-insert menu for the wizard's Arguments / Working-directory fields.
              x:Shared="False" so each field gets its own instance (a ContextMenu can't be shared). -->
         <ContextMenu x:Key="WzTokenMenu" x:Shared="False">
-            <MenuItem Header="#file — file name (with extension)"    Tag="#file"      Click="WzInsertToken_Click"/>
-            <MenuItem Header="#filenoext — file name (no extension)" Tag="#filenoext" Click="WzInsertToken_Click"/>
-            <MenuItem Header="#filepath — full path"                 Tag="#filepath"  Click="WzInsertToken_Click"/>
-            <MenuItem Header="#pathonly — containing folder"         Tag="#pathonly"  Click="WzInsertToken_Click"/>
+            <MenuItem Header="{loc:Str WindowsFileSystem.Wizard.Token.File}"      Tag="#file"      Click="WzInsertToken_Click"/>
+            <MenuItem Header="{loc:Str WindowsFileSystem.Wizard.Token.FileNoExt}" Tag="#filenoext" Click="WzInsertToken_Click"/>
+            <MenuItem Header="{loc:Str WindowsFileSystem.Wizard.Token.FilePath}"  Tag="#filepath"  Click="WzInsertToken_Click"/>
+            <MenuItem Header="{loc:Str WindowsFileSystem.Wizard.Token.PathOnly}"  Tag="#pathonly"  Click="WzInsertToken_Click"/>
         </ContextMenu>
 
 
@@ -495,7 +496,7 @@
                                FontSize="13" FontWeight="SemiBold"
                                HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextBrush}"/>
-                    <TextBlock Text="You can keep working — this view updates when it finishes."
+                    <TextBlock Text="{loc:Str WindowsFileSystem.List.Busy}"
                                Margin="0,6,0,0" FontSize="11"
                                HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{DynamicResource TextMutedBrush}"/>
@@ -525,7 +526,7 @@
                         <!-- Name -->
                         <GridViewColumn Width="300" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Name" Key="Name"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Name}" Key="Name"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -655,7 +656,7 @@
                         <!-- Type -->
                         <GridViewColumn Width="90" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Type" Key="TypeLabel"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Type}" Key="TypeLabel"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -670,7 +671,7 @@
                         <GridViewColumn Width="75">
                             <GridViewColumn.HeaderTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="Filesystem"
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.Columns.Filesystem}"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="11" FontWeight="SemiBold"/>
                                 </DataTemplate>
@@ -687,7 +688,7 @@
                         <!-- Size (wider for drive usage display) -->
                         <GridViewColumn Width="160" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Size" Key="SizeBytes"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Size}" Key="SizeBytes"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -725,7 +726,7 @@
                         <!-- Name -->
                         <GridViewColumn Width="300" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Name" Key="Name"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Name}" Key="Name"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -771,7 +772,7 @@
                         <!-- Type -->
                         <GridViewColumn Width="90" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Type" Key="TypeLabel"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Type}" Key="TypeLabel"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -785,7 +786,7 @@
                         <!-- Size -->
                         <GridViewColumn Width="80" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Size" Key="SizeBytes"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Size}" Key="SizeBytes"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -799,7 +800,7 @@
                         <!-- Modified -->
                         <GridViewColumn Width="150" HeaderTemplate="{StaticResource SortHeaderTemplate}">
                             <GridViewColumn.Header>
-                                <vm:SortableHeader Label="Modified" Key="Modified"/>
+                                <vm:SortableHeader Label="{loc:Str WindowsFileSystem.Columns.Modified}" Key="Modified"/>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type vm:FileSystemEntry}">
@@ -828,7 +829,7 @@
                     Visibility="{Binding IsLoadingEntries, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="⏳" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="Loading…"
+                    <TextBlock Text="{loc:Str WindowsFileSystem.List.Loading}"
                                Foreground="{StaticResource TextBrush}"
                                FontSize="13" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -846,13 +847,13 @@
                     <TextBlock Text="{Binding SelectionSummary}"
                                Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" VerticalAlignment="Center"/>
-                    <TextBlock Text="0 items"
+                    <TextBlock Text="{loc:Str WindowsFileSystem.Footer.NoItems}"
                                Foreground="{StaticResource TextMutedBrush}"
                                FontSize="11" VerticalAlignment="Center"
                                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{Binding FolderCountText}"
                                FontSize="11" VerticalAlignment="Center" Cursor="Hand"
-                               ToolTip="Show only folders"
+                               ToolTip="{loc:Str WindowsFileSystem.Footer.FoldersOnly.Tooltip}"
                                Visibility="{Binding HasFolders, Converter={StaticResource BoolToVis}}"
                                Foreground="{Binding ActiveFilter, Converter={x:Static conv:FilterBrushConverter.Instance}, ConverterParameter=Folders}">
                         <TextBlock.InputBindings>
@@ -865,7 +866,7 @@
                                Visibility="{Binding ShowCountSeparator, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{Binding FileCountText}"
                                FontSize="11" VerticalAlignment="Center" Cursor="Hand"
-                               ToolTip="Show only files"
+                               ToolTip="{loc:Str WindowsFileSystem.Footer.FilesOnly.Tooltip}"
                                Visibility="{Binding HasFiles, Converter={StaticResource BoolToVis}}"
                                Foreground="{Binding ActiveFilter, Converter={x:Static conv:FilterBrushConverter.Instance}, ConverterParameter=Files}">
                         <TextBlock.InputBindings>
@@ -902,14 +903,14 @@
                                 <DataTemplate DataType="{x:Type vm:FileActionViewModel}">
                                     <Button Command="{Binding ExecuteCommand}"
                                             ToolTip="{Binding ButtonTooltip}"
-                                            AutomationProperties.AutomationId="{Binding DisplayName}"
+                                            AutomationProperties.AutomationId="{Binding AutomationId}"
                                             Width="54" Height="58"
                                             Margin="1"
                                             Cursor="Hand"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                         <Button.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Modify"
+                                                <MenuItem Header="{loc:Str WindowsFileSystem.ActionStrip.Modify}"
                                                           Visibility="{Binding PlacementTarget.DataContext.CanModify,
                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu},
                                                                                Converter={StaticResource BoolToVis}}"
@@ -917,7 +918,7 @@
                                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                           CommandParameter="{Binding PlacementTarget.DataContext,
                                                                                      RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                <MenuItem Header="Add to Ribbon"
+                                                <MenuItem Header="{loc:Str WindowsFileSystem.ActionStrip.AddToRibbon}"
                                                           Command="{Binding PlacementTarget.Tag.PinFileActionToRibbonCommand,
                                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                           CommandParameter="{Binding PlacementTarget.DataContext,
@@ -1063,7 +1064,7 @@
             <!-- ── Create Overlay (single pane: type picker + filename) ─────── -->
             <vcc:ModalCard x:Name="CreateOverlay"
                            Grid.Row="0" Grid.Column="0" Grid.RowSpan="3" Grid.ColumnSpan="3" Panel.ZIndex="21"
-                           Tone="Accent" CardWidth="520" CardMaxHeight="470" Header="Create new"
+                           Tone="Accent" CardWidth="520" CardMaxHeight="470" Header="{loc:Str WindowsFileSystem.Create.Header}"
                            IsOpen="{Binding CreateOverlayVisible}" CancelCommand="{Binding CancelCreateCommand}">
                 <DockPanel>
                     <!-- Bottom: filename, existence warning, action buttons -->
@@ -1091,12 +1092,12 @@
                                      KeyDown="CreateFileNameBox_KeyDown"/>
                         </Border>
                         <TextBlock x:Name="CreateNameWarning"
-                                   Text="An item with this name already exists."
+                                   Text="{loc:Str WindowsFileSystem.Create.NameExists}"
                                    Foreground="{StaticResource WarningBrush}"
                                    FontSize="11"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding CreateNameExists, Converter={StaticResource BoolToVis}}"/>
-                        <Button x:Name="CreateConfirmButton" Content="Create"
+                        <Button x:Name="CreateConfirmButton" Content="{loc:Str WindowsFileSystem.Create.Confirm}"
                         AutomationProperties.AutomationId="FileSystem_CreateConfirm"
                                 Command="{Binding CreateCommand}"
                                 Cursor="Hand"
@@ -1132,7 +1133,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Cancel"
+                        <Button Content="{loc:Str WindowsFileSystem.Common.Cancel}"
                                 Command="{Binding CancelCreateCommand}"
                                 AutomationProperties.AutomationId="FileSystem_CreateCancel"
                                 Cursor="Hand">
@@ -1181,7 +1182,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:CreateActionViewModel}">
                                     <Button Command="{Binding SelectCommand}"
-                                            AutomationProperties.AutomationId="{Binding DisplayName}"
+                                            AutomationProperties.AutomationId="{Binding AutomationId}"
                                             ToolTip="{Binding DisplayName}"
                                             Width="84" Height="74" Margin="3"
                                             Cursor="Hand">
@@ -1271,7 +1272,7 @@
                 <DockPanel DataContext="{Binding Wizard}">
                     <!-- Header -->
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                        <TextBlock Text="Define new file association"
+                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.Title}"
                                    Foreground="{StaticResource TextBrush}"
                                    FontSize="14" FontWeight="SemiBold"/>
                         <TextBlock Text="{Binding StepIndicator}"
@@ -1281,12 +1282,12 @@
 
                     <!-- Footer -->
                     <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
-                        <Button DockPanel.Dock="Left" Content="Cancel"
+                        <Button DockPanel.Dock="Left" Content="{loc:Str WindowsFileSystem.Common.Cancel}"
                                 Style="{StaticResource WzSecondaryBtn}"
                                 Command="{Binding CancelCommand}"
                                 AutomationProperties.AutomationId="DefineNew_Cancel"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Back"
+                            <Button Content="{loc:Str WindowsFileSystem.Wizard.Back}"
                                     Style="{StaticResource WzSecondaryBtn}"
                                     Command="{Binding BackCommand}"
                                     AutomationProperties.AutomationId="DefineNew_Back"
@@ -1305,26 +1306,26 @@
                         <Grid>
                             <!-- Page 1: what to open with -->
                             <StackPanel Visibility="{Binding ShowModePage, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="What should these files open with?"
+                                <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ModePrompt}"
                                            Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                 <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                             Content="An internal viewer"
+                                             Content="{loc:Str WindowsFileSystem.Wizard.TargetInternal}"
                                              IsChecked="{Binding IsInternalSelected, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_TargetInternal"/>
                                 <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                             Content="An existing external app"
+                                             Content="{loc:Str WindowsFileSystem.Wizard.TargetExisting}"
                                              IsEnabled="{Binding HasExistingApps}"
                                              AutomationProperties.AutomationId="DefineNew_TargetExistingApp"
                                              IsChecked="{Binding IsExistingSelected, Mode=TwoWay}"/>
                                 <RadioButton GroupName="WzTarget" Style="{StaticResource WzOption}"
-                                             Content="A new external app"
+                                             Content="{loc:Str WindowsFileSystem.Wizard.TargetNew}"
                                              IsChecked="{Binding IsNewSelected, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_TargetNewApp"/>
                             </StackPanel>
 
                             <!-- Page 2 (internal): pick the viewer -->
                             <StackPanel Visibility="{Binding ShowInternalPicker, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Choose an internal viewer"
+                                <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ChooseViewer}"
                                            Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                 <ListBox ItemsSource="{Binding Experiences}"
                                          SelectedItem="{Binding SelectedExperience, Mode=TwoWay}"
@@ -1356,7 +1357,7 @@
 
                             <!-- Page 2a: existing external app (user-defined + system handlers) -->
                             <StackPanel Visibility="{Binding ShowAppPickPage, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Choose an app"
+                                <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ChooseApp}"
                                            Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                 <ListBox ItemsSource="{Binding ExistingApps}"
                                          SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
@@ -1381,9 +1382,9 @@
 
                             <!-- Page 2b: new external app fields -->
                             <StackPanel Visibility="{Binding ShowAppFieldsPage, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Application path" Style="{StaticResource WzLabel}" Margin="0,0,0,3"/>
+                                <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.AppPath}" Style="{StaticResource WzLabel}" Margin="0,0,0,3"/>
                                 <DockPanel>
-                                    <Button DockPanel.Dock="Right" Content="Browse…"
+                                    <Button DockPanel.Dock="Right" Content="{loc:Str WindowsFileSystem.Common.Browse}"
                                             Style="{StaticResource WzSecondaryBtn}"
                                             Command="{Binding BrowseAppPathCommand}"
                                             AutomationProperties.AutomationId="DefineNew_BrowseAppPath" Margin="8,0,0,0"/>
@@ -1391,7 +1392,7 @@
                                              Text="{Binding NewAppPath, UpdateSourceTrigger=PropertyChanged}"/>
                                 </DockPanel>
 
-                                <TextBlock Text="Display name" Style="{StaticResource WzLabel}"/>
+                                <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.DisplayName}" Style="{StaticResource WzLabel}"/>
                                 <TextBox Style="{StaticResource WzInput}"
                                          Text="{Binding NewAppDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
 
@@ -1404,39 +1405,40 @@
                                         Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,12,0,0"/>
 
                                 <StackPanel Visibility="{Binding AdvancedExpanded, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="Arguments" Style="{StaticResource WzLabel}"/>
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.Arguments}" Style="{StaticResource WzLabel}"/>
                                     <TextBox Style="{StaticResource WzInput}"
                                              ContextMenu="{StaticResource WzTokenMenu}"
                                              Text="{Binding NewAppArguments, UpdateSourceTrigger=PropertyChanged}"/>
                                     <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                               Text="Tokens: #file, #filenoext, #filepath, #pathonly (append [n] for the nth selected file). %VAR% expands environment variables. Right-click to insert."/>
-                                    <TextBlock Text="Working directory" Style="{StaticResource WzLabel}"/>
+                                               Text="{loc:Str WindowsFileSystem.Wizard.TokensHelp}"/>
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.WorkingDir}" Style="{StaticResource WzLabel}"/>
                                     <TextBox Style="{StaticResource WzInput}"
                                              ContextMenu="{StaticResource WzTokenMenu}"
                                              Text="{Binding NewAppWorkingDir, UpdateSourceTrigger=PropertyChanged}"/>
                                     <TextBlock Style="{StaticResource WzLabel}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                               Text="Leave blank to run in the file's own folder."/>
-                                    <TextBlock Text="Icon path" Style="{StaticResource WzLabel}"/>
+                                               Text="{loc:Str WindowsFileSystem.Wizard.WorkingDirHelp}"/>
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.IconPath}" Style="{StaticResource WzLabel}"/>
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Right" Content="Browse…"
+                                        <Button DockPanel.Dock="Right" Content="{loc:Str WindowsFileSystem.Common.Browse}"
                                                 Style="{StaticResource WzSecondaryBtn}"
                                                 Command="{Binding BrowseIconPathCommand}"
                                                 AutomationProperties.AutomationId="DefineNew_BrowseIconPath" Margin="8,0,0,0"/>
                                         <TextBox Style="{StaticResource WzInput}"
                                                  Text="{Binding NewAppIconPath, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DockPanel>
-                                    <TextBlock Text="Multi-file behaviour" Style="{StaticResource WzLabel}"/>
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.AppFields.MultiFile}" Style="{StaticResource WzLabel}"/>
                                     <ComboBox ItemsSource="{Binding MultiFileOptions}"
-                                              SelectedItem="{Binding NewAppMultiFileName, Mode=TwoWay}"/>
+                                              SelectedValue="{Binding NewAppMultiFileName, Mode=TwoWay}"
+                                              SelectedValuePath="Value" DisplayMemberPath="Label"/>
                                 </StackPanel>
                             </StackPanel>
 
                             <!-- Final page: scope -->
                             <StackPanel Visibility="{Binding ShowScopePage, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Where does this apply?"
+                                <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopePrompt}"
                                            Foreground="{StaticResource TextBrush}" FontSize="12"/>
                                 <DockPanel Margin="0,10,0,2">
-                                    <TextBlock Text="Extension:" Foreground="{StaticResource TextMutedBrush}"
+                                    <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.Extension}" Foreground="{StaticResource TextMutedBrush}"
                                                FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox Style="{StaticResource WzInput}" Width="140" HorizontalAlignment="Left"
                                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"/>
@@ -1447,31 +1449,31 @@
                                              IsChecked="{Binding IsScopeThisFile, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_ScopeThisFile">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Only this file ("/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeThisFilePrefix}"/>
                                         <TextBlock Text="{Binding SelectedFileName}"/>
-                                        <TextBlock Text=")"/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeThisFileSuffix}"/>
                                     </StackPanel>
                                 </RadioButton>
                                 <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
                                              IsChecked="{Binding IsScopeExtFolder, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_ScopeExtInFolder">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="All "/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeAllPrefix}"/>
                                         <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
-                                        <TextBlock Text=" in this folder + subfolders"/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeInFolderSuffix}"/>
                                     </StackPanel>
                                 </RadioButton>
                                 <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
                                              IsChecked="{Binding IsScopeExtAnywhere, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_ScopeExtAnywhere">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="All "/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeAllPrefix}"/>
                                         <TextBlock Text="{Binding ExtGlob}" FontWeight="SemiBold"/>
-                                        <TextBlock Text=" anywhere on this PC"/>
+                                        <TextBlock Text="{loc:Str WindowsFileSystem.Wizard.ScopeAnywhereSuffix}"/>
                                     </StackPanel>
                                 </RadioButton>
                                 <RadioButton GroupName="WzScope" Style="{StaticResource WzOption}"
-                                             Content="Custom globs (; separated, full-path)"
+                                             Content="{loc:Str WindowsFileSystem.Wizard.ScopeCustom}"
                                              IsChecked="{Binding IsScopeCustom, Mode=TwoWay}"
                                              AutomationProperties.AutomationId="DefineNew_ScopeCustomGlobs"/>
                                 <TextBox Style="{StaticResource WzInput}" Margin="0,4,0,0"

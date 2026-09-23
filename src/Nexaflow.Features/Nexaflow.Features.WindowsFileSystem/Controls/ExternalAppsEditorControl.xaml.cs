@@ -2,6 +2,8 @@ using Microsoft.Win32;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Features.WindowsFileSystem.ViewModels;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -75,8 +77,8 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
     {
         // External apps match by file extension glob or full-path glob; the richer FileMap
         // criteria types (PerceivedType/ContentType/MagicNumber) aren't honored for external apps.
-        public static IReadOnlyList<string> TypeOptions { get; } =
-            [nameof(CriteriaType.Extension), nameof(CriteriaType.PathPattern)];
+        public static IReadOnlyList<ChoiceOption> TypeOptions =>
+            ChoiceOption.CriteriaTypes(CriteriaType.Extension, CriteriaType.PathPattern);
 
         private string _typeName = nameof(CriteriaType.Extension);
         private string _value    = string.Empty;
@@ -107,8 +109,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
 
     public sealed class AppRow : INotifyPropertyChanged
     {
-        public static IReadOnlyList<string> MultiFileOptions { get; } =
-            Enum.GetNames<MultiFileMode>();
+        public static IReadOnlyList<ChoiceOption> MultiFileOptions => ChoiceOption.MultiFileModes();
 
         /// <summary>Stable identity carried through edits so Default Action overrides keep referencing
         /// this app. Set on creation / import / load; a new one is minted on save if still empty.</summary>
@@ -136,7 +137,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         public bool   HasCriteria  => CriteriaRows.Count > 0;
         /// <summary>List-row subtitle summarising the match rules.</summary>
         public string ListLabel => CriteriaRows.Count == 0
-            ? "(no match rules)"
+            ? Str.Get("WindowsFileSystem.ExternalApps.NoRules")
             : string.Join(", ", CriteriaRows.Where(r => !string.IsNullOrWhiteSpace(r.Value)).Select(r => r.Value));
 
         public ExternalAppDefinition ToDefinition() => new()
@@ -287,7 +288,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
 
     private void AddApp_Click(object sender, RoutedEventArgs e)
     {
-        var row = new AppRow { DisplayName = "New App", Id = Guid.NewGuid().ToString("N") };
+        var row = new AppRow { DisplayName = Str.Get("WindowsFileSystem.ExternalApps.NewApp"), Id = Guid.NewGuid().ToString("N") };
         row.CriteriaRows.Add(new CriterionRow());   // one empty extension rule to fill in
         row.PropertyChanged += OnRowPropertyChanged;
         _rows.Add(row);
@@ -321,7 +322,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         if (SelectedApp is null) return;
         var dlg = new OpenFileDialog
         {
-            Filter = "Executables (*.exe;*.bat;*.cmd)|*.exe;*.bat;*.cmd|All files (*.*)|*.*",
+            Filter = Str.Get("WindowsFileSystem.ExternalApps.ExeFilter"),
         };
         if (dlg.ShowDialog() == true) SelectedApp.ApplicationPath = dlg.FileName;
     }
@@ -340,7 +341,7 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         if (SelectedApp is null) return;
         var dlg = new OpenFileDialog
         {
-            Filter = "Icons (*.ico;*.exe;*.dll)|*.ico;*.exe;*.dll|All files (*.*)|*.*",
+            Filter = Str.Get("WindowsFileSystem.ExternalApps.IconFilter"),
         };
         if (dlg.ShowDialog() == true) SelectedApp.IconPath = dlg.FileName;
     }
@@ -380,11 +381,10 @@ public partial class ExternalAppsEditorControl : UserControl, ICustomConfigApply
         if (_shell is not null)
         {
             bool import = await _shell.ConfirmAsync(
-                "Turn off Windows-registered handlers?",
-                "The live \"Open with\" buttons and New-menu entries will stop appearing (re-enable any time).\n\n" +
-                "Keep your current Windows \"Open with\" apps by importing them into the External Apps list as " +
-                "editable buttons first?",
-                confirmLabel: "Import", cancelLabel: "Do not Import");
+                Str.Get("WindowsFileSystem.ExternalApps.TurnOffTitle"),
+                Str.Get("WindowsFileSystem.ExternalApps.TurnOffMessage"),
+                confirmLabel: Str.Get("WindowsFileSystem.ExternalApps.Import"),
+                cancelLabel:  Str.Get("WindowsFileSystem.ExternalApps.DoNotImport"));
             if (import)
                 await ImportRegistryHandlersAsync();
         }

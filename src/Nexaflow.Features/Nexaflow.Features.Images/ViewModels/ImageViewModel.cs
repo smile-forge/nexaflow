@@ -6,6 +6,7 @@ using Nexaflow.Features.Images.Services;
 using Nexaflow.Features.Images.Views;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -84,7 +85,9 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         : ImageCountText;
 
     /// <summary>"1 image" / "N images": the grid views' heading, and the context preview's caption.</summary>
-    public string ImageCountText => TotalImages == 1 ? "1 image" : $"{TotalImages} images";
+    public string ImageCountText => TotalImages == 1
+        ? Str.Get("Images.Header.ImageCountOne")
+        : Str.Format("Images.Header.ImageCountManyFormat", TotalImages);
 
     // ── View state ────────────────────────────────────────────────────────
 
@@ -107,7 +110,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
     [NotifyPropertyChangedFor(nameof(AutoSpeedLabel))]
     private int _autoSpeed = 1;
 
-    public string AutoSpeedLabel => AutoSpeed switch { 0 => "Slow", 2 => "Fast", _ => "Medium" };
+    public string AutoSpeedLabel => AutoSpeed switch
+    {
+        0 => Str.Get("Images.Speed.Slow"),
+        2 => Str.Get("Images.Speed.Fast"),
+        _ => Str.Get("Images.Speed.Medium"),
+    };
 
     // ── Dot indicator + thumbnails ────────────────────────────────────────
 
@@ -271,12 +279,12 @@ public partial class ImageViewModel : ObservableObject, IPageViewModel, IContext
         if (_shell is null || index < 0 || index >= _paths.Count) return;
 
         var name = Path.GetFileName(_paths[index]);
-        if (!await _shell.ConfirmAsync("Delete image", $"Send '{name}' to the Recycle Bin?"))
+        if (!await _shell.ConfirmAsync(Str.Get("Images.Delete.ConfirmTitle"), Str.Format("Images.Delete.ConfirmMessageFormat", name)))
             return;
 
         if (!RecycleBin.TryRecycle(_paths[index]))
         {
-            _shell.ShowError($"Couldn't delete '{name}'.");
+            _shell.ShowError(Str.Format("Images.Delete.FailedFormat", name));
             return;
         }
         RemoveAt(index);

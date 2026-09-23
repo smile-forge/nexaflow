@@ -74,7 +74,7 @@ public class ConsoleEnvironmentPickerJourneyTests : UiJourneyTestBase
     {
         MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("TabItem_FileSystem"))?.Click();
         NavigateFileBrowserTo(folder);
-        var action = WaitForId("Cmd Here", 8);
+        var action = WaitForId("CmdHereAction", 8);
         if (action is null) return false;
         action.AsButton().Invoke();
         return WaitForId("ConsoleView", 15) is not null;

@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -103,7 +104,7 @@ internal sealed class FileTransferTask(
             {
                 if (!NativeMethods.RecycleFiles(paths))
                     failures.Add(new TransferItemFailure(paths[0], "delete", 0,
-                        "Windows could not send everything to the Recycle Bin."));
+                        Str.Get("WindowsFileSystem.Operations.RecycleFailed")));
             }
             catch (Exception ex)
             {

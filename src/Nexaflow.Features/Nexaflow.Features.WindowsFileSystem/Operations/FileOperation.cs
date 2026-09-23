@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.IO.Common;
 using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -83,8 +84,8 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
 
     /// <summary>What the row says: "Moving 3 items to Archive".</summary>
     public string Title => string.IsNullOrEmpty(TargetLabel)
-        ? $"{Verb} {SourceSummary}"
-        : $"{Verb} {SourceSummary} to {TargetLabel}";
+        ? Str.Format("WindowsFileSystem.Operations.TitleFormat", Verb, SourceSummary)
+        : Str.Format("WindowsFileSystem.Operations.TitleToFormat", Verb, SourceSummary, TargetLabel);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFinished), nameof(CanCancel), nameof(CanRetry), nameof(IsPaused), nameof(IsActive), nameof(StatusGlyph), nameof(IsIndeterminate))]
@@ -162,7 +163,7 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
             // Said here rather than waiting for the next progress tick: a run parked inside one long
             // directory enumeration may not produce another for a while, and that silence is the whole
             // complaint. Finish() overwrites it with the outcome.
-            Detail = "Stopping…";
+            Detail = Str.Get("WindowsFileSystem.Operations.Stopping");
         }
         try { _cts.Cancel(); } catch (ObjectDisposedException) { }
     }
@@ -209,7 +210,7 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         // A cancel that has been heard says so, and keeps saying so. Left to report progress, a cancelling
         // run reads exactly like a running one — same glyph, same bytes-per-second, same estimate — so the
         // only evidence the click landed was that it eventually stopped, some minutes later.
-        Detail      = State is FileOperationState.Cancelling ? "Stopping…" : DescribeProgress(p);
+        Detail      = State is FileOperationState.Cancelling ? Str.Get("WindowsFileSystem.Operations.Stopping") : DescribeProgress(p);
     }
 
     internal void SetState(FileOperationState state) => State = state;
@@ -232,9 +233,11 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
 
         Detail = State switch
         {
-            FileOperationState.Cancelled => "Stopped.",
-            FileOperationState.Failed    => Problems.Count == 1 ? "1 problem" : $"{Problems.Count} problems",
-            _                            => "Done.",
+            FileOperationState.Cancelled => Str.Get("WindowsFileSystem.Operations.Stopped"),
+            FileOperationState.Failed    => Problems.Count == 1
+                ? Str.Get("WindowsFileSystem.Operations.ProblemOne")
+                : Str.Format("WindowsFileSystem.Operations.ProblemsFormat", Problems.Count),
+            _                            => Str.Get("WindowsFileSystem.Operations.Done"),
         };
 
         if (State is FileOperationState.Completed) Fraction = 1;
@@ -248,19 +251,22 @@ public sealed partial class FileOperation : ObservableObject, IFileTransferPromp
         Problems    = refusals;
         HasProblems = refusals.Count > 0;
         State       = HasProblems ? FileOperationState.Failed : FileOperationState.Completed;
-        Detail      = HasProblems ? refusals[0] : "Nothing to do.";
+        Detail      = HasProblems ? refusals[0] : Str.Get("WindowsFileSystem.Operations.NothingToDo");
         _completion.TrySetResult();
     }
 
     private static string DescribeProgress(TransferProgress p)
     {
-        if (p.Phase == TransferPhase.Scanning) return "Working out how much there is…";
-        if (p.BytesTotal <= 0) return p.ItemsTotal > 0 ? $"{p.ItemsDone} of {p.ItemsTotal}" : string.Empty;
+        if (p.Phase == TransferPhase.Scanning) return Str.Get("WindowsFileSystem.Operations.Scanning");
+        if (p.BytesTotal <= 0)
+            return p.ItemsTotal > 0 ? Str.Format("WindowsFileSystem.Operations.ProgressFormat", p.ItemsDone, p.ItemsTotal) : string.Empty;
 
-        var text = $"{SizeFormatter.FormatBytes(p.BytesDone)} of {SizeFormatter.FormatBytes(p.BytesTotal)}";
-        if (p.BytesPerSecond > 0) text += $" · {SizeFormatter.FormatBytes(p.BytesPerSecond)}/s";
+        var text = Str.Format("WindowsFileSystem.Operations.ProgressFormat",
+                              SizeFormatter.FormatBytes(p.BytesDone), SizeFormatter.FormatBytes(p.BytesTotal));
+        if (p.BytesPerSecond > 0)
+            text += Str.Format("WindowsFileSystem.Operations.RateFormat", SizeFormatter.FormatBytes(p.BytesPerSecond));
         if (p.Remaining is { } left && left > TimeSpan.FromSeconds(2))
-            text += $" · {DurationFormatter.FormatEta(left)} left";
+            text += Str.Format("WindowsFileSystem.Operations.EtaFormat", DurationFormatter.FormatEta(left));
         return text;
     }
 }

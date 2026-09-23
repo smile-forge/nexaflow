@@ -11,6 +11,7 @@ using System.Windows.Shapes;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.Controls;
 
@@ -111,7 +112,7 @@ public partial class RibbonBar : UserControl
     {
         var menu = new ContextMenu();
 
-        var openInNew = new MenuItem { Header = "Open in new Window" };
+        var openInNew = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.OpenInNewWindow") };
         openInNew.Click += (_, _) =>
         {
             if (OpenInNewWindowCommand?.CanExecute(item) == true)
@@ -124,10 +125,10 @@ public partial class RibbonBar : UserControl
         {
             menu.Items.Add(new Separator());
 
-            var rename = new MenuItem { Header = "Rename" };
+            var rename = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Rename") };
             rename.Click += (_, _) =>
                 Shell?.ShowPrompt(
-                    "Rename button", "New name:", item.Label,
+                    Str.Get("Shell.Ribbon.Rename.Title"), Str.Get("Shell.Ribbon.Rename.Prompt"), item.Label,
                     onConfirm: name =>
                     {
                         name = name.Trim();
@@ -138,15 +139,15 @@ public partial class RibbonBar : UserControl
                     onCancel: () => { });
             menu.Items.Add(rename);
 
-            var recolour = new MenuItem { Header = "Recolour" };
+            var recolour = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Recolour") };
             recolour.Click += (_, _) => ShowColourFlyout(item, anchor);
             menu.Items.Add(recolour);
 
-            var changeIcon = new MenuItem { Header = "Change icon" };
+            var changeIcon = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.ChangeIcon") };
             changeIcon.Click += (_, _) => ShowIconFlyout(item, anchor);
             menu.Items.Add(changeIcon);
 
-            var resize = new MenuItem { Header = item.IsHalf ? "Grow" : "Shrink" };
+            var resize = new MenuItem { Header = item.IsHalf ? Str.Get("Shell.Ribbon.Menu.Grow") : Str.Get("Shell.Ribbon.Menu.Shrink") };
             resize.Click += (_, _) => { item.IsHalf = !item.IsHalf; RebuildItems(); };
             menu.Items.Add(resize);
         }
@@ -155,7 +156,7 @@ public partial class RibbonBar : UserControl
 
         var delete = new MenuItem
         {
-            Header     = "Delete",
+            Header     = Str.Get("Shell.Ribbon.Menu.Delete"),
             Foreground = (Brush)FindResource("DangerBrush")
         };
         delete.Click += (_, _) =>

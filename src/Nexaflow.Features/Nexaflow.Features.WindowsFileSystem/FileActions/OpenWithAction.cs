@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -16,14 +17,14 @@ public sealed class OpenWithAction : IFileAction, ICacheable
     public bool   IsDestructive         => false;
     public bool   SupportsMultipleFiles => false;
     public string Icon                  => "↗";
-    public string DisplayName           => "Open With";
+    public string DisplayName           => Str.Get("WindowsFileSystem.Actions.OpenWith");
     public static string? StaticExperienceId => "/";
     public string ExperienceId          => "/";
-    public string ExperienceDescription => "All files";
+    public string ExperienceDescription => Str.Get("WindowsFileSystem.Experiences.AllFiles");
     public bool   RequiresRefresh       => false;
     public bool   CanPerformAction      => true;
     public bool   ShowsSuccessTick      => false;   // a chooser, not a completed operation
-    public string? Tooltip              => "Choose an app to open this file";
+    public string? Tooltip              => Str.Get("WindowsFileSystem.Actions.OpenWith.Tooltip");
 
     // A file inside a disk image / archive is virtual — the Open-With dialog needs a real path, so
     // materialise it to a temp copy first (a real file passes through unchanged).

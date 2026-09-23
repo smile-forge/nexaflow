@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem
 {
@@ -15,19 +16,19 @@ namespace Nexaflow.Features.WindowsFileSystem
         public static void CopyFile(string source, string dest)
         {
             try { File.Copy(source, dest, overwrite: false); }
-            catch (Exception ex) { throw Fail("copy", source, dest, ex); }
+            catch (Exception ex) { throw Fail(Str.Get("WindowsFileSystem.Errors.VerbCopy"), source, dest, ex); }
         }
 
         public static void MoveFile(string source, string dest)
         {
             try { File.Move(source, dest, overwrite: false); }
-            catch (Exception ex) { throw Fail("move", source, dest, ex); }
+            catch (Exception ex) { throw Fail(Str.Get("WindowsFileSystem.Errors.VerbMove"), source, dest, ex); }
         }
 
         public static void CopyDirectory(string source, string dest)
         {
             try { Directory.CreateDirectory(dest); }
-            catch (Exception ex) { throw Fail("copy", source, dest, ex); }
+            catch (Exception ex) { throw Fail(Str.Get("WindowsFileSystem.Errors.VerbCopy"), source, dest, ex); }
 
             foreach (var file in Directory.GetFiles(source))
                 CopyFile(file, Path.Combine(dest, Path.GetFileName(file)));
@@ -48,9 +49,9 @@ namespace Nexaflow.Features.WindowsFileSystem
                 // (or shift-drag) of a folder across drives works like it does in Explorer.
                 CopyDirectory(source, dest);
                 try { Directory.Delete(source, recursive: true); }
-                catch (Exception delEx) { throw Fail("move", source, dest, delEx); }
+                catch (Exception delEx) { throw Fail(Str.Get("WindowsFileSystem.Errors.VerbMove"), source, dest, delEx); }
             }
-            catch (Exception ex) { throw Fail("move", source, dest, ex); }
+            catch (Exception ex) { throw Fail(Str.Get("WindowsFileSystem.Errors.VerbMove"), source, dest, ex); }
         }
 
         /// <summary>Wraps <paramref name="ex"/> in a friendly <see cref="FileOperationException"/>;

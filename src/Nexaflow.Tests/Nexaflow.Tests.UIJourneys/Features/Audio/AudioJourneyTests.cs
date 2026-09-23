@@ -6,7 +6,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Audio.UI;
 
 /// <summary>
-/// One-pass UI journey for the Audio player: opens a sample track via the explicit <b>"As Audio"</b>
+/// One-pass UI journey for the Audio player: opens a sample track via the explicit <b>"ShowAudioAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the drawer toggles, tag-editor
 /// buttons, and always-present transport controls — soft-asserting each so a single gap doesn't hide the rest.
 ///
@@ -21,7 +21,7 @@ public class AudioJourneyTests : UiJourneyTestBase
     public void Audio_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("audio").First());
-        var view = OpenFileVia(TestSampleData.Path("audio"), file, "As Audio", "AudioView");
+        var view = OpenFileVia(TestSampleData.Path("audio"), file, "ShowAudioAction", "AudioView");
         Assert.IsNotNull(view, "AudioView did not open via the 'As Audio' action.");
 
         // Side drawer toggles (Lyrics then back to Tags so the tag-editor buttons are visible).

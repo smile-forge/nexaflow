@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem
 {
@@ -49,47 +50,29 @@ namespace Nexaflow.Features.WindowsFileSystem
         {
             string name = FriendlyName(source);
             string dest = string.IsNullOrEmpty(destFolder)
-                ? "the destination"
+                ? Str.Get("WindowsFileSystem.Errors.TheDestination")
                 : $"\"{FriendlyName(destFolder)}\"";
+
+            // Every sentence gets the same arguments — {0} verb, {1} item, {2} destination, {3} the CLR message — so a
+            // translation can use whichever it needs, in the order its grammar wants.
+            object[] args = [verb, name, dest, ex.Message];
 
             return CodeOf(ex) switch
             {
-                ERROR_SHARING_VIOLATION =>
-                    $"Can't {verb} \"{name}\" because it's open in another program. Close it and try again.",
-
-                ERROR_LOCK_VIOLATION =>
-                    $"Can't {verb} \"{name}\" because part of it is locked by another program.",
-
-                ERROR_ACCESS_DENIED =>
-                    $"Can't {verb} \"{name}\" — access denied. You may not have permission to write to {dest}, " +
-                    "the file may be read-only, or it needs administrator rights.",
-
-                ERROR_WRITE_PROTECT =>
-                    $"Can't {verb} \"{name}\" — {dest} is write-protected.",
-
-                ERROR_DISK_FULL or ERROR_HANDLE_DISK_FULL =>
-                    $"There isn't enough free space in {dest} to {verb} \"{name}\".",
-
-                ERROR_FILE_EXISTS or ERROR_ALREADY_EXISTS =>
-                    $"\"{name}\" already exists in {dest}.",
-
-                ERROR_NOT_SAME_DEVICE =>
-                    $"Can't {verb} \"{name}\" to {dest} because it's on a different drive.",
-
-                ERROR_FILENAME_EXCED_RANGE =>
-                    $"Can't {verb} \"{name}\" — the resulting path in {dest} is too long.",
-
-                ERROR_FILE_NOT_FOUND or ERROR_PATH_NOT_FOUND =>
-                    $"\"{name}\" no longer exists — it may have been moved or deleted.",
-
-                ERROR_INVALID_NAME =>
-                    $"Can't {verb} \"{name}\" — {dest} won't accept that name.",
-
-                ERROR_DIR_NOT_EMPTY =>
-                    $"Can't {verb} \"{name}\" because a folder with that name already exists in {dest} and isn't empty.",
+                ERROR_SHARING_VIOLATION                      => Str.Format("WindowsFileSystem.Errors.SharingViolationFormat", args),
+                ERROR_LOCK_VIOLATION                         => Str.Format("WindowsFileSystem.Errors.LockViolationFormat", args),
+                ERROR_ACCESS_DENIED                          => Str.Format("WindowsFileSystem.Errors.AccessDeniedFormat", args),
+                ERROR_WRITE_PROTECT                          => Str.Format("WindowsFileSystem.Errors.WriteProtectedFormat", args),
+                ERROR_DISK_FULL or ERROR_HANDLE_DISK_FULL    => Str.Format("WindowsFileSystem.Errors.DiskFullFormat", args),
+                ERROR_FILE_EXISTS or ERROR_ALREADY_EXISTS    => Str.Format("WindowsFileSystem.Errors.AlreadyExistsFormat", args),
+                ERROR_NOT_SAME_DEVICE                        => Str.Format("WindowsFileSystem.Errors.NotSameDeviceFormat", args),
+                ERROR_FILENAME_EXCED_RANGE                   => Str.Format("WindowsFileSystem.Errors.PathTooLongFormat", args),
+                ERROR_FILE_NOT_FOUND or ERROR_PATH_NOT_FOUND => Str.Format("WindowsFileSystem.Errors.NotFoundFormat", args),
+                ERROR_INVALID_NAME                           => Str.Format("WindowsFileSystem.Errors.InvalidNameFormat", args),
+                ERROR_DIR_NOT_EMPTY                          => Str.Format("WindowsFileSystem.Errors.DirNotEmptyFormat", args),
 
                 // Fall back to the CLR message, which is still more specific than "something went wrong".
-                _ => $"Couldn't {verb} \"{name}\": {ex.Message}",
+                _ => Str.Format("WindowsFileSystem.Errors.UnknownFormat", args),
             };
         }
 

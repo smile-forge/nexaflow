@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -89,8 +90,9 @@ public sealed class FileOperationQueue : IFileOperationHost
         var request = new FileTransferRequest(
             move ? TransferKind.Move : TransferKind.Copy, items, ConflictPolicy.AutoRename);
 
-        var op = new FileOperation(move ? "Moving" : "Copying", Describe(items),
-                                   LabelFor(destinationFolder), items.Count);
+        var op = new FileOperation(
+            move ? Str.Get("WindowsFileSystem.Operations.Moving") : Str.Get("WindowsFileSystem.Operations.Copying"),
+            Describe(items), LabelFor(destinationFolder), items.Count);
         if (refusals.Count > 0) _shell.ShowError(string.Join(Environment.NewLine, refusals));
 
         Start(op, new FileTransferTask(op, this, request, recycle: false, VolumeKey(destinationFolder)),
@@ -110,8 +112,9 @@ public sealed class FileOperationQueue : IFileOperationHost
             TransferKind.Delete, [.. real.Select(p => new TransferItem(p, p))], ConflictPolicy.Fail);
 
         // A delete says nothing when it works: the files being gone is its own confirmation.
-        var op = new FileOperation(permanent ? "Deleting" : "Recycling", Describe(request.Items),
-                                   targetLabel: string.Empty, request.Items.Count, announceOnSuccess: false);
+        var op = new FileOperation(
+            permanent ? Str.Get("WindowsFileSystem.Operations.Deleting") : Str.Get("WindowsFileSystem.Operations.Recycling"),
+            Describe(request.Items), targetLabel: string.Empty, request.Items.Count, announceOnSuccess: false);
         Start(op, new FileTransferTask(op, this, request, recycle: !permanent, VolumeKey(real[0])),
               onSucceeded: null);
         return op;
@@ -156,7 +159,7 @@ public sealed class FileOperationQueue : IFileOperationHost
     private static string Describe(IReadOnlyList<TransferItem> items)
         => items.Count == 1
             ? Path.GetFileName(items[0].Source.TrimEnd(Path.DirectorySeparatorChar))
-            : $"{items.Count} items";
+            : Str.Format("WindowsFileSystem.Operations.ItemsFormat", items.Count);
 
     // ── Controls ──────────────────────────────────────────────────────────────
 
@@ -218,14 +221,14 @@ public sealed class FileOperationQueue : IFileOperationHost
 
         if (op.Problems.Count == 0)
         {
-            if (op.AnnounceOnSuccess) _shell.ShowNotification($"{op.Title} — done.");
+            if (op.AnnounceOnSuccess) _shell.ShowNotification(Str.Format("WindowsFileSystem.Operations.DoneNotificationFormat", op.Title));
             _shell.RequestRefresh();
             return;
         }
 
         // A 40,000-file copy that goes wrong must not produce 40,000 messages; the row keeps the rest.
         var shown = op.Problems.Take(5).ToList();
-        if (op.Problems.Count > shown.Count) shown.Add($"…and {op.Problems.Count - shown.Count} more.");
+        if (op.Problems.Count > shown.Count) shown.Add(Str.Format("WindowsFileSystem.Operations.MoreProblemsFormat", op.Problems.Count - shown.Count));
         _shell.ShowError(string.Join(Environment.NewLine, shown));
         _shell.RequestRefresh();
     }

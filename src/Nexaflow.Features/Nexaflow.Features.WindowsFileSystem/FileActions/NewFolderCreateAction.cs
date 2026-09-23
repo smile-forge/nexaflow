@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.IO;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
@@ -10,7 +11,7 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class NewFolderCreateAction : IFileCreateAction, ICacheable
 {
     public string Icon          => "📁";
-    public string DisplayName   => "Folder";
+    public string DisplayName   => Str.Get("WindowsFileSystem.Create.FolderType");
     public string FileExtension => string.Empty;
 
     public string? Create(string folderPath, string fileName)

@@ -11,7 +11,11 @@ namespace Nexaflow.Tests.Features;
 public static class ViewersConfigIsolation
 {
     [AssemblyInitialize]
-    public static void Init(TestContext _) => TestConfigRoot.Redirect("viewers");
+    public static void Init(TestContext _)
+    {
+        TestConfigRoot.Redirect("viewers");
+        Localization.EnglishStrings.Use();
+    }
 
     [AssemblyCleanup]
     public static void Cleanup() => TestConfigRoot.Restore();

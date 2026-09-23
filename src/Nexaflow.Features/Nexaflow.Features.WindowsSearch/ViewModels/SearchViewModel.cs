@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.Data.OleDb;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsSearch.ViewModels;
 
@@ -54,7 +55,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     /// </summary>
     public static string TabTitleFor(string query) =>
         string.IsNullOrWhiteSpace(query)
-            ? "Search"
+            ? Str.Get("WindowsSearch.Tab.Title")
             : query.Length > TabQueryChars ? query[..TabQueryChars] + "…" : query;
 
     /// <summary>
@@ -87,9 +88,14 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         if (!string.IsNullOrEmpty(SearchRoot))
             Tab.Breadcrumbs.Add(FileBreadcrumbs.ForDirectory(SearchRoot));
         else
-            Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = _drives.Count > 0 ? "This PC" : "Search" });
+            Tab.Breadcrumbs.Add(new BreadcrumbSegment
+            {
+                Label = _drives.Count > 0
+                    ? Str.Get("WindowsSearch.Breadcrumb.ThisPc")
+                    : Str.Get("WindowsSearch.Breadcrumb.Search")
+            });
 
-        Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = $"Query : {SearchQuery}" });
+        Tab.Breadcrumbs.Add(new BreadcrumbSegment { Label = Str.Format("WindowsSearch.Breadcrumb.QueryFormat", SearchQuery) });
     }
 
     partial void OnSearchQueryChanged(string value) => SyncTab();
@@ -146,7 +152,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         if (string.IsNullOrWhiteSpace(SearchQuery) ||
             (string.IsNullOrEmpty(SearchRoot) && _drives.Count == 0))
         {
-            StatusText = "Enter a search term.";
+            StatusText = Str.Get("WindowsSearch.Status.EnterTerm");
             return;
         }
 
@@ -155,7 +161,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         var request = SearchSyntax.ParseRequest(SearchQuery, TermRecognizers);
         if (!request.TryValidate(out var invalid))
         {
-            ShowQueryProblem($"Invalid pattern: {invalid}");
+            ShowQueryProblem(Str.Format("WindowsSearch.Query.InvalidPatternFormat", invalid));
             return;
         }
 
@@ -195,15 +201,20 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     {
         Results.Clear();
         ResultCount        = 0;
-        StatusText         = "Nothing searched.";
+        StatusText         = Str.Get("WindowsSearch.Status.NothingSearched");
         VerificationPhase  = VerifyPhase.Done;
         VerificationBanner = message;
     }
 
     /// <summary>Message for a pattern with nothing to seed the index on.</summary>
     private static string UnseedableNote(string pattern) =>
-        $"/{pattern}/ has no literal text to search on, so the index can't narrow it. " +
-        "Add some literal characters to the pattern, or search a smaller folder.";
+        Str.Format("WindowsSearch.Query.UnseedableFormat", pattern);
+
+    /// <summary>The status line for a finished search or scan.</summary>
+    private string ResultsStatus() =>
+        ResultCount == 0 ? Str.Get("WindowsSearch.Status.NoResults")
+        : ResultCount == 1 ? Str.Format("WindowsSearch.Status.ResultOneFormat", ResultCount)
+        : Str.Format("WindowsSearch.Status.ResultManyFormat", ResultCount);
 
     /// <summary>Re-runs the last query (including any merged refinements) without re-parsing.</summary>
     public async Task RefreshAsync()
@@ -399,7 +410,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         CanRescan          = false;
         VerificationPhase  = VerifyPhase.Scanning;
         VerificationBanner = VerificationPlanner.Scanning(0).Banner;
-        StatusText         = "Scanning…";
+        StatusText         = Str.Get("WindowsSearch.Status.Scanning");
 
         var found = 0;
 
@@ -451,7 +462,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             if (!IsCurrentScan(cts)) return;
 
             VerificationPhase  = VerifyPhase.Done;
-            VerificationBanner = $"Scan failed: {ex.Message}";
+            VerificationBanner = Str.Format("WindowsSearch.Banner.ScanFailedFormat", ex.Message);
         }
         finally
         {
@@ -461,9 +472,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
             {
                 IsSearching = false;
                 _lastOrigin = SearchOrigin.FolderScan;
-                StatusText  = ResultCount == 0
-                    ? "No results."
-                    : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
+                StatusText  = ResultsStatus();
             }
         }
     }
@@ -570,7 +579,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         if (request is null) return;
 
         VerificationPhase  = VerifyPhase.Running;
-        VerificationBanner = $"Possible matches found — verifying {candidates.Count}…";
+        VerificationBanner = Str.Format("WindowsSearch.Banner.VerifyingFormat", candidates.Count);
 
         var verifier = new SearchVerifier(_shellServices.GetFileTextExtractor);
         var hits     = candidates.ToDictionary(c => c.FilePath, StringComparer.OrdinalIgnoreCase);
@@ -694,7 +703,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         var ct = _cts.Token;
 
         IsSearching = true;
-        StatusText  = "Searching…";
+        StatusText  = Str.Get("WindowsSearch.Status.Searching");
         Results.Clear();
         ResultCount = 0;
 
@@ -756,9 +765,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
             foreach (var e in entries) Results.Add(e);
             ResultCount = Results.Count;
-            StatusText  = ResultCount == 0
-                ? "No results."
-                : $"{ResultCount} result{(ResultCount == 1 ? "" : "s")}";
+            StatusText  = ResultsStatus();
 
             // Rows that might not be real outrank how complete the search was: settle them first, and let
             // CompleteSweep have the last word on the banner.
@@ -767,11 +774,11 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
         catch (OperationCanceledException)
         {
-            StatusText = "Search cancelled.";
+            StatusText = Str.Get("WindowsSearch.Status.Cancelled");
         }
         catch (OleDbException ex)
         {
-            StatusText  = "Windows Search service unavailable.";
+            StatusText  = Str.Get("WindowsSearch.Status.ServiceUnavailable");
             ResultCount = 0;
             Debug.WriteLine($"[WindowsSearch] OleDbException: {ex.Message}");
 
@@ -786,7 +793,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
         }
         catch (Exception ex)
         {
-            StatusText  = $"Search error: {ex.Message}";
+            StatusText  = Str.Format("WindowsSearch.Status.ErrorFormat", ex.Message);
             ResultCount = 0;
         }
         finally
@@ -991,10 +998,10 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
     public async Task<SearchOutcome> SearchAsync(SearchRequest request, bool display, CancellationToken ct)
     {
         if (!request.TryValidate(out var invalid))
-            return SearchOutcome.Unsupported($"Invalid pattern: {invalid}");
+            return SearchOutcome.Unsupported(Str.Format("WindowsSearch.Query.InvalidPatternFormat", invalid));
 
         if (!HasSearchScope)
-            return SearchOutcome.Unsupported("This search tab has no scope to search.");
+            return SearchOutcome.Unsupported(Str.Get("WindowsSearch.Query.NoScope"));
 
         // Results that came from a folder scan can only be narrowed by another folder scan. Re-querying the
         // index would ask the one source that already had nothing to say about this location — which is
@@ -1080,7 +1087,7 @@ public sealed partial class SearchViewModel : ObservableObject, IPageViewModel, 
 
         foreach (var r in drop) Results.Remove(r);
         ResultCount = Results.Count;
-        StatusText  = $"{ResultCount} of {ResultCount + drop.Count} result(s) shown.";
+        StatusText  = Str.Format("WindowsSearch.Status.ShownFormat", ResultCount, ResultCount + drop.Count);
         return Task.FromResult(true);
     }
 

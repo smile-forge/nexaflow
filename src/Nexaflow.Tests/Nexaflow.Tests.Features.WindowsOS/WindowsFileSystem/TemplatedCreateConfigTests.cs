@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -14,7 +15,7 @@ public class TemplatedCreateConfigTests
         var cfg = new TemplatedCreateConfig();
 
         Assert.AreEqual("templatedcreate", cfg.ConfigName);
-        Assert.AreEqual("Templated Create", cfg.FriendlyName);
+        Assert.AreEqual(Str.Get("WindowsFileSystem.Config.TemplatedCreate"), cfg.FriendlyName);
         Assert.AreEqual(0, cfg.Templates.Count);
     }
 

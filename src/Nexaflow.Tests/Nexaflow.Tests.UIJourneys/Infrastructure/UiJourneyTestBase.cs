@@ -29,7 +29,7 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
     /// clicking its ActionStrip action (by <paramref name="actionDisplayName"/>) — deterministic, unlike a
     /// double-click which only fires the <i>default</i> file-type mapping. Returns the viewer root (or null).
     /// </summary>
-    protected AutomationElement? OpenFileVia(string folder, string fileName, string actionDisplayName,
+    protected AutomationElement? OpenFileVia(string folder, string fileName, string actionAutomationId,
                                              string viewerAutomationId, int seconds = 15)
     {
         NavigateFileBrowserTo(folder);
@@ -40,8 +40,8 @@ public abstract class UiJourneyTestBase : FileSystemUiTestBase
         Wait.UntilInputIsProcessed();
         System.Threading.Thread.Sleep(200);
 
-        var action = WaitForId(actionDisplayName, 6);
-        Assert.IsNotNull(action, $"Action '{actionDisplayName}' not found in the ActionStrip for '{fileName}'.");
+        var action = WaitForId(actionAutomationId, 6);
+        Assert.IsNotNull(action, $"Action '{actionAutomationId}' not found in the ActionStrip for '{fileName}'.");
         action!.AsButton().Invoke();
         Wait.UntilInputIsProcessed();
 

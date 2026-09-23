@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -15,7 +17,7 @@ public class FileSystemEntryTests
     {
         var entry = new FileSystemEntry { Name = "docs", IsDirectory = true };
 
-        Assert.AreEqual("Folder", entry.TypeLabel);
+        Assert.AreEqual(Str.Get("WindowsFileSystem.Entry.Folder"), entry.TypeLabel);
     }
 
     [TestMethod]
@@ -92,8 +94,8 @@ public class FileSystemEntryTests
         entry.DriveTotalBytes = 1024L * 1024 * 1024 * 100; // 100 GB
         entry.DriveUsedBytes  = 1024L * 1024 * 1024 * 50;  // 50 GB
 
-        StringAssert.Contains(entry.SizeLabel, "50%");
-        StringAssert.Contains(entry.SizeLabel, "used");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Entry.DriveUsedFormat", SizeFormatter.FormatBytes(entry.DriveUsedBytes), 50.0),
+                        entry.SizeLabel);
     }
 
     // ── ModifiedLabel ─────────────────────────────────────────────────────────

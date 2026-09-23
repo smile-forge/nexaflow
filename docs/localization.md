@@ -52,6 +52,20 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   a dictionary read.
 - **Features** reach `Str` through `Nexaflow.Visuals.Common`, which they already reference. Core sets `Str.Source`
   at startup, the same shape as `TextTypography`, so nothing needs Core.
+- **A key is a literal inside the call** — `on ? Str.Get("A.On") : Str.Get("A.Off")`, never
+  `Str.Get(on ? "A.On" : "A.Off")` or a computed key. The guard finds keys by reading `Str.Get("…")`,
+  `Str.Format("…"` and `{loc:Str …}`; a key it cannot read is a key it cannot check.
+- **An AutomationId is never display text.** Journeys and `locate:` links find controls by id, in whatever
+  language is loaded. A bound id binds to an invariant property — a file action's `AutomationId` (its type name,
+  or the verb / app / template it was built for), never its `DisplayName`.
+- **Never hold a string in a `static` field.** A language change restarts the window, not the process, so
+  `static readonly string X = Str.Get(…)` keeps the old language. Call `Str` where the text is shown, or in an
+  instance constructor.
+- **Translate only what is shown.** Config values, command ids, AI tool names and anything saved or compared stay
+  invariant; the words a user reads are looked up from them. A test that finds a control by its text compares
+  against `Str.Get(key)`, never the English literal. The feature suites load English from the source tree
+  (`EnglishStrings.Use()` in each suite's `[AssemblyInitialize]`), so `Str.Format(key, 3)` there reads as the real
+  sentence with its number; `Tests.Core` has no table loaded and gets the key back.
 
 ## Help pages
 
@@ -100,8 +114,15 @@ off into a satellite assembly instead of the pack.
 | `LanguageManagerTests`, `LocalizedStringsTests` | discovery that loads packs; the fallback chain; a pack loaded twice |
 | `nexaflowSetup.wixproj` | an installer payload missing a pack |
 
-## Not localized yet
+## What is localized
 
-Everything outside the Help pane and the Help button: the rest of the shell's chrome, feature views, AI prompts
-and error messages. Moving a string over is mechanical — add its key to the project's `strings.json` and replace the
-literal with `{loc:Str …}` or `Str.Get(…)` — and the guard checks each one as it lands.
+The product tree's `i18n` concern is the ledger. Every feature root carries it, `should` until its words are in
+its project's `strings.json`, then `done` with a snaplink to that file (`nfi query --concern i18n` lists where each
+stands). Core carries it per area: the shell chrome — window frame, tab strip, breadcrumb, ribbon bar, AI bar and
+response surfaces, messages, prompts — and Help are `done`; Options, workspaces, the ribbon editor, the file
+pickers and the setup wizard are `should`. AI prompts and tool descriptions stay English: they are read by the
+model, not the user.
+
+Moving a feature over is mechanical — add its keys to `Localization/en/strings.json` at the project's root, replace
+each literal with `{loc:Str …}` or `Str.Get(…)`, then flip the feature's `i18n` concern to `done` and snaplink it
+to that file. The guard checks each key as it lands.

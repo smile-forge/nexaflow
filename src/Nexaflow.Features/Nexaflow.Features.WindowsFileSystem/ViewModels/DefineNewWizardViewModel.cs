@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.FileActions;
 using Nexaflow.Features.WindowsFileSystem.Services;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -78,7 +79,7 @@ public partial class DefineNewWizardViewModel : ObservableObject
 
     // ── Page 2 (new external): app fields ────────────────────────────────────
 
-    public IReadOnlyList<string> MultiFileOptions { get; } = Enum.GetNames<MultiFileMode>();
+    public IReadOnlyList<ChoiceOption> MultiFileOptions { get; } = ChoiceOption.MultiFileModes();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AdvanceCommand))]
@@ -97,7 +98,7 @@ public partial class DefineNewWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AdvancedHeader))]
     private bool _advancedExpanded;
 
-    public string AdvancedHeader => (AdvancedExpanded ? "▾ " : "▸ ") + "Advanced options";
+    public string AdvancedHeader => (AdvancedExpanded ? "▾ " : "▸ ") + Str.Get("WindowsFileSystem.AppFields.Advanced");
 
     /// <summary>Auto-fills a display name from the chosen executable when the user hasn't typed one.</summary>
     partial void OnNewAppPathChanged(string value)
@@ -210,8 +211,8 @@ public partial class DefineNewWizardViewModel : ObservableObject
     public int  TotalPages => 3;
     public bool IsLastPage => PageIndex == TotalPages - 1;
     public bool ShowBack   => PageIndex > 0;
-    public string StepIndicator   => $"Step {PageIndex + 1} of {TotalPages}";
-    public string AdvanceButtonText => IsLastPage ? "Finish" : "Next";
+    public string StepIndicator   => Str.Format("WindowsFileSystem.Wizard.StepFormat", PageIndex + 1, TotalPages);
+    public string AdvanceButtonText => IsLastPage ? Str.Get("WindowsFileSystem.Wizard.Finish") : Str.Get("WindowsFileSystem.Wizard.Next");
 
     public bool ShowModePage       => PageIndex == 0;
     public bool ShowInternalPicker => PageIndex == 1 && Target == DefineNewTarget.InternalViewer;

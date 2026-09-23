@@ -9,7 +9,7 @@ namespace Nexaflow.Tests.Features.Tabular.UI;
 
 /// <summary>
 /// The one UI journey for the Tabular (CSV/TSV) viewer — the integration test registered at the feature's
-/// UI node. It opens a sample file via the explicit <b>"As Table"</b> ActionStrip button (not a
+/// UI node. It opens a sample file via the explicit <b>"ShowTabularAction"</b> ActionStrip button (not a
 /// default-mapping double-click), confirms the toolbar descriptor, then opens each side surface in turn —
 /// the Template This popup and the Apply-Template panel — and exercises their controls. Every check is
 /// soft, so a single gap doesn't hide the rest.
@@ -29,7 +29,7 @@ public class TabularJourneyTests : UiJourneyTestBase
     public void Tabular_Controls_RespondInOnePass()
     {
         var file = Path.GetFileName(TestSampleData.Files("tabular").First());
-        var view = OpenFileVia(TestSampleData.Path("tabular"), file, "As Table", "TabularView");
+        var view = OpenFileVia(TestSampleData.Path("tabular"), file, "ShowTabularAction", "TabularView");
         Assert.IsNotNull(view, "TabularView did not open via the 'As Table' action.");
 
         // ── Toolbar ───────────────────────────────────────────────────────────

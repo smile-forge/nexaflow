@@ -8,7 +8,8 @@
         Topmost="True"
         Focusable="True"
         Background="{StaticResource BgBrush}"
-        Cursor="Hand">
+        Cursor="Hand"
+        xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common">
 
     <Grid>
         <Viewbox Stretch="Uniform" Margin="24">
@@ -26,6 +27,6 @@
 
         <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
-                   Text="Esc exit · Space / → next · ← previous · click to navigate"/>
+                   Text="{loc:Str Images.FullScreen.Hint}"/>
     </Grid>
 </Window>

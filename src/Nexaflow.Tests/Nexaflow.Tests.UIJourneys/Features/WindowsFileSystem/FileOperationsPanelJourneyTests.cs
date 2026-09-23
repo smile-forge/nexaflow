@@ -71,7 +71,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
         // The ActionStrip rather than Ctrl+C/Ctrl+V: NavigateFileBrowserTo types the path into the AI
         // input bar, so focus is still in that text box and a Ctrl+V would paste into it instead.
-        var copy = WaitForId("Copy", 8);
+        var copy = WaitForId("CopyFiles", 8);
         Assert.IsNotNull(copy, "No Copy action for the selected folder.");
         copy!.AsButton().Invoke();
         Wait.UntilInputIsProcessed();
@@ -82,7 +82,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         Check("the panel is not there before anything is happening",
               () => WaitForGone("FileOps_Progress", 2));
 
-        var paste = WaitForId("Paste", 8);
+        var paste = WaitForId("PasteFiles", 8);
         Assert.IsNotNull(paste, "No Paste action — the copy never reached the clipboard.");
         paste!.AsButton().Invoke();
 
@@ -164,14 +164,14 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
             Assert.IsTrue(SelectInFileList(name), $"'{name}' is not in the file list.");
 
-            var copy = WaitForId("Copy", 30);
+            var copy = WaitForId("CopyFiles", 30);
             Assert.IsNotNull(copy, $"No Copy action for '{name}'.");
             copy!.AsButton().Invoke();
             Wait.UntilInputIsProcessed();
 
             NavigateFileBrowserTo(_destination);
 
-            var paste = WaitForId("Paste", 30);
+            var paste = WaitForId("PasteFiles", 30);
             Assert.IsNotNull(paste, $"No Paste action for '{name}'.");
             paste!.AsButton().Invoke();
             Wait.UntilInputIsProcessed();
@@ -269,13 +269,13 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         NavigateFileBrowserTo(_source);
         Assert.IsTrue(SelectInFileList("payload"), "The folder to copy is not in the file list.");
 
-        var copy = WaitForId("Copy", 30);
+        var copy = WaitForId("CopyFiles", 30);
         Assert.IsNotNull(copy, "No Copy action.");
         copy!.AsButton().Invoke();
         Wait.UntilInputIsProcessed();
 
         NavigateFileBrowserTo(_destination);
-        var paste = WaitForId("Paste", 30);
+        var paste = WaitForId("PasteFiles", 30);
         Assert.IsNotNull(paste, "No Paste action.");
         paste!.AsButton().Invoke();
 
@@ -333,8 +333,8 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
         NavigateFileBrowserTo(_source);
         Assert.IsTrue(SelectInFileList("payload"), "The folder to zip is not in the file list.");
 
-        // The action strip's ids are the actions' own display names.
-        var zipIt = WaitForId("Zip It", 30);
+        // The action strip's ids are the actions' type names (IFileAction.AutomationId).
+        var zipIt = WaitForId("ZipItAction", 30);
         Assert.IsNotNull(zipIt, "No Zip It action for the selected folder.");
         zipIt!.AsButton().Invoke();
 
@@ -394,7 +394,7 @@ public class FileOperationsPanelJourneyTests : UiJourneyTestBase
 
         // Only an archive offers this, so finding it is also the proof that the click landed on the zip
         // rather than on a neighbouring row.
-        var unzip = WaitForId("Unzip here", 30);
+        var unzip = WaitForId("UnzipHereAction", 30);
         Assert.IsNotNull(unzip, "No Unzip here action — the selection is not the archive.");
         unzip!.AsButton().Invoke();
 

@@ -7,6 +7,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Threading.Tasks;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -86,9 +87,9 @@ public class DeleteActionTests
         new DeleteFile(shell).PerformAction(File_("budget.xlsx"));
         new DeleteFile(shell).PerformAction([File_("a.txt"), File_("b.txt"), File_("c.txt")]);
 
-        StringAssert.Contains(messages[0], "budget.xlsx",
-                              "with one file the prompt should say which one — that is the whole check");
-        StringAssert.Contains(messages[1], "3 items");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Delete.ConfirmOneFormat", "budget.xlsx"), messages[0],
+                        "with one file the prompt should say which one — that is the whole check");
+        Assert.AreEqual(Str.Format("WindowsFileSystem.Delete.ConfirmManyFormat", 3), messages[1]);
     }
 
     [TestMethod]

@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 
@@ -7,5 +8,5 @@ namespace Nexaflow.Features.WindowsFileSystem.FileActions;
 public sealed class FileMapConfig : IFeatureConfig
 {
     public string ConfigName   => "filemap";
-    public string FriendlyName => "File Type Actions";
+    public string FriendlyName => Str.Get("WindowsFileSystem.Config.FileMap");
 }

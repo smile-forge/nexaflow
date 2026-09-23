@@ -10,7 +10,7 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Text.UI;
 
 /// <summary>
-/// One-pass UI journey for the Text viewer: opens a text sample via the explicit <b>"As Text"</b>
+/// One-pass UI journey for the Text viewer: opens a text sample via the explicit <b>"ShowTextAction"</b>
 /// ActionStrip button (not a default-mapping double-click), then exercises the toolbar — the
 /// line-number / word-wrap display toggles, the clipboard buttons, the monitoring toggle and the
 /// split-panel toggle — soft-asserting each so a single gap doesn't hide the rest. The editor is
@@ -33,7 +33,7 @@ public class TextJourneyTests : UiJourneyTestBase
         // matches nothing, so IsSearchActive stays false and find next/previous are reported as broken
         // buttons when they are behaving perfectly. Naming the file makes the term below verifiable.
         const string sample = "short_utf8_nobom.txt";
-        var view = OpenFileVia(TestSampleData.Path("text"), sample, "As Text", "TextView");
+        var view = OpenFileVia(TestSampleData.Path("text"), sample, "ShowTextAction", "TextView");
         Assert.IsNotNull(view, "TextView did not open via the 'As Text' action.");
 
         // Encoding selector — present in the toolbar.

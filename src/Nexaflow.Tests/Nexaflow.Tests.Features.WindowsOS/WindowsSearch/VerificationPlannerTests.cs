@@ -1,5 +1,6 @@
 using Nexaflow.Features.WindowsSearch.Services;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsSearch;
 
@@ -19,7 +20,7 @@ public class VerificationPlannerTests
 
         Assert.AreEqual(VerifyPhase.Done, plan.Phase);
         Assert.AreEqual(0, plan.SweepNow, "no file should be opened when every row matched by name");
-        StringAssert.Contains(plan.Banner, "Nothing else to check");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.MatchedByNameFormat", 7));
     }
 
     [TestMethod]
@@ -30,7 +31,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.ForNewResults(verified: 0, candidates: 0);
 
         Assert.AreEqual(VerifyPhase.Done, plan.Phase);
-        Assert.AreEqual("No matches.", plan.Banner);
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.NoMatches"), plan.Banner);
     }
 
     [TestMethod]
@@ -40,7 +41,7 @@ public class VerificationPlannerTests
 
         Assert.AreEqual(VerifyPhase.Running, plan.Phase);
         Assert.AreEqual(9, plan.SweepNow, "a handful of files is not worth interrupting the user for");
-        StringAssert.Contains(plan.Banner, "verifying 9");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.VerifyingFormat", 9));
     }
 
     [TestMethod]
@@ -62,8 +63,7 @@ public class VerificationPlannerTests
         // The important part: it does NOT stall on a question. The visible top of the list is settled
         // anyway, so the results are usable while the user decides about the tail.
         Assert.AreEqual(VerificationPlanner.AutoVerifyLimit, plan.SweepNow);
-        StringAssert.Contains(plan.Banner, "340 more");
-        StringAssert.Contains(plan.Banner, "check them?");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.MatchedAskFormat", 12, 340));
     }
 
     [TestMethod]
@@ -73,7 +73,7 @@ public class VerificationPlannerTests
         // speculative result set misleading.
         var plan = VerificationPlanner.ForNewResults(verified: 12, candidates: 340);
 
-        StringAssert.Contains(plan.Banner, "12 matched by name");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.MatchedAskFormat", 12, 340));
     }
 
     [TestMethod]
@@ -82,7 +82,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.AfterSweep(confirmed: 18, stillPending: 0);
 
         Assert.AreEqual(VerifyPhase.Done, plan.Phase);
-        StringAssert.Contains(plan.Banner, "18 confirmed");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.ConfirmedFormat", 18));
     }
 
     [TestMethod]
@@ -92,7 +92,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.AfterSweep(confirmed: 31, stillPending: 290);
 
         Assert.AreEqual(VerifyPhase.Prompt, plan.Phase);
-        StringAssert.Contains(plan.Banner, "290 more");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.MoreMightMatchFormat", 290));
     }
 
     [TestMethod]
@@ -102,7 +102,7 @@ public class VerificationPlannerTests
         // the banner had been handed the total row count as if it were the confirmed count.
         var plan = VerificationPlanner.AfterSweep(confirmed: 8, stillPending: 26);
 
-        StringAssert.Contains(plan.Banner, "8 confirmed");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.ConfirmedFormat", 8));
         Assert.IsFalse(plan.Banner.Contains("34"), "the total row count is not a confirmed count");
     }
 
@@ -114,8 +114,8 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.AfterSweep(confirmed: 8, stillPending: 0, unreadable: 26);
 
         Assert.AreEqual(VerifyPhase.Done, plan.Phase, "nothing left that checking again could resolve");
-        StringAssert.Contains(plan.Banner, "8 confirmed");
-        StringAssert.Contains(plan.Banner, "26 couldn't be checked");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.ConfirmedFormat", 8));
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.UnreadableFormat", 26));
     }
 
     [TestMethod]
@@ -124,8 +124,8 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.AfterSweep(confirmed: 5, stillPending: 12, unreadable: 3);
 
         Assert.AreEqual(VerifyPhase.Prompt, plan.Phase, "12 rows can still be settled, so still offer");
-        StringAssert.Contains(plan.Banner, "3 couldn't be checked");
-        StringAssert.Contains(plan.Banner, "12 more");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.UnreadableFormat", 3));
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.MoreMightMatchFormat", 12));
     }
 
     [TestMethod]
@@ -135,9 +135,9 @@ public class VerificationPlannerTests
         // Folding it into "confirmed" overstates it; hiding it loses a genuine result.
         var plan = VerificationPlanner.AfterSweep(confirmed: 8, stillPending: 0, unreadable: 4, uncertain: 6);
 
-        StringAssert.Contains(plan.Banner, "8 confirmed");
-        StringAssert.Contains(plan.Banner, "6 probable");
-        StringAssert.Contains(plan.Banner, "4 couldn't be checked");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.ConfirmedFormat", 8));
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.ProbableFormat", 6));
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.UnreadableFormat", 4));
     }
 
     [TestMethod]
@@ -146,19 +146,19 @@ public class VerificationPlannerTests
         // No noise about categories that are empty.
         var plan = VerificationPlanner.AfterSweep(confirmed: 12, stillPending: 0);
 
-        Assert.AreEqual("12 confirmed.", plan.Banner);
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.ConfirmedFormat", 12) + ".", plan.Banner);
     }
 
     // ── Where the rows came from ──────────────────────────────────────────────
 
     [TestMethod]
     public void IndexResults_SayTheyCameFromTheIndex()
-        => Assert.AreEqual("Windows search index returned 498 file(s). ",
+        => Assert.AreEqual(Str.Format("WindowsSearch.Banner.OriginIndexFormat", 498) + " ",
                            VerificationPlanner.OriginPrefix(SearchOrigin.Index, 498));
 
     [TestMethod]
     public void WalkedResults_SayTheyCameFromAFolderScan()
-        => Assert.AreEqual("Folder scan returned 42 file(s). ",
+        => Assert.AreEqual(Str.Format("WindowsSearch.Banner.OriginScanFormat", 42) + " ",
                            VerificationPlanner.OriginPrefix(SearchOrigin.FolderScan, 42));
 
     [TestMethod]
@@ -167,14 +167,15 @@ public class VerificationPlannerTests
         // A count with no source is unreadable: the index and a folder scan cover different files and match
         // on different things, so 498 means nothing until you know which produced it.
         var prefix = VerificationPlanner.OriginPrefix(SearchOrigin.Index, 498);
+        var origin = Str.Format("WindowsSearch.Banner.OriginIndexFormat", 498);
 
         var opening = VerificationPlanner.ForNewResults(145, 353, prefix);
-        StringAssert.StartsWith(opening.Banner, "Windows search index returned 498 file(s). ");
-        StringAssert.Contains(opening.Banner, "145 matched by name");
+        StringAssert.StartsWith(opening.Banner, origin);
+        StringAssert.Contains(opening.Banner, Str.Format("WindowsSearch.Banner.MatchedAskFormat", 145, 353));
 
         var closing = VerificationPlanner.AfterSweep(200, 0, unreadable: 240, uncertain: 28, originPrefix: prefix);
-        StringAssert.StartsWith(closing.Banner, "Windows search index returned 498 file(s). ");
-        StringAssert.Contains(closing.Banner, "200 confirmed");
+        StringAssert.StartsWith(closing.Banner, origin);
+        StringAssert.Contains(closing.Banner, Str.Format("WindowsSearch.Banner.ConfirmedFormat", 200));
     }
 
     [TestMethod]
@@ -184,7 +185,7 @@ public class VerificationPlannerTests
         // that file type is the missing piece.
         var plan = VerificationPlanner.AfterSweep(confirmed: 0, stillPending: 0, unreadable: 240);
 
-        StringAssert.Contains(plan.Banner, "text is compressed or encoded");
+        StringAssert.Contains(plan.Banner, Str.Format("WindowsSearch.Banner.UnreadableFormat", 240));
     }
 
     [TestMethod]
@@ -194,7 +195,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.AfterSkip(confirmed: 31, unchecked_: 290);
 
         Assert.AreEqual(VerifyPhase.Done, plan.Phase);
-        StringAssert.Contains(plan.Banner, "290 unchecked");
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.SkippedFormat", 31, 290), plan.Banner);
     }
 
     // ── The folder scan offer ─────────────────────────────────────────────────
@@ -208,7 +209,7 @@ public class VerificationPlannerTests
 
         Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
         Assert.AreEqual(0, plan.SweepNow, "nothing may start on its own from an offer");
-        StringAssert.Contains(plan.Banner, "slow");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.IndexFoundNothing"), plan.Banner);
     }
 
     [TestMethod]
@@ -220,8 +221,8 @@ public class VerificationPlannerTests
         var unreached = VerificationPlanner.OfferScan(SearchOrigin.IndexUnavailable).Banner;
 
         Assert.AreNotEqual(searched, unreached);
-        StringAssert.Contains(unreached, "isn't running");
-        StringAssert.Contains(searched, "didn't find anything");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.IndexNotRunning"), unreached);
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.IndexFoundNothing"), searched);
     }
 
     [TestMethod]
@@ -234,7 +235,7 @@ public class VerificationPlannerTests
             VerificationPlanner.OriginPrefix(SearchOrigin.Index, 1));
 
         Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
-        StringAssert.Contains(plan.Banner, "Scan this location");
+        StringAssert.Contains(plan.Banner, Str.Get("WindowsSearch.Banner.NoneMatchedScan"));
     }
 
     [TestMethod]
@@ -245,9 +246,9 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.OfferScanAfterSweep(
             VerificationPlanner.OriginPrefix(SearchOrigin.Index, 1));
 
-        Assert.IsFalse(plan.Banner.Contains("didn't find anything"), plan.Banner);
-        StringAssert.Contains(plan.Banner, "returned 1 file");
-        StringAssert.Contains(plan.Banner, "None of them matched");
+        Assert.IsFalse(plan.Banner.Contains(Str.Get("WindowsSearch.Banner.IndexFoundNothing")), plan.Banner);
+        StringAssert.StartsWith(plan.Banner, Str.Format("WindowsSearch.Banner.OriginIndexFormat", 1));
+        StringAssert.Contains(plan.Banner, Str.Get("WindowsSearch.Banner.NoneMatchedScan"));
     }
 
     // ── Wording follows what the indexer actually covers ──────────────────────
@@ -261,7 +262,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.ForCoverage(IndexCoverageKind.None, hasResults: false);
 
         Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
-        StringAssert.Contains(plan.Banner, "not indexed by Windows");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.NotIndexed"), plan.Banner);
     }
 
     [TestMethod]
@@ -272,7 +273,7 @@ public class VerificationPlannerTests
         var plan = VerificationPlanner.ForCoverage(IndexCoverageKind.Partial, hasResults: true);
 
         Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase);
-        StringAssert.Contains(plan.Banner, "Not all folders");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.PartlyIndexed"), plan.Banner);
     }
 
     [TestMethod]
@@ -281,8 +282,8 @@ public class VerificationPlannerTests
         var found    = VerificationPlanner.ForCoverage(IndexCoverageKind.Full, hasResults: true);
         var notFound = VerificationPlanner.ForCoverage(IndexCoverageKind.Full, hasResults: false);
 
-        StringAssert.Contains(found.Banner, "reported by the Windows indexer");
-        StringAssert.Contains(notFound.Banner, "didn't find anything here");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.FullyIndexedResults"), found.Banner);
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.FullyIndexedNothing"), notFound.Banner);
         Assert.AreNotEqual(found.Banner, notFound.Banner);
     }
 
@@ -291,12 +292,20 @@ public class VerificationPlannerTests
     {
         // Even a fully-indexed folder that found things: the index skips file types it has no filter for,
         // so "the index is complete" is never quite the same claim as "these are all the matches".
+        var offers = new[]
+        {
+            Str.Get("WindowsSearch.Banner.NotIndexed"),
+            Str.Get("WindowsSearch.Banner.PartlyIndexed"),
+            Str.Get("WindowsSearch.Banner.FullyIndexedNothing"),
+            Str.Get("WindowsSearch.Banner.FullyIndexedResults"),
+        };
+
         foreach (var coverage in new[] { IndexCoverageKind.None, IndexCoverageKind.Partial, IndexCoverageKind.Full })
         foreach (var hasResults in new[] { true, false })
         {
             var plan = VerificationPlanner.ForCoverage(coverage, hasResults);
             Assert.AreEqual(VerifyPhase.OfferScan, plan.Phase, $"{coverage}/{hasResults}");
-            StringAssert.Contains(plan.Banner, "slow", $"{coverage}/{hasResults}");
+            CollectionAssert.Contains(offers, plan.Banner, $"{coverage}/{hasResults}");
         }
     }
 
@@ -317,9 +326,9 @@ public class VerificationPlannerTests
     {
         // A running scan has no total to report against — saying "3 of N" would invent the N.
         Assert.AreEqual(VerifyPhase.Scanning, VerificationPlanner.Scanning(0).Phase);
-        StringAssert.Contains(VerificationPlanner.Scanning(0).Banner, "no matches yet");
-        StringAssert.Contains(VerificationPlanner.Scanning(3).Banner, "3 matches so far");
-        StringAssert.Contains(VerificationPlanner.Scanning(1).Banner, "1 match so far");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.ScanningNone"), VerificationPlanner.Scanning(0).Banner);
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.ScanningManyFormat", 3), VerificationPlanner.Scanning(3).Banner);
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.ScanningOneFormat", 1), VerificationPlanner.Scanning(1).Banner);
     }
 
     [TestMethod]
@@ -330,8 +339,9 @@ public class VerificationPlannerTests
         var stopped  = VerificationPlanner.AfterScan(4, cancelled: true);
         var finished = VerificationPlanner.AfterScan(4);
 
-        StringAssert.Contains(stopped.Banner, "so far");
-        Assert.IsFalse(finished.Banner.Contains("so far"));
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.ScanStoppedFormat", 4), stopped.Banner);
+        Assert.AreEqual(Str.Format("WindowsSearch.Banner.ScanFoundManyFormat", 4), finished.Banner);
+        Assert.AreNotEqual(stopped.Banner, finished.Banner);
         Assert.AreEqual(VerifyPhase.Done, stopped.Phase);
     }
 
@@ -339,6 +349,6 @@ public class VerificationPlannerTests
     public void AnEmptyScanIsStatedAsAnAnswer()
     {
         // The scan read the files. Unlike the index's silence, this really does mean "not here".
-        StringAssert.Contains(VerificationPlanner.AfterScan(0).Banner, "no matches in this location");
+        Assert.AreEqual(Str.Get("WindowsSearch.Banner.ScanFinishedNone"), VerificationPlanner.AfterScan(0).Banner);
     }
 }

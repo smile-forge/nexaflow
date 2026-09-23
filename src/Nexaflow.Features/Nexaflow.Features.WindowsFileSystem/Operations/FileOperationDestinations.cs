@@ -1,4 +1,5 @@
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -50,7 +51,9 @@ internal static class FileOperationDestinations
 
             if (isDir && IsSelfOrDescendant(destNorm, trimmed))
             {
-                refused.Add($"Can't {(move ? "move" : "copy")} \"{name}\" into itself.");
+                refused.Add(move
+                    ? Str.Format("WindowsFileSystem.Operations.CantMoveIntoItselfFormat", name)
+                    : Str.Format("WindowsFileSystem.Operations.CantCopyIntoItselfFormat", name));
                 continue;
             }
 
@@ -78,9 +81,11 @@ internal static class FileOperationDestinations
         => string.Equals(destination, folder, StringComparison.OrdinalIgnoreCase)
         || destination.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>"report.txt" → "Copy of report.txt", matching what paste has always produced.</summary>
+    /// <summary>"report.txt" → "Copy of report.txt". The name and extension are separate arguments so a language
+    /// can put its marker between them ("report - Copy.txt").</summary>
     private static string CopyOfName(string name, bool isDirectory)
         => isDirectory
-            ? $"Copy of {name}"
-            : $"Copy of {Path.GetFileNameWithoutExtension(name)}{Path.GetExtension(name)}";
+            ? Str.Format("WindowsFileSystem.Transfer.CopyOfFormat", name, "")
+            : Str.Format("WindowsFileSystem.Transfer.CopyOfFormat",
+                         Path.GetFileNameWithoutExtension(name), Path.GetExtension(name));
 }

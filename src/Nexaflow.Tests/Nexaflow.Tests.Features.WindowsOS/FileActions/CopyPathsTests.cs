@@ -7,6 +7,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Viewlets;
 using Nexaflow.Features.WindowsFileSystem.ViewModels;
 using NSubstitute;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem.FileActions;
 
@@ -82,11 +83,11 @@ public class CopyPathsTests
 
         CollectionAssert.Contains(
             Offered(vm, new FileSystemEntry { Name = "docs", FullPath = @"C:\docs", IsDirectory = true }),
-            "Copy path", "a folder in the tree");
+            Str.Get("WindowsFileSystem.Actions.CopyPath"), "a folder in the tree");
 
         CollectionAssert.Contains(
             Offered(vm, new FileSystemEntry { Name = @"C:\", FullPath = @"C:\", IsDirectory = true, IsThisPcItem = true }),
-            "Copy path", "a drive");
+            Str.Get("WindowsFileSystem.Actions.CopyPath"), "a drive");
     }
 
     private static List<string> Offered(FileSystemViewModel vm, FileSystemEntry entry)

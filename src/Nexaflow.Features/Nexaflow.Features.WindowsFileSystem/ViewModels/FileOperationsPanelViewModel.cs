@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsFileSystem.Operations;
+using Nexaflow.Visuals.Common.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -163,10 +164,14 @@ public sealed partial class FileOperationsPanelViewModel : ObservableObject
         }
 
         if (running == 0 && waiting == 0)
-            return problems > 0 ? $"{problems} finished with problems" : "Nothing in progress";
+            return problems > 0
+                ? Str.Format("WindowsFileSystem.Operations.FinishedWithProblemsFormat", problems)
+                : Str.Get("WindowsFileSystem.Operations.NothingInProgress");
 
-        var text = running == 1 ? "1 operation" : $"{running} operations";
-        if (waiting > 0) text += $", {waiting} waiting";
+        var text = running == 1
+            ? Str.Get("WindowsFileSystem.Operations.RunningOne")
+            : Str.Format("WindowsFileSystem.Operations.RunningManyFormat", running);
+        if (waiting > 0) text += Str.Format("WindowsFileSystem.Operations.WaitingFormat", waiting);
         return text;
     }
 

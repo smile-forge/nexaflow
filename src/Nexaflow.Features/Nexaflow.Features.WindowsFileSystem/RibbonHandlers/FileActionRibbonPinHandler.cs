@@ -5,6 +5,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Common.Ribbon;
 using Nexaflow.Features.WindowsFileSystem.Services;
 using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsFileSystem.RibbonHandlers;
 
@@ -71,9 +72,9 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
     /// </summary>
     internal static string? BlockedReason(IFileAction action, int selectionCount) =>
         selectionCount == 0
-            ? "Select files in the file explorer first."
+            ? Str.Get("WindowsFileSystem.Ribbon.SelectFilesFirst")
             : selectionCount > 1 && !action.SupportsMultipleFiles
-                ? $"\"{action.DisplayName}\" works on one file at a time — select a single file."
+                ? Str.Format("WindowsFileSystem.Ribbon.OneFileAtATimeFormat", action.DisplayName)
                 : null;
 
     public void Execute(Dictionary<string, string>? pageParams, IRibbonExecutionContext context)
@@ -106,8 +107,8 @@ public sealed class FileActionRibbonPinHandler : IRibbonPinHandler, IRibbonItemE
         if (missing.Count > 0)
         {
             context.ShowConfirmation(
-                "Files Not Found",
-                "The pinned files no longer exist. Remove this ribbon button?",
+                Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundTitle"),
+                Str.Get("WindowsFileSystem.Ribbon.FilesNotFoundMessage"),
                 context.RemoveCurrentRibbonItem);
             return;
         }

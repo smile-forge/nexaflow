@@ -2,6 +2,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.WindowsSearch.ViewModels;
 using Nexaflow.Features.WindowsSearch.Views;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.WindowsSearch;
 
@@ -21,7 +22,7 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
             : drives.Split(';', StringSplitOptions.RemoveEmptyEntries);
 
         var rootLabel  = string.IsNullOrEmpty(root)
-            ? (driveList.Count > 0 ? "This PC" : "Search")
+            ? (driveList.Count > 0 ? Str.Get("WindowsSearch.Breadcrumb.ThisPc") : Str.Get("WindowsSearch.Breadcrumb.Search"))
             : Path.GetFileName(root.TrimEnd('\\', '/'));
 
         var queryShort = query.Length > 12 ? query[..12] + "…" : query;
@@ -39,7 +40,7 @@ public sealed class SearchTabRegistration(IShellServices shellServices) : IPageR
             Breadcrumbs =
             {
                 new BreadcrumbSegment { Label = rootLabel },
-                new BreadcrumbSegment { Label = $"Query : {queryShort}" }
+                new BreadcrumbSegment { Label = Str.Format("WindowsSearch.Breadcrumb.QueryFormat", queryShort) }
             }
         };
         vm.Tab = tab;

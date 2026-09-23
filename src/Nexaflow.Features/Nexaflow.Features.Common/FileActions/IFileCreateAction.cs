@@ -12,6 +12,10 @@ public interface IFileCreateAction
     string Icon { get; }
     string DisplayName { get; }
 
+    /// <summary>The button's UI Automation id. Invariant, unlike <see cref="DisplayName"/>, which is in the reader's
+    /// language; a create action built per ShellNew entry names its extension.</summary>
+    string AutomationId => GetType().Name;
+
     /// <summary>
     /// Optional WPF image to display instead of the <see cref="Icon"/> glyph (e.g. a real
     /// shell icon for a registry ShellNew entry). Must be frozen if created off the UI thread.
