@@ -226,6 +226,27 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void AWayOutOfADecisionAndBackFromBesideItRunsBetweenTheTwo_WithNoHook() => UiThread.Run(() =>
+    {
+        const string source = "flowchart TD\n  A[Start] --> B{Is it working?}\n  B -->|Yes| C[Ship it]\n  B -->|No| D[Debug]\n  D --> B\n  C --> E([Done])";
+        var laid = Build(source);
+        var nodes = Nodes(source);
+        var links = Pieces(laid, FlowchartPiece.Link);
+
+        // In the order written: A --> B, B --> C, B --> D, D --> B, C --> E.
+        var (decision, debug) = (nodes["Is it working?"], nodes["Debug"]);
+        Assert.AreEqual(decision.Top, debug.Top, debug.Height, "Debug is set beside the decision");
+
+        foreach (var link in new[] { links[2], links[3] })
+        {
+            Assert.IsTrue(link.Bounds.Left >= decision.Right - 1 && link.Bounds.Right <= debug.Left + 1,
+                          $"each runs in the gap between the two, rather than folding back past where it leaves: {link.Bounds} between {decision} and {debug}");
+            Assert.IsTrue(link.Bounds.Top >= decision.Top && link.Bounds.Bottom <= decision.Bottom,
+                          $"and meets the decision at its side, not its top or bottom: {link.Bounds}");
+        }
+    });
+
+    [TestMethod]
     public void ASubgraphsNameIsSetInABandAcrossItsTop_AndEverySubgraphIsDrawnAlike() => UiThread.Run(() =>
     {
         var laid = Build("flowchart LR\n  subgraph one\n    a\n  end\n  subgraph two\n    b\n  end");

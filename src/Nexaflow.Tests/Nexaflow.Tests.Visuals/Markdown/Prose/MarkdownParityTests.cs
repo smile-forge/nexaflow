@@ -197,6 +197,17 @@ public class MarkdownParityTests
     }
 
     [TestMethod]
+    public void APlotThatCannotBeReadIsItsSourceWithWhatIsWrongWithIt()
+    {
+        var laid = Lay("```scatter\nwidth: wide\n\n1 2\n3 4\n```\n");
+        var drawn = Drawn(laid);
+
+        StringAssert.Contains(drawn, "width: wide", "the characters written, to put right");
+        StringAssert.Contains(drawn, "width", "and what is wrong with them, under them");
+        Assert.IsTrue(drawn.Split("width").Length > 2, $"the reason as well as the source: {drawn}");
+    }
+
+    [TestMethod]
     public void AConstructStartsPastTheSpaceBeforeIt()
     {
         var laid = Lay("The `x` block and **y** is\nparsed, ==marked `code`== too.\n");

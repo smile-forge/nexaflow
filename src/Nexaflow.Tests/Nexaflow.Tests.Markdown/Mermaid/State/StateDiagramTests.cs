@@ -104,6 +104,17 @@ public class StateDiagramTests
     }
 
     [TestMethod]
+    public void EachRegionHasDotsOfItsOwn_AndKnowsWhichRegionItIs()
+    {
+        var read = StateDiagram.Read("stateDiagram-v2\n  state A {\n    [*] --> one\n    one --> [*]\n    --\n    [*] --> two\n    two --> [*]\n  }");
+
+        Assert.AreEqual(2, read.Nodes.Count(node => node.Shape == StateShape.Start), "each region starts at a dot of its own, as Mermaid draws it");
+        Assert.AreEqual(2, read.Nodes.Count(node => node.Shape == StateShape.Stop), "and stops at one");
+        Assert.AreEqual(1, read.Find("one")!.Region);
+        Assert.AreEqual(2, read.Find("two")!.Region, "what is written after a -- is in the next region");
+    }
+
+    [TestMethod]
     public void ANoteIsWrittenBesideAStateOnEitherSide()
     {
         var read = StateDiagram.Read("stateDiagram-v2\n  one\n  note right of one : mind this\n  note left of one : and this");

@@ -205,7 +205,7 @@ public class WordCloudBuilderTests
         // round cloud would look like the mask had simply not worked.
         var laid = Lay("mask: nowhere.png\n" + Stack);
 
-        Assert.IsTrue(laid.ShowsSource);
+        Assert.IsFalse(laid.Draws);
         StringAssert.Contains(laid.Trouble[0].Message, "nowhere.png");
     });
 
@@ -254,13 +254,13 @@ public class WordCloudBuilderTests
     // ── When it will not read ──────────────────────────────────────────────
 
     [TestMethod]
-    public void ABlockThatIsNotACloudShowsItsOwnLines() => UiThread.Run(() =>
+    public void ABlockThatIsNotACloudDrawsNothing_AndSaysWhy() => UiThread.Run(() =>
     {
-        // Its lines are all a reader has left to work with, so they are what is shown — and the reason is
-        // on them rather than in place of them.
+        // Its lines are all a reader has left to work with, so they are what the host shows — and this says
+        // why, which is what goes under them.
         var laid = Lay("shape: blob\nWPF: 40");
 
-        Assert.IsTrue(laid.ShowsSource);
+        Assert.IsFalse(laid.Draws, "there is no cloud to draw");
         Assert.AreEqual(1, laid.Trouble.Count);
         StringAssert.Contains(laid.Trouble[0].Message, "not a shape");
     });
@@ -280,7 +280,7 @@ public class WordCloudBuilderTests
     {
         var laid = Lay("");
 
-        Assert.IsTrue(laid.ShowsSource);
+        Assert.IsFalse(laid.Draws);
         StringAssert.Contains(laid.Trouble[0].Message, "word");
     });
 

@@ -193,6 +193,15 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
+    public void ASettingThatCannotBeReadDrawsNothing_AndSaysWhy() => UiThread.Run(() =>
+    {
+        var laid = Lay("width: wide\n\n1 2\n3 4");
+
+        Assert.IsFalse(laid.Draws, "there is no plot to draw: the lines are the host's to show");
+        StringAssert.Contains(laid.Trouble.Single().Message, "width", "and this says what is wrong with them");
+    });
+
+    [TestMethod]
     public void ARowWithNoPlaceIsWavedAndTheRestStillDraw() => UiThread.Run(() =>
     {
         // It is the row somebody is editing, and it is wrong every time they are halfway through it.

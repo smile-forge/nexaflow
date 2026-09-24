@@ -69,6 +69,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>How wide across the dots a scope starts and stops at are drawn.</summary>
     private const double Dot = 18;
 
+    /// <summary>How much of the ring the dot a diagram stops at fills.</summary>
+    private const double Bullseye = 0.55;
+
     /// <summary>The least room a choice takes across, so a diamond with nothing in it is still a diamond.</summary>
     private const double Decides = 44;
 
@@ -136,7 +139,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
             {
                 Cell = new DiagramCell(new Size(said.Width + (Boxed * 2), 0))
                 {
-                    Inside = group.Parent is { } parent ? plan.Groups[parent].Cell : null,
+                    Inside = Holder(plan, group.Parent, group.Region),
                     Way = group.Way is { } way ? Towards(way) : null,
                     Pad = Boxed,
                     Heading = said.Height > 0 ? said.Height + diagram.Config.TitleMargin + (Boxed / 2) : 0,
@@ -145,6 +148,22 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
             plan.Groups[group.Key] = box;
             cells.Add(box.Cell);
+
+            // A composite a -- divides holds its regions, each a box of its own with no outline, laid out the composite's way.
+            var dividers = diagram.Inside(group.Key).Count(node => node.Shape == StateShape.Divider);
+            if (dividers == 0) continue;
+
+            plan.Regions[group.Key] =
+            [
+                .. Enumerable.Range(0, dividers + 1).Select(_ => new DiagramCell(new Size(1, 0))
+                {
+                    Inside = box.Cell,
+                    Way = box.Cell.Way,
+                    Pad = Boxed / 2,
+                }),
+            ];
+
+            cells.AddRange(plan.Regions[group.Key]);
         }
 
         foreach (var node in diagram.Nodes)
@@ -153,13 +172,16 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
             // nothing else closes up rather than standing empty.
             if (!Draws(node.Id)) continue;
 
+            // A divider is where one region ends and the next begins, which the regions' own boxes say — it takes no place of its own.
+            if (node.Shape == StateShape.Divider) continue;
+
             var shape = Shaped(node);
             var words = Said(node, diagram.Config);
             var sized = new Sized(node, words, shape)
             {
                 Cell = new DiagramCell(Around(node, shape, words, diagram.Config, towards))
                 {
-                    Inside = node.Group is { } group && plan.Groups.TryGetValue(group, out var box) ? box.Cell : null,
+                    Inside = Holder(plan, node.Group, node.Region),
                 },
             };
 
@@ -198,10 +220,20 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
         cells.AddRange(plan.Spill.Cells);
 
+        // With ports, as a flowchart is: each line meets a state at a place of its own, and two transitions each way between the same
+        // two states open into a lens rather than lying one along the other.
         plan.Size = DiagramLayers.Lay(cells, [.. plan.Joins.Values, .. plan.Beside, .. plan.Spill.Joins], towards,
-                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing);
+                                      diagram.Config.NodeSpacing, diagram.Config.RankSpacing, ports: true);
 
         return plan;
+    }
+
+    /// <summary>What a state written in a composite state is laid out inside: the region it is in, where the composite is divided, and the composite otherwise.</summary>
+    private static DiagramCell? Holder(Plan plan, string? group, int region)
+    {
+        if (group is null || !plan.Groups.TryGetValue(group, out var box)) return null;
+
+        return plan.Regions.TryGetValue(group, out var regions) ? regions[Math.Clamp(region, 1, regions.Count) - 1] : box.Cell;
     }
 
     /// <summary>The cell a transition's end names: a state, or the box of a composite state where the id names one of those.</summary>
@@ -258,9 +290,12 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
                            .. plan.Groups.Values.Select(box => box.Cell)],
                           plan.Joins.Select(join => (join.Value, Says(join.Key, diagram.Config))));
 
-    /// <summary>What is written on a state: what it says, or what it is called where nothing else says anything.</summary>
+    /// <summary>
+    /// What is written on a state: what it says, or what it is called where nothing else says anything. A fork or a join is a bar, and
+    /// what it is called is only for the transitions to name it by — Mermaid writes nothing on one, and there is no room on it to.
+    /// </summary>
     private IReadOnlyList<DiagramWords> Said(StateNode node, StateConfig config) =>
-        node.Marker || node.Shape == StateShape.Divider || (node.Said is null && node.SaidHole is null)
+        node.Marker || node.Shape is StateShape.Divider or StateShape.Fork or StateShape.Join || (node.Said is null && node.SaidHole is null)
             ? []
             : Wrapped(node.Said, node.SaidHole, TextSize, Ink.Written(node.Style.Colour) ?? Palette.Text, config.Wrapping);
 
@@ -351,6 +386,8 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
                            DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered,
                            band: Ink.Band(Ink.Written(group.Style.Stroke)));
 
+        Divided(build, diagram, plan, room, group, bounds, heading.Bottom + (Boxed / 3));
+
         foreach (var nested in diagram.Within(group.Key)) Held(build, diagram, plan, room, nested, over);
         foreach (var node in diagram.Inside(group.Key)) Drawn(build, diagram, plan, room, node, over);
         foreach (var note in Noting(plan, group.Key)) Noted(build, room, note, over);
@@ -365,9 +402,11 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
         var bounds = room.At(sized.Cell.Bounds);
 
-        if (node.Shape == StateShape.Divider)
+
+
+        if (node.Shape == StateShape.Stop)
         {
-            Divided(build, plan, room, node, bounds);
+            Stopped(build, node, bounds);
             return;
         }
 
@@ -379,16 +418,56 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
                            Chipped(build, node.Id, bounds, node.Part);
     }
 
-    /// <summary>
-    /// The line dividing two regions of a composite state: drawn the width of the box holding it, since what it divides is
-    /// everything in that box rather than the rank it was written in.
-    /// </summary>
-    private void Divided(LayoutBuilder build, Plan plan, DiagramRoom room, StateNode node, Rect bounds)
+    /// <summary>The dot a diagram stops at: a ring with a dot filled in the middle of it, UML's bullseye, in the ink the start is filled with.</summary>
+    private void Stopped(LayoutBuilder build, StateNode node, Rect bounds)
     {
-        var box = node.Group is { } group && plan.Groups.TryGetValue(group, out var held) ? room.At(held.Cell.Bounds) : bounds;
-        var across = new Rect(box.X + Boxed, bounds.Y + (bounds.Height / 2), Math.Max(0, box.Width - (Boxed * 2)), Thick / 2);
+        var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
+        var radius = Math.Min(bounds.Width, bounds.Height) / 2;
 
-        DiagramShapes.Draw(build, StatePiece.Divider, node.Part, DiagramShape.Rectangle, across, Palette.CodeBorder, null);
+        var ring = new EllipseGeometry(middle, radius - 1, radius - 1);
+        var dot = new EllipseGeometry(middle, radius * Bullseye, radius * Bullseye);
+        ring.Freeze();
+        dot.Freeze();
+
+        var ink = Ink.Written(node.Style.Fill) ?? Palette.Text;
+
+        build.Open(StatePiece.State, node.Part, stops: Stops.None);
+        build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
+        build.Draw(new GeometryMark(ring, Ink.Surface, Ink.Written(node.Style.Stroke) ?? ink, 1.5));
+        build.Draw(new GeometryMark(dot, ink, null, 0));
+        build.Occupies(ring);
+        build.Close();
+        build.Close();
+    }
+
+    /// <summary>
+    /// The lines dividing a composite state's regions, dashed, each standing for the <c>--</c> that wrote it: in the air between one
+    /// region and the next, and across the whole of the composite beside them — down it where the regions stand side by side, across
+    /// it where they stand one above the other.
+    /// </summary>
+    private void Divided(LayoutBuilder build, StateDiagram diagram, Plan plan, DiagramRoom room, StateGroup group, Rect bounds, double top)
+    {
+        if (!plan.Regions.TryGetValue(group.Key, out var regions)) return;
+
+        var dividers = diagram.Inside(group.Key).Where(node => node.Shape == StateShape.Divider).ToList();
+        var boxes = regions.Select(region => room.At(region.Bounds)).ToList();
+        var inner = new Rect(bounds.X, top, bounds.Width, Math.Max(0, bounds.Bottom - top));
+
+        for (var at = 0; at + 1 < boxes.Count && at < dividers.Count; at++)
+        {
+            var (one, next) = (boxes[at], boxes[at + 1]);
+            var beside = Math.Min(one.Bottom, next.Bottom) > Math.Max(one.Top, next.Top);
+
+            var line = beside
+                ? new LineGeometry(new Point((one.Right + next.Left) / 2, inner.Top), new Point((one.Right + next.Left) / 2, inner.Bottom))
+                : new LineGeometry(new Point(inner.Left, (one.Bottom + next.Top) / 2), new Point(inner.Right, (one.Bottom + next.Top) / 2));
+            line.Freeze();
+
+            build.Open(StatePiece.Divider, dividers[at].Part, stops: Stops.None);
+            build.Draw(new GeometryMark(line, null, Ink.GroupEdge, 1) { Dashes = DiagramStroke.Dashed });
+            build.Occupies(DiagramConnector.Band([line.StartPoint, line.EndPoint], Thick * 2));
+            build.Close();
+        }
     }
 
     /// <summary>A note: what it says in a box of its own, beside the state it is about.</summary>
@@ -501,6 +580,12 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         public Dictionary<string, Sized> Named { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, Box> Groups { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The regions of each composite state a <c>--</c> divides, in the order they are written: each laid out on its own inside the
+        /// composite, so its own dots and states keep to it.
+        /// </summary>
+        public Dictionary<string, List<DiagramCell>> Regions { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<StateStep, DiagramJoin> Joins { get; } = [];
 

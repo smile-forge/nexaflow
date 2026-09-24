@@ -101,6 +101,17 @@ public class DiagramLanesTests
     }
 
     [TestMethod]
+    public void TheFirstThingInALaneStandsClearOfItsName()
+    {
+        var lane = Lane(pad: 6, heading: 18);
+        var one = Cell(1);
+        DiagramLayers.Lay([one], [], DiagramWay.Down, 10, 30, Lanes(lane));
+
+        Assert.AreEqual(18, lane.Strip.Height, 0.01, "the strip is the room kept for the name");
+        Assert.AreEqual(18 + 6, one.Bounds.Top, 0.01, "and the first rank starts the lane's own clear air past it");
+    }
+
+    [TestMethod]
     public void TheStripIsAtTheNearEndOfTheBandWhicheverWayItRuns()
     {
         foreach (var way in new[] { DiagramWay.Down, DiagramWay.Up, DiagramWay.Right, DiagramWay.Left })

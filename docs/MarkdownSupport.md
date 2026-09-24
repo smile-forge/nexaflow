@@ -230,7 +230,8 @@ Supported: `stateDiagram` and `stateDiagram-v2`; a state written as an id, as `i
 scope starts at and the one it stops at** — whichever way the transitions round it run, so a diagram writing it four
 times draws two dots; composite states `state X { … }`, nested as deep as they are written and each laid out in its own
 space so a `direction` line runs it its own way; `<<fork>>`, `<<join>>` and `<<choice>>`, and the `[[fork]]` form Mermaid
-also reads; `--` dividing a composite state into regions running at the same time, drawn as a line the width of its box;
+also reads; `--` dividing a composite state into regions running at the same time, each laid out on its own with dots of its own and a
+dashed line between one and the next;
 notes written `note left of` or `note right of`, on one line or **across several until an `end note`**, and floating
 notes `note "…" as id`; `classDef`, `class`, `:::` and `style`, where `start` and `end` name the dots; `click` with a
 URL and a tooltip; `direction`; `accTitle`/`accDescr`; comments; and a title from the front matter. Two transitions between

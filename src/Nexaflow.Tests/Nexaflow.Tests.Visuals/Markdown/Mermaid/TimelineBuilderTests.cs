@@ -109,6 +109,21 @@ public class TimelineBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void APeriodHasADotOfItsOwnColourWhereItsLineDownSetsOut_AndASectionIsNamedInTheTitlesColour() => UiThread.Run(() =>
+    {
+        var laid = Build(Pizzas);
+        var periods = Pieces(laid, TimelinePiece.Period);
+        var dots = Pieces(laid, TimelinePiece.Mark);
+
+        Assert.AreEqual(periods.Count, dots.Count, "a dot for every period");
+        for (var at = 0; at < periods.Count; at++)
+            Assert.AreEqual(Fill(periods[at]), Fill(dots[at]), "in the period's own colour");
+
+        var name = Pieces(laid, TimelinePiece.Section)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
+        Assert.AreSame(StyleFormat.Dark.Heading, name.Foreground, "a section's name heads what it holds, as the title does");
+    });
+
+    [TestMethod]
     public void WithSectionsAPeriodTakesItsSectionsColour_AndWithoutThemOneOfItsOwn() => UiThread.Run(() =>
     {
         var grouped = Pieces(Build(Pizzas), TimelinePiece.Period).Select(Fill).ToList();

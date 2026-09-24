@@ -25,6 +25,9 @@ public static class XyPiece
     public const string Lines = "Lines";
     public const string Trace = "Trace";
 
+    /// <summary>A dot on a line where one of its values is — standing for that value as written, so pressing it means that value.</summary>
+    public const string Dot = "Dot";
+
     /// <summary>The x-axis — the categories, or the numbers the values stand over — and the y-axis, the numbers they reach.</summary>
     public const string XAxis = "XAxis";
     public const string YAxis = "YAxis";
@@ -74,6 +77,9 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     private const double Filled = 0.8;
 
     private const double LineWidth = 2;
+
+    /// <summary>How big the dot marking a value on a line is.</summary>
+    private const double Dotted = 4;
 
     internal XyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
@@ -289,6 +295,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         {
             var ink = Colour(series);
             var route = new List<Point>();
+            var dots = new List<(XyPoint Point, Point At)>();
 
             for (var at = 0; at < series.Points.Count && at < slots; at++)
             {
@@ -297,6 +304,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
                 var where = on(Along(chart, at, slots), reach(worth));
                 route.Add(where);
+                dots.Add((point, where));
 
                 if (point.Label is null && point.LabelHole is null) continue;
 
@@ -310,6 +318,20 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
             // One point is no line.
             if (route.Count >= 2)
                 DiagramConnector.Draw(build, XyPiece.Trace, series.Part, route, new DiagramStroke(ink, LineWidth), DiagramHead.None, DiagramHead.None);
+
+            // A line whose values are labelled marks where each value is, so a label says which point of the line it is about —
+            // and every value is marked, not only the labelled ones, so the line still reads as the values it joins.
+            if (series.Points.Any(point => point.Label is not null || point.LabelHole is not null) || route.Count == 1)
+                foreach (var (point, at) in dots)
+                {
+                    var dot = new EllipseGeometry(at, Dotted, Dotted);
+                    dot.Freeze();
+
+                    build.Open(XyPiece.Dot, point.Part, stops: Stops.None);
+                    build.Draw(new GeometryMark(dot, ink, Ink.Surface, 1.5));
+                    build.Occupies(dot);
+                    build.Close();
+                }
         }
 
         build.Close();

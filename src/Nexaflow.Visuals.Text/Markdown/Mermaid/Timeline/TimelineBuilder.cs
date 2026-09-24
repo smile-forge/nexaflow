@@ -27,6 +27,9 @@ public static class TimelinePiece
     /// <summary>What leads from a period to the events written for it.</summary>
     public const string Drop = "Drop";
 
+    /// <summary>The dot on a period's edge where the line down to its events sets out.</summary>
+    public const string Mark = "Mark";
+
     /// <summary>The events, and one — standing for what it says, where it says it.</summary>
     public const string Events = "Events";
     public const string Event = "Event";
@@ -147,8 +150,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
         Bands(build, chart, said, boxes, band => new Rect(band.Left, 0, band.Width, Band), pad, room);
 
         // The spine runs through the middle of the periods, from the first to the last.
-        Spine(build, [new Point(boxes[0].Left + (Column / 2), spine), new Point(boxes[^1].Left + (Column / 2), spine)],
-              [.. boxes.Select(box => new Point(box.Left + (Column / 2), box.Bottom))], room);
+        Spine(build, [new Point(boxes[0].Left + (Column / 2), spine), new Point(boxes[^1].Left + (Column / 2), spine)], room);
 
         for (var at = 0; at < said.Count; at++)
         {
@@ -196,8 +198,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
         Bands(build, chart, said, boxes, band => new Rect(0, band.Top, Strip, band.Height), pad, room);
 
         var middle = left + (Column / 2);
-        Spine(build, [new Point(middle, boxes[0].Top), new Point(middle, boxes[^1].Bottom)],
-              [.. boxes.Select(box => new Point(box.Right, box.Top + (box.Height / 2)))], room);
+        Spine(build, [new Point(middle, boxes[0].Top), new Point(middle, boxes[^1].Bottom)], room);
 
         for (var at = 0; at < said.Count; at++)
             Period(build, said[at], chart, boxes[at], rows[at], new Point(boxes[at].Right, boxes[at].Top + (boxes[at].Height / 2)), pad, room);
@@ -218,7 +219,8 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
             if (chart.Sections.FirstOrDefault(group => group.Order == section) is not { Name: { } name } group) continue;
 
             var band = over(run);
-            var lines = Said(name, NameSize, Palette.Text, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
+            // A section's name heads what it holds, so it is written in the title's colour.
+            var lines = Said(name, NameSize, TitleInk, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
             var fill = Colour(chart, said[at].Slot);
 
             room.Reach(band);
@@ -231,18 +233,12 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     }
 
     /// <summary>The line the periods sit on, with a mark where each one meets it.</summary>
-    private void Spine(LayoutBuilder build, IReadOnlyList<Point> line, IReadOnlyList<Point> marks, DiagramRoom room)
+    private void Spine(LayoutBuilder build, IReadOnlyList<Point> line, DiagramRoom room)
     {
         room.Reach(line[0], line[^1]);
 
         build.Open(TimelinePiece.Spine, part: null, stops: Stops.None);
         DiagramConnector.Draw(build, MermaidPiece.Line, part: null, line, new DiagramStroke(Palette.CodeBorder, 2), end: DiagramHead.None);
-
-        var dots = new GeometryGroup();
-        foreach (var mark in marks) dots.Children.Add(new EllipseGeometry(mark, Mark, Mark));
-        dots.Freeze();
-
-        build.Draw(new GeometryMark(dots, Palette.CodeBorder, null, 0));
         build.Close();
     }
 
@@ -269,6 +265,15 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
         build.Open(TimelinePiece.Periods, part: null, stops: Stops.None);
         DiagramShapes.Draw(build, TimelinePiece.Period, shown.Period.Part, DiagramShape.Rounded, box, colour, new DiagramStroke(colour, 1.2),
             DiagramWords.Placed(shown.Lines, Rect.Inflate(box, -pad, -pad), TimelinePiece.Says));
+        build.Close();
+
+        // A dot of the period's own colour on its edge, where the line down to its events sets out: over the box, so it is seen.
+        var dot = new EllipseGeometry(from, Mark, Mark);
+        dot.Freeze();
+
+        build.Open(TimelinePiece.Mark, shown.Period.Part, stops: Stops.None);
+        build.Draw(new GeometryMark(dot, colour, Ink.Surface, 1));
+        build.Occupies(dot);
         build.Close();
 
         if (events.Count == 0) return;

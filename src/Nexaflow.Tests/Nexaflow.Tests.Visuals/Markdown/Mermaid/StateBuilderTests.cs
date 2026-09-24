@@ -89,13 +89,57 @@ public class StateBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
-    public void AForkIsABarAcrossTheWayItRuns() => UiThread.Run(() =>
+    public void AForkIsABarAcrossTheWayItRuns_WithNothingWrittenOnIt() => UiThread.Run(() =>
     {
-        var down = Shape(Build("stateDiagram-v2\n  state f <<fork>>\n  [*] --> f"), "f");
-        Assert.IsTrue(down.Width > down.Height * 3, $"running down the page the bar lies across it: {down}");
+        const string down = "stateDiagram-v2\n  state f <<fork>>\n  [*] --> f";
+        const string across = "stateDiagram-v2\n  direction LR\n  state f <<fork>>\n  [*] --> f";
 
-        var across = Shape(Build("stateDiagram-v2\n  direction LR\n  state f <<fork>>\n  [*] --> f"), "f");
-        Assert.IsTrue(across.Height > across.Width * 3, $"and running across the page it stands up: {across}");
+        var bar = Fork(down);
+        Assert.IsTrue(bar.Bounds.Width > bar.Bounds.Height * 3, $"running down the page the bar lies across it: {bar.Bounds}");
+        Assert.IsFalse(Said(bar).Any(), "and what it is called is not written on it, there being no room on a bar to write it");
+
+        var standing = Fork(across).Bounds;
+        Assert.IsTrue(standing.Height > standing.Width * 3, $"and running across the page it stands up: {standing}");
+
+        static Piece Fork(string source) =>
+            Pieces(Build(source), StatePiece.State).Single(piece => Written(source, piece.Part) == "f");
+    });
+
+    [TestMethod]
+    public void TwoTransitionsEachWayBetweenTwoStatesOpenIntoALens() => UiThread.Run(() =>
+    {
+        var laid = Build(Intro);
+        var steps = Pieces(laid, StatePiece.Step).ToDictionary(step => Written(Intro, step.Part).Trim());
+        var (down, up) = (steps["Still --> Moving"].Bounds, steps["Moving --> Still"].Bounds);
+
+        Assert.IsTrue(Math.Abs(Middle(down).X - Middle(up).X) > 20, $"the two lie apart rather than one along the other: {down} and {up}");
+    });
+
+    [TestMethod]
+    public void ATransitionPastAStateGoesRoundIt() => UiThread.Run(() =>
+    {
+        var laid = Build(Intro);
+        var step = Pieces(laid, StatePiece.Step).Single(piece => Written(Intro, piece.Part).Trim() == "Still --> [*]");
+        var moving = Pieces(laid, StatePiece.State).Single(piece => Said(piece).Any(said => said.Words!.Glyphs.Text == "Moving"));
+
+        var outline = moving.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>().First().Shape;
+        var line = PathGeometry.CreateFromGeometry(step.Marks.ToArray().OfType<GeometryMark>().First().Shape).GetFlattenedPathGeometry();
+        var points = line.Figures.SelectMany(figure => figure.Segments.OfType<PolyLineSegment>().SelectMany(segment => segment.Points));
+
+        Assert.IsFalse(points.Any(outline.FillContains), "the line from Still to where the diagram stops passes Moving by rather than through it");
+    });
+
+    [TestMethod]
+    public void TheDotADiagramStopsAtIsARingWithADotInIt() => UiThread.Run(() =>
+    {
+        const string source = "stateDiagram-v2\n  one --> [*]";
+        var stop = Pieces(Build(source), StatePiece.State).Single(piece => !Said(piece).Any());
+        var marks = stop.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().ToList();
+
+        Assert.AreEqual(2, marks.Count, "a ring, and a dot inside it");
+        Assert.IsNotNull(marks[0].Stroke, "the ring is drawn round");
+        Assert.IsNotNull(marks[1].Fill, "and the dot filled in");
+        Assert.IsTrue(marks[1].Shape.Bounds.Width < marks[0].Shape.Bounds.Width * 0.7, "well inside it");
     });
 
     [TestMethod]
@@ -157,17 +201,22 @@ public class StateBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
-    public void ALineDividesTheRegionsOfACompositeState() => UiThread.Run(() =>
+    public void ALineDividesTheRegionsOfACompositeState_EachRegionWithDotsOfItsOwn() => UiThread.Run(() =>
     {
-        var laid = Build("stateDiagram-v2\n  state A {\n    one\n    --\n    two\n  }");
+        var laid = Build("stateDiagram-v2\n  state A {\n    [*] --> one\n    --\n    [*] --> two\n  }");
         var divider = Pieces(laid, StatePiece.Divider).Single();
         var group = Pieces(laid, StatePiece.Group).Single();
         var nodes = Nodes(laid);
 
-        Assert.IsTrue(divider.Bounds.Width > group.Bounds.Width / 2,
-                      $"the line is drawn the width of the composite state: {divider.Bounds} of {group.Bounds}");
-        Assert.IsTrue(divider.Bounds.Top > nodes["one"].Top && divider.Bounds.Bottom < nodes["two"].Bottom,
+        Assert.IsTrue(divider.Bounds.Height > nodes["one"].Height,
+                      $"the line runs down the composite state, the regions standing side by side: {divider.Bounds} of {group.Bounds}");
+        Assert.IsTrue(divider.Bounds.Left > nodes["one"].Right && divider.Bounds.Right < nodes["two"].Left,
                       "and it runs between the regions it divides");
+
+        var dots = Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any()).Select(piece => piece.Bounds).ToList();
+        Assert.AreEqual(2, dots.Count, "each region starts at a dot of its own");
+        Assert.IsTrue(dots.Any(dot => dot.Right < divider.Bounds.Left) && dots.Any(dot => dot.Left > divider.Bounds.Right),
+                      "one either side of the line");
     });
 
     [TestMethod]

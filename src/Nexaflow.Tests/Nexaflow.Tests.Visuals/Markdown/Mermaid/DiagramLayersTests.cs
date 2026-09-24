@@ -173,6 +173,68 @@ public class DiagramLayersTests
     public void NothingToLayOutTakesNoRoom() =>
         Assert.AreEqual(default, DiagramLayers.Lay([], [], DiagramWay.Down, 10, 30));
 
+    [TestMethod]
+    public void TheRanksAreOrderedSoNoLinesCrossWhereAnOrderWithoutAnyCanBeFound()
+    {
+        // The requirement diagram's own sample: a long line from the last of the first rank down to the fourth, past a cell
+        // the middle of the first rank reaches. Ordered by averages alone it crosses that cell's line; there is an order where
+        // nothing crosses, with the long line down the far side.
+        var (req, entity, entity3) = (Cell(), Cell(), Cell());
+        var (req3, req2, entity2, req4, req5, req6) = (Cell(), Cell(), Cell(), Cell(), Cell(), Cell());
+        var joins = new[]
+        {
+            Join(entity, req2), Join(req, req2), Join(req, req3), Join(req3, req4), Join(req4, req5), Join(req5, req6),
+            Join(entity3, req5), Join(entity, entity2),
+        };
+
+        DiagramLayers.Lay([req, req2, req3, req4, req5, req6, entity, entity2, entity3], joins, DiagramWay.Down, 10, 30);
+
+        var crossings = 0;
+        for (var one = 0; one < joins.Length; one++)
+            for (var other = one + 1; other < joins.Length; other++)
+                if (!Shares(joins[one], joins[other]) && Cross(joins[one].Route, joins[other].Route)) crossings++;
+
+        Assert.AreEqual(0, crossings, "no two lines cross");
+        Assert.AreEqual(req3.Bounds.X + (req3.Bounds.Width / 2), req4.Bounds.X + (req4.Bounds.Width / 2), 0.5,
+                        "and the run of requirements stands in a line, rather than being dragged over to the long line a step at a time");
+
+        static bool Shares(DiagramJoin one, DiagramJoin other) =>
+            one.From == other.From || one.From == other.To || one.To == other.From || one.To == other.To;
+    }
+
+    [TestMethod]
+    public void ARunOfCellsJoinedOneToTheNextStandsInALine_WithALongLineBesideIt()
+    {
+        // a → b → c → d → e, and a long line from x, beside a, down into d. Laid out with the long line first and everything else
+        // after it, d is set under the long line and the run is dragged over to it a step at a time.
+        var (a, b, c, d, e, x) = (Cell(), Cell(), Cell(), Cell(), Cell(), Cell());
+        DiagramLayers.Lay([a, x, b, c, d, e], [Join(a, b), Join(b, c), Join(c, d), Join(d, e), Join(x, d)], DiagramWay.Down, 10, 30);
+
+        Assert.AreEqual(Middle(b), Middle(c), 0.5, $"c stands under b: {Middle(b)} and {Middle(c)}");
+        Assert.AreEqual(Middle(d), Middle(e), 0.5, "and e under d");
+        Assert.IsTrue(Middle(d) >= Middle(c) - 0.5 && Middle(d) <= Middle(x) + 0.5,
+                      $"and d between what reaches it, not pulled out past either: c {Middle(c)}, d {Middle(d)}, x {Middle(x)}");
+
+        static double Middle(DiagramCell cell) => cell.Bounds.X + (cell.Bounds.Width / 2);
+    }
+
+    /// <summary>Whether two routes cross anywhere along them — a run of one passing through a run of the other.</summary>
+    private static bool Cross(IReadOnlyList<Point> one, IReadOnlyList<Point> other)
+    {
+        for (var at = 0; at + 1 < one.Count; at++)
+            for (var to = 0; to + 1 < other.Count; to++)
+                if (Crossing(one[at], one[at + 1], other[to], other[to + 1])) return true;
+
+        return false;
+
+        static bool Crossing(Point a, Point b, Point c, Point d)
+        {
+            static double Side(Point p, Point q, Point r) => ((q.X - p.X) * (r.Y - p.Y)) - ((q.Y - p.Y) * (r.X - p.X));
+
+            return Side(a, b, c) * Side(a, b, d) < -1e-6 && Side(c, d, a) * Side(c, d, b) < -1e-6;
+        }
+    }
+
     private static DiagramCell Cell(DiagramCell? inside = null) => new(Box) { Inside = inside };
 
     private static DiagramJoin Join(DiagramCell from, DiagramCell to, int span = 1) => new(from, to, span);

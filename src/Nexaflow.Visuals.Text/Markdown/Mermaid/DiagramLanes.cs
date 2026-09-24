@@ -51,8 +51,11 @@ internal sealed class DiagramLanes(IReadOnlyList<DiagramLane> lanes, bool across
 
     private double[] room = new double[lanes.Count + 1];
 
-    /// <summary>The room the lanes keep at the near end of them for their own names, which is where the first rank starts.</summary>
-    public double Heading => lanes.Select(lane => lane.Heading).DefaultIfEmpty(0).Max();
+    /// <summary>
+    /// The room the lanes keep at the near end of them, which is where the first rank starts: the strip for each one's own name, and
+    /// the same clear air past it that the lane keeps round what it holds — so the first thing in a lane does not stand against its name.
+    /// </summary>
+    public double Heading => lanes.Select(lane => lane.Heading + lane.Pad).DefaultIfEmpty(0).Max();
 
     /// <summary>
     /// How far a link holds apart what it joins: as far as it was written long inside one lane, and not at all where it is handed from

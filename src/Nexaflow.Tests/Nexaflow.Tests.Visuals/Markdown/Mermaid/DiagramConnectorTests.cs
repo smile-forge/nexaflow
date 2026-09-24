@@ -91,6 +91,25 @@ public class DiagramConnectorTests
     });
 
     [TestMethod]
+    public void ALineGoesIntoItsHeadTheWayItComesIn_WithNoHookBeforeIt() => UiThread.Run(() =>
+    {
+        // A curve made of its points, whose last short step turns off it — as the end of one brought in to the edge of a shape does.
+        var tip = new Point(100, 30);
+        var edge = Curved(DiagramHead.Arrow, new Point(0, 0), new Point(40, 2), new Point(70, 8), new Point(90, 16), new Point(96, 22), tip);
+        var line = edge.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds;
+
+        // The head points the way the line comes in over the head's own length — from (90, 16) — and its foot is a head's length back.
+        var coming = tip - new Point(90, 16);
+        coming.Normalize();
+        var foot = tip - (coming * (DiagramConnector.HeadLength + 1));
+
+        Assert.AreEqual(foot.X, line.Right, 0.05, $"the line ends at the foot of a head set along the way it comes in: {line} for {foot}");
+        Assert.AreEqual(foot.Y, line.Bottom, 0.05, "rather than along the short last step it was brought in by");
+        Assert.IsTrue(line.Right <= foot.X + 0.05 && line.Bottom <= foot.Y + 0.05,
+                      "and nothing of it runs on past the foot and comes back to it");
+    });
+
+    [TestMethod]
     public void ADashedLineIsDrawnDashed() => UiThread.Run(() =>
     {
         var line = (GeometryMark)Drawn(DiagramHead.Arrow, new DiagramStroke(Brushes.Black, 1, DiagramStroke.Dashed)).Marks[0];

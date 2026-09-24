@@ -32,8 +32,9 @@ public static class SankeyPiece
 
 /// <summary>
 /// Draws a <c>sankey-beta</c> block: a bar for each node, in a column as far along as the flows into it reach, and a ribbon
-/// for each flow as thick as it is worth. The columns are as far apart as the room allows, the tallest of them fills the
-/// height, and the ribbons leave and arrive stacked in the order they are written.
+/// for each flow as thick as it is worth. The columns stand a set width apart, the fullest of them fills the height, the
+/// nodes of each are ordered and then spread by the heights of what they are joined to, and the ribbons leave and arrive
+/// stacked in the order of what they join.
 ///
 /// <para>
 /// <strong>Two layers.</strong> The ribbons are drawn under the bars, so a node is always visible where its flows meet it;
@@ -44,8 +45,18 @@ public static class SankeyPiece
 internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
 {
     /// <summary>How big the diagram is drawn before the front matter or the room says otherwise.</summary>
-    private const double Wide = 640;
-    private const double Tall = 380;
+    private const double Wide = 720;
+    private const double Tall = 440;
+
+    /// <summary>The least the columns stand apart, however narrow the room — enough for the name of a node between two of them.</summary>
+    private const double Apart = 110;
+
+    /// <summary>How many times each column is set by its neighbours each way before the order down it is kept.</summary>
+    private const int Passes = 4;
+
+    /// <summary>How many times the nodes are drawn towards what they are joined to, and how much less each time than the last.</summary>
+    private const int Relaxed = 6;
+    private const double Easing = 0.8;
 
     private const double TextSize = 12;
 
@@ -56,7 +67,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     private const double Thinnest = 1;
 
     /// <summary>How solid a ribbon is.</summary>
-    private const double Wash = 0.45;
+    private const double Wash = 0.5;
 
     internal SankeyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
@@ -73,17 +84,14 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
         var config = chart.Config;
         var columns = Columns(chart, drawn);
         var said = drawn.ToDictionary(node => node.Name, node => Labelled(chart, node), StringComparer.Ordinal);
-
-        // The widest label on each side says how much room the bars have between them.
-        var last = columns.Values.Max();
-        var left = Widest(drawn, said, columns, column => column == 0);
-        var right = Widest(drawn, said, columns, column => column == last);
-
-        var wide = Math.Max(config.Width ?? Wide, (last + 1) * 80);
         var tall = Math.Max(config.Height ?? Tall, 80);
-        var across = new Rect(left + Gap, 0, Math.Max(40, wide - left - right - (Gap * 2)), tall);
+        var (tops, heights, scale) = Stacked(chart, drawn, columns, tall, config);
+        var (step, offset, wide, right) = Across(drawn, said, columns, config);
 
-        var (bars, scale) = Bars(chart, drawn, columns, across, config);
+        var bars = drawn.ToDictionary(node => node.Name,
+                                      node => new Rect(offset + (columns[node.Name] * step), tops[node.Name], config.NodeWidth, heights[node.Name]),
+                                      StringComparer.Ordinal);
+
         var ribbons = Ribbons(chart, bars, columns, scale);
 
         build.Open(SankeyPiece.Flows, part: null, stops: Stops.None);
@@ -91,7 +99,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
         build.Close();
 
         build.Open(SankeyPiece.Nodes, part: null, stops: Stops.None);
-        foreach (var node in drawn) Bar(build, chart, node, bars[node.Name], said[node.Name], columns[node.Name] == last);
+        foreach (var node in drawn) Bar(build, chart, node, bars[node.Name], said[node.Name], right[node.Name]);
         build.Close();
 
         return new Size(wide, tall);
@@ -153,53 +161,188 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     }
 
     /// <summary>
-    /// The bar each node is drawn as — its column across, and its share of the height down — and how much height a flow is
-    /// drawn for what it is worth, which is the same for the ribbons as for the bars they meet.
+    /// Where each node's bar stands down the page and how tall it is, and how much height a flow is drawn for what it is worth —
+    /// the same for the ribbons as for the bars they meet.
+    ///
+    /// <para>
+    /// Every column is drawn to the same scale, so the fullest of them fills the height, and each column starts stacked about the
+    /// middle of it. The order down a column is worked out rather than written: a node goes down its column as far as what flows
+    /// into it comes from, and then as far as what it flows on to goes — a few times over each way — so the ribbons run across
+    /// rather than over one another, which is most of what makes a sankey diagram read.
+    /// </para>
     /// </summary>
-    private static (Dictionary<string, Rect> Bars, double Scale) Bars(SankeyChart chart, IReadOnlyList<SankeyNode> drawn,
-                                                                      IReadOnlyDictionary<string, int> columns, Rect across, SankeyConfig config)
+    private static (Dictionary<string, double> Tops, Dictionary<string, double> Heights, double Scale) Stacked(
+        SankeyChart chart, IReadOnlyList<SankeyNode> drawn, IReadOnlyDictionary<string, int> columns, double tall, SankeyConfig config)
     {
         var last = columns.Values.Max();
-        var step = last == 0 ? 0 : (across.Width - config.NodeWidth) / last;
-
-        // Every column is drawn to the same scale, so the tallest of them is what fills the height.
-        var totals = Enumerable.Range(0, last + 1)
-            .Select(column => drawn.Where(node => columns[node.Name] == column).Sum(chart.Worth))
+        var stacks = Enumerable.Range(0, last + 1)
+            .Select(column => drawn.Where(node => columns[node.Name] == column).OrderBy(node => node.Order).ToList())
             .ToList();
 
-        var counts = Enumerable.Range(0, last + 1).Select(column => drawn.Count(node => columns[node.Name] == column)).ToList();
-        var scale = Enumerable.Range(0, last + 1)
-            .Where(column => totals[column] > 0)
-            .Select(column => (across.Height - (config.NodePadding * Math.Max(0, counts[column] - 1))) / totals[column])
+        var scale = stacks
+            .Where(stack => stack.Sum(chart.Worth) > 0)
+            .Select(stack => (tall - (config.NodePadding * Math.Max(0, stack.Count - 1))) / stack.Sum(chart.Worth))
             .DefaultIfEmpty(1)
             .Min();
 
-        var bars = new Dictionary<string, Rect>(StringComparer.Ordinal);
-        var down = new double[last + 1];
+        var heights = drawn.ToDictionary(node => node.Name, node => Math.Max(Thinnest, chart.Worth(node) * scale), StringComparer.Ordinal);
+        var tops = new Dictionary<string, double>(StringComparer.Ordinal);
+        var flows = chart.Flows.Where(flow => flow.Drawn && heights.ContainsKey(flow.From) && heights.ContainsKey(flow.To)).ToList();
 
-        foreach (var node in drawn.OrderBy(node => columns[node.Name]).ThenBy(node => node.Order))
+        foreach (var stack in stacks) Settle(stack);
+
+        for (var pass = 0; pass < Passes; pass++)
         {
-            var column = columns[node.Name];
-            var height = Math.Max(Thinnest, chart.Worth(node) * scale);
-
-            bars[node.Name] = new Rect(across.X + (column * step), across.Y + down[column], config.NodeWidth, height);
-            down[column] += height + config.NodePadding;
+            // Onwards, each column set by where what flows into it comes from; then back, each set by where what it flows to goes.
+            for (var column = 1; column <= last; column++) Sort(stacks[column], flow => flow.To, flow => flow.From);
+            for (var column = last - 1; column >= 0; column--) Sort(stacks[column], flow => flow.From, flow => flow.To);
         }
 
-        return (bars, scale);
+        // Then the nodes of a column with room to spare are spread down it rather than packed about its middle: each drawn towards
+        // the height of what it is joined to, a little less each time round, and the column set clear again after every move. A
+        // ribbon between two nodes at much the same height runs level, and ribbons that run level lie beside one another rather
+        // than across — which is d3-sankey's relaxation, the layout Mermaid draws with.
+        for (var (pass, pull) = (0, 1.0); pass < Relaxed; pass++, pull *= Easing)
+        {
+            for (var column = 1; column <= last; column++) Relax(stacks[column], flow => flow.To, flow => flow.From, pull);
+            for (var column = last - 1; column >= 0; column--) Relax(stacks[column], flow => flow.From, flow => flow.To, pull);
+        }
+
+        return (tops, heights, scale);
+
+        double Middle(string name) => tops[name] + (heights[name] / 2);
+
+        // The middle of what a node is joined to, each by what it is worth — or its own, joined to nothing that way.
+        double Wanted(SankeyNode node, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other)
+        {
+            var joined = flows.Where(flow => own(flow) == node.Name && tops.ContainsKey(other(flow))).ToList();
+            var worth = joined.Sum(flow => flow.Worth);
+
+            return worth > 0 ? joined.Sum(flow => Middle(other(flow)) * flow.Worth) / worth : Middle(node.Name);
+        }
+
+        void Relax(List<SankeyNode> stack, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other, double pull)
+        {
+            foreach (var node in stack) tops[node.Name] += (Wanted(node, own, other) - Middle(node.Name)) * pull;
+
+            var ordered = stack.OrderBy(node => tops[node.Name]).ToList();
+            stack.Clear();
+            stack.AddRange(ordered);
+            Clear(stack);
+        }
+
+        // Down the column, each node clear of the one above it; then, where that ran off the foot, back up from the foot.
+        void Clear(List<SankeyNode> stack)
+        {
+            var below = 0.0;
+            foreach (var node in stack)
+            {
+                tops[node.Name] = Math.Max(tops[node.Name], below);
+                below = tops[node.Name] + heights[node.Name] + config.NodePadding;
+            }
+
+            var above = tall;
+            for (var at = stack.Count - 1; at >= 0; at--)
+            {
+                var node = stack[at];
+                tops[node.Name] = Math.Max(0, Math.Min(tops[node.Name], above - heights[node.Name]));
+                above = tops[node.Name] - config.NodePadding;
+            }
+        }
+
+        void Settle(List<SankeyNode> stack)
+        {
+            var taken = stack.Sum(node => heights[node.Name]) + (config.NodePadding * Math.Max(0, stack.Count - 1));
+            var down = Math.Max(0, (tall - taken) / 2);
+
+            foreach (var node in stack)
+            {
+                tops[node.Name] = down;
+                down += heights[node.Name] + config.NodePadding;
+            }
+        }
+
+        void Sort(List<SankeyNode> stack, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other)
+        {
+            // The middle of what it is joined to, each by what it is worth; a node joined to nothing that way keeps where it is.
+            var wanted = stack.ToDictionary(node => node.Name, node => Wanted(node, own, other), StringComparer.Ordinal);
+
+            var ordered = stack.OrderBy(node => wanted[node.Name]).ThenBy(node => node.Order).ToList();
+            stack.Clear();
+            stack.AddRange(ordered);
+            Settle(stack);
+        }
     }
 
     /// <summary>
-    /// The ribbon each flow is drawn as: as thick as it is worth, leaving its source and arriving at its target stacked in
-    /// the order the flows are written.
+    /// How far apart the columns stand, where the first of them starts, how wide the whole diagram comes to, and which side of
+    /// its bar each node's name goes.
+    ///
+    /// <para>
+    /// The columns stand a width of their own apart — the width the diagram is drawn at shared among them, and never less than
+    /// room for what is written between two of them — rather than being squeezed into whatever is left once the names at either
+    /// edge are set, which is what crowds the middle of a diagram with many columns into a heap. A name goes to the right of its
+    /// bar, into the gap before the next column, and the last column's to the left of theirs: every name then has a gap to
+    /// itself, where names set either side of the middle would meet in the one gap between two middle columns.
+    /// </para>
+    /// </summary>
+    private (double Step, double Offset, double Wide, Dictionary<string, bool> Right) Across(
+        IReadOnlyList<SankeyNode> drawn, IReadOnlyDictionary<string, IReadOnlyList<DiagramWords>> said,
+        IReadOnlyDictionary<string, int> columns, SankeyConfig config)
+    {
+        var last = columns.Values.Max();
+        var step = last == 0 ? 0 : Math.Max(Apart, (config.Width ?? Wide) / (last + 1));
+        var right = drawn.ToDictionary(node => node.Name, node => last == 0 || columns[node.Name] < last, StringComparer.Ordinal);
+
+        // Past the diagram's own width only where a name is wider than the gap it goes in, or a lone column's names.
+        var (least, most) = (0.0, (last * step) + config.NodeWidth);
+        foreach (var node in drawn)
+        {
+            var words = DiagramWords.Taken(said[node.Name]).Width + Gap;
+            var x = columns[node.Name] * step;
+
+            if (right[node.Name]) most = Math.Max(most, x + config.NodeWidth + words);
+            else least = Math.Min(least, x - words);
+        }
+
+        return (step, -least, most - least, right);
+    }
+
+    /// <summary>
+    /// The ribbon each flow is drawn as: as thick as it is worth, leaving its source and arriving at its target stacked in the
+    /// order of where each goes to or comes from — the flows off one bar in the order of the bars they reach, so they fan out
+    /// rather than cross on their way.
     /// </summary>
     private static List<(SankeyFlow Flow, Geometry Shape)> Ribbons(SankeyChart chart, IReadOnlyDictionary<string, Rect> bars,
                                                                    IReadOnlyDictionary<string, int> columns, double scale)
     {
         var drawn = chart.Flows.Where(flow => flow.Drawn && bars.ContainsKey(flow.From) && bars.ContainsKey(flow.To)).ToList();
 
-        var leaving = new Dictionary<string, double>(StringComparer.Ordinal);
-        var arriving = new Dictionary<string, double>(StringComparer.Ordinal);
+        double Middle(string name) => bars[name].Y + (bars[name].Height / 2);
+
+        var starts = new Dictionary<SankeyFlow, double>();
+        var stops = new Dictionary<SankeyFlow, double>();
+
+        foreach (var leaving in drawn.GroupBy(flow => flow.From))
+        {
+            var down = bars[leaving.Key].Y;
+            foreach (var flow in leaving.OrderBy(flow => Middle(flow.To)))
+            {
+                starts[flow] = down;
+                down += Math.Max(Thinnest, flow.Worth * scale);
+            }
+        }
+
+        foreach (var arriving in drawn.GroupBy(flow => flow.To))
+        {
+            var down = bars[arriving.Key].Y;
+            foreach (var flow in arriving.OrderBy(flow => Middle(flow.From)))
+            {
+                stops[flow] = down;
+                down += Math.Max(Thinnest, flow.Worth * scale);
+            }
+        }
+
         var ribbons = new List<(SankeyFlow, Geometry)>();
 
         foreach (var flow in drawn)
@@ -207,15 +350,9 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             var (from, to) = (bars[flow.From], bars[flow.To]);
             var thick = Math.Max(Thinnest, flow.Worth * scale);
 
-            var start = from.Y + leaving.GetValueOrDefault(flow.From);
-            var stop = to.Y + arriving.GetValueOrDefault(flow.To);
-
-            leaving[flow.From] = leaving.GetValueOrDefault(flow.From) + thick;
-            arriving[flow.To] = arriving.GetValueOrDefault(flow.To) + thick;
-
             // A flow that runs back the way it came leaves the right of its source all the same, so it is drawn going round.
             var forward = columns[flow.To] >= columns[flow.From];
-            ribbons.Add((flow, Band(forward ? from.Right : from.Left, start, forward ? to.Left : to.Right, stop, thick)));
+            ribbons.Add((flow, Band(forward ? from.Right : from.Left, starts[flow], forward ? to.Left : to.Right, stops[flow], thick)));
         }
 
         return ribbons;
@@ -249,9 +386,10 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
         build.Close();
     }
 
-    /// <summary>A node: its bar, and what it is called beside it — on the far side of it from the flows it meets.</summary>
-    private void Bar(LayoutBuilder build, SankeyChart chart, SankeyNode node, Rect bar, IReadOnlyList<DiagramWords> said, bool last)
+    /// <summary>A node: its bar, and what it is called beside it — to the <paramref name="right"/> of it, or to the left.</summary>
+    private void Bar(LayoutBuilder build, SankeyChart chart, SankeyNode node, Rect bar, IReadOnlyList<DiagramWords> said, bool right)
     {
+        var last = !right;
         var taken = DiagramWords.Taken(said);
         var room = new Rect(last ? bar.Left - Gap - taken.Width : bar.Right + Gap,
                             bar.Y + ((bar.Height - taken.Height) / 2), taken.Width, taken.Height);
@@ -298,14 +436,6 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     private static string Said(double worth) =>
         worth.ToString(Math.Abs(worth - Math.Round(worth)) < 0.0005 ? "0" : "0.###", CultureInfo.CurrentCulture);
 
-    /// <summary>How wide what is written beside a node runs, for the nodes on one side of the diagram.</summary>
-    private static double Widest(IReadOnlyList<SankeyNode> drawn, IReadOnlyDictionary<string, IReadOnlyList<DiagramWords>> said,
-                                 IReadOnlyDictionary<string, int> columns, Func<int, bool> side) =>
-        drawn.Where(node => side(columns[node.Name]))
-            .Select(node => DiagramWords.Taken(said[node.Name]).Width)
-            .DefaultIfEmpty(0)
-            .Max();
-
     // ── Colour ──────────────────────────────────────────────────────────────
 
     /// <summary>What a node is drawn in: the colour the front matter writes for it, or its own from the series.</summary>
@@ -314,7 +444,9 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
 
     /// <summary>
     /// What a ribbon is drawn in: the colour of the node it leaves, the one it reaches, one written for all of them, or —
-    /// as Mermaid draws one by default — from the first to the second along its length.
+    /// as Mermaid draws one by default — from the first to the second along its length. Always half-strength against the bars
+    /// it runs between, which are drawn in their colours whole: the bars read as the light ends of the flows, where a flow
+    /// starts, passes through and ends, and the ribbons as the darker body of it.
     /// </summary>
     private Brush Coloured(SankeyChart chart, SankeyFlow flow, Rect bounds)
     {
@@ -328,19 +460,19 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             case SankeyLinkColour.Written: return DiagramInk.Faded(Ink.Written(chart.Config.LinkWritten) ?? Palette.TextMuted, Wash);
         }
 
-        if (bounds.Width <= 0 || Shade(from) is not { } start || Shade(to) is not { } stop) return DiagramInk.Faded(from, Wash);
+        if (bounds.Width <= 0 || from is not SolidColorBrush start || to is not SolidColorBrush stop) return DiagramInk.Faded(from, Wash);
 
+        // The fade is the brush's own, not its stops': a colour taken off a faded brush is the colour whole, and a gradient of
+        // those is as bright as the bars at either end of it.
         var gradient = new LinearGradientBrush
         {
             StartPoint = new Point(0, 0.5),
             EndPoint = new Point(1, 0.5),
-            GradientStops = { new GradientStop(start, 0), new GradientStop(stop, 1) },
+            GradientStops = { new GradientStop(start.Color, 0), new GradientStop(stop.Color, 1) },
+            Opacity = Wash,
         };
 
         gradient.Freeze();
         return gradient;
     }
-
-    /// <summary>The colour a node's own is faded to where a ribbon is drawn in it, or null for one that is no flat colour.</summary>
-    private static Color? Shade(Brush brush) => DiagramInk.Faded(brush, Wash) is SolidColorBrush solid ? solid.Color : null;
 }
