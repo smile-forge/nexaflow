@@ -64,4 +64,17 @@ public class IconPickerViewModelTests
         Assert.IsTrue(vm.Cells.Any(c => c.AutomationId == "RibbonEditor_Icons_Icon_FluentRegular_home"));
         Assert.IsTrue(vm.Cells.Any(c => c.AutomationId == "RibbonEditor_Icons_Icon_Emoji_house"));
     }
+
+    [TestMethod]
+    public void Prefix_RenamesTheSetChipsAndKeepsTheSet()
+    {
+        var vm = new IconPickerViewModel();
+        vm.SelectedFilter = vm.Filters.Single(f => f.Set == IconSet.Emoji);
+
+        vm.AutomationPrefix = "RibbonEditor_Icons";
+
+        Assert.IsTrue(vm.Filters.All(f => f.AutomationId.StartsWith("RibbonEditor_Icons_Set")));
+        Assert.AreEqual(IconSet.Emoji, vm.SelectedFilter.Set);
+        Assert.IsTrue(vm.Cells.All(c => c.Entry.Icon.Set == IconSet.Emoji));
+    }
 }

@@ -76,12 +76,33 @@ public partial class ColorPicker : UserControl
         set => SetValue(DefaultColorProperty, value);
     }
 
+    /// <summary>Anything that changes when the picker starts on a different colour (another selection, another slot),
+    /// so the before/after preview restarts from the value it now holds.</summary>
+    public static readonly DependencyProperty BaselineKeyProperty = DependencyProperty.Register(
+        nameof(BaselineKey), typeof(object), typeof(ColorPicker),
+        new PropertyMetadata(null, (d, _) =>
+        {
+            var picker = (ColorPicker)d;
+            picker._hasOriginal = false;
+            picker.LoadFrom(picker.Value);
+        }));
+
+    public object? BaselineKey
+    {
+        get => GetValue(BaselineKeyProperty);
+        set => SetValue(BaselineKeyProperty, value);
+    }
+
+    /// <summary>Raised whenever <see cref="Value"/> changes, whether the user picked it or a binding set it.</summary>
+    public event EventHandler? ValueChanged;
+
     /// <summary>Forgets the colour the before/after preview compares against; the next value becomes "before".</summary>
     public void ResetOriginal() => _hasOriginal = false;
 
     private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var picker = (ColorPicker)d;
+        picker.ValueChanged?.Invoke(picker, EventArgs.Empty);
         if (picker._pushing) return;
         picker.LoadFrom((ColorSpec)e.NewValue);
     }

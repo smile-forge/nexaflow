@@ -32,18 +32,22 @@ public sealed partial class IconPickerViewModel : ObservableObject
     public IconPickerViewModel(string automationPrefix = "IconPicker")
     {
         _automationPrefix = automationPrefix;
-        Filters =
-        [
-            new(Str.Get("Icons.Picker.All"),          null,                  $"{automationPrefix}_SetAll"),
-            new(Str.Get("Icons.Picker.Emoji"),        IconSet.Emoji,         $"{automationPrefix}_SetEmoji"),
-            new(Str.Get("Icons.Picker.Fluent"),       IconSet.FluentRegular, $"{automationPrefix}_SetFluent"),
-            new(Str.Get("Icons.Picker.FluentFilled"), IconSet.FluentFilled,  $"{automationPrefix}_SetFluentFilled"),
-        ];
-        _selectedFilter = Filters[0];
+        _filters          = BuildFilters(automationPrefix);
+        _selectedFilter   = _filters[0];
         Refresh();
     }
 
-    public IReadOnlyList<IconFilterOption> Filters { get; }
+    /// <summary>The set chips; rebuilt with the prefix, since each carries an id made from it.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<IconFilterOption> _filters;
+
+    private static IReadOnlyList<IconFilterOption> BuildFilters(string prefix) =>
+    [
+        new(Str.Get("Icons.Picker.All"),          null,                  $"{prefix}_SetAll"),
+        new(Str.Get("Icons.Picker.Emoji"),        IconSet.Emoji,         $"{prefix}_SetEmoji"),
+        new(Str.Get("Icons.Picker.Fluent"),       IconSet.FluentRegular, $"{prefix}_SetFluent"),
+        new(Str.Get("Icons.Picker.FluentFilled"), IconSet.FluentFilled,  $"{prefix}_SetFluentFilled"),
+    ];
 
     /// <summary>Raised when the user picks an icon, as distinct from <see cref="Selected"/> being set from outside.</summary>
     public event Action<IconRef>? Picked;
@@ -72,7 +76,14 @@ public sealed partial class IconPickerViewModel : ObservableObject
     /// <summary>Every match, in order — what <see cref="Rows"/> is cut from.</summary>
     public IReadOnlyList<IconCell> Cells => _cells;
 
-    partial void OnAutomationPrefixChanged(string value) => Refresh();
+    partial void OnAutomationPrefixChanged(string value)
+    {
+        var set = SelectedFilter.Set;
+        Filters = BuildFilters(value);
+        _selectedFilter = Filters.First(f => f.Set == set);
+        OnPropertyChanged(nameof(SelectedFilter));
+        Refresh();
+    }
 
     partial void OnSearchTextChanged(string value) => Refresh();
 

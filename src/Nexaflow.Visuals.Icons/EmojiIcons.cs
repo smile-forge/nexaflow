@@ -3,6 +3,8 @@ namespace Nexaflow.Visuals.Icons;
 /// <summary>
 /// The emoji offered as icons, each with the name it is shown by and the extra words it is found by. Names and
 /// keywords are search terms, matched in English whatever the UI language, like the Fluent names beside them.
+/// WPF draws emoji in one colour through its font fallback, so only glyphs that fallback has are listed, and none
+/// that differ from another only by colour — any icon can be given any colour.
 /// </summary>
 internal static class EmojiIcons
 {
@@ -74,11 +76,11 @@ internal static class EmojiIcons
         ("⚙", "gear", "settings cog options"),
         ("🔧", "wrench", "tools fix settings"),
         ("🔨", "hammer", "build tools"),
-        ("🪛", "screwdriver", "tools fix"),
+
         ("🔩", "nut and bolt", "hardware"),
-        ("🪝", "hook", "hang"),
+
         ("🧰", "toolbox", "tools kit"),
-        ("🪜", "ladder", "climb"),
+
         ("🧲", "magnet", "attract"),
         ("💡", "light bulb", "idea tip"),
         ("🔋", "battery", "power charge"),
@@ -103,21 +105,12 @@ internal static class EmojiIcons
         ("💫", "dizzy", "sparkle"),
         ("⚡", "lightning", "fast power zap"),
         ("🔥", "fire", "hot flame"),
-        ("❤", "red heart", "love like"),
-        ("💙", "blue heart", "love like"),
-        ("💚", "green heart", "love like"),
-        ("💛", "yellow heart", "love like"),
-        ("🟥", "red square", "colour"),
-        ("🟦", "blue square", "colour"),
-        ("🟩", "green square", "colour"),
-        ("🟨", "yellow square", "colour"),
-        ("⬛", "black square", "colour"),
-        ("⬜", "white square", "colour"),
+        ("❤", "heart", "love like"),
         ("➕", "plus", "add new"),
         ("➖", "minus", "remove subtract"),
         ("✖", "multiply", "close times"),
         ("➗", "divide", "division"),
-        ("🟰", "equals", "equal"),
+
         ("✅", "check mark", "done tick yes ok"),
         ("❌", "cross mark", "cancel no close"),
         ("⚠", "warning", "caution alert"),
