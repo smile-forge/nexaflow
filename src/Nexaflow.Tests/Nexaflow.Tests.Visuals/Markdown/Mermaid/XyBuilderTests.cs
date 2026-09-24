@@ -89,6 +89,19 @@ public class XyBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ALineWhoseValuesAreLabelledMarksEveryValueWithADot() => UiThread.Run(() =>
+    {
+        const string source = "xychart-beta\n  x-axis [a, b, c]\n  line [1 \"first\", 2, 3]";
+        var dots = Pieces(Build(source), XyPiece.Dot);
+
+        Assert.AreEqual(3, dots.Count, "a dot for every value, labelled or not, so a label says which point it is about");
+        CollectionAssert.AreEqual(new[] { "1 \"first\"", "2", "3" }, dots.Select(dot => Written(source, dot.Part)).ToArray(),
+                                  "each standing for its value as written");
+        Assert.AreEqual(0, Pieces(Build("xychart-beta\n  x-axis [a, b, c]\n  line [1, 2, 3]"), XyPiece.Dot).Count,
+                        "and a line with nothing labelled is the line alone");
+    });
+
+    [TestMethod]
     public void TheCategoriesAreTheWordsWritten_TypedInto_AndTheNumbersAreWorkedOut() => UiThread.Run(() =>
     {
         var ticks = Pieces(Build(Revenue), XyPiece.Tick);

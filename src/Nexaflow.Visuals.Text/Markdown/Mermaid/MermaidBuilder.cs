@@ -111,6 +111,9 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>How big the diagram's front matter asks its title to be set, or null for the size every diagram's title is.</summary>
     protected virtual double? TitleTextSize => null;
 
+    /// <summary>What the title is written in: the colour the front matter asks for, or the theme's heading.</summary>
+    protected Brush TitleInk => Ink.Written(TitleColour) ?? Palette.Heading;
+
     /// <summary>
     /// What goes under the drawing — a legend, a key, a caption — each as its own tree, with the air above it.
     /// </summary>
@@ -162,7 +165,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
 
             says = written ? titlePart.Text : MermaidText.Decode(titleText!);
-            ink = Ink.Written(TitleColour) ?? Palette.Heading;
+            ink = TitleInk;
             title = Text(says, TitleTextSize ?? TitleSize, ink, FontWeights.SemiBold);
         }
 

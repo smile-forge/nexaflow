@@ -125,12 +125,14 @@ internal static class DiagramConnector
     {
         if (route.Count < 2) throw new ArgumentException("A connector runs between two points at least.", nameof(route));
 
-        var points = route.ToArray();
+        var points = route.ToList();
         var heads = new GeometryGroup();
         var filled = new GeometryGroup();
 
-        points[^1] = Head(points[^1], Direction(points[^2], points[^1]), end, stroke.Thickness, heads, filled);
-        points[0] = Head(points[0], Direction(points[1], points[0]), start, stroke.Thickness, heads, filled);
+        Capped(points, end, stroke.Thickness, heads, filled);
+        points.Reverse();
+        Capped(points, start, stroke.Thickness, heads, filled);
+        points.Reverse();
 
         var line = Line(points, curved);
 
@@ -144,6 +146,41 @@ internal static class DiagramConnector
         build.Occupies(band);
         build.Close();
     }
+
+    /// <summary>
+    /// Puts <paramref name="head"/> on the last end of a line, and draws none of the line past where the head begins.
+    ///
+    /// <para>
+    /// The head points the way the line comes into it over the head's own length, not along whatever short last step the line
+    /// ends on: a curve is the points it is made of, and the last of them, brought in to the edge of what the line meets, can
+    /// turn a good way off the curve — a head set along it points somewhere the line is not going. Only as far back as the line
+    /// runs on without turning a corner, so a square line's head still points along its last leg.
+    /// </para>
+    /// <para>
+    /// And the points between the head's foot and its tip go. Left in, the line runs on past the foot to them and comes back
+    /// to the foot — a hook where it goes into the head.
+    /// </para>
+    /// </summary>
+    private static void Capped(List<Point> points, DiagramHead head, double thickness, GeometryGroup lines, GeometryGroup solid)
+    {
+        var tip = points[^1];
+        var last = Direction(points[^2], tip);
+
+        var back = points.Count - 2;
+        while (back > 0 && (tip - points[back]).Length < HeadLength && Vector.Multiply(Direction(points[back - 1], points[back]), last) > Bent)
+            back--;
+
+        var foot = Head(tip, Direction(points[back], tip), head, thickness, lines, solid);
+        var cut = (tip - foot).Length;
+
+        if (cut > 1e-9)
+            while (points.Count > 2 && (tip - points[^2]).Length < cut) points.RemoveAt(points.Count - 2);
+
+        points[^1] = foot;
+    }
+
+    /// <summary>How far a line may turn and still be running on rather than turning a corner — the cosine of the angle.</summary>
+    private const double Bent = 0.7;
 
     /// <summary>The point halfway along a route — where the words on a connector go.</summary>
     public static Point Middle(IReadOnlyList<Point> route)

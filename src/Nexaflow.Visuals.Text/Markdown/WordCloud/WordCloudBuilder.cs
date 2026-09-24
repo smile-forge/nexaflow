@@ -362,10 +362,12 @@ internal sealed class WordCloudBuilder : ContentBuilder
     private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) =>
         new(part.Start, Math.Max(part.Length, 1), severity, reason);
 
-    /// <summary>Shows the block as-typed with the error above it, for a block that isn't a cloud at all.</summary>
+    /// <summary>
+    /// A block with no cloud in it: nothing drawn, and why. What goes where it would have been is the host's — the characters
+    /// somebody typed, with this reason under them, which is the only thing that says what to fix.
+    /// </summary>
     private Laid Stopped(string reason) =>
-        LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
+        Laid.Nothing with { Trouble = [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)] };
 
     protected override FormattedText Characters(string text) =>
         new(text,

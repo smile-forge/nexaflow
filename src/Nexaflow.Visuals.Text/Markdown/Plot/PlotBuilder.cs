@@ -1227,8 +1227,10 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             Brushes.Black,
             Editing.LayoutText.Density);
 
-    /// <summary>The block shown as written, with the reason it could not be drawn.</summary>
+    /// <summary>
+    /// A block with no plot in it: nothing drawn, and why. What goes where it would have been is the host's — the characters
+    /// somebody typed, with this reason under them, which is the only thing that says what to fix.
+    /// </summary>
     private Laid Stopped(string reason) =>
-        LayoutText.Shown(Source, this.Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
+        Laid.Nothing with { Trouble = [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)] };
 }

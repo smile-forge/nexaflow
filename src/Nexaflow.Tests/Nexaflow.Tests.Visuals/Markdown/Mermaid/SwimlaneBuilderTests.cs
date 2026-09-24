@@ -153,6 +153,34 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void TwoLinesLeavingADecisionIntoOtherLanesLeaveItAtPointsOfTheirOwn_AndOneOnLeavesFromTheMiddle() => UiThread.Run(() =>
+    {
+        const string source = "swimlane-beta LR\n  subgraph dev[Developer]\n    code[Write code]\n    fix(Fix issues)\n  end\n"
+                              + "  subgraph Build server\n    build[Build]\n    test{Tests pass?}\n  end\n"
+                              + "  code ==> build\n  build --> test\n  test -->|Yes| done([Deploy])\n  test --> fix";
+        var laid = Lay(source);
+        // In the order they are written: code ==> build, build --> test, test --> done, test --> fix.
+        var links = Pieces(laid, FlowchartPiece.Link);
+        var nodes = Nodes(source);
+
+        var (on, yes, up) = (links[1].Bounds, links[2].Bounds, links[3].Bounds);
+
+        Assert.AreEqual(Middle(nodes["Tests pass?"]).X, Middle(up).X, 2, "the line straight up leaves by the point at the top");
+        Assert.IsTrue(yes.Left >= nodes["Tests pass?"].Right - 2, $"and the other by the corner on the side it heads for: {yes} from {nodes["Tests pass?"]}");
+        Assert.AreEqual(Middle(nodes["Build"]).Y, Middle(on).Y, 2, "a line on to the next rank leaves from the middle of the side it leaves by");
+    });
+
+    [TestMethod]
+    public void TheFirstThingInALaneStandsClearOfTheLanesName() => UiThread.Run(() =>
+    {
+        var laid = Lay("swimlane-beta LR\n  subgraph A\n    one\n  end\n  subgraph B\n    two\n  end\n  one --> two");
+        var strip = Pieces(laid, FlowchartPiece.Title)[0].Bounds;
+        var one = Nodes("swimlane-beta LR\n  subgraph A\n    one\n  end\n  subgraph B\n    two\n  end\n  one --> two")["one"];
+
+        Assert.IsTrue(one.Left > strip.Right + 4, $"there is air between the lane's name and the first step in it: {one} after {strip}");
+    });
+
+    [TestMethod]
     public void AHandoffCountsLikeAnyOtherLinkWhereTheFrontMatterAsks() => UiThread.Run(() =>
     {
         var nodes = Nodes("---\nconfig:\n  swimlane:\n    ignoreCrossLaneEdges: false\n---\nswimlane-beta TB\n"

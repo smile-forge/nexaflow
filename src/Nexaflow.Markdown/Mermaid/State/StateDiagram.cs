@@ -73,6 +73,12 @@ public sealed record StateNode(
 
     /// <summary>Whether it is one of the dots the diagram starts and stops at, which hold no words and are drawn small.</summary>
     public bool Marker => Shape is StateShape.Start or StateShape.Stop;
+
+    /// <summary>
+    /// Which region of the composite state it is in, counted from one: a <c>--</c> line divides a composite state into regions that run
+    /// at the same time, and what is written after one is in the next. A divider is in the region it closes.
+    /// </summary>
+    public int Region { get; init; } = 1;
 }
 
 /// <summary>One transition, read: the states it joins and what is written on it.</summary>
@@ -108,6 +114,9 @@ public sealed record StateGroup(
     /// alone, where nothing closed it.
     /// </summary>
     public ISourcePart Whole { get; init; } = default(SourceSpan);
+
+    /// <summary>Which region of the composite state it is in, counted from one — see <see cref="StateNode.Region"/>.</summary>
+    public int Region { get; init; } = 1;
 }
 
 /// <summary>One note, read: the state it is written beside, which side of it, and what it says.</summary>
@@ -219,6 +228,10 @@ public sealed class StateDiagram
         var written = new List<(IReadOnlyList<string> Ids, MermaidStyle Style)>();
         var plain = false;
 
+        // Which region of each composite state the lines are being written in, counted from one: a -- line starts the next.
+        var regions = new Dictionary<string, int>(StringComparer.Ordinal);
+        int Region(string? scope) => regions.GetValueOrDefault(scope ?? string.Empty, 1);
+
         foreach (var line in block.Reading.Root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Line))
         {
             if (line.Stated() is not { } stated) continue;
@@ -227,7 +240,7 @@ public sealed class StateDiagram
             switch (stated.Kind)
             {
                 case StateKinds.Opens:
-                    var group = Opens(stated, inside, groups.Count);
+                    var group = Opens(stated, inside, Region(inside), groups.Count);
                     groups.Add(group);
                     open.Push(group);
                     break;
@@ -237,15 +250,16 @@ public sealed class StateDiagram
                     break;
 
                 case StateKinds.State:
-                    Said(stated, inside, nodes, known);
+                    Said(stated, inside, Region(inside), nodes, known);
                     break;
 
                 case StateKinds.Transition:
-                    Stepped(stated, inside, nodes, known, steps);
+                    Stepped(stated, inside, Region(inside), nodes, known, steps);
                     break;
 
                 case StateKinds.Concurrent:
-                    Made.Divider(stated, inside, nodes, known);
+                    Made.Divider(stated, inside, Region(inside), nodes, known);
+                    regions[inside ?? string.Empty] = Region(inside) + 1;
                     break;
 
                 case StateKinds.Note:
@@ -300,11 +314,11 @@ public sealed class StateDiagram
     // ── Reading the lines ───────────────────────────────────────────────────
 
     /// <summary>A state written on its own: what is drawn on it, what it is drawn as, and the class it is given.</summary>
-    private static void Said(ContentPart stated, string? inside, List<Made> nodes, Dictionary<string, Made> known)
+    private static void Said(ContentPart stated, string? inside, int region, List<Made> nodes, Dictionary<string, Made> known)
     {
         if (stated.Inner(StateKinds.Named) is not { } named) return;
 
-        var made = Gathered(named, inside, nodes, known);
+        var made = Gathered(named, inside, region, nodes, known);
         if (made is null) return;
 
     made.Said = Inner(stated, StateKinds.Said) ?? Inner(stated, MermaidKinds.Quoted) ?? made.Said;
@@ -314,14 +328,14 @@ public sealed class StateDiagram
     }
 
     /// <summary>A transition: the states either side of it, and what is written on it.</summary>
-    private static void Stepped(ContentPart stated, string? inside, List<Made> nodes, Dictionary<string, Made> known,
+    private static void Stepped(ContentPart stated, string? inside, int region, List<Made> nodes, Dictionary<string, Made> known,
                                 List<Joined> steps)
     {
         var named = stated.Children.Where(child => child.Kind == StateKinds.Named).ToList();
         if (named.Count < 2) return;
 
-        var from = Gathered(named[0], inside, nodes, known, leaving: true);
-        var to = Gathered(named[1], inside, nodes, known, leaving: false);
+        var from = Gathered(named[0], inside, region, nodes, known, leaving: true);
+        var to = Gathered(named[1], inside, region, nodes, known, leaving: false);
         if (from is null || to is null) return;
 
         steps.Add(new Joined(stated, from.Id, to.Id, steps.Count)
@@ -333,9 +347,9 @@ public sealed class StateDiagram
 
     /// <summary>
     /// The state a name says, made where it has not been written before. <c>[*]</c> is the dot its own scope starts or stops at,
-    /// whichever way the transition it is written on runs.
+    /// whichever way the transition it is written on runs — its own region's, where a composite state is divided into regions.
     /// </summary>
-    private static Made? Gathered(ContentPart named, string? inside, List<Made> nodes, Dictionary<string, Made> known,
+    private static Made? Gathered(ContentPart named, string? inside, int region, List<Made> nodes, Dictionary<string, Made> known,
                                   bool? leaving = null)
     {
         var name = named.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
@@ -347,12 +361,12 @@ public sealed class StateDiagram
         if (id == Edge)
         {
             shape = leaving is false ? StateShape.Stop : StateShape.Start;
-            id = Marker(shape, inside);
+            id = Marker(shape, inside, region);
         }
 
         if (!known.TryGetValue(id, out var made))
         {
-            made = new Made(named, id, inside, nodes.Count) { Shape = shape, Said = words };
+            made = new Made(named, id, inside, nodes.Count) { Shape = shape, Said = words, Region = region };
             if (shape is StateShape.Start or StateShape.Stop) made.Said = null;
 
             nodes.Add(made);
@@ -365,16 +379,19 @@ public sealed class StateDiagram
         return made;
     }
 
-    /// <summary>What the dot a scope starts or stops at is called, which is what a <c>class</c> line styles it by.</summary>
-    private static string Marker(StateShape shape, string? inside)
+    /// <summary>
+    /// What the dot a scope starts or stops at is called, which is what a <c>class</c> line styles it by. Each region past the first of
+    /// a composite state has dots of its own, as Mermaid draws them.
+    /// </summary>
+    private static string Marker(StateShape shape, string? inside, int region)
     {
         var name = shape == StateShape.Start ? StateGrammar.Pseudo[0] : StateGrammar.Pseudo[1];
 
-        return inside is null ? name : $"{name}@{inside}";
+        return inside is null ? name : region > 1 ? $"{name}@{inside}#{region}" : $"{name}@{inside}";
     }
 
     /// <summary>A composite state opening.</summary>
-    private static Held Opens(ContentPart stated, string? parent, int order)
+    private static Held Opens(ContentPart stated, string? parent, int region, int order)
     {
         var named = stated.Inner(StateKinds.Named);
         var name = named?.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
@@ -382,6 +399,7 @@ public sealed class StateDiagram
         return new Held(stated, stated.Fact(StateRoles.Opened) ?? string.Empty, name.Words()?.Text ?? string.Empty, order)
         {
             Parent = parent,
+            Region = region,
 
             // A composite state written with what is on it first is called by its id and drawn with those words.
             Said = Inner(stated, MermaidKinds.Quoted) ?? name.Words(),
@@ -461,6 +479,7 @@ public sealed class StateDiagram
             SaidHole = made.SaidHole,
             Href = made.Href,
             Tip = made.Tip,
+            Region = made.Region,
         };
 
     private static StateGroup Frozen(Held held, IReadOnlyDictionary<string, MermaidStyle> styles,
@@ -469,6 +488,7 @@ public sealed class StateDiagram
             styles.GetValueOrDefault(held.Id, MermaidStyle.None), held.Order)
         {
             SaidHole = held.SaidHole,
+            Region = held.Region,
             Whole = new SourceSpan(held.Part.Start, (held.Closed?.End ?? held.Part.End) - held.Part.Start),
         };
 
@@ -497,11 +517,13 @@ public sealed class StateDiagram
 
         public List<string> Classes { get; } = [];
 
+        public int Region { get; init; } = 1;
+
         /// <summary>The line dividing two regions of a composite state, which is a state of the layout and nothing else.</summary>
-        public static void Divider(ContentPart stated, string? inside, List<Made> nodes, Dictionary<string, Made> known)
+        public static void Divider(ContentPart stated, string? inside, int region, List<Made> nodes, Dictionary<string, Made> known)
         {
             var id = $"--@{nodes.Count}";
-            var made = new Made(stated, id, inside, nodes.Count) { Shape = StateShape.Divider };
+            var made = new Made(stated, id, inside, nodes.Count) { Shape = StateShape.Divider, Region = region };
 
             nodes.Add(made);
             known[id] = made;
@@ -530,6 +552,8 @@ public sealed class StateDiagram
         public int Order { get; } = order;
 
         public string? Parent { get; init; }
+
+        public int Region { get; init; } = 1;
 
         public ContentPart? Said { get; init; }
 

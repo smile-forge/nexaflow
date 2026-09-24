@@ -21,6 +21,9 @@ internal static class DiagramLayers
     /// <summary>How many times the order of each rank, and then the place of everything in it, is settled.</summary>
     private const int Passes = 8;
 
+    /// <summary>How many times the ranks are swept up and down the diagram to order them, the fewest crossings found kept.</summary>
+    private const int Sweeps = 24;
+
     /// <summary>How far a link back to the cell it leaves reaches out beside it.</summary>
     private const double Loops = 18;
 
@@ -492,19 +495,37 @@ internal static class DiagramLayers
         below.Above.Add(above);
     }
 
-    /// <summary>Settles each rank's order so a cell sits near what it joins in the rank beside it, minimizing crossings. Lanes sort first so a lane's band is the same stretch in every rank; a cell set beside another follows it.</summary>
+    /// <summary>
+    /// Settles each rank's order so a cell sits near what it joins in the rank beside it, with as few lines crossing as it can
+    /// find. Lanes sort first so a lane's band is the same stretch in every rank; a cell set beside another follows it.
+    ///
+    /// <para>
+    /// Sweeping ranks up and down the diagram, each set by where what it joins sits in the rank before — by the average of it on some
+    /// sweeps and the middle of it on others — is the start of it. But a sweep only looks one rank away, and the next sweep can undo
+    /// what the last one got right. So the crossings are counted after
+    /// every sweep and the fewest are kept rather than the last; and after every sweep neighbours in a rank are swapped wherever
+    /// that alone takes a crossing away, which catches the pair a sweep leaves the wrong way round because their averages tie.
+    /// </para>
+    /// </summary>
     private static void Ordered(List<List<Place>> rows, IReadOnlyDictionary<Place, Place> beside)
     {
         Numbered(rows);
 
-        for (var pass = 0; pass < Passes; pass++)
+        var fewest = Crossings(rows);
+        var best = rows.Select(row => row.ToList()).ToList();
+
+        for (var pass = 0; pass < Sweeps && fewest > 0; pass++)
         {
             var down = pass % 2 == 0;
+
+            // The average and the middle of what a place joins each order some shapes of diagram badly and others well, so the
+            // sweeps take turns with them — two sweeps of one, then two of the other.
+            var middle = pass % 4 is 2 or 3;
 
             foreach (var row in Sweep(rows, down))
             {
                 var settled = row
-                    .Select((place, order) => (Place: place, Near: Nearest(place, down, order)))
+                    .Select((place, order) => (Place: place, Near: Nearest(place, down, order, middle)))
                     .OrderBy(entry => entry.Place.Lane)
                     .ThenBy(entry => entry.Near)
                     .Select(entry => entry.Place)
@@ -514,7 +535,84 @@ internal static class DiagramLayers
                 row.AddRange(Following(settled, beside));
                 Numbered(rows);
             }
+
+            Transposed(rows, beside);
+
+            var crossings = Crossings(rows);
+            if (crossings < fewest)
+            {
+                fewest = crossings;
+                best = rows.Select(row => row.ToList()).ToList();
+            }
         }
+
+        for (var at = 0; at < rows.Count; at++)
+        {
+            rows[at].Clear();
+            rows[at].AddRange(best[at]);
+        }
+
+        Numbered(rows);
+    }
+
+    /// <summary>
+    /// Swaps neighbours in a rank wherever that alone takes a crossing away, over and over until no swap does. Only two in the
+    /// same lane, and neither set beside another: those are held where they are for reasons of their own.
+    /// </summary>
+    private static void Transposed(List<List<Place>> rows, IReadOnlyDictionary<Place, Place> beside)
+    {
+        var held = beside.Keys.Concat(beside.Values).ToHashSet();
+
+        for (var round = 0; round < rows.Count * 4; round++)
+        {
+            var better = false;
+
+            foreach (var row in rows)
+                for (var at = 0; at + 1 < row.Count; at++)
+                {
+                    var (left, right) = (row[at], row[at + 1]);
+                    if (left.Lane != right.Lane || held.Contains(left) || held.Contains(right)) continue;
+                    if (Crossed(right, left) >= Crossed(left, right)) continue;
+
+                    (row[at], row[at + 1]) = (right, left);
+                    (left.Order, right.Order) = (right.Order, left.Order);
+                    better = true;
+                }
+
+            if (!better) return;
+        }
+    }
+
+    /// <summary>How many crossings the lines of two places in one rank make with each other, <paramref name="left"/> standing left of <paramref name="right"/>.</summary>
+    private static int Crossed(Place left, Place right) =>
+        Pairs(left.Above, right.Above) + Pairs(left.Below, right.Below);
+
+    /// <summary>How many of the lines from a place on the left cross those from one on its right: one reaching further along than the other.</summary>
+    private static int Pairs(List<Place> left, List<Place> right)
+    {
+        var crossed = 0;
+        foreach (var one in left)
+            foreach (var other in right)
+                if (one.Order > other.Order) crossed++;
+
+        return crossed;
+    }
+
+    /// <summary>How many times the lines between each pair of neighbouring ranks cross, all told.</summary>
+    private static int Crossings(List<List<Place>> rows)
+    {
+        var crossed = 0;
+
+        foreach (var row in rows)
+        {
+            var lines = row.SelectMany(place => place.Below.Select(below => (From: place.Order, To: below.Order))).ToList();
+
+            for (var one = 0; one < lines.Count; one++)
+                for (var other = one + 1; other < lines.Count; other++)
+                    if ((lines[one].From - lines[other].From) * (lines[one].To - lines[other].To) < 0) crossed++;
+        }
+
+        return crossed;
     }
 
     /// <summary>Every place set beside another moved to follow it, so the two come out of the ordering next to each other.</summary>
@@ -546,54 +644,50 @@ internal static class DiagramLayers
                 row[order].Order = order;
     }
 
-    /// <summary>Where in the rank beside it what this one joins sits, on average — where it is itself, where it joins nothing.</summary>
-    private static double Nearest(Place place, bool down, double fallback)
+    /// <summary>
+    /// Where in the rank beside it what this one joins sits — on average, or the middle one of them where <paramref name="middle"/>
+    /// asks — and where it is itself, where it joins nothing.
+    /// </summary>
+    private static double Nearest(Place place, bool down, double fallback, bool middle = false)
     {
         var near = down ? place.Above : place.Below;
+        if (near.Count == 0) return fallback;
 
-        return near.Count == 0 ? fallback : near.Average(other => (double)other.Order);
+        return middle ? near.Select(other => (double)other.Order).OrderBy(order => order).ElementAt(near.Count / 2)
+                      : near.Average(other => (double)other.Order);
     }
 
     /// <summary>
-    /// Sets every cell across its rank: each one over the middle of what it joins in the rank beside it, and far enough
-    /// from its neighbours in its own rank.
+    /// Sets every cell across its rank: lined up with what it joins, and far enough from its neighbours in its own rank — by
+    /// <see cref="DiagramAlignment"/>, which keeps long lines straight without dragging a run of cells off the line it makes.
     ///
     /// <para>
-    /// Over the <em>middle</em> of them rather than their average, which is what the two differ on when a cell joins an odd
-    /// number of things: the average is pulled about by an outlier, the middle is not.
+    /// What that says is then held to, rank by rank, in the order the ranks were given: a place set beside another goes beside it
+    /// rather than where the alignment put it, and one joined to nothing packs up against its neighbour.
     /// </para>
     /// </summary>
     private static void Spread(List<List<Place>> rows, double between, IReadOnlyDictionary<Place, Place> beside)
     {
-        foreach (var row in rows) Apart(row, between);
+        var aligned = DiagramAlignment.Of(rows, between);
+        foreach (var place in rows.SelectMany(row => row)) place.At = aligned[place];
 
-        for (var pass = 0; pass < Passes; pass++)
+        foreach (var row in rows)
         {
-            var down = pass % 2 == 0;
+            var wanted = new double[row.Count];
 
-            foreach (var row in Sweep(rows, down))
+            for (var at = 0; at < row.Count; at++)
             {
-                var wanted = new double[row.Count];
+                var place = row[at];
 
-                for (var at = 0; at < row.Count; at++)
-                {
-                    var place = row[at];
-
-                    // Beside what it is set beside, not on top of it. Asking to be where that already is leaves where it
-                    // actually ends up to whatever pushes it out of the way — which is how a note about one thing comes
-                    // to sit at the far end of the rank from the thing it is about.
-                    if (beside.TryGetValue(place, out var about))
-                    {
-                        wanted[at] = about.At + ((about.Size + place.Size) / 2) + between;
-                        continue;
-                    }
-
-                    var near = down ? place.Above : place.Below;
-                    wanted[at] = near.Count == 0 ? place.At : Middling([.. near.Select(other => other.At)]);
-                }
-
-                Ranged(row, wanted, between);
+                // Beside what it is set beside, not on top of it. Asking to be where that already is leaves where it
+                // actually ends up to whatever pushes it out of the way — which is how a note about one thing comes
+                // to sit at the far end of the rank from the thing it is about.
+                wanted[at] = beside.TryGetValue(place, out var about)
+                    ? about.At + ((about.Size + place.Size) / 2) + between
+                    : place.At;
             }
+
+            Ranged(row, wanted, between);
         }
 
         var least = rows.SelectMany(row => row).Select(place => place.At - (place.Size / 2)).DefaultIfEmpty(0).Min();
@@ -1177,18 +1271,27 @@ internal static class DiagramLayers
             var join = many[one];
             if (join.Route.Count < 2) continue;
 
+            // Spread across the way the couple itself runs, which is not always the way the layout does: a way out of a decision set
+            // beside it runs across the layout, and spread across the layout its ends are pulled back along it into the middle of what
+            // they leave and its bow folds the line back on itself — a hook where it meets its shape.
+            var run = Middle(join.To.Bounds) - Middle(join.From.Bounds);
+            var flat = sideways ? Math.Abs(run.X) > Math.Abs(run.Y) : Math.Abs(run.Y) > Math.Abs(run.X);
+            var across = flat ? !sideways : sideways;
+
             var step = (one - ((many.Count - 1) / 2.0));
 
             if (ports)
             {
+                // A diamond is met at its points, and a line lying across the layout set off its middle would be sent to the point
+                // above or below — so a couple lying across keeps to the middle of one, and parts at its other end.
                 var offset = step * Stepping;
                 var route = join.Route.ToList();
 
-                route[0] = Aside(route[0], join.From, offset, sideways);
-                route[^1] = Aside(route[^1], join.To, offset, sideways);
+                route[0] = Aside(route[0], join.From, flat && join.From.Shape is DiagramShape.Diamond ? 0 : offset, across);
+                route[^1] = Aside(route[^1], join.To, flat && join.To.Shape is DiagramShape.Diamond ? 0 : offset, across);
 
-                Squared(route, 0, sideways);
-                Squared(route, route.Count - 1, sideways);
+                Squared(route, 0, across);
+                Squared(route, route.Count - 1, across);
 
                 join.Route = route;
             }
@@ -1197,12 +1300,60 @@ internal static class DiagramLayers
             if (Math.Abs(bow) < 1e-9) continue;
 
             var along = join.Route[^1] - join.Route[0];
-            var aside = sideways
+            var aside = across
                 ? (along.Y >= 0 ? -bow : bow)
                 : (along.X >= 0 ? bow : -bow);
 
+            // One lying across the layout runs straight between two things side by side, with nothing to set its ends facing the way it
+            // goes: bowed as it is, it leaves by whichever point the bow tips it towards. So it sets off straight out of the side facing
+            // the other, bows in the middle of the gap only, and comes straight in.
+            if (ports && flat)
+            {
+                join.Route = Leading(join, run, across, aside);
+                continue;
+            }
+
             join.Route = Bowing(join.Route, ports ? aside : bow);
         }
+    }
+
+    /// <summary>
+    /// A line of a couple lying across the layout: straight out of the side of what it leaves that faces what it reaches, bowed by
+    /// <paramref name="aside"/> through the gap between them — gently, the gap between two things side by side being short — and
+    /// straight into the side of that facing back.
+    /// </summary>
+    private static IReadOnlyList<Point> Leading(DiagramJoin join, Vector run, bool across, double aside)
+    {
+        var (start, end) = (join.Route[0], join.Route[^1]);
+        var onward = Math.Sign(across ? run.Y : run.X) is var sign && sign != 0 ? sign : 1;
+
+        // Where each faces the other, along the way the line runs.
+        var leaves = across
+            ? (onward > 0 ? join.From.Bounds.Bottom : join.From.Bounds.Top)
+            : (onward > 0 ? join.From.Bounds.Right : join.From.Bounds.Left);
+        var arrives = across
+            ? (onward > 0 ? join.To.Bounds.Top : join.To.Bounds.Bottom)
+            : (onward > 0 ? join.To.Bounds.Left : join.To.Bounds.Right);
+
+        var gap = Math.Abs(arrives - leaves);
+        var lead = Math.Max(4, gap / 4) * onward;
+        Point At(Point point, double along) => across ? new Point(point.X, along) : new Point(along, point.Y);
+
+        // Two lines apart at either end already fan apart, and need no bow; only two sharing both ends — two diamonds' points — do.
+        var shared = join.From.Shape is DiagramShape.Diamond && join.To.Shape is DiagramShape.Diamond;
+
+        var way = end - start;
+        var bowed = new Vector();
+        if (shared && way.Length > 1e-9)
+        {
+            way.Normalize();
+            bowed = new Vector(-way.Y, way.X) * (Math.Sign(aside) * Math.Min(Math.Abs(aside), Math.Max(Stepping / 2, gap / 3)));
+        }
+
+        var (out0, in0) = (At(start, leaves + lead) + (bowed / 2), At(end, arrives - lead) + (bowed / 2));
+        var middle = new Point((out0.X + in0.X) / 2, (out0.Y + in0.Y) / 2) + (bowed / 2);
+
+        return [start, out0, middle, in0, end];
     }
 
     /// <summary>A line's end moved that far off the middle of the shape it meets, across the way the layout runs.</summary>
@@ -1248,13 +1399,25 @@ internal static class DiagramLayers
     /// and can never run into one another, so spreading them together only moves them off the middle for nothing — which is
     /// what a shape standing in the middle of a chain is, one line in and one line out, both belonging on its middle.
     /// </para>
+    /// <para>
+    /// A line running across the layout rather than along it — to something beside it in its rank, or out of its lane into
+    /// the next — meets the shape on the side it heads off through. Two or more of those leaving through one side are spread
+    /// along that side just as a fan along the layout is; left alone, each would meet the shape where that side faces them,
+    /// which on a diamond is its one point, and two lines leaving one point read as one line that splits.
+    /// </para>
     /// </summary>
     private static void Ported(DiagramCell cell, List<(DiagramJoin Join, int At)> ends, DiagramWay way)
     {
         var across = way is DiagramWay.Down or DiagramWay.Up;
+        var flat = ends.Where(end => Flat(cell.Bounds, end.Join.Route[end.At == 0 ? ^1 : 0], across)).ToList();
 
-        foreach (var side in ends.GroupBy(end => Side(cell, end.Join, end.At, across)))
+        // The lines along the layout fan among themselves: one across it meets the shape on another side altogether, and counted
+        // into their fan it would only move them off the middle for a place it never takes.
+        foreach (var side in ends.Except(flat).GroupBy(end => Side(cell, end.Join, end.At, across)))
             Fanned(cell, [.. side], across);
+
+        foreach (var side in flat.GroupBy(end => Side(cell, end.Join, end.At, !across)))
+            Fanned(cell, [.. side], side.Count() > 1 ? !across : across);
     }
 
     /// <summary>Which way along the layout a line leaves a shape it meets: on towards the far side, or back the other way.</summary>
@@ -1289,13 +1452,34 @@ internal static class DiagramLayers
         // In the order they head off in, so the lines of a fan keep out of one another's way.
         ends.Sort((one, other) => Heading(one.Join, one.At, across).CompareTo(Heading(other.Join, other.At, across)));
 
+        var slots = Enumerable.Range(0, ends.Count).Select(one => first + (one * step)).ToList();
+
+        // Two lines off a diamond where one heads straight on and the other off to a side: the one straight on keeps the point
+        // ahead, and the other takes the corner on the side it heads for — rather than the two taking a corner each and the one
+        // going straight on setting off sideways first.
+        if (cell.Shape is DiagramShape.Diamond && ends.Count == 2 && step > 0)
+        {
+            var half = (across ? bounds.Width : bounds.Height) / 4;
+            var off = ends.Select(end => Heading(end.Join, end.At, across) - middle).ToList();
+            var straight = off.FindIndex(aside => Math.Abs(aside) < half);
+
+            if (straight >= 0 && Math.Abs(off[1 - straight]) >= half)
+            {
+                slots[straight] = middle;
+                slots[1 - straight] = middle + (Math.Sign(off[1 - straight]) * step);
+            }
+        }
+
         for (var one = 0; one < ends.Count; one++)
         {
             var (join, at) = ends[one];
             var route = join.Route.ToList();
 
-            route[at] = Met(cell, first + (one * step), join.Route[at == 0 ? ^1 : 0], across);
-            Facing(route, at, cell, across);
+            // Which end, rather than where it stood: a line may have been given a turn at its other end since it was counted.
+            var end = at == 0 ? 0 : route.Count - 1;
+
+            route[end] = Met(cell, slots[one], join.Route[at == 0 ? ^1 : 0], across);
+            Facing(route, end, cell, across, held: join.Bends.Count > 0);
 
             join.Route = route;
         }
@@ -1346,10 +1530,16 @@ internal static class DiagramLayers
     /// <summary>
     /// Sets the bend beside a line's end so the line sets off the way the shape faces where it touched it: square to an
     /// edge, and out along the point where it met a point.
+    ///
+    /// <para>
+    /// Not for a line <paramref name="held"/> to places in the ranks it crosses: beside its end is the place it passes in the next
+    /// rank, which is what keeps it clear of what stands in that rank. Squared up with the end, the place is dragged back in line
+    /// with it, and the line with it through whatever it was going round — so the line sets off towards the place instead.
+    /// </para>
     /// </summary>
-    private static void Facing(List<Point> route, int at, DiagramCell cell, bool across)
+    private static void Facing(List<Point> route, int at, DiagramCell cell, bool across, bool held = false)
     {
-        if (route.Count < 3) return;
+        if (route.Count < 3 || held) return;
 
         var beside = at == 0 ? 1 : route.Count - 2;
         var bounds = cell.Bounds;

@@ -5218,7 +5218,8 @@ internal sealed class MarkdownSamples : ISampleSet
         ## When it will not draw
 
         A weight that is not a number leaves its line waved under and the rest of the words a cloud; a setting given
-        something it cannot take stops the block being one at all, and its lines are shown as they were written.
+        something it cannot take stops the block being one at all, and its lines are shown as they were written in a red box
+        with what is wrong under them.
 
         ```wordcloud
         WPF: 120
@@ -5730,8 +5731,8 @@ internal sealed class MarkdownSamples : ISampleSet
         ## What cannot be read
 
         A setting given something it cannot take stops the block being a plot, and its lines are shown as
-        they were written — a question about the whole picture. A cell that will not read loses only its own
-        mark, because it is the row somebody is editing.
+        they were written in a red box with what is wrong under them — a question about the whole picture. A
+        cell that will not read loses only its own mark, because it is the row somebody is editing.
 
         ```scatter
         x: weight

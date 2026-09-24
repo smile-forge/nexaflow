@@ -129,6 +129,62 @@ public class SankeyBuilderTests : MermaidBuilderContract
         Assert.AreEqual(2, Pieces(laid, SankeyPiece.Node).Count, "and only the nodes it is drawn between");
     });
 
+    [TestMethod]
+    public void TheColumnsStandAWidthOfTheirOwnApart_HoweverLongTheNamesAtTheEdges() => UiThread.Run(() =>
+    {
+        var bars = Bars(Build("sankey-beta\nA source with a very long name indeed,middle,10\nmiddle,A destination with a very long name too,10"));
+
+        Assert.IsTrue(bars[1].Left - bars[0].Left >= 110, $"the middle is not squeezed by the names either side of it: {bars[0]} then {bars[1]}");
+        Assert.IsTrue(bars[2].Left - bars[1].Left >= 110, $"on either side of it: {bars[1]} then {bars[2]}");
+    });
+
+    [TestMethod]
+    public void ANodeGoesDownItsColumnAsFarAsWhatFlowsIntoItComesFrom() => UiThread.Run(() =>
+    {
+        // Written this way round, T1 comes first — but nearly all of it comes from S2, below S1, which is all T2 is from.
+        const string source = "sankey-beta\nX,T1,0.1\nS1,T2,5\nS2,T1,5";
+        var laid = Build(source);
+        var bars = Pieces(laid, SankeyPiece.Node).ToDictionary(piece => Written(source, piece.Part), piece => piece.Bounds);
+
+        Assert.IsTrue(bars["T2"].Top < bars["T1"].Top, $"so T2 goes above it, and the two ribbons run across rather than over one another: {bars["T2"]} and {bars["T1"]}");
+    });
+
+    [TestMethod]
+    public void AColumnWithRoomToSpareSpreadsItsNodesLevelWithWhatTheyAreJoinedTo() => UiThread.Run(() =>
+    {
+        // The first column is full; the second has most of its height to spare. Packed about its middle, both of its nodes would sit
+        // between A and B and both ribbons would slant; spread, each sits level with what feeds it and its ribbon runs flat.
+        const string source = "sankey-beta\nA,W,10\nB,Y,1";
+        var laid = Build(source);
+        var bars = Pieces(laid, SankeyPiece.Node).ToDictionary(piece => Written(source, piece.Part), piece => piece.Bounds);
+
+        Assert.AreEqual(Middle(bars["A"]).Y, Middle(bars["W"]).Y, 2, "W is level with A");
+        Assert.AreEqual(Middle(bars["B"]).Y, Middle(bars["Y"]).Y, 2, "and Y with B, far below it");
+    });
+
+    [TestMethod]
+    public void AMiddleColumnsNameIsWrittenIntoTheGapAfterItsBar() => UiThread.Run(() =>
+    {
+        const string source = "sankey-beta\na,b,10\nb,c,10\nb,d,4\nd,e,4";
+        var laid = Build(source);
+        var labels = Pieces(laid, SankeyPiece.Label).Where(piece => Written(source, piece.Part) == "d").Select(piece => piece.Bounds).ToList();
+        var bar = Bars(laid)[Pieces(laid, SankeyPiece.Node).FindIndex(piece => Written(source, piece.Part) == "d")];
+
+        Assert.IsTrue(labels[0].Left > bar.Right, $"to the right of it, where the next column's names are not: {labels[0]} after {bar}");
+    });
+
+    [TestMethod]
+    public void ARibbonIsDrawnAtHalfStrength_AndTheBarsItJoinsWhole() => UiThread.Run(() =>
+    {
+        var laid = Build("sankey-beta\na,b,10");
+        var ribbon = Marks(laid).Fill!;
+        var bar = Pieces(laid, SankeyPiece.Node)[0].Marks.ToArray().OfType<GeometryMark>().First().Fill!;
+
+        Assert.AreEqual(0.5, ribbon.Opacity, 0.01, "the ribbon is the darker body of the flow");
+        Assert.AreEqual(1, bar.Opacity, 0.01, "and the bars the light ends of it");
+        Assert.IsTrue(((LinearGradientBrush)ribbon).GradientStops.All(stop => stop.Color.A == 255), "faded as a whole, not stop by stop");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         new SankeyBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
