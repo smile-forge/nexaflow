@@ -144,14 +144,14 @@ public class MarkdownSurfaceTests
         var asked = new List<MarkdownClipboard.ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
-        var at = Middle(surface, "Some words");
+        var at = Middle(surface, "firefox");
         var copy = surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy);
 
         surface.Raise(copy, at);
 
         Assert.AreEqual(1, asked.Count);
-        StringAssert.Contains(asked[0].Markdown, "chrome", "with what would go on the clipboard already worked out");
-        Assert.IsFalse(asked[0].Markdown.Contains("```", StringComparison.Ordinal), "the block pressed on, not the document");
+        StringAssert.Contains(asked[0].Markdown, "firefox", "with what would go on the clipboard already worked out");
+        Assert.IsFalse(asked[0].Markdown.Contains("Getting Started", StringComparison.Ordinal), "the block pressed on, not the document");
     });
 
     [TestMethod]
@@ -174,6 +174,71 @@ public class MarkdownSurfaceTests
         var prose = surface.Corner(Middle(surface, "Just some")).Select(offer => offer.Verb).ToList();
 
         CollectionAssert.DoesNotContain(prose, LayoutVerbs.Save, "prose is not a picture of anything");
+    });
+
+    [TestMethod]
+    public void ProseHasNoCornerAtAll() => UiThread.Run(() =>
+    {
+        var surface = Shown("Just some words.\n");
+
+        Assert.AreEqual(0, surface.Corner(Middle(surface, "Just some")).Count, "a paragraph is read, not handled");
+    });
+
+    [TestMethod]
+    public void ABlockReachesAcrossThePageSoItsCornerCanBeReached() => UiThread.Run(() =>
+    {
+        var surface = Shown("```cs\nvar x = 1;\n```\n");
+        var words = Middle(surface, "var");
+        var edge = new Point(surface.Shown.Laid.Size.Width - 2, words.Y);
+
+        CollectionAssert.Contains(surface.Corner(edge).Select(offer => offer.Verb).ToList(), LayoutVerbs.Copy,
+                                  "past the end of the code, at the edge the corner stands at, it is still the block's");
+    });
+
+    [TestMethod]
+    public void TwoPressesOnABlockShowItAsItWasWritten() => UiThread.Run(() =>
+    {
+        var surface = Shown("# Title\n\nSome **bold** words.\n");
+        surface.IsReadOnly = false;
+
+        Assert.IsTrue(surface.OpenAsWritten(Middle(surface, "bold")));
+        Assert.AreEqual((9, 20), surface.Shown.ShownAsWritten, "the paragraph, without the line ending that closes it");
+        Assert.IsTrue(surface.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == "Some **bold** words."),
+                      "drawn as its characters");
+        Assert.IsTrue(surface.Shown.Current.Caret is >= 9 and <= 29, "the caret is in it");
+    });
+
+    [TestMethod]
+    public void AndItIsDrawnAgainOnceTheCaretLeavesIt() => UiThread.Run(() =>
+    {
+        var surface = Shown("# Title\n\nSome **bold** words.\n");
+        surface.IsReadOnly = false;
+        surface.OpenAsWritten(Middle(surface, "bold"));
+
+        surface.Shown.TakeCaret(2);
+
+        Assert.IsNull(surface.Shown.ShownAsWritten);
+    });
+
+    [TestMethod]
+    public void AndTwoPressesInABlockAlreadyShownAreLeftToPickOutAWord() => UiThread.Run(() =>
+    {
+        var surface = Shown("Some **bold** words.\n");
+        surface.IsReadOnly = false;
+
+        Assert.IsTrue(surface.OpenAsWritten(Middle(surface, "bold")));
+
+        Assert.IsFalse(surface.OpenAsWritten(Middle(surface, "bold")));
+    });
+
+    [TestMethod]
+    public void AndNothingIsShownAsWrittenWhereTheDocumentIsOnlyRead() => UiThread.Run(() =>
+    {
+        var surface = Shown("Some **bold** words.\n");
+        surface.IsReadOnly = true;
+
+        Assert.IsFalse(surface.OpenAsWritten(Middle(surface, "bold")));
+        Assert.IsNull(surface.Shown.ShownAsWritten);
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────

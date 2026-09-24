@@ -34,6 +34,9 @@ public static class MarkdownKinds
     /// <summary><c>&gt; [!NOTE]</c> and its kin: a quote that says what it is for.</summary>
     public const string Alert = "alert";
 
+    /// <summary><c>[!NOTE]</c> — what an alert calls itself: its marks and, between them, the name of the kind it is.</summary>
+    public const string Marker = "marker";
+
     /// <summary>Bulleted or numbered.</summary>
     public const string List = "list";
 

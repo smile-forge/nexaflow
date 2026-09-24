@@ -8,6 +8,8 @@ using System.Windows.Threading;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown;
 using System.Windows.Media.Imaging;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -88,7 +90,11 @@ public class ContentElement : FrameworkElement
         // and faults deep inside the splay tree.
         Focusable = false;
 
-        Unloaded += (_, _) => StopBlinking();
+        Unloaded += (_, _) =>
+        {
+            StopBlinking();
+            Tip(null);
+        };
     }
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
@@ -777,8 +783,7 @@ public class ContentElement : FrameworkElement
     /// </summary>
     protected virtual Cursor Pointing(Point at)
     {
-        var says = Says(Laid.Root.PieceAt(at));
-        if (!Equals(ToolTip, says)) ToolTip = says;
+        Tip(Says(Laid.Root.PieceAt(at)));
 
         return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
     }
@@ -799,6 +804,57 @@ public class ContentElement : FrameworkElement
 
         return null;
     }
+
+    /// <summary>What the piece under the pointer says while it is pointed at (<see cref="Tip"/>); null where it says nothing.</summary>
+    public string? Saying { get; private set; }
+
+    /// <summary>
+    /// Says <paramref name="says"/> beside the pointer once it has rested there, or takes what was said away.
+    ///
+    /// <para>
+    /// <strong>Opened here rather than left to <see cref="FrameworkElement.ToolTip"/>.</strong> WPF looks for a tip only when
+    /// the pointer crosses onto another element, and a whole document is one element — so a tip that changes as the pointer
+    /// moves along the words would never be looked for. The element keeps a tip of its own instead, and opens it once the
+    /// pointer has rested on what says it for as long as any tip waits.
+    /// </para>
+    /// </summary>
+    protected void Tip(string? says)
+    {
+        if (Equals(Saying, says)) return;
+
+        Saying = says;
+        _resting?.Stop();
+        if (_tip is not null) _tip.IsOpen = false;
+
+        if (says is null) return;
+
+        _resting ??= Resting();
+        _resting.Start();
+    }
+
+    /// <summary>What waits for the pointer to rest before the tip is opened.</summary>
+    private DispatcherTimer Resting()
+    {
+        var resting = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(ToolTipService.GetInitialShowDelay(this)),
+        };
+
+        resting.Tick += (_, _) =>
+        {
+            resting.Stop();
+            if (Saying is not { } says || !IsMouseOver) return;
+
+            _tip ??= new ToolTip { PlacementTarget = this, Placement = PlacementMode.Mouse };
+            _tip.Content = says;
+            _tip.IsOpen = true;
+        };
+
+        return resting;
+    }
+
+    private DispatcherTimer? _resting;
+    private ToolTip? _tip;
 
     /// <summary>What the pointer is over a point on this content: a bar only where something can be written in.</summary>
     public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
@@ -964,6 +1020,7 @@ public class ContentElement : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        Tip(null);
         if (e.ClickCount == 2) { PointerDoubleClick(e.GetPosition(this)); return; }
 
         BeginPointerSelect(e.GetPosition(this));
@@ -987,6 +1044,12 @@ public class ContentElement : FrameworkElement
         base.OnMouseLeftButtonUp(e);
         if (IsMouseCaptured) ReleaseMouseCapture();
         EndPointerSelect();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        Tip(null);
     }
 
     // ── Applying an edit ────────────────────────────────────────────────────

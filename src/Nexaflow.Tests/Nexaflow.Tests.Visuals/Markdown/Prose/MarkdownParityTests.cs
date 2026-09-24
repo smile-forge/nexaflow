@@ -50,6 +50,17 @@ public class MarkdownParityTests
     }
 
     [TestMethod]
+    public void AnAlertsMarkerIsDrawnAsItsWordOnceAndIsNotWrittenIn()
+    {
+        var laid = Lay("> [!NOTE]\n> Useful information.\n");
+
+        Assert.IsFalse(Drawn(laid).Contains('['), "the marker is not drawn as it was written");
+
+        var label = Words(laid).Single(piece => piece.Words!.Glyphs.Text == "Note");
+        Assert.IsFalse(label.Words!.Writes, "pressing the word it is drawn as shows nothing to write in");
+    }
+
+    [TestMethod]
     public void ARuleIsDrawnAcrossWhereTheDashesWere()
     {
         var laid = Lay("one\n\n---\n\ntwo\n");
@@ -145,6 +156,34 @@ public class MarkdownParityTests
     }
 
     [TestMethod]
+    public void AConstructStartsPastTheSpaceBeforeIt()
+    {
+        var laid = Lay("The `x` block and **y** is\nparsed, ==marked `code`== too.\n");
+        var words = laid.Root.Placed().Where(one => one.Piece.Words is not null).OrderBy(one => one.Where.Left).ToList();
+
+        Assert.IsTrue(words.Count > 6, "the sentence is several pieces");
+
+        for (var at = 1; at < words.Count; at++)
+        {
+            var (before, where) = words[at - 1];
+            var glyphs = before.Words!.Glyphs;
+            if (!glyphs.Text.EndsWith(' ')) continue;
+
+            Assert.IsTrue(words[at].Where.Left >= where.Left + glyphs.WidthIncludingTrailingWhitespace - 0.5,
+                          $"'{words[at].Piece.Words!.Glyphs.Text}' starts past the space after '{glyphs.Text}'");
+        }
+    }
+
+    [TestMethod]
+    public void CodeInASentenceIsSetInTheAccentEvenInsideAWash()
+    {
+        var laid = Lay("a ==marked `code`== b\n");
+        var code = Words(laid).Single(piece => piece.Words!.Glyphs.Text == "code");
+
+        Assert.AreEqual(StyleFormat.Dark.Accent, Marks(code).OfType<TextMark>().Single().Foreground);
+    }
+
+    [TestMethod]
     public void ASubscriptIsSetSmallerThanTheWordsItSitsIn() => Smaller("H~2~O\n", "2");
 
     [TestMethod]
@@ -231,6 +270,26 @@ public class MarkdownParityTests
     public void AGridTableCellHoldingAListDrawsTheList() =>
         Cells("+---------+-----+\n| a       | b   |\n+=========+=====+\n| - one   | y   |\n| - two   |     |\n+---------+-----+\n",
               "one", "two");
+
+    [TestMethod]
+    public void AColumnSqueezedForRoomStillHoldsItsLongestWord()
+    {
+        var notes = string.Join(" ", Enumerable.Repeat("a long explanation of what it does", 8));
+        var laid = Lay($"| Feature | Call | Notes |\n|---|---|---|\n| Abbreviations | `UseAbbreviations()` | {notes} |\n"
+                       + "| YAML front matter | `UseYamlFrontMatter()` | ✅ (not drawn) |\n", room: 420);
+
+        // A cell's own box grows to take in whatever it holds, so the columns are read off the head, which holds one word each.
+        var placed = laid.Root.Placed().ToList();
+        var edges = placed.Where(one => one.Piece.Kind == MarkdownPieces.Cell).Take(3).Select(one => one.Where.Right).ToList();
+
+        foreach (var (words, where) in placed.Where(one => one.Piece.Words is not null))
+        {
+            var edge = edges.First(right => where.Left < right);
+
+            Assert.IsTrue(where.Right <= edge + 0.5,
+                          $"'{words.Words!.Glyphs.Text}' reaches {where.Right:0.#}, past its column's edge at {edge:0.#}");
+        }
+    }
 
     // ── Reading the answers ─────────────────────────────────────────────────
 

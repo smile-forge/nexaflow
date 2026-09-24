@@ -27,7 +27,7 @@ public class LinkedElement(string source, StyleFormat palette, IContent content,
     {
         if (Offered(at, LayoutGesture.Click) is not { } act) return base.Pointing(at);
 
-        ToolTip = act.Intent.Tip ?? act.Intent.Target;
+        Tip(act.Intent.Tip ?? act.Intent.Target);
         return Cursors.Hand;
     }
 

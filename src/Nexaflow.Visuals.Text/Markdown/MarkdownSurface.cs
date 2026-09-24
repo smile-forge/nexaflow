@@ -110,9 +110,16 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         base.Content = new Grid { Children = { _scroller, _prompt, _corner } };
 
-        MouseMove += (_, args) => Over(args.GetPosition(_shown));
+        // Over the corner's own buttons the block they belong to is still the one pointed at.
+        MouseMove += (_, args) => { if (!_corner.IsMouseOver) Over(args.GetPosition(_shown)); };
         MouseLeave += (_, _) => Over(null);
-        PreviewMouseLeftButtonDown += (_, _) => { if (!IsKeyboardFocusWithin) Focus(); };
+        PreviewMouseLeftButtonDown += (_, args) =>
+        {
+            if (!IsKeyboardFocusWithin) Focus();
+
+            // Two presses on a block show it as it was written; taken here, before the element picks out the word pressed.
+            if (args.ClickCount == 2 && OpenAsWritten(args.GetPosition(_shown))) args.Handled = true;
+        };
 
         // A scroller that is not to scroll still takes the wheel, and a document in a conversation would then stop the
         // conversation scrolling wherever the pointer rested on it. So the wheel goes on to whatever holds this.
@@ -680,7 +687,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         return null;
     }
 
-    /// <summary>Where a block came out on the page, which is every rect the characters it holds were drawn at.</summary>
+    /// <summary>
+    /// Where a block came out on the page: from the top of what it holds to the bottom, and across the whole of the page
+    /// rather than only as far as its characters reach — a short line is still a block the width of the page, and its corner
+    /// stands at the page's edge, so the way from the words to the corner never leaves the block.
+    /// </summary>
     private Rect Where(ContentPart block)
     {
         var rects = _shown.Laid.Root.RangeRects(block.Start, Math.Max(block.Length, 1));
@@ -690,12 +701,41 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         foreach (var rect in rects) box = Rect.Union(box, rect);
 
-        return box;
+        return new Rect(0, box.Y, Math.Max(box.Right, _shown.Laid.Size.Width), box.Height);
     }
 
     /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds of its own.</summary>
     public IReadOnlyList<LayoutIntent> Corner(Point at) =>
         Blocked(at) is { } block ? [.. Offered(block)] : [];
+
+    /// <summary>
+    /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — the whole block,
+    /// whatever it holds, which is the default a language may one day say otherwise to for its own. It is drawn again once
+    /// the caret leaves it.
+    /// </summary>
+    /// <returns>
+    /// Whether it did: not where the document is only read, and not in a block already shown as written, where two presses
+    /// pick out a word as they do in any text.
+    /// </returns>
+    public bool OpenAsWritten(Point at)
+    {
+        if (IsReadOnly || Blocked(at) is not { } block) return false;
+
+        // As much of it as is drawn when it is shown: the line ending that closes it is not somewhere to write.
+        var zone = new RawZone(block.Start, block.Start + block.Print().TrimEnd('\n', '\r').Length);
+        var state = _shown.Current;
+
+        if (zone.Length == 0 || (state.Raw is { } shown && shown.Start < zone.End && zone.Start < shown.End)) return false;
+
+        var caret = Math.Clamp(_shown.Laid.OffsetAt(at), zone.Start, zone.End);
+
+        _shown.Restore(state.MoveCaretTo(caret) with { Raw = zone });
+        _shown.Refresh();
+        _shown.TakeCaret(caret);
+        _last = _shown.Current;
+
+        return true;
+    }
 
     /// <summary>What a block's corner offers: whichever of the usual ones it allows, and whatever it adds.</summary>
     private IEnumerable<LayoutIntent> Offered(ContentPart block)
@@ -719,8 +759,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             return nesting.Language.Corner(new ContentAsk(nesting.Named, body.Text) { Part = block, IsReadOnly = IsReadOnly });
         }
 
-        // Prose is not a picture of anything, so there is nothing to keep a picture of.
-        return new BlockCorner(Saves: false);
+        // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
+        return BlockCorner.None;
     }
 
     private FrameworkElement Button(LayoutIntent offer, Point at) =>

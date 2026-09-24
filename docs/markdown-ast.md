@@ -198,8 +198,8 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 | Stage | What it works out |
 |---|---|
 | `WithBlocks` | what each block holds, read by the parser its kind names |
+| `WithGroups` | what pieces read side by side make together, in one walk: the pairs a definition list is, and the marker an alert's `[!`, name and `]` are |
 | `WithNested` | which language reads what is written inside a piece, and how big it is set |
-| `WithDefinitions` | which blocks explain which term, gathered back into the pairs a definition list is |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
 | `WithLinks` | how this showing of the document wants each link to look |
 | `WithUnchanged` | which blocks read exactly as they did the last time the document was read |
@@ -261,7 +261,9 @@ block is the one it was. `LaidBlocksTests` holds every sample, typed into and ta
 nothing.
 
 **What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
-picture of itself, because a picture of code is a worse copy of the code, and prose offers none either. What
+picture of itself, because a picture of code is a worse copy of the code, and prose has no corner at all
+(`BlockCorner.None`) — it is read rather than handled, and copying it is what selecting it is for. A block's corner
+answers for the whole width of the page from the block's top to its bottom, since the corner stands at the page's edge. What
 a reader may do *there* — the things to add, behind one Insert button, and the things to do to what is
 already there, standing on their own — is `IContentLanguage.Offers`, asked of whatever language is being
 shown at that point. Which language that is was settled by a stage and is on the node, so nothing looks one

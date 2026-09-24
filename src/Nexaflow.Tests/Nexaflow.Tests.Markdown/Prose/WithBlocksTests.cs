@@ -290,6 +290,28 @@ public class WithBlocksTests
         Assert.AreNotEqual(0, Every(alert, MarkdownKinds.Paragraph).Count);
     }
 
+    [TestMethod]
+    public void AnAlertsMarkerIsOneThingNamingItsKindAndNotPartOfItsWords()
+    {
+        var alert = Blocks("> [!NOTE]\n> Something worth knowing.\n")[0];
+
+        var marker = Every(alert, MarkdownKinds.Marker).Single();
+        Assert.AreEqual("NOTE", marker.Part(Roles.Name)?.Text);
+        Assert.AreEqual("[!NOTE]", marker.Print());
+
+        var words = Every(alert, MarkdownKinds.Paragraph).Single().Print();
+        Assert.IsFalse(words.Contains('['), $"the paragraph is its words: '{words}'");
+    }
+
+    [TestMethod]
+    public void AMarkerAloneAboveAGapIsStillTheMarker()
+    {
+        var alert = Blocks("> [!TIP]\n>\n> After a gap.\n")[0];
+
+        Assert.AreEqual("TIP", Every(alert, MarkdownKinds.Marker).Single().Part(Roles.Name)?.Text);
+        Assert.AreEqual(1, Every(alert, MarkdownKinds.Paragraph).Count, "no paragraph is left holding nothing");
+    }
+
     // ── What has no reader yet ──────────────────────────────────────────────
 
     [TestMethod]

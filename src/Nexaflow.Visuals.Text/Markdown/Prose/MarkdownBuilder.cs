@@ -112,7 +112,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         foreach (var part in holder.Children)
         {
-            if (part.Derived || part.Role == Roles.Trivia || part.Kind == MarkdownKinds.Task) continue;
+            if (part.Derived || part.Role == Roles.Trivia || part.Kind is MarkdownKinds.Task or MarkdownKinds.Marker) continue;
 
             // Front matter is what a document says about itself rather than anything it says, and a link's definition
             // says where a link goes rather than anything a reader reads, so neither is on the page at all — until
@@ -366,10 +366,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         if (part.Kind != MarkdownKinds.Alert) return (Style.TextMuted, null);
 
-        var said = part.Print();
-        var opens = said.IndexOf('!');
-        var shuts = opens < 0 ? -1 : said.IndexOf(']', opens);
-        var name = opens < 0 || shuts < 0 ? string.Empty : said[(opens + 1)..shuts].Trim();
+        var name = Marker(part)?.Part(Roles.Name)?.Text ?? string.Empty;
 
         return name.ToUpperInvariant() switch
         {
@@ -393,20 +390,14 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var glyphs = Glyphs(label, Face.Plain with { Bold = true, Ink = ink });
 
         LayoutText.Words(into, glyphs, new Point(0, _y), Math.Max(room, 1), TextAlignment.Left,
-                         Marked(part) ?? (ISourcePart)part, MarkdownPieces.Words, maps: false, writes: true, ink: ink);
+                         Marker(part) ?? (ISourcePart)part, MarkdownPieces.Words, maps: false, ink: ink);
 
         _y += glyphs.Height;
     }
 
-    /// <summary>The <c>[!NOTE]</c> itself, where it can be picked out of what the alert was written as.</summary>
-    private static SourceSpan? Marked(ContentPart part)
-    {
-        var said = part.Print();
-        var opens = said.IndexOf('[');
-        var shuts = opens < 0 ? -1 : said.IndexOf(']', opens);
-
-        return shuts < 0 ? null : new SourceSpan(part.Start + opens, shuts - opens + 1);
-    }
+    /// <summary>What an alert calls itself — <c>[!NOTE]</c> — where it says.</summary>
+    private static ContentPart? Marker(ContentPart alert) =>
+        Body(alert).Children.FirstOrDefault(child => child.Kind == MarkdownKinds.Marker);
 
     // ── Lists ───────────────────────────────────────────────────────────────
 

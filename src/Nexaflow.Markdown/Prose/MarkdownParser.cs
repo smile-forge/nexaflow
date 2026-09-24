@@ -53,14 +53,14 @@ public static class MarkdownParser
     /// kind names. Here rather than at each surface, so an editor and a view read the same document the same
     /// way.
     /// </summary>
-    public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithDefinitions());
+    public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithGroups());
 
     /// <summary>
     /// A reader for one document, read again and again as it is written: what it read of a block last time is what it hands
     /// back for the same block this time, so a keystroke reads the block it was typed in rather than every block there is.
     /// One per document — what it keeps is that document's blocks.
     /// </summary>
-    public static AstPipeline Rereading() => new(new WithBlocks(remembering: true), new WithDefinitions());
+    public static AstPipeline Rereading() => new(new WithBlocks(remembering: true), new WithGroups());
 
     /// <summary>
     /// The same options, so a host adding an extension of its own starts from what is already read. Every
@@ -146,7 +146,11 @@ public static class MarkdownParser
 
             while (blocks.Count == 1 && blocks[0] is ContainerBlock only && Whole(only, text)) blocks = only;
 
-            Split(blocks, parts, read);
+            // An alert says what it is with the first characters of its first line. Markdig reads them and keeps them out of
+            // the words, but not out of the paragraph's span — so they are cut here, before the paragraph is.
+            var first = blocks is Markdig.Extensions.Alerts.AlertBlock alert ? Called(alert, parts, read) : 0;
+
+            Split(blocks, parts, read, first);
         }
         catch
         {
@@ -162,10 +166,40 @@ public static class MarkdownParser
     private static bool Whole(Block block, string text) =>
         block.Span.Start <= 0 && block.Span.End >= text.TrimEnd('\n', '\r', ' ', '\t').Length - 1;
 
-    /// <summary>The blocks a container holds, each as its own piece.</summary>
-    internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read)
+    /// <summary>
+    /// The <c>[!NOTE]</c> an alert opens with, cut into its marks and the name between them — which are one marker is the
+    /// pipeline's to say (<see cref="Stages.WithGroups"/>) — and what follows it up to where the words under it start.
+    /// Where it is all its paragraph held, the line it stands on is all of it.
+    /// </summary>
+    /// <returns>Which of the alert's blocks is the first still to be read.</returns>
+    private static int Called(Markdig.Extensions.Alerts.AlertBlock alert, List<ContentNode> parts, Cut read)
     {
-        for (var at = 0; at < blocks.Count; at++)
+        if (alert.Count == 0 || alert[0] is not ParagraphBlock first) return 0;
+
+        var from = read.Starts(first);
+        var name = alert.Kind.ToString();
+
+        if (name.Length == 0 || read.Between(from, from + name.Length + 3) != $"[!{name}]") return 0;
+
+        read.Gap(parts, from);
+        parts.Add(read.Take(from + 2, Roles.Open, Kinds.Token));
+        parts.Add(read.Take(from + 2 + name.Length, Roles.Name, Kinds.Token));
+        parts.Add(read.Take(from + 3 + name.Length, Roles.Close, Kinds.Token));
+
+        if (first.Inline?.FirstChild is { } words)
+        {
+            read.Gap(parts, read.Starts(words));
+            return 0;
+        }
+
+        read.Gap(parts, read.Closes(first, read.At));
+        return 1;
+    }
+
+    /// <summary>The blocks a container holds, each as its own piece — from the <paramref name="first"/> of them.</summary>
+    internal static void Split(ContainerBlock blocks, List<ContentNode> parts, Cut read, int first = 0)
+    {
+        for (var at = first; at < blocks.Count; at++)
             One(blocks[at], parts, read, at + 1 < blocks.Count ? blocks[at + 1].Span.Start : null);
     }
 
