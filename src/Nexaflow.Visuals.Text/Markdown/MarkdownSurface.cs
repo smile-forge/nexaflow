@@ -74,11 +74,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         _buttons = new StackPanel { Orientation = Orientation.Horizontal };
 
-        // Semi-transparent, in the corner, out of the way of the words until the pointer comes near.
+        // Faint, in the corner, out of the way of the words — and whole once the pointer is on it.
         _corner = new Border
         {
             Child = _buttons,
-            Opacity = 0.75,
+            Opacity = Faint,
             Visibility = Visibility.Collapsed,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
@@ -109,6 +109,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _shown = Made(string.Empty);
 
         base.Content = new Grid { Children = { _scroller, _prompt, _corner } };
+
+        _corner.MouseEnter += (_, _) => _corner.Opacity = 1;
+        _corner.MouseLeave += (_, _) => _corner.Opacity = Faint;
 
         // Over the corner's own buttons the block they belong to is still the one pointed at.
         MouseMove += (_, args) => { if (!_corner.IsMouseOver) Over(args.GetPosition(_shown)); };
@@ -688,12 +691,28 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     }
 
     /// <summary>
-    /// Where a block came out on the page: from the top of what it holds to the bottom, and across the whole of the page
-    /// rather than only as far as its characters reach — a short line is still a block the width of the page, and its corner
-    /// stands at the page's edge, so the way from the words to the corner never leaves the block.
+    /// Where a block came out on the page: the whole of what it drew, from its top to its bottom and across the page — a
+    /// short line is still a block the width of the page, and its corner stands at the page's edge, so the way from the
+    /// words to the corner never leaves the block.
+    ///
+    /// <para>
+    /// Every block of the document is a piece of its own, holding all it drew — a barcode's bars and a chart's wedges too,
+    /// which stand for no characters and so lie in no stretch of them. So the block's own piece is what answers, found by the
+    /// first thing in it that was written; the stretch of its characters answers only where there is no such piece.
+    /// </para>
     /// </summary>
     private Rect Where(ContentPart block)
     {
+        Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _shown.Laid.Size.Width), box.Height);
+
+        foreach (var whole in _shown.Laid.Root.Children)
+        {
+            if (whole.Kind != MarkdownPieces.Whole) continue;
+            if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;
+
+            if (named.Start >= block.Start && named.Start < block.End) return Across(whole.Bounds);
+        }
+
         var rects = _shown.Laid.Root.RangeRects(block.Start, Math.Max(block.Length, 1));
         if (rects.Count == 0) return Rect.Empty;
 
@@ -701,7 +720,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         foreach (var rect in rects) box = Rect.Union(box, rect);
 
-        return new Rect(0, box.Y, Math.Max(box.Right, _shown.Laid.Size.Width), box.Height);
+        return Across(box);
     }
 
     /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds of its own.</summary>
@@ -763,14 +782,33 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         return BlockCorner.None;
     }
 
-    private FrameworkElement Button(LayoutIntent offer, Point at) =>
-        new Button
+    /// <summary>
+    /// One of a corner's buttons: the app's own icon button, drawing the mark for what it does where there is one and its
+    /// name where there is not, and saying its name while pointed at.
+    /// </summary>
+    private FrameworkElement Button(LayoutIntent offer, Point at)
+    {
+        var named = DiagramRibbon.Names(offer);
+        var button = new Button
         {
-            Content = DiagramRibbon.Names(offer),
+            Content = DiagramRibbon.Icon(offer) is { } icon
+                ? new TextBlock { Text = icon, FontFamily = DiagramRibbon.IconFont, FontSize = 13 }
+                : new TextBlock { Text = named, Margin = new Thickness(6, 0, 6, 0) },
+            ToolTip = named,
             Margin = new Thickness(1),
-            Padding = new Thickness(6, 1, 6, 1),
             Command = new Does(() => Raise(offer, at)),
         };
+
+        button.SetResourceReference(StyleProperty, "IconButton");
+        if (DiagramRibbon.Icon(offer) is null) button.Width = double.NaN;
+
+        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "Markdown_Corner_" + offer.Verb);
+
+        return button;
+    }
+
+    /// <summary>How faint a block's corner is until the pointer is on it.</summary>
+    private const double Faint = 0.55;
 
     /// <summary>
     /// What a corner button does. Copying is asked of whoever holds the clipboard, with what copying the block would put

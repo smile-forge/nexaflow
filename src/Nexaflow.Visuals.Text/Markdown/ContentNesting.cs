@@ -31,8 +31,8 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
         part?.Children.Select(child => child.Node.Held).OfType<ContentNesting>().FirstOrDefault();
 
     /// <summary>
-    /// <paramref name="body"/> laid out to fit <paramref name="room"/>, ready to be set down — or null where
-    /// that language cannot lay anything yet, which leaves the characters to be drawn as themselves.
+    /// <paramref name="body"/> laid out to fit <paramref name="room"/>, ready to be set down where it draws (<see cref="ContentInset.Draws"/>)
+    /// — and where it does not, saying why in its trouble. Null where that language had nothing to say.
     /// </summary>
     /// <param name="shown">
     /// The stretch the document being written is showing as typed. Handed on only where it falls inside the body,
@@ -52,9 +52,9 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
             IsReadOnly = isReadOnly,
         });
 
-        // Asked whether it drew rather than whether it exists: a language that built a tree and put nothing in
-        // it has nothing to show, and the characters are what goes there instead.
-        return laid is { Draws: true } ? new ContentInset(laid) : null;
+        // Handed back whether it drew or not, since one that drew nothing may still say why — and what goes there then is
+        // the characters somebody typed, with that. Null only where the language had nothing to say at all.
+        return laid is null ? null : new ContentInset(laid);
     }
 
     /// <summary>Whether a stretch shown as typed falls inside the body — this language's to show, not the document's.</summary>

@@ -64,9 +64,6 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// <summary>The air a subgraph keeps round what it holds.</summary>
     private const double Boxed = 14;
 
-    /// <summary>How much of a subgraph's own colour is washed over it.</summary>
-    private const double Wash = 0.12;
-
     /// <summary>How thick a box's outline and a relationship's line are drawn.</summary>
     private const double Thick = 1.5;
 
@@ -269,7 +266,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         foreach (var route in routes)
         {
-            var stroke = new DiagramStroke(Palette.TextMuted, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
+            var stroke = new DiagramStroke(Ink.Link, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
 
             // Square, corners and all: an entity diagram is read as straight runs meeting at right angles, and a rounded
             // corner is a corner that no longer meets the next one.
@@ -310,9 +307,9 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
         ]);
 
         build.Open(ErPiece.Group, group.Whole, stops: Stops.None);
-        DiagramShapes.Draw(build, ErPiece.Holding, group.Part, DiagramShape.Rounded, bounds,
-                           DiagramInk.Faded(Ink.Series(group.Order), Wash), new DiagramStroke(Palette.CodeBorder, Thick),
-                           DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered);
+        DiagramShapes.Draw(build, ErPiece.Holding, group.Part, DiagramShape.Rounded, bounds, Ink.Group,
+                           new DiagramStroke(Ink.GroupEdge, Thick), DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered,
+                           band: Ink.Band(null));
 
         foreach (var nested in diagram.Within(group.Key)) Held(build, diagram, plan, room, nested, over);
         foreach (var entity in diagram.Inside(group.Key)) Drawn(build, diagram.Config, plan, room, entity, over);
@@ -341,7 +338,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
         // The rule under the name is what says an entity has attributes at all.
         foreach (var at in laid.Laid.Rules(box))
-            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
+            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), DiagramInk.Ruled(stroke.Ink)));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
         stands.Freeze();
@@ -372,15 +369,17 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
 
     // ── Colour ──────────────────────────────────────────────────────────────
 
+    /// <summary>What an entity is filled with: what its styling or the front matter writes, and otherwise what every entity is.</summary>
     private Brush Fill(ErEntity entity, ErConfig config)
     {
-        var fill = Ink.Written(entity.Style.Fill) ?? Ink.Written(config.Fill) ?? Palette.CodeBg;
+        var fill = Ink.Written(entity.Style.Fill) ?? Ink.Written(config.Fill) ?? Ink.Node;
 
         return entity.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
+    /// <summary>What an entity is outlined in: what its styling or the front matter writes, and otherwise what every entity is.</summary>
     private DiagramStroke Stroke(MermaidStyle style, ErConfig config) =>
-        new(Ink.Written(style.Stroke) ?? Ink.Written(config.Stroke) ?? Palette.CodeBorder,
+        new(Ink.Written(style.Stroke) ?? Ink.Written(config.Stroke) ?? Ink.NodeEdge,
             style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
 
     private static DiagramWay Towards(ErWay way) => way switch

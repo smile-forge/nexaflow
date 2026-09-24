@@ -201,7 +201,7 @@ public sealed partial class MarkdownBuilder
 
         if (head || at % 2 == 1)
         {
-            into.Open(MarkdownPieces.Block, row, new Point(x, top));
+            into.Open(MarkdownPieces.Block, row, new Point(x, top), Stops.None);
             into.Draw(new WashMark(new Rect(0, 0, Math.Max(widths.Sum(), 1), height),
                                    head ? Style.TableHeaderBg : Style.TableAltRowBg));
             into.Close();
@@ -336,7 +336,7 @@ public sealed partial class MarkdownBuilder
         var edges = new double[widths.Length + 1];
         for (var column = 0; column < widths.Length; column++) edges[column + 1] = edges[column] + widths[column];
 
-        into.Open(MarkdownPieces.Block, part, new Point(x, lines[0]));
+        into.Open(MarkdownPieces.Block, part, new Point(x, lines[0]), Stops.None);
 
         // Across: the line over each row, and under the last, in the stretches no cell covers both sides of.
         for (var row = 0; row <= rows; row++)

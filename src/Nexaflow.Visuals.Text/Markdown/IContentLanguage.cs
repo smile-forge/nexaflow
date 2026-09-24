@@ -40,14 +40,15 @@ public interface IContentLanguage
     bool ShowsWhatWasWritten => false;
 
     /// <summary>
-    /// That source, read and laid out at the size it was asked for — or null where there is nothing in it to
-    /// draw, which a block that will not read at all is.
+    /// That source, read and laid out at the size it was asked for — or, where there is nothing in it to draw, which a
+    /// block that will not read at all is, a layout that draws nothing and says why in its trouble; null where it has
+    /// nothing to say about it either.
     ///
     /// <para>
-    /// <strong>Null does not mean nothing appears.</strong> It means this language has no picture of the
-    /// source to offer, and whoever asked draws the characters instead — so a block nothing could make sense
-    /// of is still on the page, still where it was written, and still somewhere the caret can go and repair
-    /// it. Every language answers, and every answer leads to something drawn.
+    /// <strong>Drawing nothing does not mean nothing appears.</strong> It means this language has no picture of the
+    /// source to offer, and whoever asked draws the characters instead, with the reason it gave — so a block nothing could
+    /// make sense of is still on the page, still where it was written, still somewhere the caret can go and repair it, and
+    /// says what to repair. Every language answers, and every answer leads to something drawn.
     /// </para>
     /// </summary>
     Laid? Lay(ContentRequest request) => null;

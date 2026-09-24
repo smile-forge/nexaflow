@@ -79,9 +79,6 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>How thick a fork's bar and a region divider are drawn.</summary>
     private const double Thick = 2;
 
-    /// <summary>How solid a composite state's background is, over the colour its place among them gives it.</summary>
-    private const double Wash = 0.14;
-
     /// <summary>How wide what is written on a transition runs before it wraps.</summary>
     private const double Widest = 160;
 
@@ -276,8 +273,8 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>What a note says, a line for each line it is written across.</summary>
     private IReadOnlyList<DiagramWords> Says(StateNote note, StateConfig config) =>
         note.Said.Count == 0 && note.SaidHole is null
-            ? Wrapped(null, note.SaidHole, LabelSize, Palette.TextMuted, config.Wrapping)
-            : [.. note.Said.SelectMany(said => Wrapped(said, null, LabelSize, Palette.TextMuted, config.Wrapping))];
+            ? Wrapped(null, note.SaidHole, LabelSize, Palette.Text, config.Wrapping)
+            : [.. note.Said.SelectMany(said => Wrapped(said, null, LabelSize, Palette.Text, config.Wrapping))];
 
     /// <summary>What is written at the top of a composite state.</summary>
     private IReadOnlyList<DiagramWords> Naming(StateDiagram diagram, StateGroup group) =>
@@ -322,7 +319,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         foreach (var route in routes)
         {
             DiagramConnector.Draw(build, StatePiece.Step, route.Step.Part, route.Along,
-                                  new DiagramStroke(Palette.TextMuted, 1), DiagramHead.None, DiagramHead.Arrow, curved: true);
+                                  new DiagramStroke(Ink.Link, 1), DiagramHead.None, DiagramHead.Arrow, curved: true);
 
             DiagramConnector.Says(build, StatePiece.Label, route.Step.Part, route.Room, route.Said, Palette.CodeBg);
         }
@@ -350,8 +347,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         ]);
 
         build.Open(StatePiece.Group, group.Whole, stops: Stops.None);
-        DiagramShapes.Draw(build, StatePiece.Holding, group.Part, DiagramShape.Rounded, bounds, Fill(group), Stroke(group.Style),
-                           DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered);
+        DiagramShapes.Draw(build, StatePiece.Holding, group.Part, DiagramShape.Rounded, bounds, Fill(group), Stroke(group.Style, Ink.GroupEdge),
+                           DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered,
+                           band: Ink.Band(Ink.Written(group.Style.Stroke)));
 
         foreach (var nested in diagram.Within(group.Key)) Held(build, diagram, plan, room, nested, over);
         foreach (var node in diagram.Inside(group.Key)) Drawn(build, diagram, plan, room, node, over);
@@ -375,7 +373,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
         var words = DiagramWords.Placed(sized.Words, DiagramShapes.Inside(sized.Shape, bounds), MermaidPiece.Words);
 
-        DiagramShapes.Draw(build, StatePiece.State, node.Part, sized.Shape, bounds, Fill(node), Stroke(node.Style), words,
+        DiagramShapes.Draw(build, StatePiece.State, node.Part, sized.Shape, bounds, Fill(node), Stroke(node.Style, Ink.NodeEdge), words,
                                                       DiagramShapes.United(over));
 
                            Chipped(build, node.Id, bounds, node.Part);
@@ -399,8 +397,8 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         var bounds = room.At(note.Cell.Bounds);
         var words = DiagramWords.Placed(note.Words, DiagramShapes.Inside(DiagramShape.Card, bounds), MermaidPiece.Words);
 
-        DiagramShapes.Draw(build, StatePiece.Note, note.Note.Part, DiagramShape.Card, bounds, DiagramInk.Faded(Palette.Text, 0.06),
-                           new DiagramStroke(Palette.CodeBorder, 1, DiagramStroke.Dashed), words, DiagramShapes.United(over));
+        DiagramShapes.Draw(build, StatePiece.Note, note.Note.Part, DiagramShape.Card, bounds, Ink.Note,
+                           new DiagramStroke(Ink.NoteEdge, 1), words, DiagramShapes.United(over));
     }
 
     /// <summary>The notes drawn inside a composite state, which are the ones about the states it holds.</summary>
@@ -424,25 +422,26 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         _ => DiagramShape.Rounded,
     };
 
-    /// <summary>What a state is filled with: what its styling writes, and otherwise the card's own colour — a dot the ink's.</summary>
+    /// <summary>What a state is filled with: what its styling writes, and otherwise what every state is — a dot the ink's.</summary>
     private Brush Fill(StateNode node)
     {
         var fill = Ink.Written(node.Style.Fill)
-                   ?? (node.Marker || node.Shape is StateShape.Fork or StateShape.Join ? Palette.Text : Palette.CodeBg);
+                   ?? (node.Marker || node.Shape is StateShape.Fork or StateShape.Join ? Palette.Text : Ink.Node);
 
         return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
-    /// <summary>What a composite state's box is filled with: a wash of the colour its place among them gives it.</summary>
+    /// <summary>What a composite state's box is filled with: what its styling writes, and otherwise what every composite is.</summary>
     private Brush Fill(StateGroup group)
     {
-        var fill = Ink.Written(group.Style.Fill) ?? DiagramInk.Faded(Ink.Series(group.Order), Wash);
+        var fill = Ink.Written(group.Style.Fill) ?? Ink.Group;
 
         return group.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
-    private DiagramStroke Stroke(MermaidStyle style) =>
-        new(Ink.Written(style.Stroke) ?? Palette.CodeBorder, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
+    /// <summary>What something is outlined in: what its styling writes, and otherwise <paramref name="usual"/>.</summary>
+    private DiagramStroke Stroke(MermaidStyle style, Brush usual) =>
+        new(Ink.Written(style.Stroke) ?? usual, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
 
     private static DiagramWay Towards(StateWay way) => way switch
     {

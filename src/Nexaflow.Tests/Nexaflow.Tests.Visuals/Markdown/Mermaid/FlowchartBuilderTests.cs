@@ -214,6 +214,28 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         Assert.IsNotNull(drawn["b"], "and a node with a shape of its own still is");
     });
 
+    [TestMethod]
+    public void ABackslashNBreaksALineAsABreakDoes() => UiThread.Run(() =>
+    {
+        const string source = "flowchart LR\n  a[\"one\\ntwo\"]";
+        var lines = Said(Pieces(Build(source), FlowchartPiece.Node).Single()).ToList();
+
+        CollectionAssert.AreEqual(new[] { "one", "two" }, lines.Select(line => line.Words!.Glyphs.Text).ToArray(), "the break is not drawn");
+        CollectionAssert.AreEqual(new[] { "one", "two" }, lines.Select(line => Written(source, line.Part)).ToArray(),
+                                  "and each line stands for its own characters");
+    });
+
+    [TestMethod]
+    public void ASubgraphsNameIsSetInABandAcrossItsTop_AndEverySubgraphIsDrawnAlike() => UiThread.Run(() =>
+    {
+        var laid = Build("flowchart LR\n  subgraph one\n    a\n  end\n  subgraph two\n    b\n  end");
+        var groups = Pieces(laid, FlowchartPiece.Holding);
+
+        Assert.AreEqual(2, groups.Count);
+        Assert.AreEqual(1, groups.Select(Filled).Distinct().Count(), "one subgraph is not told apart from another by its colour");
+        Assert.IsTrue(groups.All(group => Marks(group).Count(mark => mark.Fill is not null) == 2), "each is filled, with its name's band over that");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         new FlowchartBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 

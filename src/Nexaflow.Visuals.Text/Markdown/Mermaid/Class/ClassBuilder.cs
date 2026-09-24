@@ -34,6 +34,9 @@ public static class ClassPiece
     /// <summary>A note written beside a class.</summary>
     public const string Note = "Note";
 
+    /// <summary>The dashed line holding a note to the class it is about.</summary>
+    public const string Tether = "Tether";
+
     /// <summary>The relations, drawn over the diagram.</summary>
     public const string Relations = "Relations";
 
@@ -101,9 +104,6 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// <summary>How thick a class is drawn, and the rules dividing it.</summary>
     private const double Thick = 1.5;
 
-    /// <summary>How solid a namespace's background is, over the colour its place among them gives it.</summary>
-    private const double Wash = 0.12;
-
     /// <summary>How wide what is written on a relation runs before it wraps.</summary>
     private const double Widest = 160;
 
@@ -130,7 +130,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         // The relations are worked out before anything is drawn, because whatever is under one does not stand where it runs.
         var routes = Routes(diagram, plan, room);
-        var over = DiagramConnector.Covered(routes.Select(route => (route.Along, route.Room)), Thick);
+        var tethers = Tethers(plan, room);
+        var over = DiagramConnector.Covered([.. routes.Select(route => (route.Along, route.Room)),
+                                             .. tethers.Select(tether => (tether.Along, Rect.Empty))], Thick);
 
         build.Open(ClassPiece.Classes, part: null, stops: Stops.None);
         foreach (var space in diagram.Within(null)) Held(build, diagram, plan, room, space, over);
@@ -148,7 +150,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
                 : default)
             .ToList();
 
-        Relations(build, routes, named);
+        Relations(build, routes, tethers, named);
 
         return room.Size;
     }
@@ -230,7 +232,10 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
             cells.Add(beside.Cell);
 
             if (plan.Named.TryGetValue(note.Of, out var about))
-                plan.Beside.Add(new DiagramJoin(about.Cell, beside.Cell, span: 0));
+            {
+                beside.Join = new DiagramJoin(about.Cell, beside.Cell, span: 0);
+                plan.Beside.Add(beside.Join);
+            }
         }
 
         plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
@@ -348,7 +353,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
     /// <summary>What a note says.</summary>
     private IReadOnlyList<DiagramWords> Says(ClassNote note, ClassConfig config) =>
-        Wrapped(note.Said, note.SaidHole, LabelSize, Palette.TextMuted, config.Wrapping);
+        Wrapped(note.Said, note.SaidHole, LabelSize, Palette.Text, config.Wrapping);
 
     /// <summary>What is written at the top of a namespace.</summary>
     private IReadOnlyList<DiagramWords> Naming(ClassSpace space, ClassConfig config) =>
@@ -383,6 +388,14 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         return routes;
     }
 
+    /// <summary>Where the line holding each note to its class runs: from the edge of the one to the edge of the other.</summary>
+    private static List<(Pinned Note, IReadOnlyList<Point> Along)> Tethers(Plan plan, DiagramRoom room) =>
+    [
+        .. plan.Notes
+            .Where(note => note.Join is { Route.Count: >= 2 })
+            .Select(note => (note, (IReadOnlyList<Point>)[.. DiagramConnector.Trimmed(note.Join!).Select(room.At)])),
+    ];
+
     private DiagramWords? Counted(ContentPart? count) =>
         count is { Length: > 0 } ? Written(count, null, LabelSize, Palette.TextMuted) : null;
 
@@ -395,15 +408,22 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// backing behind them can help, since the backing went down before the line did.
     /// </para>
     /// </summary>
-    private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes, IReadOnlyList<Rect> named)
+    private void Relations(LayoutBuilder build, IReadOnlyList<Route> routes, IReadOnlyList<(Pinned Note, IReadOnlyList<Point> Along)> tethers,
+                           IReadOnlyList<Rect> named)
     {
-        if (routes.Count == 0) return;
+        if (routes.Count == 0 && tethers.Count == 0) return;
 
         build.Open(ClassPiece.Relations, part: null, stops: Stops.None);
 
+        // A note is held to its class by a dashed line in the note's own colour, so it is plain which class it is about and
+        // that the line is not a relation.
+        foreach (var (note, along) in tethers)
+            DiagramConnector.Draw(build, ClassPiece.Tether, note.Note.Part, along, new DiagramStroke(Ink.NoteEdge, 1, DiagramStroke.Dashed),
+                                  DiagramHead.None, DiagramHead.None);
+
         foreach (var route in routes)
         {
-            var stroke = new DiagramStroke(Palette.TextMuted, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
+            var stroke = new DiagramStroke(Ink.Link, Thick, route.Relation.Dotted ? DiagramStroke.Dashed : null);
 
             // Square, corners and all: several relations reaching the same class run up to the same rail and into it by
             // the same stem, and a rounded corner is a corner that no longer meets the next one.
@@ -496,9 +516,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         ]);
 
         build.Open(ClassPiece.Space, space.Whole, stops: Stops.None);
-        DiagramShapes.Draw(build, ClassPiece.Holding, space.Part, DiagramShape.Rounded, bounds,
-                           DiagramInk.Faded(Ink.Series(space.Order), Wash), new DiagramStroke(Palette.CodeBorder, Thick),
-                           DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered);
+        DiagramShapes.Draw(build, ClassPiece.Holding, space.Part, DiagramShape.Rounded, bounds, Ink.Group,
+                           new DiagramStroke(Ink.GroupEdge, Thick), DiagramWords.Placed(box.Words, heading, MermaidPiece.Words), covered,
+                           band: Ink.Band(null));
 
         foreach (var nested in diagram.Within(space.Key)) Held(build, diagram, plan, room, nested, over);
         foreach (var node in diagram.Inside(space.Key)) Drawn(build, plan, room, node, over);
@@ -530,11 +550,13 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         if (node.Href is { Length: > 0 } href) build.Links(href, node.Tip);
 
         build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(outline, Fill(node), Stroke(node.Style).Ink, Stroke(node.Style).Thickness));
+        var stroke = Stroke(node.Style);
+        build.Draw(new GeometryMark(outline, Fill(node), stroke.Ink, stroke.Thickness));
 
-        // The rules divide the box into its bands, which is what says a class has members at all.
+        // The rules divide the box into its bands, which is what says a class has members at all — in its outline's ink, fainter.
+        var rule = DiagramInk.Ruled(stroke.Ink);
         foreach (var at in sized.Laid.Rules(box))
-            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
+            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), rule));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
         stands.Freeze();
@@ -614,8 +636,8 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         var bounds = room.At(note.Cell.Bounds);
         var words = DiagramWords.Placed(note.Words, DiagramShapes.Inside(DiagramShape.Card, bounds), MermaidPiece.Words);
 
-        DiagramShapes.Draw(build, ClassPiece.Note, note.Note.Part, DiagramShape.Card, bounds, DiagramInk.Faded(Palette.Text, 0.06),
-                           new DiagramStroke(Palette.CodeBorder, Thick, DiagramStroke.Dashed), words, DiagramShapes.United(over));
+        DiagramShapes.Draw(build, ClassPiece.Note, note.Note.Part, DiagramShape.Card, bounds, Ink.Note,
+                           new DiagramStroke(Ink.NoteEdge, Thick), words, DiagramShapes.United(over));
     }
 
     /// <summary>The notes drawn inside a namespace, which are the ones about the classes it holds.</summary>
@@ -629,15 +651,17 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
     // ── Colour ──────────────────────────────────────────────────────────────
 
+    /// <summary>What a class is filled with: what its styling writes, and otherwise what every class is.</summary>
     private Brush Fill(ClassNode node)
     {
-        var fill = Ink.Written(node.Style.Fill) ?? Palette.CodeBg;
+        var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
         return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
+    /// <summary>What a class is outlined in: what its styling writes, and otherwise what every class is.</summary>
     private DiagramStroke Stroke(MermaidStyle style) =>
-        new(Ink.Written(style.Stroke) ?? Palette.CodeBorder, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
+        new(Ink.Written(style.Stroke) ?? Ink.NodeEdge, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
 
     private static DiagramWay Towards(ClassWay way) => way switch
     {
@@ -704,6 +728,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
         public string? Space { get; } = space;
 
         public required DiagramCell Cell { get; init; }
+
+        /// <summary>What holds the note beside the class it is about, which the note's tether is drawn along — null where no class is called that.</summary>
+        public DiagramJoin? Join { get; set; }
     }
 
     /// <summary>A relation worked out: where it runs, what is written on it, and the counts at either end.</summary>

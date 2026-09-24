@@ -368,6 +368,10 @@ public sealed class FlowchartDiagram
 
             if (MermaidShapes.Of(piece) != MermaidShape.None) already.Shape = MermaidShapes.Of(piece);
             already.Classes.AddRange(classes);
+
+            // A node written outside every subgraph and again inside one goes into that one — which is how Mermaid reads it, and how
+            // a node linked to before its subgraph is opened is put in one at all. One already in a subgraph stays in the first.
+            already.Group ??= group;
             return id;
         }
 
@@ -536,7 +540,7 @@ public sealed class FlowchartDiagram
 
         public int Order { get; } = order;
 
-        public string? Group { get; init; }
+        public string? Group { get; set; }
 
         public MermaidShape Shape { get; set; }
 

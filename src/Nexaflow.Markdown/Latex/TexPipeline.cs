@@ -52,7 +52,8 @@ public static class TexPipeline
                                  bool holes = false) =>
         new AstPipeline(
             new ExpandMacros(),     // what each shorthand name stands for
-            new GatherSigns())      // a sign written as several things, as the one thing it means
+            new GatherSigns(),      // a sign written as several things, as the one thing it means
+            new SpanColumns())      // how many columns a row of dots stands across
             .Then(holes ? new WithHoles(Holds) : null)
             .Then(draws is null ? null : new CheckDrawable(draws))
             .Then(ShowAsWritten.Of(editing));

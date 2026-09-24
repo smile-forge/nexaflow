@@ -16,6 +16,17 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </summary>
 internal sealed class DiagramInk(StyleFormat palette)
 {
+    /// <summary>How much of the accent a box, a note, a box holding others and its band are washed with, and how much of it a holding box's outline is drawn in.</summary>
+    private const double NodeWash = 0.25;
+    private const double NoteWash = 0.2;
+    private const double GroupWash = 0.13;
+    private const double BandWash = 0.24;
+    private const double GroupRim = 0.4;
+
+    /// <summary>How much of the muted ink a quiet shape's outline is drawn in, and how much of its outline's ink a box's rules are.</summary>
+    private const double QuietRim = 0.7;
+    private const double RuleWash = 0.5;
+
     /// <summary>A colour as a style or the front matter wrote it, or null where it wrote none this understands.</summary>
     public Brush? Written(string? colour)
     {
@@ -48,6 +59,52 @@ internal sealed class DiagramInk(StyleFormat palette)
 
     /// <summary>That colour as a brush — what a diagram paints on to cover what it has already drawn.</summary>
     public Brush Surface => Frozen(Under(palette));
+
+    /// <summary>
+    /// What a box a diagram joins by lines is filled with where nothing is written for it — a flowchart's node, a state, a class,
+    /// an entity, a block: the accent washed in, so every one of a kind is drawn the same and all of them read as the things the
+    /// lines join.
+    /// </summary>
+    public Brush Node => Faded(palette.Accent, NodeWash);
+
+    /// <summary>What such a box is outlined in where nothing is written for it: the accent itself.</summary>
+    public Brush NodeEdge => palette.Accent;
+
+    /// <summary>What a line joining two of them is drawn in where nothing is written for it — the same accent as what it joins.</summary>
+    public Brush Link => palette.Accent;
+
+    /// <summary>What a note is filled with: the theme's warning washed in, so a note never reads as one of the things it is about.</summary>
+    public Brush Note => Faded(palette.Warning, NoteWash);
+
+    /// <summary>What a note is outlined in, and what holds it to what it is about.</summary>
+    public Brush NoteEdge => palette.Warning;
+
+    /// <summary>
+    /// What a box holding others is filled with where nothing is written for it — a subgraph, a namespace, a composite: every one
+    /// the same faint wash of the accent, and the boxes inside it stronger than it.
+    /// </summary>
+    public Brush Group => Faded(palette.Accent, GroupWash);
+
+    /// <summary>What such a box is outlined in where nothing is written for it.</summary>
+    public Brush GroupEdge => Faded(palette.Accent, GroupRim);
+
+    /// <summary>
+    /// The band a box holding others sets its name in, across the top of it: <paramref name="written"/> — the colour its outline is
+    /// written in — or the accent, washed in more strongly than the box, so the name reads apart from what the box holds.
+    /// </summary>
+    public Brush Band(Brush? written) => Faded(written ?? palette.Accent, BandWash);
+
+    /// <summary>
+    /// What a shape that is not one of the things a diagram joins is filled with — a block arrow pointing the way: the muted ink
+    /// washed in, a shade apart from the boxes it points between.
+    /// </summary>
+    public Brush Quiet => Faded(palette.TextMuted, NodeWash);
+
+    /// <summary>What such a shape is outlined in.</summary>
+    public Brush QuietEdge => Faded(palette.TextMuted, QuietRim);
+
+    /// <summary>What the rules dividing a box into its bands are drawn in: its outline's ink, fainter than the outline.</summary>
+    public static Brush Ruled(Brush edge) => Faded(edge, RuleWash);
 
     /// <summary>A brush at <paramref name="opacity"/> — itself, where that is whole.</summary>
     public static Brush Faded(Brush brush, double opacity)

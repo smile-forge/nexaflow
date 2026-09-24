@@ -96,8 +96,12 @@ public sealed record SequenceConfig
     /// <summary>How much of a message's own room is left under the last one — <c>bottomMarginAdj</c>.</summary>
     public double Bottom { get; init; } = Under;
 
-    /// <summary>Whether a message to a participant itself turns square rather than bowing — <c>rightAngles</c>.</summary>
-    public bool Square { get; init; }
+    /// <summary>
+    /// Whether a message to a participant itself turns square rather than bowing — <c>rightAngles</c>. Square unless the front
+    /// matter asks otherwise, which is where Nexaflow parts from Mermaid: a square loop reads as a step taken, where a bow is easily
+    /// taken for a line on its way somewhere else.
+    /// </summary>
+    public bool Square { get; init; } = true;
 
     /// <summary>Whether every message is numbered without <c>autonumber</c> being written — <c>showSequenceNumbers</c>.</summary>
     public bool Numbered { get; init; }
@@ -153,7 +157,7 @@ public sealed record SequenceConfig
             NoteAligned = sequence.Value("noteAlign") ?? Centred,
             Mirrored = sequence.Flag("mirrorActors") ?? true,
             Bottom = sequence.Number("bottomMarginAdj") is { } bottom and >= 0 ? bottom : Under,
-            Square = sequence.Flag("rightAngles") ?? false,
+            Square = sequence.Flag("rightAngles") ?? true,
             Numbered = sequence.Flag("showSequenceNumbers") ?? false,
             HideUnused = sequence.Flag("hideUnusedParticipants") ?? false,
             NameText = sequence.Number("actorFontSize") is { } named and > 0 ? named : NameSize,

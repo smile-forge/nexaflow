@@ -40,4 +40,8 @@ internal sealed class C4SequenceBuilder : SequenceBuilder
         return (fill, stroke, ink, DiagramTone.Muted(ink));
     }
 
+    /// <inheritdoc/>
+    protected override Brush? Swatch(SequenceLegend row) =>
+        row.Tone is { } tone ? this.ink.Card(tone, row.Fill, row.Border, null).Fill : null;
+
 }

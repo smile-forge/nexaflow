@@ -85,9 +85,6 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <summary>How thick a link written with equals signs is drawn.</summary>
     private const double Thick = 2.5;
 
-    /// <summary>How solid a subgraph's background is, over the colour its place among the subgraphs gives it.</summary>
-    private const double Wash = 0.14;
-
     internal FlowchartBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <summary>
@@ -464,7 +461,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             if (!route.Link.Drawn) continue;
 
             var written = route.Link.Written;
-            var stroke = DiagramConnector.Stroked(Ink.Written(written.Stroke) ?? Palette.TextMuted, route.Link.Style,
+            var stroke = DiagramConnector.Stroked(Ink.Written(written.Stroke) ?? Ink.Link, route.Link.Style,
                                                  written.StrokeWidth ?? 1, Thick, DiagramInk.Dashes(written.Dashes));
 
             // A link's own metadata says how it is curved, over whatever the front matter asks for every one of them.
@@ -505,8 +502,9 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
         if (lane is not null) Banded(build, diagram, lane, bounds, room.At(lane.Band.Strip), covered);
         else
-            DiagramShapes.Draw(build, FlowchartPiece.Holding, group.Part, DiagramShape.Rounded, bounds, Fill(group), Stroke(group.Style),
-                               DiagramWords.Placed(words, heading, MermaidPiece.Words), covered);
+            DiagramShapes.Draw(build, FlowchartPiece.Holding, group.Part, DiagramShape.Rounded, bounds, Fill(group),
+                               Stroke(Ink, group.Style, Ink.GroupEdge), DiagramWords.Placed(words, heading, MermaidPiece.Words), covered,
+                               band: Ink.Band(Ink.Written(group.Style.Stroke)));
 
         foreach (var nested in diagram.Within(group.Key)) Held(build, diagram, plan, room, nested, over);
         foreach (var node in diagram.Inside(group.Key)) Drawn(build, plan, room, node, over);
@@ -522,7 +520,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     private void Banded(LayoutBuilder build, FlowchartDiagram diagram, Lane lane, Rect bounds, Rect strip, Geometry covered)
     {
         var turned = diagram.Way is FlowchartWay.Right or FlowchartWay.Left;
-        var stroke = Stroke(lane.Group.Style);
+        var stroke = Stroke(Ink, lane.Group.Style, Ink.GroupEdge);
 
         DiagramShapes.Draw(build, FlowchartPiece.Lane, lane.Group.Whole, DiagramShape.Rectangle, bounds, null, stroke, [],
                            DiagramShapes.United([covered, new RectangleGeometry(strip)]));
@@ -567,7 +565,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         var plain = node.Shape == MermaidShape.Text;
 
         DiagramShapes.Draw(build, FlowchartPiece.Node, node.Part, sized.Shape, bounds,
-                                                      plain ? null : Fill(node), plain ? null : Stroke(node.Style), words, DiagramShapes.United(over),
+                                                      plain ? null : Fill(node), plain ? null : Stroke(Ink, node.Style, Ink.NodeEdge), words, DiagramShapes.United(over),
                                                       acts: Answers(node));
 
                            Chipped(build, node.Id, bounds, node.Part, Shown(node.Said ?? node.Part));
@@ -597,27 +595,25 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     private static DiagramShape Shaped(FlowchartNode node) =>
         node.Shape is MermaidShape.None or MermaidShape.Text ? DiagramShape.Rectangle : DiagramShapes.For(node.Shape);
 
-    /// <summary>What a node is filled with: what its styling writes, and otherwise the card's own colour.</summary>
+    /// <summary>What a node is filled with: what its styling writes, and otherwise what every node is.</summary>
     private Brush Fill(FlowchartNode node)
     {
-        var fill = Ink.Written(node.Style.Fill) ?? Palette.CodeBg;
+        var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
         return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
-    /// <summary>
-    /// What a subgraph's box is filled with: what its styling writes, and otherwise a wash of the colour its place among the
-    /// subgraphs gives it, so one opened inside another is told apart from it.
-    /// </summary>
+    /// <summary>What a subgraph's box is filled with: what its styling writes, and otherwise what every subgraph is.</summary>
     private Brush Fill(FlowchartGroup group)
     {
-        var fill = Ink.Written(group.Style.Fill) ?? DiagramInk.Faded(Ink.Series(group.Order), Wash);
+        var fill = Ink.Written(group.Style.Fill) ?? Ink.Group;
 
         return group.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
-    private DiagramStroke Stroke(MermaidStyle style) =>
-        new(Ink.Written(style.Stroke) ?? Palette.CodeBorder, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
+    /// <summary>What something is outlined in: what its styling writes, and otherwise <paramref name="usual"/>.</summary>
+    private static DiagramStroke Stroke(DiagramInk ink, MermaidStyle style, Brush usual) =>
+        new(ink.Written(style.Stroke) ?? usual, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
 
     private static DiagramWay Towards(FlowchartWay way) => way switch
     {

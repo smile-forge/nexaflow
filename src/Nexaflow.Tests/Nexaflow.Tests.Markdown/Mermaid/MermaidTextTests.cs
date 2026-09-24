@@ -24,6 +24,23 @@ public class MermaidTextTests
     }
 
     [TestMethod]
+    public void AnHtmlEntityCodeReadsAsTheCharacterItStandsFor_AsMermaidReadsIt()
+    {
+        foreach (var (written, says) in new[]
+                 {
+                     ("&nbsp;&nbsp;&nbsp;", "\u00A0\u00A0\u00A0"),
+                     ("Salt &amp; pepper", "Salt & pepper"),
+                     ("&lt;b&gt;", "<b>"),
+                     ("Number &#35;1", "Number #1"),
+                     ("Number &#x23;1", "Number #1"),
+                 })
+            Assert.AreEqual(says, MermaidText.Decode(written), written);
+
+        foreach (var written in new[] { "&nope;", "Tom & Jerry", "&#;", "&#x;", "&#0;" })
+            Assert.AreEqual(written, MermaidText.Decode(written), $"{written} stands for nothing, so is left as it was written");
+    }
+
+    [TestMethod]
     public void WhatStandsForNothingIsLeftAsItWasWritten()
     {
         foreach (var written in new[] { "#nope;", "100#", "# quot;", "#0;", "no codes at all" })

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -135,6 +136,21 @@ public class SequenceBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void AMessageToAParticipantItselfTurnsSquare_UnlessTheFrontMatterAsksForABow() => UiThread.Run(() =>
+    {
+        const string source = "sequenceDiagram\n  participant A\n  A->>A: thinking";
+
+        Assert.IsFalse(Bowed(Lay(source)), "the loop turns square corners");
+        Assert.IsTrue(Bowed(Lay("---\nconfig:\n  sequence:\n    rightAngles: false\n---\n" + source)), "and bows where rightAngles says not to");
+
+        static bool Bowed(Laid laid) =>
+            Pieces(laid, SequencePiece.Line).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()
+                .SelectMany(mark => PathGeometry.CreateFromGeometry(mark.Shape).Figures)
+                .SelectMany(figure => figure.Segments)
+                .Any(segment => segment is BezierSegment or PolyBezierSegment);
+    });
+
+    [TestMethod]
     public void AFrameHoldsTheMessagesWrittenInsideIt() => UiThread.Run(() =>
     {
         var laid = Lay(Framed);
@@ -216,6 +232,18 @@ public class SequenceBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void AnActivateWrittenAfterAMessageStartsTheBarWhereThatMessageRuns() => UiThread.Run(() =>
+    {
+        var laid = Lay("sequenceDiagram\n  Alice->>John: Hello John, how are you?\n  activate John\n  John-->>Alice: Great!\n  deactivate John");
+        var bar = Pieces(laid, SequencePiece.Bar).Single().Bounds;
+        var lines = Pieces(laid, SequencePiece.Line).Select(piece => piece.Bounds).ToList();
+
+        Assert.AreEqual(Middle(lines[0]).Y, bar.Top, 1, "the bar starts where the message activating it runs, as a + on it would");
+        Assert.AreEqual(Middle(lines[1]).Y, bar.Bottom, 1, "and ends where the message before the deactivate runs");
+        Assert.IsTrue(lines[0].Right <= bar.Left + 1, $"and the message meets the bar rather than the lifeline under it: {lines[0]} to {bar}");
+    });
+
+    [TestMethod]
     public void TheParticipantsAreDrawnAgainAtTheBottomUnlessTheFrontMatterSaysNot() => UiThread.Run(() =>
     {
         Assert.AreEqual(4, Pieces(Lay("sequenceDiagram\n  A->>B: x"), SequencePiece.Head).Count,
@@ -266,6 +294,54 @@ public class SequenceBuilderTests : MermaidBuilderContract
         var numbers = Pieces(laid, SequencePiece.Number);
 
         CollectionAssert.AreEqual(new[] { "1", "2" }, numbers.Select(piece => Said(piece).Single().Words!.Glyphs.Text).ToArray());
+    });
+
+    [TestMethod]
+    public void AMessagesNumberIsDrawnOnTheLifelineItLeaves() => UiThread.Run(() =>
+    {
+        var laid = Lay("sequenceDiagram\n  autonumber\n  A->>B: x\n  B->>A: y");
+        var heads = Standing(laid);
+        var numbers = Pieces(laid, SequencePiece.Number).Select(piece => Middle(piece.Bounds)).ToList();
+
+        Assert.AreEqual(Middle(heads[0]).X, numbers[0].X, 1, "the first leaves A, and is numbered on A's lifeline");
+        Assert.AreEqual(Middle(heads[1]).X, numbers[1].X, 1, "the second leaves B, and is numbered on B's");
+    });
+
+    [TestMethod]
+    public void AFramesTitleIsSetAcrossTheMiddleOfIt() => UiThread.Run(() =>
+    {
+        var laid = Lay("sequenceDiagram\n  A->>B: a message long enough to make the frame wide\n  alt is sick\n    B->>A: no\n  else is well\n    B->>A: yes\n  end");
+        var frame = Pieces(laid, SequencePiece.Frame).Single();
+
+        Assert.AreEqual(Middle(frame.Bounds).X, Middle(Words(frame, "is sick")).X, 1, "what the frame is about is its title");
+        Assert.AreEqual(Middle(frame.Bounds).X, Middle(Words(frame, "is well")).X, 1, "and so is what each part of it is about");
+    });
+
+    [TestMethod]
+    public void ALifelineRunsDownToTheTopOfItsOwnFoot() => UiThread.Run(() =>
+    {
+        // An actor's figure is deeper than a box, so the feet stand in a band deeper than the box's.
+        var laid = Lay("sequenceDiagram\n  actor A\n  participant B\n  A->>B: x");
+        var lifeline = Pieces(laid, SequencePiece.Lifeline)[1];
+        var line = lifeline.Children.First(piece => piece.Kind == MermaidPiece.Shape).Bounds;
+        var foot = lifeline.SelfAndDescendants().Where(piece => piece.Kind == SequencePiece.Head).MaxBy(head => head.Bounds.Top)!.Bounds;
+
+        Assert.AreEqual(foot.Top, line.Bottom, 1, "the line meets the box it runs down to");
+    });
+
+    [TestMethod]
+    public void AParticipantOfAKindIsABoxWithAMarkOfItBeforeItsName_AndAnActorAFigure() => UiThread.Run(() =>
+    {
+        var laid = Lay("sequenceDiagram\n  participant D@{ \"type\" : \"database\" }\n  actor U\n  D->>U: x");
+        var heads = Pieces(laid, SequencePiece.Lifeline).Select(lifeline => lifeline.Children.First(piece => piece.Kind == SequencePiece.Head)).ToList();
+        var (database, actor) = (Drawing(heads[0]), Drawing(heads[1]));
+
+        Assert.AreEqual(2, database.Count, "a box, and the mark of a database");
+        Assert.IsTrue(database[1].Shape.Bounds.Right < Middle(database[0].Shape.Bounds).X, "the mark set before the name, at the left of the box");
+        Assert.AreEqual(1, actor.Count, "an actor is the figure alone, with its name under it");
+
+        static List<GeometryMark> Drawing(Piece head) =>
+            [.. head.Children.First(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>()];
     });
 
     [TestMethod]

@@ -131,6 +131,17 @@ public class PieBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ABackslashNInWhatIsWrittenBreaksTheLine() => UiThread.Run(() =>
+    {
+        var said = Lay("pie\n  \"Dogs\\nand cats\" : 3\n  \"Fish\" : 1").Root.SelfAndDescendants()
+            .Where(piece => piece.Words is not null)
+            .Select(piece => piece.Words!.Glyphs.Text)
+            .ToList();
+
+        Assert.IsTrue(said.Contains("Dogs\nand cats"), "set as two lines: " + string.Join(" | ", said));
+    });
+
+    [TestMethod]
     public void WithoutShowDataTheLegendSaysOnlyWhatEachSliceIsAndItsShare() => UiThread.Run(() =>
     {
         var laid = Build("pie\n  \"Dogs\" : 30\n  \"Cats\" : 10");

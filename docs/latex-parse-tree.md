@@ -507,10 +507,10 @@ Known work, and the coverage number moves when each lands.
 | | |
 |---|---|
 | `\text`, `\mbox`, `\textbf` … | words rather than maths: every character as written, *spaces included*, and the spaces are exactly what this reading drops on the way to an atom. A different job, not a harder one |
-| `\textcolor`, `\colorbox` | colour, which the parser carries on the formula |
+| `\colorbox` | a colour behind what is set: the environment carries a background, and nothing sets one yet |
 | unknown commands | anything the table has never heard of |
 | `\hline` | a rule between rows, so it is read off the grid and never off a cell — an `array` holding one falls back whole |
-| counted alignments | `\begin{alignat}{2}` and its family, whose count is written where the reading expects a cell |
+
 
 **Environments landed**, which was the one that mattered most for editing, since grids are what the
 table gestures act on: every matrix, `cases`, the aligned and gathered blocks, `smallmatrix`, and
@@ -536,6 +536,16 @@ and nothing says where the scope ends except the closing brace — so it is read
 run is, and it produces no atom of its own: an alphabet switch reaches the letters, a size switch wraps
 them. Its *scope* is one thing even so, and splicing that back into the row it stands in sets
 `c \bf{1} .` differently from `\bf{1}` alone.
+
+**A colour is a context too.** `\textcolor{red}{x}` sets its argument, and `\color{red}` is a switch that sets the rest of
+its group, the way a size switch does; either carries the ink down the build to every glyph and rule underneath, and wraps
+nothing. The name is read from the argument as a length is — a colour name, or hex digits where the model is `HTML` — and a
+model it does not read, or a switch with nothing after it, is shown as it was written.
+
+**A row of dots is one cell across several columns.** `\hdotsfor[s]{n}` stands in for entries left unwritten, so how many
+columns it covers is what the writing says rather than how it is drawn: the `SpanColumns` stage reads the count and the
+spacing into a `TexDots` under the command, and the table measures its columns without it and then fills the width they
+come to with dots.
 
 **A style is not an atom.** `\mathrm{abc}` sets three roman letters and wraps them in nothing, because
 which alphabet a letter is drawn from is a property of the letter. So the style is carried down the

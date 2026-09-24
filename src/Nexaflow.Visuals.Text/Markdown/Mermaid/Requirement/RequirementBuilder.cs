@@ -206,7 +206,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         {
             // What holds the other is a solid line with the crosshair at the end holding it; everything else is a dashed arrow.
             var holds = route.Relation.Holds;
-            var stroke = new DiagramStroke(Palette.TextMuted, Thick, holds ? null : DiagramStroke.Dashed);
+            var stroke = new DiagramStroke(Ink.Link, Thick, holds ? null : DiagramStroke.Dashed);
 
             DiagramConnector.Draw(build, RequirementPiece.Relation, route.Relation.Part, route.Along, stroke,
                                   holds ? DiagramHead.CrossCircle : DiagramHead.None,
@@ -240,7 +240,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
         // The rule under the name is what says a requirement has fields at all.
         foreach (var at in sized.Laid.Rules(box))
-            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), Palette.CodeBorder));
+            build.Draw(new LineMark(new Point(box.Left, at), new Point(box.Right, at), DiagramInk.Ruled(stroke.Ink)));
 
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, covered);
         stands.Freeze();
@@ -266,15 +266,17 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     // ── Colour ──────────────────────────────────────────────────────────────
 
+    /// <summary>What a box is filled with: what its styling writes, and otherwise what every box is.</summary>
     private Brush Fill(RequirementNode node)
     {
-        var fill = Ink.Written(node.Style.Fill) ?? Palette.CodeBg;
+        var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
         return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
+    /// <summary>What a box is outlined in: what its styling writes, and otherwise what every box is.</summary>
     private DiagramStroke Stroke(MermaidStyle style) =>
-        new(Ink.Written(style.Stroke) ?? Palette.CodeBorder, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
+        new(Ink.Written(style.Stroke) ?? Ink.NodeEdge, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
 
     private static DiagramWay Towards(RequirementWay way) => way switch
     {

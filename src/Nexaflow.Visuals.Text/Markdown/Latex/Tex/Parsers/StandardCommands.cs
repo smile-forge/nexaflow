@@ -578,16 +578,6 @@ internal static class StandardCommands
         public static TransparentEnvironment Instance { get; } = new();
     }
 
-    /// <summary>
-    /// An <c>alignat</c>-family environment: the alignment of <c>align</c>, preceded by a count of the
-    /// column pairs. That count exists to set inter-column spacing across a page of text, and has
-    /// nothing to govern here, so it is read and dropped.
-    /// </summary>
-    private sealed class CountedAlignEnvironment
-    {
-        public static CountedAlignEnvironment Instance { get; } = new();
-    }
-
     internal static readonly IReadOnlyDictionary<string, object?> Dictionary =
         new Dictionary<string, object?>
         {
@@ -790,13 +780,15 @@ internal static class StandardCommands
             ["multline*"] = MatrixCommandParser.Gathered,
             ["flalign"] = MatrixCommandParser.Align,
             ["flalign*"] = MatrixCommandParser.Align,
-            ["alignat"] = CountedAlignEnvironment.Instance,
-            ["alignat*"] = CountedAlignEnvironment.Instance,
-            ["alignedat"] = CountedAlignEnvironment.Instance,
-            ["xalignat"] = CountedAlignEnvironment.Instance,
-            ["xalignat*"] = CountedAlignEnvironment.Instance,
-            ["xxalignat"] = CountedAlignEnvironment.Instance,
-            ["xxalignat*"] = CountedAlignEnvironment.Instance
+            // The counted alignments: align, with a count of column pairs first that sets spacing across a page of text
+            // and has nothing to govern in one formula — so it is read as the environment's argument and set aside.
+            ["alignat"] = MatrixCommandParser.Align,
+            ["alignat*"] = MatrixCommandParser.Align,
+            ["alignedat"] = MatrixCommandParser.Align,
+            ["xalignat"] = MatrixCommandParser.Align,
+            ["xalignat*"] = MatrixCommandParser.Align,
+            ["xxalignat"] = MatrixCommandParser.Align,
+            ["xxalignat*"] = MatrixCommandParser.Align
         };
 
     /// <summary>

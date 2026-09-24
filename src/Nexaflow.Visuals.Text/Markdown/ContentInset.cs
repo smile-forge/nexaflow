@@ -26,6 +26,12 @@ internal sealed record ContentInset(Laid Laid)
     /// <summary>The room it takes.</summary>
     public Size Taken => Laid.Size;
 
+    /// <summary>
+    /// Whether there is anything in it to set down. One that drew nothing came back only to say why — its trouble — and the
+    /// characters somebody typed go there instead.
+    /// </summary>
+    public bool Draws => Laid.Draws;
+
     /// <summary>Sets it down at <paramref name="at"/>, as a piece of <paramref name="kind"/> holding the whole of it.</summary>
     public void Set(LayoutBuilder build, Point at, string kind)
     {

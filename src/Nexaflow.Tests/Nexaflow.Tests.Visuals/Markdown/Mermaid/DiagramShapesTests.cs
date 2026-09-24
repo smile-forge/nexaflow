@@ -148,6 +148,32 @@ public class DiagramShapesTests
     });
 
     [TestMethod]
+    public void AShapesNameCanBeSetInABandOfItsOwnAcrossTheTopOfIt() => UiThread.Run(() =>
+    {
+        var bounds = new Rect(0, 0, 200, 120);
+        var title = Words("Title", new TestPart(0, 5));
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        DiagramShapes.Draw(build, "Group", new TestPart(10, 3), DiagramShape.Rounded, bounds, Brushes.White, new DiagramStroke(Brushes.Black),
+                           [(title, new Point(10, 6), "Title")], band: Brushes.Navy);
+        build.Close();
+
+        var root = build.Seal().Root;
+        var shape = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
+        var marks = shape.Marks.ToArray().OfType<GeometryMark>().ToList();
+        var band = marks.Single(mark => mark.Fill == Brushes.Navy).Shape.Bounds;
+
+        Assert.AreEqual(bounds.Top, band.Top, 0.5, "the band runs from the top of the shape");
+        Assert.AreEqual(bounds.Width, band.Width, 0.5, "and right across it");
+        Assert.AreEqual(6 + title.Height + 6, band.Height, 0.5, "down past the words by as much air again as is over them");
+        Assert.IsTrue(marks.Any(mark => mark.Shape is LineGeometry line && Math.Abs(line.StartPoint.Y - band.Bottom) < 0.5 && mark.Stroke == Brushes.Black),
+                      "with a rule under it in the outline's ink");
+        Assert.AreEqual(Brushes.White, marks[0].Fill, "over the shape's own fill");
+        Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new Point(180, 4)).Kind, "and a press in the band beside the words still means the shape");
+    });
+
+    [TestMethod]
     public void EveryShapeMermaidsBracketsSayIsDrawnAsOneOfItsOwn()
     {
         var drawn = MermaidShapes.Nodes.Select(node => DiagramShapes.For(node.Shape)).ToList();

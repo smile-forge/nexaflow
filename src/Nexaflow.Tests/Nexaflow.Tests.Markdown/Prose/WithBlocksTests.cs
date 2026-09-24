@@ -312,6 +312,19 @@ public class WithBlocksTests
         Assert.AreEqual(1, Every(alert, MarkdownKinds.Paragraph).Count, "no paragraph is left holding nothing");
     }
 
+    [TestMethod]
+    public void AParagraphOfNothingButAFormulaInDoubleDollarsIsADisplayFormula()
+    {
+        const string source = "$$ \\frac{a}{b} $$\n\n$x$\n\n$$y$$ and words\n";
+        var blocks = Blocks(source);
+
+        Assert.AreEqual(MarkdownKinds.Math, blocks[0].Kind, "written on one line, it is still a formula on a line of its own");
+        Assert.AreEqual("\\frac{a}{b}", blocks[0].Part(Roles.Body)?.Text);
+        Assert.AreEqual(MarkdownKinds.Paragraph, blocks[1].Kind, "single dollars are a formula in a sentence");
+        Assert.AreEqual(MarkdownKinds.Paragraph, blocks[2].Kind, "and one with words beside it is part of the sentence");
+        Assert.AreEqual(source, Read(source).Print(), "and nothing written moved");
+    }
+
     // ── What has no reader yet ──────────────────────────────────────────────
 
     [TestMethod]

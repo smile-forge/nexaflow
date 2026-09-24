@@ -114,6 +114,19 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void TheKeyRunsAcrossTheFootOfTheDiagram_EachRowInTheColourOfWhatItNames() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Sequence\nSHOW_LEGEND()\nPerson(a, \"A\")\nContainer(b, \"B\", \"Java\")\nRel(a, b, \"Uses\")");
+        var key = Pieces(laid, MermaidPiece.Legend).Single();
+        var rows = key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Words && part.Words is not null).Select(part => part.Bounds).ToList();
+
+        Assert.AreEqual(2, rows.Count);
+        Assert.AreEqual(rows[0].Top, rows[1].Top, 1, "the rows stand side by side");
+        Assert.IsTrue(key.SelfAndDescendants().Where(part => part.Kind == MermaidPiece.Swatch).All(swatch => swatch.Marks.ToArray().OfType<RuleMark>().Any()),
+                      "and every swatch is filled with the colour the cards it names are painted, though nothing wrote one");
+    });
+
+    [TestMethod]
     public void ItIsDrawnByTheSequenceDiagramsOwnBuilder() => UiThread.Run(() =>
     {
         var laid = Lay("C4Sequence\nPerson(a, \"A\")\nSystem(b, \"B\")\nalt it works\nRel(a, b, \"x\")\nend");

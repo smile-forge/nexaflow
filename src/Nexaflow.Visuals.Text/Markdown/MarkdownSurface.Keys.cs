@@ -98,8 +98,9 @@ public sealed partial class MarkdownSurface
                 else _scroller.PageDown();
                 return true;
 
+            // What is picked out goes first; then a block shown as written is drawn again, keeping what was written in it.
             case Key.Escape:
-                if (!_shown.Current.HasSelection) return false;
+                if (!_shown.Current.HasSelection) return LetGo();
                 _shown.ClearSelection();
                 return true;
         }
@@ -134,6 +135,21 @@ public sealed partial class MarkdownSurface
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// Draws again whatever is shown as written — except where the host holds the whole of it open (<see cref="EditAsSource"/>),
+    /// which is not the reader's to let go of. False where nothing was shown.
+    /// </summary>
+    private bool LetGo()
+    {
+        var state = _shown.Current;
+        if (state.Raw is null || EditAsSource) return false;
+
+        _shown.Restore(state.Settled());
+        _last = _shown.Current;
+
+        return true;
     }
 
     /// <summary>What a key held with Ctrl means.</summary>

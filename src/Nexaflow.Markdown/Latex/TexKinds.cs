@@ -41,4 +41,7 @@ public static class TexKinds
 
     /// <summary>A <c>\left</c>…<c>\right</c> pair and what is between them.</summary>
     public const string Fence = "fence";
+
+    /// <summary>What a row of dots across a table's columns amounts to (<see cref="TexDots"/>), hung under the command that wrote it.</summary>
+    public const string Dots = "dots";
 }

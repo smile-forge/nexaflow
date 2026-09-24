@@ -274,11 +274,13 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (Inset(part, Space) is { } inset)
             return new DiagramWords(letter, part, null, letter, ink, maps: false, writes: false, inset);
 
-        var says = Shown(part);
+        // A line broken where it was written is set as the lines it was broken into, and pressed rather than typed into, since
+        // what it shows is no longer the characters written.
+        var says = Writing(part) ? Shown(part) : Broken(Shown(part));
         return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Wrote(), writes: true);
     }
 
-    /// <summary>As <see cref="Written"/>, wrapped to <paramref name="width"/>: broken at a <c>&lt;br&gt;</c>,
+    /// <summary>As <see cref="Written"/>, wrapped to <paramref name="width"/>: broken at a <c>&lt;br&gt;</c> or a <c>\n</c>,
     /// after a space past the width, or inside an overlong word.</summary>
     protected IReadOnlyList<DiagramWords> Wrapped(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
                                                   FontWeight? weight = null, FontStyle? slant = null)
@@ -320,17 +322,17 @@ internal abstract class MermaidBuilder : ContentBuilder
     }
 
     /// <summary>What a piece of text says, wrapped to <paramref name="width"/> and broken at a
-    /// <c>&lt;br&gt;</c> — or, for an entity code (<see cref="MermaidText"/>), what it stands for.</summary>
+    /// <c>&lt;br&gt;</c> or a <c>\n</c> — or, for an entity code (<see cref="MermaidText"/>), what it stands for.</summary>
     protected IReadOnlyList<DiagramWords> Says(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
                                                FontWeight? weight = null)
     {
         var written = part?.Text ?? string.Empty;
         var says = MermaidText.Decode(written);
 
-        return says == written ? Wrapped(part, hole, size, ink, width, weight) : [Worked(says, part, size, ink, weight)];
+        return says == written ? Wrapped(part, hole, size, ink, width, weight) : [Worked(Broken(says), part, size, ink, weight)];
     }
 
-    /// <summary>Where the stretches between <c>&lt;br&gt;</c> breaks start and end — one stretch, for words with none.</summary>
+    /// <summary>Where the stretches between line breaks start and end — one stretch, for words with none.</summary>
     private static IReadOnlyList<(int From, int To)> Breaks(string says)
     {
         var stretches = new List<(int, int)>();
@@ -338,7 +340,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         for (var at = 0; at <= says.Length;)
         {
             var (start, length) = (says.Length, 0);
-            foreach (var mark in (string[])["<br/>", "<br />", "<br>"])
+            foreach (var mark in Marks)
             {
                 var found = says.IndexOf(mark, at, StringComparison.OrdinalIgnoreCase);
                 if (found >= 0 && found < start) (start, length) = (found, mark.Length);
@@ -351,6 +353,22 @@ internal abstract class MermaidBuilder : ContentBuilder
 
         return stretches;
     }
+
+    /// <summary>
+    /// What breaks a line in what a diagram says: a <c>&lt;br&gt;</c> however it is written, and a <c>\n</c> — the two ways
+    /// anybody writes a new line where a line of the source cannot hold one.
+    /// </summary>
+    private static readonly string[] Marks = ["<br/>", "<br />", "<br>", @"\n"];
+
+    /// <summary>Words with every line break written in them made one — what is set where they are one run of words rather than wrapped.</summary>
+    private static string Broken(string says)
+    {
+        var breaks = Breaks(says);
+        return breaks.Count == 1 ? says : string.Join('\n', breaks.Select(stretch => says[stretch.From..stretch.To]));
+    }
+
+    /// <summary>Whether the reader is writing inside <paramref name="part"/>, where it is shown exactly as typed.</summary>
+    private bool Writing(ContentPart part) => State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End;
 
     /// <summary>Words the diagram works out rather than anybody writing (a share, a total): pressed as
     /// the <paramref name="part"/> they stand for, no caret. See <see cref="DiagramWords"/>.</summary>
