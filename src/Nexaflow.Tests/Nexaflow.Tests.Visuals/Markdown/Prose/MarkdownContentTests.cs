@@ -137,7 +137,8 @@ public class MarkdownContentTests
 
         element.PointerCursor(Middle(word));
 
-        Assert.AreEqual("HyperText Markup Language", element.ToolTip);
+        Assert.AreEqual("HyperText Markup Language", element.Saying);
+        Assert.IsNull(element.ToolTip, "said by the element's own tip, which WPF would never look for on a property that changes mid-hover");
     });
 
     [TestMethod]
@@ -150,7 +151,7 @@ public class MarkdownContentTests
         element.PointerCursor(Middle(abbreviation));
         element.PointerCursor(Middle(plain));
 
-        Assert.IsNull(element.ToolTip, "moving off the word takes what it said away");
+        Assert.IsNull(element.Saying, "moving off the word takes what it said away");
     });
 
     private static MarkdownElement Laid(string source)

@@ -28,7 +28,7 @@ public static class TextWidths
     private static int _known;
 
     /// <summary>How wide <paramref name="text"/> is set in <paramref name="face"/> at <paramref name="size"/>, trailing space left off.</summary>
-    public static double Of(string text, Typeface face, double size) => Set(face, size).Of(text);
+    public static double Of(string text, Typeface face, double size) => Set(face, size).Of(text).Width;
 
     /// <summary>What measures text set in <paramref name="face"/> at <paramref name="size"/> — found once for a run of words, not once a word.</summary>
     public static In Set(Typeface face, double size) => Faces.GetOrAdd((face, size), static set => new In(set.Face, set.Size));
@@ -38,8 +38,8 @@ public static class TextWidths
     {
         private readonly Typeface _face;
         private readonly double _size;
-        private readonly ConcurrentDictionary<string, double> _widths = new(StringComparer.Ordinal);
-        private readonly ConcurrentDictionary<string, double>.AlternateLookup<ReadOnlySpan<char>> _looking;
+        private readonly ConcurrentDictionary<string, (double Width, double Advance)> _widths = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, (double Width, double Advance)>.AlternateLookup<ReadOnlySpan<char>> _looking;
 
         internal In(Typeface face, double size)
         {
@@ -48,8 +48,11 @@ public static class TextWidths
             _looking = _widths.GetAlternateLookup<ReadOnlySpan<char>>();
         }
 
-        /// <summary>How wide <paramref name="text"/> is set, trailing space left off.</summary>
-        public double Of(ReadOnlySpan<char> text)
+        /// <summary>
+        /// How wide <paramref name="text"/> is set, trailing space left off — and how far along it moves whatever is set
+        /// after it, which is that and the trailing space.
+        /// </summary>
+        public (double Width, double Advance) Of(ReadOnlySpan<char> text)
         {
             if (_looking.TryGetValue(text, out var width)) return width;
 
@@ -60,8 +63,9 @@ public static class TextWidths
             }
 
             var written = text.ToString();
-            width = new FormattedText(written, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _face, _size,
-                                      Brushes.Black, LayoutText.Density).Width;
+            var set = new FormattedText(written, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _face, _size,
+                                        Brushes.Black, LayoutText.Density);
+            width = (set.Width, set.WidthIncludingTrailingWhitespace);
             _widths[written] = width;
 
             return width;

@@ -176,4 +176,10 @@ public sealed record BlockCorner(bool Saves = true, bool Copies = true)
 
     /// <summary>What a block that has said nothing about itself offers.</summary>
     public static BlockCorner Usual { get; } = new();
+
+    /// <summary>
+    /// No corner at all: what content says whose blocks are read rather than handled — a paragraph, a list, a quote —
+    /// where a button beside every one of them would only be in the way.
+    /// </summary>
+    public static BlockCorner None { get; } = new(Saves: false, Copies: false);
 }

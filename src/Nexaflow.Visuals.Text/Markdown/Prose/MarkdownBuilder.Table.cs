@@ -19,7 +19,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// </para>
 /// <para>
 /// A column is as wide as its widest cell wants to be, and only shares out the room when all of them together will not
-/// fit. So a table of one narrow column and one wide one is drawn as one, rather than as two halves.
+/// fit — and then never below its longest word, so a squeezed table wraps its sentences rather than writing its names
+/// over the next column. So a table of one narrow column and one wide one is drawn as one, rather than as two halves.
 /// </para>
 /// </summary>
 public sealed partial class MarkdownBuilder
@@ -283,10 +284,41 @@ public sealed partial class MarkdownBuilder
         if (total <= 0) return ([.. wants.Select(_ => Math.Max(room / columns, 1))], asked);
         if (total <= room) return (wants, asked);
 
-        var share = room / total;
-        var least = Style.TextSize * 2.5;
+        // Too wide for the room. A word cannot be broken to fit, so every column keeps what its longest one needs, and what
+        // is left over goes to the columns by how much more each wanted — a column of long sentences gives its width up
+        // before a column of names does. Where even the words will not fit, the table is wider than the room rather than
+        // written over itself.
+        var needs = Needs(placed, rows, columns, pad, wants);
+        var least = needs.Sum();
 
-        return ([.. wants.Select(want => Math.Max(want * share, least))], asked);
+        if (least >= room || total <= least) return (needs, asked);
+
+        var spare = (room - least) / (total - least);
+
+        return ([.. wants.Select((want, column) => needs[column] + ((want - needs[column]) * spare))], asked);
+    }
+
+    /// <summary>
+    /// How narrow each column can be: as wide as the longest word any of its cells holds, found by laying each cell with no
+    /// room at all, so every line holds one word. Asked only of a table too wide for its room — one that fits has no use for it.
+    /// </summary>
+    private double[] Needs(List<List<Cell>> placed, List<ContentPart> rows, int columns, double pad, double[] wants)
+    {
+        var needs = new double[columns];
+
+        for (var column = 0; column < columns; column++) needs[column] = Math.Min(pad * 2, wants[column]);
+
+        for (var row = 0; row < placed.Count; row++)
+            foreach (var cell in placed[row])
+            {
+                if (cell.Across != 1 || cell.Column >= columns) continue;
+
+                var laid = Apart(sub => Inside(sub, cell.Part, 1, Faced(rows[row])));
+
+                needs[cell.Column] = Math.Min(Math.Max(needs[cell.Column], laid.Size.Width + (pad * 2)), wants[cell.Column]);
+            }
+
+        return needs;
     }
 
     /// <summary>

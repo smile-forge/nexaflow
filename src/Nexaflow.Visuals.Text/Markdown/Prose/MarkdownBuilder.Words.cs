@@ -123,9 +123,12 @@ public sealed partial class MarkdownBuilder
             case MarkdownKinds.Sub: Inside(part, face with { Scale = face.Scale * 0.72, Lift = 0.22 }, runs); return;
             case MarkdownKinds.Sup: Inside(part, face with { Scale = face.Scale * 0.72, Lift = -0.34 }, runs); return;
 
-            // Nothing inside a code span is read, so nothing inside it is set: what is there is what was typed.
+            // Nothing inside a code span is read, so nothing inside it is set: what is there is what was typed. It is set in
+            // the accent on its own wash, so it reads as code inside a highlighter's wash as much as outside one.
             case MarkdownKinds.Code when part.Part(Roles.Body) is { } code:
-                runs.Add(new Run(code.Text, code, face with { Mono = true, Wash = Style.CodeBg }, Maps: true));
+                runs.Add(new Run(code.Text, code,
+                                 face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent, Wash = Style.CodeBg },
+                                 Maps: true));
                 return;
 
             case MarkdownKinds.Image:
@@ -372,7 +375,7 @@ public sealed partial class MarkdownBuilder
             // Content laid out by another language is one chunk: there is nothing in it this one can break.
             if (run.Inset is { } inset)
             {
-                Place(index, 0, 0, inset.Width);
+                Place(index, 0, 0, inset.Width, inset.Width);
 
                 continue;
             }
@@ -391,23 +394,26 @@ public sealed partial class MarkdownBuilder
                 if (end == at) end++;
                 while (end < text.Length && char.IsWhiteSpace(text[end])) end++;
 
-                Place(index, at, end, measure.Of(text.AsSpan(at, end - at)));
+                var (inked, advance) = measure.Of(text.AsSpan(at, end - at));
+                Place(index, at, end, inked, advance);
                 at = end;
             }
         }
 
         Row(into, runs, line, x);
 
-        void Place(int index, int start, int end, double measured)
+        // A word fits by its letters, since the space after it may hang past the edge; what follows it starts past
+        // that space, though, so the line moves on by the whole of it.
+        void Place(int index, int start, int end, double inked, double advance)
         {
-            if (width > 0 && width + measured > room)
+            if (width > 0 && width + inked > room)
             {
                 Row(into, runs, line, x);
                 width = 0;
             }
 
             line.Add((index, start, end));
-            width += measured;
+            width += advance;
         }
     }
 
@@ -475,6 +481,7 @@ public sealed partial class MarkdownBuilder
 
         var height = 0.0;
         var cursor = x;
+        var reach = x;
 
         for (var index = 0; index < groups.Count; index++)
         {
@@ -483,13 +490,16 @@ public sealed partial class MarkdownBuilder
 
             Set(into, run, glyphs, cursor, _y + top);
 
-            cursor += glyphs?.Width ?? run.Inset!.Width;
+            // What follows starts past a run's trailing space — "The " then a code span is a word, a space and the
+            // code — but the line reaches only as far as its last letter.
+            reach = cursor + (glyphs?.Width ?? run.Inset!.Width);
+            cursor += glyphs?.WidthIncludingTrailingWhitespace ?? run.Inset!.Width;
             height = Math.Max(height, top + (glyphs?.Height ?? run.Inset!.Height));
         }
 
         groups.Clear();
         _y += height;
-        Reached(cursor);
+        Reached(reach);
     }
 
     /// <summary>One run of one line, with whatever is washed behind it and whatever a press on it means.</summary>

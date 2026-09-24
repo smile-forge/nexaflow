@@ -139,6 +139,15 @@ public class MarkdownInlineTests
     }
 
     [TestMethod]
+    public void AMarkHoldsACodeSpanAsEmphasisDoes()
+    {
+        var marked = One("They compose too: ~~**struck bold**~~ and ==marked `code`==.", MarkdownKinds.Mark);
+
+        Assert.AreEqual("marked `code`", Body(marked));
+        Assert.AreEqual("code", Body(One("They compose too: ~~**struck bold**~~ and ==marked `code`==.", MarkdownKinds.Code)));
+    }
+
+    [TestMethod]
     public void NothingInsideACodeSpanIsRead()
     {
         var code = One("`a * b * c`", MarkdownKinds.Code);

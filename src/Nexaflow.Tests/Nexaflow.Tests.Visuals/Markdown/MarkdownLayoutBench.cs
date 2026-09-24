@@ -130,7 +130,7 @@ public class MarkdownLayoutBench
         IAstStage[] pipeline =
         [
             new WithBlocks(),
-            new WithDefinitions(),
+            new WithGroups(),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithNested(style, options),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links),
