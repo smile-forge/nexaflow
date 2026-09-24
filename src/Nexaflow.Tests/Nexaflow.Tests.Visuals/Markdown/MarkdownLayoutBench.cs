@@ -20,6 +20,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using System.Diagnostics.Tracing;
+using System.Threading;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -95,6 +97,7 @@ public class MarkdownLayoutBench
             ["languages"] = Listed(languages),
             ["languageStages"] = Listed(stages),
             ["blockKinds"] = Listed(kinds),
+            ["memory"] = Memory(File.ReadAllText(docs[^1]), style, options),
         };
 
         Directory.CreateDirectory(folder!);
@@ -425,4 +428,116 @@ public class MarkdownLayoutBench
     }
 
     private static double Median<T>(Func<T> run) => Cost(() => { run(); }).Ms;
+
+    /// <summary>
+    /// Where the memory of the largest document goes: what each layer of it holds once laid and painted — the syntax tree, its
+    /// reading, the laid tree, the pictures kept of its blocks, and all of it as an open document holds it — and what opening
+    /// it and typing in it allocate, by type, sampled by the runtime about every hundred KB.
+    /// </summary>
+    private static Dictionary<string, object> Memory(string text, StyleFormat style, DiagramRenderOptions options)
+    {
+        void Paint(Laid laid)
+        {
+            var visual = new DrawingVisual();
+            using var dc = visual.RenderOpen();
+            LayoutPainter.Paint(dc, laid.Root, style.Text);
+        }
+
+        // Every cache warmed first, so what is held is what the document holds.
+        Paint(MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false));
+
+        static long Heap() => GC.GetTotalMemory(forceFullCollection: true);
+
+        var nothing = Heap();
+        var tree = MarkdownParser.Reader
+            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithNested(style, options))
+            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures))
+            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links))
+            .Run(MarkdownParser.Read(text));
+        var read = Heap();
+        var reading = ContentReading.Of(tree, 0, text);
+        var positioned = Heap();
+        var laid = new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room);
+        var built = Heap();
+        Paint(laid);
+        var painted = Heap();
+
+        GC.KeepAlive(tree);
+        GC.KeepAlive(reading);
+        GC.KeepAlive(laid);
+
+        var held = new Dictionary<string, object>
+        {
+            ["syntaxKb"] = Math.Round((read - nothing) / 1024.0, 1),
+            ["readingKb"] = Math.Round((positioned - read) / 1024.0, 1),
+            ["laidKb"] = Math.Round((built - positioned) / 1024.0, 1),
+            ["picturesKb"] = Math.Round((painted - built) / 1024.0, 1),
+        };
+
+        using var allocations = new Allocations();
+        Thread.Sleep(500);
+
+        var middle = Middle(text);
+        var typing = MarkdownContent.Of(style, options);
+        typing.Lay(EditState.For(text), Room, false);
+        var typed = 0;
+
+        return new Dictionary<string, object>
+        {
+            ["held"] = held,
+            ["openByType"] = allocations.Sampled(() => MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false), 5),
+            ["editByType"] = allocations.Sampled(() => typing.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false), 10),
+        };
+    }
+
+    /// <summary>
+    /// What is allocated, by type — the runtime's own sampling, which names the type of whatever was being allocated each time
+    /// about a hundred KB more had been, heard in this process.
+    /// </summary>
+    private sealed class Allocations : EventListener
+    {
+        private readonly Dictionary<string, long> _byType = [];
+        private volatile bool _hearing;
+
+        protected override void OnEventSourceCreated(EventSource source)
+        {
+            if (source.Name == "Microsoft-Windows-DotNETRuntime") EnableEvents(source, EventLevel.Verbose, (EventKeywords)0x1);
+        }
+
+        protected override void OnEventWritten(EventWrittenEventArgs heard)
+        {
+            if (!_hearing || heard.EventName?.StartsWith("GCAllocationTick", StringComparison.Ordinal) != true || heard.Payload is null) return;
+
+            var names = heard.PayloadNames!;
+            var type = names.IndexOf("TypeName") is var t and >= 0 ? heard.Payload[t] as string ?? "?" : "?";
+            var amount = names.IndexOf("AllocationAmount64") is var a and >= 0 ? Convert.ToInt64(heard.Payload[a]) : 100_000;
+
+            lock (_byType) _byType[type] = _byType.GetValueOrDefault(type) + amount;
+        }
+
+        /// <summary>What <paramref name="run"/> allocates each time, by type, the most first — as KB and as a share.</summary>
+        public List<Dictionary<string, object>> Sampled(Action run, int times)
+        {
+            lock (_byType) _byType.Clear();
+
+            _hearing = true;
+            for (var at = 0; at < times; at++) run();
+
+            // The runtime hands its events over on a thread of its own, a little after they happen.
+            Thread.Sleep(1500);
+            _hearing = false;
+
+            List<KeyValuePair<string, long>> heard;
+            lock (_byType) heard = [.. _byType.OrderByDescending(type => type.Value)];
+
+            var total = Math.Max(1, heard.Sum(type => type.Value));
+
+            return [.. heard.Take(25).Select(type => new Dictionary<string, object>
+            {
+                ["name"] = type.Key,
+                ["kb"] = Math.Round(type.Value / (double)times / 1024.0, 1),
+                ["share"] = Math.Round(type.Value * 100.0 / total, 1),
+            })];
+        }
+    }
 }

@@ -21,11 +21,105 @@ namespace Nexaflow.Markdown.Prose.Stages;
 /// — is still the one verbatim leaf it was, which is the fallback every builder already knows how to draw.
 /// </para>
 /// </summary>
-public sealed class WithBlocks : IAstStage
+/// <param name="remembering">
+/// Whether this reads one document time after time, and so keeps what it read of each of its blocks — see
+/// <see cref="MarkdownParser.Rereading"/>.
+/// </param>
+public sealed class WithBlocks(bool remembering = false) : IAstStage
 {
+    /// <summary>What each block of the last reading came to, by the characters its body was written as.</summary>
+    private Dictionary<string, List<(ContentNode Written, ContentNode Read)>> _before = [];
+
+    /// <summary>What the definitions of the document said the last time, which every block's words were read beside.</summary>
+    private string? _besides;
+
     public string Name => "markdown:blocks";
 
-    public ContentNode Run(ContentNode tree) => Read(tree, MarkdownDefinitions.Of(tree)?.Text);
+    public ContentNode Run(ContentNode tree)
+    {
+        var besides = MarkdownDefinitions.Of(tree)?.Text;
+
+        return remembering ? Reread(tree, besides) : Read(tree, besides);
+    }
+
+    /// <summary>
+    /// The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.
+    ///
+    /// <para>
+    /// A keystroke changes one block, and reading is a function of what a block says and what the document defines —
+    /// nothing else goes in. So a block written the same beside the same definitions reads the same, and only the one typed
+    /// in is read again. Kept for the blocks of one reading at a time: what the reading before that held is let go.
+    /// </para>
+    /// </summary>
+    private ContentNode Reread(ContentNode tree, string? besides)
+    {
+        if (besides != _besides) _before = [];
+        _besides = besides;
+
+        var now = new Dictionary<string, List<(ContentNode Written, ContentNode Read)>>(_before.Count);
+        var seen = new ContentNode[tree.Children.Count];
+        var moved = false;
+
+        for (var at = 0; at < seen.Length; at++)
+        {
+            var block = tree.Children[at];
+
+            if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim } body)
+            {
+                seen[at] = Read(block, besides);
+            }
+            else
+            {
+                seen[at] = Remembered(body.Text, block) ?? Read(block, besides);
+
+                if (!now.TryGetValue(body.Text, out var alike)) now[body.Text] = alike = [];
+                alike.Add((block, seen[at]));
+            }
+
+            moved |= !ReferenceEquals(seen[at], block);
+        }
+
+        _before = now;
+        return moved ? tree.With(seen) : tree;
+    }
+
+    /// <summary>What a block written as this one is was read as last time — each handed out once.</summary>
+    private ContentNode? Remembered(string written, ContentNode block)
+    {
+        if (!_before.TryGetValue(written, out var alike)) return null;
+
+        for (var at = 0; at < alike.Count; at++)
+        {
+            if (!Alike(alike[at].Written, block)) continue;
+
+            var read = alike[at].Read;
+            alike.RemoveAt(at);
+            return read;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether two blocks say the same: the same characters in the same shape, and the same things the parser worked out
+    /// about them — a heading's name, which moves when another heading is written above it, is not in its characters.
+    /// </summary>
+    private static bool Alike(ContentNode was, ContentNode now)
+    {
+        if (ReferenceEquals(was, now)) return true;
+
+        if (was.Kind != now.Kind
+            || was.Role != now.Role
+            || was.Text != now.Text
+            || was.Trouble != now.Trouble
+            || !Equals(was.Held, now.Held)
+            || was.Children.Count != now.Children.Count) return false;
+
+        for (var at = 0; at < was.Children.Count; at++)
+            if (!Alike(was.Children[at], now.Children[at])) return false;
+
+        return true;
+    }
 
     /// <summary>
     /// Which parser reads this block, where one reads it. A kind that is not here is a kind nothing can read

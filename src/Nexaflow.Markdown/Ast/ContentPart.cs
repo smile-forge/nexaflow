@@ -19,8 +19,9 @@ public sealed class ContentPart : ISourcePart
     /// <summary>The span this part reports instead of its own, or nothing where it was written.</summary>
     private readonly int? _derived;
 
-    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived)
+    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived, int order = 0)
     {
+        this.Order = order;
         // Anything derived, and everything under it, stands for no source: it begins where the piece it
         // was hung under begins and is no characters long, which is the only answer that keeps a part's
         // span and what it prints as the same thing. Selecting the whole of what it explains still works
@@ -41,7 +42,7 @@ public sealed class ContentPart : ISourcePart
         {
             var child = node.Children[index];
 
-            this._children[index] = new ContentPart(child, at, this, inherited);
+            this._children[index] = new ContentPart(child, at, this, inherited, index);
             if (inherited is null) at += child.Width;
         }
     }
@@ -75,6 +76,12 @@ public sealed class ContentPart : ISourcePart
 
     /// <summary>What holds it, or null for the whole content.</summary>
     public ContentPart? Parent { get; }
+
+    /// <summary>
+    /// Which of its parent's parts it is, counting from nought — so the same part can be found in another reading of the same
+    /// content by the way down to it, without looking it up.
+    /// </summary>
+    public int Order { get; }
 
     public IReadOnlyList<ContentPart> Children => this._children;
 

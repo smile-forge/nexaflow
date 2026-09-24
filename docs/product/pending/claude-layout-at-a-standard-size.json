@@ -1231,6 +1231,12 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutKept.cs",
           "class": "LayoutKept"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/Stages/WithBlocks.cs",
+          "class": "WithBlocks",
+          "method": "Reread"
         }
       ],
       "concerns": {
@@ -1239,6 +1245,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/LaidBlocksTests.cs",
             "class": "LaidBlocksTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/RereadingTests.cs",
+            "class": "RereadingTests"
           }
         ]
       }

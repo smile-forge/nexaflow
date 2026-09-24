@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 using Nexaflow.Markdown.Ast;
@@ -33,8 +34,8 @@ public sealed class WithUnchanged : IAstStage
     /// <summary>The kind of the part the document's blocks are hung on under.</summary>
     public const string Kind = "markdown-unchanged";
 
-    /// <summary>Every block the last reading had, by its characters, with what its layout was kept in.</summary>
-    private Dictionary<string, List<(ContentNode Block, LaidBlock Laid)>> _before = [];
+    /// <summary>Every block the last reading had, by the shape of what it says, with what its layout was kept in.</summary>
+    private Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>> _before = [];
 
     /// <inheritdoc/>
     public string Name => "markdown:unchanged";
@@ -42,14 +43,14 @@ public sealed class WithUnchanged : IAstStage
     /// <inheritdoc/>
     public ContentNode Run(ContentNode tree)
     {
-        var now = new Dictionary<string, List<(ContentNode Block, LaidBlock Laid)>>();
+        var now = new Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>>(_before.Count);
         var laid = new LaidBlocks();
 
         foreach (var block in tree.Children)
         {
             if (block.IsDerived || block.Role == Roles.Trivia) continue;
 
-            var written = block.Print();
+            var written = Shape(block);
             var kept = Taken(written, block) ?? new LaidBlock();
 
             laid.Add(block, kept);
@@ -66,7 +67,7 @@ public sealed class WithUnchanged : IAstStage
     public void Forget() => _before = [];
 
     /// <summary>What the last reading kept for a block written as this one is and reading as it does — each given out once.</summary>
-    private LaidBlock? Taken(string written, ContentNode block)
+    private LaidBlock? Taken(int written, ContentNode block)
     {
         if (!_before.TryGetValue(written, out var alike)) return null;
 
@@ -80,6 +81,20 @@ public sealed class WithUnchanged : IAstStage
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A number for what a node says: its kinds, roles and characters, all the way down. Two nodes that say the same have the
+    /// same one, so a block is only ever compared whole against the few it could be — worked out without printing it, since
+    /// a document is every block of it on every keystroke.
+    /// </summary>
+    private static int Shape(ContentNode node)
+    {
+        var shape = HashCode.Combine(node.Kind, node.Role, node.Text);
+
+        for (var at = 0; at < node.Children.Count; at++) shape = HashCode.Combine(shape, Shape(node.Children[at]));
+
+        return shape;
     }
 
     /// <summary>

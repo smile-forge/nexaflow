@@ -18,7 +18,16 @@ public sealed class ContentReading
     /// the same source it came from, because that is the one rule every stage keeps.
     /// </summary>
     /// <param name="at">Where this content's first character stands in the source that holds it — see <see cref="ContentPart.Of"/>.</param>
-    public static ContentReading Of(ContentNode tree, int at = 0) => new(tree.Print(), ContentPart.Of(tree, at));
+    /// <param name="source">
+    /// The source the tree was read from, where the caller has it: the tree prints as exactly that, so printing it again only
+    /// makes a second copy of a document.
+    /// </param>
+    public static ContentReading Of(ContentNode tree, int at = 0, string? source = null)
+    {
+        System.Diagnostics.Debug.Assert(source is null || source == tree.Print(), "the tree prints as the source it was read from");
+
+        return new(source ?? tree.Print(), ContentPart.Of(tree, at));
+    }
 
     /// <summary>The source this was read from.</summary>
     public string Source { get; }

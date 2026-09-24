@@ -60,7 +60,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var source = markdown ?? string.Empty;
         var read = (reader ?? MarkdownParser.Reader.Then(new Stages.WithNested(style))).Run(MarkdownParser.Read(source));
 
-        return new MarkdownBuilder(ContentReading.Of(read, at),
+        return new MarkdownBuilder(ContentReading.Of(read, at, source),
                                    new EditState(source, 0, null, shownAsWritten), style, isReadOnly).Lay(room);
     }
 
@@ -69,13 +69,28 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         if (Source.Length == 0) return null;
 
-        var into = new LayoutBuilder();
+        var into = new LayoutBuilder(Expected());
 
         into.Open(MarkdownPieces.Document, Reading.Root);
         Blocks(into, Reading.Root, 0, Fits(Room));
         into.Close();
 
         return new Laid(into.Seal(), new Size(Math.Max(_reach, 1), Math.Max(_y, 1)), Trouble());
+    }
+
+    /// <summary>
+    /// About how many pieces the document will come to: what its kept blocks came to last time, and a little over for the
+    /// block typed in — so the document's lists are made once at about the size they end up rather than grown to it.
+    /// </summary>
+    private int Expected()
+    {
+        if (LaidBlocks.Of(Reading.Root) is not { } laid) return 0;
+
+        var pieces = 1;
+        foreach (var part in Reading.Root.Children)
+            if (!part.Derived && laid.For(part.Node)?.Last is { } last) pieces += last.Tree.Count;
+
+        return pieces + (pieces / 8);
     }
 
     /// <summary>Unreadable source shown in a monospaced face, so it reads as the source it is.</summary>
@@ -123,6 +138,11 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// where somebody is being shown the characters of it, which is a different drawing of the same block, and not where a
     /// part of it cannot be found again, which is laid afresh rather than guessed at.
     /// </para>
+    /// <para>
+    /// What is kept is always of this reading. A layout still naming the parts of the reading it was made from would hold
+    /// that whole reading for as long as the block went untouched, and a document written in for an hour would be holding a
+    /// reading for every block edited in it.
+    /// </para>
     /// </summary>
     private void Whole(LayoutBuilder into, ContentPart part, double x, double room, LaidBlock? laid)
     {
@@ -130,8 +150,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         if (!shown && laid?.Last is { } last && last.Room == room && last.IsReadOnly == IsReadOnly && last.At(part) is { } moved)
         {
-            into.Graft(last.Tree, new Point(0, _y), parts: moved.Parts);
+            var tree = last.Tree.Parted(moved.Parts);
+
+            into.Graft(tree, new Point(0, _y));
             _borrowed.AddRange(moved.Trouble);
+
+            laid.Last = last with { Part = part, Tree = tree, Trouble = moved.Trouble };
 
             _y += last.Height;
             Reached(last.Reach);
@@ -141,20 +165,20 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var (y, reach, borrowed) = (_y, _reach, _borrowed.Count);
         (_y, _reach) = (0, 0);
 
-        var apart = new LayoutBuilder();
+        var apart = Rent();
         apart.Open(MarkdownPieces.Whole, stops: Stops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
         Block(apart, part, x, room);
         apart.Close();
 
-        var tree = apart.Seal();
+        var made = Sealed(apart);
         var (height, reached) = (_y, _reach);
         (_y, _reach) = (y, Math.Max(reach, reached));
 
-        into.Graft(tree, new Point(0, _y));
+        into.Graft(made, new Point(0, _y));
         _y += height;
 
         if (laid is not null)
-            laid.Last = shown ? null : new Laying(part, tree, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
+            laid.Last = shown ? null : new Laying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
     }
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
@@ -756,14 +780,33 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var (y, reach) = (_y, _reach);
         (_y, _reach) = (0, 0);
 
-        var into = new LayoutBuilder();
+        var into = Rent();
         lay(into);
 
         var size = new Size(Math.Max(_reach, 1), Math.Max(_y, 0));
         (_y, _reach) = (y, reach);
 
-        return (into.Seal(), size);
+        return (Sealed(into), size);
     }
+
+    /// <summary>
+    /// A builder to lay something apart in — one used before and emptied where there is one, since a document lays a tree of
+    /// its own for every block and every cell, and each would otherwise grow its lists from nothing.
+    /// </summary>
+    private LayoutBuilder Rent() => _builders.Count > 0 ? _builders.Pop() : new LayoutBuilder();
+
+    /// <summary>What <paramref name="built"/> made, sealed, with the builder handed back to be used again.</summary>
+    private LayoutTree Sealed(LayoutBuilder built)
+    {
+        var tree = built.Seal();
+
+        built.Clear();
+        _builders.Push(built);
+
+        return tree;
+    }
+
+    private readonly Stack<LayoutBuilder> _builders = new();
 
     /// <summary>What a block was read into, or the block itself where nothing read it.</summary>
     private static ContentPart Body(ContentPart part) => part.Part(Roles.Body) ?? part;

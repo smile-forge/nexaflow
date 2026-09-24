@@ -17,21 +17,21 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 public sealed class LayoutBuilder
 {
-    private readonly List<Stored> _pieces = [];
-    private readonly List<ISourcePart?> _parts = [];
-    private readonly List<string> _kinds = [];
-    private readonly List<LayoutPaint?> _paints = [];
+    private readonly List<Stored> _pieces;
+    private readonly List<ISourcePart?> _parts;
+    private readonly List<string> _kinds;
+    private readonly List<LayoutPaint?> _paints;
 
     /// <summary>The shape each piece stands in, where it said — see <see cref="Occupies"/>. Null for nearly everything.</summary>
-    private readonly List<Geometry?> _regions = [];
+    private readonly List<Geometry?> _regions;
 
     /// <summary>The run of text each piece is, where it is one — see <see cref="Words"/>. Null for nearly everything.</summary>
-    private readonly List<LayoutWords?> _words = [];
+    private readonly List<LayoutWords?> _words;
 
     /// <summary>What a piece answers to, for the few that answer to anything. Kept beside the pieces, as their words are.</summary>
     private readonly Dictionary<int, LayoutActions> _acts = [];
 
-    private readonly List<LayoutMark> _marks = [];
+    private readonly List<LayoutMark> _marks;
     private readonly List<(int[] Members, bool Vertical)> _runs = [];
 
     /// <summary>
@@ -42,6 +42,21 @@ public sealed class LayoutBuilder
 
     private readonly Stack<Frame> _open = new();
     private readonly Stack<Frame> _spare = new();
+
+    /// <param name="pieces">
+    /// About how many pieces the tree will hold, where that is known — a document laid again is about as many as last time — so
+    /// its lists are made that size once rather than grown to it.
+    /// </param>
+    public LayoutBuilder(int pieces = 0)
+    {
+        _pieces = new(pieces);
+        _parts = new(pieces);
+        _kinds = new(pieces);
+        _paints = new(pieces);
+        _regions = new(pieces);
+        _words = new(pieces);
+        _marks = new(pieces);
+    }
 
     /// <summary>
     /// A piece being built: where it is, what it has drawn so far, and how far that reaches. Marks are held
@@ -452,5 +467,25 @@ public sealed class LayoutBuilder
                 union.Union(Rect.Offset(_pieces[child].Box, _pieces[child].Offset));
 
         if (!union.IsEmpty) _pieces[holder] = _pieces[holder] with { Box = union };
+    }
+
+    /// <summary>
+    /// Empties the builder so it can make another tree, keeping the room its lists grew to — for whatever makes a great many
+    /// small trees one after another, a cell or a block at a time. What was sealed before is its own copy and is untouched.
+    /// </summary>
+    public void Clear()
+    {
+        if (_open.Count > 0) throw new InvalidOperationException($"{_open.Count} piece(s) were opened and never closed");
+
+        _pieces.Clear();
+        _parts.Clear();
+        _kinds.Clear();
+        _paints.Clear();
+        _regions.Clear();
+        _words.Clear();
+        _acts.Clear();
+        _marks.Clear();
+        _runs.Clear();
+        _sides.Clear();
     }
 }

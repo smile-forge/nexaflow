@@ -85,12 +85,20 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
         return (parts, trouble);
     }
 
-    /// <summary>Where each part of the old reading stands in the new one — found as asked for, since most of a block is never asked about.</summary>
+    /// <summary>
+    /// Where each part of the old reading stands in the new one. The block reads exactly as it did, so a part of it is found
+    /// again by the way down to it — which of its parent's parts it was, all the way from the block — rather than by looking
+    /// it up; only a language's own reading, read afresh when the block was laid, has to be made again, and then only once.
+    /// </summary>
     private sealed class Moved(ContentPart was, ContentPart now)
     {
-        private readonly Dictionary<object, ISourcePart> _to = new() { [was] = now };
-
         private readonly ContentPart _document = Root(was);
+
+        /// <summary>The way down from the block to the part being found, innermost first.</summary>
+        private readonly List<int> _way = [];
+
+        /// <summary>A language's reading, set further along, for each one met — and whatever else had to be made again.</summary>
+        private Dictionary<object, ISourcePart>? _made;
 
         /// <summary>How far the block has moved.</summary>
         public int By { get; } = now.Start - was.Start;
@@ -114,51 +122,80 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
 
         private ContentPart? Found(ContentPart part)
         {
-            if (_to.TryGetValue(part, out var found)) return (ContentPart)found;
+            _way.Clear();
 
-            if (part.Parent is not { } up)
+            var at = part;
+            while (!ReferenceEquals(at, was))
             {
-                // The document's own reading is found through the block, never from its top: a part outside the block
-                // is nothing this layout drew.
-                if (ReferenceEquals(part, _document)) return null;
+                if (at.Parent is not { } up) return Rooted(at, part);
 
-                var moved = By == 0 ? part : ContentPart.Of(part.Node, part.Start + By);
-                _to[part] = moved;
-                return moved;
+                _way.Add(at.Order);
+                at = up;
             }
 
-            if (Found(up) is not { } there || there.Children.Count != up.Children.Count) return null;
+            return Down(now);
+        }
 
-            for (var at = 0; at < up.Children.Count; at++) _to[up.Children[at]] = there.Children[at];
-            return (ContentPart)_to[part];
+        /// <summary>
+        /// A part of a reading other than the document's — a language's own, which that language read when the block was laid.
+        /// Where nothing moved it is where it was; otherwise that reading is made again, set further along, and the same way
+        /// is walked down it. The document's own reading is only ever reached through the block: a part outside the block is
+        /// nothing this layout drew.
+        /// </summary>
+        private ContentPart? Rooted(ContentPart root, ContentPart part)
+        {
+            if (ReferenceEquals(root, _document)) return null;
+            if (By == 0) return part;
+
+            _made ??= [];
+
+            if (!_made.TryGetValue(root, out var moved)) _made[root] = moved = ContentPart.Of(root.Node, root.Start + By);
+            return Down((ContentPart)moved);
+        }
+
+        /// <summary>The way walked down from <paramref name="from"/>, or null where it no longer goes.</summary>
+        private ContentPart? Down(ContentPart from)
+        {
+            for (var step = _way.Count - 1; step >= 0; step--)
+            {
+                var order = _way[step];
+                if (order >= from.Children.Count) return null;
+
+                from = from.Children[order];
+            }
+
+            return from;
         }
 
         private TexSourcePart? Found(TexSourcePart named)
         {
-            if (_to.TryGetValue(named, out var found)) return (TexSourcePart)found;
+            _made ??= [];
+            if (_made.TryGetValue(named, out var found)) return (TexSourcePart)found;
             if (Found(named.Of) is not { } of) return null;
 
             var moved = ReferenceEquals(of, named.Of) ? named : new TexSourcePart(of);
-            _to[named] = moved;
+            _made[named] = moved;
             return moved;
         }
 
         private BarcodePart? Found(BarcodePart part)
         {
             if (By == 0) return part;
-            if (_to.TryGetValue(part, out var found)) return (BarcodePart)found;
+
+            _made ??= [];
+            if (_made.TryGetValue(part, out var found)) return (BarcodePart)found;
 
             if (part.Parent is not { } up)
             {
                 var moved = part.At(By);
-                _to[part] = moved;
+                _made[part] = moved;
                 return moved;
             }
 
             if (Found(up) is not { } there || there.Children.Count != up.Children.Count) return null;
 
-            for (var at = 0; at < up.Children.Count; at++) _to[up.Children[at]] = there.Children[at];
-            return (BarcodePart)_to[part];
+            for (var at = 0; at < up.Children.Count; at++) _made[up.Children[at]] = there.Children[at];
+            return (BarcodePart)_made[part];
         }
 
         private static ContentPart Root(ContentPart part)

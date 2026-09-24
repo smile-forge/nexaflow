@@ -27,6 +27,26 @@ public abstract record LayoutMark
     public abstract void PaintOn(DrawingContext dc, Brush fallback);
 
     /// <summary>
+    /// Paints it moved along by <paramref name="offset"/> — where the piece it belongs to stands, worked out by whatever is
+    /// painting rather than pushed as a transform. A transform pushed while a picture is being kept is a whole group of its
+    /// own in that picture, one for every piece, so a mark that can simply be drawn further along is. What cannot is moved
+    /// by a transform of its own.
+    /// </summary>
+    public virtual void PaintOn(DrawingContext dc, Brush fallback, Vector offset)
+    {
+        if (offset is { X: 0, Y: 0 })
+        {
+            PaintOn(dc, fallback);
+
+            return;
+        }
+
+        dc.PushTransform(new TranslateTransform(offset.X, offset.Y));
+        PaintOn(dc, fallback);
+        dc.Pop();
+    }
+
+    /// <summary>
     /// How far this drawing reaches, in the frame of the piece it belongs to.
     ///
     /// <para>
@@ -81,6 +101,12 @@ public sealed record TextMark(FormattedText Glyphs, Point At, Brush? Foreground)
         Glyphs.SetForegroundBrush(Foreground ?? fallback);
         dc.DrawText(Glyphs, At);
     }
+
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset)
+    {
+        Glyphs.SetForegroundBrush(Foreground ?? fallback);
+        dc.DrawText(Glyphs, At + offset);
+    }
 }
 
 /// <summary>A hairline: a fraction's bar, a strike, the stroke of a radical.</summary>
@@ -92,6 +118,13 @@ public sealed record LineMark(Point From, Point To, Brush? Foreground) : LayoutM
         var pen = new Pen(Foreground ?? fallback, 1.0);
         pen.Freeze();
         dc.DrawLine(pen, From, To);
+    }
+
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset)
+    {
+        var pen = new Pen(Foreground ?? fallback, 1.0);
+        pen.Freeze();
+        dc.DrawLine(pen, From + offset, To + offset);
     }
 }
 
@@ -143,6 +176,9 @@ public sealed record RuleMark(Rect Bounds, Brush? Foreground) : LayoutMark
     public override Rect Covers => Bounds;
     public override void PaintOn(DrawingContext dc, Brush fallback) =>
         dc.DrawRectangle(Foreground ?? fallback, null, Bounds);
+
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) =>
+        dc.DrawRectangle(Foreground ?? fallback, null, Rect.Offset(Bounds, offset));
 }
 
 /// <summary>
@@ -160,6 +196,9 @@ public sealed record PictureMark(ImageSource Picture, Rect Bounds) : LayoutMark
     public override Rect Covers => Bounds;
 
     public override void PaintOn(DrawingContext dc, Brush fallback) => dc.DrawImage(Picture, Bounds);
+
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) =>
+        dc.DrawImage(Picture, Rect.Offset(Bounds, offset));
 }
 
 /// <summary>
@@ -178,4 +217,7 @@ public sealed record WashMark(Rect Bounds, Brush Fill) : LayoutMark
 
     public override void PaintOn(DrawingContext dc, Brush fallback) =>
         dc.DrawRectangle(Fill, null, Bounds);
+
+    public override void PaintOn(DrawingContext dc, Brush fallback, Vector offset) =>
+        dc.DrawRectangle(Fill, null, Rect.Offset(Bounds, offset));
 }

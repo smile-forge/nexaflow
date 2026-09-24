@@ -42,7 +42,7 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay, Act
         // Last, because a block is only the same as it was when everything worked out about it is the same too.
         var unchanged = new Stages.WithUnchanged();
 
-        var read = MarkdownParser.Reader
+        var read = MarkdownParser.Rereading()
             .Then(new Stages.WithNested(style, options))
             .Then(new Stages.WithImages(options?.Pictures))
             .Then(new Stages.WithLinks(options?.Links))

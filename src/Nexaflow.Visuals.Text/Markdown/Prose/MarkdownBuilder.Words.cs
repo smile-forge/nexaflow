@@ -83,7 +83,10 @@ public sealed partial class MarkdownBuilder
     /// <summary>Sets what a block says, breaking lines at the room it was given.</summary>
     private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face)
     {
-        var runs = new List<Run>();
+        // One list for every block's words, used again rather than made again: a run is a large thing to copy, and a
+        // document is a great many runs.
+        var runs = _runs;
+        runs.Clear();
         Gather(words, face, runs);
 
         if (runs.Count == 0)
@@ -95,7 +98,13 @@ public sealed partial class MarkdownBuilder
         }
 
         Lines(into, runs, x, Math.Max(room, 1));
+        runs.Clear();
     }
+
+    private readonly List<Run> _runs = [];
+    private readonly List<(int Run, int Start, int End)> _line = [];
+    private readonly List<(Run Run, FormattedText? Glyphs)> _groups = [];
+    private readonly List<double> _tops = [];
 
     // ── What each construct is set as ───────────────────────────────────────
 
@@ -344,7 +353,8 @@ public sealed partial class MarkdownBuilder
     {
         // Each word as where it lies in its run rather than a copy of it: the words are measured from the run's own text,
         // and whatever ends up on one line is cut from it once.
-        var line = new List<(int Run, int Start, int End)>();
+    var line = _line;
+        line.Clear();
         var width = 0.0;
 
         for (var index = 0; index < runs.Count; index++)
@@ -417,7 +427,8 @@ public sealed partial class MarkdownBuilder
     {
         if (line.Count == 0) return;
 
-        var groups = new List<(Run Run, FormattedText? Glyphs)>(line.Count);
+    var groups = _groups;
+        groups.Clear();
         var at = 0;
 
         while (at < line.Count)
@@ -446,16 +457,17 @@ public sealed partial class MarkdownBuilder
 
         var middle = baseline - words.Baseline + (words.Height / 2);
 
-        var tops = new double[groups.Count];
+        var tops = _tops;
+        tops.Clear();
         var over = 0.0;
 
         for (var index = 0; index < groups.Count; index++)
         {
             var (run, glyphs) = groups[index];
 
-            tops[index] = glyphs is not null
+            tops.Add(glyphs is not null
                 ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
-                : middle - (run.Inset!.Height / 2);
+                : middle - (run.Inset!.Height / 2));
 
             // Anything reaching above where the line starts moves the whole line down rather than being drawn there.
             over = Math.Min(over, tops[index]);
@@ -475,6 +487,7 @@ public sealed partial class MarkdownBuilder
             height = Math.Max(height, top + (glyphs?.Height ?? run.Inset!.Height));
         }
 
+        groups.Clear();
         _y += height;
         Reached(cursor);
     }

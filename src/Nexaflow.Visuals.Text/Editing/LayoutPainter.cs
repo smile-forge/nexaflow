@@ -1,6 +1,7 @@
 using System.Windows.Media;
 
 using System.Collections.Generic;
+using System.Windows;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -14,9 +15,10 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </para>
 /// <para>
 /// Descended rather than flattened, because a mark is recorded relative to its own piece's anchor and an
-/// anchor is relative to its parent's. That is what makes a subtree drawable wherever it is put down —
-/// and what a transform stack says in one line. A piece anchored at its parent's own origin pushes
-/// nothing, so the depth of the stack is the depth of the content rather than the count of the pieces.
+/// anchor is relative to its parent's. That is what makes a subtree drawable wherever it is put down. Where each
+/// piece stands is carried down the descent and handed to its marks rather than pushed as a transform, so a picture
+/// being kept is marks rather than a group for every piece; only a piece drawn in a frame of its own — turned, or
+/// snapped to a pixel grid — pushes one.
 /// </para>
 /// <para>
 /// The same relationship that answers a hit test, so the picture and the answers cannot disagree about
@@ -50,27 +52,29 @@ public static class LayoutPainter
     {
         if (!piece.Exists) return;
 
-        Descend(dc, piece, foreground, washes: true);
-        Descend(dc, piece, foreground, washes: false);
+        Descend(dc, piece, foreground, washes: true, default);
+        Descend(dc, piece, foreground, washes: false, default);
     }
 
     /// <summary>One layer of one subtree — see <see cref="Paint"/>, which is both of them.</summary>
-    private static void Descend(DrawingContext dc, Piece piece, Brush foreground, bool washes)
+    /// <param name="offset">Where the frame <paramref name="piece"/> is measured in stands, against what was last pushed.</param>
+    private static void Descend(DrawingContext dc, Piece piece, Brush foreground, bool washes, Vector offset)
     {
-        var pushed = Enter(dc, piece);
+        offset += piece.Offset;
+        var pushed = Enter(dc, piece, ref offset);
 
         // A piece that keeps its picture is painted whole, both layers, when the washes go down: what keeps a picture is a
         // block, and nothing of any other block is between its washes and its ink.
         if (piece.Painting?.Kept is { } kept)
         {
-            if (washes) dc.DrawDrawing(kept.For(foreground, into => Inside(into, piece, foreground)));
+            if (washes) Recorded(dc, kept.For(foreground, into => Inside(into, piece, foreground)), offset);
         }
         else
         {
             foreach (var mark in piece.Marks)
-                if (mark is WashMark == washes) mark.PaintOn(dc, foreground);
+                if (mark is WashMark == washes) mark.PaintOn(dc, foreground, offset);
 
-            foreach (var child in piece.Children) Descend(dc, child, foreground, washes);
+            foreach (var child in piece.Children) Descend(dc, child, foreground, washes, offset);
         }
 
         for (var at = 0; at < pushed; at++) dc.Pop();
@@ -80,14 +84,29 @@ public static class LayoutPainter
     private static void Inside(DrawingContext dc, Piece piece, Brush foreground)
     {
         foreach (var mark in piece.Marks)
-            if (mark is WashMark) mark.PaintOn(dc, foreground);
+            if (mark is WashMark) mark.PaintOn(dc, foreground, default);
 
-        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: true);
+        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: true, default);
 
         foreach (var mark in piece.Marks)
-            if (mark is not WashMark) mark.PaintOn(dc, foreground);
+            if (mark is not WashMark) mark.PaintOn(dc, foreground, default);
 
-        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: false);
+        foreach (var child in piece.Children) Descend(dc, child, foreground, washes: false, default);
+    }
+
+    /// <summary>A kept picture, set down where its piece stands.</summary>
+    private static void Recorded(DrawingContext dc, Drawing picture, Vector offset)
+    {
+        if (offset is { X: 0, Y: 0 })
+        {
+            dc.DrawDrawing(picture);
+
+            return;
+        }
+
+        dc.PushTransform(new TranslateTransform(offset.X, offset.Y));
+        dc.DrawDrawing(picture);
+        dc.Pop();
     }
 
     /// <summary>
@@ -107,34 +126,44 @@ public static class LayoutPainter
         var above = new List<Piece>();
         foreach (var up in piece.Ancestors()) above.Add(up);
 
+        var offset = default(Vector);
         var pushed = 0;
-        for (var at = above.Count - 1; at >= 0; at--) pushed += Enter(dc, above[at]);
 
-        Paint(dc, piece, foreground);
+        for (var at = above.Count - 1; at >= 0; at--)
+        {
+            offset += above[at].Offset;
+            pushed += Enter(dc, above[at], ref offset);
+        }
+
+        Descend(dc, piece, foreground, washes: true, offset);
+        Descend(dc, piece, foreground, washes: false, offset);
 
         for (var at = 0; at < pushed; at++) dc.Pop();
     }
 
     /// <summary>
-    /// Puts the drawing context into a piece's own frame, and says how many pushes to undo.
+    /// Puts the drawing context into a piece's own frame where it is drawn in one — turned, or snapped to a pixel grid — and
+    /// says how many pushes to undo.
     ///
     /// <para>
-    /// Where it sits first, then how it is drawn: a piece turned inside whatever holds it is turned about
-    /// its own anchor, which is what makes the turn part of the piece rather than of the page.
+    /// Where it sits first, then how it is drawn: a piece turned inside whatever holds it is turned about its own anchor,
+    /// which is what makes the turn part of the piece rather than of the page. So what has built up of where it stands is
+    /// pushed before the turn, and inside it everything is measured from nothing again. Any other piece pushes nothing:
+    /// where it stands is carried down to its marks.
     /// </para>
     /// </summary>
-    private static int Enter(DrawingContext dc, Piece piece)
+    private static int Enter(DrawingContext dc, Piece piece, ref Vector offset)
     {
+        if (piece.Painting is not { } painting || (painting.Turn is not { Count: > 0 } && painting.Snap is null)) return 0;
+
         var pushed = 0;
 
-        var offset = piece.Offset;
-        if (offset.X != 0 || offset.Y != 0)
+        if (offset is not { X: 0, Y: 0 })
         {
             dc.PushTransform(new TranslateTransform(offset.X, offset.Y));
             pushed++;
+            offset = default;
         }
-
-        if (piece.Painting is not { } painting) return pushed;
 
         if (painting.Turn is { } turns)
             foreach (var turn in turns)

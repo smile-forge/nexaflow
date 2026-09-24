@@ -56,6 +56,13 @@ public static class MarkdownParser
     public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithDefinitions());
 
     /// <summary>
+    /// A reader for one document, read again and again as it is written: what it read of a block last time is what it hands
+    /// back for the same block this time, so a keystroke reads the block it was typed in rather than every block there is.
+    /// One per document — what it keeps is that document's blocks.
+    /// </summary>
+    public static AstPipeline Rereading() => new(new WithBlocks(remembering: true), new WithDefinitions());
+
+    /// <summary>
     /// The same options, so a host adding an extension of its own starts from what is already read. Every
     /// heading is given a GitHub-style id on the way, which is what an in-page link is resolved against.
     /// </summary>

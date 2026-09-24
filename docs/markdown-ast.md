@@ -240,11 +240,18 @@ turned up and the buttons a block offers in its corner; `MarkdownElement` owns t
 selection. Because the prose, the diagrams and the tunes are all pieces of one laid tree, a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 
+**A block written as it was is read as it was.** A document being written is read by a reader kept for it
+(`MarkdownParser.Rereading`): `WithBlocks` hands back what it read of every block written exactly as last time beside the
+same definitions, because reading a block is a function of those two and nothing else — so a keystroke reads the block it
+was typed in. `RereadingTests` holds a reading made that way to the same document read from nothing.
+
 **A block that reads as it did is laid as it was.** `WithUnchanged` is the last stage, and one reads one document for as
 long as the host keeps it: it remembers the last reading's blocks and says which of this reading's are the same one —
 the same characters and everything the stages before it hung on them, so a paragraph whose link was defined again three
 paragraphs away is not the same. What the builder laid for such a block is set down again rather than laid again
-(`LaidBlocks`), and only what its pieces stand for is moved along, by the one amount everything after an edit moves. Each
+(`LaidBlocks`), and only what its pieces stand for is moved along, by the one amount everything after an edit moves: a
+part is found again in the new reading by the way down to it (`ContentPart.Order`), and what is kept then names the new
+reading's parts, so no reading outlives the one after it. Each
 block of the document is a piece of its own at the top of its own frame and keeps the picture it was painted as
 (`LayoutKept`), so a keystroke lays and paints the block typed in, and a caret blinking paints nothing. What the
 characters do not say — which nodes of a diagram are opened — the host says with `IContent.Forget`, after which no
