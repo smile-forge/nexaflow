@@ -32,7 +32,21 @@
           "doc": "src/Nexaflow.Visuals.Common/Theming/ColorMath.cs",
           "class": "ColorContrast"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Theming/ColorSpecTests.cs",
+            "class": "ColorSpecTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Theming/ColorMathTests.cs",
+            "class": "ColorMathTests"
+          }
+        ]
+      }
     },
     "vcommon-eyedropper": {
       "links": [
@@ -69,7 +83,16 @@
           "doc": "src/Nexaflow.Visuals.Icons/EmojiIcons.cs",
           "class": "EmojiIcons"
         }
-      ]
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconCatalogTests.cs",
+            "class": "IconCatalogTests"
+          }
+        ]
+      }
     },
     "icons-picker": {
       "links": [
@@ -88,14 +111,616 @@
           "doc": "src/Nexaflow.Visuals.Icons/IconGlyph.cs",
           "class": "IconGlyph"
         }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Icons/IconPickerViewModelTests.cs",
+            "class": "IconPickerViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-accent": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonStyleCatalog.cs",
+          "class": "RibbonStyleCatalog",
+          "ast": "T:RibbonStyleCatalog/F:SwatchKeys"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonAppearance.cs",
+          "class": "RibbonColourSlots"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonItemButton.cs",
+          "class": "RibbonItemButton",
+          "method": "Apply"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/ColorSpec.cs",
+          "class": "ColorSpec"
+        }
       ]
+    },
+    "ribbon-button-full": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Models/RibbonItem.cs",
+          "class": "RibbonItem"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/ShellViewModel.cs",
+          "class": "ShellViewModel",
+          "method": "OpenRibbonItem"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonItemButton.cs",
+          "class": "RibbonItemButton"
+        }
+      ]
+    },
+    "ribbon-button-half": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "Arrange"
+        }
+      ]
+    },
+    "ribbon-editor-addpage": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonViewModel.cs",
+          "class": "RibbonViewModel",
+          "method": "RefreshAvailablePages"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Models/RibbonCatalogEntry.cs",
+          "class": "RibbonCatalogEntry"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "AddPage"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-cards": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorCard"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs",
+          "class": "RibbonCardTemplateSelector"
+        }
+      ]
+    },
+    "ribbon-editor-colourpicker": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "SlotValue"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/ColorPicker.xaml.cs",
+          "class": "ColorPicker"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-delete": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "Delete"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-done": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "Done"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "Cancel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-draft": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Models/RibbonItem.cs",
+          "class": "RibbonItem",
+          "method": "Clone"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonViewModel.cs",
+          "class": "RibbonViewModel",
+          "method": "ReplaceItems"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-dragreorder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "Reorder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "MoveBy"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-iconpicker": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconPicker.xaml.cs",
+          "class": "IconPicker"
+        }
+      ]
+    },
+    "ribbon-editor-insertsep": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "AddSeparator"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-rename": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonEditor.xaml"
+        }
+      ]
+    },
+    "ribbon-editor-reset": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "ResetDefaults"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-size": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "ToggleSize"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-quickedit-group": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "FillItemContextMenu"
+        }
+      ]
+    },
+    "ribbon-quickedit-recolour": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ShowColourFlyout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ShowColourFlyout"
+        }
+      ]
+    },
+    "ribbon-quickedit-rename": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "FillItemContextMenu"
+        }
+      ]
+    },
+    "ribbon-quickedit-resize": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "FillItemContextMenu"
+        }
+      ]
+    },
+    "ribbon-separator": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ElementFor"
+        }
+      ]
+    },
+    "ribbon-button-shape": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonShapeGeometry.cs",
+          "class": "RibbonShapeGeometry"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonShapeGeometryTests.cs",
+            "class": "RibbonShapeGeometryTests"
+          }
+        ]
+      }
+    },
+    "ribbon-overflow": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "BuildOverflowEntry"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "MeasureLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "OverflowBtn_Click"
+        }
+      ]
+    },
+    "ribbon-quickedit-shape": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "FillItemContextMenu"
+        }
+      ]
+    },
+    "ribbon-quickedit-icon": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ShowIconFlyout"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonStyleCatalog.cs",
+          "class": "RibbonStyleCatalog",
+          "ast": "T:RibbonStyleCatalog/F:Icons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonBar.xaml.cs",
+          "class": "RibbonBar",
+          "method": "ShowIconFlyout"
+        }
+      ]
+    },
+    "ribbon-editor": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs",
+          "class": "RibbonEditor"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Controls/RibbonEditor.xaml",
+          "class": "RibbonEditor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel"
+        }
+      ],
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Core/Localization/en/strings.json"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-shape": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonShapeOption"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-contrast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Controls/RibbonAppearance.cs",
+          "class": "RibbonColourSlots",
+          "method": "EffectiveForeground"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/ColorMath.cs",
+          "class": "ColorContrast"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-editor-resetlook": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonEditorViewModel.cs",
+          "class": "RibbonEditorViewModel",
+          "method": "ResetLook"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonEditorViewModelTests.cs",
+            "class": "RibbonEditorViewModelTests"
+          }
+        ]
+      }
+    },
+    "ribbon-layout-sync": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/Services/RibbonLayoutService.cs",
+          "class": "RibbonLayoutService"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Core/ViewModels/RibbonViewModel.cs",
+          "class": "RibbonViewModel",
+          "method": "OnWorkspaceRibbonChanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Core/Services/RibbonLayoutService.cs",
+          "class": "RibbonLayoutService",
+          "method": "Read"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonLayoutServiceTests.cs",
+            "class": "RibbonLayoutServiceTests"
+          }
+        ]
+      }
+    },
+    "ribbon-defaults": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Core/Unit/Ribbon/RibbonLayoutServiceTests.cs",
+            "class": "RibbonLayoutServiceTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 54,
   "touched_nodes": [
     "icons-catalog",
     "icons-picker",
+    "ribbon-accent",
+    "ribbon-button-full",
+    "ribbon-button-half",
+    "ribbon-button-shape",
+    "ribbon-defaults",
+    "ribbon-editor",
+    "ribbon-editor-addpage",
+    "ribbon-editor-cards",
+    "ribbon-editor-colourpicker",
+    "ribbon-editor-contrast",
+    "ribbon-editor-delete",
+    "ribbon-editor-done",
+    "ribbon-editor-draft",
+    "ribbon-editor-dragreorder",
+    "ribbon-editor-iconpicker",
+    "ribbon-editor-insertsep",
+    "ribbon-editor-rename",
+    "ribbon-editor-reset",
+    "ribbon-editor-resetlook",
+    "ribbon-editor-shape",
+    "ribbon-editor-size",
+    "ribbon-layout-sync",
+    "ribbon-overflow",
+    "ribbon-quickedit-group",
+    "ribbon-quickedit-icon",
+    "ribbon-quickedit-recolour",
+    "ribbon-quickedit-rename",
+    "ribbon-quickedit-resize",
+    "ribbon-quickedit-shape",
+    "ribbon-separator",
     "vcommon-color-picker",
     "vcommon-drag-reorder",
     "vcommon-eyedropper",

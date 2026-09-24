@@ -403,6 +403,12 @@ panels, AvalonEdit colorizers) can't bind, so read the resource at paint time wi
 Application.Current?.Resources["AccentBrush"] as Brush ?? Brushes.DodgerBlue   // fallback ONLY for design-time/tests
 ```
 
+**A colour the user picks** is a `ColorSpec` (`Visuals.Common/Theming`), saved as its string: empty for the
+theme's own, `swatch:Teal` for a `Swatch.*` token — which keeps following the theme — or `#AARRGGBB` for a fixed
+colour. Offer it with the shared `ColorPicker`, which leads with the theme default and the swatch bank. The ribbon
+is the user: each button's icon-and-text, background and border colours are `ColorSpec`s, and a custom background
+is tinted on hover by the `Ribbon.HoverOverlay` token rather than replaced.
+
 The literal is the last resort, never the source of truth. For a translucent wash, pull the token's
 `Color` and reapply alpha (see `VirtualizedRowsControl.SelectionWash` / `HexRenderPanel.MakeSemiAccent`).
 Theme switching restarts the window, so a fresh read per paint always reflects the current theme.

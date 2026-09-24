@@ -784,16 +784,23 @@
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — RIBBON EDIT PANEL  (full-screen modal)
              ═══════════════════════════════════════════════════════════ -->
-        <ctrl:RibbonEditor
-                Grid.Row="0" Grid.RowSpan="5"
-                AutomationProperties.AutomationId="Chrome_RibbonEditor"
-                Visibility="{Binding ViewModel.IsEditOpen, ElementName=RibbonControl, Converter={StaticResource BoolVis}}"
-                Panel.ZIndex="60"
-                RibbonWidth="{Binding ActualWidth, ElementName=RibbonControl}"
-                ItemsSource="{Binding ViewModel.Items, ElementName=RibbonControl}"
-                AvailablePages="{Binding ViewModel.AvailablePages, ElementName=RibbonControl}"
-                CloseCommand="{Binding ViewModel.ToggleEditCommand, ElementName=RibbonControl}"
-                SaveCommand="{Binding ViewModel.SaveCommand, ElementName=RibbonControl}"/>
+        <!-- Holds nothing until the editor opens: the view (and its icon and colour pickers) is built from the
+             template when the ribbon's Editor appears and released when it closes. Tag carries the ribbon width
+             into the template, which cannot see this window's names. -->
+        <ContentControl x:Name="RibbonEditorHost"
+                        Grid.Row="0" Grid.RowSpan="5"
+                        Panel.ZIndex="60"
+                        Focusable="False"
+                        Tag="{Binding ActualWidth, ElementName=RibbonControl}"
+                        Content="{Binding ViewModel.Editor, ElementName=RibbonControl}">
+            <!-- Keyed by type, not a ContentTemplate: an explicit template is built even for null content. -->
+            <ContentControl.Resources>
+                <DataTemplate DataType="{x:Type vm:RibbonEditorViewModel}">
+                    <ctrl:RibbonEditor AutomationProperties.AutomationId="Chrome_RibbonEditor"
+                                       RibbonWidth="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}"/>
+                </DataTemplate>
+            </ContentControl.Resources>
+        </ContentControl>
 
         <!-- ═══════════════════════════════════════════════════════════
              OVERLAY — TOAST  (transient presentation of the active message)

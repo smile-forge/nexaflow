@@ -114,12 +114,48 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         CheckInvoke("Reset to defaults",  "RibbonEditor_ResetDefaults");
         CheckInvoke("Add a separator",    "RibbonEditor_AddSeparator");
 
-        // The size toggle and the two Delete buttons live in panels that sit Visibility="Collapsed" until a
-        // card is selected, and a card cannot be selected from here: cards are Borders built in code-behind,
-        // which create no automation peer, so UIA cannot see them. Giving them an id was tried and does not
-        // resolve — the case docs/wpf-gotchas.md describes as unpredictable, where TabStrip's happens to work and this
-        // does not — and reshaping the card into a Control purely to host an id is what that same note says
-        // not to do. Listed in the ratchet, for a journey that can select a card by other means.
+        // Cards are list items, numbered as the draft stood when it was built (the reset restarts the count), so
+        // a card is selected like any row and the panel for it appears.
+        CheckPresent("Ribbon card strip",   "RibbonEditor_Strip");
+        CheckPresent("A card's button",     "RibbonEditor_CardPreview");
+        CheckPresent("Add-page catalogue",  "RibbonEditor_PageCatalog");
+
+        Check("Select the separator card", () => SelectRadio("RibbonEditor_Separator1"));
+        CheckInvoke("Move the separator right", "RibbonEditor_SeparatorRight");
+        CheckInvoke("Move the separator left",  "RibbonEditor_SeparatorLeft");
+        CheckInvoke("Delete the separator",     "RibbonEditor_DeleteSeparator");
+
+        Check("Select the This PC card", () => SelectRadio("RibbonEditor_Card2"));
+        CheckPresent("Selected button preview", "RibbonEditor_Preview");
+        CheckPresent("Name box",                "RibbonEditor_Name");
+        CheckInvoke("Size toggle",              "RibbonEditor_SizeToggle");
+        CheckInvoke("Move right",               "RibbonEditor_MoveRight");
+        CheckInvoke("Move left",                "RibbonEditor_MoveLeft");
+
+        // Icon: search the Fluent set and pick one.
+        CheckPresent("Look sections", "RibbonEditor_Sections");
+        Check("Search icons for 'home'", () => TypeInto("RibbonEditor_Icons_Search", "home"));
+        CheckInvoke("Pick the filled Fluent home", "RibbonEditor_Icons_Icon_FluentFilled_home");
+
+        // Colours: a theme swatch on the background, then an outline.
+        Check("Colours section",  () => SelectRadio("RibbonEditor_SectionColours"));
+        CheckPresent("Colour slots", "RibbonEditor_Slots");
+        Check("Background slot",  () => SelectRadio("RibbonEditor_SlotBackground"));
+        CheckInvoke("Teal swatch",   "RibbonEditor_Colour_SwatchTeal");
+        CheckInvoke("Reuse a colour on this ribbon", "RibbonEditor_UsedColour");
+        CheckPresent("Hex entry",    "RibbonEditor_Colour_Hex");
+        Check("Border slot",      () => SelectRadio("RibbonEditor_SlotBorder"));
+        CheckPresent("Outline weights", "RibbonEditor_Weights");
+        Check("Thick outline",    () => SelectRadio("RibbonEditor_WeightThick"));
+
+        // Shape: the gallery draws the button in each; pick the circle badge.
+        Check("Shape section",    () => SelectRadio("RibbonEditor_SectionShape"));
+        CheckPresent("Shape gallery", "RibbonEditor_Shapes");
+        CheckPresent("A shape tile's button", "RibbonEditor_ShapePreview");
+        Check("Circle shape",     () => SelectRadio("RibbonEditor_ShapeCircle"));
+
+        CheckInvoke("Reset the button's look", "RibbonEditor_ResetLook");
+        CheckInvoke("Delete the button",       "RibbonEditor_DeleteItem");
 
         // Done commits the draft and closes; the X closes without committing. Both would end the editor,
         // and Cancel below is the one whose closing this pass asserts — so these two are checked present.

@@ -1,6 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
+                    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+                    xmlns:ctl="clr-namespace:Nexaflow.Core.Controls"
+                    xmlns:icons="clr-namespace:Nexaflow.Visuals.Icons;assembly=Nexaflow.Visuals.Icons">
 
     <!-- ══ ScrollBar ══ -->
     <Style x:Key="ScrollBarThumb" TargetType="Thumb">
@@ -227,6 +229,96 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ══ Ribbon item button — every ribbon button, full or compact, in any shape (RibbonItemButton) ══
+         Only TemplateBindings: the control reads its item and hands these plain values down, because the
+         ribbon is drawn in every window and restyled rarely. A frame shape fills the button; a badge shape
+         (circle, squircle, hexagon) sits behind the icon with the frame left at its theme default. The
+         item's own foreground and background are local values, so they outrank the hover trigger; a custom
+         frame gets a translucent hover tint instead of being replaced. -->
+    <Style x:Key="RibbonItemButton" TargetType="ctl:RibbonItemButton">
+        <Setter Property="Background" Value="{StaticResource Ribbon.ButtonBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="MinWidth" Value="45"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ctl:RibbonItemButton">
+                    <Grid Background="Transparent">
+                        <Path x:Name="frame"
+                              Data="{TemplateBinding FrameGeometry}"
+                              Fill="{TemplateBinding Background}"
+                              Stroke="{TemplateBinding BorderBrush}"
+                              StrokeThickness="{TemplateBinding FrameStroke}"/>
+                        <Path x:Name="tint"
+                              Data="{TemplateBinding FrameGeometry}"
+                              Fill="{StaticResource Ribbon.HoverOverlay}"
+                              Visibility="Collapsed"/>
+                        <StackPanel x:Name="content" Margin="0,6,0,2"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid x:Name="iconHost" HorizontalAlignment="Center">
+                                <Path x:Name="badge" Visibility="Collapsed"
+                                      Width="{TemplateBinding BadgeSize}" Height="{TemplateBinding BadgeSize}"
+                                      Data="{TemplateBinding BadgeGeometry}"
+                                      Fill="{TemplateBinding BadgeFill}"
+                                      Stroke="{TemplateBinding BorderBrush}"
+                                      StrokeThickness="{TemplateBinding BadgeStroke}"/>
+                                <icons:IconGlyph x:Name="icon" FontSize="24"
+                                                 Icon="{TemplateBinding Icon}"
+                                                 Foreground="{TemplateBinding Foreground}"
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            <TextBlock x:Name="label" Margin="1,4,1,0" HorizontalAlignment="Center"
+                                       Text="{TemplateBinding Caption}"
+                                       Foreground="{TemplateBinding Foreground}"/>
+                        </StackPanel>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsShaped" Value="True">
+                            <Setter TargetName="content" Property="Margin" Value="6,6,6,2"/>
+                        </Trigger>
+                        <Trigger Property="IsBadge" Value="True">
+                            <Setter TargetName="badge" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="HasBadgeForeground" Value="True">
+                            <Setter TargetName="icon" Property="Foreground"
+                                    Value="{Binding BadgeForeground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </Trigger>
+                        <Trigger Property="IsCompact" Value="True">
+                            <Setter TargetName="content" Property="Orientation" Value="Horizontal"/>
+                            <Setter TargetName="content" Property="Margin" Value="10,4,10,4"/>
+                            <Setter TargetName="content" Property="HorizontalAlignment" Value="Left"/>
+                            <Setter TargetName="iconHost" Property="Margin" Value="0,0,6,0"/>
+                            <Setter TargetName="iconHost" Property="VerticalAlignment" Value="Center"/>
+                            <Setter TargetName="icon" Property="FontSize" Value="16"/>
+                            <Setter TargetName="label" Property="Margin" Value="1,0,1,0"/>
+                            <Setter TargetName="label" Property="VerticalAlignment" Value="Center"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="frame" Property="Fill" Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="frame" Property="Fill" Value="{StaticResource Surface2Brush}"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="HasCustomFrame" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="frame" Property="Fill"
+                                    Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <Setter TargetName="tint" Property="Visibility" Value="Visible"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 
     <!-- ══ TopBar action link ══ -->
     <Style x:Key="TopBarAction" TargetType="Button">
