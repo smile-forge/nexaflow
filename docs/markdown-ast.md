@@ -253,7 +253,9 @@ paragraphs away is not the same. What the builder laid for such a block is set d
 part is found again in the new reading by the way down to it (`ContentPart.Order`), and what is kept then names the new
 reading's parts, so no reading outlives the one after it. Each
 block of the document is a piece of its own at the top of its own frame and keeps the picture it was painted as
-(`LayoutKept`), so a keystroke lays and paints the block typed in, and a caret blinking paints nothing. What the
+(`LayoutKept`), so a keystroke lays and paints the block typed in, and a caret blinking paints nothing. Only the blocks
+near the part on screen are painted (`ContentElement.OnScreen`, which the surface sets as it scrolls), and the picture of
+a block scrolled far away is let go, so a long document holds about a screen of pictures. What the
 characters do not say — which nodes of a diagram are opened — the host says with `IContent.Forget`, after which no
 block is the one it was. `LaidBlocksTests` holds every sample, typed into and taken back, to the same source laid from
 nothing.

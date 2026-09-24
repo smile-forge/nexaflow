@@ -40,4 +40,10 @@ public sealed class LayoutKept
         _kept = _kept.Length < 4 ? [.. _kept, (ink, recorded)] : [(ink, recorded)];
         return recorded;
     }
+
+    /// <summary>Whether a picture of the piece is being kept.</summary>
+    public bool Holds => _kept.Length > 0;
+
+    /// <summary>Lets the pictures go — for a piece far from anything shown, painted again from its marks if it comes back.</summary>
+    public void Forget() => _kept = [];
 }

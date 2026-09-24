@@ -103,6 +103,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             Focusable = false,
         };
 
+        // The document is told which part of it is on screen, so only what is near that is painted.
+        _scroller.ScrollChanged += (_, _) => Shows(_shown);
+
         _shown = Made(string.Empty);
 
         base.Content = new Grid { Children = { _scroller, _prompt, _corner } };
@@ -445,8 +448,20 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         element.SelectionChanged += (_, _) => Moved();
 
         _scroller.Content = element;
+        Shows(element);
 
         return element;
+    }
+
+    /// <summary>
+    /// Tells <paramref name="element"/> which part of it the scroller is showing. A scroller that does not scroll shows all of
+    /// it, so nothing is left out; one not yet laid out says nothing, and the next scroll or resize says it.
+    /// </summary>
+    private void Shows(MarkdownElement? element)
+    {
+        if (element is null || _scroller.ViewportHeight <= 0 || _scroller.ViewportWidth <= 0) return;
+
+        element.OnScreen = new Rect(_scroller.HorizontalOffset, _scroller.VerticalOffset, _scroller.ViewportWidth, _scroller.ViewportHeight);
     }
 
     /// <summary>

@@ -22,6 +22,7 @@ using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Diagnostics.Tracing;
 using System.Threading;
+using System.Windows;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -187,6 +188,10 @@ public class MarkdownLayoutBench
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
+        // The same, as a window showing a screen of it paints it: only what is near the screen.
+        var (paintShown, paintShownKb) = Timed(() => new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room),
+                                               fresh => Painted(fresh, style, Screen));
+
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
         var painter = MarkdownContent.Of(style, options);
@@ -202,6 +207,15 @@ public class MarkdownLayoutBench
             var held = MarkdownContent.Of(style, options);
             var shown = held.Lay(EditState.For(text), Room, false);
             Painted(shown, style);
+
+            return (held, shown);
+        });
+
+        var retainedShown = Retained(() =>
+        {
+            var held = MarkdownContent.Of(style, options);
+            var shown = held.Lay(EditState.For(text), Room, false);
+            Painted(shown, style, Screen);
 
             return (held, shown);
         });
@@ -230,6 +244,9 @@ public class MarkdownLayoutBench
             ["paintKb"] = Math.Round(paintKb, 1),
             ["editPaintKb"] = Math.Round(editPaintKb, 1),
             ["retainedKb"] = Math.Round(retained, 1),
+            ["paintShown"] = Round(paintShown),
+            ["paintShownKb"] = Math.Round(paintShownKb, 1),
+            ["retainedShownKb"] = Math.Round(retainedShown, 1),
         };
     }
 
@@ -324,6 +341,9 @@ public class MarkdownLayoutBench
             ["paintKb"] = Sum("paintKb"),
             ["editPaintKb"] = Sum("editPaintKb"),
             ["retainedKb"] = Sum("retainedKb"),
+            ["paintShown"] = Sum("paintShown"),
+            ["paintShownKb"] = Sum("paintShownKb"),
+            ["retainedShownKb"] = Sum("retainedShownKb"),
         };
     }
 
@@ -350,16 +370,19 @@ public class MarkdownLayoutBench
 
     private static double Round(double ms) => Math.Round(ms, 3);
 
-    /// <summary>Paints a laid tree as the element does, and says how long that took.</summary>
-    private static double Painted(Laid laid, StyleFormat style)
+    /// <summary>Paints a laid tree as the element does, and says how long that took — all of it, or what is near <paramref name="showing"/>.</summary>
+    private static double Painted(Laid laid, StyleFormat style, Rect? showing = null)
     {
         var clock = Stopwatch.StartNew();
         var visual = new DrawingVisual();
 
-        using (var dc = visual.RenderOpen()) LayoutPainter.Paint(dc, laid.Root, style.Text);
+        using (var dc = visual.RenderOpen()) LayoutPainter.Paint(dc, laid.Root, style.Text, showing);
 
         return clock.Elapsed.TotalMilliseconds;
     }
+
+    /// <summary>A screen's worth of the document, at the top — what a window opening it shows.</summary>
+    private static readonly Rect Screen = new(0, 0, Room, 1000);
 
     /// <summary>
     /// The medians of <see cref="Runs"/> runs of <paramref name="timed"/>, each on something <paramref name="make"/> made afresh,

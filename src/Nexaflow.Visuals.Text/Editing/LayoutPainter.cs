@@ -48,33 +48,69 @@ public static class LayoutPainter
     /// its digits painted in a pass of their own.
     /// </para>
     /// </summary>
-    public static void Paint(DrawingContext dc, Piece piece, Brush foreground)
+    /// <param name="showing">
+    /// The part of the page on screen, where only that is being looked at: a piece keeping a picture is painted only near
+    /// it (<see cref="Around"/>), and one far from it lets its picture go — so a long document costs a screen of pictures
+    /// however long it is. Null paints everything.
+    /// </param>
+    public static void Paint(DrawingContext dc, Piece piece, Brush foreground, Rect? showing = null)
     {
         if (!piece.Exists) return;
 
-        Descend(dc, piece, foreground, washes: true, default);
-        Descend(dc, piece, foreground, washes: false, default);
+        var near = showing is { } shown ? Around(shown) : (Rect?)null;
+        var far = showing is { } seen ? Beyond(seen) : (Rect?)null;
+
+        Descend(dc, piece, foreground, washes: true, default, near, far);
+        Descend(dc, piece, foreground, washes: false, default, near, far);
     }
+
+    /// <summary>
+    /// What is painted round the part of the page on screen: a screen's worth above and below it, and the whole width, so a
+    /// little scrolling shows what is already painted rather than asking for another paint.
+    /// </summary>
+    public static Rect Around(Rect showing) =>
+        new(-Wide, showing.Y - showing.Height, Wide * 2, showing.Height * 3);
+
+    /// <summary>How far from what is shown a piece has to be before the picture kept of it is let go.</summary>
+    private static Rect Beyond(Rect showing) =>
+        new(-Wide, showing.Y - (showing.Height * 4), Wide * 2, showing.Height * 9);
+
+    /// <summary>Wider than any page, and finite: a rectangle running to infinity has no right-hand edge to be inside.</summary>
+    private const double Wide = 1e9;
 
     /// <summary>One layer of one subtree — see <see cref="Paint"/>, which is both of them.</summary>
     /// <param name="offset">Where the frame <paramref name="piece"/> is measured in stands, against what was last pushed.</param>
-    private static void Descend(DrawingContext dc, Piece piece, Brush foreground, bool washes, Vector offset)
+    /// <param name="near">What is painted of the pieces keeping pictures, on the page — null for all of them.</param>
+    /// <param name="far">Past this, a piece's kept picture is let go.</param>
+    private static void Descend(DrawingContext dc, Piece piece, Brush foreground, bool washes, Vector offset,
+                                Rect? near = null, Rect? far = null)
     {
         offset += piece.Offset;
         var pushed = Enter(dc, piece, ref offset);
+
+        // Inside a frame of its own the offset is no longer where on the page anything is, so nothing inside is left out.
+        if (pushed > 0) near = far = null;
 
         // A piece that keeps its picture is painted whole, both layers, when the washes go down: what keeps a picture is a
         // block, and nothing of any other block is between its washes and its ink.
         if (piece.Painting?.Kept is { } kept)
         {
-            if (washes) Recorded(dc, kept.For(foreground, into => Inside(into, piece, foreground)), offset);
+            if (washes)
+            {
+                var box = piece.Box.IsEmpty ? Rect.Empty : Rect.Offset(piece.Box, offset);
+
+                if (near is not { } painted || painted.IntersectsWith(box))
+                    Recorded(dc, kept.For(foreground, into => Inside(into, piece, foreground)), offset);
+                else if (far is { } beyond && !beyond.IntersectsWith(box))
+                    kept.Forget();
+            }
         }
         else
         {
             foreach (var mark in piece.Marks)
                 if (mark is WashMark == washes) mark.PaintOn(dc, foreground, offset);
 
-            foreach (var child in piece.Children) Descend(dc, child, foreground, washes, offset);
+            foreach (var child in piece.Children) Descend(dc, child, foreground, washes, offset, near, far);
         }
 
         for (var at = 0; at < pushed; at++) dc.Pop();

@@ -1113,7 +1113,14 @@ public class ContentElement : FrameworkElement
 
     private void PaintContent(DrawingContext dc)
     {
-        LayoutPainter.Paint(dc, _laid.Root, Palette.Text);
+        // Only what is near the part on screen, where whatever holds this says which part that is — in the content's own
+        // units, which is what the tree is measured in.
+        var shown = _onScreen is { } showing
+            ? new Rect(showing.X / Scale, showing.Y / Scale, showing.Width / Scale, showing.Height / Scale)
+            : (Rect?)null;
+
+        _painted = shown is { } near ? LayoutPainter.Around(near) : null;
+        LayoutPainter.Paint(dc, _laid.Root, Palette.Text, shown);
 
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
@@ -1143,6 +1150,31 @@ public class ContentElement : FrameworkElement
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
     }
+
+    /// <summary>
+    /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
+    /// all of it may be looked at. Only the blocks near it are painted, and the pictures kept of blocks far from it are let
+    /// go, so a document costs about a screen of pictures however long it is.
+    /// </summary>
+    public Rect? OnScreen
+    {
+        get => _onScreen;
+        set
+        {
+            if (_onScreen == value) return;
+            _onScreen = value;
+
+            // Painted again only once what is shown leaves what was painted round it last time.
+            if (value is not { } shown || _painted is not { } painted
+                || !painted.Contains(new Rect(shown.X / Scale, shown.Y / Scale, shown.Width / Scale, shown.Height / Scale)))
+                InvalidateVisual();
+        }
+    }
+
+    private Rect? _onScreen;
+
+    /// <summary>What was painted round what was shown, the last time anything was painted — in the content's own units.</summary>
+    private Rect? _painted;
 
     /// <summary>Anything the content draws over the shared picture (e.g. a strike-through on a symbol that won't encode). Drawn after the ink and wash, before the caret.</summary>
     protected virtual void PaintOver(DrawingContext dc) { }
