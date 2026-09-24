@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using System.Windows;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -22,18 +23,19 @@ public class DataMatrixBuilderTests
     [TestMethod]
     public void DataMatrixIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("datamatrix"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("DataMatrix"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("data-matrix"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("dm"));
+        Assert.IsTrue(ContentLanguages.Reads("datamatrix"));
+        Assert.IsTrue(ContentLanguages.Reads("DataMatrix"));
+        Assert.IsTrue(ContentLanguages.Reads("data-matrix"));
+        Assert.IsFalse(ContentLanguages.Reads("dm"));
     }
 
     [TestMethod]
-    public void DispatchesThroughDiagramRenderer() => UiThread.Run(() =>
+    public void ADataMatrixFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("datamatrix", "type: text\ntext: hello", MarkdownPalette.Dark);
+        var element = Alone.Drawn("datamatrix", "type: text\ntext: hello", StyleFormat.Dark);
 
-        Assert.IsTrue(((ContentElement)element).IsReadOnly);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        Assert.IsFalse(element.AcceptsCaret, "a symbol has nowhere in it to write");
     });
 
     [TestMethod]
@@ -89,7 +91,7 @@ public class DataMatrixBuilderTests
         var block = Read(source);
         var symbol = Encoded(source);
 
-        var drawn = MatrixLayouts.ReadBack(DataMatrixBuilder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Dark)),
+        var drawn = MatrixLayouts.ReadBack(Alone.Drawn("datamatrix", source, StyleFormat.Dark),
                                            symbol.Width, symbol.Height, block.Settings);
         var decoded = DataMatrixTestDecoder.Decode(drawn);
 
@@ -109,7 +111,7 @@ public class DataMatrixBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => DataMatrixBuilder.Build(source, MarkdownPalette.Dark, 1.0);
+    private static Laid Build(string source) => DataMatrixBuilder.Lay(source, StyleFormat.Dark);
 
     private static DataMatrixBlock Read(string source)
     {

@@ -48,10 +48,7 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
     private const double Thickest = 11;
     private const double Thinner = 3;
 
-    private MindmapBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new MindmapBuilder(reading, laying).Lay();
+    internal MindmapBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override MindmapTree Of(MermaidBlock block) => MindmapTree.Of(block);

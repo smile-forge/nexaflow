@@ -6,6 +6,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -29,7 +30,8 @@ public class ContentBuilderTests
 {
     /// <summary>A builder that draws nothing, however it is asked.</summary>
     private sealed class Unwilling(string source, Func<Laid?> read)
-        : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)))
+        : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)), EditState.For(source),
+                         StyleFormat.Dark, isReadOnly: true)
     {
         protected override Laid? Build() => read();
 

@@ -8,6 +8,7 @@ using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Tests.Features.Fixtures;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -514,7 +515,7 @@ public class LilyPondBuilderTests
     [CoversNode("lilypond")]
     public void TheSameTuneInBothNotations_EngravesTheSame() => UiThread.Run(() =>
     {
-        var abc = AbcBuilder.Build("""
+        var abc = AbcBuilder.Lay("""
             X:1
             T:Speed the Plough
             M:4/4
@@ -524,7 +525,7 @@ public class LilyPondBuilderTests
               GABc dedB|dedB dedB|c2ec B2dB|A2F2 G4:|
             |:g2gf gdBd|g2f2 e2d2|c2ec B2dB|c2A2 A2df|
               g2gf g2Bd|g2f2 e2d2|c2ec B2dB|A2F2 G4:|
-            """, 900, Brushes.Black, 1.0);
+            """, 900, StyleFormat.Light);
 
         var ly = Lay("""
             \header { title = "Speed the Plough" }
@@ -553,7 +554,7 @@ public class LilyPondBuilderTests
 
     // ── Reading the picture ─────────────────────────────────────────────────
 
-    private static Laid Lay(string ly) => LilyPondBuilder.Build(ly, 900, Brushes.Black, 1.0);
+    private static Laid Lay(string ly) => LilyPondBuilder.Lay(ly, 900, StyleFormat.Light);
 
     private static List<Piece> All(Laid layout, string kind) => All(layout.Root, kind);
 

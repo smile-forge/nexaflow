@@ -29,16 +29,16 @@ public class TimelineEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInASectionAPeriodAndItsEventsChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a timeline's words are written in");
 
             PressPast(diagram, "Early days");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "LinkedIn");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "Friendster");
-            Write(rtb, "?");
+            Write(editor, "?");
 
             StringAssert.Contains(diagram.Source, "section Early days!", diagram.Source);
             StringAssert.Contains(diagram.Source, "2002 : LinkedIn!", diagram.Source);
@@ -49,10 +49,10 @@ public class TimelineEditingTests : MermaidEditing
 
     [TestMethod]
     public void AColonTypedIntoAnEventGoesInAsTheEntityCodeForIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Facebook");
-            Write(rtb, ":");
+            Write(editor, ":");
 
             StringAssert.Contains(diagram.Source, "Facebook#colon;", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count, "and the line still reads as one period");

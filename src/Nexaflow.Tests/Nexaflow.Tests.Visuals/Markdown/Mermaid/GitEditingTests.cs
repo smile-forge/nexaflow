@@ -29,12 +29,12 @@ public class GitEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInABranchsLabelChangesTheBranchItIsMade() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a git graph's branch names are written in");
 
             PressPast(diagram, "develop");
-            Write(rtb, "ing");
+            Write(editor, "ing");
 
             StringAssert.Contains(diagram.Source, "branch developing", diagram.Source);
             StringAssert.Contains(editor.Markdown, "branch developing", "and so does the document");
@@ -42,7 +42,7 @@ public class GitEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatACommitSaysAboutItselfIsPressedWhereItIsDrawn() => UiThread.Run(() =>
-        InADocument((_, _, diagram) =>
+        InADocument((_, diagram) =>
         {
             var id = diagram.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == "Id");
             var at = new Point(id.Bounds.X + (id.Bounds.Width / 2), id.Bounds.Y + (id.Bounds.Height / 2));

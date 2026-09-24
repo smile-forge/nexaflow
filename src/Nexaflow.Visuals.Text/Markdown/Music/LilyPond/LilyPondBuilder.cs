@@ -25,14 +25,14 @@ namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 internal sealed partial class LilyPondBuilder : MusicBuilder
 {
     /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
-    public LilyPondBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing = null)
-        : base(reading, width, ink, pixelsPerDip, spacing) { }
+    internal LilyPondBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Reads a tune and engraves it. Never null, and never throws.</summary>
-    public static Laid Build(string ly, double width, Brush ink, double pixelsPerDip,
-                             (int Start, int Length)? shownAsWritten = null, ScoreSpacing? spacing = null, int at = 0) =>
+    internal static Laid Lay(string ly, double width, StyleFormat style,
+                             (int Start, int Length)? shownAsWritten = null, int at = 0) =>
         new LilyPondBuilder(ContentReading.Of(LilyPondPipeline.Read(ly, shownAsWritten), at),
-                            width, ink, pixelsPerDip, spacing).Lay();
+                            EditState.For(ly), style, isReadOnly: true).Lay(width);
 
     protected override Tune ReadTune()
     {

@@ -27,21 +27,21 @@ public class MindmapEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInTheRootsTitleABareOnesAndEachLineOfAWrappedOneChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             Assert.IsFalse(chart.IsReadOnly, "a mindmap's words are written in");
 
             PressPast(chart, "Nexaflow");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(chart, "Markdown");
-            Write(rtb, "s");
+            Write(editor, "s");
 
             // The long title wraps: a press at the end of its last line writes there.
             var lines = chart.Laid.Root.SelfAndDescendants().Where(piece => piece is { Kind: "Title", Words.Maps: true } && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)).ToList();
             Assert.IsTrue(lines.Count > 1, "the long title wraps");
             chart.BeginPointerSelect(new Point(lines[^1].Bounds.Right - 1, lines[^1].Bounds.Y + (lines[^1].Bounds.Height / 2)));
             chart.EndPointerSelect();
-            Write(rtb, "?");
+            Write(editor, "?");
 
             StringAssert.Contains(chart.Source, "root((Nexaflow!))", chart.Source);
             StringAssert.Contains(chart.Source, "    Markdowns\n", chart.Source);

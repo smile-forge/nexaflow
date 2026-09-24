@@ -2,11 +2,9 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 
-using Nexaflow.Visuals.Text.Markdown.Handlers;
-using Nexaflow.Visuals.Text.Markdown.Music.Abc;
+using Nexaflow.Tests.Visuals.Markdown;
 
 using Content = Nexaflow.Visuals.Text.Editing.ContentElement;
-using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -36,7 +34,7 @@ public class ContentFromABuilderAloneTests
     [CoversNode("abc-editing")]
     public void ATuneTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
-        var tune = Laid(MusicScore.Engraved(MusicDialect.Abc, "X:1\nL:1/8\nK:C\nCDEF|\n", MarkdownPalette.Dark, sourceStart: 0));
+        var tune = Laid(Alone.Drawn("abc", "X:1\nL:1/8\nK:C\nCDEF|\n", StyleFormat.Dark));
 
         Assert.IsTrue(tune.AcceptsCaret, "the engraver named parts of the source, so there is somewhere to stand");
         Assert.IsTrue(tune.Laid.Places.Count > 0);
@@ -54,34 +52,19 @@ public class ContentFromABuilderAloneTests
     [CoversNode("barcode-editing")]
     public void ABarcodeTakesACaretAndIsTypedInto() => UiThread.Run(() =>
     {
-        var barcode = Laid(Barcode("format: CODE128\nvalue: HELLO123"));
-
-        Assert.IsTrue(barcode.AcceptsCaret, "a CODE128 prints what was typed, so it can be typed into");
-
-        barcode.TakeCaret(0);
-        barcode.Type('9');
-
-        Assert.AreEqual("9HELLO123", barcode.Source);
-        Assert.IsTrue(barcode.MoveCaret(forward: true));
-    });
-
-    [TestMethod]
-    [CoversNode("barcode-editing")]
-    public void ABarcodeKnowsWhereItsValueSitsInTheFence() => UiThread.Run(() =>
-    {
-        // The host reads SourceStart < 0 as "the whole block IS this content", which only a $$…$$
-        // formula is, and puts the delimiters back on every edit. A barcode that did not say where its
-        // value sat was turned into a formula by the first digit typed into it.
         const string source = "format: CODE128\nvalue: HELLO123";
         var barcode = Laid(Barcode(source));
 
-        Assert.IsFalse(barcode.IsWholeBlock, "a barcode is a run inside its fence, not the fence");
-        Assert.AreEqual(source.IndexOf("HELLO123", System.StringComparison.Ordinal), barcode.SourceStart);
-        Assert.AreEqual("HELLO123".Length, barcode.SourceLength);
+        Assert.IsTrue(barcode.AcceptsCaret, "a CODE128 prints what was typed, so it can be typed into");
+
+        barcode.TakeCaret(source.IndexOf("HELLO123", System.StringComparison.Ordinal));
+        barcode.Type('9');
+
+        Assert.AreEqual("format: CODE128\nvalue: 9HELLO123", barcode.Source, "what was typed went into the value, where it was typed");
+        Assert.IsTrue(barcode.MoveCaret(forward: true));
     });
 
-    private static Content Barcode(string source) =>
-        (Content)new BarcodeDiagramHandler().Render(source, DiagramRenderOptions.For(MarkdownPalette.Dark));
+    private static Content Barcode(string source) => Alone.Drawn("barcode", source, StyleFormat.Dark);
 
     /// <summary>Measured and arranged, because a caret is a place on a page that has been laid out.</summary>
     private static Content Laid(Content content)

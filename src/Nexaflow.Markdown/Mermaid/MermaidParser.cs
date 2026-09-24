@@ -466,8 +466,11 @@ public static class MermaidParser
     {
         var tree = Parse(source, grammar);
         var block = MermaidBlock.Of(tree);
-        if ((grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is not { } reading) return tree;
 
-        return new AstPipeline(reading.Stages(block)).Then(holes ? new WithHoles(reading.Holds) : null).Run(tree);
+        var read = (grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is { } reading
+            ? new AstPipeline(reading.Stages(block)).Then(holes ? new WithHoles(reading.Holds) : null).Run(tree)
+            : tree;
+
+        return new WithFolds().Run(read);
     }
 }

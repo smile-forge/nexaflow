@@ -29,7 +29,7 @@ public class MarkdownZoomFocusTests
     [TestMethod]
     public void BaseFontSize_AppliesEvenWhileTheEditorHasFocus() => UiThread.Run(() =>
     {
-        var editor = new InlineMarkdownEditor { Markdown = "Body text.\n", BaseFontSize = 15 };
+        var editor = new MarkdownSurface { IsReadOnly = false, Markdown = "Body text.\n", BaseFontSize = 15 };
         var window = new Window
         {
             Content = editor, Width = 600, Height = 400,
@@ -40,23 +40,20 @@ public class MarkdownZoomFocusTests
         {
             editor.Focus();
             Settle(editor);
-            Assert.IsTrue(Rtb(editor).IsKeyboardFocusWithin, "precondition: the caret is in the editor");
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor), "precondition: the caret is in the editor");
+
+            var before = MarkdownEditorHarness.BodyHeight(editor);
 
             editor.BaseFontSize = 30;
             Settle(editor);
-            Assert.AreEqual(30d, FirstParagraphSize(editor), 1e-9,
+            Assert.AreEqual(2.0, MarkdownEditorHarness.BodyHeight(editor) / before, 0.15,
                 "zoom is a gesture the reader just made — it cannot wait for focus to leave");
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor), "and the caret is still in the editor");
         }
         finally { window.Close(); }
     });
 
-    private static RichTextBox Rtb(InlineMarkdownEditor editor)
-        => Descendants(editor).OfType<RichTextBox>().First();
 
-    /// <summary>Font size of the first rendered paragraph — what the reader actually sees. The document's
-    /// own FontSize is not enough: every block carries an explicit size, so only a re-render moves them.</summary>
-    private static double FirstParagraphSize(InlineMarkdownEditor editor)
-        => Rtb(editor).Document.Blocks.OfType<Paragraph>().First().FontSize;
 
     private static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

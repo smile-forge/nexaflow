@@ -95,6 +95,13 @@ public static class AstRewrite
     public static ContentNode Saying(this ContentNode node, params (string Kind, string Role, string Text)[] facts) =>
         facts.Length == 0 ? node : node.With([.. node.Children, .. facts.Select(f => Fact(f.Kind, f.Role, f.Text))]);
 
+    /// <summary>The same piece with something worked out that is not text hung underneath it — see <see cref="ContentNode.Held"/>.</summary>
+    public static ContentNode Holding(this ContentNode node, string kind, string role, object held) =>
+        node.With([.. node.Children, ContentNode.Branch(kind, [ContentNode.Holding(kind, role, held)], Roles.Derived)]);
+
+    /// <summary>What was hung under this piece under <paramref name="role"/> that is not text, or null.</summary>
+    public static object? HeldAs(this ContentNode node, string role) => node.Fact(role)?.Held;
+
     /// <summary>The fact of <paramref name="role"/> hung under this piece, or null where none was.</summary>
     public static ContentNode? Fact(this ContentNode node, string role)
     {

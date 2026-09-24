@@ -20,18 +20,18 @@ public class StateEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInAStateATransitionACompositeAndANoteChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a state diagram's words are written in");
 
             PressPast(diagram, "Standing there");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "pushed");
-            Write(rtb, " hard");
+            Write(editor, " hard");
             PressPast(diagram, "Machine");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "mind this");
-            Write(rtb, " one");
+            Write(editor, " one");
 
             StringAssert.Contains(diagram.Source, "Still : Standing there!", diagram.Source);
             StringAssert.Contains(diagram.Source, "Moving : pushed hard", diagram.Source);
@@ -43,10 +43,10 @@ public class StateEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareIdCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Slowing");
-            Write(rtb, "-");
+            Write(editor, "-");
 
             StringAssert.Contains(diagram.Source, "Slowing", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("Slowing-", StringComparison.Ordinal),

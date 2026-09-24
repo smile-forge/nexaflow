@@ -15,6 +15,13 @@ namespace Nexaflow.Visuals.Text.Editing;
 public static class LayoutText
 {
     /// <summary>
+    /// What text is measured at, everywhere. A layout is in the content's own units and the element scales it as it
+    /// paints, so measurement must not vary with the screen it happened to be measured on — otherwise the same
+    /// source lays out differently on two monitors, and no test can measure either of them.
+    /// </summary>
+    public const double Density = 1.0;
+
+    /// <summary>
     /// Places one run of text into <paramref name="into"/> and hands back where the piece went. The text is
     /// aligned within <paramref name="room"/> by the type engine, which also breaks a long run into lines, so
     /// how much room it takes isn't known until broken. The <em>piece</em>'s extent is the letters, not the
@@ -64,8 +71,7 @@ public static class LayoutText
                             TextAlignment align, ISourcePart? part, string kind, bool maps = true, bool writes = false,
                             Brush? ink = null, double degrees = 0)
     {
-        text.MaxTextWidth = System.Math.Max(1, room);
-        text.TextAlignment = align;
+        Bound(text, room, align);
 
         var turn = degrees == 0 ? null : new LayoutPaint([new RotateTransform(degrees)]);
 
@@ -85,6 +91,23 @@ public static class LayoutText
 
         into.Close();
         return piece;
+    }
+
+    /// <summary>
+    /// Gives <paramref name="text"/> its room and alignment — only where they differ from what it has, because either one
+    /// set throws away everything the type engine worked out about the text, and a run measured to find where its line
+    /// breaks would then be shaped all over again to find where its piece reaches. Room that is unbounded leaves the text
+    /// unbounded: a run already cut to a line is never broken again.
+    /// </summary>
+    private static void Bound(FormattedText text, double room, TextAlignment align)
+    {
+        if (double.IsFinite(room))
+        {
+            var most = System.Math.Max(1, room);
+            if (text.MaxTextWidth != most) text.MaxTextWidth = most;
+        }
+
+        if (text.TextAlignment != align) text.TextAlignment = align;
     }
 
     /// <summary>The kind of piece a hole is drawn as — see <see cref="Hole"/>.</summary>
@@ -161,21 +184,21 @@ public static class LayoutText
     /// has a height, and then the characters name nothing, which is correct.
     /// </param>
     /// <param name="trouble">What went wrong, or nothing where the source was simply empty.</param>
-    public static Laid Shown(string source, FormattedText text, IReadOnlyList<Diagnostic> trouble)
+    public static Laid Shown(string source, FormattedText text, IReadOnlyList<Diagnostic> trouble, int at = 0)
     {
         source ??= string.Empty;
 
         // Only where what is drawn is what was written. A blank standing in for empty source is not the
         // reader's character and must not become a place they can put the caret.
         var letters = text.Text.Length == source.Length
-            ? (IReadOnlyList<ISourcePart>)[.. Enumerable.Range(0, source.Length).Select(at => (ISourcePart)new SourceSpan(at, 1))]
+            ? (IReadOnlyList<ISourcePart>)[.. Enumerable.Range(at, source.Length).Select(letter => (ISourcePart)new SourceSpan(letter, 1))]
             : null;
 
         var width = text.WidthIncludingTrailingWhitespace;
         var height = text.Height;
 
         var build = new LayoutBuilder();
-        Place(build, text, default, width, TextAlignment.Left, new SourceSpan(0, source.Length), SourceKind, letters);
+        Place(build, text, default, width, TextAlignment.Left, new SourceSpan(at, source.Length), SourceKind, letters);
 
         return new Laid(build.Seal(), new Size(width, height), trouble);
     }

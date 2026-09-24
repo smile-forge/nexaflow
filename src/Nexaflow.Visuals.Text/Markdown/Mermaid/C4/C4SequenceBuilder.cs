@@ -24,10 +24,7 @@ internal sealed class C4SequenceBuilder : SequenceBuilder
     /// <summary>The grading, worked out once from the theme this is drawn on.</summary>
     private readonly DiagramTone ink;
 
-    private C4SequenceBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) => this.ink = C4Grading.Of(laying.Palette);
-
-    /// <summary>Lays a C4 sequence's source out. Never null, and never throws.</summary>
-    public static new Laid Build(ContentReading reading, DiagramLaying laying) => new C4SequenceBuilder(reading, laying).Lay();
+    internal C4SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) => this.ink = C4Grading.Of(style);
 
     /// <inheritdoc/>
     protected override SequenceDiagram Of(MermaidBlock block) => C4Sequence.Of(block);

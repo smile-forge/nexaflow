@@ -42,7 +42,7 @@ public abstract class MermaidBuilderContract
     /// <summary>
     /// The builder under test: the one its diagram names, or, for a language of its own, the one it says itself.
     /// </summary>
-    internal virtual MermaidBuilders.Build Builder =>
+    internal virtual MermaidBuilders.Make Builder =>
         MermaidBuilders.For(Diagram)
         ?? throw new AssertFailedException($"{Diagram} is drawn by no builder: MermaidBuilders names none.");
 
@@ -58,7 +58,7 @@ public abstract class MermaidBuilderContract
 
     /// <summary>Lays a block out as the shared renderer would.</summary>
     protected Laid Lay(string source, double room = 700, bool writing = false) =>
-        Builder.Invoke(Read(source, writing), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
+        Builder.Invoke(Read(source, writing), EditState.For(source), StyleFormat.Dark, isReadOnly: !writing).Lay(room);
 
     [TestMethod]
     public void EveryBlockDrawsReadOrWritten_WideOrNarrow() => UiThread.Run(() =>
@@ -118,7 +118,7 @@ public abstract class MermaidBuilderContract
     public void ItIsWhatTheMarkdownRendererShows() => UiThread.Run(() =>
     {
         var (what, source) = Drawn.First();
-        var element = DiagramRenderer.Render(Language, source, MarkdownPalette.Dark);
+        var element = Alone.Drawn(Language, source, StyleFormat.Dark);
 
         Assert.IsInstanceOfType<ContentElement>(element, $"{what}: drawn on the shared layout tree");
 

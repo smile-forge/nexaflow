@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// geometrically and drives these methods instead.
 /// </para>
 /// </summary>
-public class ContentElement : FrameworkElement, IEditableBlock
+public class ContentElement : FrameworkElement
 {
     private static readonly TimeSpan BlinkRate = TimeSpan.FromMilliseconds(600);
 
@@ -32,7 +32,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     private EditState _state;
     private Laid _laid = Laid.Nothing;
-    private double _ppd = 1.0;
     private double _laidFor;
 
     private DispatcherTimer? _blink;
@@ -68,15 +67,12 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Raised when the reader's own editing changed the source.</summary>
     public event EventHandler? SourceChanged;
 
-    /// <summary>Raised when a caret movement ran off an end — the host puts it in the prose beside.</summary>
-    public event EventHandler<BlockExit>? Exited;
-
     /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
     /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
-    public ContentElement(string source, MarkdownPalette palette, Func<EditState, double, double, Laid> lay)
+    public ContentElement(string source, StyleFormat palette, Func<EditState, double, Laid> lay)
         : this(source, palette, Content.Of(lay)) { }
 
-    public ContentElement(string source, MarkdownPalette palette, IContent content)
+    public ContentElement(string source, StyleFormat palette, IContent content)
     {
         Palette = palette;
         _content = content;
@@ -96,7 +92,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     }
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
-    protected MarkdownPalette Palette { get; }
+    protected StyleFormat Palette { get; }
 
     /// <summary>What is laid out. Always something: a builder always makes a layout.</summary>
     public Laid Laid => _laid;
@@ -104,14 +100,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>The editing model — source, caret, selection, and what is shown as written.</summary>
     protected EditState State => _state;
 
-    /// <summary>How many pixels of device per pixel of layout, for anything measuring its own text.</summary>
-    protected double PixelsPerDip => _ppd;
-
     // ── What a kind of content gets to say ──────────────────────────────────
 
     /// <summary>Lays the source out to fit the room given. Takes the whole state, not just the string, since a stretch shown as its own characters is set into the layout rather than painted over it.</summary>
-    private Laid Lay(EditState state, double room, double pixelsPerDip) =>
-        _content.Lay(state, room, pixelsPerDip, IsReadOnly);
+    private Laid Lay(EditState state, double room) => _content.Lay(state, room, IsReadOnly);
 
     /// <summary>The whole chain from source to picture; everything that differs by kind of content is behind it — see <see cref="IContent"/>.</summary>
     private readonly IContent _content;
@@ -211,9 +203,18 @@ public class ContentElement : FrameworkElement, IEditableBlock
     // ── Shape and colour ────────────────────────────────────────────────────
 
     /// <summary>
-    /// How large the content is drawn, as a multiple of its natural size. A render scale, not a bitmap one:
-    /// the content is laid out into <c>available / zoom</c>, so zooming out re-flows the line breaks rather
-    /// than shrinking a picture of the same ones — which is why the builder has to be told, not the painter.
+    /// How large the content is drawn, as a multiple of its natural size. Magnification, and nothing else: the
+    /// content is laid out into the room it has, at its own standard size, and scaled as it is painted. So
+    /// zooming settles nothing about the layout — the same tree, the same line breaks, drawn larger.
+    ///
+    /// <para>
+    /// A render scale, not a bitmap one. The transform goes on the drawing context, so text and every other mark
+    /// is drawn at the size it ends up, and a pointer coming the other way is divided back (<c>Unscaled</c>).
+    /// </para>
+    /// <para>
+    /// How big the content itself is set — a formula's text size, a score's staff size — is a different question
+    /// with a different answer: that is a fact about the content, and it reaches the builder as one.
+    /// </para>
     /// </summary>
     public double Zoom { get; init; } = 1.0;
 
@@ -256,7 +257,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
             _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
-    private static Brush Wash(MarkdownPalette palette)
+    private static Brush Wash(StyleFormat palette)
     {
         if (palette.Accent is not SolidColorBrush accent) return palette.Marked;
 
@@ -265,22 +266,10 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return brush;
     }
 
-    // ── What the document around it needs (IEditableBlock) ──────────────────
+    // ── What is being written ───────────────────────────────────────────────
 
     /// <inheritdoc />
     public string Source => _state.Source;
-
-    /// <summary>
-    /// Where this content's source sits inside the block that produced it, delimiters excluded — what a
-    /// host needs to put an edit back where it came from. Negative when the whole block is this content.
-    /// </summary>
-    public int SourceStart { get; set; } = -1;
-
-    /// <summary>How much of the block's source this occupies. Kept current as it is edited.</summary>
-    public int SourceLength { get; set; }
-
-    /// <summary>Whether the whole markdown block is this content rather than a run inside one.</summary>
-    public bool IsWholeBlock => SourceStart < 0;
 
     /// <inheritdoc />
     public Piece Root => _laid.Root;
@@ -305,37 +294,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (HasCaret) StartBlinking();
     }
 
-
-    public void TakeCaretArriving(CaretArrival arrival)
-    {
-        // Nothing drawn here is source, so the caret passes straight through — arrowed over like a word,
-        // not into content where no key would do anything.
-        if (!AcceptsCaret)
-        {
-            Exited?.Invoke(this, arrival.Edge == BlockExit.Before ? BlockExit.After : BlockExit.Before);
-            return;
-        }
-
-        var stops = _laid.Stops;
-        if (stops.Count == 0)
-        {
-            // Empty content has no stops only because there is nothing yet to stand against; the caret still
-            // belongs at 0. Non-empty content with no stop really has nowhere, so it's passed on.
-            if (_state.Source.Length == 0) TakeCaret(0);
-            else Exited?.Invoke(this, arrival.Edge);
-            return;
-        }
-
-        // Content wide enough for a column to mean something takes a caret arriving from the line above
-        // under where it left, rather than at the beginning.
-        if (arrival is { Step: CaretStep.Line, Column: { } column }) { TakeCaret(Nearest(column)); return; }
-        if (arrival.Edge == BlockExit.Before) { TakeCaret(stops[0]); return; }
-
-        // Takes the outermost place at the end — landing on the innermost could put it inside a trailing
-        // exponent instead of past it.
-        var end = Snap(stops[^1]);
-                TakeCaret(end, _laid.Root.StopAt(end, outermost: true));
-    }
 
     /// <summary>The caret stop nearest a column, for a caret arriving from another line.</summary>
     private int Nearest(double column)
@@ -367,6 +325,17 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (!HasCaret) return;
         HasCaret = false;
         StopBlinking();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Shows the caret where it already stands, without putting it at a place first — what gaining the keyboard means, and
+    /// what a host restoring a state it saved means. A caret put at a place is <see cref="TakeCaret(int)"/>.
+    /// </summary>
+    public void ShowCaret()
+    {
+        HasCaret = !IsReadOnly;
+        if (HasCaret) StartBlinking();
         InvalidateVisual();
     }
 
@@ -403,7 +372,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         _blink?.Start();
     }
 
-    /// <summary>Moves the caret one stop. False when it ran off an end, having raised <see cref="Exited"/> for the host to take over.</summary>
+    /// <summary>Moves the caret one stop. False when it ran off an end, where there is nowhere further to go.</summary>
     public bool MoveCaret(bool forward, bool extend = false)
     {
         // A stretch being shown as its characters is text, and moves like text: one character at a time.
@@ -420,11 +389,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
         // stretch shown as its own characters leaves behind — the nearest one past the offset it is at.
         var next = _at >= 0 ? _laid.Step(_at, forward) : Rejoining(forward);
 
-        if (next is not { } landed)
-        {
-            Exited?.Invoke(this, forward ? BlockExit.After : BlockExit.Before);
-            return false;
-        }
+        if (next is not { } landed) return false;
 
         MoveTo(_laid.Places[landed].Offset, landed, extend);
         return true;
@@ -442,6 +407,12 @@ public class ContentElement : FrameworkElement, IEditableBlock
         MoveTo(next, _laid.Root.StopAt(next), extend);
         return true;
     }
+
+    /// <summary>
+    /// Puts the caret at <paramref name="offset"/>, or stretches what is picked out to it — Home and End, and a caret put
+    /// somewhere by whoever is hosting this.
+    /// </summary>
+    public void MoveCaretTo(int offset, bool extend = false) => MoveTo(Snap(offset), -1, extend);
 
     private void MoveTo(int offset, int at, bool extend)
     {
@@ -486,6 +457,22 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (IsReadOnly) return;
 
         Apply(Typing(_state, text) ?? _state.Write(text), notify: true);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="text"/> over a stretch of the source as typing it there would — the content's rule, through the
+    /// same edit handling a key goes through — and leaves the caret where it was. What a press means when it is an edit
+    /// somewhere other than the caret: a tick on a task's box.
+    /// </summary>
+    protected void WriteOver(int start, int length, string text)
+    {
+        if (IsReadOnly) return;
+
+        var over = _state.Select(start, length);
+        var written = _content.Typing(new Landing(over, _laid, _at), text) ?? over.Write(text);
+        var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
+
+        Apply(written.MoveCaretTo(caret), notify: true);
     }
 
     /// <summary>
@@ -558,15 +545,16 @@ public class ContentElement : FrameworkElement, IEditableBlock
         return true;
     }
 
-    /// <summary>Settles whatever is half-written, as space or Enter does — just writes the character; the ending rule lives with the content's typing rule, not here, to avoid two rules disagreeing.</summary>
-    bool IEditableBlock.Commit(string text) { if (!IsReadOnly) Settle(text); return true; }
-
     /// <summary>
-    /// Ends whatever is half-written — what space and Enter mean. The content's rule, not the element's;
-    /// see <see cref="IContent.Settle"/>.
+    /// Ends whatever is half-written — what Space and Enter mean. The content's rule, not the element's; see
+    /// <see cref="IContent.Settle"/>.
     /// </summary>
-    protected void Settle(string separator) =>
+    public void Settle(string separator)
+    {
+        if (IsReadOnly) return;
+
         Apply(_content.Settle(Landing, separator), notify: true);
+    }
 
     /// <summary>Selects the next place still waiting to be written in, so an inserted construct can be filled by typing and tabbing. False when there is none.</summary>
     public bool SelectNextPlaceholder(bool forward = true)
@@ -619,12 +607,18 @@ public class ContentElement : FrameworkElement, IEditableBlock
         if (!_state.HasSelection) return;
 
         Apply(_state.Select(0, 0), notify: false);
-        InteractiveSelection.Release(this);
+
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ExtendSelectionTo(int offset) =>
+    // Where nothing is picked out yet, what is picked out runs from the caret: Shift and an arrow start there, wherever the
+    // caret was put since the last press.
+    private void ExtendSelectionTo(int offset)
+    {
+        if (!_state.HasSelection) _anchor = _state.Caret;
+
         Select(Math.Min(_anchor, offset), Math.Abs(offset - _anchor));
+    }
 
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
     private void SelectNodes(ContentSelection selection)
@@ -658,7 +652,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
     {
-        InteractiveSelection.Own(this);
+
 
         var at = Unscaled(pointInElement);
         _pressedAt = pointInElement;
@@ -777,12 +771,37 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
     private const double PointerReach = 4.0;
 
-    /// <summary>What the pointer should be at a point: see <see cref="OnMouseMove"/>.</summary>
-    protected virtual Cursor Pointing(Point at) =>
-        !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+    /// <summary>
+    /// What the pointer is over <paramref name="at"/>: a bar over what can be written in and an arrow elsewhere, and whatever
+    /// the piece there says while it is pointed at (<see cref="Roles.Tip"/>).
+    /// </summary>
+    protected virtual Cursor Pointing(Point at)
+    {
+        var says = Says(Laid.Root.PieceAt(at));
+        if (!Equals(ToolTip, says)) ToolTip = says;
 
-    /// <inheritdoc/>
-    Cursor? IInteractiveBlock.PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
+        return !IsReadOnly && Laid.Root.Writable(at, PointerReach) ? Cursors.IBeam : Cursors.Arrow;
+    }
+
+    /// <summary>
+    /// What <paramref name="piece"/> says while pointed at: the tip hung on the part of the source it was drawn from, or on
+    /// what holds that part. Asked of the tree when the pointer arrives — nothing of it is laid out.
+    /// </summary>
+    private static string? Says(Piece piece)
+    {
+        if (!piece.Exists || piece.Naming() is not ContentPart named) return null;
+
+        for (var part = named; part is not null; part = part.Parent)
+            foreach (var child in part.Node.Children)
+                if (child.IsDerived)
+                    foreach (var held in child.Children)
+                        if (held.Role == Roles.Tip && held.Held is string tip) return tip;
+
+        return null;
+    }
+
+    /// <summary>What the pointer is over a point on this content: a bar only where something can be written in.</summary>
+    public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
     /// <summary>
     /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is
@@ -907,7 +926,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         _previewOf = moved;
         _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
-        _preview = Lay(new EditState(moved.Source, moved.Caret), Room(), _ppd);
+        _preview = Lay(new EditState(moved.Source, moved.Caret), Room());
     }
 
     private void ClearPreview()
@@ -978,7 +997,7 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// </param>
     protected void Apply(EditState next, bool notify, int at = -1)
     {
-        if (notify && next.Source != _state.Source) next = _content.Edited(_state, next);
+        if (notify && next.Source != _state.Source) next = _content.Edited(Landing, next);
         next = Left(next);
 
         var resized = next.Source != _state.Source || next.Raw != _state.Raw;
@@ -1020,23 +1039,25 @@ public class ContentElement : FrameworkElement, IEditableBlock
     /// <summary>Lays the content out again, because something outside it changed.</summary>
     public void Refresh()
     {
+        // Asked for because something the source does not say has changed, so nothing laid before still holds.
+        _content.Forget();
         Rebuild();
         InvalidateMeasure();
         InvalidateVisual();
     }
 
-    /// <summary>How much room the content has, in its own coordinates.</summary>
-    protected double Room() => (_laidFor > 0 ? _laidFor : 680) / Scale;
+    /// <summary>How much room the content has, in its own coordinates — which is the room it was given.</summary>
+    protected double Room() => _laidFor > 0 ? _laidFor : 680;
 
     /// <summary>Lays it out again from the state as it now stands.</summary>
-    protected void Rebuild() => _laid = Lay(_state, Room(), _ppd);
+    protected void Rebuild() => _laid = Lay(_state, Room());
 
     /// <summary>A picture of the content at its shown size/density, with nothing drawn only for the writer: no caret, selection, hole, trouble squiggle or raw-typed text.</summary>
     /// <param name="ground">What it is drawn on, or null for nothing behind what the content draws.</param>
     public BitmapSource Picture(Brush? ground = null)
     {
         var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), pixelsPerDip, readOnly: true);
+        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), readOnly: true);
         var size = new Size(Math.Max(1, Math.Ceiling(laid.Size.Width * Scale)), Math.Max(1, Math.Ceiling(laid.Size.Height * Scale)));
 
         var drawing = new DrawingVisual();
@@ -1061,8 +1082,6 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        _ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-
         var room = double.IsInfinity(availableSize.Width) || availableSize.Width <= 0 ? 680 : availableSize.Width;
         if (Math.Abs(room - _laidFor) > 0.5 || _laid.Tree.Count == 0)
         {
@@ -1094,7 +1113,14 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
     private void PaintContent(DrawingContext dc)
     {
-        LayoutPainter.Paint(dc, _laid.Root, Palette.Text);
+        // Only what is near the part on screen, where whatever holds this says which part that is — in the content's own
+        // units, which is what the tree is measured in.
+        var shown = _onScreen is { } showing
+            ? new Rect(showing.X / Scale, showing.Y / Scale, showing.Width / Scale, showing.Height / Scale)
+            : (Rect?)null;
+
+        _painted = shown is { } near ? LayoutPainter.Around(near) : null;
+        LayoutPainter.Paint(dc, _laid.Root, Palette.Text, shown);
 
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
@@ -1124,6 +1150,31 @@ public class ContentElement : FrameworkElement, IEditableBlock
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
     }
+
+    /// <summary>
+    /// The part of the element on screen, in its own coordinates — what whatever scrolls it says it is showing — or null where
+    /// all of it may be looked at. Only the blocks near it are painted, and the pictures kept of blocks far from it are let
+    /// go, so a document costs about a screen of pictures however long it is.
+    /// </summary>
+    public Rect? OnScreen
+    {
+        get => _onScreen;
+        set
+        {
+            if (_onScreen == value) return;
+            _onScreen = value;
+
+            // Painted again only once what is shown leaves what was painted round it last time.
+            if (value is not { } shown || _painted is not { } painted
+                || !painted.Contains(new Rect(shown.X / Scale, shown.Y / Scale, shown.Width / Scale, shown.Height / Scale)))
+                InvalidateVisual();
+        }
+    }
+
+    private Rect? _onScreen;
+
+    /// <summary>What was painted round what was shown, the last time anything was painted — in the content's own units.</summary>
+    private Rect? _painted;
 
     /// <summary>Anything the content draws over the shared picture (e.g. a strike-through on a symbol that won't encode). Drawn after the ink and wash, before the caret.</summary>
     protected virtual void PaintOver(DrawingContext dc) { }

@@ -25,15 +25,12 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
     /// <summary>What a stand-in symbol says. Anything short enough for the smallest version will do.</summary>
     private const string Sample = "Nexaflow";
 
-    private QrBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip)
-        : base(reading, palette, pixelsPerDip) { }
+    internal QrBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double pixelsPerDip) =>
-        new QrBuilder(ContentReading.Of(MatrixParser.Parse(source)), palette, pixelsPerDip).Lay();
-
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        Host(source, options, Build);
+    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
+        new QrBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
 
     protected override Drawn? Encode(ContentNode tree, out string? trouble)
     {

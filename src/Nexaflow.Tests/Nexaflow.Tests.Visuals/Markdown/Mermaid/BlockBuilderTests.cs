@@ -189,7 +189,7 @@ public class BlockBuilderTests : MermaidBuilderContract
         string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)));
 
     private static Laid Build(string source, double room = 900) =>
-        BlockBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        new BlockBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     /// <summary>The words drawn under a piece, in the order they were drawn.</summary>
     private static IEnumerable<Piece> Said(Piece piece) =>

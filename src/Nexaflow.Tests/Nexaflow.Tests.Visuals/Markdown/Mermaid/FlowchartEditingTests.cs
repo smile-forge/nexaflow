@@ -19,18 +19,18 @@ public class FlowchartEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALabelAnIdALinksWordsAndASubgraphsTitleChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a flowchart's words are written in");
 
             PressPast(diagram, "Store");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "feeds");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "lone");
-            Write(rtb, "r");
+            Write(editor, "r");
             PressPast(diagram, "inner");
-            Write(rtb, "s");
+            Write(editor, "s");
 
             StringAssert.Contains(diagram.Source, "start[\"Stores\"]", diagram.Source);
             StringAssert.Contains(diagram.Source, "-- feeds! -->", diagram.Source);
@@ -42,10 +42,10 @@ public class FlowchartEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareIdCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "lone");
-            Write(rtb, "[");
+            Write(editor, "[");
 
             StringAssert.Contains(diagram.Source, "lone", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("lone[", StringComparison.Ordinal),
@@ -55,10 +55,10 @@ public class FlowchartEditingTests : MermaidEditing
 
     [TestMethod]
     public void ADashThatWouldStartALinkIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "lone");
-            Write(rtb, "-");
+            Write(editor, "-");
 
             StringAssert.Contains(diagram.Source, "lone", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count, "an id a dash carries on still reads");
@@ -66,12 +66,12 @@ public class FlowchartEditingTests : MermaidEditing
 
     [TestMethod]
     public void WordsOnALinkArePutInQuotesToHoldWhatWouldCloseItEarly() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "feeds");
-            Write(rtb, "-");
+            Write(editor, "-");
             PressPast(diagram, "feeds-");
-            Write(rtb, "-");
+            Write(editor, "-");
 
             StringAssert.Contains(diagram.Source, "\"feeds--\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count, "which is how Mermaid holds those characters there too");

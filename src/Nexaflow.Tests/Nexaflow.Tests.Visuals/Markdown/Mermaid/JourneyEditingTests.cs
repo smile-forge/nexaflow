@@ -28,14 +28,14 @@ public class JourneyEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInATaskASectionAndAnActorInTheLegendChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a journey's words are written in");
 
             PressPast(diagram, "Go to work");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "Make tea");
-            Write(rtb, "?");
+            Write(editor, "?");
 
             StringAssert.Contains(diagram.Source, "section Go to work!", diagram.Source);
             StringAssert.Contains(diagram.Source, "Make tea?: 5: Me", diagram.Source);
@@ -45,10 +45,10 @@ public class JourneyEditingTests : MermaidEditing
 
     [TestMethod]
     public void AColonTypedIntoWhatATaskSaysGoesInAsTheEntityCodeForIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Do work");
-            Write(rtb, ":");
+            Write(editor, ":");
 
             StringAssert.Contains(diagram.Source, "Do work#colon;: 1: Me, Cat", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count, "and the line still reads as one task");

@@ -81,10 +81,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
     /// <summary>How solid a group's background is, over the colour it takes from the series.</summary>
     private const double Wash = 0.14;
 
-    private ArchitectureBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new ArchitectureBuilder(reading, laying).Lay();
+    internal ArchitectureBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override ArchitectureDiagram Of(MermaidBlock block) => ArchitectureDiagram.Of(block);

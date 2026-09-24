@@ -13,13 +13,15 @@ namespace Nexaflow.Markdown.Ast;
 /// </summary>
 public sealed class ContentPart : ISourcePart
 {
-    private readonly List<ContentPart> _children = [];
+    /// <summary>Its parts, sized once: a reading makes one of these for every node of the tree, and most of them are leaves.</summary>
+    private readonly ContentPart[] _children;
 
     /// <summary>The span this part reports instead of its own, or nothing where it was written.</summary>
     private readonly int? _derived;
 
-    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived)
+    private ContentPart(ContentNode node, int start, ContentPart? parent, int? derived, int order = 0)
     {
+        this.Order = order;
         // Anything derived, and everything under it, stands for no source: it begins where the piece it
         // was hung under begins and is no characters long, which is the only answer that keeps a part's
         // span and what it prints as the same thing. Selecting the whole of what it explains still works
@@ -34,9 +36,13 @@ public sealed class ContentPart : ISourcePart
         this.Start = inherited ?? start;
 
         var at = this.Start;
-        foreach (var child in node.Children)
+        this._children = node.Children.Count == 0 ? [] : new ContentPart[node.Children.Count];
+
+        for (var index = 0; index < this._children.Length; index++)
         {
-            this._children.Add(new ContentPart(child, at, this, inherited));
+            var child = node.Children[index];
+
+            this._children[index] = new ContentPart(child, at, this, inherited, index);
             if (inherited is null) at += child.Width;
         }
     }
@@ -70,6 +76,12 @@ public sealed class ContentPart : ISourcePart
 
     /// <summary>What holds it, or null for the whole content.</summary>
     public ContentPart? Parent { get; }
+
+    /// <summary>
+    /// Which of its parent's parts it is, counting from nought — so the same part can be found in another reading of the same
+    /// content by the way down to it, without looking it up.
+    /// </summary>
+    public int Order { get; }
 
     public IReadOnlyList<ContentPart> Children => this._children;
 
@@ -123,7 +135,7 @@ public sealed class ContentPart : ISourcePart
     {
         get
         {
-            if (!this.IsWrapper || this._children.Count == 0) return this.Span;
+            if (!this.IsWrapper || this._children.Length == 0) return this.Span;
 
             var from = this.Start;
             var to = this.End;
@@ -173,11 +185,18 @@ public sealed class ContentPart : ISourcePart
     /// <summary>This part and everything under it, outermost first.</summary>
     public IEnumerable<ContentPart> SelfAndDescendants()
     {
-        yield return this;
+        // Walked with a stack of its own, in the same order, rather than an iterator for every level — which hands each part
+        // up through one iterator for every part above it.
+        var waiting = new Stack<ContentPart>();
+        waiting.Push(this);
 
-        foreach (var child in this._children)
-            foreach (var part in child.SelfAndDescendants())
-                yield return part;
+        while (waiting.Count > 0)
+        {
+            var part = waiting.Pop();
+            yield return part;
+
+            for (var at = part._children.Length - 1; at >= 0; at--) waiting.Push(part._children[at]);
+        }
     }
 
     /// <summary>What holds it, then what holds that, up to the whole content.</summary>

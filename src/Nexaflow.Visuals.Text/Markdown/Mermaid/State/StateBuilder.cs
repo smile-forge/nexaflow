@@ -85,10 +85,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>How wide what is written on a transition runs before it wraps.</summary>
     private const double Widest = 160;
 
-    private StateBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a state diagram's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new StateBuilder(reading, laying).Lay();
+    internal StateBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override StateDiagram Of(MermaidBlock block) => StateDiagram.Of(block);

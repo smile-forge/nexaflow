@@ -28,21 +28,21 @@ internal abstract partial class MusicBuilder : ContentBuilder
     /// <summary>Fallback size for source that couldn't be engraved — fixed, since in that case there's no staff to derive it from.</summary>
     private const double SourceSize = 13;
 
-    private readonly double _width;
-    private readonly Brush _ink;
-    private readonly double _ppd;
-
+    
+    /// <summary>What a score is drawn in.</summary>
+    private Brush _ink => Style.Text;
     /// <summary>How much air this engraving puts between things — see <see cref="ScoreSpacing"/>.</summary>
-    private readonly ScoreSpacing _spacing;
+    /// <summary>How much air this engraving puts between things. One setting, not a knob.</summary>
+    private static readonly ScoreSpacing _spacing = ScoreSpacing.Current;
 
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    protected MusicBuilder(ContentReading reading, double width, Brush ink, double pixelsPerDip, ScoreSpacing? spacing)
-        : base(reading)
+    protected MusicBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly)
     {
-        _width = width;
-        _ink = ink;
-        _ppd = pixelsPerDip <= 0 ? 1.0 : pixelsPerDip;
-        _spacing = spacing ?? ScoreSpacing.Current;
+    
+    
+    
+    
     }
 
     /// <summary>What a notation's reading hands the engraver, including where anything unreadable is reported.</summary>
@@ -55,7 +55,7 @@ internal abstract partial class MusicBuilder : ContentBuilder
     protected sealed override Laid? Build()
     {
         var tune = ReadTune();
-        var (tree, size) = Engrave(tune, _width);
+        var (tree, size) = Engrave(tune, Room);
 
         // Derived from the reading tree rather than collected separately, so trouble can't drift out of sync with it.
         var trouble = tune.Reading.Root.SelfAndDescendants()
@@ -74,10 +74,10 @@ internal abstract partial class MusicBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Consolas"),
+            Style.Face(Style.MonoFont),
             SourceSize,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            _ppd);
+            Editing.LayoutText.Density);
 
     // ── What there is to draw ───────────────────────────────────────────────
 

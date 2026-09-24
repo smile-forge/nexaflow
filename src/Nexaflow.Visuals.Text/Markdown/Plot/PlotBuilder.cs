@@ -36,49 +36,28 @@ internal sealed class PlotBuilder : ContentBuilder
     /// <summary>And how much of what is under one shows through it.</summary>
     private const double Through = 0.25;
 
-    private readonly MarkdownPalette _palette;
+    private readonly StyleFormat _palette;
     private readonly DiagramInk _ink;
     private readonly PlotSettings _settings;
     private readonly string? _unreadable;
-    private readonly double _room;
-    private readonly double _dpi;
-
-    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable,
-                        MarkdownPalette palette, double room, double pixelsPerDip)
-        : base(reading)
+    
+    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable, StyleFormat palette)
+        : base(reading, EditState.For(reading.Source), palette, isReadOnly: true)
     {
         _settings = settings;
         _unreadable = unreadable;
         _palette = palette;
         _ink = new DiagramInk(palette);
-        _room = room;
-        _dpi = pixelsPerDip;
+    
     }
 
     /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
-    public static Laid Build(string source, PlotFence fence, MarkdownPalette palette, double room,
-                             double pixelsPerDip, int at = 0)
+    public static Laid Build(string source, PlotFence fence, StyleFormat palette, double room, int at = 0)
     {
         var tree = PlotPipeline.Read(source, fence, out var settings, out var unreadable);
 
-        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette, room, pixelsPerDip).Lay();
+        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette).Lay(room);
     }
-
-    /// <summary>
-    /// The element a plot is shown in. Editable, because every number in it is a number somebody typed.
-    /// </summary>
-    public static Editing.ContentElement Element(string source, PlotFence fence, DiagramRenderOptions options) =>
-        new Editing.ContentElement(source, options.Palette,
-            (state, room, pixelsPerDip) => Build(state.Source, fence, options.Palette, room, pixelsPerDip))
-        {
-            // Where the block's lines sit inside the fence that produced them, so an edit to a value is
-            // spliced back where it came from.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 10),
-        };
 
     protected override Laid? Build()
     {
@@ -221,12 +200,13 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Jitter offset for overlapping marks, seeded from the row's source position (not the clock)
     /// so the same block always renders identically.</summary>
-    private static (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
+    private (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
                                                     Placing across, Placing up)
     {
         if (chart.Settings.Jitter <= 0) return (0, 0);
 
-        var throws = new Random(mark.Part.Start * 397);
+        // Seeded by where the row is in the block, never in the document: typing above a plot must not shake its points.
+        var throws = new Random((mark.Part.Start - At) * 397);
 
         var wide = chart.Settings.Jitter * across.Slot * plot.Width;
         var tall = chart.Settings.Jitter * up.Slot * plot.Height;
@@ -311,7 +291,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                 continue;
             }
 
-            trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`gradient: {it.Gradient}` names no run of colours — `{colour}` is not "
                                        + $"a colour. The runs are {DiagramColours.Names}."));
 
@@ -320,7 +300,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         if (written.Count >= 2) return written;
 
-        trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+        trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                    $"`gradient: {it.Gradient}` is one colour, and a run takes at least two."));
 
         return DiagramColours.Stops(DiagramRamp.Viridis);
@@ -426,7 +406,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         if (points.Count < 3)
         {
             if (points.Count > 0)
-                trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+                trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                            "Too few rows to say how thickly they lie. A density takes at least three."));
 
             return null;
@@ -923,7 +903,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     {
         var it = chart.Settings;
 
-        var (wide, tall) = SettingRoom.Fit(it.Width, it.Height, _room, PlotSettings.HeightShare);
+        var (wide, tall) = SettingRoom.Fit(it.Width, it.Height, Room, PlotSettings.HeightShare);
 
         var trouble = new List<Diagnostic>();
 
@@ -965,7 +945,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         var shapes = Ordered(named);
 
         if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
-            trouble.Add(new Diagnostic(0, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
                                        $"`shape: {it.Shape}` names neither a column nor a mark. "
                                        + $"The marks are {DiagramGlyphs.Names}."));
 
@@ -1233,22 +1213,22 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         new(says,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(WordFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(WordFont),
             size,
             ink,
-            _dpi);
+            Editing.LayoutText.Density);
 
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 
     /// <summary>The block shown as written, with the reason it could not be drawn.</summary>
     private Laid Stopped(string reason) =>
         LayoutText.Shown(Source, this.Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)]);
+                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
 }

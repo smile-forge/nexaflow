@@ -36,10 +36,10 @@ public class SingleBlockEditorTests
 
     [TestMethod]
     public void ATuneIsRenderedAsMusicWithoutTheFenceBeingInTheText() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run(Tune, (editor, _) =>
+        MarkdownEditorHarness.Run(Tune, editor =>
         {
             // Engraved, so the fence went on…
-            Assert.IsNotNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor), "the block did not render as music");
+            Assert.AreEqual(1, MarkdownEditorHarness.Blocks(editor).Count, "the block did not render as music");
 
             // …and came off again, so what the host holds is the tune and nothing else.
             Assert.AreEqual(Tune, editor.Markdown);
@@ -52,12 +52,12 @@ public class SingleBlockEditorTests
     {
         // The same text, told it is two different things. With a language it engraves; without one it is a
         // markdown document, and four lines of ABC are four lines of prose.
-        MarkdownEditorHarness.Run(Tune, (editor, _) =>
-            Assert.IsNotNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor)), e => e.SingleBlock = "abc");
+        MarkdownEditorHarness.Run(Tune, editor =>
+            Assert.AreEqual(1, MarkdownEditorHarness.Blocks(editor).Count), e => e.SingleBlock = "abc");
 
-        MarkdownEditorHarness.Run(Tune, (editor, _) =>
+        MarkdownEditorHarness.Run(Tune, editor =>
         {
-            Assert.IsNull(Find<Nexaflow.Visuals.Text.Editing.ContentElement>(editor), "with no language it should not have engraved anything");
+            Assert.AreEqual(0, MarkdownEditorHarness.Blocks(editor).Count, "with no language it should not have engraved anything");
             Assert.AreEqual(Tune, editor.Markdown, "and the text is untouched either way");
         });
     });

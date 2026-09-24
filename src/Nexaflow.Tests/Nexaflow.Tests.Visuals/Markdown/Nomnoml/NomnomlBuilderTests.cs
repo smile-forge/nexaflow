@@ -4,6 +4,7 @@ using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown.Languages;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
@@ -25,10 +26,11 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     public override MermaidDiagram Diagram => MermaidDiagram.Unknown;
 
     /// <inheritdoc/>
-    public override string Language => NomnomlDiagramHandler.Language;
+    public override string Language => NomnomlLanguage.Name;
 
     /// <inheritdoc/>
-    internal override MermaidBuilders.Build Builder => NomnomlBuilder.Build;
+    internal override MermaidBuilders.Make Builder =>
+        static (r, s, f, o) => new NomnomlBuilder(r, s, f, o);
 
     /// <inheritdoc/>
     /// <remarks>Nothing inside a nomnoml block names its type — the fence's language does — so its grammar is named here.</remarks>

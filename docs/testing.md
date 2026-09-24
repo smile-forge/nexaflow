@@ -30,9 +30,8 @@ The commonest reason a leaf "can't be tested" is that its *rule* is buried insid
 caret, the selection and the document rebuild — not that the rule is untestable. Lifting the rule out is
 usually a few lines and leaves the control thinner:
 
-- **Markdown's formatting mini-toolbar** — the heading / bold / quote / code-fence text rule is
-  `MarkdownBlockFormat` (pure `(block, …) → (newBlock, caret)`); `InlineMarkdownEditor` keeps only the caret and
-  the rebuild.
+- **Markdown's formatting** — the heading / quote / code-fence text rule is `MarkdownBlockFormat` (pure
+  `(block, …) → (newBlock, caret)`); the surface only finds the block the caret is in and writes the result.
 - **Markdown's scroll-to-heading deep link** — the interesting part is matching a `>`-joined heading path
   against the block list (so duplicate names under different parents stay distinct), not the
   `ScrollToVerticalOffset`, so it is `MarkdownBlocks.FindHeadingBlock`.
@@ -352,6 +351,24 @@ Reach for it whenever a change touches shared rendering rather than one diagram 
 what a renderer was *asked* to draw; they cannot see a label drawn behind a box, a legend appended below the
 visible area, or a group dropped before it reached the canvas — a before/after render can.
 
+### Measuring markdown layout (opt-in, by hand)
+
+`MarkdownLayoutBench` times laying a document out, step by step, over the sample corpus and
+`docs/MarkdownSupport.md`: what **opening** a document costs, what **one keystroke** in the middle of it costs, and
+each step on its own — Markdig, every stage the document is read by, the builder (nested languages apart from
+markdown's own), painting (a fresh tree — all of it, and a screen of it — the same tree again, and what a keystroke laid where the page
+was painted before it), and memory (what opening, a keystroke and each paint allocate, and what a document laid and painted
+holds on to, and for the largest document each layer it holds and what opening it and typing in it allocate by type) —
+with corpus totals for every nested language, every stage of each language's own
+pipeline, and every kind of block. It writes one JSON file per run and asserts nothing.
+
+```powershell
+tools/bench/Run-MarkdownBench.ps1 -Label "what changed"     # Release; runs kept in %LOCALAPPDATA%\Nexaflow\markdown-bench
+```
+
+Compare runs taken on one machine in one configuration; the absolute numbers mean little on their own. Release is the
+default because a Debug build checks every pipeline stage's output against its input, which a user never pays for.
+
 ### Coverage declaration (`[CoversNode]` / `[NoCoverage]`)
 
 Every concrete `[TestClass]` must declare the product-tree node it backs with `[CoversNode("node-id")]`
@@ -380,9 +397,11 @@ the guard degrades to presence-only).
 
 A `ContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
 nothing. `ContentBuilderRulesTests` (in `Tests.Visuals`) reflects over every class deriving from it and requires one
-constructor, taking `(ContentReading, EditState, MarkdownPalette, bool)`; nothing told to it afterwards; and nothing
+constructor, taking `(ContentReading, EditState, StyleFormat, bool)`; nothing told to it afterwards; and nothing
 named that `ContentBuilder` does not declare. Anything else a builder was going to be given is a fact about the
-content or about this showing of it, and belongs somewhere every builder can be given it the same way.
+content or about this showing of it, and belongs somewhere every builder can be given it the same way — the
+style, the tree, or a pipeline stage that puts it there. How wide it may be goes to `Lay(room)`, because that is
+the one thing that changes without the content or the showing of it changing.
 
 It is a **ratchet**: builders that predate the rule are listed in
 `Editing/content-builders-not-yet-one-shape.txt`, and the two tests pull opposite ways — a new builder out of shape
@@ -496,8 +515,8 @@ solution — which is why everything that does **not** need Core lives in the su
 ### Visuals (`Nexaflow.Tests.Visuals`)
 
 Covers the `Nexaflow.Visuals.*` libraries, with no reference to Core: markdown parsing and rendering
-(`BlockRenderer`, `MarkdownView`, extensions, pipeline factory, the diagram renderer and the layered layout), the
-LaTeX formula tree/layout/caret model, the music engraver, the inline markdown editor, `Visuals.Text`'s
+(`MarkdownBuilder`, `MarkdownSurface`, extensions, pipeline, every language's builder and the layered layout), the
+LaTeX formula tree/layout/caret model, the music engraver, writing in a document, `Visuals.Text`'s
 editor surface and highlighting, the shared controls and pan/zoom layout, and the WebView2 surface.
 
 Its two WPF categories are split by what they *need*, not what they touch — see

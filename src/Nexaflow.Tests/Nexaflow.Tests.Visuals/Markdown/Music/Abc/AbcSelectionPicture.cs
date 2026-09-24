@@ -99,7 +99,7 @@ public class AbcSelectionPicture
 
     private static RenderTargetBitmap Shot(string tune, Func<Piece, Piece> from, Func<Piece, Piece> to)
     {
-        var element = MusicScore.Engraved(MusicDialect.Abc, tune, MarkdownPalette.Light);
+        var element = Alone.Engraved(MusicDialect.Abc, tune, StyleFormat.Light);
         element.Measure(new Size(760, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

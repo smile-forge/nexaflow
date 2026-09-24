@@ -77,24 +77,30 @@ public class AbcPictureSweepTests
     private const int DefaultSample = 400;
 
     /// <summary>
-    /// The zoom to draw at when the reference will not say how big its own staff is — a handful of pages
-    /// with no clear stave anywhere on them. Overridable with <c>NEXAFLOW_ABC_ZOOM</c>, which also pins
-    /// every tune to one size, which is occasionally what you want to look at and never what you want to
-    /// measure.
+    /// What to assume when a reference will not say how big its own staff is — a handful of pages with no
+    /// clear stave anywhere on them. Overridable with <c>NEXAFLOW_ABC_STAFF</c>, which also pins every tune
+    /// to one size, which is occasionally what you want to look at and never what you want to measure.
     /// </summary>
     private static readonly double? Pinned =
-        double.TryParse(Environment.GetEnvironmentVariable("NEXAFLOW_ABC_ZOOM"),
+        double.TryParse(Environment.GetEnvironmentVariable("NEXAFLOW_ABC_STAFF"),
                         NumberStyles.Float, CultureInfo.InvariantCulture, out var asked) && asked > 0
             ? asked
             : null;
 
-    /// <summary>What to draw at when nothing has been measured and nothing pinned.</summary>
+    /// <summary>What to assume when nothing has been measured and nothing pinned.</summary>
     private const double Guessed = 0.65;
 
     /// <summary>
-    /// The size to draw this tune at: whatever makes our staff the size of the staff in its own reference.
+    /// How big the reference's staff is in <em>our</em> units — its staff space over ours.
+    ///
+    /// <para>
+    /// We engrave at our own size and bring the reference to it, rather than the other way about. So this
+    /// is not a size to draw at: it is what converts a measurement of their page into a measurement of
+    /// ours. A reference 0.65 of our size broke its systems where a page 1/0.65 as wide would break ours,
+    /// and that is the width we have to ask for if the two pages are to be the same page.
+    /// </para>
     /// </summary>
-    private static double ZoomFor(GrayImage reference) =>
+    private static double TheirStaffInOurs(GrayImage reference) =>
         Pinned ?? (reference.StaffSpace() is { } space and > 0 ? space / ScoreMetrics.S : Guessed);
 
     /// <summary>
@@ -125,7 +131,7 @@ public class AbcPictureSweepTests
     /// overlapped somebody <em>else's</em> reference.
     /// </summary>
     private sealed record Scored(string Name, double Overlap, double Shape, double Width, double Control,
-                                 int Notes, double Stretch, double Zoom, string? Trouble);
+                                 int Notes, double Stretch, double Staff, string? Trouble);
 
     [TestMethod]
     public void HowCloseIsThisToWhatAnEngraverDrew()
@@ -204,26 +210,30 @@ public class AbcPictureSweepTests
                 var theirs = new BitmapImage(new Uri(tune.Image));
                 var reference = GrayImage.Load(tune.Image).CropToInk();
                 var width = reference.Width + Margin;
-                var zoom = ZoomFor(reference);
+                var staff = TheirStaffInOurs(reference);
 
-                var element = new MusicScore(MusicDialect.Abc, Text(tune.Abc), MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
-                element.Measure(new Size(width, double.PositiveInfinity));
+                // Engraved at our own size — see Score. The reference is brought down to ours for the
+                // picture, which is the same direction the measurement goes.
+                var element = Alone.Engraved(MusicDialect.Abc, Text(tune.Abc), StyleFormat.Light);
+                element.Measure(new Size(width / staff, double.PositiveInfinity));
                 element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 
-                var file = Path.Combine(into, $"{name}-at-{zoom:F2}.png");
-                Save(Stack(element, element.DesiredSize, theirs), file);
+                var file = Path.Combine(into, $"{name}-at-{staff:F2}.png");
+                Save(Stack(element, element.DesiredSize, theirs, staff), file);
                 Console.WriteLine(file);
             });
     }
 
-    /// <summary>Ours over theirs, on one white page, each labelled.</summary>
-    private static BitmapSource Stack(FrameworkElement ours, Size size, BitmapSource theirs)
+    /// <summary>Ours over theirs, on one white page, each labelled — theirs brought down to our size.</summary>
+    /// <param name="staff">How big their staff is in our units, which is what theirs is divided by.</param>
+    private static BitmapSource Stack(FrameworkElement ours, Size size, BitmapSource theirs, double staff)
     {
         const double Gap = 14;
         const double Label = 16;
 
-        var width = Math.Max(size.Width, theirs.PixelWidth);
-        var height = Label + size.Height + Gap + Label + theirs.PixelHeight;
+        var shown = new Size(theirs.PixelWidth / staff, theirs.PixelHeight / staff);
+        var width = Math.Max(size.Width, shown.Width);
+        var height = Label + size.Height + Gap + Label + shown.Height;
 
         var drawing = new DrawingVisual();
         using (var dc = drawing.RenderOpen())
@@ -237,7 +247,7 @@ public class AbcPictureSweepTests
 
             var below = Label + size.Height + Gap;
             Caption(dc, "the engraver’s", below);
-            dc.DrawImage(theirs, new Rect(0, below + Label, theirs.PixelWidth, theirs.PixelHeight));
+            dc.DrawImage(theirs, new Rect(0, below + Label, shown.Width, shown.Height));
         }
 
         var bitmap = new RenderTargetBitmap(
@@ -276,22 +286,25 @@ public class AbcPictureSweepTests
             var abc = Text(tune.Abc);
             var notes = Notes(abc);
             var width = theirs.Width + Margin;
-            var zoom = ZoomFor(theirs);
+            var staff = TheirStaffInOurs(theirs);
 
-            var element = new MusicScore(MusicDialect.Abc, abc, MarkdownPalette.Light, 0, zoom, pageWidth: 1.0);
-            element.Measure(new Size(width, double.PositiveInfinity));
+            // Engraved at our own size, into their page width expressed in our units — so the systems break
+            // where theirs broke. The comparison itself brings both pages to one height (InkOverlap), which
+            // is why nothing here has to be drawn at their size to be compared with it.
+            var element = Alone.Engraved(MusicDialect.Abc, abc, StyleFormat.Light);
+            element.Measure(new Size(width / staff, double.PositiveInfinity));
 
             var size = element.DesiredSize;
             if (size.Width < 1 || size.Height < 1)
-                return new Scored(name, 0, 0, width, 0, notes, 0, zoom, "it engraved to nothing");
+                return new Scored(name, 0, 0, width, 0, notes, 0, staff, "it engraved to nothing");
             if (size.Height > Absurd)
-                return new Scored(name, 0, 0, width, 0, notes, 0, zoom,
+                return new Scored(name, 0, 0, width, 0, notes, 0, staff,
                                   $"it engraved {size.Height:F0}px tall in {width}px of width");
 
             element.Arrange(new Rect(new Point(0, 0), size));
 
             var ours = Raster(element, size).CropToInk();
-            if (ours.IsEmpty) return new Scored(name, 0, 0, width, 0, notes, 0, zoom, "it drew no ink");
+            if (ours.IsEmpty) return new Scored(name, 0, 0, width, 0, notes, 0, staff, "it drew no ink");
 
             var overlap = GrayImage.InkOverlap(ours, theirs, Detail);
 
@@ -305,7 +318,7 @@ public class AbcPictureSweepTests
 
             // Which way it is off, not just how far. Below one, our page is the taller of the two, which
             // at a shared width means more systems on it — so the notation is still too big.
-            return new Scored(name, overlap, Closeness(us, them), width, control, notes, us / them, zoom, null);
+            return new Scored(name, overlap, Closeness(us, them), width, control, notes, us / them, staff, null);
         }
         catch (Exception ex)
         {
@@ -390,9 +403,9 @@ public class AbcPictureSweepTests
         text.AppendLine(CultureInfo.InvariantCulture, $"separation        {mean - control:F4}   the whole of what this sweep can see");
         text.AppendLine(CultureInfo.InvariantCulture, $"beat its control  {beat:P1}   of tunes scored higher against their own picture");
         text.AppendLine(CultureInfo.InvariantCulture, $"mean shape match  {shape:F4}   (1 = we broke the lines where they did)");
-        // The size each reference asked for. The spread is the finding: it is why a fixed zoom cannot be
-        // right, and why this is measured per tune rather than chosen once.
-        var zooms = drawn.Select(z => z.Zoom).Where(v => v > 0).OrderBy(v => v).ToList();
+        // How big each reference's own staff was, in our units. The spread is the finding: it is why one
+        // fixed size cannot be right, and why this is measured per tune rather than chosen once.
+        var zooms = drawn.Select(z => z.Staff).Where(v => v > 0).OrderBy(v => v).ToList();
         if (zooms.Count > 0)
             text.AppendLine(CultureInfo.InvariantCulture,
                 $"drawn at zoom     {zooms[zooms.Count / 2]:F2}   median of what each reference asked for"
@@ -471,7 +484,7 @@ public class AbcPictureSweepTests
         foreach (var one in all)
             text.AppendLine(CultureInfo.InvariantCulture,
                 $"  {one.Name}  {one.Overlap:F4}  {one.Control:F4}  {one.Shape:F4}  {one.Notes,5}"
-                + $"  {one.Width:F0}  {one.Stretch:F2}x  {one.Zoom:F2}");
+                + $"  {one.Width:F0}  {one.Stretch:F2}x  {one.Staff:F2}");
 
         File.WriteAllText(Path.Combine(into, "abc-picture-sweep.txt"), text.ToString());
         Console.WriteLine(text.ToString()[..Math.Min(2000, text.Length)]);

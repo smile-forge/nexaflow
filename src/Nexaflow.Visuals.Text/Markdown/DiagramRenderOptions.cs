@@ -34,19 +34,7 @@ public readonly record struct DiagramSelection(string? NodeId, string? Key, stri
 /// </summary>
 public sealed class DiagramRenderOptions
 {
-    public required MarkdownPalette Palette { get; init; }
-
-    /// <summary>
-    /// Where the source handed to the renderer sits inside the markdown block it was taken from.
-    /// <para>
-    /// A fenced block arrives here as its content — the fence lines stripped and the ends trimmed — so
-    /// an offset into it is not an offset into the block an editing host would splice back into. Only
-    /// the caller knows the difference, and a renderer whose element is editable adds this to whatever
-    /// it reports as its own <see cref="Editing.IEditableBlock.SourceStart"/>. Zero for a renderer that
-    /// was handed the block whole, which is why it is safe to ignore.
-    /// </para>
-    /// </summary>
-    public int SourceOffset { get; init; }
+    public required StyleFormat Palette { get; init; }
 
     /// <summary>In-app click handler for a node / class member carrying an <c>href</c>. Return true
     /// when handled; null means the host has no handler and no link affordance is drawn.</summary>
@@ -95,6 +83,13 @@ public sealed class DiagramRenderOptions
     public Func<string, System.Windows.Media.ImageSource?>? Pictures { get; init; }
 
     /// <summary>
+    /// The host's say in how a link looks, asked for every link with where it points and the words it was
+    /// written as. The help pane marks a <c>locate:</c> link this way, without disturbing those words. Null
+    /// where the host has nothing to say, which is most surfaces.
+    /// </summary>
+    public Func<string, string, Stages.LinkLook?>? Links { get; init; }
+
+    /// <summary>
     /// Expand/collapse handler. Return true when the host took it on (it will re-emit the diagram);
     /// return false, or leave it null, and the diagram opens the node itself.
     /// </summary>
@@ -140,6 +135,13 @@ public sealed class DiagramRenderOptions
     /// Null means they do not.</summary>
     public DiagramViewState? ViewState { get; init; }
 
-    public static DiagramRenderOptions For(MarkdownPalette palette, Func<string, bool>? onNavigate = null)
+    /// <summary>
+    /// Where each diagram in a document keeps what the reader has opened and chosen, in the order the diagrams are written —
+    /// held by the surface, so it outlives every reading of the document an edit or a press causes. Null keeps nothing
+    /// between readings.
+    /// </summary>
+    public DiagramViewStates? Views { get; init; }
+
+    public static DiagramRenderOptions For(StyleFormat palette, Func<string, bool>? onNavigate = null)
         => new() { Palette = palette, OnNavigate = onNavigate };
 }

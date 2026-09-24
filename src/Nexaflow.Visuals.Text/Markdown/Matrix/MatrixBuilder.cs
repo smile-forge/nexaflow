@@ -60,15 +60,12 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// <summary>The narrowest a reason is set to, so a small symbol does not stack it a word to a line.</summary>
     private const double ReasonRoom = 240;
 
-    protected MatrixBuilder(ContentReading reading, MarkdownPalette palette, double pixelsPerDip) : base(reading)
-    {
-        Palette = palette;
-        PixelsPerDip = pixelsPerDip;
-    }
+    protected MatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
-    protected MarkdownPalette Palette { get; }
 
-    protected double PixelsPerDip { get; }
+
+    protected StyleFormat Palette => Style;
 
     /// <summary>
     /// An encoded symbol and how to draw it. <paramref name="RowHeight"/> is a module's height as a multiple of its
@@ -93,33 +90,6 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// that none does is <see cref="MatrixPiece.Modules"/>.
     /// </summary>
     protected abstract IReadOnlyList<Region> Regions(TSymbol symbol);
-
-    /// <summary>The element a 2D-code block is shown in: read-only, because there is nothing in it to edit.</summary>
-    protected static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                 Func<string, MarkdownPalette, double, Laid> build)
-    {
-        var element = new Editing.ContentElement(source, options.Palette,
-            (state, _, pixelsPerDip) => build(state.Source, options.Palette, pixelsPerDip))
-        {
-            IsReadOnly = true,
-
-            // Where the fields sit inside the fence, so the host never mistakes the block for one that is its
-            // content and nothing else.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            Cursor = Cursors.Arrow,
-            UseLayoutRounding = true,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 10),
-        };
-
-        // Module edges land on device pixels. A half-pixel seam between two dark modules reads as a light line to
-        // a camera, which is the whole difference between a code that scans and one that does not.
-        RenderOptions.SetEdgeMode(element, EdgeMode.Aliased);
-
-        return element;
-    }
 
     protected sealed override Laid Build()
     {
@@ -182,7 +152,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
         return new Laid(build.Seal(), size, trouble is null
             ? []
-            : [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, trouble)]);
+            : [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, trouble)]);
     }
 
     /// <summary>
@@ -263,10 +233,10 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         new(trouble,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(ReasonFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(ReasonFont),
             ReasonSize,
             Palette.Danger,
-            PixelsPerDip)
+            Editing.LayoutText.Density)
         {
             MaxTextWidth = room,
         };
@@ -294,8 +264,8 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             ReasonSize,
             Brushes.Black,
-            PixelsPerDip);
+            Editing.LayoutText.Density);
 }

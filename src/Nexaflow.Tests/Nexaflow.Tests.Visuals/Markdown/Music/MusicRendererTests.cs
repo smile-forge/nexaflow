@@ -1,39 +1,39 @@
-using System.Windows;
-using System.Windows.Controls;
+using System.Linq;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Music;
-using MdMarkdown = Markdig.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Languages;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
 
 /// <summary>
-/// End-to-end dispatch: a <c>#% … #%</c> block parsed by the pipeline renders through <see cref="BlockRenderer"/>
-/// onto the same engraved page a fenced <c>abc</c> or <c>lilypond</c> block makes.
+/// End-to-end dispatch: an <c>abc</c> or <c>lilypond</c> fence in a document is engraved rather than shown as the
+/// characters it was written as.
+///
+/// <para>
+/// Both dialects, because they are two languages reaching one engraver and a registration that named only one of them
+/// looks right until somebody writes the other.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("UI")]
-[CoversNode("music-block")]
+[CoversNode("abc-layout")]
 public class MusicRendererTests
 {
-    private static MusicBlock Block(string md) =>
-        MdMarkdown.Parse(md, MarkdownPipelineFactory.Default).OfType<MusicBlock>().Single();
+    private static Laid Lay(string md) => MarkdownBuilder.Lay(md, StyleFormat.Dark, 700);
+
+    private static bool Engraved(Laid laid) =>
+        laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicPiece.Page)
+        && !laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MarkdownPieces.Verbatim);
 
     [TestMethod]
-    public void ValidAbc_EngravesToNonFallbackElement() => UiThread.Run(() =>
-    {
-        var mb = Block("#%abc\nX:1\nM:4/4\nK:G\n|:GABc dedB|c2A2 A2BA:|\n#%\n");
-        var fe = BlockRenderer.Render(mb);
-        Assert.IsNotNull(fe);
-        Assert.IsFalse(fe is Border, "valid notation should engrave, not fall back to the source box");
-    });
+    public void ValidAbc_Engraves() => UiThread.Run(() =>
+        Assert.IsTrue(Engraved(Lay("```abc\nX:1\nM:4/4\nK:G\n|:GABc dedB|c2A2 A2BA:|\n```\n")),
+                      "valid notation should engrave, not fall back to its source"));
 
     [TestMethod]
-    public void ValidLilyPond_EngravesToNonFallbackElement() => UiThread.Run(() =>
-    {
-        var mb = Block("#%lilypond\n\\relative c' { \\time 4/4 c4 d e f | g1 }\n#%\n");
-        var fe = BlockRenderer.Render(mb);
-        Assert.IsNotNull(fe);
-        Assert.IsFalse(fe is Border);
-    });
+    [CoversNode("ly-core")]
+    public void ValidLilyPond_Engraves() => UiThread.Run(() =>
+        Assert.IsTrue(Engraved(Lay("```lilypond\n\\relative c' { \\time 4/4 c4 d e f | g1 }\n```\n"))));
 }

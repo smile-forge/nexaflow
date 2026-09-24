@@ -47,7 +47,7 @@ public class AztecFigureWriter
                     Margin            = new Thickness(14, 12, 14, 6),
                     VerticalAlignment = VerticalAlignment.Bottom,   // so the captions share a baseline
                 };
-                column.Children.Add(AztecBuilder.Element(source, DiagramRenderOptions.For(MarkdownPalette.Light)));
+                column.Children.Add(Alone.Drawn("aztec", source, StyleFormat.Light));
                 column.Children.Add(new TextBlock
                 {
                     Text                = caption,

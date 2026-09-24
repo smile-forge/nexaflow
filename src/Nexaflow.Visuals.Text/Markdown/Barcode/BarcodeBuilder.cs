@@ -43,9 +43,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private readonly BarcodeBlock _block;
     private readonly BarcodePattern? _pattern;
     private readonly BarcodePattern? _drawn;
-    private readonly MarkdownPalette _palette;
-    private readonly double _dpi;
-
+    private readonly StyleFormat _palette;
     /// <summary>Why the value would not encode, or null — what the reader gets a wave and a hover for.</summary>
     private readonly string? _trouble;
 
@@ -53,13 +51,14 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private double _barsLeft, _barsTop, _guardDrop;
 
     // A barcode's value is one run of characters and has no grammar of its own, so what it is read as is that
-    // run: enough for the base to report the source and to show it when nothing can be drawn.
-    private BarcodeBuilder(BarcodeBlock block, MarkdownPalette palette, double pixelsPerDip)
-        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value)))
+    // run: enough for the base to report the source and to show it when nothing can be drawn. It is read where it
+    // sits, so every place in the caption names the character it shows in the document holding it.
+    private BarcodeBuilder(BarcodeBlock block, StyleFormat palette)
+        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value), block.ValueStart),
+               EditState.For(block.Value), palette, isReadOnly: true)
     {
         _block = block;
-        _palette = palette;
-        _dpi = pixelsPerDip;
+    _palette = palette;
 
         // Encoding happens here (not in the element) so "does it encode" isn't computed twice per keystroke.
         if (block.Value.Length == 0) _trouble = "A barcode needs a value.";
@@ -73,8 +72,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
     }
 
     /// <summary>Lays a barcode out, and gives back the tree and nothing barcode-shaped at all.</summary>
-    public static Laid Build(BarcodeBlock block, MarkdownPalette palette, double pixelsPerDip) =>
-        new BarcodeBuilder(block, palette, pixelsPerDip).Lay();
+    public static Laid Build(BarcodeBlock block, StyleFormat palette) =>
+        new BarcodeBuilder(block, palette).Lay();
 
     /// <summary>The symbol the value encodes to, or null while it will not encode.</summary>
     public BarcodePattern? Encoded => _pattern;
@@ -91,10 +90,10 @@ internal sealed class BarcodeBuilder : ContentBuilder
         text,
         CultureInfo.CurrentCulture,
         FlowDirection.LeftToRight,
-        new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+        Style.Face(LabelFont),
         size ?? LabelSize,
         Brushes.Black,
-        _dpi);
+        Editing.LayoutText.Density);
 
         protected override Laid Build()
     {
@@ -108,7 +107,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         // No encoded symbol to read when the value is broken, so read the raw value instead — keeps a
         // publication's caption line even when the number itself won't encode.
-        var symbol = _pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken());
+        var symbol = (_pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken())).At(At);
 
         var barsWidth = PatternWidth * _block.BarWidth;
 
@@ -167,7 +166,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         // Diagnostic spans the whole value — that's what the reader would need to change.
         return new Laid(build.Seal(), size, _trouble is null
             ? []
-            : [new Diagnostic(0, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
+            : [new Diagnostic(At, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
     }
 
     /// <summary>The caption a publication keeps even when its value won't encode (ISBN/ISSN/ISMN only).</summary>
@@ -410,8 +409,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(LabelFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(LabelFont),
             MinimumLabelSize,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 }

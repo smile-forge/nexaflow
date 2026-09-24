@@ -54,7 +54,7 @@ src/
     Nexaflow.Features.<Feature>/      one assembly per feature (~30)
       …Compressed.{Modern,SecureZip,SharpCompress}/   codec backends — reference IO.Common ONLY
   Nexaflow.Visuals.Common/            shared WPF controls, converters, formatters
-  Nexaflow.Visuals.Text/              markdown rendering — reuse SelectableMarkdownView, never hand-roll a RichTextBox
+  Nexaflow.Visuals.Text/              markdown shown or written in — one MarkdownSurface, never hand-roll a RichTextBox
   Nexaflow.Visuals.Terminal/          terminal input logic
   Nexaflow.IO.Common/                 WPF-free IO leaves: encoding, glob, hashing, codec/archive contracts, VFS, file watching
   Nexaflow.IO.Terminal/               PTY host

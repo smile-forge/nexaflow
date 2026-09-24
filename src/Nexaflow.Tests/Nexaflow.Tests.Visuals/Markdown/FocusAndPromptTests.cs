@@ -29,15 +29,15 @@ public class FocusAndPromptTests
     [TestMethod]
     public void AskingTheEditorForTheKeyboardWorks()
     {
-        UiThread.Run(() => MarkdownEditorHarness.Run("some prose", (editor, rtb) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run("some prose", editor =>
         {
             Keyboard.ClearFocus();
-            Assert.IsFalse(rtb.IsKeyboardFocusWithin, "nothing has it to begin with");
+            Assert.IsFalse(MarkdownEditorHarness.HasKeyboard(editor), "nothing has it to begin with");
 
-            // Focus() comes back false, and that is right: focus went past this control to the text
-            // inside it, so the control itself does not hold it. Where it ended up is the question.
+            // The control is where the keys go: the document inside it is drawn, not typed into by a
+            // control of its own, so there is nothing private for a host to reach past.
             editor.Focus();
-            Assert.IsTrue(rtb.IsKeyboardFocusWithin,
+            Assert.IsTrue(MarkdownEditorHarness.HasKeyboard(editor),
                 "it passes focus through to the text — a host should not have to reach past the "
                 + "control to something private to put a caret in it");
         }));
@@ -46,7 +46,7 @@ public class FocusAndPromptTests
     [TestMethod]
     public void ThePromptStaysUntilSomethingIsWritten()
     {
-        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, (editor, rtb) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, editor =>
         {
             editor.Placeholder = "Type a formula…";
 
@@ -57,9 +57,8 @@ public class FocusAndPromptTests
             editor.Focus();
             Assert.AreEqual(Visibility.Visible, PromptIn(editor).Visibility, "still nothing written");
 
-            // Text pushed in from outside is ignored while the editor has the keyboard — rebuilding
-            // its document mid-word would destroy what is being typed into — so give it up first.
-            Keyboard.ClearFocus();
+            // A host handing it a document is heard whether or not it has the keyboard: what it was told
+            // of an edit never comes back as a new document, so there is nothing to guard against.
             editor.Markdown = "something";
 
             Assert.AreEqual(Visibility.Collapsed, PromptIn(editor).Visibility,
@@ -72,7 +71,7 @@ public class FocusAndPromptTests
     {
         // It sits over the document rather than in it, so the page padding does not reach it. Left
         // alone it began hard against the corner while the text it stands in for began inset.
-        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, (editor, _) =>
+        UiThread.Run(() => MarkdownEditorHarness.Run(string.Empty, editor =>
         {
             editor.Placeholder = "Type a formula…";
             editor.ContentPadding = new Thickness(10, 8, 0, 0);
@@ -81,6 +80,6 @@ public class FocusAndPromptTests
         }));
     }
 
-    private static TextBlock PromptIn(InlineMarkdownEditor editor) =>
+    private static TextBlock PromptIn(MarkdownSurface editor) =>
         ((Grid)editor.Content).Children.OfType<TextBlock>().Single();
 }

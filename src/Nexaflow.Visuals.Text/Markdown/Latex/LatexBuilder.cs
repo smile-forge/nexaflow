@@ -18,22 +18,24 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// </summary>
 public sealed partial class LatexBuilder : ContentBuilder
 {
-    private readonly double _scale;
-    private readonly bool _inline;
-    private readonly string _systemFont;
-    private readonly double _pixelsPerDip;
-    private readonly double _block;
 
-    private LatexBuilder(ContentReading reading, double scale, bool inline, string systemFont,
-                         double pixelsPerDip, double block)
-        : base(reading)
-    {
-        _scale = scale;
-        _inline = inline;
-        _systemFont = systemFont;
-        _pixelsPerDip = pixelsPerDip;
-        _block = block;
-    }
+
+
+
+    internal LatexBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
+
+    /// <summary>How big the formula is set — body size for one in a line of text, larger for one on its own.</summary>
+    private double _scale => Style.TextSize;
+
+    /// <summary>Whether it is set in a line of text rather than on its own.</summary>
+    private bool _inline => Style.InlineMath;
+
+    /// <summary>The face <c>\text{…}</c> is set in.</summary>
+    private const string _systemFont = "Arial";
+
+    /// <summary>The width of the display block, for a formula carrying a number — see <see cref="Numbered"/>.</summary>
+    private double _block => double.IsInfinity(base.Room) ? 0 : base.Room;
 
     /// <summary>
     /// Typesets <paramref name="latex"/> and records where every piece landed. Unreadable or throwing source
@@ -46,9 +48,8 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// </param>
     /// <param name="placeholders">Show a hole for an empty argument/cell, for a surface being written on. Off by default since reading is the common case.</param>
     /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
-    public static Laid Build(string latex, double scale, bool inline = false, string systemFont = "Arial",
-                             RawZone? shownAsWritten = null, bool placeholders = false,
-                             double pixelsPerDip = 1.0, double block = 0, int at = 0)
+    internal static Laid Lay(string latex, StyleFormat style, RawZone? shownAsWritten = null,
+                             bool placeholders = false, double block = 0, int at = 0)
     {
         var editing = shownAsWritten is { } zone && zone.Length > 0 ? (zone.Start, zone.Length) : ((int, int)?)null;
 
@@ -57,8 +58,14 @@ public sealed partial class LatexBuilder : ContentBuilder
         // unreadable.
         var read = TexPipeline.Read(latex, Draws, editing, placeholders);
 
-        return new LatexBuilder(ContentReading.Of(read, at), scale, inline, systemFont, pixelsPerDip, block).Lay();
+        return new LatexBuilder(ContentReading.Of(read, at), new EditState(latex, 0, null, shownAsWritten), style,
+                                isReadOnly: !placeholders).Lay(block > 0 ? block : double.PositiveInfinity);
     }
+
+    /// <summary>The same, given a size rather than a whole style — what a caller with nothing else to say uses.</summary>
+    internal static Laid Lay(string latex, double scale, bool inline = false, RawZone? shownAsWritten = null,
+                             bool placeholders = false, double block = 0, int at = 0) =>
+        Lay(latex, StyleFormat.Dark with { TextSize = scale, InlineMath = inline }, shownAsWritten, placeholders, block, at);
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>
@@ -142,10 +149,10 @@ public sealed partial class LatexBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Consolas"),
+            Style.Face(Style.MonoFont),
             _scale * 0.6,
             Brushes.Black,   // never used: the mark takes the theme's ink at paint time
-            _pixelsPerDip);
+            Editing.LayoutText.Density);
 
     /// <summary>
     /// Declares which cells of a matrix read across/down, so a drag over one behaves like a spreadsheet

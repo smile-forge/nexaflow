@@ -104,6 +104,31 @@ public sealed class LayoutTree
         _runs = [.. runs];
     }
 
+    /// <summary>The same pieces, marks and runs, standing for other parts — see <see cref="Parted"/>.</summary>
+    private LayoutTree(LayoutTree tree, ISourcePart?[] parts)
+    {
+        _pieces = tree._pieces;
+        _marks = tree._marks;
+        _parts = parts;
+        _kinds = tree._kinds;
+        _paints = tree._paints;
+        _regions = tree._regions;
+        _words = tree._words;
+        _acts = tree._acts;
+        _across = tree._across;
+        _acrossAt = tree._acrossAt;
+        _down = tree._down;
+        _downAt = tree._downAt;
+        _runs = tree._runs;
+    }
+
+    /// <summary>
+    /// This tree with each piece standing for the part at its index in <paramref name="parts"/> — the same drawing, of the same
+    /// content read again. Shares everything else, so it costs one array.
+    /// </summary>
+    internal LayoutTree Parted(ISourcePart?[] parts) =>
+        parts.Length == _parts.Length ? new LayoutTree(this, parts) : throw new ArgumentException("a part for every piece", nameof(parts));
+
     /// <summary>How many pieces there are.</summary>
     public int Count => _pieces.Length;
 

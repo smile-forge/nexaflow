@@ -92,7 +92,7 @@ public class MusicFigureWriter
     /// <summary>Engraved as the help page's own figures are drawn: in the dark theme, laid out for the page's width.</summary>
     private static ContentElement Drawn(string source)
     {
-        var block = MusicScore.Engraved(MusicDialect.Abc, source, MarkdownPalette.Dark);
+        var block = Alone.Engraved(MusicDialect.Abc, source, StyleFormat.Dark);
         block.Measure(new Size(720, double.PositiveInfinity));
         block.Arrange(new Rect(block.DesiredSize));
         return block;

@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Nexaflow.Features.Common;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Locate;
+using Nexaflow.Visuals.Text.Markdown.Stages;
 
 namespace Nexaflow.Core.Help;
 
@@ -21,7 +22,9 @@ public partial class HelpView : UserControl, IPageView
         // The document reads these as it renders, so they go in before the first Markdown arrives through the
         // DataContext below.
         Doc.ImageResolver = vm.ResolveImage;
-        Doc.LinkDecorator = (link, url) => LocateLink.Decorate(link, url, Str.Get("Help.Locate.Tooltip"));
+        Doc.LinkDecorator = (url, _) => LocateLink.TryParse(url, out IReadOnlyList<string> _)
+            ? new LinkLook(Before: LocateLink.PinGlyph, Says: Str.Get("Help.Locate.Tooltip")) { MarkFont = LocateLink.IconFont }
+            : null;
         Doc.LinkNavigate  = url => Locate(url) || vm.FollowLink(url);
         vm.FindInRendered = Doc.FindInRendered;
         vm.StepRendered   = Doc.StepSearch;

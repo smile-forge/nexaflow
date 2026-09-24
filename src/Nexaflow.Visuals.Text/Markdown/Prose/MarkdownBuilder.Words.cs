@@ -1,0 +1,602 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Windows;
+using System.Windows.Media;
+
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Editing;
+
+namespace Nexaflow.Visuals.Text.Markdown.Prose;
+
+/// <summary>
+/// Setting the words of a block: what the constructs a writer spelled with punctuation are drawn as, and where the
+/// lines break.
+///
+/// <para>
+/// <strong>A run of text is one piece with a position between any two of its letters</strong>, not a piece per letter.
+/// So a line is built by gathering the constructs into runs, breaking the runs into lines, and then joining back up
+/// everything on one line that is set the same way — which is how <c>a **bold** word</c> comes out as three pieces
+/// rather than eleven.
+/// </para>
+/// <para>
+/// Most runs are the source: what is drawn is what was written, at the offset it was written at, so the caret lands
+/// exactly where it looks like it will. The ones that are not say so, and pressing one shows what was written instead
+/// — which is what an entity is, and what a list's renumbered marker is.
+/// </para>
+/// </summary>
+public sealed partial class MarkdownBuilder
+{
+    /// <summary>How a stretch is set. Everything about the drawing; nothing about the source.</summary>
+    private readonly record struct Face
+    {
+        public bool Bold { get; init; }
+
+        public bool Italic { get; init; }
+
+        public bool Strike { get; init; }
+
+        public bool Underline { get; init; }
+
+        /// <summary>A rule of dots under it: what says a word stands for more than itself.</summary>
+        public bool Dotted { get; init; }
+
+        /// <summary>The face it is set in, where it is not the reading one — an icon font for a mark.</summary>
+        public FontFamily? Font { get; init; }
+
+        public bool Mono { get; init; }
+
+        /// <summary>How big, against the reader's text size.</summary>
+        public double Scale { get; init; }
+
+        /// <summary>How far off the line it sits, against the text size — negative is up.</summary>
+        public double Lift { get; init; }
+
+        public Brush? Ink { get; init; }
+
+        /// <summary>What is washed behind it, for a highlighter or a code span.</summary>
+        public Brush? Wash { get; init; }
+
+        /// <summary>Ordinary body text.</summary>
+        public static Face Plain => new() { Scale = 1 };
+    }
+
+    /// <summary>
+    /// A stretch set one way, standing for one part of the source.
+    /// </summary>
+    /// <param name="Maps">
+    /// Whether what is drawn is what was written, at the offsets it was written at. False for the few things that are
+    /// not — an entity, a marker drawn as the number the item is — and a press on one of those shows the source.
+    /// </param>
+    /// <param name="Inset">
+    /// Another language's content, already laid out, where this run is one of those rather than letters. It takes the
+    /// place of the glyphs: it is measured for the line break, sat on the line, and grafted whole — so a formula in a
+    /// sentence is still every piece it was drawn as, and a drag through the sentence picks up its parts.
+    /// </param>
+    private readonly record struct Run(string Text, ContentPart Part, Face Face, bool Maps, LayoutIntent? Act = null,
+                                       ContentInset? Inset = null);
+
+    /// <summary>Sets what a block says, breaking lines at the room it was given.</summary>
+    private void Text(LayoutBuilder into, ContentPart words, double x, double room, Face face)
+    {
+        // One list for every block's words, used again rather than made again: a run is a large thing to copy, and a
+        // document is a great many runs.
+        var runs = _runs;
+        runs.Clear();
+        Gather(words, face, runs);
+
+        if (runs.Count == 0)
+        {
+            _y += Glyphs(" ", face).Height;
+            Reached(x);
+
+            return;
+        }
+
+        Lines(into, runs, x, Math.Max(room, 1));
+        runs.Clear();
+    }
+
+    private readonly List<Run> _runs = [];
+    private readonly List<(int Run, int Start, int End)> _line = [];
+    private readonly List<(Run Run, FormattedText? Glyphs)> _groups = [];
+    private readonly List<double> _tops = [];
+
+    // ── What each construct is set as ───────────────────────────────────────
+
+    private void Gather(ContentPart part, Face face, List<Run> runs)
+    {
+        if (part.Derived) return;
+
+        switch (part.Kind)
+        {
+            case MarkdownKinds.Strong: Inside(part, face with { Bold = true }, runs); return;
+            case MarkdownKinds.Emphasis: Inside(part, face with { Italic = true }, runs); return;
+            case MarkdownKinds.Strike: Inside(part, face with { Strike = true }, runs); return;
+            case MarkdownKinds.Insert: Inside(part, face with { Underline = true }, runs); return;
+            case MarkdownKinds.Mark: Inside(part, face with { Wash = Style.Marked }, runs); return;
+
+            case MarkdownKinds.Sub: Inside(part, face with { Scale = face.Scale * 0.72, Lift = 0.22 }, runs); return;
+            case MarkdownKinds.Sup: Inside(part, face with { Scale = face.Scale * 0.72, Lift = -0.34 }, runs); return;
+
+            // Nothing inside a code span is read, so nothing inside it is set: what is there is what was typed.
+            case MarkdownKinds.Code when part.Part(Roles.Body) is { } code:
+                runs.Add(new Run(code.Text, code, face with { Mono = true, Wash = Style.CodeBg }, Maps: true));
+                return;
+
+            case MarkdownKinds.Image:
+                Pictured(part, face, runs);
+                return;
+
+            case MarkdownKinds.Link:
+                Linked(part, face, runs);
+                return;
+
+            // Written as the characters that could hold it, drawn as the character it stands for — so what is drawn is
+            // not what was written, and a press on it says so.
+            case MarkdownKinds.Entity:
+                runs.Add(new Run(WebUtility.HtmlDecode(part.Text), part, face, Maps: false));
+                return;
+
+            // The same bargain, spelled with a backslash: two characters that mean the second one.
+            case MarkdownKinds.Escape when part.Text.Length > 1:
+                runs.Add(new Run(part.Text[1..], part, face, Maps: false));
+                return;
+
+            case MarkdownKinds.Citation:
+                Inside(part, face with { Scale = face.Scale * 0.85, Lift = -0.34, Ink = Style.Citation }, runs);
+                return;
+
+            // A dotted rule under it is how a reader is told there is more to a word than the word. What it stands
+            // for is on the tree, hung there by the reader, for whoever shows a tip to find.
+            case MarkdownKinds.Abbreviation:
+                runs.Add(new Run(part.Print(), part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
+                return;
+
+            // Raw HTML is not rendered, so what is drawn for it is nothing at all — the words either side close up
+            // as if it had never been typed, which is what a browser would do with a tag it did not know.
+            case MarkdownKinds.Html:
+                return;
+
+            // Markdown reflows a line ending into a space unless the writer asked for a break, which they ask for
+            // with two spaces or a backslash before it.
+            // The line ending that closes the last line has no line after it to reflow into, so it is not drawn — and so
+            // is not a place past the end of the words for the caret to stand.
+            case MarkdownKinds.Break:
+                if (Closing(part)) return;
+                runs.Add(new Run(part.Role == MarkdownRoles.Hard ? string.Empty : " ", part, face, Maps: false));
+                return;
+
+            // The item draws its own box; the three characters it stands for are the item's, not its words'.
+            case MarkdownKinds.Task:
+                return;
+
+            case MarkdownKinds.Formula:
+                Formula(part, face, runs);
+                return;
+        }
+
+        if (part.Children.Count > 0)
+        {
+            Inside(part, face, runs);
+
+            return;
+        }
+
+        if (part.Role is Roles.Open or Roles.Close or Roles.Name or Roles.Trivia)
+        {
+            // Machinery is not drawn. Where it ran over a line ending, though, it stood between two words, and two
+            // words with nothing between them are one word — unless it closes them, and there is no word after it.
+            if (part.Text.Contains('\n') && !Closing(part)) runs.Add(new Run(" ", part, face, Maps: false));
+
+            return;
+        }
+
+        // A line ending that closes the words is not reflowed into a space either: nothing follows it.
+        if (part.Kind == Kinds.Space && part.Text.Contains('\n') && Closing(part)) return;
+
+        if (part.Text.Length > 0) runs.Add(new Run(Flowed(part.Text), part, face, Maps: true));
+    }
+
+    /// <summary>Whether a line ending is the last thing its words hold, closing them rather than breaking them.</summary>
+    private static bool Closing(ContentPart part)
+    {
+        for (var at = part; at.Parent is { } holder; at = holder)
+        {
+            if (holder.Children.LastOrDefault(child => !child.Derived && child.Length > 0) != at) return false;
+            if (holder.Kind is not (MarkdownKinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
+                                    or MarkdownKinds.Mark or MarkdownKinds.Insert or MarkdownKinds.Link))
+                return true;
+        }
+
+        return true;
+    }
+
+    private void Inside(ContentPart part, Face face, List<Run> runs)
+    {
+        foreach (var child in part.Children) Gather(child, face, runs);
+    }
+
+    /// <summary>
+    /// A link, or a picture named by one. Where it points is not drawn — it is machinery — but the press that follows
+    /// it is declared here, and it is the host at the far end of that which decides what following one means.
+    /// </summary>
+    private void Linked(ContentPart part, Face face, List<Run> runs)
+    {
+        var where = MarkdownLinks.Goes(part.Node);
+        var says = part.Part(MarkdownRoles.Title)?.Text;
+        var act = where is { Length: > 0 } ? new LayoutIntent(LayoutVerbs.Navigate, where, says) : (LayoutIntent?)null;
+
+        // What this showing of the document wants a link to look like, settled by a stage before ever reaching
+        // here. Nothing said means the accent and a rule under it, which is what a link looks like.
+        var look = Stages.WithLinks.Of(part);
+        var linked = face with { Underline = look?.Underline ?? true, Ink = look?.Ink ?? Style.Accent };
+        var body = part.Part(Roles.Body);
+
+        if (look is { Says.Length: > 0 } && act is { } meant) act = meant with { Tip = look.Says };
+
+        if (body is null || body.Length == 0)
+        {
+            // A bare or bracketed url is its own words.
+            runs.Add(new Run(where ?? part.Print(), part, linked, Maps: where is { Length: > 0 }, Act: act));
+
+            return;
+        }
+
+        // A mark the host asked for, set beside the words rather than into them — the words are the writer's.
+        if (look is { Before.Length: > 0 } opens)
+            runs.Add(new Run(opens.Before + " ", part, Marked(linked, look), Maps: false, Act: act));
+
+        var at = runs.Count;
+        Gather(body, linked, runs);
+
+        // Whatever the words turned out to be, the whole of them answers the press.
+        for (var index = at; index < runs.Count; index++) runs[index] = runs[index] with { Act = act };
+
+        if (look is { After.Length: > 0 } shuts)
+            runs.Add(new Run(" " + shuts.After, part, Marked(linked, look), Maps: false, Act: act));
+    }
+
+    /// <summary>How a mark beside a link is set: the link's ink, no rule under it, and whatever face it needs.</summary>
+    private static Face Marked(Face linked, Stages.LinkLook look) =>
+        linked with { Underline = false, Font = look.MarkFont };
+
+    /// <summary>
+    /// A formula written in the middle of a sentence, typeset on the line it was written on.
+    ///
+    /// <para>
+    /// <strong>An inline formula that could not be read shows its source instead, where one on its own line does
+    /// not.</strong> The two are different problems: a display formula is what the reader is looking at and half
+    /// a formula still tells them where they are, but a sentence with a wave through the middle of it is a
+    /// sentence nobody can read. So the dollars and what is between them are set in a monospaced face, in the
+    /// accent, which is a reader saying "this bit is still LaTeX" rather than hiding it.
+    /// </para>
+    /// </summary>
+    private void Formula(ContentPart part, Face face, List<Run> runs)
+    {
+        if (Nested(part, double.PositiveInfinity) is { Laid.Trouble.Count: 0 } set)
+        {
+            runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: set));
+
+            return;
+        }
+
+        // The marks and what is between them, which is a branch and so holds no text of its own.
+        var written = part.Print();
+
+        if (written.Length > 0)
+            runs.Add(new Run(written, part, face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent },
+                             Maps: true));
+    }
+
+    /// <summary>
+    /// A picture, where this showing of the document found one — and the words written instead of it where it
+    /// did not, which is what alt text is for.
+    ///
+    /// <para>
+    /// Fitted rather than drawn at its own size: a photograph straight off a camera is several thousand pixels
+    /// across and would make the document as wide as itself. It is never scaled <em>up</em>, because a small
+    /// picture blown up to fill a column is worse than a small picture.
+    /// </para>
+    /// </summary>
+    private void Pictured(ContentPart part, Face face, List<Run> runs)
+    {
+        if (Stages.WithImages.Of(part) is not { } picture)
+        {
+            Linked(part, face, runs);
+
+            return;
+        }
+
+        var box = Fitted(picture);
+        var into = new LayoutBuilder();
+
+        into.Open(MarkdownPieces.Picture, part);
+        into.Draw(new PictureMark(picture, box));
+        into.Close();
+
+        runs.Add(new Run(string.Empty, part, face, Maps: false,
+                         Inset: new ContentInset(new Laid(into.Seal(), box.Size, []))));
+    }
+
+    /// <summary>
+    /// How big a picture is drawn: its own size, down to whatever fits, never up. A picture is measured in
+    /// pixels and a document in the reader's own text size, so the two only agree by accident — which is why
+    /// there is a cap at all.
+    /// </summary>
+    private static Rect Fitted(ImageSource picture)
+    {
+        var (wide, tall) = (picture.Width, picture.Height);
+
+        if (double.IsNaN(wide) || double.IsNaN(tall) || wide <= 0 || tall <= 0) return new Rect(0, 0, Biggest, Biggest);
+
+        var scale = Math.Min(1, Math.Min(Biggest / wide, Biggest / tall));
+
+        return new Rect(0, 0, Math.Max(1, wide * scale), Math.Max(1, tall * scale));
+    }
+
+    /// <summary>
+    /// A line ending inside a run of words is a space: markdown reflows what was written to the room it has. Swapped
+    /// character for character rather than collapsed, so every offset still lands where it did and the run still says
+    /// it is the source.
+    /// </summary>
+    private static string Flowed(string text) =>
+        text.Contains('\n') || text.Contains('\r') ? text.Replace('\n', ' ').Replace('\r', ' ') : text;
+
+    // ── Where the lines break ───────────────────────────────────────────────
+
+    private void Lines(LayoutBuilder into, IReadOnlyList<Run> runs, double x, double room)
+    {
+        // Each word as where it lies in its run rather than a copy of it: the words are measured from the run's own text,
+        // and whatever ends up on one line is cut from it once.
+    var line = _line;
+        line.Clear();
+        var width = 0.0;
+
+        for (var index = 0; index < runs.Count; index++)
+        {
+            var run = runs[index];
+
+            if (run.Part.Kind == MarkdownKinds.Break && run.Text.Length == 0)
+            {
+                Row(into, runs, line, x);
+                width = 0;
+
+                continue;
+            }
+
+            // Content laid out by another language is one chunk: there is nothing in it this one can break.
+            if (run.Inset is { } inset)
+            {
+                Place(index, 0, 0, inset.Width);
+
+                continue;
+            }
+
+            var measure = TextWidths.Set(Typeface(run.Face), Size(run.Face));
+            var text = run.Text;
+            var at = 0;
+
+            // Cut where a line may break: a word with whatever space followed it, so the space goes at the end of a line
+            // rather than at the start of the next. Measured, not set: the line these words end up on is set as one run
+            // once it is known where it breaks.
+            while (at < text.Length)
+            {
+                var end = at;
+                while (end < text.Length && !char.IsWhiteSpace(text[end])) end++;
+                if (end == at) end++;
+                while (end < text.Length && char.IsWhiteSpace(text[end])) end++;
+
+                Place(index, at, end, measure.Of(text.AsSpan(at, end - at)));
+                at = end;
+            }
+        }
+
+        Row(into, runs, line, x);
+
+        void Place(int index, int start, int end, double measured)
+        {
+            if (width > 0 && width + measured > room)
+            {
+                Row(into, runs, line, x);
+                width = 0;
+            }
+
+            line.Add((index, start, end));
+            width += measured;
+        }
+    }
+
+    /// <summary>
+    /// One line, set. Everything on it that is set the same way and stands for the same part is joined back into one
+    /// piece, because a run of text is one piece — and the pieces are sat on a shared baseline, which is what keeps a
+    /// superscript beside its word rather than above its own line.
+    ///
+    /// <para>
+    /// Content another language laid out sits on the same line, centred on the middle of the words rather than on
+    /// their baseline: a formula has no baseline the sentence could share, and centring it is what a reader means by
+    /// "in the middle of the line". Where it is taller than the words it makes the line taller, and where it reaches
+    /// above them the whole line moves down, so nothing is ever drawn above where the line starts.
+    /// </para>
+    /// </summary>
+    private void Row(LayoutBuilder into, IReadOnlyList<Run> runs, List<(int Run, int Start, int End)> line, double x)
+    {
+        if (line.Count == 0) return;
+
+    var groups = _groups;
+        groups.Clear();
+        var at = 0;
+
+        while (at < line.Count)
+        {
+            var (index, start, end) = line[at++];
+            var run = runs[index];
+
+            if (run.Inset is not null)
+            {
+                groups.Add((run, null));
+
+                continue;
+            }
+
+            // A run's words on one line lie side by side in it, so the line's share of the run is one cut.
+            while (at < line.Count && line[at].Run == index) end = line[at++].End;
+
+            groups.Add((run, Glyphs(start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end], run.Face)));
+        }
+
+        line.Clear();
+
+        var words = Space;
+        var baseline = double.NegativeInfinity;
+        foreach (var (_, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
+
+        var middle = baseline - words.Baseline + (words.Height / 2);
+
+        var tops = _tops;
+        tops.Clear();
+        var over = 0.0;
+
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var (run, glyphs) = groups[index];
+
+            tops.Add(glyphs is not null
+                ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
+                : middle - (run.Inset!.Height / 2));
+
+            // Anything reaching above where the line starts moves the whole line down rather than being drawn there.
+            over = Math.Min(over, tops[index]);
+        }
+
+        var height = 0.0;
+        var cursor = x;
+
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var (run, glyphs) = groups[index];
+            var top = tops[index] - over;
+
+            Set(into, run, glyphs, cursor, _y + top);
+
+            cursor += glyphs?.Width ?? run.Inset!.Width;
+            height = Math.Max(height, top + (glyphs?.Height ?? run.Inset!.Height));
+        }
+
+        groups.Clear();
+        _y += height;
+        Reached(cursor);
+    }
+
+    /// <summary>One run of one line, with whatever is washed behind it and whatever a press on it means.</summary>
+    private void Set(LayoutBuilder into, Run run, FormattedText? glyphs, double x, double top)
+    {
+        // Another language's content is grafted whole, so every piece it was laid out as is a piece of this tree.
+        if (run.Inset is { } inset)
+        {
+            into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
+            inset.Set(into, default, MarkdownPieces.Block);
+            into.Close();
+
+            return;
+        }
+
+        if (glyphs is null) return;
+
+        if (run.Face.Wash is { } wash)
+        {
+            var pad = Style.TextSize * 0.12;
+
+            into.Open(MarkdownPieces.Block, run.Part, new Point(x - pad, top));
+            into.Draw(new WashMark(new Rect(0, 0, glyphs.Width + (pad * 2), glyphs.Height), wash));
+            into.Close();
+        }
+
+        if (run.Act is not { } act)
+        {
+            LayoutText.Words(into, glyphs, new Point(x, top), double.PositiveInfinity, TextAlignment.Left,
+                             run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
+                             ink: run.Face.Ink ?? Style.Text);
+
+            return;
+        }
+
+        // What answers a press is the piece round the words rather than the words, so what was pressed and what was
+        // read are the same question asked of the same piece.
+        into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
+        into.Acts(new LayoutActions { Click = act });
+
+        LayoutText.Words(into, glyphs, default, double.PositiveInfinity, TextAlignment.Left,
+                         run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
+                         ink: run.Face.Ink ?? Style.Text);
+
+        into.Close();
+    }
+
+    // ── Type ────────────────────────────────────────────────────────────────
+
+    private FormattedText Glyphs(string text, Face face)
+    {
+        var glyphs = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface(face), Size(face),
+                                       face.Ink ?? Style.Text, LayoutText.Density);
+
+        if (Decorations(face) is { } decorations) glyphs.SetTextDecorations(decorations);
+
+        return glyphs;
+    }
+
+    /// <summary>
+    /// The rules drawn through or under a face, made once for each way of ruling rather than once for every run ruled:
+    /// a document of links is a great many underlines and only one kind of them.
+    /// </summary>
+    private TextDecorationCollection? Decorations(Face face)
+    {
+        if (!(face.Strike || face.Underline || face.Dotted)) return null;
+
+        var key = (face.Strike, face.Underline, Dotted: face.Dotted ? face.Ink ?? Style.TextMuted : null);
+        if (_decorations.TryGetValue(key, out var made)) return made;
+
+        made = new TextDecorationCollection();
+
+        if (face.Strike) made.Add(TextDecorations.Strikethrough);
+        if (face.Underline) made.Add(TextDecorations.Underline);
+        if (key.Dotted is { } dots) made.Add(Dots(dots));
+
+        made.Freeze();
+        _decorations[key] = made;
+
+        return made;
+    }
+
+    private readonly Dictionary<(bool Strike, bool Underline, Brush? Dotted), TextDecorationCollection> _decorations = [];
+
+    /// <summary>The typeface a face is set in: its own font, the fixed-pitch one, or the reading one.</summary>
+    private Typeface Typeface(Face face) =>
+        Style.Face(face.Font ?? (face.Mono ? Style.MonoFont : Style.TextFont),
+                   face.Bold ? FontWeights.Bold : FontWeights.Normal,
+                   face.Italic ? FontStyles.Italic : FontStyles.Normal);
+
+    /// <summary>How big a face is set.</summary>
+    private double Size(Face face) => Math.Max(1, Style.TextSize * (face.Scale <= 0 ? 1 : face.Scale));
+
+    /// <summary>
+    /// A space in the reading face: what a line of words is measured against for where its baseline and middle sit. Set
+    /// once for the whole document rather than once a line.
+    /// </summary>
+    private FormattedText Space => _space ??= Glyphs(" ", Face.Plain);
+
+    private FormattedText? _space;
+
+    /// <summary>A rule of dots, set a little below the letters so it reads as a hint rather than as a link.</summary>
+    private static TextDecoration Dots(Brush ink)
+    {
+        var pen = new Pen(ink, 1) { DashStyle = new DashStyle([1, 2], 0) };
+        pen.Freeze();
+
+        return new TextDecoration { Location = TextDecorationLocation.Underline, Pen = pen, PenOffset = 2 };
+    }
+}

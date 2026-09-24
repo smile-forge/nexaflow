@@ -22,6 +22,9 @@ public static class MermaidKinds
     /// </summary>
     public const string FrontMatter = "mermaid-front-matter";
 
+    /// <summary>What the front matter says about folding, hung on the diagram by <see cref="WithFolds"/> — written nowhere as one.</summary>
+    public const string Folds = "mermaid-folds";
+
     /// <summary>A <c>---</c> that opens or closes the front matter.</summary>
     public const string Fence = "mermaid-fence";
 

@@ -201,7 +201,7 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                     CornerRadius="6" Margin="16,8,16,8">
                 <Grid>
-                    <md:SelectableMarkdownView x:Name="MarkdownBody"
+                    <md:MarkdownSurface x:Name="MarkdownBody"
                                                Markdown="{Binding RenderedMarkdown}"
                                                FitContentToWidth="True"
                                                VerticalScrollBarVisibility="Auto"

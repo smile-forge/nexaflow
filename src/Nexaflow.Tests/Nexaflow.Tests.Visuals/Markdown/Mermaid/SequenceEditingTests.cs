@@ -15,14 +15,14 @@ public class SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInWhatAMessageSaysAndInANoteChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a sequence diagram's words are written in where the host takes edits");
 
             PressPast(diagram, "Hello");
-            Write(rtb, " John");
+            Write(editor, " John");
             PressPast(diagram, "they meet");
-            Write(rtb, " again");
+            Write(editor, " again");
 
             StringAssert.Contains(diagram.Source, ": Hello John", diagram.Source);
             StringAssert.Contains(diagram.Source, ": they meet again", diagram.Source);
@@ -32,10 +32,10 @@ public class SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void RenamingAParticipantCarriesToEveryLineThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Alice");
-            Write(rtb, "a");
+            Write(editor, "a");
 
             StringAssert.Contains(diagram.Source, "participant Alicea", diagram.Source);
             StringAssert.Contains(diagram.Source, "Alicea->>John", diagram.Source);
@@ -45,10 +45,10 @@ public class SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatWouldMakeANameAnArrowIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "John");
-            Write(rtb, ">");
+            Write(editor, ">");
 
             StringAssert.Contains(diagram.Source, "Alice->>John:", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("John>", StringComparison.Ordinal),
@@ -58,10 +58,10 @@ public class SequenceEditingTests : MermaidEditing
 
     [TestMethod]
     public void AHyphenGoesIntoANameBecauseItDoesNotEndOne() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "John");
-            Write(rtb, "-Doe");
+            Write(editor, "-Doe");
 
             StringAssert.Contains(diagram.Source, "Alice->>John-Doe:", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
 using Nexaflow.Visuals.Text.Editing;
@@ -48,47 +49,31 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// <summary>The widest a picture is read as a shape. A photograph holds the same silhouette at a tenth of the size.</summary>
     private const double StencilPixels = 480;
 
-    private readonly MarkdownPalette _palette;
-    private readonly double _room;
-    private readonly double _dpi;
-
+    
+    
     /// <summary>How a picture named by <c>mask:</c> is found, or null where there is nowhere to look.</summary>
-    private readonly Func<string, ImageSource?>? _pictures;
+    
 
     private WordCloudSettings _settings = WordCloudSettings.Default;
 
-    private WordCloudBuilder(ContentReading reading, MarkdownPalette palette, double room, double pixelsPerDip,
-                             Func<string, ImageSource?>? pictures)
-        : base(reading)
+    internal WordCloudBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly)
     {
-        _palette = palette;
-        _room = room;
-        _dpi = pixelsPerDip;
-        _pictures = pictures;
+    
+    
+    
     }
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(string source, MarkdownPalette palette, double room, double pixelsPerDip,
-                             Func<string, ImageSource?>? pictures = null, int at = 0) =>
-        new WordCloudBuilder(ContentReading.Of(WordCloudParser.Parse(source), at), palette, room, pixelsPerDip, pictures).Lay();
+    /// <param name="after">What the host runs over the tree once it is read — a picture found, say. Null for nothing.</param>
+    internal static Laid Lay(string source, StyleFormat style, double room,
+                             Nexaflow.Markdown.Pipeline.AstPipeline? after = null, int at = 0)
+    {
+        var tree = WordCloudParser.Parse(source);
 
-    /// <summary>
-    /// The element a cloud is shown in. Editable, because the words in it are words somebody typed — unlike a
-    /// 2D code, where everything drawn was worked out from what was typed and none of it can be typed back
-    /// into.
-    /// </summary>
-    public static Editing.ContentElement Element(string source, DiagramRenderOptions options) =>
-        new Editing.ContentElement(source, options.Palette,
-            (state, room, pixelsPerDip) => Build(state.Source, options.Palette, room, pixelsPerDip, options.Pictures))
-        {
-            // Where the block's lines sit inside the fence that produced them, so an edit to a word is
-            // spliced back where it came from rather than a couple of lines early.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 6, 0, 10),
-        };
+        return new WordCloudBuilder(ContentReading.Of(after is null ? tree : after.Run(tree), at),
+                                    EditState.For(source), style, isReadOnly: true).Lay(room);
+    }
 
     protected override Laid? Build()
     {
@@ -97,7 +82,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
         _settings = chart!.Settings;
 
         var colours = new WordCloudRandom(_settings.Seed + 2);
-        if (!WordCloudInk.TryRead(_settings, _palette, colours, out var ink, out error)) return Stopped(error!);
+        if (!WordCloudInk.TryRead(_settings, Style, colours, out var ink, out error)) return Stopped(error!);
         if (!WordCloudInk.TryBackground(_settings, out var background, out error)) return Stopped(error!);
 
         if (chart.Words.Count == 0)
@@ -127,7 +112,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     private Laid Lay(WordCloudChart chart, WordCloudInk ink, Brush? background)
     {
-        var (room, fall) = SettingRoom.Fit(_settings.Width, _settings.Height, _room,
+        var (room, fall) = SettingRoom.Fit(_settings.Width, _settings.Height, Room,
                                                   WordCloudSettings.HeightShare);
 
         var stencil = Stencil(room, fall, out var lost);
@@ -267,31 +252,27 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     /// <summary>A picture's silhouette: the opaque part if it has transparency, else the dark part — covers
     /// every mask anybody actually draws, with no setting needed to pick between them.</summary>
+    /// <summary>
+    /// The shape a <c>mask:</c> stands for. The picture itself was found before this ever ran and hung under the
+    /// setting that named it (<see cref="Stages.WithPictures"/>), so nothing here goes looking for one: a block
+    /// drawn with no document to look in has nothing hung there, and says so.
+    /// </summary>
     private WordCloudStencil? FromPicture(string named, out string? trouble)
     {
         trouble = null;
 
-        if (_pictures is null)
+        var found = Reading.Root.SelfAndDescendants()
+                           .Select(part => part.Node.HeldAs(Stages.WithPictures.Picture))
+                           .OfType<BitmapSource>()
+                           .FirstOrDefault();
+
+        if (found is null)
         {
-            trouble = $"`mask: {named}` cannot be looked for here — this block was rendered with no document to find it beside.";
+            trouble = $"There is no picture at `{named}` — or this block was drawn with no document to find it beside.";
             return null;
         }
 
-        BitmapSource? picture;
-        try
-        {
-            picture = _pictures(named) as BitmapSource;
-        }
-        catch
-        {
-            picture = null;
-        }
-
-        if (picture is null)
-        {
-            trouble = $"There is no picture at `{named}`.";
-            return null;
-        }
+        var picture = found;
 
         // Downscaled: the silhouette is the same at a tenth of the size, and a full photo is too many cells.
         if (picture.PixelWidth > StencilPixels)
@@ -373,11 +354,10 @@ internal sealed class WordCloudBuilder : ContentBuilder
         new(word,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(new FontFamily(_settings.Font), FontStyles.Normal,
-                         _settings.Bold ? FontWeights.Bold : FontWeights.Normal, FontStretches.Normal),
+            Style.Face(Typefaces.Family(_settings.Font), _settings.Bold ? FontWeights.Bold : FontWeights.Normal),
             size,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 
     private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) =>
         new(part.Start, Math.Max(part.Length, 1), severity, reason);
@@ -385,14 +365,14 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// <summary>Shows the block as-typed with the error above it, for a block that isn't a cloud at all.</summary>
     private Laid Stopped(string reason) =>
         LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source),
-                         [new Diagnostic(0, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)]);
+                         [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)], At);
 
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Brushes.Black,
-            _dpi);
+            Editing.LayoutText.Density);
 }

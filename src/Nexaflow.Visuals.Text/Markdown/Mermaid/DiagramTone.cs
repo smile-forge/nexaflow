@@ -21,7 +21,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// </para>
 /// </summary>
 /// <param name="bands">The colour of each band, deepest first.</param>
-internal sealed class DiagramTone(MarkdownPalette palette, IReadOnlyList<Brush> bands)
+internal sealed class DiagramTone(StyleFormat palette, IReadOnlyList<Brush> bands)
 {
     /// <summary>Near-black and near-white card ink. Not quite pure, so a card never out-contrasts the page it sits on.</summary>
     private static readonly Brush Dark = DiagramColour.Frozen(Color.FromRgb(0x14, 0x16, 0x1C));
@@ -60,7 +60,7 @@ internal sealed class DiagramTone(MarkdownPalette palette, IReadOnlyList<Brush> 
     /// A band of the theme's accent: under one darkens it, over one lightens it toward white. This is how a diagram makes a
     /// grading that follows the theme — the numbers are the diagram's, since what the levels are is the diagram's.
     /// </summary>
-    public static Brush Shaded(MarkdownPalette palette, double factor) =>
+    public static Brush Shaded(StyleFormat palette, double factor) =>
         DiagramColour.Frozen(Scaled(DiagramColour.ColorOf(palette.Accent, Colors.SteelBlue), factor));
 
     /// <summary>Softer ink for a second line on a card — its own, tinted. Translucent, so it settles against its fill.</summary>

@@ -7,6 +7,8 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
+using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
@@ -44,7 +46,7 @@ public class SelectionWashTests
                 .OrderBy(r => r.Width * r.Height)
                 .First();
 
-            var letter = formula.Latex.Substring(offset, 1);
+            var letter = formula.Source.Substring(offset, 1);
             Assert.IsTrue(wash.Width < formula.RenderSize.Width,
                 $"'{letter}': the wash marks the letter, not the formula");
             Assert.IsTrue(wash.Left < glyph.Bounds.Left && wash.Right > glyph.Bounds.Right,
@@ -55,16 +57,16 @@ public class SelectionWashTests
     });
 
     /// <summary>A formula laid out and measured, so it has a render size to draw into.</summary>
-    private static FormulaElement Measured(string latex)
+    private static ContentElement Measured(string latex)
     {
-        var formula = new FormulaElement(latex, MarkdownPalette.Dark, 22);
+        var formula = Alone.Drawn("latex", latex, new DiagramRenderOptions { Palette = StyleFormat.Dark with { TextSize = 22 }, ReadOnly = false });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
         return formula;
     }
 
     /// <summary>The box of every shape the element painted, in its own coordinates.</summary>
-    private static IEnumerable<Rect> RectanglesDrawnBy(FormulaElement formula)
+    private static IEnumerable<Rect> RectanglesDrawnBy(ContentElement formula)
     {
         formula.InvalidateVisual();
         formula.UpdateLayout();

@@ -1,5 +1,6 @@
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
@@ -14,7 +15,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// </summary>
 /// <param name="source">The block, for the front matter — which is where a node's own name for the host is written.</param>
-internal sealed class DiagramActions(DiagramRenderOptions options, string source) : ILayoutActions
+/// <param name="view">This diagram's own state, where whatever shows it keeps one per diagram.</param>
+internal sealed class DiagramActions(DiagramRenderOptions options, DiagramViewState? view = null) : ILayoutActions
 {
     /// <summary>
     /// Where what the reader opens and folds is kept: the host's, where it keeps one, and this element's own where it
@@ -25,7 +27,7 @@ internal sealed class DiagramActions(DiagramRenderOptions options, string source
     /// so there is always somewhere to write the opening down, even if it lives only as long as the element does.
     /// </para>
     /// </summary>
-    public DiagramViewState View { get; } = options.ViewState ?? new DiagramViewState();
+    public DiagramViewState View { get; } = view ?? options.ViewState ?? new DiagramViewState();
 
     /// <summary>The element the diagram is shown in, once there is one: what a verb answered here redraws.</summary>
     public Editing.ContentElement? Shown { get; set; }
@@ -58,13 +60,25 @@ internal sealed class DiagramActions(DiagramRenderOptions options, string source
     {
         if (act.Intent.Target is not { Length: > 0 } id) return true;
 
-        var key = NexaflowConfig.Read(MermaidBlock.Read(source).Config).KeyFor(id);
+        var key = Folds(act).KeyFor(id);
         View.Expansion[key] = open;
 
         if (options.OnExpand?.Invoke(new DiagramExpandRequest(id, key, act.Intent.Tip ?? id, open)) == true) return true;
 
         Shown?.Refresh();
         return true;
+    }
+
+    /// <summary>
+    /// What the diagram pressed in is folded by: what its reading hung on it, found up the syntax tree from the piece
+    /// pressed — the same the drawing was made with, so the opening is kept under the key the drawing looks it up by.
+    /// </summary>
+    private static NexaflowConfig Folds(LayoutAct act)
+    {
+        for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
+            if (piece.Part is ContentPart part && WithFolds.Holding(part) is { } folds) return folds;
+
+        return NexaflowConfig.None;
     }
 
     /// <summary>

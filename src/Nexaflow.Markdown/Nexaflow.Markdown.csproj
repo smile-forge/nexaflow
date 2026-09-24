@@ -24,4 +24,14 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
+  <!--
+    The one reading of markdown's own syntax. Where one construct stops and the next begins has a standard
+    answer with a decade of corner cases behind it, and no version of that is worth writing twice — so it is
+    asked once and every surface draws the same answer. Only the spans are taken; the characters are cut out
+    of the source, which is what keeps the parser copying.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.3.2" />
+  </ItemGroup>
+
 </Project>

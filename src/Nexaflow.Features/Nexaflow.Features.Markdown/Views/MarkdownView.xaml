@@ -276,10 +276,11 @@
 
                 <!-- Rendered markdown with inline editing. The reading inset is ContentPadding, not a Margin,
                      so the editor's scrollbar sits flush against the minimap (a right margin would gap it). -->
-                <md:InlineMarkdownEditor x:Name="Editor"
+                <md:MarkdownSurface x:Name="Editor"
                                          Grid.Column="2"
                                          ContentPadding="40,24,40,48"
-                                         EditOnDoubleClick="True"
+                                         IsReadOnly="False"
+                                         VerticalScrollBarVisibility="Auto"
                                          BaseFontSize="{Binding Zoom.FontSize}"
                                          AutomationProperties.AutomationId="Markdown_Editor"
                                          Visibility="{Binding ShowRendered, Converter={StaticResource BoolVis}}"

@@ -120,7 +120,7 @@
          one another — pie / chart series, status buckets, category dots — rather than the theme's
          chrome/accent tones (which are close together by design). Distinctness is the whole point: a
          theme may re-tune the bank tonally (deeper for light surfaces, brighter on dark glass) but the
-         hues must stay separable. Mirrors the hardcoded post-it / MarkdownPalette.Series banks, but as
+         hues must stay separable. Mirrors the hardcoded post-it / StyleFormat.Series banks, but as
          overridable theme resources. Consumers bind these brushes directly. -->
     <SolidColorBrush x:Key="Swatch.Blue"   Color="#4F8EF7"/>
     <SolidColorBrush x:Key="Swatch.Red"    Color="#FF6B6B"/>

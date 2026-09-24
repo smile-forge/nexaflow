@@ -758,19 +758,19 @@ public class WordCloudFigureWriter
 
         UiThread.Run(() =>
         {
-            Write(Path.Combine(folder, "wordcloud.png"), Figure, MarkdownPalette.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "wordcloud-shapes.png"), Shaped, MarkdownPalette.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "wordcloud-letters.png"), Lettered, MarkdownPalette.Light, Brushes.White, 900);
+            Write(Path.Combine(folder, "wordcloud.png"), Figure, StyleFormat.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "wordcloud-shapes.png"), Shaped, StyleFormat.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "wordcloud-letters.png"), Lettered, StyleFormat.Light, Brushes.White, 900);
         });
     }
 
-    private static void Write(string path, string source, MarkdownPalette palette, Brush ground, double width)
+    private static void Write(string path, string source, StyleFormat palette, Brush ground, double width)
     {
         var host = new Border
         {
             Background = ground,
             Padding = new Thickness(16),
-            Child = WordCloudBuilder.Element(source, DiagramRenderOptions.For(palette)),
+            Child = Alone.Drawn("wordcloud", source, palette),
         };
 
         host.Measure(new Size(width, double.PositiveInfinity));

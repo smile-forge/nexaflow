@@ -47,6 +47,10 @@ public static class LayoutQuery
         var on = false;
         var near = false;
 
+        // Inside a card another language drew on, only what is on the card says whether the pointer is over writing: the page
+        // round it has nothing to say about a diagram's empty corner.
+        var card = Card(root, point);
+
         foreach (var (piece, where) in root.Placed())
         {
             if (where.Width <= 0 || where.Height <= 0) continue;
@@ -55,7 +59,7 @@ public static class LayoutQuery
             // is inside the writing. A diagram is not one: its lines are, and the card they are drawn on takes no caret.
             if (!piece.IsLeaf)
             {
-                near |= piece.Part is { Length: > 0 } && piece.Stops != Stops.None
+                near |= piece.Part is { Length: > 0 } && piece.Stops != Stops.None && (!card.Exists || Within(piece, card))
                         && point.X >= where.Left - reach && point.X <= where.Right + reach
                         && point.Y >= where.Top && point.Y <= where.Bottom;
                 continue;
@@ -82,6 +86,27 @@ public static class LayoutQuery
         }
 
         return near && !on;
+    }
+
+    /// <summary>The innermost card under a point: a piece standing for something written that takes no caret itself.</summary>
+    private static Piece Card(Piece root, Point point)
+    {
+        var card = default(Piece);
+
+        foreach (var (piece, where) in root.Placed())
+            if (!piece.IsLeaf && piece.Stops == Stops.None && piece.Part is { Length: > 0 } && where.Contains(point))
+                card = piece;
+
+        return card;
+    }
+
+    /// <summary>Whether a piece is the card or inside it.</summary>
+    private static bool Within(Piece piece, Piece card)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+            if (at == card) return true;
+
+        return false;
     }
 
     /// <summary>

@@ -35,7 +35,7 @@ public class ContentWordsTests
     /// The number set to two decimal places, unless it is being shown as written — which is the whole of what a
     /// formatter is — and a letter beside it that always reads as itself.
     /// </summary>
-    private static Laid Lay(EditState state, double pixelsPerDip)
+    private static Laid Lay(EditState state)
     {
         var written = state.Raw is { } zone && zone.Start == Number.Start && zone.End == Number.End();
         var number = written
@@ -46,8 +46,8 @@ public class ContentWordsTests
         build.Open("row", new SourceSpan(0, state.Source.Length));
 
         // A formatted view of its own source: pressing it shows what was written, which is what `writes` says.
-        LayoutText.Words(build, Set(number, pixelsPerDip), default, 400, TextAlignment.Left, Number, "value", written, writes: true);
-        LayoutText.Words(build, Set("x", pixelsPerDip), new Point(200, 0), 400, TextAlignment.Left, Letter, "letter");
+        LayoutText.Words(build, Set(number), default, 400, TextAlignment.Left, Number, "value", written, writes: true);
+        LayoutText.Words(build, Set("x"), new Point(200, 0), 400, TextAlignment.Left, Letter, "letter");
 
         build.Close();
 
@@ -55,13 +55,13 @@ public class ContentWordsTests
         return new Laid(tree, tree.Root.Bounds.Size, []);
     }
 
-    private static FormattedText Set(string text, double pixelsPerDip) =>
+    private static FormattedText Set(string text) =>
         new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 12, Brushes.Black, pixelsPerDip);
+            new Typeface("Segoe UI"), 12, Brushes.Black);
 
     private static ContentElement Element(bool readOnly = false)
     {
-        var element = new ContentElement(Source, MarkdownPalette.Dark, (state, _, pixelsPerDip) => Lay(state, pixelsPerDip))
+        var element = new ContentElement(Source, StyleFormat.Dark, (state, _) => Lay(state))
         {
             IsReadOnly = readOnly,
         };

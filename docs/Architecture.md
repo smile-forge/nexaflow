@@ -226,7 +226,7 @@ Non-contract UI shared across features and Core. Features may reference these (t
 | Assembly | Holds |
 |----------|-------|
 | `Nexaflow.Visuals.Common` | Reusable WPF controls (`PieChart`) and the value converters (`BoolToVisibilityConverter`, `InverseBoolToVisibilityConverter`, `NullToBoolConverter`, …) used in nearly every feature view; and the UI-string seam, `Localization/` — `Str.Get` / `{loc:Str Key}`, whose source Core sets at startup ([localization.md](localization.md)); and `Locate/` — the `locate:` link scheme and the animated lasso it throws round a control on screen |
-| `Nexaflow.Visuals.Text` | Markdown rendering: `MarkdownView` / `SelectableMarkdownView` (copy-aware) over `MarkdownFlowDocument` + `BlockRenderer`, plus Mermaid `DiagramRenderer`. Used by Core's `AiResponseOverlay` and AIChat's `ConversationView` |
+| `Nexaflow.Visuals.Text` | Markdown, shown and written in: `MarkdownSurface` — read-only or not, a document or one block of a language — draws the whole document on one element over the shared layout tree. Every markdown host uses it, from AIChat's `ConversationView` to the Markdown page and the Solver's formula field |
 
 **Theme/styles:** application brushes **and** shared control styles live in the app-merged `Nexaflow.Core/Themes/Styles.xaml`. Feature XAML references them by `{StaticResource <key>}` — there is no assembly reference; the lookup resolves up the tree to `Application.Resources`. Define a shared style there once rather than copy-pasting per view.
 

@@ -1,7 +1,11 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Markdown.ViewModels;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -29,12 +33,8 @@ public partial class MarkdownView : UserControl, IPageView
         // Resolve relative ![](img.png) images against the file's own folder.
         Editor.BaseDirectory = Path.GetDirectoryName(viewModel.FilePath);
 
-        // A rendered block's own toolbar: its picture, as it is shown on the page, copied or saved.
-        Editor.BlockActions =
-        [
-            new BlockAction("Copy", "Markdown_BlockCopyPicture", CopyPicture) { ToolTip = "Copy as a picture" },
-            new BlockAction("Save", "Markdown_BlockSavePicture", block => _ = SavePictureAsync(block)) { ToolTip = "Save as a PNG picture" },
-        ];
+        // What a block's corner offers to save: its picture, as it is shown on the page, kept where the reader says.
+        Editor.Host = new PictureKeeper(this);
 
         // Lay the surfaces out for the mode chosen, and move focus to whichever one that reveals.
         viewModel.PropertyChanged += OnViewModelChanged;
@@ -80,20 +80,30 @@ public partial class MarkdownView : UserControl, IPageView
     /// <summary>What a block's picture is drawn on: the page it is shown on, so it reads the same wherever it is pasted.</summary>
     private Brush Ground => (Brush)FindResource("BgBrush");
 
-    /// <summary>A block's picture onto the clipboard — as a picture, and as a PNG for whatever reads one.</summary>
-    private void CopyPicture(RenderedBlock block)
+    /// <summary>
+    /// What the Markdown page answers when a block's corner asks for its picture to be kept: the block as it is on the page,
+    /// drawn on the page's own ground so it reads the same wherever it is opened, and saved as a PNG named for its language.
+    /// </summary>
+    private sealed class PictureKeeper(MarkdownView view) : ILayoutActions
     {
-        var picture = block.Picture(Ground);
+        public bool Invoke(LayoutAct act)
+        {
+            if (act.Intent.Verb != LayoutVerbs.Save || act.Node is not { } block) return false;
+            if (view.Editor.Picture(block, view.Ground) is not { } picture) return false;
 
-        var data = new DataObject();
-        data.SetImage(picture);
-        data.SetData("PNG", new MemoryStream(Png(picture)));
+            _ = view.ViewModel.SavePictureAsync(Png(picture), Language(block));
 
-        try { Clipboard.SetDataObject(data, copy: true); }
-        catch (COMException) { /* the clipboard is held by something else for the moment; pressing again will do */ }
+            return true;
+        }
+
+        public IReadOnlyList<LayoutIntent> Menu(LayoutAct act) => [];
+
+        /// <summary>What the block is written in, for the file's name: a fence's word, or maths for a formula.</summary>
+        private static string? Language(ContentPart block) =>
+            block.Part(Roles.Name)?.Print().Trim() is { Length: > 0 } named ? named
+            : block.Kind is MarkdownKinds.Math ? "latex"
+            : null;
     }
-
-    private Task SavePictureAsync(RenderedBlock block) => ViewModel.SavePictureAsync(Png(block.Picture(Ground)), block.Language);
 
     private static byte[] Png(BitmapSource picture)
     {

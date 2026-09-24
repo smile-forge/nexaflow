@@ -31,19 +31,17 @@ public class QrBuilderTests
     [TestMethod]
     public void QrIsADiagramLanguage()
     {
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("qr"));
-        Assert.IsTrue(DiagramRenderer.IsDiagramLanguage("QR"));
-        Assert.IsFalse(DiagramRenderer.IsDiagramLanguage("qrcode"));
+        Assert.IsTrue(ContentLanguages.Reads("qr"));
+        Assert.IsTrue(ContentLanguages.Reads("QR"));
+        Assert.IsFalse(ContentLanguages.Reads("qrcode"));
     }
 
     [TestMethod]
-    public void DispatchesThroughDiagramRenderer_ToContentThatCannotBeEdited() => UiThread.Run(() =>
+    public void AQrFenceIsDrawnByItsLanguageWithNowhereInItToWrite() => UiThread.Run(() =>
     {
-        var element = DiagramRenderer.Render("qr", Source, MarkdownPalette.Dark);
+        var element = Alone.Drawn("qr", Source, StyleFormat.Dark);
 
         var content = (ContentElement)element;
-        Assert.IsTrue(content.IsReadOnly);
-
         content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Assert.IsFalse(content.AcceptsCaret, "nothing drawn is anything typed, so the caret arrows over it");
         Assert.AreEqual(0, content.Diagnostics.Count);
@@ -66,7 +64,7 @@ public class QrBuilderTests
         // The palette's QR tokens rather than its text and surface brushes: a code that follows the theme onto a
         // dark background stops being scannable.
         var themed = Build(Source);
-        Assert.AreEqual(((SolidColorBrush)MarkdownPalette.Dark.QrLight).Color,
+        Assert.AreEqual(((SolidColorBrush)StyleFormat.Dark.QrLight).Color,
                         ((SolidColorBrush)MatrixLayouts.Ground(themed).Foreground!).Color);
 
         var overridden = Build($"{Source}\ndark: #123456\nlight: #fedcba");
@@ -139,7 +137,7 @@ public class QrBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => QrBuilder.Build(source, MarkdownPalette.Dark, 1.0);
+    private static Laid Build(string source) => QrBuilder.Lay(source, StyleFormat.Dark);
 
     private static QrMatrix Encoded(string source)
     {

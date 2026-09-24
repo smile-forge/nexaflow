@@ -1,60 +1,88 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Plot;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Chemistry;
-using Nexaflow.Visuals.Text.Markdown.Latex;
-using Nexaflow.Visuals.Text.Markdown.Mermaid;
-using Nexaflow.Visuals.Text.Markdown.Music.Abc;
-using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
-using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Visuals.Text.Markdown.Languages;
+using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// The languages that can be drawn <em>inside</em> another one's content — a tune on a flowchart node, a molecule in
-/// a song's lyrics, a barcode in a formula. Nothing here is about any one of them: a language is a name, a parser and
-/// a builder, and what holds it only has to know it found one.
+/// Every language a fence can be written in — the one table, and the only one.
 ///
 /// <para>
-/// A parallel table to <see cref="DiagramRenderer"/>'s, and deliberately so: that one hands back a
-/// <c>FrameworkElement</c>, which is a thing to put in a document and not a thing to put inside a drawing. This hands
-/// back a <see cref="Laid"/> — pieces and marks, which graft straight into the tree being built.
+/// A language is a name, a parser, a pipeline, a builder and the rules for writing into the result
+/// (<see cref="IContentLanguage"/>), and whatever holds one only has to know it found one. That is true
+/// wherever a fence appears: a block of a document, a label on a flowchart node, a caption under a picture.
+/// One table answers all of them, so a language added once is drawn everywhere.
 /// </para>
 /// <para>
-/// The inner content goes through its own parse, its own pipeline and its own builder, exactly as it would if nothing
-/// held it; the only thing it is told is where it was written, so every part of it names the characters a reader is
-/// selecting in the document that holds it.
+/// The ones that ship are registered here. A feature brings its own by implementing
+/// <see cref="IContentLanguage"/>, which is found at assembly load like every other contributed contract and
+/// registered through <see cref="Register"/> — so a feature that wants its own notation drawn in markdown
+/// writes a parser and a builder and nothing else.
 /// </para>
 /// </summary>
-internal static class ContentLanguages
+public static class ContentLanguages
 {
+    private static readonly List<IContentLanguage> Known =
+    [
+        new MermaidLanguage(),
+        new NomnomlLanguage(),
+        new QrLanguage(),
+        new BarcodeLanguage(),
+        new MusicLanguage(MusicDialect.Abc),
+        new MusicLanguage(MusicDialect.LilyPond),
+        new DataMatrixLanguage(),
+        new Pdf417Language(),
+        new AztecLanguage(),
+        new SmilesLanguage(),
+        new LatexLanguage(),
+        new WordCloudLanguage(),
+        new PlotLanguage(PlotFence.Scatter),
+        new PlotLanguage(PlotFence.Bubble),
+        new PlotLanguage(PlotFence.Heatmap),
+        new PlotLanguage(PlotFence.Density2d),
+
+        // Last, and deliberately. It answers to dozens of words, so a fence calling itself something a
+        // language of its own already claims must reach that one first.
+        new CodeLanguage(),
+    ];
+
+    private static readonly Lock Adding = new();
+
     /// <summary>
-    /// That content laid out where it was written — or null for a language nothing here draws, which leaves the
-    /// characters to be drawn as the characters they are.
+    /// Adds a language, or replaces one already registered under a name it answers to.
+    ///
+    /// <para>
+    /// Last in wins, which is what lets a host override a language that ships — and means a feature
+    /// registering one nobody else claims is simply added.
+    /// </para>
     /// </summary>
-    public static Laid? Lay(ContentLink link, MarkdownPalette palette, double pixelsPerDip, double room) =>
-        link.Language.ToLowerInvariant() switch
+    public static void Register(IContentLanguage language)
+    {
+        ArgumentNullException.ThrowIfNull(language);
+
+        lock (Adding)
         {
-            "abc" => AbcBuilder.Build(link.Source, Room(room), palette.Text, pixelsPerDip, at: link.At),
-            "lilypond" or "ly" => LilyPondBuilder.Build(link.Source, Room(room), palette.Text, pixelsPerDip, at: link.At),
-            "latex" or "math" or "tex" => LatexBuilder.Build(link.Source, 1.0, pixelsPerDip: pixelsPerDip, at: link.At),
-            "smiles" => SmilesBuilder.Build(link.Source, palette, pixelsPerDip, room, at: link.At),
-            "qr" => QrBuilder.Build(link.Source, palette, pixelsPerDip),
-            "mermaid" => MermaidBuilders.Lay(link.Source, palette, pixelsPerDip, room, at: link.At),
-            _ => null,
-        };
+            Known.Insert(0, language);
+        }
+    }
 
-    /// <summary>
-    /// The content a part is a whole block of, laid out to be set down where its words would have gone — or null
-    /// where the part is words and nothing more.
-    /// </summary>
-    public static ContentInset? Inset(ContentPart? part, MarkdownPalette palette, double pixelsPerDip, double room) =>
-        ContentLink.Of(part) is { } link && Lay(link, palette, pixelsPerDip, room) is { Exists: true } laid
-            ? new ContentInset(laid)
-            : null;
+    /// <summary>Whether anything here draws a fence calling itself <paramref name="language"/>.</summary>
+    public static bool Reads(string? language) => For(language) is not null;
 
-    /// <summary>A width to engrave against, since a score set to infinity has nowhere to break.</summary>
-    private const double Widest = 420;
+    /// <summary>What draws it, or null where nothing does.</summary>
+    public static IContentLanguage? For(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language)) return null;
 
-    private static double Room(double room) => double.IsFinite(room) && room > 0 ? Math.Min(room, Widest) : Widest;
+        lock (Adding)
+        {
+            return Known.FirstOrDefault(known => known.Reads(language));
+        }
+    }
 }

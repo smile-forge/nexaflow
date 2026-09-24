@@ -47,7 +47,7 @@ public class GitBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 900) =>
-        GitBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        new GitBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     [TestMethod]
     public void EveryCommitIsDrawnAlongTheLaneOfTheBranchItIsMadeOn() => UiThread.Run(() =>

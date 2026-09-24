@@ -110,7 +110,7 @@ Each stage stands on its own and leaves the app working.
    (`IsBraced`, `IsOneToken`, `EndsWithControlWord`, `Separated`, `Place`, `ArgumentAt`). A matrix's
    rows and columns were reordered the same way, by `TexEdit.Rows` and `TexEdit.Columns`.
 
-   Nothing calls it now — typing into a formula is `LatexContent`'s on-edit handler, and the matrix drag
+   Nothing calls it now — typing into a formula is the shared edit handling with `LatexEdits` as its hook, and the matrix drag
    it served is gone — so it was deleted, with `TexWrite`, when the reader moved onto the shared tree. A
    structured edit, when one is wanted again, is written against `ContentNode` and returns the shared
    `AstWrite`, as ABC's `AbcEdit` does.

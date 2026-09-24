@@ -46,7 +46,7 @@ public class XyBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700, bool writing = false) =>
-        XyBuilder.Build(MermaidBuilders.Read(source, holes: writing), new DiagramLaying(MarkdownPalette.Dark, 1.0, room, writing));
+        new XyBuilder(MermaidBuilders.Read(source, holes: writing), EditState.For(source), StyleFormat.Dark, isReadOnly: !writing).Lay(room);
 
     [TestMethod]
     public void EveryValueOfABarSeriesIsABarStandingForTheValueWritten() => UiThread.Run(() =>

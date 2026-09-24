@@ -100,7 +100,7 @@
         </StackPanel>
 
         <!-- ── The help page: read-only, and it scrolls itself (the search moves its viewport, so never nest it in a ScrollViewer) ── -->
-        <md:SelectableMarkdownView Grid.Row="2" x:Name="Doc"
+        <md:MarkdownSurface Grid.Row="2" x:Name="Doc"
                                    AutomationProperties.AutomationId="Help_Document"
                                    Margin="16,8,8,8"
                                    VerticalScrollBarVisibility="Auto"

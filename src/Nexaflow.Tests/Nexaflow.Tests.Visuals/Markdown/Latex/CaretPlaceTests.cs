@@ -155,7 +155,7 @@ public class CaretPlaceTests
 
     private static Laid Laid(string latex)
     {
-        var laid = LatexBuilder.Build(latex, 22);
+        var laid = LatexBuilder.Lay(latex, 22);
         Assert.IsNotNull(laid, latex);
         Assert.IsTrue(laid.Places.Count > 0, "a formula a caret can be in has somewhere to stand: " + latex);
         return laid;

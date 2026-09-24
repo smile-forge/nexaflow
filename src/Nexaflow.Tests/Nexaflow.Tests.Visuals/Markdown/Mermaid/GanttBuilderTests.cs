@@ -40,7 +40,7 @@ public class GanttBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        GanttBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        new GanttBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     private static string Task(string source, Piece piece) => Written(source, piece.Part).Split(':')[0].Trim();
 

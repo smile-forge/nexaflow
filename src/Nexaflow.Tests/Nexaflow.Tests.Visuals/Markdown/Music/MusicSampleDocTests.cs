@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -27,11 +28,11 @@ public class MusicSampleDocTests
     [TestMethod]
     [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Build(ly, 900, Brushes.Black, 1.0)));
+        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Lay(ly, 900, StyleFormat.Light)));
 
     [TestMethod]
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-abc.md", abc => AbcBuilder.Build(abc, 900, Brushes.Black, 1.0)));
+        AssertDoc("music-abc.md", abc => AbcBuilder.Lay(abc, 900, StyleFormat.Light)));
 
     private static void AssertDoc(string file, Func<string, Laid> build)
     {
@@ -56,7 +57,7 @@ public class MusicSampleDocTests
             Assert.Fail($"{file}:{Environment.NewLine}  " + string.Join(Environment.NewLine + "  ", broken));
     }
 
-    /// <summary>Every <c>#% … #%</c> block and every fenced block in a sample doc, flagged with whether it sits
+    /// <summary>Every fenced block in a sample doc, flagged with whether it sits
     /// above the "## songs" heading (and so is part of the coverage showcase rather than a real-world tune).</summary>
     private static List<(string Source, bool Features)> Blocks(string markdown)
     {
@@ -68,13 +69,11 @@ public class MusicSampleDocTests
         {
             if (lines[i].StartsWith("## songs", StringComparison.OrdinalIgnoreCase)) features = false;
 
-            // Either fence: the older `#%lilypond … #%`, or a ```abc code fence. A line that is only the
-            // closing mark is a closer with no opener above it, and is skipped.
+            // A line that is only the closing mark is a closer with no opener above it, and is skipped.
             var opener = lines[i].Trim();
-            var close = opener.StartsWith("#%", StringComparison.Ordinal) && opener != "#%" ? "#%"
-                      : opener.StartsWith("```", StringComparison.Ordinal) && opener != "```" ? "```"
-                      : null;
-            if (close is null) continue;
+            if (!opener.StartsWith("```", StringComparison.Ordinal) || opener == "```") continue;
+
+            const string close = "```";
 
             int end = i + 1;
             while (end < lines.Length && lines[end].Trim() != close) end++;

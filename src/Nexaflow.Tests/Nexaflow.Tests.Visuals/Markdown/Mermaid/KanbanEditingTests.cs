@@ -27,23 +27,23 @@ public class KanbanEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInAColumnsTitleAndOnEachLineOfAWrappedCardTitleChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, chart) =>
+        InADocument((editor, chart) =>
         {
             Assert.IsFalse(chart.IsReadOnly, "a kanban board's words are written in");
 
             PressPast(chart, "Todo");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(chart, "Done");
-            Write(rtb, "!");
+            Write(editor, "!");
 
             // The card's title wraps: a press at the end of its first line and at the end of its last each write there.
             PressPast(chart, "Create");
-            Write(rtb, "X");
+            Write(editor, "X");
             var lines = chart.Laid.Root.SelfAndDescendants().Where(piece => piece is { Kind: "Title", Words.Maps: true } && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal) && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal)).ToList();
             Assert.IsTrue(lines.Count > 1, "the card's title wraps");
             chart.BeginPointerSelect(new Point(lines[^1].Bounds.Right - 1, lines[^1].Bounds.Y + (lines[^1].Bounds.Height / 2)));
             chart.EndPointerSelect();
-            Write(rtb, "?");
+            Write(editor, "?");
 
             var title = chart.Source[(chart.Source.IndexOf("id4[", StringComparison.Ordinal) + 4)..chart.Source.IndexOf(']', chart.Source.IndexOf("id4[", StringComparison.Ordinal))];
             StringAssert.Contains(chart.Source, "  Todos\n", chart.Source);

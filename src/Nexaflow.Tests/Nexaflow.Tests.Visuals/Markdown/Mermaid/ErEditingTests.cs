@@ -19,14 +19,14 @@ public class ErEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInAnAttributeAndInWhatARelationshipIsCalledChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "an ER diagram's words are written in where the host takes edits");
 
             PressPast(diagram, "email");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "places");
-            Write(rtb, " an order for");
+            Write(editor, " an order for");
 
             StringAssert.Contains(diagram.Source, "string emails UK", diagram.Source);
             StringAssert.Contains(diagram.Source, ": places an order for", diagram.Source);
@@ -36,10 +36,10 @@ public class ErEditingTests : MermaidEditing
 
     [TestMethod]
     public void RenamingAnEntityCarriesToEveryRelationshipThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "CUSTOMER");
-            Write(rtb, "S");
+            Write(editor, "S");
 
             StringAssert.Contains(diagram.Source, "CUSTOMERS ||--o{ ORDER", diagram.Source);
             StringAssert.Contains(diagram.Source, "CUSTOMERS {", diagram.Source);
@@ -48,10 +48,10 @@ public class ErEditingTests : MermaidEditing
 
     [TestMethod]
     public void WhatABareNameCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "ORDER");
-            Write(rtb, "|");
+            Write(editor, "|");
 
             StringAssert.Contains(diagram.Source, "o{ ORDER :", diagram.Source);
             Assert.IsFalse(diagram.Source.Contains("ORDER|", StringComparison.Ordinal),

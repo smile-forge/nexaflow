@@ -191,8 +191,8 @@
                             <StackPanel Margin="0,14,0,0">
                                 <TextBlock Text="DESCRIPTION" Style="{StaticResource SectionLabel}"/>
                                 <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
-                                    <md:InlineMarkdownEditor Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             EditOnDoubleClick="False"/>
+                                    <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            />
                                 </Border>
                             </StackPanel>
 
@@ -389,8 +389,8 @@
                                         <StackPanel Margin="0,0,0,12">
                                             <TextBlock Text="DESCRIPTION" Style="{StaticResource SectionLabel}"/>
                                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" MinHeight="120" Padding="6">
-                                                <md:InlineMarkdownEditor Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                         EditOnDoubleClick="False"/>
+                                                <md:MarkdownSurface IsReadOnly="False" Markdown="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                        />
                                             </Border>
                                         </StackPanel>
 

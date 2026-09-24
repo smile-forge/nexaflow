@@ -26,12 +26,25 @@ constructor taking what was read, what is being written, the colours and whether
 capability that needs the tree changed is a stage rather than something a builder works out while drawing. The shape
 is held by `ContentBuilderRulesTests`.
 
+**A layout is at a standard size, in the content's own units.** Nothing in it knows the screen: text is measured at
+`LayoutText.Density`, and `ContentElement` scales the finished tree as it paints (`Zoom`, a transform on the drawing
+context, with pointer input divided back through `Unscaled`). So the same source and the same room give the same tree
+on any display, which is what makes a laid-out tree something a test can measure — and zooming costs a repaint rather
+than a re-lay.
+
+The one size that does reach a builder is the **room** it has, because where a line breaks is a layout decision and
+only what measures the text can make it. How big the content itself is set — a formula's text size, a score's staff
+size — is a fact about the content and reaches the builder as one.
+
 ## Where it lives
 
 `src/Nexaflow.Markdown/` — `net10.0`, no WPF, no dependencies.
 
 ```
 Ast/         ContentNode, ContentPart, ContentReading, ContentWords, ContentLink, ISourcePart, Roles, Kinds, AstWrite
+             — a node also carries what a stage worked out that is not text (ContentNode.Held): a picture a name
+             was resolved to, say. Untyped, because what a name resolves to is often something this assembly
+             could not name — an image is a WPF object and nothing here knows about WPF.
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles, Stages/WithBindings
 Binding/     IDataContext, ReflectionDataContext, BoundText — what a {{…}} is read against
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
@@ -88,8 +101,8 @@ naming it as their region and the styles styling it, and an item by a style nami
 grammar writes a name there, bare or in quotes. Only a name declared once is carried, and only onto one nothing else is
 declared as — two sets of one name, or a rename onto another's, are left alone rather than guessed at.
 
-**Shift and Ctrl choose as they do anywhere else.** The host hands a press the modifier keys held
-(`IInteractiveBlock.BeginPointerSelect(point, modifiers)`). Shift chooses from where the choosing started — the caret,
+**Shift and Ctrl choose as they do anywhere else.** A press is handed the modifier keys held
+(`ContentElement.BeginPointerSelect(point, modifiers)`). Shift chooses from where the choosing started — the caret,
 where nothing is chosen yet — to the press, as a drag there would; Ctrl adds what is pressed to what is chosen, or takes
 it back out. A selection of several stretches is what `EditState` already holds for a matrix's column.
 
@@ -98,14 +111,15 @@ the nearest row with somewhere to stand, then the line of that row nearest the o
 column — between two letters where that is a run. A fraction's numerator goes to its denominator past the bar; a
 legend's row goes to the row under it; a title goes into a legend beside the chart, and the legend's top row back up.
 
-**Undo takes an edit back where it was made.** An edit inside rendered content records where that content starts in
-its block and where the caret was before the key, and undoing it builds the document again with the caret back in
-the content — rather than opening the block's source, which is where an edit made in markdown goes back to.
+**Undo takes back a stretch of writing** (`EditHistory`, held by the surface). A step is the whole document as it
+stood, so taking one back is that document read again — an edit inside a diagram and an edit to a paragraph are the
+same thing to take back, and nothing has to know how to reverse either. Writing that carries on from where the last
+edit left the caret joins its step; putting the caret anywhere else starts the next, from where it was put.
 
 **The pointer is a bar only over what can be written in** (`LayoutQuery.Writable`): on a piece that takes a caret, or
 within half a letter's height of one, or inside a construct that is itself somewhere to write, such as a fraction. A
-wedge, a swatch, a worked-out share and the card a diagram is drawn on show an arrow. A block inside a text box never
-sees the pointer, so the host asks it (`IInteractiveBlock.PointerCursor`) after the text box has set its own.
+wedge, a swatch, a worked-out share and the card a diagram is drawn on show an arrow. Inside such a card only what is
+on it counts: the page round it has nothing to say about a diagram's empty corner.
 
 ## The tree owns its text
 
@@ -160,10 +174,157 @@ contents would move it somewhere it is not true.
 **Nothing is incremental.** An edit can put anything anywhere — a closing brace that reshapes everything
 after it, a bar line that re-bars a whole tune — so "is this edit contained in that piece" is not worth
 answering cheaply. The tree prints itself back and the whole pipeline runs again: one path, always taken,
-therefore always right.
+therefore always right. What is saved is the laying out, which is where the time goes — see *a block that reads as
+it did is laid as it was*, under Markdown.
 
 A parser is not a stage. What a name is shorthand for, and where one token stops and the next begins, are
 facts about the text that no later stage can change.
+
+## Markdown
+
+**A document is a list of blocks, and each block is its own content.** `MarkdownParser` says only where each
+block starts and which of them it is — Markdig decides the boundaries and nothing else, because where one
+block stops and the next begins is a question with a decade of corner cases behind it. What a block *holds*
+is settled by whoever reads that kind, when it is read (`WithBlocks`): a paragraph, a heading and a table
+cell by `MarkdownInline`, a quote's and an alert's body by the block reader again, a list by `MarkdownList`,
+a table by `MarkdownTable`. That is what lets a keystroke re-read one paragraph rather than a thousand-line
+file, and what lets a kind nothing can read yet be shown exactly as it was typed.
+
+**A fence is a delimiter, another language, and a delimiter**, and so is a formula: `$$ … $$` is the same
+shape with the language implied by the marks instead of written after them, and `$x$` is that shape again,
+small. So `MarkdownKinds.Math` and `MarkdownKinds.Formula` are read exactly as `MarkdownKinds.Fence` is —
+an opening token, a verbatim body, a closing token — and nothing downstream has a third case to learn.
+
+| Stage | What it works out |
+|---|---|
+| `WithBlocks` | what each block holds, read by the parser its kind names |
+| `WithNested` | which language reads what is written inside a piece, and how big it is set |
+| `WithDefinitions` | which blocks explain which term, gathered back into the pairs a definition list is |
+| `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
+| `WithLinks` | how this showing of the document wants each link to look |
+| `WithUnchanged` | which blocks read exactly as they did the last time the document was read |
+
+A reader is also asked, while it still knows, the things the characters do not say: which way a table's
+column is set, how many squares a cell covers, whether a cell holds blocks or a run of words, and which
+alphabet a list counts in — <c>i.</c> being the roman numeral one or the ninth letter depending on what
+stands above it. Each is hung on its node as a derived part, which draws and is not source.
+
+**A reading that learned nothing is not kept.** Some blocks read as themselves when read alone: the `:`
+line of a definition is a definition item, and a footer's line is a footer. `WithBlocks` compares what came
+back against what it handed over and keeps the source where they are the same, so nothing reads itself for
+ever — and `MarkdownParser.Inside` goes through a block that covers the whole of what it was given, because
+that block *is* the one being read rather than something inside it.
+
+**What a construct means is not always in its characters.** An abbreviation's meaning is written on a line
+of its own somewhere else in the document, and a block's words are read from the block's own source — so a
+definition three paragraphs up is not in front of the reader when the sentence is read. The word draws as
+itself and nothing is invented. Giving the block reader what the document already worked out is a change to
+the seam between the two, and it is the one thing markdown's own constructs do not yet reach.
+| `WithTokens` | what a grammar made of a stretch of code, where it has read one *(code fences)* |
+
+**`WithNested` hangs a language, never a picture.** It answers the one question a builder has no business
+asking — which of the languages the host assembled reads this — and hangs the answer on the node as a
+derived part (`ContentNesting`). It settles one more thing, because the tree is where facts about content
+live: **how big the content is set**. A formula on its own line is display maths and drawn half as big again
+as the words around it; one in the middle of a sentence is drawn at the size of the sentence. Neither is a
+fact about the room it lands in, which is the only size a builder is given.
+
+**The builder keeps every decision that was its.** By the time it sees the node the language is on it, and
+it asks for a `ContentInset` at a room *it* chose — so a fence in a narrow table cell and the same fence
+across the page are laid out differently, and the walk order, the placement and what has to sit around it
+never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
+still every piece it was drawn as and a drag across the page picks up its bars.
+
+**A whole document is one element, not one per block.** `MarkdownSurface` owns the scroller, what a search
+turned up and the buttons a block offers in its corner; `MarkdownElement` owns the tree, the caret and the
+selection. Because the prose, the diagrams and the tunes are all pieces of one laid tree, a drag runs from a
+word into a chart with nothing forwarding gestures between controls.
+
+**A block written as it was is read as it was.** A document being written is read by a reader kept for it
+(`MarkdownParser.Rereading`): `WithBlocks` hands back what it read of every block written exactly as last time beside the
+same definitions, because reading a block is a function of those two and nothing else — so a keystroke reads the block it
+was typed in. `RereadingTests` holds a reading made that way to the same document read from nothing.
+
+**A block that reads as it did is laid as it was.** `WithUnchanged` is the last stage, and one reads one document for as
+long as the host keeps it: it remembers the last reading's blocks and says which of this reading's are the same one —
+the same characters and everything the stages before it hung on them, so a paragraph whose link was defined again three
+paragraphs away is not the same. What the builder laid for such a block is set down again rather than laid again
+(`LaidBlocks`), and only what its pieces stand for is moved along, by the one amount everything after an edit moves: a
+part is found again in the new reading by the way down to it (`ContentPart.Order`), and what is kept then names the new
+reading's parts, so no reading outlives the one after it. Each
+block of the document is a piece of its own at the top of its own frame and keeps the picture it was painted as
+(`LayoutKept`), so a keystroke lays and paints the block typed in, and a caret blinking paints nothing. Only the blocks
+near the part on screen are painted (`ContentElement.OnScreen`, which the surface sets as it scrolls), and the picture of
+a block scrolled far away is let go, so a long document holds about a screen of pictures. What the
+characters do not say — which nodes of a diagram are opened — the host says with `IContent.Forget`, after which no
+block is the one it was. `LaidBlocksTests` holds every sample, typed into and taken back, to the same source laid from
+nothing.
+
+**What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
+picture of itself, because a picture of code is a worse copy of the code, and prose offers none either. What
+a reader may do *there* — the things to add, behind one Insert button, and the things to do to what is
+already there, standing on their own — is `IContentLanguage.Offers`, asked of whatever language is being
+shown at that point. Which language that is was settled by a stage and is on the node, so nothing looks one
+up.
+
+**Which block a point is in is asked of the tree that was read**, never of the one that was drawn. A piece
+knows the characters it came from but not always as a part of this document's tree — a code fence's runs
+carry plain spans, because what drew them was reading code. An offset is an offset whatever drew it.
+
+**Finding a place is three questions with one answer each.** A search reads the **source**, never the
+drawing: the parser only ever copies, so the source is the one place the words are whole — in the drawing a
+label is broken wherever whatever drew it needed a break, a lyric is split by the notes it is sung on, and a
+wrapped word is two runs. The offsets come back out of the source and `LayoutQuery.RangeRects` turns them
+into places on the page, which works through every nested language already because each is laid at the
+offset its body starts at. Anything **drawn as something other than what was typed** — an entity, an escape,
+a renumbered marker, an alert's label — already says so on its run, because that is what makes a caret
+possible inside it, so those are found centrally too and nothing had to be told which constructs they are. A
+line number is arithmetic on the same source. A language is asked (`IContentLanguage.Finds`) only for what
+neither would catch, and nothing in the table has needed it yet.
+
+**A saved reference says what a thing is, not where it sits.** `heading:getting-started/list/item#2` — the
+shape a snaplink names a declaration with, because it is the same question asked of a different tree. It
+survives editing, reaches `table/row#1/cell#2` and `pie/slice:Chrome` with no code added for either since
+the kinds are open strings, and lands as far as it still goes where it no longer goes all the way: a deep
+link into a section somebody has reorganised should still land in the section.
+
+**A link into the document is never the host's.** A heading is given the name a link points at while the
+whole document is being read — which heading `#notes-1` means is settled by the order they were written in,
+and nothing looking at one heading's characters could see it. Following such a link is answered by the
+element and not offered onwards, because a host handed `#getting-started` has no way to know what it means
+or where it went. A name the document has no heading for is still not the host's: it does nothing, which is
+what a reader sees when they follow a link to a section somebody deleted.
+
+**Nothing drawn is never an answer.** A language either lays the content out or says it cannot, and what
+goes there then is the characters somebody typed — so a block nothing could make sense of is still on the
+page, still where it was written, still somewhere the caret can go and repair it. The seam asks `Laid.Draws`
+rather than `Laid.Exists`, because a tree can be built and hold nothing visible, and a caller that took the
+one for the other would put an empty box on the page where a block should be. What is written is wrong most
+of the time — half a diagram is what every diagram looks like on the way to being one — so this is the
+common path and not the corner case. `ContentLanguageDrawingTests` sweeps every language in the table
+against both.
+
+**Words are gathered into runs, broken into lines, and joined back up.** A line is set by collecting the
+constructs a writer spelled with punctuation into runs, cutting them where a line may break, and joining
+everything on one line that is set the same way and stands for the same part — which is how `a **bold**
+word` comes out as three pieces rather than eleven. A run whose content is another language is one of those
+runs: it is measured by its inset rather than its glyphs, never broken, and sat centred on the middle of the
+words, because a formula has no baseline a sentence could share.
+
+**A picture is one mark, and where it came from is the host's.** `WithImages` asks this showing of the
+document what an `![alt](where)` names — the host first, then a file beside the document, one chain in
+`MarkdownPictures` because both surfaces ask the same question — and hangs the answer on the image. The
+builder fits it down to 600 either way and never up, and draws it as a `PictureMark` inside a piece standing
+for the characters it was written as, so it sits in the sentence it was written in and a drag across the line
+picks it up. An image nothing was found for draws the words written instead of it, which is what alt text is
+for.
+
+**Trouble is answered differently in the two places maths is written.** A display formula keeps its
+typesetting whatever is wrong with it — maths under a caret is invalid most of the time, since every command
+is unreadable until its last letter is typed, so a formula that turned into a box of source as it was written
+would spend most of its life as a box of source. An inline one falls back to its own source in a monospaced
+accent, because half a display formula still tells a reader where they are and a sentence with a wave through
+the middle of it does not.
 
 ## ABC
 
@@ -508,27 +669,32 @@ Plain typing is not an edit operation. A letter inserted at the caret needs no r
 construct that must be bracketed when it grows — so the element splices it, exactly as the formula editor
 splices a character its own tree did not have to reshape.
 
-### The seam
+### Who answers a key
 
-`IEditableBlock` is the whole of what a document needs to drive rendered content: its source, its layout,
-what is selected, what could not be read, a caret that can be handed in at an edge and handed back out,
-and the keys that change it. A block that implements it is selected across, arrowed into, typed in and
-spliced back by host code that knows nothing about what it holds.
+**Editing is shared, and a language may say otherwise for its own source.** From the piece holding the caret, up the
+layout to the first piece that names a part of the syntax tree, then up the tree to the first part another language was
+written in — which `WithNested` hung there, so nothing is looked up — and that language's `IContentLanguage.OnEdit` is
+asked what the key means (`IOnEdit`: what typing, settling and taking back mean, and what an edit came to). Where it
+registered nothing, or says nothing, the key does to the characters what a key does. No such part means markdown's own
+source, and markdown's rules answer (`MarkdownEdits`, the root's hook in `MarkdownContent`).
 
-What is *not* shared is declared on the same interface rather than recognised by type:
-`HandleKey`, `MoveCaretVertically`, `Commit`, `SelectNextPlaceholder`, `BuildRibbon` — all defaulted to
-declining. A formula claims Space, Enter and Tab; a score claims Page Up, Page Down and the
-sharpen/lengthen keys; a barcode claims none, and says nothing. These used to be `is FormulaElement` tests
-in the host, which was honest while a formula was the only block with keys of its own and stopped being so
-at the second.
+A language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at: the
+caret, a hole and a run of words all agree without anything being moved, and `ContentEdit.Local` is there for what reads
+the language's own source from the top. That source stops before the line ending its closing delimiter stands after
+(`ContentNesting.Own`) — written into, that ending would carry what was typed onto the delimiter's line. A key taking back
+characters stops at the edges of it, and takes the whole construct once nothing is left inside.
 
-**What a host does with a block is the host's** (`InlineMarkdownEditor.BlockActions`). The editor shows a toolbar over
-a whole rendered block the pointer is on — the block's edge tinted, the buttons at its top right, faint until the
-pointer comes near (`BlockToolbar`, an adorner, because nothing inside a text box sees the pointer) — but the buttons
-are the host's: a label, an id and a callback (`BlockAction`), handed the block pressed (`RenderedBlock`). What a
-callback can ask of a block is its fence's language, its source and its `Picture`: what the content draws, laid out as
-it reads with nobody writing in it — no caret, selection, hole, underline or stretch shown as written. The renderer
-knows nothing of clipboards or files; the Markdown viewer's Copy and Save are its own.
+What each says: LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a
+place cannot hold, starts its next line on Enter and carries a rename to wherever the name is used (`MermaidEdits`);
+markdown writes typed markup behind a backslash — the document is written as a word processor's is, and kept as
+markdown — continues a list on Enter and joins two paragraphs on backspace. Whatever the edit came to, the whole
+document is read again from its source, because a bracket typed anywhere can change how everything after it nests.
+
+**The surface is what a host holds** (`MarkdownSurface`): one control, told whether it is only read and whether it is
+one block of a language. It drives the keyboard, keeps the history, raises copying and pasting as events the application
+answers once for every window (`MarkdownSurface.Copying`, `Pasting`), and adds cut, copy, paste and markdown's formatting
+to the context ribbon. A block's corner offers what its language says (`IContentLanguage.Corner`); Save goes to the host
+with the block pressed on, whose `Picture` is painted from the page's own tree.
 
 ## What a new language has to bring
 
@@ -536,8 +702,8 @@ knows nothing of clipboards or files; the Markdown viewer's Copy and Save are it
 2. Whatever stages it needs, each obeying the pipeline's rule.
 3. A builder that walks a `ContentReading` and emits `ILayoutNode`s, each carrying the `ContentPart` it
    was drawn from — or nothing at all where it was drawn from nothing anybody wrote.
-4. A `FrameworkElement` implementing `IEditableBlock`, which is what the caret, selection and the prose
-   seam are written against.
+4. Where a key means something in its source other than its characters, an `IOnEdit`, offered as
+   `IContentLanguage.OnEdit` and asked only for keys landing in that source.
 
-Everything else — `LayoutQuery`, `ContentSelection`, `CaretPlace`, `DocumentSelection`, and the whole of
-`InlineMarkdownEditor.Blocks.cs` — it gets for nothing.
+Everything else — `LayoutQuery`, `ContentSelection`, `CaretPlace`, the caret, choosing, undo and the clipboard — it
+gets for nothing.

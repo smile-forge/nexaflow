@@ -20,18 +20,18 @@ public class SwimlaneEditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALanesNameAndInWhatItHoldsChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a swimlane's words are written in");
 
             PressPast(diagram, "Sales");
-            Write(rtb, " team");
+            Write(editor, " team");
             PressPast(diagram, "Quote");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "sent");
-            Write(rtb, "!");
+            Write(editor, "!");
             PressPast(diagram, "review");
-            Write(rtb, "ed");
+            Write(editor, "ed");
 
             StringAssert.Contains(diagram.Source, "subgraph Sales team", diagram.Source);
             StringAssert.Contains(diagram.Source, "quote[\"Quotes\"]", diagram.Source);

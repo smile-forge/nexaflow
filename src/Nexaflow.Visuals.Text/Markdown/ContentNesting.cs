@@ -1,0 +1,86 @@
+using System.Linq;
+
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Editing;
+
+namespace Nexaflow.Visuals.Text.Markdown;
+
+/// <summary>
+/// Which language reads what is written inside a piece of content — worked out once, by a stage, where the
+/// table of languages is in scope, and hung on the piece itself.
+///
+/// <para>
+/// <strong>The builder keeps every decision that was its.</strong> How much room something gets, what has to
+/// sit around it and in what order the tree is walked are all answers only a builder has, so none of them are
+/// settled here. What is settled is the one thing a builder has no business asking: which of the languages a
+/// host assembled reads this. By the time a builder sees the node the answer is on it, and the builder asks
+/// for an inset at a size it chose.
+/// </para>
+/// <para>
+/// Hung as a derived part, which takes up no source, prints as nothing and is nowhere to be found by an
+/// offset — so a tree carrying it still says exactly what was written.
+/// </para>
+/// </summary>
+/// <param name="Language">What reads it.</param>
+/// <param name="Style">What this showing of the content is drawn in.</param>
+/// <param name="Options">What the host said about diagrams, where it said anything.</param>
+internal sealed record ContentNesting(IContentLanguage Language, string Named, StyleFormat Style, DiagramRenderOptions? Options)
+{
+    /// <summary>What a piece has hanging off it, or null where it holds no other language.</summary>
+    public static ContentNesting? Of(ContentPart? part) =>
+        part?.Children.Select(child => child.Node.Held).OfType<ContentNesting>().FirstOrDefault();
+
+    /// <summary>
+    /// <paramref name="body"/> laid out to fit <paramref name="room"/>, ready to be set down — or null where
+    /// that language cannot lay anything yet, which leaves the characters to be drawn as themselves.
+    /// </summary>
+    /// <param name="shown">
+    /// The stretch the document being written is showing as typed. Handed on only where it falls inside the body,
+    /// because then it is this language's stretch — a command half spelled — and nobody else's to draw.
+    /// </param>
+    /// <param name="isReadOnly">Whether anybody is writing, so a hole is drawn where something is still to be written.</param>
+    public ContentInset? At(ContentPart? body, double room, RawZone? shown = null, bool isReadOnly = true)
+    {
+        if (body is null) return null;
+
+        var (_, length) = Own(body);
+
+        var laid = Language.Lay(new ContentRequest(body.Print()[..length], Style)
+        {
+            Named = Named, Room = room, At = body.Start, Options = Options,
+            Shown = shown is { } zone && Holds(body, zone) ? zone : null,
+            IsReadOnly = isReadOnly,
+        });
+
+        // Asked whether it drew rather than whether it exists: a language that built a tree and put nothing in
+        // it has nothing to show, and the characters are what goes there instead.
+        return laid is { Draws: true } ? new ContentInset(laid) : null;
+    }
+
+    /// <summary>Whether a stretch shown as typed falls inside the body — this language's to show, not the document's.</summary>
+    public static bool Holds(ContentPart body, RawZone zone)
+    {
+        var (start, length) = Own(body);
+        return start <= zone.Start && zone.End <= start + length;
+    }
+
+    /// <summary>
+    /// Whether a stretch shown as typed lies inside another language's source somewhere in <paramref name="part"/>, so
+    /// that language is the one to show it and the document around it goes on drawing as it reads.
+    /// </summary>
+    public static bool Nests(ContentPart part, RawZone zone) =>
+        part.SelfAndDescendants().Any(inner => Of(inner) is not null && inner.Part(Roles.Body) is { } body && Holds(body, zone));
+
+    /// <summary>
+    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line. That
+    /// ending belongs to the line the closing delimiter stands on — written into, it would put what was typed on that line
+    /// and the delimiter would no longer close anything.
+    /// </summary>
+    public static (int Start, int Length) Own(ContentPart body)
+    {
+        var written = body.Print();
+        var closing = written.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : written.EndsWith('\n') ? 1 : 0;
+
+        return (body.Start, body.Length - closing);
+    }
+}

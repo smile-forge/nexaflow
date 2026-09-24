@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -44,7 +45,7 @@ internal static partial class HelpContents
 
     // The page's top-level "##" headings — not one quoted, listed or fenced — with the ids the pipeline gives them.
     private static List<(int Line, string Id)> Sections(string markdown)
-        => Markdig.Markdown.Parse(markdown, MarkdownPipelineFactory.Default)
+        => Markdig.Markdown.Parse(markdown, MarkdownParser.Pipeline)
             .OfType<HeadingBlock>()
             .Where(h => h.Level == 2)
             .Select(h => (h.Line, MarkdownAnchors.IdOf(h) ?? ""))

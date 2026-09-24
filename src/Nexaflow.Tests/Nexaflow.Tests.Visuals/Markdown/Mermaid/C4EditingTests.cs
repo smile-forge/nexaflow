@@ -19,14 +19,14 @@ public class C4EditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInALabelAndInWhatARelationshipSaysChangesThem() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             Assert.IsFalse(diagram.IsReadOnly, "a C4 diagram's words are written in where the host takes edits");
 
             PressPast(diagram, "Banking Customer");
-            Write(rtb, "s");
+            Write(editor, "s");
             PressPast(diagram, "Visits the site");
-            Write(rtb, " daily");
+            Write(editor, " daily");
 
             StringAssert.Contains(diagram.Source, "\"Banking Customers\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "\"Visits the site daily\"", diagram.Source);
@@ -36,10 +36,10 @@ public class C4EditingTests : MermaidEditing
 
     [TestMethod]
     public void TypingInABoundarysNameChangesIt() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Internet Banking");
-            Write(rtb, " Ltd");
+            Write(editor, " Ltd");
 
             StringAssert.Contains(diagram.Source, "\"Internet Banking Ltd\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
@@ -51,10 +51,10 @@ public class C4EditingTests : MermaidEditing
     /// </summary>
     [TestMethod]
     public void WhatIsTypedIntoACardIsItsLabelAndNeverItsName() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Single-Page App");
-            Write(rtb, "!");
+            Write(editor, "!");
 
             StringAssert.Contains(diagram.Source, "Container(spa, \"Single-Page App!\"", diagram.Source);
             StringAssert.Contains(diagram.Source, "Rel(customer, spa,", "the name every other macro uses is untouched");
@@ -66,10 +66,10 @@ public class C4EditingTests : MermaidEditing
     /// </summary>
     [TestMethod]
     public void AQuoteTypedIntoAnArgumentIsWrittenAsItsEntityCode() => UiThread.Run(() =>
-        InADocument((editor, rtb, diagram) =>
+        InADocument((editor, diagram) =>
         {
             PressPast(diagram, "Visits the site");
-            Write(rtb, "\"");
+            Write(editor, "\"");
 
             StringAssert.Contains(diagram.Source, "\"Visits the site#quot;\"", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);

@@ -36,7 +36,7 @@ public class PieBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        PieBuilder.Build(MermaidBuilders.Read(source), new DiagramLaying(MarkdownPalette.Dark, 1.0, room));
+        new PieBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);
@@ -216,7 +216,7 @@ public class PieBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItDispatchesThroughTheDiagramRenderer() => UiThread.Run(() =>
     {
-        var content = (ContentElement)DiagramRenderer.Render("mermaid", Pets, MarkdownPalette.Dark);
+        var content = (ContentElement)Alone.Drawn("mermaid", Pets, StyleFormat.Dark);
 
         content.Measure(new Size(700, double.PositiveInfinity));
         Assert.IsTrue(content.DesiredSize.Width > 0 && content.DesiredSize.Height > 0);

@@ -50,19 +50,19 @@ public class SmilesFigureWriter
 
         UiThread.Run(() =>
         {
-            Write(Path.Combine(folder, "smiles.png"), Figure, MarkdownPalette.Light, Brushes.White, 720);
-            Write(Path.Combine(folder, "smiles-cages.png"), Cages, MarkdownPalette.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "smiles.png"), Figure, StyleFormat.Light, Brushes.White, 720);
+            Write(Path.Combine(folder, "smiles-cages.png"), Cages, StyleFormat.Light, Brushes.White, 720);
         });
     }
 
-    private static void Write(string path, string source, MarkdownPalette palette, Brush ground, double width)
+    private static void Write(string path, string source, StyleFormat palette, Brush ground, double width)
     {
         var host = new Border
         {
             Background = ground,
             Padding = new Thickness(16),
             Width = width,
-            Child = SmilesBuilder.Element(source, DiagramRenderOptions.For(palette)),
+            Child = Alone.Drawn("smiles", source, palette),
         };
 
         host.Measure(new Size(width, double.PositiveInfinity));

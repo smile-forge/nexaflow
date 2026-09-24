@@ -81,89 +81,21 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>How round the card's corners are.</summary>
     private const double Corner = 6;
 
-    /// <param name="laying">What the diagram is drawn with, how much room it has, and whether anybody is writing in it.</param>
-    protected MermaidBuilder(ContentReading reading, DiagramLaying laying)
-        : base(reading)
-    {
-    Laying = laying;
-    Palette = laying.Palette;
-    PixelsPerDip = laying.PixelsPerDip;
-    Room = double.IsNaN(laying.Room) || laying.Room <= 0 ? double.PositiveInfinity : laying.Room;
-    Writing = laying.Writing;
-    Ink = new DiagramInk(laying.Palette);
-    }
+    protected MermaidBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) =>
+        Ink = new DiagramInk(style);
 
-    protected MarkdownPalette Palette { get; }
-
-    /// <summary>Everything this diagram is being laid out against, for what a builder needs beyond the four it is given.</summary>
-    protected DiagramLaying Laying { get; }
+    /// <summary>What every diagram calls the style it is drawn in.</summary>
+    protected StyleFormat Palette => Style;
 
     /// <summary>What the diagram is drawn in: the colours its source and front matter write, and the theme's where they write none.</summary>
     protected DiagramInk Ink { get; }
-
-    /// <summary>
-    /// Whether somebody is writing in the block rather than only reading it. A diagram being written draws what is still to
-    /// be written — a hole where a label or a value goes, a row for a slice with nothing yet to draw — and one only being
-    /// read draws what there is.
-    /// </summary>
-    protected bool Writing { get; }
-
-    protected double PixelsPerDip { get; }
-
-    /// <summary>How wide the block may be laid out — infinity where nothing says.</summary>
-    protected double Room { get; }
 
     /// <summary>
     /// How wide what a diagram draws may be: the room the block was given, less the card it is drawn on. What a builder
     /// fits its drawing into, and the whole of what the room means to it.
     /// </summary>
     protected double Space => double.IsInfinity(Room) ? Room : Math.Max(1, Room - (Pad * 2));
-
-    /// <summary>The element a Mermaid block is shown in: read-only (a diagram isn't typed into) but
-    /// selectable, since what it draws carries the characters it was written as.</summary>
-    /// <param name="build">Draws a block that has been read, for a palette, pixel density, width, and whether it's being written in.</param>
-    /// <param name="readOnly">Whether the block is only looked at; the host decides whether keys reach it.</param>
-    /// <param name="grammar">What reads it, where the fence's language names the diagram rather than the first line.</param>
-    internal static Editing.ContentElement Host(string source, DiagramRenderOptions options,
-                                                MermaidBuilders.Build build, bool readOnly = true,
-                                                Nexaflow.Markdown.Mermaid.IMermaidGrammar? grammar = null)
-    {
-        var actions = new DiagramActions(options, source);
-
-        // What the host puts between reading the block and drawing it. Settled once, here, where what the host is
-        // showing the document against is in scope — a builder never learns that there is such a thing as binding.
-        var after = options.DataContext is { } data
-            ? new Nexaflow.Markdown.Pipeline.AstPipeline(new Nexaflow.Markdown.Pipeline.Stages.WithBindings(data))
-            : null;
-
-        var element = new Editing.LinkedElement(source, options.Palette,
-                                                new MermaidContent((state, room, pixelsPerDip, looking) =>
-                                                    build(MermaidBuilders.Read(state.Source, holes: !looking, grammar: grammar, after: after),
-                                                          new DiagramLaying(options.Palette, pixelsPerDip, room, !looking)
-                                                          {
-                                                              View = actions.View,
-                                                              Raw = state.Raw,
-                                                          })),
-                                                actions)
-        {
-            IsReadOnly = readOnly,
-
-            // Where the diagram sits inside the fence, so the host never mistakes the block for one that is its
-            // content and nothing else.
-            SourceStart = options.SourceOffset,
-            SourceLength = source.Length,
-
-            // Where the pointer is over something that can be written in, the element says so itself.
-            Cursor = Cursors.Arrow,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 4, 0, 10),
-        };
-
-        // What a verb this answers itself redraws: the element lays out from the source again, reading back whatever
-        // the press just wrote into the view state.
-        actions.Shown = element;
-        return element;
-    }
 
     /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
@@ -227,7 +159,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         {
             // What was written, where the reader is writing in it — a front-matter title says one thing and is written
             // as another, quotes and all, and only the characters they typed can be typed into.
-            var written = Laying.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
+            var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
 
             says = written ? titlePart.Text : MermaidText.Decode(titleText!);
             ink = Ink.Written(TitleColour) ?? Palette.Heading;
@@ -284,7 +216,7 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// nothing it can draw shows.</summary>
     protected Size AsWritten(LayoutBuilder build)
     {
-        var shown = LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), []);
+        var shown = LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), [], At);
         build.Graft(shown.Tree);
         return shown.Size;
     }
@@ -311,19 +243,19 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </para>
     /// </summary>
     protected string Shown(ContentPart part) =>
-        Laying.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
+        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
             ? part.Wrote()
             : ContentWords.Says(part, MermaidText.Decode);
 
-    /// <summary>A run of diagram text: the face every diagram label is set in, at this pixel density.</summary>
+    /// <summary>A run of diagram text: the face every diagram label is set in, at the standard size a layout is measured at.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(BodyFont, slant ?? FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal),
+            Style.Face(BodyFont, weight, slant),
             size,
             ink,
-            PixelsPerDip);
+            LayoutText.Density);
 
     /// <summary>
     /// A part's words, as they read rather than as they were written — entity codes decoded, bindings read.
@@ -427,25 +359,20 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
 
     /// <summary>
-    /// A whole other content written inside a run of words, laid out to be set down there — or null where the words
-    /// are just words, which is nearly always.
+    /// The content written inside <paramref name="part"/>, laid out to fit <paramref name="room"/> — or null
+    /// where nothing is written inside it, or it is being shown as the characters it was typed as.
     ///
     /// <para>
-    /// A label whose text opens with a fence says what it is a block of: <c>["```abc CDEF"]</c> is a tune on a node.
-    /// The tune is read by abc's own parser into a tree of its own, told where it was written so every part of it
-    /// names the characters a reader is selecting — nothing of it is parsed into this diagram's tree.
-    /// </para>
-    /// <para>
-    /// What is being written in is words: while the caret is inside a label, the characters are shown rather than what
-    /// they draw, exactly as an entity code or a binding is.
+    /// Which language reads it was settled by a stage and is hanging on the node; all that is decided here is
+    /// how much room it gets, which is this builder's to decide and nobody else's.
     /// </para>
     /// </summary>
     protected ContentInset? Inset(ContentPart? part, double room)
     {
         if (part is not { Length: > 0 }) return null;
-        if (Laying.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
+        if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return ContentLanguages.Inset(part, Palette, PixelsPerDip, room);
+        return ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
@@ -453,18 +380,18 @@ internal abstract class MermaidBuilder : ContentBuilder
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface(SourceFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            Style.Face(SourceFont),
             SourceSize,
             Palette.Text,
-            PixelsPerDip);
+            LayoutText.Density);
 }
 
 /// <summary>The shape every diagram's builder has: the block read into the diagram it describes once
 /// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
 /// title, trouble text, card — is <see cref="MermaidBuilder"/>'s.</summary>
 /// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, DiagramLaying laying)
-    : MermaidBuilder(reading, laying)
+internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+    : MermaidBuilder(reading, state, style, isReadOnly)
     where TDiagram : class
 {
     /// <summary>The diagram as it was read — null until it has been.</summary>
@@ -529,12 +456,12 @@ internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, Diagram
     protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
         Diagram = Of(block);
-        Folds = NexaflowConfig.Read(block.Config);
+        Folds = WithFolds.Of(block.Reading.Root.Node);
 
         // Worked out before anything is placed, so a node that is not drawn is never given a cell — rather than taken
         // out afterwards, which would leave a hole where it stood and a line running to nothing.
         Folding = Chart(Diagram) is { } chart
-            ? DiagramExpansion.Of(Folds, chart, Laying.View?.Expansion)
+            ? DiagramExpansion.Of(Folds, chart, Style.Expansion?.Expansion)
             : DiagramExpansion.None;
 
         return Draw(Diagram, build);

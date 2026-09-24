@@ -80,10 +80,7 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
     /// <summary>How far round the colours an actor's is from the sections', so the two are told apart.</summary>
     private const int Round = 4;
 
-    private JourneyBuilder(ContentReading reading, DiagramLaying laying) : base(reading, laying) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Build(ContentReading reading, DiagramLaying laying) => new JourneyBuilder(reading, laying).Lay();
+    internal JourneyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
     protected override JourneyDiagram Of(MermaidBlock block) => JourneyDiagram.Of(block);

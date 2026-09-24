@@ -12,7 +12,7 @@ namespace Nexaflow.Features.Markdown;
 /// A <c>.abc</c> file is a tune. It is not a markdown document that happens to contain a tune, and
 /// nothing in it is markdown — so the fence that makes the renderer treat it as music is a rendering
 /// detail rather than part of the file, and the bytes on disk must never carry one. That is exactly what
-/// <c>InlineMarkdownEditor.SingleBlock</c> already does for the Solver's LaTeX tab; this is the same
+/// <c>MarkdownSurface.SingleBlock</c> already does for the Solver's LaTeX tab; this is the same
 /// arrangement pointed at a file instead of a text box.
 /// </para>
 /// <para>

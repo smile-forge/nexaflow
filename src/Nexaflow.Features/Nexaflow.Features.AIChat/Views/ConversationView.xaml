@@ -34,7 +34,7 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <md:SelectableMarkdownView Markdown="{Binding Text}"/>
+                    <md:MarkdownSurface Markdown="{Binding Text}"/>
                 </Border>
 
                 <!-- Timestamp, and (newest message only) the rewind affordance. -->
@@ -93,7 +93,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <md:SelectableMarkdownView Markdown="{Binding Text}"/>
+                <md:MarkdownSurface Markdown="{Binding Text}"/>
             </Border>
         </DataTemplate>
 
@@ -161,7 +161,7 @@
                 <StackPanel>
                     <!-- The model's reason for wanting the tools. Computed all along but never shown, so an
                          approval prompt used to arrive with no stated purpose. Collapses when it gave none. -->
-                    <md:SelectableMarkdownView Markdown="{Binding Explanation}"
+                    <md:MarkdownSurface Markdown="{Binding Explanation}"
                                                Margin="0,0,0,8"
                                                Visibility="{Binding HasExplanation, Converter={StaticResource BoolVis}}"/>
 

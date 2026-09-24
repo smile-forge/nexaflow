@@ -183,6 +183,20 @@ public sealed class BarcodePart : ISourcePart
         }
     }
 
+    /// <summary>
+    /// The same parts, counted from <paramref name="offset"/> — where the value sits in the document holding it. What an
+    /// encoding reads is counted from the value's first character, because that is all the encoder is told.
+    /// </summary>
+    public BarcodePart At(int offset)
+    {
+        if (offset == 0) return this;
+
+        var moved = new BarcodePart(Kind, Role, Text, Start + offset, Length);
+        foreach (var child in _children) moved.Adopt(child.At(offset));
+
+        return moved;
+    }
+
     private void Adopt(BarcodePart child)
     {
         child.Parent = this;

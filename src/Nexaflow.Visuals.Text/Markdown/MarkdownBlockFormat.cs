@@ -8,7 +8,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// code fence), as pure string transforms: each takes the active block's source and returns the rewritten
 /// block plus where the caret should land.
 /// <para>
-/// <see cref="InlineMarkdownEditor"/> owns the caret/selection and the document rebuild; the *text* rule
+/// <see cref="MarkdownSurface"/> owns the caret/selection and the document rebuild; the *text* rule
 /// for each button lives here, so it is stated once and can be asserted without a rendered editor.
 /// </para>
 /// </summary>

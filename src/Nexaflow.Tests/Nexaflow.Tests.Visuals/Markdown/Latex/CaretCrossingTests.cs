@@ -21,12 +21,12 @@ namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 /// dropped into it.
 /// </para>
 /// <para>
-/// Deliberately driven through <c>IEditableBlock</c> rather than through the formula, because the score
-/// and the diagrams are next: a block that takes a caret joins this by implementing that interface, with
-/// nothing in the editor to change.
+/// In one document these are steps like any other: the formula is pieces of the same laid tree as the
+/// words either side of it, so the caret steps into it from a word as it steps from one word to the next,
+/// and nothing has to hand it over.
 /// </para>
 ///
-/// Shows a real (off-screen) window, because the editor builds its document during a render pass.
+/// Shows a real (off-screen) window, because keys come from one.
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]
@@ -42,13 +42,12 @@ public class CaretCrossingTests
     [TestMethod]
     public void RightArrowOffTheEndOfTheTextEntersTheFormulaAtItsStart()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtEndOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
+            MarkdownEditorHarness.CaretAtEndOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Right);
 
-            var formula = FocusedContent(editor);
-            Assert.AreEqual(0, formula.Caret,
+            Assert.AreEqual(Starts(editor), InFormula(editor).Caret,
                 "you stepped onto its first character, which is where the next step would have gone");
         });
     }
@@ -56,13 +55,12 @@ public class CaretCrossingTests
     [TestMethod]
     public void LeftArrowBackOutOfTheTextEntersTheFormulaAtItsEnd()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtStartOf(rtb, block: 2);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Left);
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 2);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Left);
 
-            var formula = FocusedContent(editor);
-            Assert.AreEqual(Formula.Length, formula.Caret,
+            Assert.AreEqual(Starts(editor) + Formula.Length, InFormula(editor).Caret,
                 "coming back along the line puts you after its last character, not before its first");
         });
     }
@@ -74,60 +72,48 @@ public class CaretCrossingTests
         // left and right, up and down agree with each other. Not the column the caret was in either:
         // landing part-way along would drop the reader into the middle of a subscript they were only
         // passing over.
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtEndOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Down);
-            Assert.AreEqual(0, FocusedContent(editor).Caret, "down from the line above");
+            MarkdownEditorHarness.CaretAtEndOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Down);
+            Assert.AreEqual(Starts(editor), InFormula(editor).Caret, "down from the line above");
         });
 
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
-            CaretAtStartOf(rtb, block: 2);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Up);
-            Assert.AreEqual(0, FocusedContent(editor).Caret, "and up from the line below");
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 2);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Up);
+            Assert.AreEqual(Starts(editor), InFormula(editor).Caret, "and up from the line below");
         });
     }
 
     [TestMethod]
     public void AnArrowThatStaysWithinTheTextLeavesTheFormulaAlone()
     {
-        RunInDocument((editor, rtb) =>
+        RunInDocument(editor =>
         {
             // Mid-line, so the step is to the next character rather than out of the block. Crossing
             // from here would snatch the caret out of a word every time a formula sat nearby.
-            CaretAtStartOf(rtb, block: 0);
-            MarkdownEditorHarness.RaiseKey(rtb, Key.Right);
+            MarkdownEditorHarness.CaretAtStartOf(editor, block: 0);
+            MarkdownEditorHarness.RaiseKey(editor, Key.Right);
 
-            Assert.IsNull(editor.FocusedContent, "the caret is still in the text it was in");
+            Assert.IsFalse(editor.InFormula(), "the caret is still in the text it was in");
         });
     }
 
     // ── Harness ─────────────────────────────────────────────────────────────
 
-    private static void RunInDocument(System.Action<InlineMarkdownEditor, RichTextBox> test) =>
+    private static void RunInDocument(System.Action<MarkdownSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(Document, test));
 
-    private static Nexaflow.Visuals.Text.Editing.ContentElement FocusedContent(InlineMarkdownEditor editor)
+    /// <summary>The formula, having checked the caret is in it.</summary>
+    private static DocumentBlock InFormula(MarkdownSurface editor)
     {
-        var formula = editor.FocusedContent;
-        Assert.IsNotNull(formula, "the arrow key handed the caret to the formula");
+        var formula = MarkdownEditorHarness.Block(editor);
+        Assert.IsTrue(editor.InFormula(), $"the arrow key put the caret in the formula, but it is at {editor.Shown.Caret}");
         return formula;
     }
 
-    private static void CaretAtEndOf(RichTextBox rtb, int block) => PlaceCaret(rtb, block, atEnd: true);
-
-    private static void CaretAtStartOf(RichTextBox rtb, int block) => PlaceCaret(rtb, block, atEnd: false);
-
-    private static void PlaceCaret(RichTextBox rtb, int block, bool atEnd)
-    {
-        var para = rtb.Document.Blocks
-            .OfType<Paragraph>()
-            .FirstOrDefault(b => b.Tag is int tag && tag == block);
-        Assert.IsNotNull(para, $"block {block} rendered as prose");
-
-        rtb.CaretPosition = atEnd
-            ? para.ContentEnd.GetInsertionPosition(LogicalDirection.Backward)
-            : para.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
-    }
+    /// <summary>Where the formula's first character is in the document.</summary>
+    private static int Starts(MarkdownSurface editor) => Document.IndexOf(Formula, System.StringComparison.Ordinal);
 }

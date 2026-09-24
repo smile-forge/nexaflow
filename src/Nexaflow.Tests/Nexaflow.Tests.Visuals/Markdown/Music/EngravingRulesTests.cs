@@ -4,6 +4,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
@@ -181,7 +182,7 @@ public class EngravingRulesTests
     // ── Reading the picture ─────────────────────────────────────────────────
 
     private static List<Piece> Systems(string abc, double width) =>
-        All(AbcBuilder.Build(abc, width, Brushes.Black, 1.0).Root, "system");
+        All(AbcBuilder.Lay(abc, width, StyleFormat.Light).Root, "system");
 
     private static List<Piece> All(Piece root, string kind) => [.. root.SelfAndDescendants().Where(p => p.Kind == kind)];
 
