@@ -6,6 +6,7 @@ under the license noted below.
 |---------|---------|
 | [Anthropic SDK](https://github.com/tghamm/Anthropic.SDK) | MIT |
 | [AvalonEdit](https://github.com/icsharpcode/AvalonEdit) | MIT |
+| [Bravura](https://github.com/steinbergmedia/bravura) (bundled font — music notation) | OFL-1.1 |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
 | [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
 | [DiscUtils](https://github.com/LTRData/DiscUtils) (built from source) | MIT |
