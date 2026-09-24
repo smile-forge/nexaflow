@@ -38,15 +38,31 @@ public sealed partial class MarkdownBuilder
         }
 
         var pad = Style.TextSize * 0.45;
-        var widths = Widths(placed, columns, room, pad);
+        var (widths, asked) = Widths(placed, rows, columns, room, pad);
 
         // Laid before anything is placed, because a cell covering two rows has to know how tall both are —
-        // and a row is only as tall as the cells that end in it, or one covering it would stretch it twice.
-        var laid = placed
-            .Select((row, at) => row
-                .Select(cell => Apart(sub => Inside(sub, cell.Part, Across(widths, cell, pad), Faced(rows[at]))))
-                .ToList())
-            .ToList();
+        // and a row is only as tall as the cells that end in it, or one covering it would stretch it twice. A cell whose
+        // words fit the column it was given is already laid: asking what it wanted laid it with room to spare, and the
+        // same words with room to spare come out the same.
+        var laid = new List<List<(LayoutTree Tree, Size Size)>>(placed.Count);
+
+        for (var row = 0; row < placed.Count; row++)
+        {
+            var line = new List<(LayoutTree Tree, Size Size)>(placed[row].Count);
+
+            for (var at = 0; at < placed[row].Count; at++)
+            {
+                var cell = placed[row][at];
+                var across = Across(widths, cell, pad);
+
+                line.Add(asked[row][at] is { } already && already.Size.Width <= across
+                    ? already
+                    : Apart(sub => Inside(sub, cell.Part, across, Faced(rows[row]))));
+            }
+
+            laid.Add(line);
+        }
+
         var heights = Heights(placed, laid, pad);
 
         var top = _y;
@@ -227,37 +243,50 @@ public sealed partial class MarkdownBuilder
         };
 
     /// <summary>
-    /// How wide each column wants to be, and how wide it gets. Measured by laying each cell apart at the whole room —
-    /// asking what it would take rather than guessing — and then shared out only if they will not all fit.
+    /// How wide each column wants to be, and how wide it gets — and each cell as laid while asking, for whoever can use it.
+    /// Measured by laying each cell apart at the whole room, set as its row sets it — asking what it would take rather than
+    /// guessing — and then shared out only if they will not all fit.
     ///
     /// <para>
     /// A cell covering several columns is left out of the asking. What it wants says nothing about any one of
     /// the columns it lies across, and counting it against the first would make that column as wide as the
-    /// whole span.
+    /// whole span. So is a cell holding blocks, whose laying is not only a matter of its words: what it laid at the whole
+    /// room is not what it lays in its column, so it is not kept.
     /// </para>
     /// </summary>
-    private double[] Widths(List<List<Cell>> placed, int columns, double room, double pad)
+    private (double[] Widths, List<(LayoutTree Tree, Size Size)?[]> Asked) Widths(List<List<Cell>> placed, List<ContentPart> rows,
+                                                                                    int columns, double room, double pad)
     {
         var wants = new double[columns];
+        var asked = new List<(LayoutTree Tree, Size Size)?[]>(placed.Count);
 
-        foreach (var row in placed)
-            foreach (var cell in row)
+        for (var row = 0; row < placed.Count; row++)
+        {
+            var kept = new (LayoutTree Tree, Size Size)?[placed[row].Count];
+
+            for (var at = 0; at < placed[row].Count; at++)
             {
+                var cell = placed[row][at];
                 if (cell.Across != 1 || cell.Column >= columns) continue;
 
-                var (_, size) = Apart(sub => Inside(sub, cell.Part, room));
+                var face = Faced(rows[row]);
+                var laid = Apart(sub => Inside(sub, cell.Part, room, face));
 
-                wants[cell.Column] = Math.Max(wants[cell.Column], size.Width + (pad * 2));
+                wants[cell.Column] = Math.Max(wants[cell.Column], laid.Size.Width + (pad * 2));
+                if (!Blocked(cell.Part)) kept[at] = laid;
             }
 
+            asked.Add(kept);
+        }
+
         var total = wants.Sum();
-        if (total <= 0) return [.. wants.Select(_ => Math.Max(room / columns, 1))];
-        if (total <= room) return wants;
+        if (total <= 0) return ([.. wants.Select(_ => Math.Max(room / columns, 1))], asked);
+        if (total <= room) return (wants, asked);
 
         var share = room / total;
         var least = Style.TextSize * 2.5;
 
-        return [.. wants.Select(want => Math.Max(want * share, least))];
+        return ([.. wants.Select(want => Math.Max(want * share, least))], asked);
     }
 
     /// <summary>
@@ -270,20 +299,21 @@ public sealed partial class MarkdownBuilder
         var thin = Math.Max(1, Style.TextSize / 16);
         var wide = widths.Sum();
         var rows = lines.Count - 1;
+        var owners = Owners(placed, rows, columns);
 
         var edges = new double[widths.Length + 1];
         for (var column = 0; column < widths.Length; column++) edges[column + 1] = edges[column] + widths[column];
 
         into.Open(MarkdownPieces.Block, part, new Point(x, lines[0]));
 
-        // Across: the line under each row, in the stretches no cell reaches down through.
+        // Across: the line over each row, and under the last, in the stretches no cell covers both sides of.
         for (var row = 0; row <= rows; row++)
         {
             var from = 0.0;
 
             for (var column = 0; column <= columns; column++)
             {
-                if (column < columns && !Through(placed, row, column, down: true)) continue;
+                if (column < columns && !Joined(owners, row - 1, column, row, column)) continue;
 
                 var to = column < columns ? edges[Math.Min(column, widths.Length)] : wide;
 
@@ -293,11 +323,11 @@ public sealed partial class MarkdownBuilder
             }
         }
 
-        // Down: the line beside each column, in the rows no cell reaches across it.
+        // Down: the line beside each column, in the rows where no cell covers both sides of it.
         for (var column = 0; column <= widths.Length; column++)
             for (var row = 0; row < rows; row++)
             {
-                if (column > 0 && column < columns && Through(placed, row, column, down: false)) continue;
+                if (column > 0 && column < columns && Joined(owners, row, column - 1, row, column)) continue;
 
                 into.Draw(new RuleMark(new Rect(edges[Math.Min(column, edges.Length - 1)], lines[row] - lines[0],
                                                 thin, lines[row + 1] - lines[row]), Style.TableBorder));
@@ -306,27 +336,36 @@ public sealed partial class MarkdownBuilder
         into.Close();
     }
 
-    /// <summary>
-    /// Whether a cell covers the edge at this square — reaching down past the line under <paramref name="row"/>,
-    /// or across the line to the left of <paramref name="column"/>.
-    /// </summary>
-    private static bool Through(List<List<Cell>> placed, int row, int column, bool down)
+    /// <summary>Which cell covers each square of the grid, numbered in the order written — -1 for a square nothing covers.</summary>
+    private static int[,] Owners(List<List<Cell>> placed, int rows, int columns)
     {
-        foreach (var (line, at) in placed.Select((line, at) => (line, at)))
-            foreach (var cell in line)
+        var owners = new int[rows, columns];
+        for (var row = 0; row < rows; row++)
+            for (var column = 0; column < columns; column++) owners[row, column] = -1;
+
+        var number = 0;
+
+        for (var row = 0; row < placed.Count && row < rows; row++)
+            foreach (var cell in placed[row])
             {
-                if (down)
-                {
-                    if (at <= row && at + cell.Down > row + 1 && cell.Column <= column && cell.Column + cell.Across > column)
-                        return false;
-                }
-                else if (at == row && cell.Column < column && cell.Column + cell.Across > column)
-                {
-                    return true;
-                }
+                for (var over = 0; over < cell.Down && row + over < rows; over++)
+                    for (var along = 0; along < cell.Across && cell.Column + along < columns; along++)
+                        owners[row + over, cell.Column + along] = number;
+
+                number++;
             }
 
-        return down;
+        return owners;
+    }
+
+    /// <summary>Whether one cell covers both squares — so there is no edge between them to rule. Past the grid is nobody's.</summary>
+    private static bool Joined(int[,] owners, int row, int column, int nextRow, int nextColumn)
+    {
+        var rows = owners.GetLength(0);
+        if (row < 0 || nextRow >= rows) return false;
+
+        var owner = owners[row, column];
+        return owner >= 0 && owner == owners[nextRow, nextColumn];
     }
 
     /// <summary>

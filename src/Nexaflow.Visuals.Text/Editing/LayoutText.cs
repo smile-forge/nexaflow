@@ -71,8 +71,7 @@ public static class LayoutText
                             TextAlignment align, ISourcePart? part, string kind, bool maps = true, bool writes = false,
                             Brush? ink = null, double degrees = 0)
     {
-        text.MaxTextWidth = System.Math.Max(1, room);
-        text.TextAlignment = align;
+        Bound(text, room, align);
 
         var turn = degrees == 0 ? null : new LayoutPaint([new RotateTransform(degrees)]);
 
@@ -92,6 +91,23 @@ public static class LayoutText
 
         into.Close();
         return piece;
+    }
+
+    /// <summary>
+    /// Gives <paramref name="text"/> its room and alignment — only where they differ from what it has, because either one
+    /// set throws away everything the type engine worked out about the text, and a run measured to find where its line
+    /// breaks would then be shaped all over again to find where its piece reaches. Room that is unbounded leaves the text
+    /// unbounded: a run already cut to a line is never broken again.
+    /// </summary>
+    private static void Bound(FormattedText text, double room, TextAlignment align)
+    {
+        if (double.IsFinite(room))
+        {
+            var most = System.Math.Max(1, room);
+            if (text.MaxTextWidth != most) text.MaxTextWidth = most;
+        }
+
+        if (text.TextAlignment != align) text.TextAlignment = align;
     }
 
     /// <summary>The kind of piece a hole is drawn as — see <see cref="Hole"/>.</summary>

@@ -238,6 +238,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Reached(x + room);
     }
 
+    /// <summary>How big each rank of heading is set, against the reader's text size.</summary>
+    private static readonly double[] Ranks = [1.9, 1.55, 1.3, 1.15, 1.0, 0.92];
+
     /// <summary>
     /// A heading, set at the size its rank asks for. The hashes are not drawn — they are machinery, and what they say
     /// is said by the size instead — but they are still in the tree at the offsets they were typed at, so nothing has
@@ -246,13 +249,13 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private void Heading(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var rank = Rank(part);
-        double[] scales = [1.9, 1.55, 1.3, 1.15, 1.0, 0.92];
+
 
         _y += Gap * 0.4;
         Text(into, Body(part), x, room, Face.Plain with
         {
             Bold = true,
-            Scale = scales[Math.Clamp(rank, 1, scales.Length) - 1],
+            Scale = Ranks[Math.Clamp(rank, 1, Ranks.Length) - 1],
             Ink = Style.Heading,
         });
 
@@ -466,22 +469,23 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         return said;
     }
 
+    /// <summary>What each roman numeral is worth, the pairs that subtract included, largest first.</summary>
+    private static readonly (int Worth, string Sign)[] Numerals =
+    [
+        (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+        (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+        (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+    ];
+
     /// <summary>A number in roman numerals, or itself where there is no such numeral.</summary>
     private static string Roman(int number)
     {
         if (number < 1 || number > 3999) return number.ToString(CultureInfo.InvariantCulture);
 
-        (int Worth, string Sign)[] signs =
-        [
-            (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
-            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
-            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
-        ];
-
         var said = new StringBuilder();
         var left = number;
 
-        foreach (var (worth, sign) in signs)
+        foreach (var (worth, sign) in Numerals)
             while (left >= worth)
             {
                 said.Append(sign);

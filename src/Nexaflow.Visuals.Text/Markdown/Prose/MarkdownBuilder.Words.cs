@@ -342,70 +342,62 @@ public sealed partial class MarkdownBuilder
 
     private void Lines(LayoutBuilder into, IReadOnlyList<Run> runs, double x, double room)
     {
-        var line = new List<(Run Run, string Text)>();
+        // Each word as where it lies in its run rather than a copy of it: the words are measured from the run's own text,
+        // and whatever ends up on one line is cut from it once.
+        var line = new List<(int Run, int Start, int End)>();
         var width = 0.0;
 
-        foreach (var (run, text, breaks) in Chunks(runs))
+        for (var index = 0; index < runs.Count; index++)
         {
-            if (breaks)
-            {
-                Row(into, line, x);
-                width = 0;
+            var run = runs[index];
 
-                continue;
-            }
-
-            // Measured, not set: the line these words end up on is set as one run once it is known where it breaks.
-            var measured = run.Inset?.Width ?? TextWidths.Of(text, Typeface(run.Face), Size(run.Face));
-
-            if (width > 0 && width + measured > room)
-            {
-                Row(into, line, x);
-                width = 0;
-            }
-
-            line.Add((run, text));
-            width += measured;
-        }
-
-        Row(into, line, x);
-    }
-
-    /// <summary>
-    /// The runs cut where a line may break: a word with whatever space followed it, so the space goes at the end of a
-    /// line rather than at the start of the next.
-    /// </summary>
-    private static IEnumerable<(Run Run, string Text, bool Breaks)> Chunks(IReadOnlyList<Run> runs)
-    {
-        foreach (var run in runs)
-        {
             if (run.Part.Kind == MarkdownKinds.Break && run.Text.Length == 0)
             {
-                yield return (run, string.Empty, true);
+                Row(into, runs, line, x);
+                width = 0;
 
                 continue;
             }
 
             // Content laid out by another language is one chunk: there is nothing in it this one can break.
-            if (run.Inset is not null)
+            if (run.Inset is { } inset)
             {
-                yield return (run, string.Empty, false);
+                Place(index, 0, 0, inset.Width);
 
                 continue;
             }
 
+            var measure = TextWidths.Set(Typeface(run.Face), Size(run.Face));
+            var text = run.Text;
             var at = 0;
 
-            while (at < run.Text.Length)
+            // Cut where a line may break: a word with whatever space followed it, so the space goes at the end of a line
+            // rather than at the start of the next. Measured, not set: the line these words end up on is set as one run
+            // once it is known where it breaks.
+            while (at < text.Length)
             {
                 var end = at;
-                while (end < run.Text.Length && !char.IsWhiteSpace(run.Text[end])) end++;
+                while (end < text.Length && !char.IsWhiteSpace(text[end])) end++;
                 if (end == at) end++;
-                while (end < run.Text.Length && char.IsWhiteSpace(run.Text[end])) end++;
+                while (end < text.Length && char.IsWhiteSpace(text[end])) end++;
 
-                yield return (run, run.Text[at..end], false);
+                Place(index, at, end, measure.Of(text.AsSpan(at, end - at)));
                 at = end;
             }
+        }
+
+        Row(into, runs, line, x);
+
+        void Place(int index, int start, int end, double measured)
+        {
+            if (width > 0 && width + measured > room)
+            {
+                Row(into, runs, line, x);
+                width = 0;
+            }
+
+            line.Add((index, start, end));
+            width += measured;
         }
     }
 
@@ -421,46 +413,54 @@ public sealed partial class MarkdownBuilder
     /// above them the whole line moves down, so nothing is ever drawn above where the line starts.
     /// </para>
     /// </summary>
-    private void Row(LayoutBuilder into, List<(Run Run, string Text)> line, double x)
+    private void Row(LayoutBuilder into, IReadOnlyList<Run> runs, List<(int Run, int Start, int End)> line, double x)
     {
         if (line.Count == 0) return;
 
-        var groups = new List<(Run Run, FormattedText? Glyphs)>();
+        var groups = new List<(Run Run, FormattedText? Glyphs)>(line.Count);
         var at = 0;
 
         while (at < line.Count)
         {
-            var run = line[at].Run;
+            var (index, start, end) = line[at++];
+            var run = runs[index];
 
             if (run.Inset is not null)
             {
                 groups.Add((run, null));
-                at++;
 
                 continue;
             }
 
-            var text = new StringBuilder();
+            // A run's words on one line lie side by side in it, so the line's share of the run is one cut.
+            while (at < line.Count && line[at].Run == index) end = line[at++].End;
 
-            while (at < line.Count && line[at].Run.Equals(run)) text.Append(line[at++].Text);
-
-            groups.Add((run, Glyphs(text.ToString(), run.Face)));
+            groups.Add((run, Glyphs(start == 0 && end == run.Text.Length ? run.Text : run.Text[start..end], run.Face)));
         }
 
         line.Clear();
 
         var words = Space;
-        var baseline = groups.Max(group => group.Glyphs?.Baseline ?? words.Baseline);
+        var baseline = double.NegativeInfinity;
+        foreach (var (_, glyphs) in groups) baseline = Math.Max(baseline, glyphs?.Baseline ?? words.Baseline);
+
         var middle = baseline - words.Baseline + (words.Height / 2);
 
-        var tops = groups
-            .Select(group => group.Glyphs is { } glyphs
-                ? baseline - glyphs.Baseline + (group.Run.Face.Lift * Style.TextSize)
-                : middle - (group.Run.Inset!.Height / 2))
-            .ToList();
+        var tops = new double[groups.Count];
+        var over = 0.0;
 
-        // Anything reaching above where the line starts moves the whole line down rather than being drawn there.
-        var over = Math.Min(0, tops.Min());
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var (run, glyphs) = groups[index];
+
+            tops[index] = glyphs is not null
+                ? baseline - glyphs.Baseline + (run.Face.Lift * Style.TextSize)
+                : middle - (run.Inset!.Height / 2);
+
+            // Anything reaching above where the line starts moves the whole line down rather than being drawn there.
+            over = Math.Min(over, tops[index]);
+        }
+
         var height = 0.0;
         var cursor = x;
 
@@ -505,7 +505,7 @@ public sealed partial class MarkdownBuilder
 
         if (run.Act is not { } act)
         {
-            LayoutText.Words(into, glyphs, new Point(x, top), Math.Max(glyphs.Width, 1), TextAlignment.Left,
+            LayoutText.Words(into, glyphs, new Point(x, top), double.PositiveInfinity, TextAlignment.Left,
                              run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
                              ink: run.Face.Ink ?? Style.Text);
 
@@ -517,7 +517,7 @@ public sealed partial class MarkdownBuilder
         into.Open(MarkdownPieces.Block, run.Part, new Point(x, top));
         into.Acts(new LayoutActions { Click = act });
 
-        LayoutText.Words(into, glyphs, default, Math.Max(glyphs.Width, 1), TextAlignment.Left,
+        LayoutText.Words(into, glyphs, default, double.PositiveInfinity, TextAlignment.Left,
                          run.Part, MarkdownPieces.Words, maps: run.Maps, writes: !run.Maps,
                          ink: run.Face.Ink ?? Style.Text);
 
@@ -531,19 +531,35 @@ public sealed partial class MarkdownBuilder
         var glyphs = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface(face), Size(face),
                                        face.Ink ?? Style.Text, LayoutText.Density);
 
-        if (face.Strike || face.Underline || face.Dotted)
-        {
-            var decorations = new TextDecorationCollection();
-
-            if (face.Strike) decorations.Add(TextDecorations.Strikethrough);
-            if (face.Underline) decorations.Add(TextDecorations.Underline);
-            if (face.Dotted) decorations.Add(Dots(face.Ink ?? Style.TextMuted));
-
-            glyphs.SetTextDecorations(decorations);
-        }
+        if (Decorations(face) is { } decorations) glyphs.SetTextDecorations(decorations);
 
         return glyphs;
     }
+
+    /// <summary>
+    /// The rules drawn through or under a face, made once for each way of ruling rather than once for every run ruled:
+    /// a document of links is a great many underlines and only one kind of them.
+    /// </summary>
+    private TextDecorationCollection? Decorations(Face face)
+    {
+        if (!(face.Strike || face.Underline || face.Dotted)) return null;
+
+        var key = (face.Strike, face.Underline, Dotted: face.Dotted ? face.Ink ?? Style.TextMuted : null);
+        if (_decorations.TryGetValue(key, out var made)) return made;
+
+        made = new TextDecorationCollection();
+
+        if (face.Strike) made.Add(TextDecorations.Strikethrough);
+        if (face.Underline) made.Add(TextDecorations.Underline);
+        if (key.Dotted is { } dots) made.Add(Dots(dots));
+
+        made.Freeze();
+        _decorations[key] = made;
+
+        return made;
+    }
+
+    private readonly Dictionary<(bool Strike, bool Underline, Brush? Dotted), TextDecorationCollection> _decorations = [];
 
     /// <summary>The typeface a face is set in: its own font, the fixed-pitch one, or the reading one.</summary>
     private Typeface Typeface(Face face) =>

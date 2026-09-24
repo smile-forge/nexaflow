@@ -357,7 +357,8 @@ visible area, or a group dropped before it reached the canvas — a before/after
 `docs/MarkdownSupport.md`: what **opening** a document costs, what **one keystroke** in the middle of it costs, and
 each step on its own — Markdig, every stage the document is read by, the builder (nested languages apart from
 markdown's own), painting (a fresh tree, the same tree again, and what a keystroke laid where the page was painted
-before it) — with corpus totals for every nested language, every stage of each language's own
+before it), and memory (what opening, a keystroke and each paint allocate, and what a document laid and painted
+holds on to) — with corpus totals for every nested language, every stage of each language's own
 pipeline, and every kind of block. It writes one JSON file per run and asserts nothing.
 
 ```powershell

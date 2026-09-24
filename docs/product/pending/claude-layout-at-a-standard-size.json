@@ -327,6 +327,12 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Table.cs",
           "class": "MarkdownBuilder",
           "method": "Heights"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Table.cs",
+          "class": "MarkdownBuilder",
+          "method": "Owners"
         }
       ],
       "concerns": {
@@ -335,6 +341,11 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
             "class": "MarkdownBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownTableRulesTests.cs",
+            "class": "MarkdownTableRulesTests"
           }
         ]
       }

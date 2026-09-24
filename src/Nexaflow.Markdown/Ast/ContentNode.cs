@@ -165,10 +165,18 @@ public sealed class ContentNode
     /// <summary>This piece and everything under it, outermost first.</summary>
     public IEnumerable<ContentNode> SelfAndDescendants()
     {
-        yield return this;
-        foreach (var child in this.Children)
-            foreach (var node in child.SelfAndDescendants())
-                yield return node;
+        // Walked with a stack of its own, in the same order, rather than an iterator for every level — which hands each node
+        // up through one iterator for every node above it.
+        var waiting = new Stack<ContentNode>();
+        waiting.Push(this);
+
+        while (waiting.Count > 0)
+        {
+            var node = waiting.Pop();
+            yield return node;
+
+            for (var at = node.Children.Count - 1; at >= 0; at--) waiting.Push(node.Children[at]);
+        }
     }
 
     /// <summary>Everything under this piece that stands for characters, left to right.</summary>

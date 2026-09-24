@@ -110,7 +110,7 @@ public class MarkdownLayoutBench
                                                        Dictionary<string, (int Count, double Ms)> stages,
                                                        Dictionary<string, (int Count, double Ms)> kinds)
     {
-        var open = Median(() => MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false));
+        var (open, openKb) = Cost(() => MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false));
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
@@ -118,7 +118,7 @@ public class MarkdownLayoutBench
         content.Lay(EditState.For(text), Room, false);
         var middle = Middle(text);
         var typed = 0;
-        var edit = Median(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
+        var (edit, editKb) = Cost(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
 
         ContentNode read = null!;
         var tRead = Median(() => read = MarkdownParser.Read(text));
@@ -180,7 +180,7 @@ public class MarkdownLayoutBench
 
         // Painting what was just laid, as a keystroke does; and painting the same tree again, as a caret blink or a
         // change of selection does — the two differ by whatever painting keeps from one time to the next.
-        var paint = Timed(() => new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room),
+        var (paint, paintKb) = Timed(() => new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room),
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
@@ -189,8 +189,19 @@ public class MarkdownLayoutBench
         var painter = MarkdownContent.Of(style, options);
         Painted(painter.Lay(EditState.For(text), Room, false), style);
         var retyped = 0;
-        var editPaint = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
-                              typedIn => Painted(typedIn, style));
+        var (editPaint, editPaintKb) = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
+                                             typedIn => Painted(typedIn, style));
+
+        // What a document open for writing holds on to once it is on the page: its tree, the pictures its blocks keep,
+        // and the reading kept so the next keystroke knows which blocks it has not touched.
+        var retained = Retained(() =>
+        {
+            var held = MarkdownContent.Of(style, options);
+            var shown = held.Lay(EditState.For(text), Room, false);
+            Painted(shown, style);
+
+            return (held, shown);
+        });
 
         return new Dictionary<string, object>
         {
@@ -211,6 +222,11 @@ public class MarkdownLayoutBench
             ["paint"] = Round(paint),
             ["repaint"] = Round(repaint),
             ["editPaint"] = Round(editPaint),
+            ["openKb"] = Math.Round(openKb, 1),
+            ["editKb"] = Math.Round(editKb, 1),
+            ["paintKb"] = Math.Round(paintKb, 1),
+            ["editPaintKb"] = Math.Round(editPaintKb, 1),
+            ["retainedKb"] = Math.Round(retained, 1),
         };
     }
 
@@ -300,6 +316,11 @@ public class MarkdownLayoutBench
             ["paint"] = Sum("paint"),
             ["repaint"] = Sum("repaint"),
             ["editPaint"] = Sum("editPaint"),
+            ["openKb"] = Sum("openKb"),
+            ["editKb"] = Sum("editKb"),
+            ["paintKb"] = Sum("paintKb"),
+            ["editPaintKb"] = Sum("editPaintKb"),
+            ["retainedKb"] = Sum("retainedKb"),
         };
     }
 
@@ -337,34 +358,71 @@ public class MarkdownLayoutBench
         return clock.Elapsed.TotalMilliseconds;
     }
 
-    /// <summary>The median of <see cref="Runs"/> timings of <paramref name="timed"/>, each on something <paramref name="make"/> made afresh, untimed.</summary>
-    private static double Timed<T>(Func<T> make, Func<T, double> timed)
+    /// <summary>
+    /// The medians of <see cref="Runs"/> runs of <paramref name="timed"/>, each on something <paramref name="make"/> made afresh,
+    /// untimed: how long it said it took, and how much it allocated.
+    /// </summary>
+    private static (double Ms, double Kb) Timed<T>(Func<T> make, Func<T, double> timed)
     {
         timed(make());
         var times = new double[Runs];
-
-        for (var at = 0; at < Runs; at++) times[at] = timed(make());
-
-        Array.Sort(times);
-        return times[Runs / 2];
-    }
-
-    /// <summary>The median of <see cref="Runs"/> timings, after one run to warm up.</summary>
-    private static double Median(Action run)
-    {
-        run();
-        var times = new double[Runs];
+        var bytes = new double[Runs];
 
         for (var at = 0; at < Runs; at++)
         {
-            var clock = Stopwatch.StartNew();
-            run();
-            times[at] = clock.Elapsed.TotalMilliseconds;
+            var made = make();
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+
+            times[at] = timed(made);
+            bytes[at] = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024.0;
         }
 
         Array.Sort(times);
-        return times[Runs / 2];
+        Array.Sort(bytes);
+        return (times[Runs / 2], bytes[Runs / 2]);
     }
 
-    private static double Median<T>(Func<T> run) => Median(() => { run(); });
+    /// <summary>The median of <see cref="Runs"/> timings, after one run to warm up.</summary>
+    private static double Median(Action run) => Cost(run).Ms;
+
+    /// <summary>
+    /// The medians of <see cref="Runs"/> runs, after one to warm up: how long each took, and how much it allocated — which is
+    /// what the collector is left to clear up after every keystroke, whatever it cost at the time.
+    /// </summary>
+    private static (double Ms, double Kb) Cost(Action run)
+    {
+        run();
+        var times = new double[Runs];
+        var bytes = new double[Runs];
+
+        for (var at = 0; at < Runs; at++)
+        {
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            var clock = Stopwatch.StartNew();
+
+            run();
+
+            times[at] = clock.Elapsed.TotalMilliseconds;
+            bytes[at] = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024.0;
+        }
+
+        Array.Sort(times);
+        Array.Sort(bytes);
+        return (times[Runs / 2], bytes[Runs / 2]);
+    }
+
+    /// <summary>How much more the heap holds, collected, while what <paramref name="make"/> made is still held — in KB.</summary>
+    private static double Retained<T>(Func<T> make)
+    {
+        make();
+        var before = GC.GetTotalMemory(forceFullCollection: true);
+
+        var held = make();
+        var after = GC.GetTotalMemory(forceFullCollection: true);
+
+        GC.KeepAlive(held);
+        return Math.Max(0, after - before) / 1024.0;
+    }
+
+    private static double Median<T>(Func<T> run) => Cost(() => { run(); }).Ms;
 }
