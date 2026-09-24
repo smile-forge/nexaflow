@@ -1,0 +1,104 @@
+{
+  "branch": "claude/ribbon-editor-redesign-837f09",
+  "nodes": {
+    "vcommon-search-box": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/SearchBox.xaml.cs",
+          "class": "SearchBox"
+        }
+      ]
+    },
+    "vcommon-color-picker": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/ColorPicker.xaml.cs",
+          "class": "ColorPicker"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/ColorSpec.cs",
+          "class": "ColorSpec"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/ColorMath.cs",
+          "class": "HsvColor"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Theming/ColorMath.cs",
+          "class": "ColorContrast"
+        }
+      ]
+    },
+    "vcommon-eyedropper": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/ScreenEyedropper.cs",
+          "class": "ScreenEyedropper"
+        }
+      ]
+    },
+    "vcommon-drag-reorder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Common/Behaviors/DragReorder.cs",
+          "class": "DragReorder"
+        }
+      ]
+    },
+    "icons-catalog": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconCatalog.cs",
+          "class": "IconCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconRef.cs",
+          "class": "IconRef"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/EmojiIcons.cs",
+          "class": "EmojiIcons"
+        }
+      ]
+    },
+    "icons-picker": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconPicker.xaml.cs",
+          "class": "IconPicker"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconPickerViewModel.cs",
+          "class": "IconPickerViewModel"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconGlyph.cs",
+          "class": "IconGlyph"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "icons-catalog",
+    "icons-picker",
+    "vcommon-color-picker",
+    "vcommon-drag-reorder",
+    "vcommon-eyedropper",
+    "vcommon-search-box"
+  ]
+}

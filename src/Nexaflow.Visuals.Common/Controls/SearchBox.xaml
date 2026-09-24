@@ -1,0 +1,71 @@
+<UserControl x:Class="Nexaflow.Visuals.Common.Controls.SearchBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Self"
+             Focusable="False">
+
+    <UserControl.Resources>
+        <!-- Declared here rather than borrowed from the host, like ZoomChip's rows: a shared control must not
+             depend on what its host happened to name things. -->
+        <Style x:Key="SearchClearButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="3" Padding="6,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource BorderBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border x:Name="Frame"
+            Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="7">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="🔍" FontSize="12" Margin="10,0,6,0" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextMutedBrush}"/>
+
+            <Grid Grid.Column="1">
+                <TextBox x:Name="Input"
+                         Background="Transparent" BorderThickness="0" Padding="0,6"
+                         Foreground="{DynamicResource TextBrush}" CaretBrush="{DynamicResource AccentBrush}"
+                         VerticalContentAlignment="Center" FontSize="13"
+                         AutomationProperties.AutomationId="{Binding InputAutomationId, ElementName=Self}"
+                         AutomationProperties.Name="{Binding Placeholder, ElementName=Self}"
+                         Text="{Binding Text, ElementName=Self, UpdateSourceTrigger=PropertyChanged}"
+                         GotKeyboardFocus="Input_FocusChanged" LostKeyboardFocus="Input_FocusChanged"
+                         PreviewKeyDown="Input_PreviewKeyDown"/>
+                <TextBlock x:Name="Watermark"
+                           Text="{Binding Placeholder, ElementName=Self}"
+                           Margin="2,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                           Foreground="{DynamicResource TextMutedBrush}"/>
+            </Grid>
+
+            <Button x:Name="ClearButton" Grid.Column="2" Content="✕" Margin="0,0,4,0"
+                    Style="{StaticResource SearchClearButton}"
+                    AutomationProperties.AutomationId="{Binding ClearAutomationId, ElementName=Self}"
+                    Click="Clear_Click"/>
+        </Grid>
+    </Border>
+</UserControl>

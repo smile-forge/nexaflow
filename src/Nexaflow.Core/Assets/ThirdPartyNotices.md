@@ -9,6 +9,7 @@ under the license noted below.
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
 | [Concentus](https://github.com/lostromb/concentus) (+ Oggfile) | MIT |
 | [DiscUtils](https://github.com/LTRData/DiscUtils) (built from source) | MIT |
+| [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) (bundled font — ribbon and picker icons) | MIT |
 | [fo-dicom](https://github.com/fo-dicom/fo-dicom) (+ fo-dicom.Codecs, bundled native codecs) | MS-PL |
 | [Google.GenAI](https://github.com/googleapis/dotnet-genai) | Apache-2.0 |
 | [HelixToolkit.Wpf](https://github.com/helix-toolkit/helix-toolkit) | MIT |

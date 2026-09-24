@@ -1,0 +1,14 @@
+{
+  "Common.Search.Placeholder": "Search",
+  "Common.ColorPicker.ThemeDefault": "Theme default",
+  "Common.ColorPicker.ThemeDefaultTip": "Use the theme's own colour, which changes with the theme",
+  "Common.ColorPicker.Eyedropper": "Pick from screen",
+  "Common.ColorPicker.EyedropperTip": "Sample any pixel on screen. Click to take it, Esc to cancel",
+  "Common.ColorPicker.Preview": "Before · after",
+  "Common.ColorPicker.Before": "Before",
+  "Common.ColorPicker.After": "After",
+  "Common.ColorPicker.HexTip": "#RRGGBB, or #AARRGGBB with transparency",
+  "Common.ColorPicker.IsThemeDefault": "Theme default",
+  "Common.ColorPicker.IsSwatch": "Theme swatch · {0}",
+  "Common.ColorPicker.IsCustom": "Custom colour"
+}

@@ -33,6 +33,7 @@
          Features.Common / IO.Common / Syntax transitively; they are named here because tests compile
          against them directly. -->
     <ProjectReference Include="..\..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Text\Nexaflow.Visuals.Text.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Visuals.Web\Nexaflow.Visuals.Web.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
