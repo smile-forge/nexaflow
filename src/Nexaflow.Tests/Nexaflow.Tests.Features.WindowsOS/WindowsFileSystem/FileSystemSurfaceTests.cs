@@ -12,6 +12,7 @@ using Nexaflow.Tests.Fixtures;
 using NSubstitute;
 using System.Threading.Tasks;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Tests.Features.Infrastructure;
 
 namespace Nexaflow.Tests.Features.WindowsFileSystem;
 
@@ -108,14 +109,20 @@ public class FileSystemSurfaceTests
         File.WriteAllText(Path.Combine(_scratch, "a.txt"), "");
         File.WriteAllText(Path.Combine(_scratch, "b.txt"), "");
 
-        var vm = AtScratch(out _);
-        // The flags are set before the counts are written, on the load's own thread, so they can be seen
-        // before the text is: wait for the load to finish, not for them.
-        Assert.IsTrue(SpinWaitFor(() => !vm.IsLoadingEntries && vm.HasFolders && vm.HasFiles), "the folder to finish loading");
+        // Built inside the pump, so the load's batches land on the thread that built it, as they do on the UI
+        // thread. Left to the thread pool, a batch could land between the navigation's own footer refresh reading
+        // the old 0/0 totals and writing them back, and the footer stayed at zero for good.
+        AsyncPump.Run(async () =>
+        {
+            var vm = AtScratch(out _);
+            for (int i = 0; i < 400 && vm.IsLoadingEntries; i++)
+                await Task.Delay(25);
+            Assert.IsFalse(vm.IsLoadingEntries, "the folder to finish loading");
 
-        Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FolderCountOne", 1), vm.FolderCountText);
-        Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FileCountMany", 2), vm.FileCountText);
-        Assert.IsTrue(vm.ShowCountSeparator, "the dot between them only earns its place when both are there");
+            Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FolderCountOne", 1), vm.FolderCountText);
+            Assert.AreEqual(Str.Format("WindowsFileSystem.Footer.FileCountMany", 2), vm.FileCountText);
+            Assert.IsTrue(vm.ShowCountSeparator, "the dot between them only earns its place when both are there");
+        });
     }
 
     [TestMethod]
@@ -548,7 +555,4 @@ public class FileSystemSurfaceTests
         Assert.AreEqual(0, vm.BuildContextActions([]).Count,
                         "This PC has no open folder, so a right-click on nothing has nothing to act on");
     }
-
-    private static bool SpinWaitFor(Func<bool> until)
-        => System.Threading.SpinWait.SpinUntil(until, 10000);
 }

@@ -39,7 +39,7 @@ public static class FileTransferEngine
     private const int ErrorAccessDenied   = 5;
     private const int ErrorSharingViolation = 32;
 
-    private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(200);
+    internal static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(200);
 
     /// <summary>
     /// Measures <paramref name="sources"/> so a run can report a determinate percentage. Unreadable

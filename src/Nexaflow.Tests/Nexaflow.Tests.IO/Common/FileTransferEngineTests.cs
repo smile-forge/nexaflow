@@ -276,11 +276,21 @@ public class FileTransferEngineTests
         FileWith(@"src\a.bin", new string('x', 4_000_000));
         var dest = Path.Combine(_root, "dest");
 
+        // Reports are throttled, and a fast disk copies 4 MB inside one interval, so nothing mid-file is ever
+        // reported unless time is made to pass: holding the opening report for longer than the throttle lets the
+        // first chunk's report through. The cancel is taken inline, so it lands before the next chunk is read.
         using var cts = new CancellationTokenSource();
-        var progress = new Progress<TransferProgress>(p => { if (p.BytesDone > 0) cts.Cancel(); });
+        long cancelledAt = -1;
+        bool held = false;
+        var progress = new SynchronousProgress(p =>
+        {
+            if (!held) { held = true; Thread.Sleep(FileTransferEngine.ReportInterval * 2); return; }
+            if (p.BytesDone > 0 && cancelledAt < 0) { cancelledAt = p.BytesDone; cts.Cancel(); }
+        });
 
         var result = await Run(TransferKind.Copy, src, dest, progress: progress, ct: cts.Token);
 
+        Assert.IsTrue(cancelledAt is > 0 and < 4_000_000, $"cancelled part-way through the file (at {cancelledAt} bytes)");
         Assert.IsFalse(result.Completed);
         if (Directory.Exists(dest))
             Assert.AreEqual(0, Directory.GetFiles(dest, "*" + ".nexaflow-partial").Length);
