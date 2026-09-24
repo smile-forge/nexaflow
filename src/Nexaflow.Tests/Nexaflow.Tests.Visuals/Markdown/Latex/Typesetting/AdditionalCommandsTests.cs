@@ -49,6 +49,59 @@ public class AdditionalCommandsTests
         Assert.IsTrue(Width(@"{\scriptstyle a} b") > Width(@"\scriptstyle a b")));
 
     [TestMethod]
+    [DataRow(@"\textbf{bold text} \;\; \textsf{sans text} \;\; \texttt{mono text} \;\; \textsc{small caps}")]
+    [DataRow(@"\boldsymbol{\alpha} + \boldsymbol{\beta} = \boldsymbol{\gamma} \qquad \boldsymbol{\nabla} \times \boldsymbol{F} \qquad \bm{\Sigma}\bm{x} = \bm{\lambda}")]
+    [DataRow(@"\color{red}{a^2} + \color{blue}{b^2} = \color{green}{c^2}")]
+    [DataRow(@"\textcolor{red}{a^2} + \textcolor{blue}{b^2} = \textcolor{green}{c^2}")]
+    [DataRow(@"\matrix{ a & b \\ c & d } \;\; \begin{matrix} a & b \\ c & d \end{matrix}")]
+    [DataRow(@"f(x) = \cases{ 1 & x > 0 \\ 0 & x = 0 \\ -1 & x < 0 } \;\; g(x) = \begin{cases} 1 & x > 0 \\ 0 & x \leq 0 \end{cases}")]
+    [DataRow(@"\pmatrix{ a & b \\ c & d }")]
+    [DataRow(@"\begin{alignat}{2} a &= b + c &\quad d &= e \\ f &= g &\quad h &= i \end{alignat}")]
+    [DataRow(@"\color[HTML]{FF8800}{x}")]
+    [DataRow(@"\textcolor{red}{x}")]
+    [DataRow(@"\color{red}{x}")]
+    [DataRow(@"\textsc{Abc 123}")]
+    [DataRow(@"\bm{\theta}")]
+    public void WhatTheSamplesWriteIsDrawn(string markup) => UiThread.Run(() => Renders(markup));
+
+    [TestMethod]
+    public void AColourReachesTheGlyphsItColours_AndASwitchReachesTheRestOfItsGroup() => UiThread.Run(() =>
+    {
+        // The ink each glyph chose, in the order drawn — null where it chose none and takes the theme's.
+        System.Windows.Media.Color? Ink(string markup, int glyph) =>
+            (Marks(markup).Select(one => one.Mark).OfType<Nexaflow.Visuals.Text.Editing.GlyphMark>().ElementAt(glyph).Foreground
+                as System.Windows.Media.SolidColorBrush)?.Color;
+
+        Assert.AreEqual(System.Windows.Media.Colors.Red, Ink(@"\textcolor{red}{a} b", 0));
+        Assert.IsNull(Ink(@"\textcolor{red}{a} b", 1), "what follows the argument is not coloured");
+
+        Assert.IsNull(Ink(@"{a \color{blue} b c} d", 0), "a switch colours nothing before it");
+        Assert.AreEqual(System.Windows.Media.Colors.Blue, Ink(@"{a \color{blue} b c} d", 1));
+        Assert.AreEqual(System.Windows.Media.Colors.Blue, Ink(@"{a \color{blue} b c} d", 2), "and everything after it in its group");
+        Assert.IsNull(Ink(@"{a \color{blue} b c} d", 3), "and nothing past the group's end");
+    });
+
+    [TestMethod]
+    public void TheCountAlignatIsWrittenWithIsNotACell() => UiThread.Run(() =>
+        Assert.AreEqual(Width(@"\begin{align} a &= b \end{align}"), Width(@"\begin{alignat}{1} a &= b \end{alignat}"), 0.01));
+
+    [TestMethod]
+    [DataRow(@"\begin{pmatrix} a_{11} & a_{12} & a_{13} \\ \hdotsfor{3} \\ a_{n1} & a_{n2} & a_{n3} \end{pmatrix} \;\; \begin{pmatrix} b_{11} & b_{12} \\ \hdotsfor[2]{2} \end{pmatrix}")]
+    [DataRow(@"\begin{matrix} a & b \\ \hdotsfor{2} \end{matrix}")]
+    public void ARowOfDotsIsDrawn(string markup) => UiThread.Run(() => Renders(markup));
+
+    [TestMethod]
+    public void ARowOfDotsFillsTheColumnsItStandsAcrossAndWidensNone() => UiThread.Run(() =>
+    {
+        const string full = @"\begin{matrix} aaa & bbb & ccc \\ \hdotsfor{3} \end{matrix}";
+
+        Assert.AreEqual(Width(@"\begin{matrix} aaa & bbb & ccc \end{matrix}"), Width(full), 0.01, "the table is as wide as its entries");
+
+        var dots = Marks(full).Count(one => one.Mark is Nexaflow.Visuals.Text.Editing.GlyphMark) - 9;
+        Assert.IsTrue(dots > 6, $"the dots run the width of three columns, not one ({dots} of them)");
+    });
+
+    [TestMethod]
     [DataRow(@"\overset{a}{b}")]
     [DataRow(@"\underset{a}{b}")]
     public void OversetAndUndersetRender(string markup) => UiThread.Run(() => Renders(markup));
@@ -234,18 +287,4 @@ public class AdditionalCommandsTests
     
     
     public void ImplicationArrowsRender(string markup) => UiThread.Run(() => Renders(markup));
-
-    [TestMethod]
-    [DataRow(@"\textcolor{red}{x}")]
-    [DataRow(@"\color{red}{x}")]
-    [DataRow(@"\textsc{Abc 123}")]
-    [DataRow(@"\bm{\theta}")]
-    public void TheCommandsWithNoDrawingYetAreShownAsWritten(string markup) => UiThread.Run(() =>
-    {
-        // Read, and nothing here draws them yet, so the reader sees the characters they typed with a warning under them
-        // rather than nothing at all. Listed so that teaching the builder one fails here, and the row moves to the
-        // construct's own test.
-        Assert.IsNotNull(Read(markup).Set, $"'{markup}' should still come back as something to show");
-        Assert.AreNotEqual(0, Undrawn(markup).Count, $"'{markup}' draws now — move it to a test that says what it draws");
-    });
 }

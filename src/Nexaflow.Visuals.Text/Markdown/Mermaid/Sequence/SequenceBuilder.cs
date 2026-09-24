@@ -21,8 +21,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 /// </para>
 ///
 /// <para>
-/// <strong>A participant is a box with its name in it</strong>, or one of UML's figures with its name under it where what it
-/// is says so; and a bar down its lifeline says it is working, set aside as far as the bars round it are nested.
+/// <strong>A participant is a box with its name in it</strong> — with a mark of what it is before the name where it is a
+/// boundary, a database or another kind of its own — or a figure with its name under it where it is an actor; and a bar down
+/// its lifeline says it is working, set aside as far as the bars round it are nested.
 /// </para>
 /// </summary>
 internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
@@ -44,6 +45,9 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
     /// <summary>How big the number against a message is drawn.</summary>
     private const double Counting = 10;
+
+    /// <summary>The least room across the middle of a frame its title is set in, clear of the tab either side.</summary>
+    private const double Titled = 60;
 
     /// <summary>How much of a box's or a wash's colour is laid over what is behind it.</summary>
     private const double Wash = 0.14;
@@ -94,6 +98,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
             var taken = DiagramWords.Taken(words);
             var carded = one.Card?.Shape;
             var figured = carded is null && SequenceGlyphs.Figured(one.Kind);
+            var marked = carded is null && SequenceGlyphs.Iconed(one.Kind) ? SequenceGlyphs.Icon + Air : 0;
 
             var column = new Column
             {
@@ -101,12 +106,13 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                 Words = words,
                 Links = [.. one.Links.Select(link => (link, Naming(link, config)))],
                 Carded = carded,
-                Width = Math.Max(taken.Width + (Air * 2) + (carded is { } wide ? DiagramCard.Wider(SequenceGlyphs.Carded(wide)) : 0),
+                Width = Math.Max(taken.Width + (Air * 2) + marked + (carded is { } wide ? DiagramCard.Wider(SequenceGlyphs.Carded(wide)) : 0),
                                  figured ? SequenceGlyphs.Size + Air : Air * 4),
                 Deep = figured
                     ? SequenceGlyphs.Size + taken.Height + Air
                     : taken.Height + (Air * 2) + (carded is { } deep ? DiagramCard.Deeper(SequenceGlyphs.Carded(deep)) : 0),
                 Figured = figured,
+                Marked = marked > 0,
             };
 
             plan.Columns.Add(column);
@@ -131,6 +137,12 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     /// by the abstraction each element sits at. Null where the diagram grades nothing, and the theme's own surface is the answer.
     /// </summary>
     protected virtual (Brush Fill, Brush Stroke, Brush Ink, Brush Muted)? Toned(SequenceCard card) => null;
+
+    /// <summary>
+    /// What a row of the key is swatched with where the diagram grades what it draws and the row names one of its bands — so the
+    /// key shows the colour the cards it names are painted. Null where the diagram grades nothing.
+    /// </summary>
+    protected virtual Brush? Swatch(SequenceLegend row) => null;
 
     /// <summary>
     /// What is written in a participant's box: its name, and — where the diagram writes a card rather than a plain box — the
@@ -273,12 +285,27 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         var going = new HashSet<string>(StringComparer.Ordinal);
         var frames = new Stack<string>();
 
-        foreach (var item in diagram.Items)
+        // An activate or a deactivate written straight after a message is that message's own, as a + or - on it is: the bar starts
+        // or ends where its line runs, rather than a row further down, and the line meets the bar rather than the lifeline.
+        var turned = new HashSet<SequenceTurn>(ReferenceEqualityComparer.Instance);
+        double? after = null;
+
+        for (var at = 0; at < diagram.Items.Count; at++)
         {
+            var item = diagram.Items[at];
+
             switch (item)
             {
                 case SequenceMessage message:
-                    y = Placed(config, plan, message, y, open, going, frames);
+                    var next = diagram.Items.Skip(at + 1).TakeWhile(following => following is SequenceTurn).Cast<SequenceTurn>().ToList();
+                    var starting = next.Where(turn => turn.On && string.Equals(turn.Id, message.To, StringComparison.Ordinal)).Take(1).ToList();
+                    var stopping = next.Where(turn => !turn.On && string.Equals(turn.Id, message.From, StringComparison.Ordinal)).Take(1).ToList();
+
+                    turned.UnionWith(starting);
+                    turned.UnionWith(stopping);
+
+                    y = Placed(config, plan, message, y, open, going, frames, message.Starts || starting.Count > 0, message.Stops || stopping.Count > 0);
+                    after = plan.Rows[message].Arrow;
                     break;
 
                 case SequenceNote note:
@@ -286,10 +313,13 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                     break;
 
                 case SequenceTurn turn:
-                    plan.Rows[turn] = new Row { Top = y, Bottom = y };
+                    var where = after ?? y;
+                    plan.Rows[turn] = new Row { Top = where, Bottom = where };
 
-                    if (turn.On) Opened(open, turn.Id, y);
-                    else Shut(plan, open, turn.Id, y);
+                    if (turned.Contains(turn)) break;
+
+                    if (turn.On) Opened(open, turn.Id, where);
+                    else Shut(plan, open, turn.Id, where);
 
                     break;
 
@@ -328,6 +358,8 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                     if (frames.Count > 0) frames.Pop();
                     break;
             }
+
+            if (item is not (SequenceMessage or SequenceTurn)) after = null;
         }
 
         plan.FootTop = y + config.Downward;
@@ -338,9 +370,9 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                 plan.Bars.Add(new Working(bars.Key, from, plan.FootTop, 0));
     }
 
-    /// <summary>One message's row: where its line runs, and what its <c>+</c> and <c>-</c> do to the bars at either end.</summary>
+    /// <summary>One message's row: where its line runs, and whether it <paramref name="starts"/> a bar where it arrives or <paramref name="stops"/> the one it leaves.</summary>
     private double Placed(SequenceConfig config, Plan plan, SequenceMessage message, double y,
-                          Dictionary<string, List<double>> open, HashSet<string> going, Stack<string> frames)
+                          Dictionary<string, List<double>> open, HashSet<string> going, Stack<string> frames, bool starts, bool stops)
     {
         var said = Saying(message, config);
         var taken = DiagramWords.Taken(said);
@@ -348,8 +380,8 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         var arrow = message.Self ? y + Clear : y + taken.Height + Clear;
         var drop = message.Self ? Math.Max(Loop * 0.6, taken.Height + (Clear * 2)) : 0;
 
-        if (message.Stops) Shut(plan, open, message.From, arrow);
-        if (message.Starts) Opened(open, message.To, arrow);
+        if (stops) Shut(plan, open, message.From, arrow);
+        if (starts) Opened(open, message.To, arrow);
 
         var row = new Row
         {
@@ -438,7 +470,9 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         foreach (var column in plan.Columns)
         {
-            if (column.Ends <= 0) column.Ends = config.Mirrored ? plan.FootTop : plan.Bottom;
+            // A lifeline runs down to the top of its own foot, wherever that stands in the band the feet share — not to the top of
+            // the band, which is the top of the deepest of them.
+            if (column.Ends <= 0) column.Ends = config.Mirrored ? Head(column, plan.FootTop, plan.HeadDeep).Top : plan.Bottom;
             if (column.Born <= 0) column.Born = plan.HeadTop;
         }
 
@@ -523,11 +557,13 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         var rows = diagram.Legend
             // A row with no colour of its own keeps an outlined square, which is what says it is a row of the key at all.
-            .Select(row => new DiagramKey(null, Ink.Written(row.Fill) ?? Ink.Written(row.Border),
+            .Select(row => new DiagramKey(null, Swatch(row) ?? Ink.Written(row.Fill) ?? Ink.Written(row.Border),
                                           [Worked(row.Says, null, config.NoteText, Palette.Text)]))
             .ToList();
 
-        plan.Key = new DiagramLegend(rows, [MermaidPiece.Words], across: false, Palette.CodeBorder);
+        // Across the foot of the diagram rather than down it: the key reads as a caption, and does not make the diagram deeper by a
+        // row for everything it names.
+        plan.Key = new DiagramLegend(rows, [MermaidPiece.Words], across: true, Palette.CodeBorder);
         plan.KeyAt = new Point(config.Across, plan.Size.Height);
         plan.Size = new Size(Math.Max(plan.Size.Width, plan.Key.Size.Width + (config.Across * 2)),
                              plan.Size.Height + plan.Key.Size.Height + config.Downward);
@@ -638,19 +674,21 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         {
             var shape = column.Carded is { } carded
                 ? DiagramCard.Outline(SequenceGlyphs.Carded(carded), bounds)
-                : SequenceGlyphs.Shape(column.One.Kind, bounds);
+                : SequenceGlyphs.Shape(bounds);
 
-            var room = column.Carded is { } inner
-                ? DiagramCard.Inside(SequenceGlyphs.Carded(inner), bounds)
-                : SequenceGlyphs.Inside(column.One.Kind, bounds);
+            var mark = new Rect(bounds.X + Air, bounds.Y + ((bounds.Height - SequenceGlyphs.Icon) / 2), SequenceGlyphs.Icon, SequenceGlyphs.Icon);
+            var room = column.Carded is { } inner ? DiagramCard.Inside(SequenceGlyphs.Carded(inner), bounds)
+                : column.Marked ? new Rect(mark.Right, bounds.Y, Math.Max(0, bounds.Right - mark.Right), bounds.Height)
+                : bounds;
 
             var placed = DiagramWords.Placed(column.Words, room, MermaidPiece.Words);
 
             var painted = column.One.Card is { } graded ? Toned(graded) : null;
 
             build.Open(MermaidPiece.Shape, column.One.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, painted?.Fill ?? Ink.Written(column.One.Card?.Fill) ?? Palette.CodeBg,
-                                        painted?.Stroke ?? Ink.Written(column.One.Card?.Border) ?? Palette.CodeBorder, Thick));
+            var edge = painted?.Stroke ?? Ink.Written(column.One.Card?.Border) ?? Ink.NodeEdge;
+            build.Draw(new GeometryMark(shape, painted?.Fill ?? Ink.Written(column.One.Card?.Fill) ?? Ink.Node, edge, Thick));
+            if (column.Marked) build.Draw(new GeometryMark(SequenceGlyphs.Mark(column.One.Kind, mark), null, edge, Thick * 0.8));
             build.Occupies(Less(shape, placed));
             build.Close();
 
@@ -752,7 +790,13 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         var word = Naming(opening, config);
         var tab = DiagramFrame.Tabbed(word, config.Tabbed, new Size(config.TabWidth, config.TabHeight));
-        var said = Wrapped(opening.Said, null, config.SaidText, Palette.TextMuted, Math.Max(20, bounds.Width - tab.Width));
+        // What a frame is about is its title, so it is set across the middle of the frame, clear of the tab on either side — and
+        // beside the tab where the frame is too narrow to leave room for it there.
+        var beside = DiagramFrame.Beside(bounds, tab, config.Tabbed);
+        var clear = tab.Width + config.Tabbed;
+        var centred = bounds.Width - (clear * 2) >= Titled;
+        var title = centred ? new Rect(bounds.X + clear, beside.Y, bounds.Width - (clear * 2), beside.Height) : beside;
+        var said = Wrapped(opening.Said, null, config.SaidText, Palette.TextMuted, Math.Max(20, title.Width));
 
         build.Open(MermaidPiece.Shape, opening.Part, stops: Stops.None);
         build.Draw(new GeometryMark(new RectangleGeometry(bounds), null, Palette.CodeBorder, Thick));
@@ -762,8 +806,8 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         word?.Set(build, DiagramFrame.Word(bounds, tab, word), MermaidPiece.Words);
 
-        foreach (var (words, at, kind) in DiagramWords.Placed(said, DiagramFrame.Beside(bounds, tab, config.Tabbed),
-                                                              MermaidPiece.Words, TextAlignment.Left))
+        foreach (var (words, at, kind) in DiagramWords.Placed(said, title, MermaidPiece.Words,
+                                                              centred ? TextAlignment.Center : TextAlignment.Left))
             words.Set(build, at, kind);
     }
 
@@ -785,7 +829,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
                                     null, Palette.CodeBorder, 1) { Dashes = DiagramStroke.Dashed });
         build.Close();
 
-        foreach (var (words, where, kind) in DiagramWords.Placed(said, room, MermaidPiece.Words, TextAlignment.Left))
+        foreach (var (words, where, kind) in DiagramWords.Placed(said, room, MermaidPiece.Words))
             words.Set(build, where, kind);
 
         build.Close();
@@ -796,7 +840,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     {
         if (!plan.Rows.TryGetValue(message, out var row)) return;
 
-        var stroke = new DiagramStroke(Ink.Written(message.Ink) ?? Palette.TextMuted, Thick,
+        var stroke = new DiagramStroke(Ink.Written(message.Ink) ?? Ink.Link, Thick,
                                        message.Dotted ? DiagramStroke.Dashed : null);
         var taken = DiagramWords.Taken(row.Said);
 
@@ -835,17 +879,16 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         build.Close();
     }
 
-    /// <summary>The number a message is given, drawn in a circle where its line sets out.</summary>
+    /// <summary>The number a message is given, drawn in a circle on its line where it sets out — on the lifeline it leaves.</summary>
     private void Counted(LayoutBuilder build, SequenceMessage message, Row row, string number)
     {
         var words = Worked(number, message.Part, Counting, Palette.Text);
-        // The number goes where the line sets out, and outside the loop where a message goes to the participant it left.
-        var middle = new Point(row.From + (row.To > row.From ? Counting + 2 : -Counting - 2), row.Arrow);
+        var middle = new Point(row.From, row.Arrow);
         var at = new Point(middle.X - (words.Width / 2), middle.Y - (words.Height / 2));
 
         build.Open(SequencePiece.Number, message.Part, stops: Stops.None);
         build.Open(MermaidPiece.Shape, message.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(new EllipseGeometry(middle, Counting, Counting), Palette.CodeBg, Palette.CodeBorder, 1));
+        build.Draw(new GeometryMark(new EllipseGeometry(middle, Counting, Counting), Ink.Surface, Ink.Link, 1));
         build.Close();
 
         words.Set(build, at, MermaidPiece.Words);
@@ -865,8 +908,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         build.Open(SequencePiece.Note, note.Part, stops: Stops.None);
 
         build.Open(MermaidPiece.Shape, note.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(new RectangleGeometry(bounds), DiagramInk.Faded(Palette.Accent, Wash),
-                                    Palette.CodeBorder, Thick));
+        build.Draw(new GeometryMark(new RectangleGeometry(bounds), Ink.Note, Ink.NoteEdge, Thick));
         build.Occupies(Less(new RectangleGeometry(bounds), placed));
         build.Close();
 
@@ -1082,6 +1124,9 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
         public double Deep { get; init; }
 
     public bool Figured { get; init; }
+
+    /// <summary>Whether a mark of what it is is set before its name, in its box.</summary>
+    public bool Marked { get; init; }
 
         /// <summary>The outline its card is drawn with, or null for a participant written as a name in a box.</summary>
         public SequenceCardShape? Carded { get; init; }

@@ -132,16 +132,20 @@ public static class TexCommands
         // Modular arithmetic: \bmod is a binary operator and takes nothing; the rest take the modulus.
         All([@"\pmod", @"\pod", @"\mod"], [TexRole.Argument]);
 
-        // \substack{a \\ b} — the stack under a big operator's limit.
-        Add(@"\substack", one, grid: true);
+        // \substack{a \\ b} — the stack under a big operator's limit — and plain TeX's tables, which are written as a
+        // command whose braces hold the rows rather than as an environment: \matrix{a & b \\ c & d}, \cases{…}.
+        foreach (var name in new[] { @"\substack", @"\matrix", @"\pmatrix", @"\cases" }) Add(name, one, grid: true);
+
+        // \hdotsfor[spacing]{n} — a row of dots across n columns of a table, standing in for entries left unwritten.
+        Add(@"\hdotsfor", [TexRole.Argument], TexRole.Option);
 
         // MathJax's box, which says how to draw the frame before what to put in it.
         Add(@"\bbox", one, TexRole.Option);
 
         // ── Fonts and text ──────────────────────────────────────────────────
         All([@"\mathrm", @"\mathbf", @"\mathit", @"\mathsf", @"\mathtt", @"\mathcal", @"\mathbb",
-             @"\mathfrak", @"\mathscr", @"\mathnormal", @"\boldsymbol", @"\pmb"], one);
-        All([@"\text", @"\mbox", @"\textbf", @"\textit", @"\texttt", @"\textrm", @"\textsf",
+             @"\mathfrak", @"\mathscr", @"\mathnormal", @"\boldsymbol", @"\bm", @"\pmb"], one);
+        All([@"\text", @"\mbox", @"\textbf", @"\textit", @"\texttt", @"\textrm", @"\textsf", @"\textsc",
              @"\textnormal", @"\emph", @"\operatorname", @"\operatorname*"], one);
 
         // ── One thing above or below another ────────────────────────────────
@@ -175,9 +179,10 @@ public static class TexCommands
         All([@"\begin", @"\end"], [TexRole.Argument]);
         All([@"\hspace", @"\vspace", @"\hspace*", @"\vspace*", @"\mspace", @"\kern", @"\mkern"],
             [TexRole.Argument]);
-        Add(@"\color", [TexRole.Argument]);
-        Add(@"\textcolor", [TexRole.Argument, TexRole.Base]);
-        Add(@"\colorbox", [TexRole.Argument, TexRole.Base]);
+        // A colour may say which model it is written in: \color[HTML]{FF8800}.
+        Add(@"\color", [TexRole.Argument], TexRole.Option);
+        Add(@"\textcolor", [TexRole.Argument, TexRole.Base], TexRole.Option);
+        Add(@"\colorbox", [TexRole.Argument, TexRole.Base], TexRole.Option);
         Add(@"\raisebox", [TexRole.Base], TexRole.Option);
         // Commands whose effect belongs to a page rather than to a formula. They are read with their
         // arguments so that what they swallow is nested under them and not left standing beside them —
@@ -212,10 +217,15 @@ public static class TexCommands
                                      "vsmallmatrix", "Vsmallmatrix", "cases", "dcases", "rcases" })
             Grid(name);
 
-        foreach (var name in new[] { "align", "align*", "aligned", "alignat", "alignat*", "alignedat",
+        foreach (var name in new[] { "align", "align*", "aligned",
                                      "gather", "gather*", "gathered", "split", "eqnarray", "eqnarray*",
                                      "multline", "multline*", "flalign", "flalign*" })
             Grid(name);
+
+        // The counted alignments say how many column pairs there are before the first row: \begin{alignat}{2}. Read as
+        // the argument it is, so the count is not taken for the first cell.
+        foreach (var name in new[] { "alignat", "alignat*", "alignedat", "xalignat", "xalignat*", "xxalignat", "xxalignat*" })
+            Grid(name, TexRole.Argument);
 
         // The one with a shape of its own: \begin{array}{cc} says how its columns are set, and moving a
         // column means moving a letter of that spec in step. Read as a grid so the cells are there; the

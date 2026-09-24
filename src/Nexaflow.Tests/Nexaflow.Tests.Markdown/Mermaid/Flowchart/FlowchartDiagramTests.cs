@@ -124,13 +124,16 @@ public class FlowchartDiagramTests
     }
 
     [TestMethod]
-    public void ANodeBelongsToTheSubgraphItWasFirstWrittenIn()
+    public void ANodeBelongsToTheFirstSubgraphItIsWrittenIn_WhereverItWasWrittenFirst()
     {
+        // Mermaid's own example: c1 and a2 are linked before any subgraph is opened, and each is drawn in the one it is written in next.
         var diagram = FlowchartDiagram.Read("flowchart TB\n  c1 --> a2\n  subgraph one\n    a1 --> a2\n  end\n"
-                                            + "  subgraph two\n    b1 --> b2\n  end");
+                                            + "  subgraph two\n    b1 --> b2\n  end\n  subgraph three\n    c1 --> c2\n  end\n"
+                                            + "  subgraph four\n    a2\n  end");
 
-        Assert.AreEqual(2, diagram.Groups.Count);
-        Assert.IsNull(diagram.Find("a2")!.Group, "a2 was written outside them both first");
+        Assert.AreEqual(4, diagram.Groups.Count);
+        Assert.AreEqual(diagram.Groups[0].Key, diagram.Find("a2")!.Group, "a2 is in the first subgraph it is written in");
+        Assert.AreEqual(diagram.Groups[2].Key, diagram.Find("c1")!.Group, "and so is c1, though it was written outside them all first");
         Assert.AreEqual(diagram.Groups[0].Key, diagram.Find("a1")!.Group);
         Assert.AreEqual(diagram.Groups[1].Key, diagram.Find("b1")!.Group);
     }

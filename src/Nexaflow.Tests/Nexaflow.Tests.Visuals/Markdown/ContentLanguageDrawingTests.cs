@@ -110,8 +110,10 @@ public class ContentLanguageDrawingTests
     public void ALanguageThatCannotReadABlockLeavesTheCharactersToBeDrawn() => UiThread.Run(() =>
     {
         // The specific shape of the rule: a barcode block that will not parse has no symbol in it, so it
-        // lays nothing — and the document puts the source there instead, where the caret can reach it.
-        Assert.IsNull(ContentLanguages.For("barcode")!.Lay(new ContentRequest("format:\nvalue:\n", StyleFormat.Dark)));
+        // lays nothing but why — and the document puts the source there instead, where the caret can reach it.
+        var laid = ContentLanguages.For("barcode")!.Lay(new ContentRequest("format:\nvalue:\n", StyleFormat.Dark));
+        Assert.IsFalse(laid?.Draws ?? false, "nothing to draw");
+        Assert.AreNotEqual(0, laid?.Trouble.Count ?? 0, "and it says why");
 
         var shown = Lay("barcode", "format:\nvalue:\n").Root.SelfAndDescendants()
             .Where(piece => piece.Kind == MarkdownPieces.Verbatim)

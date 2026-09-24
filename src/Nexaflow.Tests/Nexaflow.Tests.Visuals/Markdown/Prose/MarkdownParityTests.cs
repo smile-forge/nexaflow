@@ -70,6 +70,25 @@ public class MarkdownParityTests
     }
 
     [TestMethod]
+    public void ARuleIsPressedAsTheBandItSitsInAndTakesNoCaret()
+    {
+        var laid = Lay("one\n\n---\n\ntwo\n");
+        var rule = Pieces(laid, MarkdownPieces.Rule).Single();
+
+        Assert.IsTrue(rule.Bounds.Height >= 8, $"a band a pointer can land on, not a hairline ({rule.Bounds.Height:0.#} tall)");
+        Assert.AreEqual(Stops.None, rule.Stops, "there is nothing in a rule to write, so the pointer over it is no bar");
+    }
+
+    [TestMethod]
+    public void AQuoteIsBarredInTheAccent()
+    {
+        var laid = Lay("> quoted\n");
+        var quote = Pieces(laid, MarkdownPieces.Block).First(piece => Marks(piece).OfType<RuleMark>().Any());
+
+        Assert.AreEqual(StyleFormat.Dark.Accent, Marks(quote).OfType<RuleMark>().Single().Foreground);
+    }
+
+    [TestMethod]
     public void AQuoteIsItsWordsBesideABarWithoutTheMarks()
     {
         var laid = Lay("> quoted\n> more\n");
@@ -153,6 +172,28 @@ public class MarkdownParityTests
         var laid = SetApart("a ==lit== b\n", "lit", MarkdownKinds.Mark);
 
         Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => Marks(piece).OfType<WashMark>().Any()), "a wash behind them");
+    }
+
+    [TestMethod]
+    public void ADisplayFormulaWithACommandItCannotDrawIsStillSet_WithAWaveUnderTheCommand()
+    {
+        const string source = "$$ \\sideset{_a^b}{_c^d}\\sum $$\n";
+        var laid = Lay(source);
+
+        Assert.IsFalse(Words(laid).Any(piece => piece.Words!.Glyphs.Text.Contains("$$")), "set as a formula, not shown as its source");
+        Assert.IsTrue(laid.Trouble.Any(one => source.Substring(one.Start, one.Length).Contains("sideset")),
+                      "with the trouble said where it is: " + string.Join(" | ", laid.Trouble.Select(one => one.Message)));
+    }
+
+    [TestMethod]
+    public void ABlockItsLanguageCannotReadIsItsSourceWithWhatIsWrongWithIt()
+    {
+        var laid = Lay("```barcode\nformat: NOTAFORMAT\nvalue: 12345\n```\n");
+        var drawn = Drawn(laid);
+
+        StringAssert.Contains(drawn, "format: NOTAFORMAT", "the characters written, to put right");
+        StringAssert.Contains(drawn, "Unknown barcode format 'NOTAFORMAT'", "and what is wrong with them");
+        StringAssert.Contains(drawn, "EAN13", "with what it could have said instead");
     }
 
     [TestMethod]

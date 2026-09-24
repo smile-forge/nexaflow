@@ -154,6 +154,32 @@ public class MarkdownContentTests
         Assert.IsNull(element.Saying, "moving off the word takes what it said away");
     });
 
+    [TestMethod]
+    public void ThePointerIsABarOnlyOverWriting() => UiThread.Run(() =>
+    {
+        var element = Laid("Short.\n\n> quoted\n\n```cs\nvar x = 1;\n```\n\nEnd.\n");
+
+        foreach (var words in new[] { "Short.", "quoted", "End." })
+        {
+            var piece = element.Laid.Root.SelfAndDescendants().First(one => one.Words?.Glyphs.Text == words);
+
+            Assert.AreEqual(System.Windows.Input.Cursors.IBeam, element.PointerCursor(Middle(piece)), $"over '{words}'");
+            Assert.AreEqual(System.Windows.Input.Cursors.Arrow,
+                            element.PointerCursor(new System.Windows.Point(piece.Bounds.Right + 80, piece.Bounds.Y + (piece.Bounds.Height / 2))),
+                            $"on the blank page beside '{words}'");
+        }
+    });
+
+    [TestMethod]
+    public void ADocumentOfNothingButLineEndingsStillHasSomewhereForTheCaret() => UiThread.Run(() =>
+    {
+        var element = Laid("\n\n");
+
+        element.TakeCaret(1);
+
+        Assert.IsFalse(element.Laid.Root.CaretRect(element.Caret).IsEmpty);
+    });
+
     private static MarkdownElement Laid(string source)
     {
         var element = new MarkdownElement(source, StyleFormat.Dark);

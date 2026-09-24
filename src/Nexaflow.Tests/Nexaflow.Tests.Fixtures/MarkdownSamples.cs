@@ -72,9 +72,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         **How to read this reference:** every `$$` block below uses only constructs the engine
         **supports**, so each should typeset. Standard LaTeX the engine does **not** support is
-        called out under each section as *Not supported*. When a formula does fail, the app shows
-        its raw `$$ … $$` source in an accent-bordered box — like the one just below, which
-        deliberately uses the unsupported `\sideset`:
+        called out under each section as *Not supported*. When part of a formula cannot be drawn, the
+        rest of it is still set: the command with no drawing is shown as its own characters with a red
+        wave under it, and the reason on hover — like the one just below, which deliberately uses the
+        unsupported `\sideset`:
 
         $$ \sideset{_a^b}{_c^d}\sum $$
 

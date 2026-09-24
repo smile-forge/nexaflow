@@ -336,7 +336,8 @@ applied** ([`SequenceConfig`](../src/Nexaflow.Markdown/Mermaid/Sequence/Sequence
 `activationWidth`, `diagramMarginX`, `diagramMarginY`, `actorMargin`, `width`, `height`, `boxMargin`, `boxTextMargin`,
 `noteMargin`, `messageMargin`, `messageAlign`, `noteAlign`, `mirrorActors`, `bottomMarginAdj`, `rightAngles`,
 `showSequenceNumbers`, `hideUnusedParticipants`, `actorFontSize`, `noteFontSize`, `messageFontSize`, `wrap`,
-`wrapPadding`, `labelBoxWidth` and `labelBoxHeight` — every key Mermaid documents, on Mermaid's own defaults.
+`wrapPadding`, `labelBoxWidth` and `labelBoxHeight` — every key Mermaid documents, on Mermaid's own defaults but one:
+`rightAngles` is on unless it is turned off, so a message to a participant itself loops back square.
 **Divergences from Mermaid:** a name ends at what a line is written with — a colon, a comma, a semicolon, an angle
 bracket, a plus, the `@` opening its metadata — or at the characters of an arrow, so `Order-Service` is a name and
 `Order->>Service` is a message, and typing into a name drops what would end one, a name here having no quotes to hold

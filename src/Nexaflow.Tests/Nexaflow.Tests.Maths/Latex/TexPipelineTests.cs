@@ -170,6 +170,20 @@ public class TexPipelineTests
             "and the kern that puts it there came inside rather than being dropped");
     }
 
+    [TestMethod]
+    public void ARowOfDotsSaysHowManyColumnsItStandsAcrossAndHowFarApartItsDotsAre()
+    {
+        static TexDots? Dots(string latex) =>
+            TexPipeline.Read(latex).SelfAndDescendants().Select(node => node.Held).OfType<TexDots>().SingleOrDefault();
+
+        Assert.AreEqual(new TexDots(3, 1), Dots(@"\hdotsfor{3}"));
+        Assert.AreEqual(new TexDots(2, 2), Dots(@"\hdotsfor[2]{2}"));
+        Assert.AreEqual(@"\hdotsfor[2]{2}", TexPipeline.Read(@"\hdotsfor[2]{2}").Print(), "and the writing is untouched");
+
+        Assert.IsNull(Dots(@"\hdotsfor{x}"), "a count that is no whole number says nothing");
+        Assert.IsNull(Dots(@"\hdotsfor{0}"), "nor does one that covers no column");
+    }
+
     /// <summary>Nothing to gather leaves the tree exactly as it was — the same instance, not a copy.</summary>
     [TestMethod]
     public void AndAFormulaWithNoneOfThatIsUntouched()

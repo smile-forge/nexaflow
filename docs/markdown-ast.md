@@ -198,7 +198,7 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 | Stage | What it works out |
 |---|---|
 | `WithBlocks` | what each block holds, read by the parser its kind names |
-| `WithGroups` | what pieces read side by side make together, in one walk: the pairs a definition list is, and the marker an alert's `[!`, name and `]` are |
+| `WithGroups` | what pieces read side by side make together, in one walk: the pairs a definition list is, the marker an alert's `[!`, name and `]` are, and the display formula a paragraph of nothing but `$$ … $$` is |
 | `WithNested` | which language reads what is written inside a piece, and how big it is set |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
 | `WithLinks` | how this showing of the document wants each link to look |
@@ -297,9 +297,11 @@ element and not offered onwards, because a host handed `#getting-started` has no
 or where it went. A name the document has no heading for is still not the host's: it does nothing, which is
 what a reader sees when they follow a link to a section somebody deleted.
 
-**Nothing drawn is never an answer.** A language either lays the content out or says it cannot, and what
-goes there then is the characters somebody typed — so a block nothing could make sense of is still on the
-page, still where it was written, still somewhere the caret can go and repair it. The seam asks `Laid.Draws`
+**Nothing drawn is never an answer.** A language either lays the content out or says it cannot — with why, as
+trouble on a layout that draws nothing — and what goes there then is the characters somebody typed, in a box ruled
+in the colour of trouble with the reason written under them: `Unknown barcode format 'NOTAFORMAT'`, and the formats
+it could have been. So a block nothing could make sense of is still on the page, still where it was written, still
+somewhere the caret can go and repair it, and says what to repair. The seam asks `Laid.Draws`
 rather than `Laid.Exists`, because a tree can be built and hold nothing visible, and a caller that took the
 one for the other would put an empty box on the page where a block should be. What is written is wrong most
 of the time — half a diagram is what every diagram looks like on the way to being one — so this is the

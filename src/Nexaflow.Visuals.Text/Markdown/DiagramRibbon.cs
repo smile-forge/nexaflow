@@ -116,6 +116,21 @@ internal sealed class DiagramRibbon : UserControl
         _ => intent.Tip is { Length: > 0 } said ? said : intent.Verb,
     };
 
+    /// <summary>
+    /// The mark an intent is drawn as where there is room only for a mark — a block's corner — or null where it has none and
+    /// is named instead. Segoe MDL2 Assets, which every Windows the app runs on carries.
+    /// </summary>
+    public static string? Icon(LayoutIntent intent) => intent.Verb switch
+    {
+        LayoutVerbs.Copy => "\uE8C8",
+        LayoutVerbs.Save => "\uE74E",
+        LayoutVerbs.Navigate => "\uE8A7",
+        _ => null,
+    };
+
+    /// <summary>The face the marks are drawn in.</summary>
+    public static FontFamily IconFont { get; } = new("Segoe MDL2 Assets");
+
     private static Brush Brush(string key, Color fallback) =>
         Application.Current?.TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
 }

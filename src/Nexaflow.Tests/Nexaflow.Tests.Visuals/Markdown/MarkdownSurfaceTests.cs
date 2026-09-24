@@ -6,6 +6,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -196,6 +197,18 @@ public class MarkdownSurfaceTests
     });
 
     [TestMethod]
+    public void APicturesCornerCanBeReachedFromTheTopOfThePicture() => UiThread.Run(() =>
+    {
+        // A barcode's bars stand for no characters, so a block found only by where its characters were drawn would be no
+        // taller than the value printed under it — and the corner, at the block's top, would be off the block.
+        var surface = Shown("Before.\n\n```barcode\nformat: CODE128\nvalue: 12345\n```\n");
+        var symbol = surface.Shown.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Block && piece.Part is { Length: > 30 });
+        var corner = new Point(surface.Shown.Laid.Size.Width - 2, symbol.Bounds.Top + 2);
+
+        CollectionAssert.Contains(surface.Corner(corner).Select(offer => offer.Verb).ToList(), LayoutVerbs.Copy);
+    });
+
+    [TestMethod]
     public void TwoPressesOnABlockShowItAsItWasWritten() => UiThread.Run(() =>
     {
         var surface = Shown("# Title\n\nSome **bold** words.\n");
@@ -218,6 +231,50 @@ public class MarkdownSurfaceTests
         surface.Shown.TakeCaret(2);
 
         Assert.IsNull(surface.Shown.ShownAsWritten);
+    });
+
+    [TestMethod]
+    public void EveryKindOfBlockOpensWholeAndIsDrawnAgainOnceTheCaretLeaves() => UiThread.Run(() =>
+    {
+        (string Block, string Word)[] blocks =
+        [
+            ("# Title words\n", "Title"),
+            ("> quoted words\n> more\n", "quoted"),
+            ("- item words\n- two\n", "item"),
+            ("| a | b |\n|---|---|\n| cell | d |\n", "cell"),
+            ("```cs\nvar x = 1;\n```\n", "var"),
+            ("> [!NOTE]\n> alert words\n", "alert"),
+            ("Term\n:   described words\n", "described"),
+        ];
+
+        foreach (var (block, word) in blocks)
+        {
+            var source = "Intro.\n\n" + block + "\nOutro.\n";
+            var surface = Shown(source);
+            surface.IsReadOnly = false;
+
+            Assert.IsTrue(surface.OpenAsWritten(Middle(surface, word)), $"{block.Trim()}: opens");
+            Assert.AreEqual((8, block.TrimEnd('\n').Length), surface.Shown.ShownAsWritten, $"{block.Trim()}: the whole of it");
+            Assert.IsTrue(surface.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == block.TrimEnd('\n')),
+                          $"{block.Trim()}: drawn as the characters it was written as, marks and all");
+
+            surface.Shown.TakeCaret(source.Length - 2);
+
+            Assert.IsNull(surface.Shown.ShownAsWritten, $"{block.Trim()}: drawn again once the caret leaves it");
+        }
+    });
+
+    [TestMethod]
+    public void EscapeDrawsABlockAgainAndKeepsWhatWasWrittenInIt() => UiThread.Run(() =>
+    {
+        var surface = Shown("Some **bold** words.\n");
+        surface.IsReadOnly = false;
+        surface.OpenAsWritten(Middle(surface, "bold"));
+        surface.Shown.Type('!');
+
+        Assert.IsTrue(surface.Pressed(System.Windows.Input.Key.Escape, System.Windows.Input.ModifierKeys.None));
+        Assert.IsNull(surface.Shown.ShownAsWritten);
+        StringAssert.Contains(surface.Markdown, "!", "what was typed stays typed");
     });
 
     [TestMethod]

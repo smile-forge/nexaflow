@@ -306,14 +306,13 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
             .. held.Select(service => (Geometry)new RectangleGeometry(service.Bounds)),
         ]);
 
-        var fill = DiagramInk.Faded(Ink.Series(group.Order), Wash);
         var said = Says(group.Said, group.SaidHole, diagram.Config.FontSize ?? TextSize, Palette.Text, box.Width);
         var heading = new Rect(box.X + 6, box.Y + 2, Math.Max(0, box.Width - 12), DiagramWords.Taken(said).Height);
 
         build.Open(ArchitecturePiece.Group, group.Part, stops: Stops.None);
-        DiagramShapes.Draw(build, ArchitecturePiece.Holding, group.Part, DiagramShape.Rounded, box, fill,
-                           new DiagramStroke(Ink.Series(group.Order), 1, DiagramStroke.Dashed),
-                           DiagramWords.Placed(said, heading, MermaidPiece.Words, TextAlignment.Left), covered);
+        DiagramShapes.Draw(build, ArchitecturePiece.Holding, group.Part, DiagramShape.Rounded, box, Ink.Group,
+                           new DiagramStroke(Ink.GroupEdge, 1, DiagramStroke.Dashed),
+                           DiagramWords.Placed(said, heading, MermaidPiece.Words, TextAlignment.Left), covered, band: Ink.Band(null));
 
         foreach (var child in inner) Holds(build, diagram, sized, groups, child, over);
         foreach (var service in held) Drawn(build, service);
@@ -419,7 +418,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
 
         foreach (var route in routes)
         {
-            DiagramConnector.Draw(build, ArchitecturePiece.Edge, route.Edge.Part, route.Along, new DiagramStroke(Palette.TextMuted, Thick),
+            DiagramConnector.Draw(build, ArchitecturePiece.Edge, route.Edge.Part, route.Along, new DiagramStroke(Ink.Link, Thick),
                                   route.Edge.StartHead ? DiagramHead.Arrow : DiagramHead.None,
                                   route.Edge.EndHead ? DiagramHead.Arrow : DiagramHead.None);
 

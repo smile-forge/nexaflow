@@ -166,7 +166,7 @@ internal static class DiagramShapes
             DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
                 or DiagramShape.Trapezoid or DiagramShape.TrapezoidAlt => Inset(bounds, Slant(bounds), 0),
             DiagramShape.Asymmetric => new Rect(x + Notch(bounds), y, Math.Max(0, w - Notch(bounds)), h),
-            DiagramShape.Cylinder => new Rect(x, y + (Lid(bounds) * 2), w, Math.Max(0, h - (Lid(bounds) * 3))),
+            DiagramShape.Cylinder => new Rect(x, y + Lid(bounds), w, Math.Max(0, h - (Lid(bounds) * 2))),
             DiagramShape.Document => new Rect(x, y, w, Math.Max(0, h - (Wave(bounds) * 2))),
             DiagramShape.Card => new Rect(x + (Fold(bounds) / 2), y, Math.Max(0, w - (Fold(bounds) / 2)), h),
             DiagramShape.Cloud => Inset(bounds, w * 0.14, h * 0.2),
@@ -191,7 +191,7 @@ internal static class DiagramShapes
             case DiagramShape.DoubleCircle: return Square((Math.Max(w, h) * Math.Sqrt(2)) + (Inner * 2));
             case DiagramShape.Diamond: return new Size(w * 2, h * 2);
             case DiagramShape.Asymmetric: return new Size(Math.Max(w + 12, w * 4 / 3), h);
-            case DiagramShape.Cylinder: return new Size(w, h / 0.55 * 0.15 < 10 ? h / 0.55 : h + 30);
+            case DiagramShape.Cylinder: return new Size(w, h / 0.7 * 0.15 < 10 ? h / 0.7 : h + 20);
             case DiagramShape.Document: return new Size(w, h / 0.85);
             case DiagramShape.Card: return new Size(w + (Math.Min(12, h / 3) / 2), h);
             case DiagramShape.Cloud: return new Size(w / 0.72, h / 0.6);
@@ -334,7 +334,7 @@ internal static class DiagramShapes
     /// <param name="degrees">How far the words are turned, a quarter turn being <c>-90</c>, which reads them up the page.</param>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, DiagramShape shape, Rect bounds, Brush? fill, DiagramStroke? stroke,
     IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null,
-                            double degrees = 0, LayoutActions? acts = null)
+                            double degrees = 0, LayoutActions? acts = null, Brush? band = null)
     {
         var outline = Outline(shape, bounds);
         var over = new GeometryGroup();
@@ -345,7 +345,16 @@ internal static class DiagramShapes
         if (acts is not null) build.Acts(acts);
 
         build.Open(MermaidPiece.Shape, part, stops: Stops.None);
-        build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        if (band is not null && Banded(outline, bounds, words, degrees) is { } heading)
+        {
+            // The band goes over the fill and under the outline, with a rule under it in the outline's ink: the name reads as the
+            // top of the box rather than something set on it.
+            build.Draw(new GeometryMark(outline, fill, null, 0));
+            build.Draw(new GeometryMark(heading.Band, band, null, 0));
+            if (stroke is not null) build.Draw(new GeometryMark(heading.Rule, null, stroke.Ink, stroke.Thickness));
+            build.Draw(new GeometryMark(outline, null, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        }
+        else build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         if (Details(shape, bounds) is { } details && stroke is not null)
             build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, over);
@@ -356,6 +365,31 @@ internal static class DiagramShapes
         foreach (var (said, at, wordsKind) in words) said.Set(build, at, wordsKind, degrees);
 
         build.Close();
+    }
+
+    /// <summary>
+    /// The band across the top of a shape its words are set in: from the top down past the words by as much air again as there is
+    /// over them, cut to the outline — and the rule under it. Null where nothing is written to set a band behind.
+    /// </summary>
+    private static (Geometry Band, Geometry Rule)? Banded(Geometry outline, Rect bounds,
+                                                          IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, double degrees)
+    {
+        if (words.Count == 0) return null;
+
+        var taken = Rect.Empty;
+        foreach (var (said, at, _) in words) taken.Union(Taken(said, at, degrees));
+
+        var depth = Math.Min(bounds.Height, taken.Bottom - bounds.Top + Math.Max(0, taken.Top - bounds.Top));
+        if (depth <= 0) return null;
+
+        var band = new CombinedGeometry(GeometryCombineMode.Intersect, outline,
+                                        new RectangleGeometry(new Rect(bounds.X, bounds.Y, bounds.Width, depth)));
+        band.Freeze();
+
+        var rule = new LineGeometry(new Point(bounds.Left, bounds.Y + depth), new Point(bounds.Right, bounds.Y + depth));
+        rule.Freeze();
+
+        return (band, rule);
     }
 
     /// <summary>

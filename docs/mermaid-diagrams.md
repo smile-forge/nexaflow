@@ -86,7 +86,7 @@ diagram's own code sits in a folder of its own under each.
 | read the front matter | `MermaidConfig.Diagram`, `Theme`, `DiagramTheme`, `Swatches` (from `first`), `Size`, `Number`, `Flag`, `List` (in brackets, or the lines under the key) |
 | escape what is typed where it cannot go as it is | `MermaidWriting.Escape` — quotes, bare names, labels in brackets; `MermaidWriting.Only` where a name cannot be quoted at all and what it cannot hold is dropped |
 | read a value in quotes that may hold a quote of its own, written twice | `MermaidLine.Quoted` with `doubled` — a CSV field |
-| read what a value in quotes says, entity codes and all | `MermaidText.Bare`, `Decode` |
+| read what a value in quotes says, entity codes and all — Mermaid's `#quot;` and HTML's `&nbsp;` | `MermaidText.Bare`, `Decode` |
 
 ### Drawing
 
@@ -94,6 +94,7 @@ diagram's own code sits in a folder of its own under each.
 |---|---|
 | set words: written (typed into), worked out (pressed), or a hole | `Written` / `Worked` on the builder → `DiagramWords`, placed with `Set` |
 | colour anything | `Ink` (`DiagramInk`): `Written`, `Series`, `Over`, `Faded` — a colour nobody wrote is the theme's |
+| colour what a diagram of things joined by lines draws, where nothing is written for it | `Ink.Node` and `NodeEdge` for the things joined, `Link` for the lines, `Note` and `NoteEdge` for a note, `Group`, `GroupEdge` and `Band` for a box holding others, `Quiet` and `QuietEdge` for a shape that only points the way, `DiagramInk.Ruled` for the rules dividing a box into bands. Every one of a kind is drawn alike — a subgraph is never told apart from the next by its colour — so a diagram reads the same whichever of them it is |
 | draw a legend | `DiagramLegend` of `DiagramKey` rows; `Square` for its swatches' size |
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
@@ -102,7 +103,8 @@ diagram's own code sits in a folder of its own under each.
 | say what a piece stands in where other pieces are drawn over it | `build.Occupies` of its shape less `DiagramShapes.United` of theirs — a group of them would stand wrong, a line's band being wound the other way round from a rectangle |
 | write what is said on a connector over the middle of it | `DiagramConnector.Room` for the room it takes, worked out before anything is drawn so what is under it does not stand there, then `DiagramConnector.Says` to draw it on a patch of the card's colour |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |
-| set words that wrap to a width, breaking where a `<br>` says to, each line typed into as the characters it holds | `Wrapped` |
+| set a box's name in a band of its own across the top of it — a subgraph, a namespace, a composite | `DiagramShapes.Draw` with `band`: the band runs down past the words placed at the top by as much air again as is over them, with a rule under it in the outline's ink |
+| set words that wrap to a width, breaking where a `<br>` or a `\n` says to, each line typed into as the characters it holds | `Wrapped` — and `Written` sets a break as the lines it makes, pressed rather than typed into |
 | lay a tree out tidily — children beside their parent, the root's either side | `DiagramTree.Lay` |
 | lay nodes joined by lines out in ranks — a flowchart, a state chart | `DiagramLayers.Lay` of `DiagramCell`s and `DiagramJoin`s: ranks by how far the links reach, an order that keeps few lines crossing, boxes laid out in their own space and run their own way, and a route for every line — turning in the air between two ranks rather than between the middles of what it joins, running alongside a rank it passes rather than across what is in it, and bowed aside from any other line joining the same pair |
 | lay the same out in lanes — a swimlane | `DiagramLanes` of `DiagramLane`s, given to `DiagramLayers.Lay`: each cell keeps to the band its `DiagramCell.Lane` names, a lane's cells come one to a rank, and a link handed between two lanes goes across rather than on. A lane is not a cell — it is the band its cells are laid out in, and comes back its `Bounds` and the `Strip` at the near end where its name goes |

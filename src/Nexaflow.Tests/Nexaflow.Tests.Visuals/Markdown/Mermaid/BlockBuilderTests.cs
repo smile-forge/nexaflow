@@ -184,6 +184,35 @@ public class BlockBuilderTests : MermaidBuilderContract
                         + string.Join("\n", drawn.GroupBy(said => said).Where(same => same.Count() > 1).Select(same => same.Key)));
     });
 
+    [TestMethod]
+    public void TheDocumentationsSketchIsBlocksWiderThanTheyAreTall_EveryOneFilled() => UiThread.Run(() =>
+    {
+        var laid = Build("block-beta\n  columns 3\n  Frontend blockArrowId6<[\" \"]>(right) Backend\n  space:2 down<[\" \"]>(down)\n"
+                         + "  Disk left<[\" \"]>(left) Database[(\"Database\")]\n  classDef front fill:#696,stroke:#333;\n  class Frontend front");
+        var blocks = Pieces(laid, BlockPiece.Block);
+
+        Assert.AreEqual(4, blocks.Count);
+        foreach (var block in blocks)
+            Assert.IsTrue(block.Bounds.Width > block.Bounds.Height, $"{string.Concat(Said(block).Select(words => words.Words!.Glyphs.Text))} lies across its cell: {block.Bounds}");
+
+        var plain = blocks.Where(block => Filled(block) != Color.FromRgb(0x66, 0x99, 0x66)).Select(Filled).ToList();
+        Assert.IsNotNull(plain[0], "a block nothing styles is filled");
+        Assert.AreEqual(1, plain.Distinct().Count(), "and every one of them alike");
+
+        foreach (var arrow in Pieces(laid, BlockPiece.Arrow))
+            Assert.IsNotNull(Filled(arrow), "an arrow is filled, a shade apart from the blocks");
+        Assert.AreNotEqual(plain[0], Filled(Pieces(laid, BlockPiece.Arrow)[0]));
+    });
+
+    [TestMethod]
+    public void ACircleIsRoundWhateverRoomItsCellHas() => UiThread.Run(() =>
+    {
+        var laid = Build("block-beta\n  columns 1\n  db((\"DB\"))\n  wide[\"A block very much wider than the circle is\"]");
+        var circle = Marks(Pieces(laid, BlockPiece.Block)[0])[0].Shape.Bounds;
+
+        Assert.AreEqual(circle.Width, circle.Height, 0.5, $"a circle in a wide cell is still a circle: {circle}");
+    });
+
     /// <summary>What a block's shape comes to as a path, which is the only thing that tells two shapes of the same size apart.</summary>
     private static string Outlined(Piece piece) =>
         string.Join("|", Marks(piece).Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)));

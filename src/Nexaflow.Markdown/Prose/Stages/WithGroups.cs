@@ -32,12 +32,71 @@ public sealed class WithGroups : IAstStage
     public ContentNode Run(ContentNode tree) => AstRewrite.Regrouping(tree, Grouped);
 
     /// <summary>What a node's children make together, where they make anything; null where they stay as they are.</summary>
-    private static IReadOnlyList<ContentNode>? Grouped(ContentNode node, IReadOnlyList<ContentNode> children) => node switch
+    private static IReadOnlyList<ContentNode>? Grouped(ContentNode node, IReadOnlyList<ContentNode> children)
     {
-        { Kind: MarkdownKinds.Alert } => Marked(children),
-        { Role: Roles.Body } when Defines(children) => Paired(children),
-        _ => null,
-    };
+        var displayed = Displays(children);
+        var seen = displayed ?? children;
+
+        var grouped = node switch
+        {
+            { Kind: MarkdownKinds.Alert } => Marked(seen),
+            { Role: Roles.Body } when Defines(seen) => Paired(seen),
+            _ => null,
+        };
+
+        return grouped ?? displayed;
+    }
+
+    // ── Display formulas ────────────────────────────────────────────────────
+
+    /// <summary>Blocks with every paragraph that is nothing but a formula between double dollars made the display formula it is; null where there is none.</summary>
+    private static List<ContentNode>? Displays(IReadOnlyList<ContentNode> children)
+    {
+        List<ContentNode>? displayed = null;
+
+        for (var at = 0; at < children.Count; at++)
+        {
+            if (Displayed(children[at]) is not { } maths) continue;
+
+            displayed ??= [.. children];
+            displayed[at] = maths;
+        }
+
+        return displayed;
+    }
+
+    /// <summary>
+    /// A paragraph holding one formula written between double dollars and nothing else, as the display formula it is —
+    /// which a paragraph written that way is, on one line or several, whatever the reader made of its dollars. The same
+    /// characters in the same order: the dollars and the formula are the block's, and what stood round them is its trivia.
+    /// </summary>
+    private static ContentNode? Displayed(ContentNode paragraph)
+    {
+        if (paragraph.Kind != MarkdownKinds.Paragraph || paragraph.Part(Roles.Body) is not { IsLeaf: false } words) return null;
+
+        ContentNode? formula = null;
+
+        foreach (var child in words.Children)
+        {
+            if (child.Kind == MarkdownKinds.Formula && formula is null) formula = child;
+            else if (child.Role != Roles.Trivia) return null;
+        }
+
+        if (formula?.Part(Roles.Open) is not { } opens || !opens.Text.StartsWith("$$", StringComparison.Ordinal)) return null;
+
+        var parts = new List<ContentNode>();
+
+        foreach (var child in paragraph.Children)
+        {
+            if (!ReferenceEquals(child, words)) { parts.Add(child); continue; }
+
+            foreach (var written in words.Children)
+                if (ReferenceEquals(written, formula)) parts.AddRange(formula.Children);
+                else parts.Add(written);
+        }
+
+        return ContentNode.Branch(MarkdownKinds.Math, parts, paragraph.Role);
+    }
 
     // ── Definitions ─────────────────────────────────────────────────────────
 

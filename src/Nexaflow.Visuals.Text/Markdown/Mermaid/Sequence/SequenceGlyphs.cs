@@ -6,39 +6,44 @@ using Nexaflow.Markdown.Mermaid.Sequence;
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sequence;
 
 /// <summary>
-/// What each kind of participant is drawn as. UML's robustness marks — the figure, the boundary, the control and the entity —
-/// are a figure with the name written under them; the rest are a shape with the name written in them, which is what a plain
-/// participant has always been.
+/// What each kind of participant is drawn as. An actor is a figure with its name written under it; every other kind is a box
+/// with its name written in it, which is what a plain participant has always been — and a kind that is something in
+/// particular, a boundary or a database, sets a mark of what it is before its name.
 /// </summary>
 internal static class SequenceGlyphs
 {
     /// <summary>How big a figure is drawn, above the name.</summary>
     public const double Size = 32;
 
-    /// <summary>Whether this kind is a figure with its name under it, rather than a shape with its name in it.</summary>
-    public static bool Figured(SequenceKind kind) =>
-        kind is SequenceKind.Actor or SequenceKind.Boundary or SequenceKind.Control or SequenceKind.Entity;
+    /// <summary>Whether this kind is a figure with its name under it, rather than a box with its name in it — an actor alone.</summary>
+    public static bool Figured(SequenceKind kind) => kind is SequenceKind.Actor;
 
-    /// <summary>The shape a participant of this kind is drawn as, for the kinds that hold their name.</summary>
-    public static Geometry Shape(SequenceKind kind, Rect bounds) => kind switch
+    /// <summary>
+    /// Whether this kind is a box with a mark of what it is set before its name — UML's boundary, control and entity, and the
+    /// database, collections and queue. Mermaid draws these as the mark alone, or as a shape the name is squeezed into; a box
+    /// holding both says what it is as plainly, lines up with every other participant, and always has room for its name.
+    /// </summary>
+    public static bool Iconed(SequenceKind kind) =>
+        kind is SequenceKind.Boundary or SequenceKind.Control or SequenceKind.Entity
+            or SequenceKind.Database or SequenceKind.Collections or SequenceKind.Queue;
+
+    /// <summary>How big the mark set before a name is drawn.</summary>
+    public const double Icon = 16;
+
+    /// <summary>The mark saying what kind of participant this is, drawn in <paramref name="bounds"/> before its name.</summary>
+    public static Geometry Mark(SequenceKind kind, Rect bounds) => kind switch
     {
-        SequenceKind.Database => DiagramShapes.Outline(DiagramShape.Cylinder, bounds),
+        SequenceKind.Database => DiagramShapes.Outline(DiagramShape.Cylinder,
+                                                       new Rect(bounds.X + (bounds.Width * 0.1), bounds.Y, bounds.Width * 0.8, bounds.Height)),
         SequenceKind.Collections => Collected(bounds),
-        SequenceKind.Queue => DiagramCard.Queued(bounds),
-        _ => Frozen(new RectangleGeometry(bounds, Corner, Corner)),
+        SequenceKind.Queue => DiagramCard.Queued(new Rect(bounds.X, bounds.Y + (bounds.Height * 0.2), bounds.Width, bounds.Height * 0.6)),
+        _ => Figure(kind, bounds),
     };
 
-    /// <summary>The room a shape of this kind leaves for the name inside it.</summary>
-    public static Rect Inside(SequenceKind kind, Rect bounds) => kind switch
-    {
-        SequenceKind.Database => DiagramShapes.Inside(DiagramShape.Cylinder, bounds),
-        SequenceKind.Collections => new Rect(bounds.X, bounds.Y + Offset,
-                                             Math.Max(0, bounds.Width - Offset), Math.Max(0, bounds.Height - Offset)),
-        SequenceKind.Queue => new Rect(bounds.X, bounds.Y, Math.Max(0, bounds.Width - (bounds.Height / 2)), bounds.Height),
-        _ => bounds,
-    };
+    /// <summary>The box a participant that is not a figure is drawn as.</summary>
+    public static Geometry Shape(Rect bounds) => Frozen(new RectangleGeometry(bounds, Corner, Corner));
 
-    /// <summary>The figure drawn above the name, for the kinds that are one.</summary>
+    /// <summary>The figure a kind is drawn as: an actor's above its name, and the others' as the mark before it.</summary>
     public static Geometry Figure(SequenceKind kind, Rect bounds) => kind switch
     {
         SequenceKind.Boundary => Bounded(bounds),
@@ -132,13 +137,14 @@ internal static class SequenceGlyphs
     /// <summary>Several of a thing: one box behind another.</summary>
     private static Geometry Collected(Rect bounds)
     {
+        var offset = Math.Min(Offset, bounds.Width / 4);
         var group = new GeometryGroup();
-        group.Children.Add(new RectangleGeometry(new Rect(bounds.X + Offset, bounds.Y,
-                                                          Math.Max(0, bounds.Width - Offset),
-                                                          Math.Max(0, bounds.Height - Offset)), Corner, Corner));
-        group.Children.Add(new RectangleGeometry(new Rect(bounds.X, bounds.Y + Offset,
-                                                          Math.Max(0, bounds.Width - Offset),
-                                                          Math.Max(0, bounds.Height - Offset)), Corner, Corner));
+        group.Children.Add(new RectangleGeometry(new Rect(bounds.X + offset, bounds.Y,
+                                                          Math.Max(0, bounds.Width - offset),
+                                                          Math.Max(0, bounds.Height - offset)), 1, 1));
+        group.Children.Add(new RectangleGeometry(new Rect(bounds.X, bounds.Y + offset,
+                                                          Math.Max(0, bounds.Width - offset),
+                                                          Math.Max(0, bounds.Height - offset)), 1, 1));
 
         return Frozen(group);
     }

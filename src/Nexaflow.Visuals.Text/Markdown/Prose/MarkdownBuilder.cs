@@ -67,11 +67,14 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// <inheritdoc/>
     protected override Laid? Build()
     {
-        if (Source.Length == 0) return null;
+        // Nothing written but the spaces between blocks is nothing to draw, and is shown as the characters it is — which is
+        // also where the caret stands in it, since the page itself takes none.
+        if (Source.Length == 0 || Reading.Root.Children.All(child => child.Role == Roles.Trivia || child.Derived)) return null;
 
         var into = new LayoutBuilder(Expected());
 
-        into.Open(MarkdownPieces.Document, Reading.Root);
+        // The page holds the writing and is none itself: the pointer is a bar over the words, not over the paper round them.
+        into.Open(MarkdownPieces.Document, Reading.Root, stops: Stops.None);
         Blocks(into, Reading.Root, 0, Fits(Room));
         into.Close();
 
@@ -184,8 +187,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
     {
         // Somebody is changing the markup rather than the words, so the markup is what is shown. Asked of the
-        // innermost block that holds the stretch: a block that holds blocks lets the one being written in answer.
-        if (!Holds(part) && Shown(part))
+        // innermost block that holds the stretch: a block that holds blocks lets the one being written in answer —
+        // unless the whole of it is being shown, when the marks it holds its blocks with are what is being written.
+        if (Shown(part) && (!Holds(part) || Opened(part)))
         {
             Sourced(into, part, x, room);
 
@@ -228,6 +232,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private bool Shown(ContentPart part) =>
         State.Raw is { } zone && zone.Start < part.End && part.Start < zone.End && !ContentNesting.Nests(part, zone);
+
+    /// <summary>Whether the whole of this block is being shown as written, as far as it is drawn when it is.</summary>
+    private bool Opened(ContentPart part) =>
+        State.Raw is { } zone && zone.Start <= part.Start && zone.End >= part.Start + part.Print().TrimEnd('\n', '\r').Length;
 
     /// <summary>
     /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
@@ -291,7 +299,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         _y += Gap * 0.25;
 
-        into.Open(MarkdownPieces.Rule, part, new Point(x, _y));
+        into.Open(MarkdownPieces.Rule, part, new Point(x, _y), Stops.None);
         into.Draw(new RuleMark(new Rect(0, 0, Math.Max(room, 1), thick), Style.Hr));
         into.Close();
 
@@ -311,12 +319,17 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         return text.Contains('=') ? 1 : 2;
     }
 
+    /// <summary>
+    /// A rule across the page. It is pressed as the band it sits in rather than as the line — a line one pixel tall is
+    /// a line nobody can hit — and it takes no caret, since there is nothing in it to write: pressing it picks it.
+    /// </summary>
     private void Rule(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var thick = Math.Max(1, Style.TextSize / 13.5);
 
-        into.Open(MarkdownPieces.Rule, part, new Point(x, _y + Gap * 0.5));
-        into.Draw(new RuleMark(new Rect(0, 0, Math.Max(room, 1), thick), Style.Hr));
+        into.Open(MarkdownPieces.Rule, part, new Point(x, _y), Stops.None);
+        into.Draw(new RuleMark(new Rect(0, Gap * 0.5, Math.Max(room, 1), thick), Style.Hr));
+        into.Covers(new Rect(0, 0, Math.Max(room, 1), thick + Gap));
         into.Close();
 
         _y += thick + Gap;
@@ -330,7 +343,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Quoted(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var bar = Math.Max(2, Style.TextSize * 0.22);
+        var bar = Math.Max(2, Style.TextSize * 4 / 13.5);
         var pad = Style.TextSize * 0.6;
         var inside = Math.Max(room - bar - pad * 2, 1);
 
@@ -348,7 +361,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var height = size.Height + pad;
         var top = _y;
 
-        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.QuoteBg));
         into.Draw(new RuleMark(new Rect(0, 0, bar, height), ink));
         into.Graft(tree, new Point(bar + pad, pad * 0.5));
@@ -364,7 +377,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private (Brush Ink, string? Label) Calls(ContentPart part)
     {
-        if (part.Kind != MarkdownKinds.Alert) return (Style.TextMuted, null);
+        if (part.Kind != MarkdownKinds.Alert) return (Style.Accent, null);
 
         var name = Marker(part)?.Part(Roles.Name)?.Text ?? string.Empty;
 
@@ -564,7 +577,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        if (Nested(part, room) is { } inset)
+        var nested = Nested(part, room);
+
+        if (nested is { Draws: true } inset)
         {
             _borrowed.AddRange(inset.Laid.Trouble);
             // The card a language's drawing sits on is nowhere to write: what it drew says where the caret can go.
@@ -578,7 +593,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             return;
         }
 
-        AsWritten(into, part, x, room);
+        if (nested is { Laid.Trouble.Count: > 0 } refused) Refused(into, part, x, room, refused.Laid.Trouble);
+        else AsWritten(into, part, x, room);
     }
 
     /// <summary>
@@ -596,9 +612,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Displayed(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        if (Nested(part, room) is not { } inset)
+        if (Nested(part, room) is not { Draws: true } inset)
         {
-            AsWritten(into, part, x, room);
+            if (Nested(part, room) is { Laid.Trouble.Count: > 0 } refused) Refused(into, part, x, room, refused.Laid.Trouble);
+            else AsWritten(into, part, x, room);
 
             return;
         }
@@ -644,7 +661,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var height = glyphs.Height + pad * 2;
         var top = _y;
 
-        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.CodeBg));
         into.Close();
 
@@ -652,6 +669,43 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         LayoutText.Words(into, glyphs, new Point(x + pad, _y), Math.Max(1, room - pad * 2),
                          TextAlignment.Left, new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim,
                          maps: shown.Length > 0, ink: Style.Text);
+
+        _y = top + height;
+        Reached(x + room);
+    }
+
+    /// <summary>
+    /// A block another language could make nothing of: the characters as written, so they are there to put right, in a box
+    /// ruled in the colour of trouble — with what that language said was wrong written under them.
+    /// </summary>
+    private void Refused(LayoutBuilder into, ContentPart part, double x, double room, IReadOnlyList<Diagnostic> why)
+    {
+        var body = part.Part(Roles.Body) ?? part;
+        var shown = body.Print().TrimEnd('\n', '\r');
+        var pad = Style.TextSize * 0.55;
+        var inside = Math.Max(1, room - (pad * 2));
+
+        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, Face.Plain with { Mono = true, Scale = 0.94 });
+        glyphs.MaxTextWidth = inside;
+
+        var said = Glyphs(string.Join("\n", why.Select(one => one.Message).Distinct()), Face.Plain with { Scale = 0.9, Ink = Style.Danger });
+        said.MaxTextWidth = inside;
+
+        var gap = pad * 0.6;
+        var height = pad + glyphs.Height + gap + said.Height + pad;
+        var top = _y;
+
+        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
+        into.Draw(new GeometryMark(new RectangleGeometry(new Rect(0, 0, Math.Max(room, 1), height), pad * 0.4, pad * 0.4),
+                                   Style.CodeBg, Style.Danger, Math.Max(1, Style.TextSize / 10)));
+        into.Close();
+
+        LayoutText.Words(into, glyphs, new Point(x + pad, top + pad), inside, TextAlignment.Left,
+                         new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim, maps: shown.Length > 0, ink: Style.Text);
+
+        // What was wrong is not anything written, so it stands for nothing and takes no caret.
+        LayoutText.Words(into, said, new Point(x + pad, top + pad + glyphs.Height + gap), inside, TextAlignment.Left,
+                         null, MarkdownPieces.Words, maps: false, ink: Style.Danger);
 
         _y = top + height;
         Reached(x + room);
@@ -701,7 +755,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var round = Math.Max(2, Style.TextSize * 0.3);
         var top = _y;
 
-        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new GeometryMark(new RectangleGeometry(new Rect(0, 0, Math.Max(room, 1), height), round, round),
                                    Style.FigureBg, Style.FigureBorder, 1));
         into.Graft(tree, new Point(pad, pad * 0.6));
@@ -717,7 +771,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var face = Face.Plain with { Italic = true, Scale = Caption, Ink = Style.TextMuted };
         var (tree, size) = Apart(sub => Text(sub, Body(part), 0, room, face));
 
-        into.Open(MarkdownPieces.Block, part, new Point(x + Math.Max((room - size.Width) / 2, 0), _y));
+        into.Open(MarkdownPieces.Block, part, new Point(x + Math.Max((room - size.Width) / 2, 0), _y), Stops.None);
         into.Graft(tree, default);
         into.Close();
 
@@ -739,7 +793,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var height = thick + (pad * 2) + size.Height;
         var top = _y;
 
-        into.Open(MarkdownPieces.Block, part, new Point(x, top));
+        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new RuleMark(new Rect(0, 0, Math.Max(room, 1), thick), Style.Hr));
         into.Draw(new WashMark(new Rect(0, thick, Math.Max(room, 1), height - thick), Style.FooterBg));
         into.Graft(tree, new Point(0, thick + pad));

@@ -69,9 +69,6 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     /// <summary>How thick a link written with equals signs is drawn.</summary>
     private const double Thick = 2.5;
 
-    /// <summary>How solid a composite's background is, over the colour it takes from the series.</summary>
-    private const double Wash = 0.18;
-
     /// <summary>How far a block arrow's head reaches in from its edge, how thick its shaft is, and how wide its head spreads.</summary>
     private const double Reach = 0.34;
     private const double Shaft = 0.16;
@@ -242,8 +239,8 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
                 break;
 
             default:
-                DiagramShapes.Draw(build, BlockPiece.Block, item.Part, Shaped(item), sized.Bounds, Fill(item), Stroke(item),
-                                   DiagramWords.Placed(sized.Words, DiagramShapes.Inside(Shaped(item), sized.Bounds), MermaidPiece.Words));
+                DiagramShapes.Draw(build, BlockPiece.Block, item.Part, Shaped(item), Standing(sized), Fill(item), Stroke(item),
+                                   DiagramWords.Placed(sized.Words, DiagramShapes.Inside(Shaped(item), Standing(sized)), MermaidPiece.Words));
                 break;
         }
     }
@@ -259,12 +256,13 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         [
             .. over,
             .. sized.Items.Where(child => child.Item.Kind != BlockKind.Space)
-                  .Select(child => DiagramShapes.Outline(Shaped(child.Item), child.Bounds)),
+                  .Select(child => DiagramShapes.Outline(Shaped(child.Item), Standing(child))),
         ]);
 
         build.Open(BlockPiece.Composite, item.Part, stops: Stops.None);
         DiagramShapes.Draw(build, BlockPiece.Holding, item.Part, Shaped(item), sized.Bounds, Fill(item), Stroke(item),
-                           DiagramWords.Placed(sized.Words, heading, MermaidPiece.Words), covered);
+                           DiagramWords.Placed(sized.Words, heading, MermaidPiece.Words), covered,
+                           band: Ink.Band(Ink.Written(item.Style.Stroke)));
 
         foreach (var child in sized.Items) Drawn(build, child, pad, over);
         build.Close();
@@ -375,8 +373,8 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
             var along = new[]
             {
-                DiagramShapes.Edge(Shaped(from.Item), from.Bounds, Middle(to.Bounds)),
-                DiagramShapes.Edge(Shaped(to.Item), to.Bounds, Middle(from.Bounds)),
+                DiagramShapes.Edge(Shaped(from.Item), Standing(from), Middle(to.Bounds)),
+                DiagramShapes.Edge(Shaped(to.Item), Standing(to), Middle(from.Bounds)),
             };
 
             var said = link.Said is null && link.SaidHole is null
@@ -398,7 +396,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
         foreach (var route in routes)
         {
-            var stroke = DiagramConnector.Stroked(Palette.TextMuted, route.Link.Style, thick: Thick);
+            var stroke = DiagramConnector.Stroked(Ink.Link, route.Link.Style, thick: Thick);
 
             DiagramConnector.Draw(build, BlockPiece.Link, route.Link.Part, route.Along, stroke,
                                   DiagramConnector.Headed(route.Link.Start), DiagramConnector.Headed(route.Link.End));
@@ -441,19 +439,42 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         : DiagramShape.Rectangle;
 
     /// <summary>
-    /// What a block is filled with: what the styling writes for it, and otherwise the card's own colour — or, for a composite,
-    /// a wash of the colour its place among the composites gives it, so one opening inside another is told apart from it.
+    /// Where a block's shape stands in its cell: the whole cell, which grows to fill its column and its row — but a circle is round
+    /// whatever room it is given, so it stands in a square in the middle of the cell rather than stretching to an ellipse.
+    /// </summary>
+    private static Rect Standing(Sized sized)
+    {
+        if (Shaped(sized.Item) is not (DiagramShape.Circle or DiagramShape.DoubleCircle)) return sized.Bounds;
+
+        var side = Math.Min(sized.Bounds.Width, sized.Bounds.Height);
+        return new Rect(sized.Bounds.X + ((sized.Bounds.Width - side) / 2), sized.Bounds.Y + ((sized.Bounds.Height - side) / 2), side, side);
+    }
+
+    /// <summary>
+    /// What a block is filled with: what the styling writes for it, and otherwise what every one of its kind is — a block, a
+    /// composite holding others, or an arrow pointing between them.
     /// </summary>
     private Brush Fill(BlockItem item)
     {
-        var fill = Ink.Written(item.Style.Fill)
-                   ?? (item.Kind == BlockKind.Composite ? DiagramInk.Faded(Ink.Series(item.Order), Wash) : Palette.CodeBg);
+        var fill = Ink.Written(item.Style.Fill) ?? item.Kind switch
+        {
+            BlockKind.Composite => Ink.Group,
+            BlockKind.Arrow => Ink.Quiet,
+            _ => Ink.Node,
+        };
 
         return item.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
+    /// <summary>What a block is outlined in: what the styling writes for it, and otherwise what every one of its kind is.</summary>
     private DiagramStroke Stroke(BlockItem item) =>
-        new(Ink.Written(item.Style.Stroke) ?? Palette.CodeBorder, item.Style.StrokeWidth ?? 1, DiagramInk.Dashes(item.Style.Dashes));
+        new(Ink.Written(item.Style.Stroke) ?? item.Kind switch
+            {
+                BlockKind.Composite => Ink.GroupEdge,
+                BlockKind.Arrow => Ink.QuietEdge,
+                _ => Ink.NodeEdge,
+            },
+            item.Style.StrokeWidth ?? 1, DiagramInk.Dashes(item.Style.Dashes));
 
     /// <summary>A block measured: what is written on it, the room it needs, and — once its grid is laid out — where it sits.</summary>
     private sealed class Sized(BlockItem item, IReadOnlyList<DiagramWords> words)

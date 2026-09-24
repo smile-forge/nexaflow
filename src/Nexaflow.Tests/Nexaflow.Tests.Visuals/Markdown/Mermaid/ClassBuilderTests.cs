@@ -135,6 +135,38 @@ public class ClassBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ANoteIsHeldToTheClassItIsAboutByALineOfItsOwn() => UiThread.Run(() =>
+    {
+        const string source = "classDiagram\n  class Duck\n  class Zoo\n  Zoo o-- Duck\n  note for Duck \"can fly\"\n  note \"about nothing\"";
+        var laid = Build(source);
+
+        var tether = Pieces(laid, ClassPiece.Tether).Single();
+        var note = Pieces(laid, ClassPiece.Note).Single(piece => Written(source, piece.Part).StartsWith("note for", System.StringComparison.Ordinal));
+        var reach = tether.Bounds;
+        reach.Inflate(2, 2);
+
+        Assert.AreEqual(note.Part!.Start, tether.Part!.Start, "the line stands for the note, and a note about no class has none");
+        Assert.IsTrue(reach.IntersectsWith(note.Bounds), $"it runs from the note: {tether.Bounds} to {note.Bounds}");
+        Assert.IsTrue(reach.IntersectsWith(Boxes(laid)["Duck"]), $"to the class it is about: {tether.Bounds} to {Boxes(laid)["Duck"]}");
+    });
+
+    [TestMethod]
+    public void EveryOneOfAKindIsDrawnAlike_AndANoteApartFromThem() => UiThread.Run(() =>
+    {
+        var laid = Build("classDiagram\n  class Duck\n  class Zoo\n  Zoo o-- Duck\n  note for Duck \"can fly\"");
+        var classes = Pieces(laid, ClassPiece.Class).Select(Fill).ToList();
+        var note = Fill(Pieces(laid, ClassPiece.Note).Single());
+
+        Assert.IsNotNull(classes[0], "a class nothing styles is filled");
+        Assert.AreEqual(1, classes.Distinct().Count(), "and every one of them alike");
+        Assert.AreNotEqual(classes[0], note, "a note in a colour apart from the classes");
+
+        var spaces = Pieces(Build("classDiagram\nnamespace A {\n  class X\n}\nnamespace B {\n  class Y\n}"), ClassPiece.Space).Select(Fill).ToList();
+        Assert.AreEqual(2, spaces.Count);
+        Assert.AreEqual(1, spaces.Distinct().Count(), "every namespace alike, whatever order it is written in");
+    });
+
+    [TestMethod]
     public void AMemberThatPointsSomewhereIsAPieceOfItsOwnCarryingTheLink() => UiThread.Run(() =>
     {
         var laid = Build("classDiagram\n  class A {\n    +draw() @@nx:line#42\n    +plain()\n  }");

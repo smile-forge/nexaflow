@@ -8,6 +8,8 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
+using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -91,6 +93,15 @@ public sealed partial class LatexBuilder
 
         /// <summary>Where this is a big operator, its sign and how it asked to wear limits — so a later script rebuilds the operator around the same sign rather than nesting one inside another.</summary>
         public (Item? Sign, bool? Vertical)? Operator { get; init; }
+
+        /// <summary>
+        /// How many columns of a table this is set across: one, unless it is a row of dots standing in for entries left
+        /// unwritten — and none for a column a cell before it in the row already covers.
+        /// </summary>
+        public int Across { get; init; } = 1;
+
+        /// <summary>How this is set to fill a width it is given, where it is set across several columns and so fills them all.</summary>
+        public System.Func<TexEnvironment, double, Set>? Fills { get; init; }
     }
 
     /// <summary>What stood before a piece of a run: its class on the side facing it, and whether it was a kern.</summary>
@@ -126,6 +137,21 @@ public sealed partial class LatexBuilder
                 };
 
                 built.Add(switched.Style is { } size ? Styled(scope, size, run[at]) : scope);
+                break;
+            }
+
+            // A colour is a switch too: everything after it in the group it stands in is set in it. With nothing after it
+            // there is nothing to colour, and it is shown as it was written.
+            if (Recoloured(run[at]) is { } ink && run.Skip(at + 1).Any(after => !Discarded(after) && after.Kind != Kinds.Space))
+            {
+                if (Pieces(run.Skip(at + 1), style, knowledge) is not { } painted) return null;
+
+                built.Add(Painted(painted.Count switch
+                {
+                    0 => NullItem(),
+                    1 => painted[0],
+                    _ => Sequenced(painted, run[at]),
+                }, ink, run[at]));
                 break;
             }
 
@@ -182,6 +208,57 @@ public sealed partial class LatexBuilder
             {
                 PassesThrough = true,
             };
+
+    /// <summary>
+    /// What is inside set in a colour. Like a style it wraps nothing: the ink is carried down the build and reaches every
+    /// glyph and rule underneath, which is where the drawing takes it from.
+    /// </summary>
+    private static Item Painted(Item scope, IBrush ink, ContentPart part) =>
+        new(scope.Left, scope.Right, null, (environment, _) =>
+        {
+            var set = scope.Make(environment with { Foreground = ink }, null);
+            return set.Part is null ? set with { Part = part } : set;
+        })
+        {
+            PassesThrough = true,
+        };
+
+    /// <summary>
+    /// The ink a colour command names — any colour name a browser knows, or a hex value where the model it is written in
+    /// says <c>HTML</c> — or null where it names none, which leaves the command shown as it was written.
+    /// </summary>
+    private static IBrush? Colour(ContentPart command)
+    {
+        if (command.Part(TexRole.Argument) is not { } named) return null;
+
+        // A model other than HTML says the name is numbers in that model, which this does not read — so the command is
+        // shown as written rather than guessed at.
+        var name = Inside(named).Trim();
+        if (command.Part(TexRole.Option) is { } model)
+        {
+            if (!Inside(model).Trim().Equals("HTML", System.StringComparison.OrdinalIgnoreCase)) return null;
+
+            name = "#" + name;
+        }
+
+        try
+        {
+            if (System.Windows.Media.ColorConverter.ConvertFromString(name) is not System.Windows.Media.Color colour) return null;
+
+            var brush = new System.Windows.Media.SolidColorBrush(colour);
+            brush.Freeze();
+
+            return WpfBrush.FromBrush(brush);
+        }
+        catch (System.FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The ink a <c>\color</c> switch sets everything after it in, where that is what the part is.</summary>
+    private static IBrush? Recoloured(ContentPart part) =>
+        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text == @"\color" ? Colour(part) : null;
 
     /// <summary>Pieces standing in a row, as one piece: its class is its first piece's on the left and its last piece's on the right.</summary>
     private static Item Sequenced(List<Item> items, ContentPart? whole) =>
@@ -1106,7 +1183,30 @@ public sealed partial class LatexBuilder
             }
 
             case @"\substack":
-                return Substacked(part, style, knowledge);
+            case @"\matrix":
+            case @"\pmatrix":
+            case @"\cases":
+                return Stacked(part, style, knowledge);
+
+            case @"\hdotsfor":
+            {
+                if (part.Node.HeldAs(Roles.Derived) is not TexDots dots) return null;
+
+                return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                    DotsAcross(0, dots.Spacing, environment) with { Part = part })
+                {
+                    Across = dots.Columns,
+                    Fills = (environment, width) => DotsAcross(width, dots.Spacing, environment) with { Part = part },
+                };
+            }
+
+            case @"\textcolor":
+            {
+                if (Colour(part) is not { } ink) return null;
+                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+
+                return Painted(inner, ink, part);
+            }
 
             case @"\overline":
             {
@@ -1512,6 +1612,34 @@ public sealed partial class LatexBuilder
         return Horizontal([stack], null, null);
     }
 
+    /// <summary>
+    /// A row of dots filling <paramref name="width"/>, as amsmath's <c>\hdotsfor</c> sets them: each dot padded either side by
+    /// 1.5 mu for every unit of <paramref name="spacing"/>, as many as fit, centred in what is left over — and at least one.
+    /// </summary>
+    private static Set DotsAcross(double width, double spacing, TexEnvironment environment)
+    {
+        Set Dot() => Glyph.Symbol("ldotp")!.Set(environment);
+
+        var first = Dot();
+        var pad = spacing * 1.5 * environment.MathFont.GetQuad(first.LastFontId, environment.Style) / 18;
+        var pitch = first.Width + (2 * pad);
+        var count = System.Math.Max(1, (int)System.Math.Floor(width / pitch));
+        var spare = System.Math.Max(0, width - (count * pitch)) / 2;
+
+        var row = new List<Set> { Strut(spare, 0, 0) };
+
+        for (var at = 0; at < count; at++)
+        {
+            row.Add(Strut(pad, 0, 0));
+            row.Add(at == 0 ? first : Dot());
+            row.Add(Strut(pad, 0, 0));
+        }
+
+        row.Add(Strut(spare, 0, 0));
+
+        return Horizontal(row, null, null);
+    }
+
     /// <summary>A fraction set as TeX sets a <c>\genfrac</c>: its halves in their styles, a bar or none, the null delimiter space either side unless bare.</summary>
     private static Set Fraction(
         Item numerator, Item denominator, TexEnvironment environment,
@@ -1891,7 +2019,7 @@ public sealed partial class LatexBuilder
         }
 
         foreach (var child in part.Parts)
-            if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or Roles.Row))
+            if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or TexRole.Argument or Roles.Row))
                 return null;
 
         if (Grid(part, style, knowledge) is not { } cells) return null;
@@ -1926,12 +2054,17 @@ public sealed partial class LatexBuilder
                 var built = Pieces(cell.Parts.Where(piece => !IsRule(piece)), style, knowledge);
                 if (built is null) return null;
 
-                cells.Add(built.Count switch
+                var item = built.Count switch
                 {
                     0 => NullItem(),
                     1 => built[0],
                     _ => Sequenced(built, cell),
-                });
+                };
+
+                cells.Add(item);
+
+                // A cell set across several columns stands in the squares after it too, which nobody wrote a cell into.
+                for (var covered = 1; covered < item.Across; covered++) cells.Add(NullItem() with { Across = 0 });
             }
 
             rows.Add(cells);
@@ -2014,13 +2147,19 @@ public sealed partial class LatexBuilder
             rowStrutDepth: MatrixCommandParser.DefaultRowStrutDepth));
     }
 
-    /// <summary><c>\substack</c>: the lines of a limit, as a small grid set solid.</summary>
-    private static Item? Substacked(ContentPart part, string? style, TexFormulaParser knowledge)
+    /// <summary>
+    /// A table written as a command rather than an environment — a big operator's stacked limit, and plain TeX's
+    /// <c>\matrix{…}</c>, <c>\pmatrix{…}</c> and <c>\cases{…}</c>: the braces hold the rows, and the command is how they
+    /// are arranged, the same arrangement the environment of that name has.
+    /// </summary>
+    private static Item? Stacked(ContentPart part, string? style, TexFormulaParser knowledge)
     {
+        if (part.Part(Roles.Name)?.Text is not { } name) return null;
+        if (!StandardCommands.Dictionary.TryGetValue(name[1..], out var entry) || entry is not MatrixCommandParser arrangement) return null;
         if (part.Part(TexRole.Base) is not { } lines) return null;
-        if (Grid(lines, style, knowledge) is not { } stack) return null;
+        if (Grid(lines, style, knowledge) is not { } rows) return null;
 
-        return Arranged(MatrixCommandParser.SubStack, stack, part);
+        return Arranged(arrangement, rows, part);
     }
 
     /// <summary>
@@ -2039,10 +2178,12 @@ public sealed partial class LatexBuilder
         var cells = rows.Select(row => row.Select(cell => cell.Make(environment, null)).ToArray()).ToArray();
         var columnCount = cells.Length == 0 ? 0 : cells.Max(row => row.Length);
 
+        // A column is as wide as the widest cell standing in it alone; one set across several fills what they come to.
         var columnWidths = new double[columnCount];
-        foreach (var row in cells)
-            for (var j = 0; j < row.Length; j++)
-                columnWidths[j] = System.Math.Max(columnWidths[j], row[j].TotalWidth);
+        for (var r = 0; r < cells.Length; r++)
+            for (var j = 0; j < cells[r].Length; j++)
+                if (rows[r][j].Across == 1)
+                    columnWidths[j] = System.Math.Max(columnWidths[j], cells[r][j].TotalWidth);
 
         (double Left, double Right) Gaps(double free, int column)
         {
@@ -2086,6 +2227,24 @@ public sealed partial class LatexBuilder
             var placed = new List<(Set Cell, double Left, double Right)>();
             for (var column = 0; column < columnCount; column++)
             {
+                var written = column < rows[r].Count ? rows[r][column] : null;
+
+                // Covered by a cell before it in the row, which is already placed across it.
+                if (written is { Across: 0 }) continue;
+
+                if (written is { Across: > 1, Fills: { } fill })
+                {
+                    var last = System.Math.Min(column + written.Across, columnCount) - 1;
+                    var across = columnWidths[column];
+
+                    for (var inside = column; inside < last; inside++)
+                        across += Gaps(0, inside).Right + Gaps(0, inside + 1).Left + columnWidths[inside + 1];
+
+                    placed.Add((fill(environment, across), Gaps(0, column).Left + Outer(column).Left, Gaps(0, last).Right + Outer(last).Right));
+                    column = last;
+                    continue;
+                }
+
                 var cell = column < cells[r].Length ? cells[r][column] : Strut(0, 0, 0);
                 var (left, right) = Gaps(columnWidths[column] - cell.TotalWidth, column);
                 var (outerLeft, outerRight) = Outer(column);
@@ -2263,7 +2422,7 @@ public sealed partial class LatexBuilder
     /// </summary>
     internal static readonly IReadOnlySet<string> Handles = new HashSet<string>(System.StringComparer.Ordinal)
     {
-        @"\frac", @"\sqrt", @"\substack", @"\overline", @"\underline", @"\not",
+        @"\frac", @"\sqrt", @"\substack", @"\matrix", @"\pmatrix", @"\cases", @"\textcolor", @"\hdotsfor", @"\overline", @"\underline", @"\not",
         @"\mspace", @"\hspace", @"\hspace*", @"\kern", @"\mkern", @"\ ", @"\nbsp",
     };
 
