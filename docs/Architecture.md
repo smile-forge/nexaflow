@@ -172,7 +172,8 @@ The shell host. Owns the window chrome, tab strip, ribbon bar, breadcrumb bar, a
 | `Services/RibbonLayoutService.cs` | Serialize/deserialize ribbon items — **per-workspace** (constructed with the workspace's own folder, shared by its runtimes), not a single global `ribbon.json`. Bundled defaults live in `Ribbon/default-ribbon.json` (`LoadDefaults`) |
 | `Services/WindowManager.cs` | Static DPI/monitor/cursor maths only — tab/window lifecycle is `ShellServices` |
 | `FileActions/` | Core-owned file actions: copy, delete, rename, and other system-level operations |
-| `Controls/RibbonEditor.xaml.cs` | Interactive ribbon customization; local draft, commit on Done |
+| `ViewModels/RibbonEditorViewModel.cs` | Ribbon customization on a deep-cloned draft, committed and saved once on Done; its view (`Controls/RibbonEditor.xaml`) exists only while it is open |
+| `Controls/RibbonItemButton.cs` | The one ribbon button visual — bar, editor strip and shape gallery — in any shape and colours |
 | `Controls/TabStrip.xaml.cs` | Renders tabs; emits tearoff drag events |
 | `Controls/BreadcrumbBar.xaml.cs` | Renders segments; dispatches `TargetPageKind` clicks back to shell |
 | `Models/RibbonItem.cs` | Ribbon item state + `TabFactory` delegate + serialization metadata |
@@ -277,7 +278,9 @@ BreadcrumbSegment
 
 RibbonItem
   ├── Kind: Button | HalfGroup | Separator
-  ├── Label, Icon, IsHalf, AccentColor
+  ├── Label, Icon: IconRef, IsHalf
+  ├── Foreground, Background, BorderColor: ColorSpec   (theme default · swatch token · custom)
+  ├── BorderWeight, Shape
   ├── PageKind: string?               (persisted to ribbon.json)
   ├── PageParams: Dict?               (persisted alongside PageKind)
   └── TabFactory: Func<Page>?         (runtime only — re-attached on load via FeatureManager)

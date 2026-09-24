@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -11,7 +13,9 @@ using System.Windows.Shapes;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Controls;
 using Nexaflow.Visuals.Common.Localization;
+using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Core.Controls;
 
@@ -105,13 +109,94 @@ public partial class RibbonBar : UserControl
         set => SetValue(ShellProperty, value);
     }
 
-    // Single live flyout for the pop-out colour/icon pickers, anchored to the right-clicked button.
+
+    // ── Per-item elements ──────────────────────────────────────────────────
+    //
+    // The ribbon is drawn in every window and edited rarely, so each item's element is built once and kept.
+    // Layout passes and window resizes re-parent the same buttons; the widths each arrangement takes are cached
+    // until an item or the collection changes, so a resize that keeps the arrangement costs a comparison.
+
+    private readonly Dictionary<RibbonItem, FrameworkElement> _elements = [];
+
+    // Maps each direct child of ItemsPanel to the source RibbonItem(s) it represents.
+    // A column that pairs two compact items maps to both.
+    private readonly Dictionary<UIElement, List<RibbonItem>> _childItems = [];
+
+    // Items that did not fit; their entries are built when the overflow popup opens.
+    private readonly List<RibbonItem> _overflowItems = [];
+
+    private bool? _shownCompact;
+    private double? _preferredWidth, _compactWidth;
+    private bool _layoutQueued;
+
+    // Single live flyout for the pop-out style pickers, anchored to the right-clicked button.
     private Popup? _styleFlyout;
 
-    private ContextMenu BuildItemContextMenu(RibbonItem item, FrameworkElement anchor)
+    public RibbonBar()
     {
-        var menu = new ContextMenu();
+        InitializeComponent();
+        AllowDrop = true;
+        DragOver  += RibbonBar_DragOver;
+        Drop      += RibbonBar_Drop;
+    }
 
+    private FrameworkElement ElementFor(RibbonItem item)
+    {
+        if (_elements.TryGetValue(item, out var existing)) return existing;
+
+        FrameworkElement element;
+        if (item.Kind == RibbonItemKind.Separator)
+        {
+            var line = new Rectangle
+            {
+                Width             = 1,
+                Margin            = new Thickness(4, 14, 4, 10),
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            line.SetResourceReference(Shape.FillProperty, "BorderBrush");
+            element = line;
+        }
+        else
+        {
+            // The menu's items are filled when it opens: an empty ContextMenu costs nothing until then.
+            var button = new RibbonItemButton { Item = item, Tag = item, ContextMenu = new ContextMenu() };
+            button.ContextMenuOpening += ItemButton_ContextMenuOpening;
+            button.Click              += ItemButton_Click;
+            element = button;
+        }
+
+        PropertyChangedEventManager.AddHandler(item, OnItemChanged, string.Empty);
+        _elements[item] = element;
+        return element;
+    }
+
+    /// <summary>A change that can move the layout (size, text, glyph, shape) drops the cached widths and lays out
+    /// again once; a colour change is the button's alone.</summary>
+    private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(RibbonItem.Foreground) or nameof(RibbonItem.Background)
+                           or nameof(RibbonItem.BorderColor) or nameof(RibbonItem.IsActive)) return;
+        InvalidateLayout();
+    }
+
+    private void Forget(RibbonItem item)
+    {
+        if (!_elements.Remove(item, out var element)) return;
+        PropertyChangedEventManager.RemoveHandler(item, OnItemChanged, string.Empty);
+        (VisualTreeHelper.GetParent(element) as Panel)?.Children.Remove(element);
+    }
+
+    // ── Context menu ───────────────────────────────────────────────────────
+
+    private void ItemButton_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: RibbonItem item, ContextMenu: { } menu } anchor) return;
+        menu.Items.Clear();
+        FillItemContextMenu(menu, item, anchor);
+    }
+
+    private void FillItemContextMenu(ContextMenu menu, RibbonItem item, FrameworkElement anchor)
+    {
         var openInNew = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.OpenInNewWindow") };
         openInNew.Click += (_, _) =>
         {
@@ -119,139 +204,108 @@ public partial class RibbonBar : UserControl
                 OpenInNewWindowCommand.Execute(item);
         };
         menu.Items.Add(openInNew);
+        menu.Items.Add(new Separator());
 
-        // Separators are pure dividers — only buttons carry styling, so skip the style group for them.
-        if (item.Kind != RibbonItemKind.Separator)
+        var rename = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Rename") };
+        rename.Click += (_, _) =>
+            Shell?.ShowPrompt(
+                Str.Get("Shell.Ribbon.Rename.Title"), Str.Get("Shell.Ribbon.Rename.Prompt"), item.Label,
+                onConfirm: name =>
+                {
+                    name = name.Trim();
+                    if (string.IsNullOrEmpty(name) || name == item.Label) return;
+                    item.Label = name;   // PropertyChanged -> VM Save() -> ribbon.json + live-sync; the button re-reads it
+                },
+                onCancel: () => { });
+        menu.Items.Add(rename);
+
+        var recolour = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Recolour") };
+        recolour.Items.Add(ColourEntry(Str.Get("Shell.Ribbon.Menu.TextColour"),       item, anchor, RibbonColourSlot.Foreground));
+        recolour.Items.Add(ColourEntry(Str.Get("Shell.Ribbon.Menu.BackgroundColour"), item, anchor, RibbonColourSlot.Background));
+        recolour.Items.Add(ColourEntry(Str.Get("Shell.Ribbon.Menu.BorderColour"),     item, anchor, RibbonColourSlot.Border));
+        menu.Items.Add(recolour);
+
+        var changeIcon = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.ChangeIcon") };
+        changeIcon.Click += (_, _) => ShowIconFlyout(item, anchor);
+        menu.Items.Add(changeIcon);
+
+        var shape = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Shape") };
+        foreach (var (value, name) in RibbonShapeNames.All())
         {
-            menu.Items.Add(new Separator());
-
-            var rename = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Rename") };
-            rename.Click += (_, _) =>
-                Shell?.ShowPrompt(
-                    Str.Get("Shell.Ribbon.Rename.Title"), Str.Get("Shell.Ribbon.Rename.Prompt"), item.Label,
-                    onConfirm: name =>
-                    {
-                        name = name.Trim();
-                        if (string.IsNullOrEmpty(name) || name == item.Label) return;
-                        item.Label = name;   // PropertyChanged -> VM Save() -> ribbon.json + live-sync
-                        RebuildItems();      // button text is a literal, so re-render
-                    },
-                    onCancel: () => { });
-            menu.Items.Add(rename);
-
-            var recolour = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Recolour") };
-            recolour.Click += (_, _) => ShowColourFlyout(item, anchor);
-            menu.Items.Add(recolour);
-
-            var changeIcon = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.ChangeIcon") };
-            changeIcon.Click += (_, _) => ShowIconFlyout(item, anchor);
-            menu.Items.Add(changeIcon);
-
-            var resize = new MenuItem { Header = item.IsHalf ? Str.Get("Shell.Ribbon.Menu.Grow") : Str.Get("Shell.Ribbon.Menu.Shrink") };
-            resize.Click += (_, _) => { item.IsHalf = !item.IsHalf; RebuildItems(); };
-            menu.Items.Add(resize);
+            var entry = new MenuItem { Header = name, IsCheckable = true, IsChecked = item.Shape == value };
+            entry.Click += (_, _) => item.Shape = value;
+            shape.Items.Add(entry);
         }
+        menu.Items.Add(shape);
+
+        var resize = new MenuItem { Header = item.IsHalf ? Str.Get("Shell.Ribbon.Menu.Grow") : Str.Get("Shell.Ribbon.Menu.Shrink") };
+        resize.Click += (_, _) => item.IsHalf = !item.IsHalf;
+        menu.Items.Add(resize);
 
         menu.Items.Add(new Separator());
 
-        var delete = new MenuItem
-        {
-            Header     = Str.Get("Shell.Ribbon.Menu.Delete"),
-            Foreground = (Brush)FindResource("DangerBrush")
-        };
+        var delete = new MenuItem { Header = Str.Get("Shell.Ribbon.Menu.Delete") };
+        delete.SetResourceReference(ForegroundProperty, "DangerBrush");
         delete.Click += (_, _) =>
         {
             if (DeleteItemCommand?.CanExecute(item) == true)
                 DeleteItemCommand.Execute(item);
         };
         menu.Items.Add(delete);
-
-        return menu;
     }
 
-    // ── Per-button style flyouts (pop-out palette + icon grid) ─────────────
-
-    private void ShowColourFlyout(RibbonItem item, FrameworkElement anchor)
+    private MenuItem ColourEntry(string header, RibbonItem item, FrameworkElement anchor, RibbonColourSlot slot)
     {
-        var wrap = new WrapPanel { Width = 168 };
-        wrap.Children.Add(BuildSwatch(item, null));   // "default" (no accent override)
-        foreach (var key in RibbonStyleCatalog.SwatchKeys)
-            if (SwatchHex(key) is { } hex)
-                wrap.Children.Add(BuildSwatch(item, hex));
-        OpenFlyout(wrap, anchor);
+        var entry = new MenuItem { Header = header };
+        entry.Click += (_, _) => ShowColourFlyout(header, item, anchor, slot);
+        return entry;
     }
 
-    private Border BuildSwatch(RibbonItem item, string? hex)
-    {
-        Brush fill = hex is null
-            ? (Brush)FindResource("TextMutedBrush")
-            : new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    // ── Per-button style flyouts (the shared colour and icon pickers) ──────
 
-        var swatch = new Border
+    private void ShowColourFlyout(string title, RibbonItem item, FrameworkElement anchor, RibbonColourSlot slot)
+    {
+        var picker = new ColorPicker
         {
-            Width           = 22,
-            Height          = 22,
-            Margin          = new Thickness(3),
-            CornerRadius    = new CornerRadius(11),
-            Background      = fill,
-            Cursor          = Cursors.Hand,
-            ToolTip         = hex ?? "Default",
-            BorderBrush     = (Brush)FindResource("AccentBrush"),
-            BorderThickness = new Thickness(item.AccentColor == hex ? 2 : 0)
+            Width            = 340,
+            AutomationPrefix = "RibbonQuick_Colour",
+            DefaultColor     = RibbonColourSlots.ThemeDefault(slot, TryFindResource),
         };
-        swatch.MouseLeftButtonDown += (_, _) =>
-        {
-            item.AccentColor = hex;
-            CloseFlyout();
-            RebuildItems();
-        };
-        return swatch;
+        picker.SetBinding(ColorPicker.ValueProperty,
+            new Binding(RibbonColourSlots.PropertyName(slot)) { Source = item, Mode = BindingMode.TwoWay });
+        // An outline colour with no outline would change nothing; the first one picked brings a thin outline.
+        if (slot == RibbonColourSlot.Border)
+            picker.ValueChanged += (_, _) =>
+            {
+                if (item.BorderWeight == RibbonBorderWeight.None && !item.BorderColor.IsDefault)
+                    item.BorderWeight = RibbonBorderWeight.Thin;
+            };
+
+        var panel = new StackPanel();
+        var caption = new TextBlock { Text = title, FontSize = 11, Margin = new Thickness(0, 0, 0, 6) };
+        caption.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+        panel.Children.Add(caption);
+        panel.Children.Add(picker);
+        OpenFlyout(panel, anchor);
     }
 
     private void ShowIconFlyout(RibbonItem item, FrameworkElement anchor)
     {
-        var wrap = new WrapPanel { Width = 238 };
-        foreach (var icon in RibbonStyleCatalog.Icons)
+        var picker = new IconPicker
         {
-            var btn = new Button
-            {
-                Content = new TextBlock
-                {
-                    Text                = icon,
-                    FontSize            = 18,
-                    TextAlignment       = TextAlignment.Center,
-                    Background          = Brushes.Transparent,
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment   = VerticalAlignment.Stretch
-                },
-                Style   = (Style)FindResource("TopBarAction"),
-                Width   = 34,
-                Height  = 34,
-                Padding = new Thickness(0),
-                ToolTip = icon
-            };
-            btn.Click += (_, _) =>
-            {
-                item.Icon = icon;
-                CloseFlyout();
-                RebuildItems();
-            };
-            wrap.Children.Add(btn);
-        }
-
-        var scroll = new ScrollViewer
-        {
-            Content                       = wrap,
-            MaxHeight                     = 200,
-            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            Width            = 340,
+            Height           = 320,
+            AutomationPrefix = "RibbonQuick_Icons",
+            SelectedIcon     = item.Icon,
         };
-        OpenFlyout(scroll, anchor);
+        picker.ViewModel.Picked += icon =>
+        {
+            item.Icon = icon;
+            CloseFlyout();
+        };
+        OpenFlyout(picker, anchor);
+        picker.Loaded += (_, _) => picker.FocusSearch();
     }
-
-    /// <summary>Resolve a swatch-bank key to its current-theme hex string, or null if absent.</summary>
-    private string? SwatchHex(string key)
-        => TryFindResource(key) is SolidColorBrush b ? b.Color.ToString() : null;
 
     private void OpenFlyout(UIElement content, FrameworkElement anchor)
     {
@@ -259,13 +313,13 @@ public partial class RibbonBar : UserControl
 
         var card = new Border
         {
-            Background      = (Brush)FindResource("DeepBgBrush"),
-            BorderBrush     = (Brush)FindResource("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius    = new CornerRadius(6),
-            Padding         = new Thickness(6),
+            Padding         = new Thickness(8),
             Child           = content
         };
+        card.SetResourceReference(Border.BackgroundProperty, "DeepBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
         card.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
             BlurRadius = 16, ShadowDepth = 3, Opacity = 0.4, Color = Colors.Black
@@ -273,12 +327,12 @@ public partial class RibbonBar : UserControl
 
         _styleFlyout = new Popup
         {
-            Child             = card,
-            PlacementTarget   = anchor,
-            Placement         = PlacementMode.Bottom,
-            StaysOpen         = false,
+            Child              = card,
+            PlacementTarget    = anchor,
+            Placement          = PlacementMode.Bottom,
+            StaysOpen          = false,
             AllowsTransparency = true,
-            PopupAnimation    = PopupAnimation.Fade
+            PopupAnimation     = PopupAnimation.Fade
         };
         // Defer the open until the closing context menu has released the mouse/focus,
         // otherwise this StaysOpen=false popup is dismissed the instant it appears.
@@ -294,18 +348,6 @@ public partial class RibbonBar : UserControl
         if (_styleFlyout is null) return;
         _styleFlyout.IsOpen = false;
         _styleFlyout = null;
-    }
-
-    // Maps each direct child of ItemsPanel to the source RibbonItem(s) it represents.
-    // A column that pairs two compact items maps to both.
-    private readonly Dictionary<UIElement, List<RibbonItem>> _childItems = [];
-
-    public RibbonBar()
-    {
-        InitializeComponent();
-        AllowDrop = true;
-        DragOver  += RibbonBar_DragOver;
-        Drop      += RibbonBar_Drop;
     }
 
     // ── Drag-and-drop ──────────────────────────────────────────────────────
@@ -396,28 +438,58 @@ public partial class RibbonBar : UserControl
         var rb = (RibbonBar)d;
         if (e.OldValue is ObservableCollection<RibbonItem> old)
             old.CollectionChanged -= rb.Items_CollectionChanged;
+        foreach (var item in rb._elements.Keys.ToList())
+            rb.Forget(item);
         if (e.NewValue is ObservableCollection<RibbonItem> @new)
-        {
             @new.CollectionChanged += rb.Items_CollectionChanged;
-            rb.RebuildItems();
-        }
+        rb.RebuildItems();
     }
 
     private void Items_CollectionChanged(object? s, NotifyCollectionChangedEventArgs e)
-        => RebuildItems();
+    {
+        HashSet<RibbonItem> live = ItemsSource is null ? [] : new(ItemsSource);
+        foreach (var item in _elements.Keys.Where(i => !live.Contains(i)).ToList())
+            Forget(item);
+        RebuildItems();
+    }
 
     // ── Layout ─────────────────────────────────────────────────────────────
 
     private void RebuildItems()
     {
+        InvalidateWidths();
         if (ItemsSource is null)
         {
-            ItemsPanel.Children.Clear();
+            DetachAll();
             return;
         }
 
-        RebuildWithCompact(forceAllCompact: false);
-        Dispatcher.InvokeAsync(MeasureLayout, System.Windows.Threading.DispatcherPriority.Render);
+        Arrange(compact: false);
+        QueueLayout();
+    }
+
+    private void InvalidateLayout()
+    {
+        InvalidateWidths();
+        QueueLayout();
+    }
+
+    private void InvalidateWidths()
+    {
+        _preferredWidth = _compactWidth = null;
+        _shownCompact   = null;
+    }
+
+    /// <summary>Several changes in one dispatcher turn lay out once.</summary>
+    private void QueueLayout()
+    {
+        if (_layoutQueued) return;
+        _layoutQueued = true;
+        Dispatcher.InvokeAsync(() =>
+        {
+            _layoutQueued = false;
+            MeasureLayout();
+        }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
@@ -427,147 +499,148 @@ public partial class RibbonBar : UserControl
     }
 
     /// <summary>
-    /// Two-pass layout:
-    ///   Pass 1 — each item rendered at its preferred size (<see cref="RibbonItem.IsHalf"/>).
-    ///            If everything fits, done.
-    ///   Pass 2 — all items forced compact regardless of preference.
-    ///            If everything fits, done.
-    ///   Pass 3 — compact items + overflow button for items that don't fit,
-    ///            but only when available width >= <see cref="MinWidthBeforeOverflow"/>.
+    /// Three arrangements, each tried only if the one before does not fit:
+    ///   1 — each item at its preferred size (<see cref="RibbonItem.IsHalf"/>);
+    ///   2 — every item compact;
+    ///   3 — compact, plus an overflow button for what still does not fit — only when the available width is at
+    ///       least <see cref="MinWidthBeforeOverflow"/>.
+    /// Each arrangement's width is measured once and cached until an item changes.
     /// </summary>
     private void MeasureLayout()
     {
-        if (ItemsSource is null || ItemsPanel.Children.Count == 0) return;
+        if (ItemsSource is null || ItemsSource.Count == 0) return;
 
         EditBtn.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         OverflowBtn.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double editWidth     = EditBtn.DesiredSize.Width;
-        double overflowWidth = OverflowBtn.DesiredSize.Width;
-        double available     = ActualWidth - editWidth;
-
+        double available = ActualWidth - EditBtn.DesiredSize.Width;
         if (available <= 0) return;
 
-        // ── Pass 1: preferred sizes ───────────────────────────────────────
-        RebuildWithCompact(forceAllCompact: false);
-        double pass1Total = MeasureChildrenTotal();
-
-        if (pass1Total <= available)
+        _preferredWidth ??= WidthOf(compact: false);
+        if (_preferredWidth <= available)
         {
-            OverflowBtn.Visibility = Visibility.Collapsed;
-            OverflowList.Children.Clear();
+            Arrange(compact: false);
+            HideOverflow();
             return;
         }
 
-        // ── Pass 2: all compact ───────────────────────────────────────────
-        RebuildWithCompact(forceAllCompact: true);
-        double pass2Total = MeasureChildrenTotal();
-
-        if (pass2Total <= available)
+        _compactWidth ??= WidthOf(compact: true);
+        Arrange(compact: true);
+        if (_compactWidth <= available || available < MinWidthBeforeOverflow)
         {
-            OverflowBtn.Visibility = Visibility.Collapsed;
-            OverflowList.Children.Clear();
+            // Fits — or too narrow for an overflow to be meaningful, so keep what shows.
+            HideOverflow();
             return;
         }
-
-        // ── Pass 3: compact + overflow ────────────────────────────────────
-        if (available < MinWidthBeforeOverflow)
-            return; // too narrow for overflow to be meaningful — keep what's visible
 
         OverflowBtn.Visibility = Visibility.Visible;
-        double usable = available - overflowWidth;
+        double usable = available - OverflowBtn.DesiredSize.Width;
         double used   = 0;
-        OverflowList.Children.Clear();
+        _overflowItems.Clear();
 
         foreach (UIElement child in ItemsPanel.Children)
         {
+            child.Visibility = Visibility.Visible;
             child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             double w = child.DesiredSize.Width;
             if (used + w <= usable)
             {
-                child.Visibility = Visibility.Visible;
                 used += w;
+                continue;
             }
-            else
-            {
-                child.Visibility = Visibility.Collapsed;
-                if (_childItems.TryGetValue(child, out var overflowItems))
-                    foreach (var oi in overflowItems)
-                        OverflowList.Children.Add(BuildOverflowEntry(oi));
-            }
+            child.Visibility = Visibility.Collapsed;
+            if (_childItems.TryGetValue(child, out var overflowItems))
+                _overflowItems.AddRange(overflowItems);
         }
     }
 
-    /// <summary>
-    /// Rebuilds <see cref="ItemsPanel"/> children.
-    /// Consecutive compact items are paired into a shared vertical column so they
-    /// stack top/bottom instead of sitting side-by-side. A lone compact item at
-    /// the top of its column is top-aligned, not centred.
-    /// When <paramref name="forceAllCompact"/> is false each item uses its own
-    /// <see cref="RibbonItem.IsHalf"/> preference; when true every button is compact.
-    /// </summary>
-    private void RebuildWithCompact(bool forceAllCompact)
+    private double WidthOf(bool compact)
     {
-        if (ItemsSource is null) return;
+        Arrange(compact);
+        return MeasureChildrenTotal();
+    }
+
+    private void HideOverflow()
+    {
+        OverflowBtn.Visibility = Visibility.Collapsed;
+        OverflowPopup.IsOpen   = false;
+        _overflowItems.Clear();
+        foreach (UIElement child in ItemsPanel.Children)
+            child.Visibility = Visibility.Visible;
+    }
+
+    private void DetachAll()
+    {
+        foreach (var column in _childItems.Keys.OfType<StackPanel>())
+            column.Children.Clear();
         ItemsPanel.Children.Clear();
         _childItems.Clear();
+    }
+
+    /// <summary>
+    /// Puts the kept elements into <see cref="ItemsPanel"/> for one arrangement; a no-op when it already holds it.
+    /// Consecutive compact items are paired into a shared vertical column so they stack top/bottom instead of
+    /// sitting side-by-side. A lone compact item at the top of its column is top-aligned, not centred.
+    /// When <paramref name="compact"/> is false each item uses its own <see cref="RibbonItem.IsHalf"/> preference;
+    /// when true every button is compact.
+    /// </summary>
+    private void Arrange(bool compact)
+    {
+        if (ItemsSource is null || _shownCompact == compact) return;
+        DetachAll();
+        _shownCompact = compact;
 
         var items = ItemsSource.ToList();
         int i = 0;
         while (i < items.Count)
         {
-            var item    = items[i];
-            bool compact = forceAllCompact || item.IsHalf;
+            var item      = items[i];
+            bool isCompact = compact || item.IsHalf;
 
-            if (compact && item.Kind != RibbonItemKind.Separator)
+            if (isCompact && item.Kind != RibbonItemKind.Separator)
             {
                 // Look ahead: is the next item also compact (and not a separator)?
                 bool hasNext = i + 1 < items.Count
-                    && (forceAllCompact || items[i + 1].IsHalf)
+                    && (compact || items[i + 1].IsHalf)
                     && items[i + 1].Kind != RibbonItemKind.Separator;
 
+                // A pair stacks top + bottom in a column centred as a group, so it lines up with the full-height
+                // buttons and neither half clips past the ribbon edge; a lone compact item is top-aligned.
+                var column = new StackPanel
+                {
+                    Orientation       = Orientation.Vertical,
+                    VerticalAlignment = hasNext ? VerticalAlignment.Center : VerticalAlignment.Top,
+                    Margin            = new Thickness(2, 0, 2, 0)
+                };
+                var top = Place(items[i], compactButton: true, hasNext ? new Thickness(0, 0, 0, 2) : new Thickness(0, 4, 0, 2));
+                column.Children.Add(top);
                 if (hasNext)
-                {
-                    // Pair: stack top + bottom in a vertical column, centred as a group so the pair
-                    // lines up with the full-height buttons and neither half clips past the ribbon edge.
-                    var col = new StackPanel
-                    {
-                        Orientation       = Orientation.Vertical,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin            = new Thickness(2, 0, 2, 0)
-                    };
-                    var top = BuildCompactButton(items[i],   topHalf: true);
-                    var bot = BuildCompactButton(items[i+1], topHalf: false);
-                    top.Margin = new Thickness(0, 0, 0, 2);   // 2px gap between the halves; no outer margin
-                    bot.Margin = new Thickness(0, 0, 0, 0);
-                    col.Children.Add(top);
-                    col.Children.Add(bot);
-                    _childItems[col] = [items[i], items[i+1]];
-                    ItemsPanel.Children.Add(col);
-                    i += 2;
-                }
-                else
-                {
-                    // Lone compact — top-aligned.
-                    var col = new StackPanel
-                    {
-                        Orientation       = Orientation.Vertical,
-                        VerticalAlignment = VerticalAlignment.Top,
-                        Margin            = new Thickness(2, 0, 2, 0)
-                    };
-                    col.Children.Add(BuildCompactButton(item, topHalf: true));
-                    _childItems[col] = [item];
-                    ItemsPanel.Children.Add(col);
-                    i++;
-                }
+                    column.Children.Add(Place(items[i + 1], compactButton: true, new Thickness(0)));
+
+                _childItems[column] = hasNext ? [items[i], items[i + 1]] : [item];
+                ItemsPanel.Children.Add(column);
+                i += hasNext ? 2 : 1;
             }
             else
             {
-                var el = BuildElement(item, compact: false);
+                var el = Place(item, compactButton: false, new Thickness(2, 0, 2, 0));
                 _childItems[el] = [item];
                 ItemsPanel.Children.Add(el);
                 i++;
             }
         }
+    }
+
+    private FrameworkElement Place(RibbonItem item, bool compactButton, Thickness buttonMargin)
+    {
+        var element = ElementFor(item);
+        element.Visibility = Visibility.Visible;
+        if (element is RibbonItemButton button)
+        {
+            button.IsCompact         = compactButton;
+            button.Margin            = buttonMargin;
+            button.VerticalAlignment = compactButton ? VerticalAlignment.Top : VerticalAlignment.Stretch;
+        }
+        return element;
     }
 
     private double MeasureChildrenTotal()
@@ -581,125 +654,12 @@ public partial class RibbonBar : UserControl
         return total;
     }
 
-    // ── Element builders ───────────────────────────────────────────────────
-
-    private const int MaxLabelChars = 14;
-
-    /// <summary>Visible button caption: truncated with an ellipsis past <see cref="MaxLabelChars"/>;
-    /// the full label still lives on the button's tooltip.</summary>
-    private static string DisplayLabel(string label)
-        => label.Length > MaxLabelChars ? label[..(MaxLabelChars - 1)] + "…" : label;
-
-    private UIElement BuildElement(RibbonItem item, bool compact)
-    {
-        return item.Kind switch
-        {
-            RibbonItemKind.Separator => new Rectangle
-            {
-                Width  = 1,
-                Fill   = (Brush)FindResource("BorderBrush"),
-                Margin = new Thickness(4, 14, 4, 10),
-                VerticalAlignment = VerticalAlignment.Stretch
-            },
-            _ => compact ? BuildCompactButton(item) : BuildFullButton(item)
-        };
-    }
-
-    private Brush ItemForeground(RibbonItem item)
-    {
-        if (item.AccentColor is { Length: > 0 } hex)
-        {
-            try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
-            catch { /* fall through */ }
-        }
-        return (Brush)FindResource(item.IsActive ? "AccentBrush" : "TextMutedBrush");
-    }
-
-    private FrameworkElement BuildFullButton(RibbonItem item)
-    {
-        var fg = ItemForeground(item);
-        var sp = new StackPanel
-        {
-            Orientation         = Orientation.Vertical,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            // Trim 4 off the top (centred content nets ~2px higher) to ease it off the bottom edge.
-            Margin              = new Thickness(0, 6, 0, 2)
-        };
-        sp.Children.Add(new TextBlock
-        {
-            Text                = item.Icon,
-            FontSize            = 24,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground          = fg
-        });
-        sp.Children.Add(new TextBlock
-        {
-            Text                = DisplayLabel(item.Label),
-            FontSize            = 11,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground          = fg,
-            // 1px sides so a long label isn't crushed against the button edge.
-            Margin              = new Thickness(1, 4, 1, 0)
-        });
-
-        var btn = new Button
-        {
-            Content  = sp,
-            Style    = (Style)FindResource("RibbonButton"),
-            Tag      = item,
-            ToolTip  = item.Label,
-            Margin   = new Thickness(2, 0, 2, 0),
-            MinWidth = 45
-        };
-        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
-        btn.ContextMenu = BuildItemContextMenu(item, btn);
-        btn.Click += FullBtn_Click;
-        return btn;
-    }
-
-    private FrameworkElement BuildCompactButton(RibbonItem item, bool topHalf = false)
-    {
-        var fg      = ItemForeground(item);
-        var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new TextBlock
-        {
-            Text              = item.Icon,
-            FontSize          = 16,
-            Margin            = new Thickness(0, 0, 6, 0),
-            Foreground        = fg,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text              = DisplayLabel(item.Label),
-            FontSize          = 11,
-            Foreground        = fg,
-            VerticalAlignment = VerticalAlignment.Center,
-            // 1px sides so a long label isn't crushed against the button edge.
-            Margin            = new Thickness(1, 0, 1, 0)
-        });
-
-        var btn = new Button
-        {
-            Content           = content,
-            Style             = (Style)FindResource("RibbonHalfButton"),
-            Tag               = item,
-            ToolTip           = item.Label,
-            Padding           = new Thickness(10, 4, 10, 4),
-            Margin            = topHalf ? new Thickness(0, 4, 0, 2) : new Thickness(0, 0, 0, 4),
-            MinWidth          = 45,
-            VerticalAlignment = VerticalAlignment.Top
-        };
-        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
-        btn.ContextMenu = BuildItemContextMenu(item, btn);
-        btn.Click += FullBtn_Click;
-        return btn;
-    }
+    // ── Overflow ───────────────────────────────────────────────────────────
 
     private UIElement BuildOverflowEntry(RibbonItem item)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        sp.Children.Add(new TextBlock { Text = item.Icon, FontSize = 14, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+        sp.Children.Add(new IconGlyph { Icon = item.Icon, FontSize = 14, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
         sp.Children.Add(new TextBlock { Text = item.Label, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
 
         var btn = new Button
@@ -718,14 +678,22 @@ public partial class RibbonBar : UserControl
         return btn;
     }
 
-    private void FullBtn_Click(object sender, RoutedEventArgs e)
+    private void ItemButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is RibbonItem item)
+        if (sender is Button { Tag: RibbonItem item })
             RibbonActionCommand?.Execute(item);
     }
 
     private void OverflowBtn_Click(object sender, RoutedEventArgs e)
-        => OverflowPopup.IsOpen = !OverflowPopup.IsOpen;
+    {
+        if (!OverflowPopup.IsOpen)
+        {
+            OverflowList.Children.Clear();
+            foreach (var item in _overflowItems)
+                OverflowList.Children.Add(BuildOverflowEntry(item));
+        }
+        OverflowPopup.IsOpen = !OverflowPopup.IsOpen;
+    }
 
     private void EditBtn_Click(object sender, RoutedEventArgs e)
         => EditClickCommand?.Execute(null);
@@ -750,4 +718,3 @@ public partial class RibbonBar : UserControl
         }
     }
 }
-

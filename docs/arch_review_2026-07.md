@@ -53,7 +53,7 @@ high-value structure; **P3** = worthwhile polish.
 | C8 | No one table mapping contract → discovery surface → instantiation rule | open — nothing in Architecture.md | `grep -n "discovery surface" docs/Architecture.md` | S | P3 |
 | D1 | `ShellViewModel`: the AI-input cluster is still in the god object | open — `OverlayCoordinator` landed, `AiInputRouter` did not. **1,503 lines** (was 1,545) | `$nfi graph search AiInputRouter` | M | P2 |
 | D2 | `ShellServices` — the second god object | **worse: 1,120 lines** (was 958 at review). Three leaf concerns still unsplit | `wc -l src/Nexaflow.Core/Services/ShellServices.cs` | M | P2 |
-| D3 | RibbonEditor: procedural code-behind | open — **749 lines**, unchanged | `wc -l src/Nexaflow.Core/Controls/RibbonEditor.xaml.cs` | L | P3 |
+
 | D4 | Window-position constants duplicated | open, and **three copies now**: the `const` in `PositionWindow`, `MainWindow.xaml.cs`, and a `TopBarHeight` GridLength in every `Colors.*.xaml` — the theme resource is the obvious single home | `$nfi graph grep "TopBarHeight" --mode content` | S | P3 |
 | E4 | Colour literals outside the theme layer | **nearly closed** — all five original clusters are done. What is left is 3 sites, and the biggest is `Core/MainWindow.xaml` itself: the shell hard-codes an accent while every feature is forbidden to | `$nfi graph grep "#[0-9A-Fa-f]{6}\"" --mode content --limit 400`, then **exclude** `Themes/` · `Tokens.xaml` · `Colors.*.xaml` · tests — a raw count reads the theme layer as debt | S | P3 |
 | E5 | 5 process-global mutable registries in WindowsFileSystem | open — all five still `static … Instance` | `$nfi graph grep "public static .* Instance" --from product:win-file-system --scope owned --mode content` | M | P3 |
@@ -89,6 +89,9 @@ expensive. The per-feature `[TestCategory]` mitigation it proposed instead is mo
 where there were four); `Visuals.Common`'s `ModalCard`, the `ScrimBrush` token and
 `HandRolledModalRatchetTests`; and all twelve hand-rolled forms moved onto the card, `RibbonEditor`
 included. `hand-rolled-modals.txt` is empty and the ratchet keeps it so.
+
+**2026-09-24:** D3, with the ribbon's icon, colour and shape work — the editor is `RibbonEditorViewModel` plus
+templates, and the live bar draws with the same `RibbonItemButton`.
 
 ---
 
@@ -220,7 +223,12 @@ backwards while being tracked. ~13 banner concerns (window registry, tab registr
 
 ### D3. RibbonEditor (L)
 
-749 lines of procedural `Border`/`StackPanel` construction (`RebuildCards:146–395`, `BuildIconGrid:500`, `BuildColorSwatches:547`). The `ShellViewModel` dependency is already gone; what remains is the ViewModel + `ItemsControl`/`DataTemplate` conversion. Real but expensive; schedule when the ribbon next needs feature work.
+✅ Closed 2026-09-24. The editor was 749 lines of procedural `Border`/`StackPanel` construction whose cards had no
+automation peer. It is now `RibbonEditorViewModel` (a deep-cloned draft, commands, one save on Done) and a view that
+is `InitializeComponent` plus a width: cards are `ListBoxItem`s drawn with the real `RibbonItemButton`, the pickers
+are the shared `IconPicker` / `ColorPicker`, and reordering is `Visuals.Common`'s `DragReorder`. The live
+`RibbonBar` draws with the same button, built once per item and re-parented across its layout passes, and MainWindow
+builds the editor only while it is open.
 
 ### D4. Window-position constants (S)
 
@@ -478,6 +486,6 @@ Steps 1–3, 4, 6 and most of 5 and 7 are done; what follows is the **remaining*
 7. **Contract shape** (C3, C5, C7): the tool merger, the two interface peels, the small notes. *(S–M)*
 8. **Perf tail** (G1 image virtualization, G5 chat virtualization, G6–G8) opportunistically. *(S–M)*
 9. **Provider tail** (F7 Aria, F8 test seam). *(S–M)*
-10. **E5, E6, E7, D3** — the expensive structural ones, on touch. *(M–L)*
+10. **E5, E6, E7** — the expensive structural ones, on touch. *(M–L)*
 
-Deliberately deferred: the colour analyzer (B4 — do E4 first), `IShellServices`/`IAIService` splits beyond the two facet peels (C5), RibbonEditor rewrite (D3), per-feature test project split (H2), and any umbrella file-reader abstraction (the four windowing strategies remain correctly feature-specific — unchanged verdict from the last review).
+Deliberately deferred: the colour analyzer (B4 — do E4 first), `IShellServices`/`IAIService` splits beyond the two facet peels (C5), per-feature test project split (H2), and any umbrella file-reader abstraction (the four windowing strategies remain correctly feature-specific — unchanged verdict from the last review).

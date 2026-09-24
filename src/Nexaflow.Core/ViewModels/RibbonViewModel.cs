@@ -5,9 +5,12 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Visuals.Common.Theming;
+using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Core.ViewModels;
 
@@ -43,6 +46,14 @@ public partial class RibbonViewModel : ObservableObject
 
     /// <summary>Open/closed state of the inline ribbon editor overlay.</summary>
     [ObservableProperty] private bool _isEditOpen;
+
+    /// <summary>The open editor, or null. Created on open and dropped on close, so an editor nobody opens costs nothing.</summary>
+    [ObservableProperty] private RibbonEditorViewModel? _editor;
+
+    partial void OnIsEditOpenChanged(bool value)
+    {
+        if (!value) Editor = null;
+    }
 
     /// <summary>
     /// Set by the host so the ribbon view can flash an item when a duplicate
@@ -217,8 +228,44 @@ public partial class RibbonViewModel : ObservableObject
     [RelayCommand]
     private void ToggleEdit()
     {
-        if (!IsEditOpen) RefreshAvailablePages();   // populate the catalog just before showing
-        IsEditOpen = !IsEditOpen;
+        if (IsEditOpen)
+        {
+            IsEditOpen = false;
+            return;
+        }
+
+        RefreshAvailablePages();   // populate the catalog just before showing
+        Editor = new RibbonEditorViewModel(
+            Items, AvailablePages, RibbonLayoutService.LoadDefaults,
+            commit: ReplaceItems,
+            close: () => IsEditOpen = false,
+            findResource: key => Application.Current?.TryFindResource(key));
+        IsEditOpen = true;
+    }
+
+    /// <summary>Replaces the ribbon with the editor's draft and saves once — not once per item, as adding them
+    /// one by one to the live collection would.</summary>
+    public void ReplaceItems(IReadOnlyList<RibbonItem> items)
+    {
+        _reloading = true;
+        try
+        {
+            foreach (var item in Items)
+                item.PropertyChanged -= OnItemChanged;
+            Items.Clear();
+            foreach (var item in items)
+            {
+                item.PropertyChanged += OnItemChanged;
+                Items.Add(item);
+            }
+        }
+        finally
+        {
+            _reloading = false;
+        }
+
+        if (Items.Count == 0) BuildDefaults();
+        Save();
     }
 
     /// <summary>
@@ -306,8 +353,8 @@ public partial class RibbonViewModel : ObservableObject
         {
             Kind        = RibbonItemKind.Button,
             Label       = result.Label,
-            Icon        = result.Icon,
-            AccentColor = result.AccentColor,
+            Icon        = IconRef.Parse(result.Icon),
+            Foreground  = ColorSpec.Parse(result.AccentColor),
             PageKind    = result.PageKind,
             PageParams  = result.PageParams
         }, insertIndex);

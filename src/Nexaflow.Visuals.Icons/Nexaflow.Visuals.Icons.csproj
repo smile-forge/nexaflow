@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fluent UI System Icons (MIT, microsoft/fluentui-system-icons, fonts/): the "Resizable" face holds every
+         icon once in both regular and filled, at one design size. Bundled as an asset, not a submodule — it is a
+         font, not ProjectReference'd source (docs/externals.md). Copied beside the assembly, like Bravura, so it
+         loads from disk headless and in-app alike (a pack URI needs a running Application); flows transitively into
+         the host app's output. The name map is the font's own; IconCatalog reads the names from it, so updating the
+         font is swapping these two files. License: IconFonts\FluentSystemIcons-LICENSE. -->
+    <None Include="Assets\Fonts\FluentSystemIcons-Resizable.ttf" Link="IconFonts\FluentSystemIcons-Resizable.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\Fonts\LICENSE" Link="IconFonts\FluentSystemIcons-LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\Fonts\FluentSystemIcons-Resizable.json" LogicalName="Nexaflow.Visuals.Icons.FluentSystemIcons-Resizable.json" />
+  </ItemGroup>
+
+</Project>

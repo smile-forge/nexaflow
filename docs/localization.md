@@ -123,9 +123,9 @@ off into a satellite assembly instead of the pack.
 
 The product tree's `i18n` concern is the ledger. Every feature root carries it, `should` until its words are in
 its project's `strings.json`, then `done` with a snaplink to that file (`nfi query --concern i18n` lists where each
-stands). Core carries it per area: the shell chrome — window frame, tab strip, breadcrumb, ribbon bar, AI bar and
-response surfaces, messages, prompts — and Help are `done`; Options, workspaces, the ribbon editor, the file
-pickers and the setup wizard are `should`. AI prompts and tool descriptions stay English: they are read by the
+stands). Core carries it per area: the shell chrome — window frame, tab strip, breadcrumb, ribbon bar and editor, AI
+bar and response surfaces, messages, prompts — and Help are `done`; Options, workspaces, the file pickers and the
+setup wizard are `should`. AI prompts and tool descriptions stay English: they are read by the
 model, not the user.
 
 Moving a feature over is mechanical — add its keys to `Localization/en/strings.json` at the project's root, replace

@@ -29,6 +29,8 @@
     <!-- Resting fill of ribbon buttons. Transparent by default (Dark unchanged); a theme can tint it
          to separate the buttons from the ribbon-strip surface. -->
     <SolidColorBrush x:Key="Ribbon.ButtonBg" Color="Transparent"/>
+    <!-- Hover wash over a ribbon button the user gave its own background: tints it rather than replacing it. -->
+    <SolidColorBrush x:Key="Ribbon.HoverOverlay" Color="{StaticResource TextColor}" Opacity="0.16"/>
 
     <!-- ── Tab strip + breadcrumb (PaneView header row). ── -->
     <SolidColorBrush x:Key="TabStrip.Bg"     Color="{StaticResource SurfaceColor}"/>

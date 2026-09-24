@@ -1,0 +1,233 @@
+<UserControl x:Class="Nexaflow.Visuals.Common.Controls.ColorPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization"
+             x:Name="Self"
+             Focusable="False">
+
+    <UserControl.Resources>
+        <!-- The squares behind anything translucent, so alpha reads as alpha. -->
+        <DrawingBrush x:Key="Checker" TileMode="Tile" Viewport="0,0,8,8" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="{DynamicResource Surface2Brush}" Geometry="M0,0 H2 V2 H0Z"/>
+                    <GeometryDrawing Brush="{DynamicResource BorderBrush}" Geometry="M0,0 H1 V1 H0Z M1,1 H2 V2 H1Z"/>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <Style x:Key="PickerChip" TargetType="Button">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Margin" Value="0,0,4,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ring" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
+                                <Setter TargetName="ring" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PickerTextButton" TargetType="Button" BasedOn="{StaticResource PickerChip}">
+            <Setter Property="Width" Value="NaN"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Background" Value="{DynamicResource Surface2Brush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <Style x:Key="PickerValueBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource Surface2Brush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="PickerCaption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- The theme's own colour, the swatch bank a theme retunes, and a screen sample. -->
+        <WrapPanel>
+            <Button x:Name="DefaultChip"
+                    Style="{StaticResource PickerTextButton}"
+                    Content="{loc:Str Common.ColorPicker.ThemeDefault}"
+                    ToolTip="{loc:Str Common.ColorPicker.ThemeDefaultTip}"
+                    AutomationProperties.AutomationId="{Binding DefaultAutomationId, ElementName=Self}"
+                    Click="Default_Click"/>
+            <ItemsControl ItemsSource="{Binding Swatches, ElementName=Self}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Style="{StaticResource PickerChip}"
+                                Background="{Binding Brush}"
+                                ToolTip="{Binding Name}"
+                                Tag="{Binding}"
+                                AutomationProperties.AutomationId="{Binding AutomationId}"
+                                AutomationProperties.Name="{Binding Name}"
+                                Click="Swatch_Click"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Style="{StaticResource PickerTextButton}"
+                    Content="{loc:Str Common.ColorPicker.Eyedropper}"
+                    ToolTip="{loc:Str Common.ColorPicker.EyedropperTip}"
+                    AutomationProperties.AutomationId="{Binding EyedropperAutomationId, ElementName=Self}"
+                    Click="Eyedropper_Click"/>
+        </WrapPanel>
+
+        <!-- Saturation × value, hue, alpha. -->
+        <Grid Height="150" Margin="0,4,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="18"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid x:Name="SvArea" Cursor="Cross" ClipToBounds="True" Background="Transparent"
+                  MouseLeftButtonDown="Drag_Start" MouseMove="Drag_Move" MouseLeftButtonUp="Drag_End">
+                <Rectangle x:Name="SvHue" RadiusX="4" RadiusY="4"/>
+                <Rectangle RadiusX="4" RadiusY="4">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Offset="0" Color="#FFFFFFFF"/>
+                            <GradientStop Offset="1" Color="#00FFFFFF"/>
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle RadiusX="4" RadiusY="4">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#00000000"/>
+                            <GradientStop Offset="1" Color="#FF000000"/>
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Canvas IsHitTestVisible="False">
+                    <Ellipse x:Name="SvThumb" Width="12" Height="12" StrokeThickness="2" Stroke="#FFFFFFFF">
+                        <Ellipse.Effect>
+                            <DropShadowEffect BlurRadius="2" ShadowDepth="0" Opacity="0.8"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                </Canvas>
+            </Grid>
+
+            <Grid x:Name="HueStrip" Grid.Column="1" Margin="6,0,0,0" Cursor="Hand" Background="Transparent"
+                  MouseLeftButtonDown="Drag_Start" MouseMove="Drag_Move" MouseLeftButtonUp="Drag_End">
+                <Rectangle RadiusX="3" RadiusY="3">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0.000" Color="#FFFF0000"/>
+                            <GradientStop Offset="0.167" Color="#FFFFFF00"/>
+                            <GradientStop Offset="0.333" Color="#FF00FF00"/>
+                            <GradientStop Offset="0.500" Color="#FF00FFFF"/>
+                            <GradientStop Offset="0.667" Color="#FF0000FF"/>
+                            <GradientStop Offset="0.833" Color="#FFFF00FF"/>
+                            <GradientStop Offset="1.000" Color="#FFFF0000"/>
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Canvas IsHitTestVisible="False">
+                    <Border x:Name="HueThumb" Height="4" BorderThickness="1" CornerRadius="2"
+                            BorderBrush="{DynamicResource TextBrush}"/>
+                </Canvas>
+            </Grid>
+
+            <Grid x:Name="AlphaStrip" Grid.Column="2" Margin="6,0,0,0" Cursor="Hand"
+                  MouseLeftButtonDown="Drag_Start" MouseMove="Drag_Move" MouseLeftButtonUp="Drag_End">
+                <Rectangle RadiusX="3" RadiusY="3" Fill="{StaticResource Checker}"/>
+                <Rectangle x:Name="AlphaFill" RadiusX="3" RadiusY="3"/>
+                <Canvas IsHitTestVisible="False">
+                    <Border x:Name="AlphaThumb" Height="4" BorderThickness="1" CornerRadius="2"
+                            BorderBrush="{DynamicResource TextBrush}"/>
+                </Canvas>
+            </Grid>
+        </Grid>
+
+        <!-- What it was, what it is, and the numbers. -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="40"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock Style="{StaticResource PickerCaption}" Text="{loc:Str Common.ColorPicker.Preview}"/>
+                <Border Width="44" Height="26" CornerRadius="4" Background="{StaticResource Checker}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="PreviewOld" CornerRadius="3,0,0,3"
+                                ToolTip="{loc:Str Common.ColorPicker.Before}"/>
+                        <Border x:Name="PreviewNew" Grid.Column="1" CornerRadius="0,3,3,0"
+                                ToolTip="{loc:Str Common.ColorPicker.After}"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                <TextBlock x:Name="SelectionLabel" Style="{StaticResource PickerCaption}"/>
+                <TextBox x:Name="HexBox" Style="{StaticResource PickerValueBox}" MaxLength="9"
+                         ToolTip="{loc:Str Common.ColorPicker.HexTip}"
+                         AutomationProperties.AutomationId="{Binding HexAutomationId, ElementName=Self}"
+                         KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Margin="0,0,4,0">
+                <TextBlock Style="{StaticResource PickerCaption}" Text="R"/>
+                <TextBox x:Name="RedBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
+                         AutomationProperties.AutomationId="{Binding RedAutomationId, ElementName=Self}"
+                         KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
+            </StackPanel>
+            <StackPanel Grid.Column="3" Margin="0,0,4,0">
+                <TextBlock Style="{StaticResource PickerCaption}" Text="G"/>
+                <TextBox x:Name="GreenBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
+                         AutomationProperties.AutomationId="{Binding GreenAutomationId, ElementName=Self}"
+                         KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
+            </StackPanel>
+            <StackPanel Grid.Column="4" Margin="0,0,4,0">
+                <TextBlock Style="{StaticResource PickerCaption}" Text="B"/>
+                <TextBox x:Name="BlueBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
+                         AutomationProperties.AutomationId="{Binding BlueAutomationId, ElementName=Self}"
+                         KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
+            </StackPanel>
+            <StackPanel Grid.Column="5">
+                <TextBlock Style="{StaticResource PickerCaption}" Text="A"/>
+                <TextBox x:Name="AlphaBox" Style="{StaticResource PickerValueBox}" MaxLength="3"
+                         AutomationProperties.AutomationId="{Binding AlphaAutomationId, ElementName=Self}"
+                         KeyDown="Value_KeyDown" LostKeyboardFocus="Value_LostFocus"/>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>
