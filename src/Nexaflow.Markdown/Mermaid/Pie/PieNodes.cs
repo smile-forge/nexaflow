@@ -3,25 +3,11 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Markdown.Mermaid.Pie;
 
 /// <summary>
-/// A <c>pie</c> block as its stages leave it: what it was written as, and what its front matter asks of the chart, with
-/// Mermaid's own default wherever it asks nothing.
-/// </summary>
-public sealed class PieBlockNode : ContentNode
-{
-    internal PieBlockNode(ContentNode written, PieConfig config) : base(written) => this.Config = config;
-
-    /// <summary>What the front matter asks of the chart.</summary>
-    public PieConfig Config { get; }
-
-    protected override ContentNode Reshaped(ContentNode shape) => new PieBlockNode(shape, this.Config);
-}
-
-/// <summary>
 /// A slice as its stages leave it: the line written for it, and what it comes to — the colour the front matter gives it,
 /// whether it is picked out, its share of the whole, where it comes among the wedges, whether the legend lists it and
 /// whether its row shows its value. None of that is in the line's characters, which it prints as all the same.
 /// </summary>
-public sealed class PieSliceNode : ContentNode
+internal sealed class PieSliceNode : ContentNode
 {
     internal PieSliceNode(ContentNode written) : this(written, written as PieSliceNode) { }
 

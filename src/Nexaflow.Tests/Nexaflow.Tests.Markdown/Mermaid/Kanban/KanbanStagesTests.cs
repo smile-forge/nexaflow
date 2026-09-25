@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Kanban;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Mermaid;
@@ -71,7 +72,7 @@ public class KanbanStagesTests
     [TestMethod]
     public void TheFrontMatterIsRead()
     {
-        var config = ((KanbanBlockNode)MermaidStaged.Read("---\nconfig:\n  kanban:\n    sectionWidth: 250\n  themeVariables:\n    cScale2: \"#ff0000\"\n    background: \"#101010\"\n---\nkanban\n  Todo")).Config;
+        var config = ((ConfiguredNode<KanbanConfig>)MermaidStaged.Read("---\nconfig:\n  kanban:\n    sectionWidth: 250\n  themeVariables:\n    cScale2: \"#ff0000\"\n    background: \"#101010\"\n---\nkanban\n  Todo")).Config;
 
         Assert.AreEqual((250d, "#ff0000", "#101010"), (config.SectionWidth!.Value, config.Scale[2], config.Background));
     }

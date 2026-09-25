@@ -74,9 +74,6 @@ internal sealed class KanbanBuilder : MermaidBuilder
 
     internal KanbanBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <summary>The board as its stage left it on the block.</summary>
-    private KanbanBlockNode? Board => Reading.Root.Node as KanbanBlockNode;
-
     /// <summary>A column: the part of the reading it is, what its stage said of it, and the cards in its lane.</summary>
     private readonly record struct Column(ContentPart Part, KanbanColumnNode Said, List<Item> Cards);
 
@@ -85,7 +82,7 @@ internal sealed class KanbanBuilder : MermaidBuilder
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-        if (Board is not { } board) return AsWritten(build);
+
 
         // Each card goes in the lane of the column written above it.
         var columns = new List<Column>();
@@ -106,7 +103,7 @@ internal sealed class KanbanBuilder : MermaidBuilder
         // A board with no column is the source.
         if (columns.Count == 0) return AsWritten(build);
 
-        var config = board.Config;
+        var config = Configured(KanbanConfig.Default);
         var width = config.SectionWidth ?? SectionWidth;
         var card = width - (2 * Margin);
         var text = Ink.Written(config.TextColour) ?? Palette.Text;

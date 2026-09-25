@@ -25,7 +25,7 @@ public class QuadrantStagesTests
         Assert.AreEqual("Campaign B", Name(points[1]));
         Assert.AreEqual(0.45, points[1].X);
         Assert.AreEqual(0.23, points[1].Y);
-        Assert.IsTrue(points.All(point => point.Placed));
+        Assert.IsTrue(points.All(point => point.Located));
     }
 
     [TestMethod]
@@ -35,7 +35,7 @@ public class QuadrantStagesTests
 
         Assert.AreEqual(0.1, point.X);
         Assert.IsNull(point.Y);
-        Assert.IsFalse(point.Placed, "it is still read, so a reader can fix it");
+        Assert.IsFalse(point.Located, "it is still read, so a reader can fix it");
     }
 
     [TestMethod]

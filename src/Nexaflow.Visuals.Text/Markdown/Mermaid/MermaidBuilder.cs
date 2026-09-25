@@ -97,6 +97,13 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// </summary>
     protected double Space => double.IsInfinity(Room) ? Room : Math.Max(1, Room - (Pad * 2));
 
+    /// <summary>
+    /// What the diagram's front matter asks for, as its stages hung it on the block (<see cref="WithConfig{TConfig}"/>) — or
+    /// <paramref name="otherwise"/>, the diagram's defaults, where they hung nothing.
+    /// </summary>
+    protected TConfig Configured<TConfig>(TConfig otherwise) where TConfig : class =>
+        (Reading.Root.Node as ConfiguredNode<TConfig>)?.Config ?? otherwise;
+
     /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
     /// took. May throw — whatever it was reading is then shown as written, with the reason.</summary>
     protected abstract Size Draw(MermaidBlock block, LayoutBuilder build);

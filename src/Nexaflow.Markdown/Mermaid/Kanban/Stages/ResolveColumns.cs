@@ -16,11 +16,11 @@ public sealed class ResolveColumns(KanbanConfig config) : IAstStage
     public ContentNode Run(ContentNode tree)
     {
         var first = tree.SelfAndDescendants().FirstOrDefault(line => line.Kind == MermaidKinds.Line && line.Stated()?.Kind == KanbanKinds.Node);
-        if (first is null) return new KanbanBlockNode(tree, config);
+        if (first is null) return tree;
 
         var column = first.Indent();
 
-        tree = AstRewrite.Each(tree, line =>
+        return AstRewrite.Each(tree, line =>
         {
             if (line.Kind != MermaidKinds.Line || line.Stated() is not { Kind: KanbanKinds.Node } node) return line;
 
@@ -31,8 +31,6 @@ public sealed class ResolveColumns(KanbanConfig config) : IAstStage
 
             return line.With([.. line.Children.Select(child => ReferenceEquals(child, node) ? said : child)]);
         });
-
-        return new KanbanBlockNode(tree, config);
     }
 
     private KanbanCardNode Card(ContentNode node)

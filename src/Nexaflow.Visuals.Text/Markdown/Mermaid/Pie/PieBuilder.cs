@@ -82,7 +82,7 @@ internal sealed class PieBuilder : MermaidBuilder
     internal PieBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <summary>What the front matter asks of the chart, as its stages left it on the block.</summary>
-    private PieConfig Config => (Reading.Root.Node as PieBlockNode)?.Config ?? PieConfig.Default;
+    private PieConfig Config => Configured(PieConfig.Default);
 
     /// <summary>A slice as its stages left it, and the part of the reading that is.</summary>
     private readonly record struct Slice(ContentPart Part, PieSliceNode Said);

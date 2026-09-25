@@ -192,7 +192,7 @@ public class PieStagesTests
     private static List<PieSliceNode> Slices(ContentNode tree) =>
         [.. tree.SelfAndDescendants().OfType<PieSliceNode>()];
 
-    private static PieConfig Config(ContentNode tree) => ((PieBlockNode)tree).Config;
+    private static PieConfig Config(ContentNode tree) => ((ConfiguredNode<PieConfig>)tree).Config;
 
     private static string Name(ContentNode slice) => slice.Inner(MermaidKinds.Words)!.Print();
 }
