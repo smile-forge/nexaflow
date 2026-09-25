@@ -1,3 +1,5 @@
+using System.Text;
+
 using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Mermaid;
@@ -10,52 +12,45 @@ namespace Nexaflow.Markdown.Mermaid;
 /// a part a builder can draw and a reader can select — and so what counts as front matter, a directive or the header
 /// is decided once, by the parser, instead of again by everything that wants to know.
 /// </para>
+/// <para>
+/// Which diagram it is and what its front matter says are asked of the tree's nodes; only the parts — a title, the
+/// header, the front matter — need the tree placed, every part of it given where it stands, and that is done the first
+/// time one of them is asked for. Reading a block asks which grammar reads it and what its front matter configures, and
+/// neither is worth placing a whole diagram for.
+/// </para>
 /// </summary>
 public sealed class MermaidBlock
 {
-    private MermaidBlock(ContentReading reading)
+    private readonly ContentNode _tree;
+    private readonly int _at;
+    private ContentReading? _reading;
+    private bool _found;
+
+    private ContentPart? _frontMatter;
+    private ContentPart? _header;
+    private ContentPart? _ownTitle;
+    private ContentPart? _frontMatterTitle;
+    private ContentPart? _accessibleTitle;
+    private ContentPart? _accessibleDescription;
+
+    private MermaidBlock(ContentNode tree, int at, ContentReading? reading)
     {
-        Reading = reading;
-
-        foreach (var part in reading.Root.SelfAndDescendants())
-        {
-            switch (part.Kind)
-            {
-                case MermaidKinds.FrontMatter when FrontMatter is null:
-                    FrontMatter = part;
-                    break;
-                case MermaidKinds.Header when Header is null:
-                    Header = part;
-                    break;
-                case MermaidKinds.Title when OwnTitle is null:
-                    OwnTitle = part.Part(MermaidRoles.Title);
-                    break;
-                case MermaidKinds.Accessibility:
-                    if (part.Part(Roles.Name)?.Text == MermaidParser.AccessibleTitle) AccessibleTitle ??= part.Part(MermaidRoles.Value);
-                    else AccessibleDescription ??= part.Part(MermaidRoles.Value);
-                    break;
-            }
-        }
-
-        // A field at the top level is the first thing on its line; one nested under another starts with its indent.
-        FrontMatterTitle = FrontMatter?.Children
-            .Where(line => line.Children.Count > 0 && line.Children[0].Kind == MermaidKinds.Field)
-            .Select(line => line.Children[0])
-            .FirstOrDefault(field => string.Equals(field.Part(Roles.Name)?.Text, "title", StringComparison.OrdinalIgnoreCase))
-            ?.Part(MermaidRoles.Value);
+        _tree = tree;
+        _at = at;
+        _reading = reading;
     }
 
     /// <summary>Reads <paramref name="source"/>.</summary>
     public static MermaidBlock Read(string? source) => Of(MermaidParser.Parse(source));
 
     /// <summary>The block a tree reads as, positioned <paramref name="at"/> in the document that holds it.</summary>
-    public static MermaidBlock Of(ContentNode tree, int at = 0) => new(ContentReading.Of(tree, at));
+    public static MermaidBlock Of(ContentNode tree, int at = 0) => new(tree, at, null);
 
     /// <summary>A block already read, taken as it stands.</summary>
-    public static MermaidBlock Of(ContentReading reading) => new(reading);
+    public static MermaidBlock Of(ContentReading reading) => new(reading.Root.Node, reading.Root.Start, reading);
 
     /// <summary>The tree, with where each part sits.</summary>
-    public ContentReading Reading { get; }
+    public ContentReading Reading => _reading ??= ContentReading.Of(_tree, _at);
 
     /// <summary>The source the block was read from.</summary>
     public string Source => Reading.Source;
@@ -67,10 +62,10 @@ public sealed class MermaidBlock
     private int Origin => Reading.Root.Start;
 
     /// <summary>The <c>---</c> … <c>---</c> block the diagram opens with, fences included, or null.</summary>
-    public ContentPart? FrontMatter { get; }
+    public ContentPart? FrontMatter => Found()._frontMatter;
 
     /// <summary>The line in the header's place — the first that is not blank, a comment or a directive — or null.</summary>
-    public ContentPart? Header { get; }
+    public ContentPart? Header => Found()._header;
 
     /// <summary>The header's keyword, or null where there is no header or it starts with none.</summary>
     public ContentPart? Keyword => Header?.Part(Roles.Name);
@@ -79,15 +74,23 @@ public sealed class MermaidBlock
     /// Which diagram this is. A header that names nothing this reads is <see cref="MermaidDiagram.Unknown"/>; no header at
     /// all is a <see cref="MermaidDiagram.Flowchart"/> — see <see cref="MermaidDiagrams.Named"/>.
     /// </summary>
-    public MermaidDiagram Diagram => Header is null
-        ? MermaidDiagram.Flowchart
-        : Keyword is { } keyword ? MermaidDiagrams.Named(keyword.Text) : MermaidDiagram.Unknown;
+    public MermaidDiagram Diagram
+    {
+        get
+        {
+            foreach (var node in _tree.SelfAndDescendants())
+                if (node.Kind == MermaidKinds.Header)
+                    return node.Part(Roles.Name) is { } keyword ? MermaidDiagrams.Named(keyword.Text) : MermaidDiagram.Unknown;
+
+            return MermaidDiagram.Flowchart;
+        }
+    }
 
     /// <summary>
     /// The value of the front matter's <c>title:</c> — the one at the top level, not one nested under <c>config:</c> —
     /// or null. Quotes and all, as written: <see cref="FrontMatterTitleText"/> is what it says.
     /// </summary>
-    public ContentPart? FrontMatterTitle { get; }
+    public ContentPart? FrontMatterTitle => Found()._frontMatterTitle;
 
     /// <summary>The front-matter title as it reads, without the quotes round it, or null where there is none or it is blank.</summary>
     public string? FrontMatterTitleText
@@ -115,7 +118,7 @@ public sealed class MermaidBlock
     public bool TitleAsWritten => Title is { } title && TitleSays == title.Text;
 
     /// <summary>What the diagram's own first title says, or null where it writes none.</summary>
-    private ContentPart? OwnTitle { get; }
+    private ContentPart? OwnTitle => Found()._ownTitle;
 
     /// <summary>
     /// What is between the front matter's fences — the YAML the diagrams that take a <c>config:</c> read — or null where
@@ -125,10 +128,20 @@ public sealed class MermaidBlock
     {
         get
         {
-            if (FrontMatter is not { Children: [var open, .., var close] }) return null;
+            foreach (var node in _tree.SelfAndDescendants())
+            {
+                if (node.Kind != MermaidKinds.FrontMatter) continue;
+                if (node.Children.Count < 2) return null;
 
-            var inner = Source[(open.End - Origin)..(close.Start - Origin)];
-            return inner.EndsWith('\n') ? inner[..^1] : inner;
+                // Everything between the opening fence and the closing one, as it prints.
+                var inner = new StringBuilder();
+                for (var at = 1; at < node.Children.Count - 1; at++) node.Children[at].PrintTo(inner);
+
+                var text = inner.ToString();
+                return text.EndsWith('\n') ? text[..^1] : text;
+            }
+
+            return null;
         }
     }
 
@@ -142,12 +155,48 @@ public sealed class MermaidBlock
     public string Body => Source[BodyStart..];
 
     /// <summary>The text of an <c>accTitle</c>, or null.</summary>
-    public ContentPart? AccessibleTitle { get; }
+    public ContentPart? AccessibleTitle => Found()._accessibleTitle;
 
     /// <summary>The text of an <c>accDescr</c>, on one line or in braces, or null.</summary>
-    public ContentPart? AccessibleDescription { get; }
+    public ContentPart? AccessibleDescription => Found()._accessibleDescription;
 
     /// <summary>The diagram's own lines, in order — what its grammar reads.</summary>
     public IEnumerable<ContentPart> Statements =>
         Reading.Root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Statement);
+
+    /// <summary>The parts every block is asked for, found once, the first time any of them is.</summary>
+    private MermaidBlock Found()
+    {
+        if (_found) return this;
+        _found = true;
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Kind)
+            {
+                case MermaidKinds.FrontMatter when _frontMatter is null:
+                    _frontMatter = part;
+                    break;
+                case MermaidKinds.Header when _header is null:
+                    _header = part;
+                    break;
+                case MermaidKinds.Title when _ownTitle is null:
+                    _ownTitle = part.Part(MermaidRoles.Title);
+                    break;
+                case MermaidKinds.Accessibility:
+                    if (part.Part(Roles.Name)?.Text == MermaidParser.AccessibleTitle) _accessibleTitle ??= part.Part(MermaidRoles.Value);
+                    else _accessibleDescription ??= part.Part(MermaidRoles.Value);
+                    break;
+            }
+        }
+
+        // A field at the top level is the first thing on its line; one nested under another starts with its indent.
+        _frontMatterTitle = _frontMatter?.Children
+            .Where(line => line.Children.Count > 0 && line.Children[0].Kind == MermaidKinds.Field)
+            .Select(line => line.Children[0])
+            .FirstOrDefault(field => string.Equals(field.Part(Roles.Name)?.Text, "title", StringComparison.OrdinalIgnoreCase))
+            ?.Part(MermaidRoles.Value);
+
+        return this;
+    }
 }

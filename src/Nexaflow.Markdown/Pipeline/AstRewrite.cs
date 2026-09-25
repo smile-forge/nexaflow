@@ -23,17 +23,26 @@ public static class AstRewrite
     {
         if (node.IsLeaf) return of(node);
 
-        var rebuilt = new List<ContentNode>(node.Children.Count);
-        var moved = false;
+        var children = node.Children;
+        ContentNode[]? rebuilt = null;
 
-        foreach (var child in node.Children)
+        // Nothing is made for a piece none of whose parts moved, which over a tree a stage has nothing to say about is every
+        // piece of it.
+        for (var at = 0; at < children.Count; at++)
         {
+            var child = children[at];
             var seen = Each(child, of);
-            moved |= !ReferenceEquals(seen, child);
-            rebuilt.Add(seen);
+
+            if (rebuilt is null && !ReferenceEquals(seen, child))
+            {
+                rebuilt = new ContentNode[children.Count];
+                for (var before = 0; before < at; before++) rebuilt[before] = children[before];
+            }
+
+            if (rebuilt is not null) rebuilt[at] = seen;
         }
 
-        return of(moved ? node.With(rebuilt) : node);
+        return of(rebuilt is null ? node : node.With(rebuilt));
     }
 
     /// <summary>
@@ -52,26 +61,39 @@ public static class AstRewrite
     {
         if (node.IsLeaf) return node;
 
-        var rebuilt = new List<ContentNode>(node.Children.Count);
-        var moved = false;
+        var children = node.Children;
+        ContentNode[]? rebuilt = null;
 
-        foreach (var child in node.Children)
+        for (var at = 0; at < children.Count; at++)
         {
+            var child = children[at];
             var seen = Regrouping(child, regroup);
-            moved |= !ReferenceEquals(seen, child);
-            rebuilt.Add(seen);
+
+            if (rebuilt is null && !ReferenceEquals(seen, child))
+            {
+                rebuilt = new ContentNode[children.Count];
+                for (var before = 0; before < at; before++) rebuilt[before] = children[before];
+            }
+
+            if (rebuilt is not null) rebuilt[at] = seen;
         }
+
+        IReadOnlyList<ContentNode> now = rebuilt ?? children;
 
         // What an earlier stage hung on THIS node is not among the children being regrouped: it explains
         // the node, so sweeping it into one of the groups made out of the node's contents would move an
         // answer somewhere it is not true. Held back, and put back afterwards.
-        var facts = rebuilt.Where(child => child.Role == Roles.Derived).ToList();
-        var contents = facts.Count == 0 ? rebuilt : [.. rebuilt.Where(child => child.Role != Roles.Derived)];
+        var facts = 0;
+        for (var at = 0; at < now.Count; at++)
+            if (now[at].Role == Roles.Derived) facts++;
+
+        var contents = facts == 0 ? now : [.. now.Where(child => child.Role != Roles.Derived)];
 
         var regrouped = regroup(node, contents);
-        if (regrouped is not null) return node.With(facts.Count == 0 ? regrouped : [.. regrouped, .. facts]);
+        if (regrouped is not null)
+            return node.With(facts == 0 ? regrouped : [.. regrouped, .. now.Where(child => child.Role == Roles.Derived)]);
 
-        return moved ? node.With(rebuilt) : node;
+        return rebuilt is null ? node : node.With(rebuilt);
     }
 
     // ── Saying what a piece amounts to ──────────────────────────────────────

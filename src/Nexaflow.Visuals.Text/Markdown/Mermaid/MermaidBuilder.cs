@@ -231,8 +231,11 @@ internal abstract class MermaidBuilder : ContentBuilder
         Card(build, size);
 
         build.Close();
-        return new Laid(build.Seal(), size, trouble);
+        return new Laid(build.Seal(), size, trouble) { Passing = Passing };
     }
+
+    /// <summary>Whether this diagram is drawn as of the moment it is laid, reading the clock as well as the block — see <see cref="Laid.Passing"/>.</summary>
+    protected virtual bool Passing => false;
 
     /// <summary>Whether a part of the tree is drawn as words the reader types into — itself, or something inside it.</summary>
     private static bool Typed(LayoutTree drawn, ContentPart part)
@@ -376,11 +379,25 @@ internal abstract class MermaidBuilder : ContentBuilder
         // what it shows is no longer the characters written.
         var lines = Lines(part, breaks: !Writing(part));
 
+        // Words that are words share one letter to be measured against, a letter for each size and colour: every label in a
+        // diagram asks how tall a line of it is, and a letter made for each would be shaped once for each.
+        var shared = Letter(size, ink);
+
         return lines is [var line]
-            ? new DiagramWords(Text(line.Says, size, ink, weight, slant), line.Part, null, letter, ink, line.Maps, writes: true)
-            : new DiagramWords(Text(string.Join('\n', lines.Select(each => each.Says)), size, ink, weight, slant), part, null, letter,
+            ? new DiagramWords(Text(line.Says, size, ink, weight, slant), line.Part, null, shared, ink, line.Maps, writes: true)
+            : new DiagramWords(Text(string.Join('\n', lines.Select(each => each.Says)), size, ink, weight, slant), part, null, shared,
                                ink, maps: false, writes: true);
     }
+
+    /// <summary>The letter words of this size and colour are measured against, set once for the diagram.</summary>
+    private FormattedText Letter(double size, Brush ink)
+    {
+        if (_letters.TryGetValue((size, ink), out var letter)) return letter;
+
+        return _letters[(size, ink)] = Text("x", size, ink);
+    }
+
+    private readonly Dictionary<(double Size, Brush Ink), FormattedText> _letters = [];
 
     /// <summary>As <see cref="Written"/>, a line to each line break written in it, and each line set no wider than
     /// <paramref name="width"/> (<see cref="Fitted"/>).</summary>

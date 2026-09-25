@@ -206,7 +206,7 @@ public sealed class ContentNode
         if (this.IsDerived) return;
         if (this.IsLeaf) { text.Append(this.Text); return; }
 
-        foreach (var child in this.Children) child.PrintTo(text);
+        for (var at = 0; at < this.Children.Count; at++) this.Children[at].PrintTo(text);
     }
 
     // ── Finding out where they landed ───────────────────────────────────────

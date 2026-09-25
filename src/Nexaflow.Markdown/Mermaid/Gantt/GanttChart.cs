@@ -108,6 +108,7 @@ public sealed class GanttChart
         var includes = new List<string>();
         var raws = new List<Raw>();
         var sections = new List<GanttSection>();
+        var named = new Dictionary<string, GanttSection>(StringComparer.Ordinal);
         GanttSection? section = null;
         var unnamed = 0;
 
@@ -143,9 +144,12 @@ public sealed class GanttChart
                 case GanttKinds.Section:
                     var name = part.Children.FirstOrDefault(child => child.Kind == GanttKinds.Text);
                     var says = name?.Words()?.Text ?? string.Empty;
-                    section = sections.FirstOrDefault(known => known.Says == says)
-                              ?? new GanttSection(says, name?.Words(), name.Hole(), sections.Count);
-                    if (!sections.Contains(section)) sections.Add(section);
+                    if (!named.TryGetValue(says, out section))
+                    {
+                        section = new GanttSection(says, name?.Words(), name.Hole(), sections.Count);
+                        named[says] = section;
+                        sections.Add(section);
+                    }
                     break;
 
                 case GanttKinds.Task:
@@ -167,7 +171,13 @@ public sealed class GanttChart
         chart.Excludes = excludes;
         chart.Includes = includes;
         chart.Tasks = chart.Worked(raws, day, sections);
-        chart.Sections = [.. sections.Where(known => chart.Tasks.Any(task => !task.Vert && task.Section == known))];
+
+        // A section keeps its place only where a task in it takes a row.
+        var rowed = new HashSet<GanttSection>(ReferenceEqualityComparer.Instance);
+        foreach (var task in chart.Tasks)
+            if (!task.Vert && task.Section is { } holding) rowed.Add(holding);
+
+        chart.Sections = [.. sections.Where(rowed.Contains)];
         return chart;
     }
 

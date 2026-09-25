@@ -303,8 +303,9 @@ block of the document is a piece of its own at the top of its own frame and keep
 near the part on screen are painted (`ContentElement.OnScreen`, which the surface sets as it scrolls), and the picture of
 a block scrolled far away is let go, so a long document holds about a screen of pictures. What the
 characters do not say — which nodes of a diagram are opened — the host says with `IContent.Forget`, after which no
-block is the one it was. `LaidBlocksTests` holds every sample, typed into and taken back, to the same source laid from
-nothing.
+block is the one it was. A drawing of the moment it was laid rather than only of its source — a Gantt chart's line at
+today — says so (`Laid.Passing`), and the block holding it is laid again each time rather than kept. `LaidBlocksTests`
+holds every sample, typed into and taken back, to the same source laid from nothing.
 
 **What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
 picture of itself, because a picture of code is a worse copy of the code, and prose has no corner at all
