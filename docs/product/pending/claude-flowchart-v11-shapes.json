@@ -314,14 +314,33 @@
           "class": "ReadValues"
         }
       ]
+    },
+    "graph-flowchart": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartBuilder.cs",
+          "class": "FlowchartBuilder"
+        },
+        {
+          "type": "node",
+          "target": "graph-expandable-nodes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithDiagramPictures.cs",
+          "class": "WithDiagramPictures"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 9,
+  "changed_sets": 10,
   "touched_nodes": [
     "barcode-block-syntax",
     "barcode-editing",
     "flowchart-ast",
+    "graph-flowchart",
     "ly-ast",
     "maths-latex",
     "md-code-highlighting",

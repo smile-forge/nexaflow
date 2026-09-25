@@ -57,7 +57,8 @@ internal static class MermaidBuilders
         new([.. options?.DataContext is { } data
                   ? new Nexaflow.Markdown.Pipeline.IAstStage[] { new Nexaflow.Markdown.Pipeline.Stages.WithBindings(data) }
                   : [],
-             new Stages.WithNested(style, options)]);
+             new Stages.WithNested(style, options),
+             new Stages.WithDiagramPictures(options?.Pictures)]);
 
     /// <summary>The builder a diagram is drawn by, or null for one not drawn on the shared tree.</summary>
     public static Make? For(MermaidDiagram diagram) => diagram switch

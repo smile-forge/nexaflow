@@ -257,6 +257,37 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         Assert.IsTrue(groups.All(group => Marks(group).Count(mark => mark.Fill is not null) == 2), "each is filled, with its name's band over that");
     });
 
+    [TestMethod]
+    public void AnIconIsDrawnInItsForm_WithItsLabelWhereItIsAskedFor() => UiThread.Run(() =>
+    {
+        var laid = Build("flowchart LR\n  A@{ icon: \"fa:user\", form: \"circle\", label: \"User\", pos: \"t\", h: 48 }");
+        var node = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == FlowchartPiece.Node);
+        var shape = node.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
+        var words = node.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Words);
+
+        Assert.AreEqual(48, shape.Bounds.Height, 0.5, "as tall as it is asked to be");
+        Assert.IsTrue(words.Bounds.Bottom <= shape.Bounds.Top + 0.5, "with its label above it, as pos: t asks");
+        Assert.IsTrue(shape.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape is EllipseGeometry), "standing in its circle");
+    });
+
+    [TestMethod]
+    public void APictureIsTheOneTheHostFinds_AtTheSizeItIsAskedFor() => UiThread.Run(() =>
+    {
+        var picture = System.Windows.Media.Imaging.BitmapSource.Create(4, 2, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 2 * 4], 4 * 4);
+        var options = new DiagramRenderOptions { Palette = StyleFormat.Dark, Pictures = name => name == "found.png" ? picture : null };
+        const string source = "flowchart LR\n  A@{ img: \"found.png\", label: \"Found\", h: 30 }\n  B@{ img: \"lost.png\", label: \"Lost\", w: 50, h: 40 }";
+
+        var laid = new FlowchartBuilder(MermaidBuilders.Read(source, after: MermaidBuilders.After(StyleFormat.Dark, options)), EditState.For(source),
+                                        StyleFormat.Dark, isReadOnly: true).Lay(900);
+        var marks = laid.Root.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).ToList();
+
+        var drawn = marks.OfType<PictureMark>().Single();
+        Assert.AreSame(picture, drawn.Picture);
+        Assert.AreEqual(new Size(60, 30), drawn.Bounds.Size, "as tall as it is asked to be, and as wide as its own shape makes that");
+        Assert.IsTrue(marks.OfType<GeometryMark>().Any(mark => mark.Dashes is { Count: > 0 } && System.Math.Abs(mark.Shape.Bounds.Width - 50) < 0.5),
+                      "and one nothing was found for is the box it would have filled, dashed");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         new FlowchartBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
 

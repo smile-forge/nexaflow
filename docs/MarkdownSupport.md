@@ -189,8 +189,11 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; an `icon:` or `img:` node is drawn as its label, and `fa:fa-…` in a label is drawn as the
-characters written, there being no icon pack to fetch; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
+nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as one of the icons this draws —
+cloud, database, disk, internet, server, whatever pack names it — and as a question mark otherwise, which is what Mermaid
+draws for an icon it has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
+picture the host finds by that name, found as a document's `![](…)` is (`WithDiagramPictures`), at the `w:`/`h:` it asks for
+and in its own shape under `constraint: on`, and a dashed box of that size where nothing is found; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
 rather than styled; `interpolate` on a `linkStyle` is read, `linear` against anything else being all that changes how a line is
 drawn; and a `click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the
 source. **A

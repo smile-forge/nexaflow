@@ -3460,6 +3460,17 @@ internal sealed class MarkdownSamples : ISampleSet
             a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g
         ```
 
+        Icons and pictures — an icon this draws, one it has no pack for, a picture found and one that is not
+
+        ```mermaid
+        flowchart LR
+            A@{ icon: "fa:database", form: "square", label: "Database", pos: "t", h: 48 }
+            B@{ icon: "fa:user", form: "circle", label: "User Icon", h: 48 }
+            C@{ icon: "fa:cloud", label: "No form" }
+            D@{ img: "https://example.com/image.png", label: "Image Label", pos: "t", w: 60, h: 60, constraint: "off" }
+            A --> B --> C --> D
+        ```
+
         Markers, which Mermaid draws without their words
 
         ```mermaid
