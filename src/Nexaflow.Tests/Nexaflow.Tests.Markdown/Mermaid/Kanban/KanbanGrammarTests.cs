@@ -79,7 +79,7 @@ public class KanbanGrammarTests : MermaidGrammarContract
         var tree = MermaidStaged.Read(Full);
 
         Assert.AreEqual(16, Nodes(tree, KanbanKinds.Node).Count);
-        Assert.AreEqual(6, Nodes(tree, KanbanKinds.Node).Count(node => node.Said(KanbanRoles.Column) is not null));
+        Assert.AreEqual(6, Nodes(tree, KanbanKinds.Node).Count(node => node is KanbanColumnNode));
         Assert.AreEqual(5, Nodes(tree, KanbanKinds.Data).Count);
     }
 

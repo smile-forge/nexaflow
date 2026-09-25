@@ -14,9 +14,6 @@ public static class KanbanKinds
 
     /// <summary>A <c>:::class</c> line, for the node above it.</summary>
     public const string Class = "kanban-class";
-
-    /// <summary>What the stage works out a node to be.</summary>
-    public const string Fact = "kanban-fact";
 }
 
 /// <summary>What a piece of a <c>kanban</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -29,7 +26,4 @@ public static class KanbanRoles
 
     /// <summary>Metadata written so it cannot be read.</summary>
     public const string Data = "kanban-data-text";
-
-    /// <summary>The fact a node is a column — held by a column, and none by a card.</summary>
-    public const string Column = "kanban-column";
 }

@@ -202,11 +202,50 @@
           }
         ]
       }
+    },
+    "kanban-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanGrammar.cs",
+          "class": "KanbanGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanNodes.cs",
+          "class": "KanbanCardNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs",
+          "class": "KanbanConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanGrammarTests.cs",
+            "class": "KanbanGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanStagesTests.cs",
+            "class": "KanbanStagesTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 9,
+  "changed_sets": 11,
   "touched_nodes": [
+    "kanban-ast",
     "latex-document-seam",
     "markdown-always-drawn",
     "markdown-maths",
