@@ -58,7 +58,7 @@ public sealed class PieChart
     }
 
     /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
-    public static PieChart Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     /// <summary>Reads a tree the stages have already been over.</summary>
     public static PieChart Of(ContentNode tree) => Of(MermaidBlock.Of(tree));

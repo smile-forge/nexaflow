@@ -68,8 +68,8 @@ public class NomnomlBuilderTests : MermaidBuilderContract
     [TestMethod]
     public void ItSaysTheSameAsTheClassDiagramItStandsFor() => UiThread.Run(() =>
     {
-        var nomnoml = NomnomlDiagram.Read("[<abstract>Shape|area: double|+draw()]\n[Shape] <:- [Circle]");
-        var mermaid = ClassDiagram.Read("classDiagram\n  class Shape {\n    <<abstract>>\n    double area\n    +draw()\n  }\n  Shape <|-- Circle");
+        var nomnoml = NomnomlDiagram.Of(MermaidBlock.Of(Laying.Read("nomnoml", "[<abstract>Shape|area: double|+draw()]\n[Shape] <:- [Circle]")));
+        var mermaid = ClassDiagram.Of(Laying.Read("mermaid", "classDiagram\n  class Shape {\n    <<abstract>>\n    double area\n    +draw()\n  }\n  Shape <|-- Circle").Root.Node);
 
         Assert.AreEqual(mermaid.Nodes.Count, nomnoml.Nodes.Count);
         Assert.AreEqual(mermaid.Relations.Count, nomnoml.Relations.Count);

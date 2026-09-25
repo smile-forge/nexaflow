@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Er;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Er;
 
@@ -15,7 +16,7 @@ public class ErDiagramTests
     public void AnEntityKeepsItsAttributesInTheOrderTheyAreWritten()
     {
         var entity = ErDiagram
-            .Read("erDiagram\n  CAR {\n    string make\n    string plate PK \"What it is known by\"\n    int age\n  }")
+            .Of(MermaidStaged.Read("erDiagram\n  CAR {\n    string make\n    string plate PK \"What it is known by\"\n    int age\n  }"))
             .Find("CAR")!;
 
         CollectionAssert.AreEqual(new[] { "string", "string", "int" },
@@ -31,7 +32,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnAttributeIsEveryKeyItIsWrittenWith()
     {
-        var entity = ErDiagram.Read("erDiagram\n  NAMED-DRIVER {\n    string plate PK, FK\n    string[] parts\n  }")
+        var entity = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  NAMED-DRIVER {\n    string plate PK, FK\n    string[] parts\n  }"))
             .Find("NAMED-DRIVER")!;
 
         Assert.AreEqual("PK, FK", entity.Attributes[0].Keyed);
@@ -42,7 +43,7 @@ public class ErDiagramTests
     public void ANameWrittenWithAStarIsAPrimaryKeyToo()
     {
         var entity = ErDiagram
-            .Read("erDiagram\n  CAR {\n    string *plate\n    string *vin PK\n    string *owner FK\n    string make\n  }")
+            .Of(MermaidStaged.Read("erDiagram\n  CAR {\n    string *plate\n    string *vin PK\n    string *owner FK\n    string make\n  }"))
             .Find("CAR")!;
 
         Assert.AreEqual("PK", entity.Attributes[0].Keyed, "the star says it without writing it");
@@ -56,7 +57,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnAliasIsDrawnInsteadOfTheNameWhereverItIsWritten()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  p[Person] {\n    string firstName\n  }\n  p ||--o| a[\"The account\"] : has");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  p[Person] {\n    string firstName\n  }\n  p ||--o| a[\"The account\"] : has"));
 
         Assert.AreEqual("Person", diagram.Find("p")!.Said!.Text);
         Assert.AreEqual("The account", diagram.Find("a")!.Said!.Text);
@@ -65,14 +66,14 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void EveryCardinalityIsReadAtEitherEnd()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  A |o--o| B : x\n  C ||--|| D : x\n  E }o--o{ F : x\n  G }|--|{ H : x");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  A |o--o| B : x\n  C ||--|| D : x\n  E }o--o{ F : x\n  G }|--|{ H : x"));
 
         CollectionAssert.AreEqual(new[] { ErEnd.ZeroOne, ErEnd.One, ErEnd.ZeroMany, ErEnd.OneMany },
                                   diagram.Relations.Select(relation => relation.Near).ToArray());
         CollectionAssert.AreEqual(new[] { ErEnd.ZeroOne, ErEnd.One, ErEnd.ZeroMany, ErEnd.OneMany },
                                   diagram.Relations.Select(relation => relation.Far).ToArray());
 
-        var tight = ErDiagram.Read("erDiagram\n  id1||--o| id2 : label").Relations.Single();
+        var tight = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  id1||--o| id2 : label")).Relations.Single();
         Assert.AreEqual(("id1", "id2", ErEnd.One, ErEnd.ZeroOne), (tight.From, tight.To, tight.Near, tight.Far),
                         "one written with no space in it says the same");
     }
@@ -80,8 +81,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void OneWrittenInWordsSaysWhatTheSymbolsSay()
     {
-        var diagram = ErDiagram.Read(
-            "erDiagram\n  CAR 1 to zero or more NAMED-DRIVER : allows\n  PERSON many(0) optionally to 0+ NAMED-DRIVER : is");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  CAR 1 to zero or more NAMED-DRIVER : allows\n  PERSON many(0) optionally to 0+ NAMED-DRIVER : is"));
 
         var allows = diagram.Relations[0];
         Assert.AreEqual(("CAR", "NAMED-DRIVER"), (allows.From, allows.To));
@@ -94,7 +94,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ADottedLineIsOneThatDoesNotIdentifyWhatItReaches()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  A ||--|| B : x\n  C ||..|| D : x\n  E one optionally to one F : x");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  A ||--|| B : x\n  C ||..|| D : x\n  E one optionally to one F : x"));
 
         CollectionAssert.AreEqual(new[] { false, true, true }, diagram.Relations.Select(relation => relation.Dotted).ToArray());
     }
@@ -102,7 +102,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnEntityARelationshipNamesIsMadeForIt()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  CAR {\n    string make\n  }\n  CAR ||--o{ DRIVER : allows");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  CAR {\n    string make\n  }\n  CAR ||--o{ DRIVER : allows"));
 
         CollectionAssert.AreEqual(new[] { "CAR", "DRIVER" }, diagram.Entities.Select(entity => entity.Id).ToArray());
         Assert.AreEqual(0, diagram.Find("DRIVER")!.Attributes.Count);
@@ -111,7 +111,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANameWrittenTwiceIsOneEntity()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  A ||--|| B : x\n  A {\n    string name\n  }\n  A ||--|| C : y");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  A ||--|| B : x\n  A {\n    string name\n  }\n  A ||--|| C : y"));
 
         CollectionAssert.AreEqual(new[] { "A", "B", "C" }, diagram.Entities.Select(entity => entity.Id).ToArray());
         Assert.AreEqual("name", diagram.Find("A")!.Attributes.Single().Field!.Text);
@@ -120,8 +120,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnEntityIsBoxedIntoTheSubgraphItIsWrittenIn()
     {
-        var diagram = ErDiagram.Read(
-            "erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end\n  C");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end\n  C"));
 
         var outer = diagram.Within(null).Single();
         var inner = diagram.Within(outer.Key).Single();
@@ -138,7 +137,7 @@ public class ErDiagramTests
     public void ASubgraphStandsForTheWholeOfWhatWasWrittenInIt()
     {
         const string source = "erDiagram\n  subgraph Sales\n    A\n  end";
-        var group = ErDiagram.Read(source).Groups.Single();
+        var group = ErDiagram.Of(MermaidStaged.Read(source)).Groups.Single();
 
         Assert.AreEqual(source.IndexOf("subgraph", StringComparison.Ordinal), group.Whole.Start);
         Assert.AreEqual(source.Length, group.Whole.Start + group.Whole.Length);
@@ -147,7 +146,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ARelationshipMayNameASubgraphRatherThanAnEntity()
     {
-        var diagram = ErDiagram.Read("erDiagram\n  subgraph stock\n    PRODUCT\n  end\n  SUPPLIER ||--o{ stock : supplies");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  subgraph stock\n    PRODUCT\n  end\n  SUPPLIER ||--o{ stock : supplies"));
         var relation = diagram.Relations.Single();
 
         CollectionAssert.AreEqual(new[] { "PRODUCT", "SUPPLIER" }, diagram.Entities.Select(entity => entity.Id).ToArray(),
@@ -160,7 +159,7 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ASubgraphIsNamedWhetherItIsWrittenAboveTheRelationshipOrBelowIt()
     {
-        var under = ErDiagram.Read("erDiagram\n  SUPPLIER ||--o{ stock : supplies\n  subgraph stock\n    PRODUCT\n  end");
+        var under = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  SUPPLIER ||--o{ stock : supplies\n  subgraph stock\n    PRODUCT\n  end"));
 
         Assert.IsTrue(under.Relations.Single().ToBox, "every subgraph is read before the relationships are");
         CollectionAssert.AreEqual(new[] { "SUPPLIER", "PRODUCT" }, under.Entities.Select(entity => entity.Id).ToArray());
@@ -169,9 +168,8 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AStyleLineAndAClassLineBothReachTheEntityTheyName()
     {
-        var diagram = ErDiagram.Read(
-            "erDiagram\n  A ||--|| B : x\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n"
-            + "  class A,B blue,bold\n  style B fill:#f00");
+        var diagram = ErDiagram.Of(MermaidStaged.Read("erDiagram\n  A ||--|| B : x\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n"
+            + "  class A,B blue,bold\n  style B fill:#f00"));
 
         Assert.AreEqual("#00f", diagram.Find("A")!.Style.Fill);
         Assert.AreEqual(3, diagram.Find("A")!.Style.StrokeWidth, "a class line gives every class it names");
@@ -182,7 +180,7 @@ public class ErDiagramTests
     public void SeveralClassesGivenAtOnceAreAllLaidOn()
     {
         var entity = ErDiagram
-            .Read("erDiagram\n  A:::blue,bold ||--|| B : x\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px")
+            .Of(MermaidStaged.Read("erDiagram\n  A:::blue,bold ||--|| B : x\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px"))
             .Find("A")!;
 
         Assert.AreEqual("#00f", entity.Style.Fill);
@@ -192,13 +190,13 @@ public class ErDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void TheWayItIsLaidOutIsTheDirectionLineOrElseTheFrontMatter()
     {
-        Assert.AreEqual(ErWay.Down, ErDiagram.Read("erDiagram\n  A ||--|| B : x").Way);
-        Assert.AreEqual(ErWay.Right, ErDiagram.Read("erDiagram\n  direction LR\n  A ||--|| B : x").Way);
+        Assert.AreEqual(ErWay.Down, ErDiagram.Of(MermaidStaged.Read("erDiagram\n  A ||--|| B : x")).Way);
+        Assert.AreEqual(ErWay.Right, ErDiagram.Of(MermaidStaged.Read("erDiagram\n  direction LR\n  A ||--|| B : x")).Way);
 
         Assert.AreEqual(ErWay.Left,
-                        ErDiagram.Read("---\nconfig:\n  er:\n    layoutDirection: RL\n---\nerDiagram\n  A ||--|| B : x").Way);
+                        ErDiagram.Of(MermaidStaged.Read("---\nconfig:\n  er:\n    layoutDirection: RL\n---\nerDiagram\n  A ||--|| B : x")).Way);
         Assert.AreEqual(ErWay.Up,
-                        ErDiagram.Read("---\nconfig:\n  er:\n    layoutDirection: RL\n---\nerDiagram\n  direction BT\n  A ||--|| B : x").Way,
+                        ErDiagram.Of(MermaidStaged.Read("---\nconfig:\n  er:\n    layoutDirection: RL\n---\nerDiagram\n  direction BT\n  A ||--|| B : x")).Way,
                         "a direction line wins over the front matter");
     }
 
@@ -206,7 +204,7 @@ public class ErDiagramTests
     public void TheFrontMatterSaysHowSmallAnEntityMayBe()
     {
         var config = ErDiagram
-            .Read("---\nconfig:\n  er:\n    minEntityWidth: 140\n    entityPadding: 6\n    fontSize: 16\n---\nerDiagram\n  A")
+            .Of(MermaidStaged.Read("---\nconfig:\n  er:\n    minEntityWidth: 140\n    entityPadding: 6\n    fontSize: 16\n---\nerDiagram\n  A"))
             .Config;
 
         Assert.AreEqual(140, config.MinWidth);
@@ -214,7 +212,7 @@ public class ErDiagramTests
         Assert.AreEqual(24, config.RowHeight, "a row follows how big the words are");
         Assert.AreEqual(ErConfig.Shortest, config.MinHeight, "and the rest are left as they are");
 
-        var painted = ErDiagram.Read("---\nconfig:\n  er:\n    fill: honeydew\n    stroke: gray\n---\nerDiagram\n  A").Config;
+        var painted = ErDiagram.Of(MermaidStaged.Read("---\nconfig:\n  er:\n    fill: honeydew\n    stroke: gray\n---\nerDiagram\n  A")).Config;
         Assert.AreEqual(("honeydew", "gray"), (painted.Fill, painted.Stroke));
     }
 }

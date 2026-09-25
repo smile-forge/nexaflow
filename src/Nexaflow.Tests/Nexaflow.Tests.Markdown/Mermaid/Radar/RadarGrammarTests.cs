@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Radar;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Radar;
 
@@ -274,7 +275,7 @@ public class RadarGrammarTests : MermaidGrammarContract
     {
         const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
         var grammar = new RadarGrammar();
-        var a = grammar.Names(ContentReading.Of(MermaidParser.Read(source)).Root).Single(name => name.Name == "a");
+        var a = grammar.Names(ContentReading.Of(MermaidStaged.Read(source)).Root).Single(name => name.Name == "a");
 
         Assert.AreEqual(1, a.Uses.Count, "the value that names it");
 
@@ -288,10 +289,10 @@ public class RadarGrammarTests : MermaidGrammarContract
     }
 
     private static List<ContentNode> Nodes(string source, string kind) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 
     private static string Name(ContentNode item) =>
         item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)!.Text;

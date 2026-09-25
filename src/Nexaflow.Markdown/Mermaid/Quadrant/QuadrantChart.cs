@@ -56,7 +56,7 @@ public sealed class QuadrantChart
 {
     private QuadrantChart(MermaidBlock block, QuadrantConfig config) => (Block, Config) = (block, config);
 
-    public static QuadrantChart Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static QuadrantChart Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

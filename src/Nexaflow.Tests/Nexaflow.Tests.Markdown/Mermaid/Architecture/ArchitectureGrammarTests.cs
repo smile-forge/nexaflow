@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Architecture;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Architecture;
 
@@ -155,7 +156,7 @@ public class ArchitectureGrammarTests : MermaidGrammarContract
                      ("architecture-beta\n  service a\n  service b\n  a:X -- L:b", "L, R, T or B"),
                  })
         {
-            var trouble = MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
+            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
             Assert.IsTrue(trouble.Any(reason => reason.Contains(said, StringComparison.Ordinal)),
                           $"{source}\nsays {string.Join(" / ", trouble)}, and nothing about '{said}'");
         }

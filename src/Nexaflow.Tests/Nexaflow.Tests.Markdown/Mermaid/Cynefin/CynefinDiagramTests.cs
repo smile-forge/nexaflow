@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Cynefin;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Cynefin;
 
@@ -14,7 +15,7 @@ public class CynefinDiagramTests
     [TestMethod]
     public void EachItemSitsInTheDomainOpenedAboveIt()
     {
-        var diagram = CynefinDiagram.Read(CynefinGrammarTests.Sense);
+        var diagram = CynefinDiagram.Of(MermaidStaged.Read(CynefinGrammarTests.Sense));
 
         Assert.AreEqual(10, diagram.Items.Count);
         Assert.AreEqual(2, diagram.ItemsIn(CynefinDomain.Complex).Count);
@@ -26,7 +27,7 @@ public class CynefinDiagramTests
     [TestMethod]
     public void ADomainOpenedTwiceIsOneDomain_ItsItemsInTheOrderWritten()
     {
-        var diagram = CynefinDiagram.Read("cynefin-beta\n  complex\n    \"One\"\n  clear\n    \"Two\"\n  complex\n    \"Three\"");
+        var diagram = CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta\n  complex\n    \"One\"\n  clear\n    \"Two\"\n  complex\n    \"Three\""));
 
         Assert.AreSequenceEqual(new[] { "One", "Three" }, diagram.ItemsIn(CynefinDomain.Complex).Select(item => item.Says.Says.Text).ToArray());
         Assert.AreEqual("Two", diagram.ItemsIn(CynefinDomain.Clear).Single().Says.Says.Text);
@@ -36,7 +37,7 @@ public class CynefinDiagramTests
     public void ADomainIsOpenedWhereItsWordIsWritten()
     {
         const string source = "cynefin-beta\n  complex\n    \"One\"";
-        var diagram = CynefinDiagram.Read(source);
+        var diagram = CynefinDiagram.Of(MermaidStaged.Read(source));
 
         var opened = diagram.Opened(CynefinDomain.Complex)!;
 
@@ -48,7 +49,7 @@ public class CynefinDiagramTests
     [TestMethod]
     public void AMovementReadsItsEndsAndWhatItSays()
     {
-        var move = CynefinDiagram.Read("cynefin-beta\n  chaotic --> complex : \"Stabilised\"").Moves.Single();
+        var move = CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta\n  chaotic --> complex : \"Stabilised\"")).Moves.Single();
 
         Assert.AreEqual(CynefinDomain.Chaotic, move.From);
         Assert.AreEqual(CynefinDomain.Complex, move.To);
@@ -58,7 +59,7 @@ public class CynefinDiagramTests
     [TestMethod]
     public void AMovementStillToSayWhereItGoesGoesNowhere()
     {
-        var move = CynefinDiagram.Read("cynefin-beta\n  chaotic --> ").Moves.Single();
+        var move = CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta\n  chaotic --> ")).Moves.Single();
 
         Assert.AreEqual(CynefinDomain.Chaotic, move.From);
         Assert.IsNull(move.To);
@@ -68,7 +69,7 @@ public class CynefinDiagramTests
     [TestMethod]
     public void AnItemInNoDomainIsNowhereToDraw()
     {
-        var diagram = CynefinDiagram.Read("cynefin-beta\n  \"Stranded\"\n  complex\n    \"Placed\"");
+        var diagram = CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta\n  \"Stranded\"\n  complex\n    \"Placed\""));
 
         Assert.AreEqual("Placed", diagram.Items.Single().Says.Says.Text);
     }
@@ -76,9 +77,8 @@ public class CynefinDiagramTests
     [TestMethod]
     public void TheFrontMattersOptionsAndDomainColoursAreRead()
     {
-        var config = CynefinDiagram.Read(
-            "---\nconfig:\n  cynefin:\n    width: 600\n    height: 400\n    padding: 4\n    showDomainDescriptions: true\n"
-            + "  themeVariables:\n    cynefin:\n      complexBg: \"#4e79a7\"\n      boundaryColor: \"#888888\"\n---\ncynefin-beta\n  complex").Config;
+        var config = CynefinDiagram.Of(MermaidStaged.Read("---\nconfig:\n  cynefin:\n    width: 600\n    height: 400\n    padding: 4\n    showDomainDescriptions: true\n"
+            + "  themeVariables:\n    cynefin:\n      complexBg: \"#4e79a7\"\n      boundaryColor: \"#888888\"\n---\ncynefin-beta\n  complex")).Config;
 
         Assert.AreEqual(600, config.Width);
         Assert.AreEqual(400, config.Height);
@@ -87,13 +87,13 @@ public class CynefinDiagramTests
         Assert.AreEqual("#4e79a7", config.DomainFills[(int)CynefinDomain.Complex]);
         Assert.AreEqual("#888888", config.BoundaryColour);
         Assert.IsTrue(CynefinConfig.Default.ShowDomainDescriptions, "a domain says how it is worked unless the front matter says not to");
-        Assert.IsFalse(CynefinDiagram.Read("---\nconfig:\n  cynefin:\n    showDomainDescriptions: false\n---\ncynefin-beta\n  complex").Config.ShowDomainDescriptions);
+        Assert.IsFalse(CynefinDiagram.Of(MermaidStaged.Read("---\nconfig:\n  cynefin:\n    showDomainDescriptions: false\n---\ncynefin-beta\n  complex")).Config.ShowDomainDescriptions);
     }
 
     [TestMethod]
     public void ADomainColourNamingNoDiagramIsStillTheDomains()
     {
-        var config = CynefinDiagram.Read("---\nconfig:\n  themeVariables:\n    clearBg: \"#59a14f\"\n---\ncynefin-beta\n  clear").Config;
+        var config = CynefinDiagram.Of(MermaidStaged.Read("---\nconfig:\n  themeVariables:\n    clearBg: \"#59a14f\"\n---\ncynefin-beta\n  clear")).Config;
 
         Assert.AreEqual("#59a14f", config.DomainFills[(int)CynefinDomain.Clear]);
     }
@@ -101,8 +101,8 @@ public class CynefinDiagramTests
     [TestMethod]
     public void ABlockWithNothingWrittenInItHasNothingToDraw()
     {
-        Assert.IsTrue(CynefinDiagram.Read("cynefin-beta").Empty);
-        Assert.IsFalse(CynefinDiagram.Read("cynefin-beta\n  clear").Empty);
+        Assert.IsTrue(CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta")).Empty);
+        Assert.IsFalse(CynefinDiagram.Of(MermaidStaged.Read("cynefin-beta\n  clear")).Empty);
     }
 
     [TestMethod]
@@ -116,10 +116,9 @@ public class CynefinDiagramTests
     [TestMethod]
     public void TheFrontMatterSaysHowTheBoundariesTheCliffTheArrowsAndTheWordsAreDrawn()
     {
-        var config = CynefinDiagram.Read(
-            "---\nconfig:\n  themeVariables:\n    cynefin:\n      boundaryWidth: 2\n      cliffColor: \"#ff0000\"\n      cliffWidth: 4\n"
+        var config = CynefinDiagram.Of(MermaidStaged.Read("---\nconfig:\n  themeVariables:\n    cynefin:\n      boundaryWidth: 2\n      cliffColor: \"#ff0000\"\n      cliffWidth: 4\n"
             + "      arrowColor: \"#00ff00\"\n      arrowWidth: 3\n      labelColor: \"#ffffff\"\n      textColor: \"#cccccc\"\n"
-            + "      domainFontSize: 18\n      itemFontSize: 9\n---\ncynefin-beta\n  complex\n    \"One\"").Config;
+            + "      domainFontSize: 18\n      itemFontSize: 9\n---\ncynefin-beta\n  complex\n    \"One\"")).Config;
 
         Assert.AreEqual(2, config.BoundaryWidth);
         Assert.AreEqual("#ff0000", config.CliffColour);

@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Flowchart;
 
@@ -15,18 +16,18 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void TheWayItIsLaidOutIsWhatTheHeaderSays()
     {
-        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Read("flowchart TD\n  a --> b").Way);
-        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Read("flowchart TB\n  a --> b").Way);
-        Assert.AreEqual(FlowchartWay.Up, FlowchartDiagram.Read("flowchart BT\n  a --> b").Way);
-        Assert.AreEqual(FlowchartWay.Right, FlowchartDiagram.Read("graph LR\n  a --> b").Way);
-        Assert.AreEqual(FlowchartWay.Left, FlowchartDiagram.Read("flowchart RL\n  a --> b").Way);
-        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Read("flowchart\n  a --> b").Way, "down, where the header says nothing");
+        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Of(MermaidStaged.Read("flowchart TD\n  a --> b")).Way);
+        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  a --> b")).Way);
+        Assert.AreEqual(FlowchartWay.Up, FlowchartDiagram.Of(MermaidStaged.Read("flowchart BT\n  a --> b")).Way);
+        Assert.AreEqual(FlowchartWay.Right, FlowchartDiagram.Of(MermaidStaged.Read("graph LR\n  a --> b")).Way);
+        Assert.AreEqual(FlowchartWay.Left, FlowchartDiagram.Of(MermaidStaged.Read("flowchart RL\n  a --> b")).Way);
+        Assert.AreEqual(FlowchartWay.Down, FlowchartDiagram.Of(MermaidStaged.Read("flowchart\n  a --> b")).Way, "down, where the header says nothing");
     }
 
     [TestMethod]
     public void TheNodesAreTheOnesWrittenInTheOrderTheyAreFirstWritten()
     {
-        var nodes = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  c --> a").Nodes;
+        var nodes = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  c --> a")).Nodes;
 
         CollectionAssert.AreEqual(new[] { "a", "b", "c" }, nodes.Select(node => node.Id).ToArray());
     }
@@ -34,7 +35,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ANodeWrittenAgainSaysMoreAboutTheSameNode()
     {
-        var diagram = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  a[\"Said later\"]\n  b((\"Round later\"))");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  a[\"Said later\"]\n  b((\"Round later\"))"));
 
         Assert.AreEqual(2, diagram.Nodes.Count, "a node written twice is one node");
         Assert.AreEqual("Said later", diagram.Find("a")!.Said?.Text);
@@ -44,7 +45,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ANodeSaysItsIdWhereNothingElseIsWrittenOnIt()
     {
-        var diagram = FlowchartDiagram.Read("flowchart LR\n  alpha --> beta[\"The end\"]");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  alpha --> beta[\"The end\"]"));
 
         Assert.AreEqual("alpha", diagram.Find("alpha")!.Said?.Text);
         Assert.AreEqual("The end", diagram.Find("beta")!.Said?.Text);
@@ -53,7 +54,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkJoinsTheNodesEitherSideOfIt()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  b -.-> c").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  b -.-> c")).Links;
 
         CollectionAssert.AreEqual(new[] { "a", "b" }, links.Select(link => link.From).ToArray());
         CollectionAssert.AreEqual(new[] { "b", "c" }, links.Select(link => link.To).ToArray());
@@ -63,7 +64,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AChainOfLinksCarriesOnFromWhatTheOneBeforeItReached()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b --> c --> d").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b --> c --> d")).Links;
 
         CollectionAssert.AreEqual(new[] { "a", "b", "c" }, links.Select(link => link.From).ToArray());
         CollectionAssert.AreEqual(new[] { "b", "c", "d" }, links.Select(link => link.To).ToArray());
@@ -72,7 +73,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AnAmpersandJoinsEveryNodeOnOneSideToEveryNodeOnTheOther()
     {
-        var links = FlowchartDiagram.Read("flowchart TB\n  a & b --> c & d").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  a & b --> c & d")).Links;
 
         Assert.AreEqual(4, links.Count);
         CollectionAssert.AreEqual(new[] { "a-c", "a-d", "b-c", "b-d" },
@@ -82,7 +83,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AFanOutCarriesOnAsTheChainsLeftSide()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b & c --> d").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b & c --> d")).Links;
 
         CollectionAssert.AreEqual(new[] { "a-b", "a-c", "b-d", "c-d" },
                                   links.Select(link => $"{link.From}-{link.To}").ToArray());
@@ -91,7 +92,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ASemicolonStartsWhatFollowsItAfresh()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b;c --> d").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b;c --> d")).Links;
 
         CollectionAssert.AreEqual(new[] { "a-b", "c-d" }, links.Select(link => $"{link.From}-{link.To}").ToArray());
     }
@@ -99,8 +100,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkSaysWhatIsWrittenOnIt_HoweverItIsWritten()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a -->|bars| b\n  b -- bare --> c\n  c -- \"quoted\" --> d\n"
-                                          + "  d -. dotted .-> e\n  e == thick ==> f").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a -->|bars| b\n  b -- bare --> c\n  c -- \"quoted\" --> d\n"
+                                          + "  d -. dotted .-> e\n  e == thick ==> f")).Links;
 
         CollectionAssert.AreEqual(new[] { "bars", "bare", "quoted", "dotted", "thick" },
                                   links.Select(link => link.Said?.Text).ToArray());
@@ -109,7 +110,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkReachesAsFarAsItIsWrittenLong()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  b ---> c\n  c ----> d\n  d -..-> e").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  b ---> c\n  c ----> d\n  d -..-> e")).Links;
 
         CollectionAssert.AreEqual(new[] { 1, 2, 3, 2 }, links.Select(link => link.Span).ToArray());
     }
@@ -117,7 +118,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkOfTildesIsNotDrawn()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a ~~~ b\n  b --> c").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a ~~~ b\n  b --> c")).Links;
 
         Assert.IsFalse(links[0].Drawn, "a link of tildes only holds what it joins apart");
         Assert.IsTrue(links[1].Drawn);
@@ -127,9 +128,9 @@ public class FlowchartDiagramTests
     public void ANodeBelongsToTheFirstSubgraphItIsWrittenIn_WhereverItWasWrittenFirst()
     {
         // Mermaid's own example: c1 and a2 are linked before any subgraph is opened, and each is drawn in the one it is written in next.
-        var diagram = FlowchartDiagram.Read("flowchart TB\n  c1 --> a2\n  subgraph one\n    a1 --> a2\n  end\n"
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  c1 --> a2\n  subgraph one\n    a1 --> a2\n  end\n"
                                             + "  subgraph two\n    b1 --> b2\n  end\n  subgraph three\n    c1 --> c2\n  end\n"
-                                            + "  subgraph four\n    a2\n  end");
+                                            + "  subgraph four\n    a2\n  end"));
 
         Assert.AreEqual(4, diagram.Groups.Count);
         Assert.AreEqual(diagram.Groups[0].Key, diagram.Find("a2")!.Group, "a2 is in the first subgraph it is written in");
@@ -141,11 +142,11 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ASubgraphIsCalledWhatItSays_AndTitledByItsLabelWhereItHasOne()
     {
-        var titled = FlowchartDiagram.Read("flowchart TB\n  subgraph ide1 [The title]\n    a\n  end").Groups.Single();
+        var titled = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  subgraph ide1 [The title]\n    a\n  end")).Groups.Single();
         Assert.AreEqual("ide1", titled.Id);
         Assert.AreEqual("The title", titled.Said?.Text);
 
-        var plain = FlowchartDiagram.Read("flowchart TB\n  subgraph one\n    a\n  end").Groups.Single();
+        var plain = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  subgraph one\n    a\n  end")).Groups.Single();
         Assert.AreEqual("one", plain.Id);
         Assert.AreEqual("one", plain.Said?.Text, "a subgraph given only a title is called by it");
     }
@@ -153,7 +154,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ASubgraphNestsInTheOneItIsWrittenIn()
     {
-        var diagram = FlowchartDiagram.Read("flowchart TB\n  subgraph one\n    subgraph two\n      a\n    end\n  end");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TB\n  subgraph one\n    subgraph two\n      a\n    end\n  end"));
 
         Assert.AreEqual(2, diagram.Groups.Count);
         Assert.IsNull(diagram.Groups[0].Parent);
@@ -164,8 +165,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ADirectionLineLaysOutTheSubgraphItIsWrittenIn()
     {
-        var diagram = FlowchartDiagram.Read("flowchart LR\n  subgraph one\n    direction TB\n    a --> b\n  end\n"
-                                            + "  subgraph two\n    c --> d\n  end");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  subgraph one\n    direction TB\n    a --> b\n  end\n"
+                                            + "  subgraph two\n    c --> d\n  end"));
 
         Assert.AreEqual(FlowchartWay.Down, diagram.Groups[0].Way);
         Assert.IsNull(diagram.Groups[1].Way, "a subgraph with no direction of its own is laid out the chart's way");
@@ -175,9 +176,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AStyleIsWhatTheClassesAndTheStyleLinesAddUpTo_TheNearestWinning()
     {
-        var diagram = FlowchartDiagram.Read(
-            "flowchart LR\n  a --> b\n  c:::hot\n  classDef default fill:#eee,stroke:#111\n"
-            + "  classDef hot fill:#f00\n  class a hot\n  style a stroke:#00f");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  c:::hot\n  classDef default fill:#eee,stroke:#111\n"
+            + "  classDef hot fill:#f00\n  class a hot\n  style a stroke:#00f"));
 
         Assert.AreEqual("#f00", diagram.Find("a")!.Style.Fill, "the class it is given wins over the default");
         Assert.AreEqual("#00f", diagram.Find("a")!.Style.Stroke, "and the style line over the class");
@@ -188,8 +188,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AClassDefNamingSeveralClassesWritesTheStyleForEveryOneOfThem()
     {
-        var diagram = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  classDef one,two fill:#f96\n"
-                                            + "  class a one\n  class b two");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  classDef one,two fill:#f96\n"
+                                            + "  class a one\n  class b two"));
 
         Assert.AreEqual("#f96", diagram.Find("a")!.Style.Fill);
         Assert.AreEqual("#f96", diagram.Find("b")!.Style.Fill, "both classes the line names take the style");
@@ -198,8 +198,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkStyleStylesTheLinksItNumbers()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  b --> c\n  c --> d\n"
-                                          + "  linkStyle 0,2 stroke:#f00").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  b --> c\n  c --> d\n"
+                                          + "  linkStyle 0,2 stroke:#f00")).Links;
 
         Assert.AreEqual("#f00", links[0].Written.Stroke);
         Assert.IsNull(links[1].Written.Stroke);
@@ -209,7 +209,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void ALinkStyleSayingDefaultStylesEveryLink()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  b --> c\n  linkStyle default stroke:#333").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  b --> c\n  linkStyle default stroke:#333")).Links;
 
         Assert.IsTrue(links.All(link => link.Written.Stroke == "#333"));
     }
@@ -217,7 +217,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void AClickLineSaysWhereANodeLeadsAndWhatItSaysWhilePointedAt()
     {
-        var node = FlowchartDiagram.Read("flowchart LR\n  a --> b\n  click a \"https://example.com\" \"Go there\"").Find("a")!;
+        var node = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  a --> b\n  click a \"https://example.com\" \"Go there\"")).Find("a")!;
 
         Assert.AreEqual("https://example.com", node.Href);
         Assert.AreEqual("Go there", node.Tip);
@@ -226,7 +226,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void MetadataSaysTheShapeAndTheLabelANodeIsDrawnWith()
     {
-        var node = FlowchartDiagram.Read("flowchart TD\n  a\n  a@{ shape: cyl, label: \"The store\" }").Find("a")!;
+        var node = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TD\n  a\n  a@{ shape: cyl, label: \"The store\" }")).Find("a")!;
 
         Assert.AreEqual(MermaidShape.Cylinder, node.Shape);
         Assert.AreEqual("The store", node.Worked);
@@ -235,7 +235,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void MetadataSaysThePictureOrIconANodeIsDrawnAs()
     {
-        var diagram = FlowchartDiagram.Read("flowchart TD\n  A@{ icon: \"fa:user\", form: \"square\", pos: \"t\", h: 60 }\n  B@{ img: \"a.png\", w: 40, constraint: \"on\" }\n  C");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TD\n  A@{ icon: \"fa:user\", form: \"square\", pos: \"t\", h: 60 }\n  B@{ img: \"a.png\", w: 40, constraint: \"on\" }\n  C"));
 
         var icon = diagram.Find("A")!.Picture!;
         Assert.AreEqual("fa:user", icon.Icon);
@@ -256,7 +256,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void MetadataSaysWhatItSaysAboutANodeWrittenBelowIt()
     {
-        var node = FlowchartDiagram.Read("flowchart TD\n  a@{ shape: circle }\n  a --> b").Find("a")!;
+        var node = FlowchartDiagram.Of(MermaidStaged.Read("flowchart TD\n  a@{ shape: circle }\n  a --> b")).Find("a")!;
 
         Assert.AreEqual(MermaidShape.Circle, node.Shape);
     }
@@ -264,7 +264,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void MetadataNamingANodeNothingElseWritesMakesIt_AsMermaidsDoes()
     {
-        var diagram = FlowchartDiagram.Read("flowchart RL\n    A@{ shape: cyl, label: \"The store\"}\n\tB@{ shape: circle }\n  subgraph S\n    C@{ shape: hex }\n  end");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("flowchart RL\n    A@{ shape: cyl, label: \"The store\"}\n\tB@{ shape: circle }\n  subgraph S\n    C@{ shape: hex }\n  end"));
 
         CollectionAssert.AreEqual(new[] { "A", "B", "C" }, diagram.Nodes.Select(node => node.Id).ToArray(), "each in the order written, tabs or spaces before it");
         Assert.AreEqual(MermaidShape.Cylinder, diagram.Find("A")!.Shape);
@@ -275,7 +275,7 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void MetadataSaysHowALinkOfItsOwnIsCurved()
     {
-        var links = FlowchartDiagram.Read("flowchart LR\n  A e1@--> B\n  B e2@--> C\n  e1@{ curve: linear }").Links;
+        var links = FlowchartDiagram.Of(MermaidStaged.Read("flowchart LR\n  A e1@--> B\n  B e2@--> C\n  e1@{ curve: linear }")).Links;
 
         Assert.AreEqual("linear", links[0].Curve);
         Assert.IsFalse(FlowchartConfig.Curving(links[0].Curve), "a linear curve is the straight line between the points");
@@ -285,8 +285,8 @@ public class FlowchartDiagramTests
     [TestMethod]
     public void TheFrontMatterIsApplied()
     {
-        var diagram = FlowchartDiagram.Read("---\nconfig:\n  flowchart:\n    nodeSpacing: 70\n    rankSpacing: 90\n"
-                                            + "    curve: linear\n---\nflowchart LR\n  a --> b");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("---\nconfig:\n  flowchart:\n    nodeSpacing: 70\n    rankSpacing: 90\n"
+                                            + "    curve: linear\n---\nflowchart LR\n  a --> b"));
 
         Assert.AreEqual(70, diagram.Config.NodeSpacing);
         Assert.AreEqual(90, diagram.Config.RankSpacing);

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Journey;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Journey;
 
@@ -14,7 +15,7 @@ public class JourneyDiagramTests
     [TestMethod]
     public void EachTaskReadsWhatIsDoneHowItScoredAndWhoTookPart()
     {
-        var tasks = JourneyDiagram.Read(JourneyGrammarTests.Working).Tasks.ToList();
+        var tasks = JourneyDiagram.Of(MermaidStaged.Read(JourneyGrammarTests.Working)).Tasks.ToList();
 
         Assert.AreEqual(5, tasks.Count);
         Assert.AreEqual("Make tea", tasks[0].Says.Says.Text);
@@ -25,7 +26,7 @@ public class JourneyDiagramTests
     [TestMethod]
     public void TheActorsAreEveryoneWhoTakesPart_InTheOrderTheyFirstDo()
     {
-        var diagram = JourneyDiagram.Read("journey\n  A: 3: Cat\n  B: 3: Me, Cat\n  C: 3: Me");
+        var diagram = JourneyDiagram.Of(MermaidStaged.Read("journey\n  A: 3: Cat\n  B: 3: Me, Cat\n  C: 3: Me"));
 
         CollectionAssert.AreEqual(new[] { "Cat", "Me" }, diagram.Actors.ToArray());
         CollectionAssert.AreEqual(new[] { 1, 0 }, diagram.Tasks.ElementAt(1).Actors.Select(actor => actor.Order).ToArray());
@@ -34,7 +35,7 @@ public class JourneyDiagramTests
     [TestMethod]
     public void AnActorIsWhoeverIsNamed_WhateverSpaceIsRoundTheName()
     {
-        var diagram = JourneyDiagram.Read("journey\n  A: 3: Me,Cat\n  B: 3:  Me ,  Cat ");
+        var diagram = JourneyDiagram.Of(MermaidStaged.Read("journey\n  A: 3: Me,Cat\n  B: 3:  Me ,  Cat "));
 
         CollectionAssert.AreEqual(new[] { "Me", "Cat" }, diagram.Actors.ToArray());
     }
@@ -42,7 +43,7 @@ public class JourneyDiagramTests
     [TestMethod]
     public void SectionsGroupTheTasksWrittenUnderThem_AndThoseBeforeAnySectionAreAGroupWithNoName()
     {
-        var diagram = JourneyDiagram.Read("journey\n  Wake up: 3: Me\n  section Go to work\n    Make tea: 5: Me");
+        var diagram = JourneyDiagram.Of(MermaidStaged.Read("journey\n  Wake up: 3: Me\n  section Go to work\n    Make tea: 5: Me"));
 
         Assert.AreEqual(2, diagram.Sections.Count);
         Assert.IsNull(diagram.Sections[0].Name);
@@ -54,7 +55,7 @@ public class JourneyDiagramTests
     [TestMethod]
     public void AFaceFollowsTheScore_AndATaskWithNoneSitsInTheMiddle()
     {
-        var tasks = JourneyDiagram.Read("journey\n  A: 5: Me\n  B: 3: Me\n  C: 1: Me\n  D: \n  E: 9: Me").Tasks.ToList();
+        var tasks = JourneyDiagram.Of(MermaidStaged.Read("journey\n  A: 5: Me\n  B: 3: Me\n  C: 1: Me\n  D: \n  E: 9: Me")).Tasks.ToList();
 
         Assert.AreEqual(JourneyMood.Happy, tasks[0].Mood);
         Assert.AreEqual(JourneyMood.Neutral, tasks[1].Mood);
@@ -69,10 +70,9 @@ public class JourneyDiagramTests
     [TestMethod]
     public void TheFrontMattersSizesAndColourListsAreRead()
     {
-        var config = JourneyDiagram.Read(
-            "---\nconfig:\n  journey:\n    width: 200\n    height: 60\n    boxMargin: 4\n    taskFontSize: 14\n"
+        var config = JourneyDiagram.Of(MermaidStaged.Read("---\nconfig:\n  journey:\n    width: 200\n    height: 60\n    boxMargin: 4\n    taskFontSize: 14\n"
             + "    actorColours:\n      - \"#ff0000\"\n      - \"#00ff00\"\n    sectionFills: [\"#101010\"]\n"
-            + "  themeVariables:\n    fillType1: \"#202020\"\n---\njourney\n  A: 3: Me").Config;
+            + "  themeVariables:\n    fillType1: \"#202020\"\n---\njourney\n  A: 3: Me")).Config;
 
         Assert.AreEqual(200, config.Width);
         Assert.AreEqual(60, config.Height);
@@ -87,8 +87,8 @@ public class JourneyDiagramTests
     [TestMethod]
     public void ABlockWithNoTasksHasNothingToDraw()
     {
-        Assert.IsTrue(JourneyDiagram.Read("journey").Empty);
-        Assert.IsTrue(JourneyDiagram.Read("journey\n  section Go to work").Empty);
-        Assert.IsFalse(JourneyDiagram.Read("journey\n  Make tea: 5: Me").Empty);
+        Assert.IsTrue(JourneyDiagram.Of(MermaidStaged.Read("journey")).Empty);
+        Assert.IsTrue(JourneyDiagram.Of(MermaidStaged.Read("journey\n  section Go to work")).Empty);
+        Assert.IsFalse(JourneyDiagram.Of(MermaidStaged.Read("journey\n  Make tea: 5: Me")).Empty);
     }
 }

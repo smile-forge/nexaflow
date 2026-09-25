@@ -48,7 +48,7 @@ public sealed class CynefinDiagram
 
     private CynefinDiagram(MermaidBlock block, CynefinConfig config) => (Block, Config) = (block, config);
 
-    public static CynefinDiagram Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static CynefinDiagram Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

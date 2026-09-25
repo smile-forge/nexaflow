@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Radar;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Radar;
 
@@ -14,7 +15,7 @@ public class RadarChartTests
     [TestMethod]
     public void TheDocumentedChartIsReadWhole()
     {
-        var chart = RadarChart.Read(RadarGrammarTests.Restaurants);
+        var chart = RadarChart.Of(MermaidStaged.Read(RadarGrammarTests.Restaurants));
 
         Assert.AreEqual("Restaurant Comparison", chart.Block.TitleText);
         CollectionAssert.AreEqual(new[] { "Food Quality", "Service", "Price", "Ambiance" }, chart.Axes.Select(axis => axis.Says.Text).ToArray());
@@ -31,7 +32,7 @@ public class RadarChartTests
     [TestMethod]
     public void ACurveNamingItsAxesReachesThemInTheOrderTheAxesAreWritten()
     {
-        var chart = RadarChart.Read(RadarGrammarTests.Details);
+        var chart = RadarChart.Of(MermaidStaged.Read(RadarGrammarTests.Details));
 
         CollectionAssert.AreEqual(new double?[] { 20, 10, 30 }, chart.Curves.Single(curve => curve.Name.Text == "id4").Points.ToArray());
         CollectionAssert.AreEqual(new double?[] { 7, 8, 9 }, chart.Curves.Single(curve => curve.Name.Text == "id3").Points.ToArray(),
@@ -41,7 +42,7 @@ public class RadarChartTests
     [TestMethod]
     public void AnAxisOrACurveWithNoLabelIsCalledByItsName()
     {
-        var chart = RadarChart.Read("radar-beta\n  axis A, B\n  curve c1{1, 2}");
+        var chart = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis A, B\n  curve c1{1, 2}"));
 
         CollectionAssert.AreEqual(new[] { "A", "B" }, chart.Axes.Select(axis => axis.Says.Text).ToArray());
         Assert.AreEqual("c1", chart.Curves.Single().Says.Text);
@@ -50,7 +51,7 @@ public class RadarChartTests
     [TestMethod]
     public void ACurveGivingAnAxisNothingHasNoPointOnIt()
     {
-        var chart = RadarChart.Read("radar-beta\n  axis a, b, c\n  curve x{ a: 1, c: 3 }\n  curve y{ a: 1, z: 2 }");
+        var chart = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis a, b, c\n  curve x{ a: 1, c: 3 }\n  curve y{ a: 1, z: 2 }"));
 
         CollectionAssert.AreEqual(new double?[] { 1, null, 3 }, chart.Curves[0].Points.ToArray());
         CollectionAssert.AreEqual(new double?[] { 1, null, null }, chart.Curves[1].Points.ToArray(), "and a value naming no axis is for none");
@@ -60,12 +61,12 @@ public class RadarChartTests
     [TestMethod]
     public void WithNoMaxTheRimIsTheGreatestValue_AndNoValueReachesPastIt()
     {
-        var chart = RadarChart.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  curve y{4, 1}");
+        var chart = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  curve y{4, 1}"));
 
         Assert.AreEqual(8, chart.Max);
         Assert.AreEqual(0.5, chart.Reach(4), 1e-9);
 
-        var capped = RadarChart.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  max 4\n  min 2");
+        var capped = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{2, 8}\n  max 4\n  min 2"));
 
         Assert.AreEqual(1, capped.Reach(8), 1e-9, "past max is at the rim");
         Assert.AreEqual(0, capped.Reach(1), 1e-9, "and short of min in the middle");
@@ -74,7 +75,7 @@ public class RadarChartTests
     [TestMethod]
     public void AChartOfNothingButNoughtsStillHasAScale()
     {
-        var chart = RadarChart.Read("radar-beta\n  axis a, b\n  curve x{0, 0}");
+        var chart = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis a, b\n  curve x{0, 0}"));
         Assert.IsTrue(chart.Max > chart.Min);
     }
 
@@ -82,7 +83,7 @@ public class RadarChartTests
     public void TheOptionsSetTheRingsAndTheLegend_TheLastWrittenWinning()
     {
         const string source = "radar-beta\n  axis a, b, c\n  curve x{1, 2, 3}\n  ticks 8\n  showLegend false\n  ticks 3";
-        var chart = RadarChart.Read(source);
+        var chart = RadarChart.Of(MermaidStaged.Read(source));
 
         Assert.AreEqual(3, chart.Ticks);
         Assert.IsFalse(chart.ShowsLegend);
@@ -138,7 +139,7 @@ public class RadarChartTests
     [TestMethod]
     public void WhatNoFrontMatterWritesIsMermaidsShape_AndTheThemesEverythingElse()
     {
-        var config = RadarChart.Read("radar-beta\n  axis a").Config;
+        var config = RadarChart.Of(MermaidStaged.Read("radar-beta\n  axis a")).Config;
 
         Assert.AreEqual(1, config.AxisScaleFactor);
         Assert.AreEqual(1.05, config.AxisLabelFactor, 1e-9);
@@ -152,5 +153,5 @@ public class RadarChartTests
     [TestMethod]
     public void ACurveTakesTheColourWrittenForItsPlace() =>
         CollectionAssert.AreEqual(new[] { "#FF0000", "#00FF00", "#0000FF" },
-                                  RadarChart.Read(RadarGrammarTests.Themed).Curves.Select(curve => curve.Colour).ToArray());
+                                  RadarChart.Of(MermaidStaged.Read(RadarGrammarTests.Themed)).Curves.Select(curve => curve.Colour).ToArray());
 }

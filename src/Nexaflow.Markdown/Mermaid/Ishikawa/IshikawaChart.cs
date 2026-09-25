@@ -35,7 +35,7 @@ public sealed class IshikawaChart
 {
     private IshikawaChart(MermaidBlock block, IshikawaConfig config) => (Block, Config) = (block, config);
 
-    public static IshikawaChart Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static IshikawaChart Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

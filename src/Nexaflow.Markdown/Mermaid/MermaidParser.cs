@@ -459,12 +459,4 @@ public static class MermaidParser
             return to - from == Fence.Length && string.CompareOrdinal(source, from, Fence, 0, Fence.Length) == 0;
         }
     }
-
-    /// <summary>The block parsed and run through its diagram's stages (<see cref="MermaidPipeline"/>).</summary>
-    /// <param name="grammar">What reads the block, where its language names its diagram rather than its first line — see <see cref="Parse"/>.</param>
-    public static ContentNode Read(string? source, bool holes = false, IMermaidGrammar? grammar = null)
-    {
-        var tree = Parse(source, grammar);
-        return new AstPipeline(MermaidPipeline.Of(tree, holes, grammar)).Run(tree);
-    }
 }

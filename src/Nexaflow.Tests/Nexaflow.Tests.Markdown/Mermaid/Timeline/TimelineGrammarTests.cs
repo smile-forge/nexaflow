@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Timeline;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Timeline;
 
@@ -73,12 +74,12 @@ public class TimelineGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedTimelinesLinesAreEachRead()
     {
-        var tree = MermaidParser.Read(Social);
+        var tree = MermaidStaged.Read(Social);
 
         Assert.AreEqual(4, Nodes(tree, TimelineKinds.Period).Count);
         Assert.AreEqual(5, Events(tree).Count);
-        Assert.AreEqual(2, Nodes(MermaidParser.Read(Pizzas), TimelineKinds.Section).Count);
-        Assert.AreEqual(1, Nodes(MermaidParser.Read(Pizzas), TimelineKinds.More).Count);
+        Assert.AreEqual(2, Nodes(MermaidStaged.Read(Pizzas), TimelineKinds.Section).Count);
+        Assert.AreEqual(1, Nodes(MermaidStaged.Read(Pizzas), TimelineKinds.More).Count);
     }
 
     [TestMethod]
@@ -102,15 +103,15 @@ public class TimelineGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheWayItRunsMayFollowTheKeyword()
     {
-        Assert.AreEqual(1, Nodes(MermaidParser.Read("timeline TD\n    2002 : LinkedIn"), TimelineKinds.Direction).Count);
-        Assert.AreEqual(0, Nodes(MermaidParser.Read("timeline\n    2002 : LinkedIn"), TimelineKinds.Direction).Count);
+        Assert.AreEqual(1, Nodes(MermaidStaged.Read("timeline TD\n    2002 : LinkedIn"), TimelineKinds.Direction).Count);
+        Assert.AreEqual(0, Nodes(MermaidStaged.Read("timeline\n    2002 : LinkedIn"), TimelineKinds.Direction).Count);
         Assert.AreEqual(0, Trouble("timeline TD\n    2002 : LinkedIn").Count);
     }
 
     [TestMethod]
     public void EveryColonSplitsWhatFollowsIntoEvents()
     {
-        var events = Events(MermaidParser.Read("timeline\n    2004 : Facebook : Google\n         : Orkut"));
+        var events = Events(MermaidStaged.Read("timeline\n    2004 : Facebook : Google\n         : Orkut"));
 
         Assert.AreEqual(3, events.Count);
         CollectionAssert.AreEqual(new[] { "Facebook", "Google", "Orkut" }, events.Select(text => text.Print().Trim()).ToArray());
@@ -131,7 +132,7 @@ public class TimelineGrammarTests : MermaidGrammarContract
     public void AColonTypedIntoWhatSomethingSaysIsWrittenAsTheEntityCodeForIt()
     {
         const string source = "timeline\n    2004 : Facebook";
-        var says = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
             .First(part => part.Kind == MermaidKinds.Words && part.Text == "Facebook");
         var writing = new TimelineGrammar().Escaping(says, says.End, ": the wall")!.Value;
 
@@ -141,7 +142,7 @@ public class TimelineGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EachPeriodSaysWhichSectionItIsIn_AndEachContinuationWhichPeriod()
     {
-        var read = ContentReading.Of(MermaidParser.Read(Pizzas)).Root;
+        var read = ContentReading.Of(MermaidStaged.Read(Pizzas)).Root;
 
         CollectionAssert.AreEqual(
             new[] { "0", "0", "1" },
@@ -155,5 +156,5 @@ public class TimelineGrammarTests : MermaidGrammarContract
         [.. tree.SelfAndDescendants().Where(node => node.Kind == TimelineKinds.Text && node.Role == TimelineRoles.Event)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

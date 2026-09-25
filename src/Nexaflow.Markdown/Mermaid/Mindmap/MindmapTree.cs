@@ -64,7 +64,7 @@ public sealed class MindmapTree
     /// <summary>How many branches the root's children are shared between before the colours come round again.</summary>
     public const int Branches = 11;
 
-    public static MindmapTree Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static MindmapTree Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

@@ -24,23 +24,6 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// </summary>
 public static class AbcPipeline
 {
-    /// <summary>
-    /// The tree to build a tune from: what was written, with everything a builder would otherwise have to
-    /// work out for itself already worked out and hung underneath it.
-    /// </summary>
-    /// <param name="draws">
-    /// Whether whatever is going to engrave this knows how to draw a named decoration. Asked for rather
-    /// than known, because what can be drawn is a fact about an engraver and this is a reader.
-    /// </param>
-    /// <param name="editing">
-    /// A stretch somebody is in the middle of typing, shown rather than read for as long as they are.
-    /// Runs last on purpose: a half-written bar is invalid almost by definition, and saying so on every
-    /// keystroke would be the wrong thing to draw.
-    /// </param>
-    public static ContentNode Read(string abc, Func<string, bool>? draws = null,
-                                   (int Start, int Length)? editing = null) =>
-        Of(draws, editing).Run(AbcParser.Parse(abc));
-
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
     public static AstPipeline Of(Func<string, bool>? draws = null, (int Start, int Length)? editing = null) =>
         new AstPipeline(

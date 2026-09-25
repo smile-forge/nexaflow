@@ -68,7 +68,7 @@ public class TexPipelineTests
             var latex = LatexConstructs.Flatten(written);
 
             for (var start = 0; start < latex.Length; start += 3)
-                Assert.AreEqual(latex, TexPipeline.Read(latex, Nothing, (start, 5)).Print(),
+                Assert.AreEqual(latex, TexPipeline.Of(Nothing, (start, 5)).Run(TexParser.Parse(latex)).Print(),
                     $"{what}: reading it with {start}+5 under the caret changed the source");
         }
     }
@@ -132,7 +132,7 @@ public class TexPipelineTests
 
             // A caret a third of the way in, which lands mid-construct far more often than an endpoint
             // would, and is where the widening has to be right.
-            var read = TexPipeline.Read(latex, Nothing, (latex.Length / 3, 7));
+            var read = TexPipeline.Of(Nothing, (latex.Length / 3, 7)).Run(TexParser.Parse(latex));
             if (read.Print() == latex) continue;
 
             faults++;
@@ -174,11 +174,11 @@ public class TexPipelineTests
     public void ARowOfDotsSaysHowManyColumnsItStandsAcrossAndHowFarApartItsDotsAre()
     {
         static TexDots? Dots(string latex) =>
-            TexPipeline.Read(latex).SelfAndDescendants().Select(node => node.Held).OfType<TexDots>().SingleOrDefault();
+            TexPipeline.Of().Run(TexParser.Parse(latex)).SelfAndDescendants().Select(node => node.Held).OfType<TexDots>().SingleOrDefault();
 
         Assert.AreEqual(new TexDots(3, 1), Dots(@"\hdotsfor{3}"));
         Assert.AreEqual(new TexDots(2, 2), Dots(@"\hdotsfor[2]{2}"));
-        Assert.AreEqual(@"\hdotsfor[2]{2}", TexPipeline.Read(@"\hdotsfor[2]{2}").Print(), "and the writing is untouched");
+        Assert.AreEqual(@"\hdotsfor[2]{2}", TexPipeline.Of().Run(TexParser.Parse(@"\hdotsfor[2]{2}")).Print(), "and the writing is untouched");
 
         Assert.IsNull(Dots(@"\hdotsfor{x}"), "a count that is no whole number says nothing");
         Assert.IsNull(Dots(@"\hdotsfor{0}"), "nor does one that covers no column");
@@ -263,7 +263,7 @@ public class TexPipelineTests
     public void AnArgumentLeftEmptyGetsAHole_UnlessItsCommandMayTakeItEmpty()
     {
         static int Holes(string latex) =>
-            TexPipeline.Read(latex, holes: true).SelfAndDescendants().Count(node => node.Kind == Kinds.Hole);
+            TexPipeline.Of(holes: true).Run(TexParser.Parse(latex)).SelfAndDescendants().Count(node => node.Kind == Kinds.Hole);
 
         Assert.AreEqual(1, Holes(@"\frac{}{2}"), "an empty numerator is somewhere still to write");
         Assert.AreEqual(0, Holes(@"\genfrac{}{}{}{}{a}{b}"),

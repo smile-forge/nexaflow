@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Pie;
 
@@ -13,7 +14,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.Pie;
 [CoversNode("pie-ast")]
 public class PieChartTests
 {
-    private static PieChart Read(string source) => PieChart.Read(source);
+    private static PieChart Read(string source) => PieChart.Of(MermaidStaged.Read(source));
 
     [TestMethod]
     public void TheDocumentedBlockReadsAsItIsWritten()
@@ -143,8 +144,8 @@ public class PieChartTests
     public void WhereALabelOrAValueIsStillToBeWrittenAHoleStandsInIt()
     {
         const string source = "pie\n  \"\" : ";
-        var writing = PieChart.Of(MermaidParser.Read(source, holes: true)).Slices.Single();
-        var reading = PieChart.Of(MermaidParser.Read(source)).Slices.Single();
+        var writing = PieChart.Of(MermaidStaged.Read(source, holes: true)).Slices.Single();
+        var reading = PieChart.Of(MermaidStaged.Read(source)).Slices.Single();
 
         Assert.AreEqual(source.IndexOf('"') + 1, writing.LabelHole!.Start, "between the quotes");
         Assert.AreEqual(source.Length, writing.ValueHole!.Start, "after the space left for it");
@@ -158,7 +159,7 @@ public class PieChartTests
     public void AndAHoleIsNoPartOfTheSource()
     {
         const string source = "pie\n  \"Dogs\" : 3\n  \"\" : \n  \"Cats\" : 1";
-        Assert.AreEqual(source, MermaidParser.Read(source, holes: true).Print());
+        Assert.AreEqual(source, MermaidStaged.Read(source, holes: true).Print());
     }
 
     [TestMethod]
@@ -174,7 +175,7 @@ public class PieChartTests
     public void WhatTheStagesHangUnderneathIsNoPartOfTheSource()
     {
         foreach (var source in new[] { PieGrammarTests.Documented, "pie\n  \"Dogs\" : 1" })
-            Assert.AreEqual(source, MermaidParser.Read(source).Print(), "a stage leaves the characters alone");
+            Assert.AreEqual(source, MermaidStaged.Read(source).Print(), "a stage leaves the characters alone");
     }
 
     [TestMethod]

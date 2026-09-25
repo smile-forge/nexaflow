@@ -49,60 +49,23 @@ public static class MarkdownParser
     public static MarkdownPipeline Pipeline { get; } = Reading(new MarkdownPipelineBuilder()).Build();
 
     /// <summary>
-    /// <paramref name="source"/> read whole: its blocks, what each holds, and which language every piece written in another
-    /// language is in — the characters of that piece held as written, for its own parser (<see cref="ContentNested"/>).
-    /// </summary>
-    public static ContentNode Parse(string? source) => Parsed(source, new WithBlocks());
-
-    /// <summary>
     /// A parse for one document, read again and again as it is written: what it read of a block last time is what it hands back
     /// for the same block this time, so a keystroke reads the block it was typed in rather than every block there is. One per
-    /// document — what it keeps is that document's blocks.
+    /// document — what it keeps is that document's blocks. What it hands back says where every piece written in another
+    /// language is.
     /// </summary>
-    public static Func<string, ContentNode> Parsing()
+    public static Func<string, ContentParse> Parsing()
     {
         var blocks = new WithBlocks(remembering: true);
-        return source => Parsed(source, blocks);
+        return source => ContentParse.Of(Parsed(source, blocks));
     }
 
-    /// <summary>The blocks, each block's body read by the parser its kind names, grouped, closed, and every other language named.</summary>
+    /// <summary>The blocks, each block's body read by the reader its kind names, grouped, and closed.</summary>
     private static ContentNode Parsed(string? source, WithBlocks blocks) =>
-        Named(new WithClosingLines().Run(new WithGroups().Run(blocks.Run(Read(source)))));
+        new WithClosingLines().Run(new WithGroups().Run(blocks.Run(Read(source))));
 
-    /// <summary>
-    /// Every piece written in another language, saying which: a fence by the word after it, and a formula — on a line of its own
-    /// or in a sentence — by being one, since nobody writes a language after <c>$$</c>.
-    /// </summary>
-    private static ContentNode Named(ContentNode node)
-    {
-        if (node.IsLeaf) return node;
-
-        ContentNode[]? named = null;
-        for (var at = 0; at < node.Children.Count; at++)
-        {
-            var child = Named(node.Children[at]);
-            if (ReferenceEquals(child, node.Children[at])) continue;
-
-            named ??= [.. node.Children];
-            named[at] = child;
-        }
-
-        if (named is not null) node = node.With(named);
-
-        var language = node.Kind switch
-        {
-            MarkdownKinds.Math or MarkdownKinds.Formula => Maths,
-            MarkdownKinds.Fence => node.Part(Roles.Name)?.Text.Trim() is { Length: > 0 } word ? word : null,
-            _ => null,
-        };
-
-        return language is not null && node.Part(Roles.Body) is not null && ContentNested.Language(node) is null
-            ? ContentNested.Naming(node, language)
-            : node;
-    }
-
-    /// <summary>What a formula is written in.</summary>
-    private const string Maths = "latex";
+    /// <summary>What a formula is written in — which nobody writes after <c>$$</c>, because the <c>$$</c> says it.</summary>
+    internal const string Maths = "latex";
 
     /// <summary>
     /// The same options, so a host adding an extension of its own starts from what is already read. Every
@@ -347,6 +310,10 @@ public static class MarkdownParser
         // Held as written and nothing read out of it: what is in there is a different language.
         if (shut > body) parts.Add(ContentNode.Leaf(Kinds.Verbatim, source[body..shut], Roles.Body));
         if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close));
+
+        // What the body is written in: the word after the fence, or maths, which a $$ says by being one.
+        var language = kind == MarkdownKinds.Math ? Maths : source[opens..named].Trim();
+        if (shut > body && language.Length > 0) parts.Add(ContentNode.Holding(Kinds.Language, Roles.Derived, language));
 
         return ContentNode.Branch(kind, parts);
     }

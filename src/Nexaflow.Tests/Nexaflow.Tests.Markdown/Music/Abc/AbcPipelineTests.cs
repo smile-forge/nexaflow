@@ -43,7 +43,7 @@ public class AbcPipelineTests
         foreach (var (what, abc) in AbcConstructs.Everything)
             for (var start = 0; start < abc.Length; start += 3)
                 for (var length = 1; length <= Math.Min(12, abc.Length - start); length += 4)
-                    Assert.AreEqual(abc, AbcPipeline.Read(abc, editing: (start, length)).Print(),
+                    Assert.AreEqual(abc, AbcPipeline.Of(editing: (start, length)).Run(AbcParser.Parse(abc)).Print(),
                         $"{what}: showing {start}+{length}");
     }
 
@@ -55,7 +55,7 @@ public class AbcPipelineTests
         // where the piece it explains sits.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var reading = ContentReading.Of(AbcPipeline.Read(abc));
+            var reading = ContentReading.Of(AbcPipeline.Of().Run(AbcParser.Parse(abc)));
 
             foreach (var part in reading.Root.SelfAndDescendants())
             {
@@ -74,7 +74,7 @@ public class AbcPipelineTests
         // it prints as, wherever a stage has since put it in the tree.
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var reading = ContentReading.Of(AbcPipeline.Read(abc));
+            var reading = ContentReading.Of(AbcPipeline.Of().Run(AbcParser.Parse(abc)));
 
             foreach (var part in reading.Root.SelfAndDescendants())
             {
@@ -92,7 +92,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void NotesWrittenTogetherAreOneGroup()
     {
-        var tune = AbcPipeline.Read("X:1\nL:1/8\nK:D\nABcd ABcd|A2 B2|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:D\nABcd ABcd|A2 B2|\n"));
 
         var beams = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Beam).ToList();
 
@@ -104,7 +104,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void AndABarIsWhatIsBetweenTwoBarLines()
     {
-        var tune = AbcPipeline.Read("X:1\nK:C\nABc|def|gab|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nABc|def|gab|\n"));
 
         var bars = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure).ToList();
 
@@ -116,7 +116,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void ARepeatMayOpenAfterAThickLine_AndCloseOnOne()
     {
-        var tune = AbcPipeline.Read("X:1\nK:C\nABc[|:def:|]gab|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nABc[|:def:|]gab|\n"));
 
         CollectionAssert.AreEqual(new[] { "[|:", ":|]", "|" },
                                   tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Barline).Select(n => n.Print()).ToArray());
@@ -127,7 +127,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void ABarThatRunsOnToTheNextLineSaysSo()
     {
-        var tune = AbcPipeline.Read("X:1\nK:C\nABc|def\nghi|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nABc|def\nghi|\n"));
 
         var bars = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure).ToList();
 
@@ -139,7 +139,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void AKeySignatureReachesTheNotesUnderIt()
     {
-        var tune = AbcPipeline.Read("X:1\nK:D\nFGA|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:D\nFGA|\n"));
 
         var alters = Notes(tune).Select(n => ResolveNotes.PitchOf(n)!.Value.Alter).ToList();
 
@@ -149,7 +149,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void AndAnAccidentalLastsTheBarAndNoLonger()
     {
-        var tune = AbcPipeline.Read("X:1\nK:C\n^FGF|FGF|\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n^FGF|FGF|\n"));
 
         var alters = Notes(tune).Select(n => ResolveNotes.PitchOf(n)!.Value.Alter).ToList();
 
@@ -160,12 +160,12 @@ public class AbcPipelineTests
     [TestMethod]
     public void TheUnitNoteLengthIsWhatALengthSuffixMultiplies()
     {
-        var eighths = Notes(AbcPipeline.Read("X:1\nL:1/8\nK:C\nA A2 A4|\n"))
+        var eighths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA A2 A4|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.5, 1.0, 2.0 }, eighths);
 
-        var quarters = Notes(AbcPipeline.Read("X:1\nL:1/4\nK:C\nA A2 A4|\n"))
+        var quarters = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nA A2 A4|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 1.0, 2.0, 4.0 }, quarters, "the same tune, written in quarters");
@@ -176,17 +176,17 @@ public class AbcPipelineTests
     {
         // ABC's own rule: a sixteenth under three quarters to the bar, an eighth above it. Which is why a
         // tune in 2/4 that names no L: is written in sixteenths and one in 4/4 in eighths.
-        Assert.AreEqual(0.5, Notes(AbcPipeline.Read("X:1\nM:4/4\nK:C\nA|\n"))
+        Assert.AreEqual(0.5, Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:4/4\nK:C\nA|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).Single(), "4/4 is one eighth");
 
-        Assert.AreEqual(0.25, Notes(AbcPipeline.Read("X:1\nM:2/4\nK:C\nA|\n"))
+        Assert.AreEqual(0.25, Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:2/4\nK:C\nA|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).Single(), "2/4 is one sixteenth");
     }
 
     [TestMethod]
     public void ATripletTakesTheTimeOfTwo()
     {
-        var lengths = Notes(AbcPipeline.Read("X:1\nL:1/8\nK:C\n(3ABc|\n"))
+        var lengths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\n(3ABc|\n")))
             .Select(n => ResolveNotes.LengthOf(n)).ToList();
 
         Assert.AreEqual(3, lengths.Count);
@@ -199,12 +199,12 @@ public class AbcPipelineTests
     [TestMethod]
     public void ABrokenRhythmMovesTimeFromOneNoteToTheOther()
     {
-        var lengths = Notes(AbcPipeline.Read("X:1\nL:1/8\nK:C\nA>B|\n"))
+        var lengths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA>B|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.75, 0.25 }, lengths, "dotted, then halved");
 
-        var back = Notes(AbcPipeline.Read("X:1\nL:1/8\nK:C\nA<B|\n"))
+        var back = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA<B|\n")))
             .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.25, 0.75 }, back, "and the other way round");
@@ -213,7 +213,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void ASyllableLandsUnderTheNoteItIsSungOn()
     {
-        var tune = AbcPipeline.Read("X:1\nL:1/4\nK:C\nABcd|\nw:one two- three four\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nABcd|\nw:one two- three four\n"));
 
         var sung = Notes(tune).Select(n => AlignLyrics.Of(n).Select(l => l.Text).FirstOrDefault()).ToList();
 
@@ -223,7 +223,7 @@ public class AbcPipelineTests
     [TestMethod]
     public void AndASecondVerseStacksUnderTheSameNotes()
     {
-        var tune = AbcPipeline.Read("X:1\nL:1/4\nK:C\nAB|\nw:one two\nw:un deux\n");
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nAB|\nw:one two\nw:un deux\n"));
 
         var first = Notes(tune).First();
         var verses = AlignLyrics.Of(first).OrderBy(l => l.Verse).Select(l => l.Text).ToList();

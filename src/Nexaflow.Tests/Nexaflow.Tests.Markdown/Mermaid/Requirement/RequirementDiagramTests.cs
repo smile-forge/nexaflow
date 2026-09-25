@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Requirement;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Requirement;
 
@@ -16,7 +17,7 @@ public class RequirementDiagramTests
     public void ARequirementKeepsItsFieldsInTheOrderTheyAreWritten()
     {
         var node = RequirementDiagram
-            .Read("requirementDiagram\n  requirement A {\n    id: 1\n    text: what it asks for\n    risk: high\n    verifymethod: test\n  }")
+            .Of(MermaidStaged.Read("requirementDiagram\n  requirement A {\n    id: 1\n    text: what it asks for\n    risk: high\n    verifymethod: test\n  }"))
             .Find("A")!;
 
         CollectionAssert.AreEqual(new[] { "id", "text", "risk", "verifymethod" }, node.Facts.Select(fact => fact.Key).ToArray());
@@ -27,7 +28,7 @@ public class RequirementDiagramTests
     public void WhatIsDrawnInFrontOfAFieldIsMermaidsWordForItRatherThanTheKeyWritten()
     {
         var node = RequirementDiagram
-            .Read("requirementDiagram\n  element E {\n    type: simulation\n    docRef: reqs/e\n  }")
+            .Of(MermaidStaged.Read("requirementDiagram\n  element E {\n    type: simulation\n    docRef: reqs/e\n  }"))
             .Find("E")!;
 
         CollectionAssert.AreEqual(new[] { "Type", "Doc Ref" }, node.Facts.Select(fact => fact.Label).ToArray());
@@ -37,8 +38,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void WhatKindOfRequirementItIsIsDrawnTheWayMermaidSpacesIt()
     {
-        var diagram = RequirementDiagram.Read(
-            "requirementDiagram\n  functionalRequirement A {\n    id: 1\n  }\n  designConstraint B {\n    id: 2\n  }");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  functionalRequirement A {\n    id: 1\n  }\n  designConstraint B {\n    id: 2\n  }"));
 
         Assert.AreEqual("Functional Requirement", diagram.Find("A")!.Says);
         Assert.AreEqual("Design Constraint", diagram.Find("B")!.Says);
@@ -47,7 +47,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AValueInQuotesSaysWhatIsBetweenThem()
     {
-        var node = RequirementDiagram.Read("requirementDiagram\n  element E {\n    type: \"test suite\"\n  }").Find("E")!;
+        var node = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  element E {\n    type: \"test suite\"\n  }")).Find("E")!;
 
         Assert.AreEqual("test suite", node.Facts.Single().Says);
     }
@@ -55,8 +55,8 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ARelationWrittenTheOtherWayRoundStillLeavesTheOneThatHolds()
     {
-        var onward = RequirementDiagram.Read("requirementDiagram\n  a - satisfies -> b").Relations.Single();
-        var back = RequirementDiagram.Read("requirementDiagram\n  b <- satisfies - a").Relations.Single();
+        var onward = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  a - satisfies -> b")).Relations.Single();
+        var back = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  b <- satisfies - a")).Relations.Single();
 
         Assert.AreEqual(("a", "b", "satisfies"), (onward.From, onward.To, onward.Says));
         Assert.AreEqual(("a", "b", "satisfies"), (back.From, back.To, back.Says));
@@ -65,7 +65,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ContainsIsTheOneDrawnAsAWholeAndItsParts()
     {
-        var diagram = RequirementDiagram.Read("requirementDiagram\n  a - contains -> b\n  a - derives -> c");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  a - contains -> b\n  a - derives -> c"));
 
         Assert.IsTrue(diagram.Relations[0].Holds);
         Assert.IsFalse(diagram.Relations[1].Holds);
@@ -74,7 +74,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ARelationNamingWhatNoBlockWritesMakesTheBoxForIt()
     {
-        var diagram = RequirementDiagram.Read("requirementDiagram\n  requirement A {\n    id: 1\n  }\n  A - traces -> B");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  requirement A {\n    id: 1\n  }\n  A - traces -> B"));
 
         CollectionAssert.AreEqual(new[] { "A", "B" }, diagram.Nodes.Select(node => node.Id).ToArray());
         Assert.IsNull(diagram.Find("B")!.Says, "nothing says what kind of thing it is, so nothing is drawn over its name");
@@ -83,7 +83,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANameWrittenTwiceIsOneBox()
     {
-        var diagram = RequirementDiagram.Read("requirementDiagram\n  a - traces -> b\n  requirement a {\n    id: 1\n  }");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  a - traces -> b\n  requirement a {\n    id: 1\n  }"));
 
         Assert.AreEqual(2, diagram.Nodes.Count);
         Assert.AreEqual("1", diagram.Find("a")!.Facts.Single().Says);
@@ -92,7 +92,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANameWithNothingInItYetIsABoxOfItsOwnSoWritingItIsWatched()
     {
-        var diagram = RequirementDiagram.Of(MermaidParser.Read("requirementDiagram\n  \"\" - satisfies -> \"\"", holes: true));
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  \"\" - satisfies -> \"\"", holes: true));
 
         Assert.AreEqual(2, diagram.Nodes.Count, "the two ends of a relation nobody has named yet are two boxes");
         Assert.IsTrue(diagram.Nodes.All(node => node.SaidHole is not null), "each with a hole where its name goes");
@@ -101,7 +101,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANameOnALineOfItsOwnWritesTheBoxAndTakesTheClassGivenIt()
     {
-        var diagram = RequirementDiagram.Read("requirementDiagram\n  A:::blue\n  classDef blue fill:#00f");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  A:::blue\n  classDef blue fill:#00f"));
 
         Assert.AreEqual("A", diagram.Nodes.Single().Id);
         Assert.AreEqual("#00f", diagram.Find("A")!.Style.Fill);
@@ -110,8 +110,7 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AStyleLineAndAClassLineBothReachTheBoxTheyName()
     {
-        var diagram = RequirementDiagram.Read(
-            "requirementDiagram\n  a - traces -> b\n  classDef blue fill:#00f\n  class a blue\n  style b fill:#f00");
+        var diagram = RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  a - traces -> b\n  classDef blue fill:#00f\n  class a blue\n  style b fill:#f00"));
 
         Assert.AreEqual("#00f", diagram.Find("a")!.Style.Fill);
         Assert.AreEqual("#f00", diagram.Find("b")!.Style.Fill);
@@ -120,16 +119,16 @@ public class RequirementDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void TheWayItIsLaidOutIsWhatTheDirectionLineSays()
     {
-        Assert.AreEqual(RequirementWay.Down, RequirementDiagram.Read("requirementDiagram\n  a - traces -> b").Way);
-        Assert.AreEqual(RequirementWay.Right, RequirementDiagram.Read("requirementDiagram\n  direction LR\n  a - traces -> b").Way);
-        Assert.AreEqual(RequirementWay.Up, RequirementDiagram.Read("requirementDiagram\n  direction BT\n  a - traces -> b").Way);
+        Assert.AreEqual(RequirementWay.Down, RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  a - traces -> b")).Way);
+        Assert.AreEqual(RequirementWay.Right, RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  direction LR\n  a - traces -> b")).Way);
+        Assert.AreEqual(RequirementWay.Up, RequirementDiagram.Of(MermaidStaged.Read("requirementDiagram\n  direction BT\n  a - traces -> b")).Way);
     }
 
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterSaysHowSmallABoxMayBe()
     {
         var config = RequirementDiagram
-            .Read("---\nconfig:\n  requirement:\n    rect_min_width: 140\n    rect_padding: 6\n---\nrequirementDiagram\n  a - traces -> b")
+            .Of(MermaidStaged.Read("---\nconfig:\n  requirement:\n    rect_min_width: 140\n    rect_padding: 6\n---\nrequirementDiagram\n  a - traces -> b"))
             .Config;
 
         Assert.AreEqual(140, config.MinWidth);

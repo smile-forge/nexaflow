@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Kanban;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Kanban;
 
@@ -75,7 +76,7 @@ public class KanbanGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedBoardsNodesAreEachRead_AndItsColumnsAreThoseAsFarInAsTheFirst()
     {
-        var tree = MermaidParser.Read(Full);
+        var tree = MermaidStaged.Read(Full);
 
         Assert.AreEqual(16, Nodes(tree, KanbanKinds.Node).Count);
         Assert.AreEqual(6, Nodes(tree, KanbanKinds.Node).Count(node => node.Said(KanbanRoles.Column) is not null));
@@ -107,7 +108,7 @@ public class KanbanGrammarTests : MermaidGrammarContract
     public void ANewLineUnderAColumnIsACardIndentedUnderIt_AndUnderACardAnother()
     {
         var grammar = new KanbanGrammar();
-        var nodes = Nodes(MermaidParser.Read("kanban\n  todo[Todo]\n    a[Card]"), KanbanKinds.Node);
+        var nodes = Nodes(MermaidStaged.Read("kanban\n  todo[Todo]\n    a[Card]"), KanbanKinds.Node);
 
         Assert.AreEqual(("  [\"\"]", 4), grammar.Blank(nodes[0]));
         Assert.AreEqual(("[\"\"]", 2), grammar.Blank(nodes[1]));
@@ -117,7 +118,7 @@ public class KanbanGrammarTests : MermaidGrammarContract
     public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
     {
         const string source = "kanban\n  Todo";
-        var id = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Todo");
+        var id = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Todo");
         var writing = new KanbanGrammar().Escaping(id, id.End, "(")!.Value;
 
         Assert.AreEqual("kanban\n  [\"Todo(\"]", source[..writing.Start] + writing.Text + source[writing.End..]);
@@ -126,5 +127,5 @@ public class KanbanGrammarTests : MermaidGrammarContract
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

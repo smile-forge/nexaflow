@@ -42,7 +42,7 @@ public static class LatexSyntax
             // kept alongside. What can be drawn is asked of the builder, as the renderer asks it — the
             // tables only know what the typesetter's own parser read, so `a\ b` and every `\,` were
             // called unfinished here while drawing without a word, and the solver lost their chips.
-            var reading = ContentReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, holes: true));
+            var reading = new ContentEngine().Read("latex", latex, writing: true);
 
             return reading.Root.SelfAndDescendants()
                 .Where(part => part.Node.Trouble is not null)

@@ -34,7 +34,7 @@ public sealed class TimelineChart
 {
     private TimelineChart(MermaidBlock block, TimelineConfig config) => (Block, Config) = (block, config);
 
-    public static TimelineChart Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static TimelineChart Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

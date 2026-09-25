@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Journey;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Journey;
 
@@ -61,7 +62,7 @@ public class JourneyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedJourneysLinesAreEachRead()
     {
-        var tree = MermaidParser.Read(Working);
+        var tree = MermaidStaged.Read(Working);
 
         Assert.AreEqual(2, Nodes(tree, JourneyKinds.Section).Count);
         Assert.AreEqual(5, Nodes(tree, JourneyKinds.Task).Count);
@@ -100,7 +101,7 @@ public class JourneyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AnActorRenamedWhereTheyFirstTakePartIsRenamedInEveryTaskTheyAreIn()
     {
-        var actors = new JourneyGrammar().Names(ContentReading.Of(MermaidParser.Read(Working)).Root);
+        var actors = new JourneyGrammar().Names(ContentReading.Of(MermaidStaged.Read(Working)).Root);
 
         Assert.AreEqual(2, actors.Count);
         Assert.AreEqual("Me", actors[0].Name);
@@ -112,7 +113,7 @@ public class JourneyGrammarTests : MermaidGrammarContract
     public void AColonTypedIntoWhatATaskSaysIsWrittenAsTheEntityCodeForIt()
     {
         const string source = "journey\n    Make tea: 5: Me";
-        var says = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
             .First(part => part.Kind == MermaidKinds.Words && part.Text == "Make tea");
         var writing = new JourneyGrammar().Escaping(says, says.End, ": and toast")!.Value;
 
@@ -122,7 +123,7 @@ public class JourneyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EachTaskSaysWhichSectionItIsIn()
     {
-        var read = ContentReading.Of(MermaidParser.Read(Working)).Root;
+        var read = ContentReading.Of(MermaidStaged.Read(Working)).Root;
 
         CollectionAssert.AreEqual(
             new[] { "0", "0", "0", "1", "1" },
@@ -132,5 +133,5 @@ public class JourneyGrammarTests : MermaidGrammarContract
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Quadrant;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Quadrant;
 
@@ -11,7 +12,7 @@ public class QuadrantChartTests
     [TestMethod]
     public void TheDocumentedChartIsReadWhole()
     {
-        var chart = QuadrantChart.Read(QuadrantGrammarTests.Campaigns);
+        var chart = QuadrantChart.Of(MermaidStaged.Read(QuadrantGrammarTests.Campaigns));
 
         Assert.AreEqual("Reach and engagement of campaigns", chart.Block.TitleText);
         Assert.AreEqual("Low Reach", chart.Left!.Says.Text);
@@ -27,7 +28,7 @@ public class QuadrantChartTests
     [TestMethod]
     public void APointsOwnStyleIsLaidOverItsClass_WrittenAboveItOrBelow()
     {
-        var points = QuadrantChart.Read(QuadrantGrammarTests.Styled).Points;
+        var points = QuadrantChart.Of(MermaidStaged.Read(QuadrantGrammarTests.Styled)).Points;
 
         Assert.AreEqual(new QuadrantStyle(10, "#ff3300", null, null), points[1].Style, "its own colour over class1's");
         Assert.AreEqual(new QuadrantStyle(10, "#908342", "#310085", 10), points[4].Style, "class2 whole");
@@ -37,9 +38,9 @@ public class QuadrantChartTests
     [TestMethod]
     public void TheXAxissWordsGoOverTheChartOnlyWhereThereAreNoPoints_UnlessTheFrontMatterSays()
     {
-        Assert.IsTrue(QuadrantChart.Read("quadrantChart\n  x-axis Low --> High").XAxisOnTop);
-        Assert.IsFalse(QuadrantChart.Read("quadrantChart\n  A: [0.1, 0.2]").XAxisOnTop);
-        Assert.IsTrue(QuadrantChart.Read("---\nconfig:\n  quadrantChart:\n    xAxisPosition: top\n---\nquadrantChart\n  A: [0.1, 0.2]").XAxisOnTop);
+        Assert.IsTrue(QuadrantChart.Of(MermaidStaged.Read("quadrantChart\n  x-axis Low --> High")).XAxisOnTop);
+        Assert.IsFalse(QuadrantChart.Of(MermaidStaged.Read("quadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
+        Assert.IsTrue(QuadrantChart.Of(MermaidStaged.Read("---\nconfig:\n  quadrantChart:\n    xAxisPosition: top\n---\nquadrantChart\n  A: [0.1, 0.2]")).XAxisOnTop);
     }
 
     [TestMethod]

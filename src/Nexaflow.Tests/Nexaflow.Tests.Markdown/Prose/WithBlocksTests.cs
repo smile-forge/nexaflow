@@ -381,7 +381,7 @@ public class WithBlocksTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static ContentNode Read(string source) => MarkdownParser.Parse(source);
+    private static ContentNode Read(string source) => MarkdownParser.Parsing()(source).Tree;
 
     private static IReadOnlyList<ContentNode> Blocks(string source) =>
         [.. Read(source).Children.Where(child => child.Role != Roles.Trivia)];

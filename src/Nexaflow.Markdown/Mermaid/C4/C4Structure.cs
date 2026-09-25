@@ -121,7 +121,7 @@ public sealed class C4Structure
     }
 
     /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
-    public static C4Structure Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     /// <summary>
     /// The same diagram to different measures — what one too wide for the room it is given is laid out again as. Nothing is

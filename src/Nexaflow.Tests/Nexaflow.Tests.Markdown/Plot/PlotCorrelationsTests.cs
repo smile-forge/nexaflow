@@ -45,7 +45,7 @@ public class PlotCorrelationsTests
     }
 
     private static IReadOnlyList<(string Across, string Down, double R)> Read(string source) =>
-        [.. PlotPipeline.Read(source, PlotFence.Heatmap).Pairs()];
+        [.. new Nexaflow.Markdown.Plot.Stages.ResolveSettings(PlotFence.Heatmap).Run(PlotParser.Parse(source)).Pairs()];
 
     private static double Between(IReadOnlyList<(string Across, string Down, double R)> pairs,
                                   string across, string down) =>
@@ -125,7 +125,7 @@ public class PlotCorrelationsTests
     {
         var source = Cars();
 
-        Assert.AreEqual(source, PlotPipeline.Read(source, PlotFence.Heatmap).Print(),
+        Assert.AreEqual(source, new Nexaflow.Markdown.Plot.Stages.ResolveSettings(PlotFence.Heatmap).Run(PlotParser.Parse(source)).Print(),
                         "a coefficient is a fact about the block, and takes up none of it");
     }
 

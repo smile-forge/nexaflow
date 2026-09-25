@@ -73,7 +73,7 @@ internal static class Shipped
     /// </summary>
     public static readonly ContentLanguage Mermaid = new(
         Reads: static word => "mermaid".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => MermaidParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
         Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
         Builder: static (reading, show) =>
             (MermaidBuilders.For(MermaidBlock.Of(reading).Diagram) ?? MermaidBuilders.Unknown)(
@@ -85,7 +85,7 @@ internal static class Shipped
     /// <summary>UML class notation written shorter — <see href="https://www.nomnoml.com/"/> — read by Mermaid's kit as a class diagram.</summary>
     public static readonly ContentLanguage Nomnoml = new(
         Reads: static word => "nomnoml".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => MermaidParser.Parse(source, NomnomlDiagram.Grammar),
+        Parser: static () => static source => ContentParse.Of(MermaidParser.Parse(source, NomnomlDiagram.Grammar)),
         Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, holes: false, NomnomlDiagram.Grammar), .. Hosted(show), WordPieces],
         Builder: static (reading, show) => new NomnomlBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
@@ -118,26 +118,26 @@ internal static class Shipped
 
     /// <summary>A two-dimensional code: a <c>key: value</c> field a line, drawn by the builder its fence names.</summary>
     private static ContentLanguage Symbol(Func<string?, bool> reads, Func<ContentReading, ContentShowing, ContentBuilder> builder) =>
-        new(reads, static () => static source => MatrixParser.Parse(source), static (_, _) => [], builder);
+        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), static (_, _) => [], builder);
 
     /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
     public static readonly ContentLanguage Barcode = new(
         Reads: static word => "barcode".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => BarcodeParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(BarcodeParser.Parse(source)),
         Stages: static (_, show) => BarcodeParser.Stages(holes: show.Writing),
         Builder: static (reading, show) => new BarcodeBuilder(reading, EditState.For(reading.Source), show.Style, !show.Writing, show.Nesting));
 
     /// <summary>A chemical structure written as SMILES.</summary>
     public static readonly ContentLanguage Smiles = new(
         Reads: static word => "smiles".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => SmilesParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(SmilesParser.Parse(source)),
         Stages: static (_, _) => SmilesPipeline.Of().Stages,
         Builder: static (reading, show) => new SmilesBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A formula, written in LaTeX — on a line of its own, or in the middle of a sentence.</summary>
     public static readonly ContentLanguage Latex = new(
         Reads: static word => word?.Trim().ToLowerInvariant() is "latex" or "math" or "tex",
-        Parser: static () => static source => TexParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(TexParser.Parse(source)),
         Stages: static (tree, show) => TexPipeline.Of(LatexBuilder.Draws, Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
         Builder: static (reading, show) =>
                 new LatexBuilder(reading, new EditState(reading.Source, 0, null, show.Own(reading.Source.Length)), show.Style, !show.Writing, show.Nesting))
@@ -148,14 +148,14 @@ internal static class Shipped
     /// <summary>A tune written in ABC.</summary>
     public static readonly ContentLanguage Abc = new(
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
-        Parser: static () => static source => AbcParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(AbcParser.Parse(source)),
         Stages: static (tree, show) => AbcPipeline.Of(AbcBuilder.Draws, Editing(show.Own(tree.Width))).Stages,
         Builder: static (reading, show) => new AbcBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A tune written in LilyPond.</summary>
     public static readonly ContentLanguage LilyPond = new(
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.LilyPond,
-        Parser: static () => static source => LilyPondParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(LilyPondParser.Parse(source)),
         Stages: static (tree, show) => LilyPondPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: static (reading, show) => new LilyPondBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
@@ -166,14 +166,14 @@ internal static class Shipped
     /// <summary>A table of values against a pair of axes, drawn the way its fence names.</summary>
     public static ContentLanguage Plot(PlotFence fence) => new(
         Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
-        Parser: static () => static source => PlotParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(PlotParser.Parse(source)),
         Stages: (_, _) => [new ResolveSettings(fence)],
         Builder: static (reading, show) => new PlotBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A cloud of words sized by how often each is said.</summary>
     public static readonly ContentLanguage WordCloud = new(
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => WordCloudParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
         Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures)],
         Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
@@ -183,7 +183,7 @@ internal static class Shipped
     /// </summary>
     public static readonly ContentLanguage Code = new(
         Reads: static word => CodeGrammars.For(word) is not null,
-        Parser: static () => static source => CodeParser.Parse(source),
+        Parser: static () => static source => ContentParse.Of(CodeParser.Parse(source)),
         Stages: static (_, show) => [new WithHighlights(CodeGrammars.For(show.Named)), new CodeLines()],
             Builder: static (reading, show) => new CodeBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting))
         {

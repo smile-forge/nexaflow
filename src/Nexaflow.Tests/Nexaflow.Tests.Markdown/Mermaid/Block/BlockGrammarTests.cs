@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Block;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Block;
 
@@ -125,7 +126,7 @@ public class BlockGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EveryBracketSaysItsShape()
     {
-        var items = ContentReading.Of(MermaidParser.Read(Shapes)).Root.SelfAndDescendants()
+        var items = ContentReading.Of(MermaidStaged.Read(Shapes)).Root.SelfAndDescendants()
             .Where(part => part.Kind == BlockKinds.Item)
             .ToList();
 
@@ -157,13 +158,13 @@ public class BlockGrammarTests : MermaidGrammarContract
                      ("block-beta\n  a\n  class a nowhere", "No classDef nowhere is written"),
                  })
         {
-            var trouble = MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
+            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
             Assert.IsTrue(trouble.Any(reason => reason.Contains(said, StringComparison.Ordinal)),
                           $"{source}\nsays {string.Join(" / ", trouble)}, and nothing about '{said}'");
         }
     }
 
     private static MermaidShape Shaped(string source) =>
-        MermaidShapes.Of(ContentReading.Of(MermaidParser.Read(source)).Root
+        MermaidShapes.Of(ContentReading.Of(MermaidStaged.Read(source)).Root
             .SelfAndDescendants().First(part => part.Kind == BlockKinds.Item));
 }

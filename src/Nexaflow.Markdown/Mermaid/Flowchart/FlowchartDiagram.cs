@@ -159,7 +159,7 @@ public sealed class FlowchartDiagram
     }
 
     /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
-    public static FlowchartDiagram Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     /// <summary>Reads a tree the stages have already been over.</summary>
     public static FlowchartDiagram Of(ContentNode tree) => Of(MermaidBlock.Of(tree));

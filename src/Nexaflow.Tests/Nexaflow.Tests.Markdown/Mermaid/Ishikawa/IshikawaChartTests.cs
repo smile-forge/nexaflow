@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Ishikawa;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Ishikawa;
 
@@ -11,7 +12,7 @@ public class IshikawaChartTests
     [TestMethod]
     public void TheDocumentedDiagramIsNestedByItsIndentation()
     {
-        var effect = IshikawaChart.Read(IshikawaGrammarTests.BlurryPhoto).Effect!;
+        var effect = IshikawaChart.Of(MermaidStaged.Read(IshikawaGrammarTests.BlurryPhoto)).Effect!;
 
         Assert.AreEqual("Blurry Photo", effect.Says.Text);
         CollectionAssert.AreEqual(new[] { "Process", "User", "Equipment", "Environment" }, Said(effect.Causes));
@@ -31,7 +32,7 @@ public class IshikawaChartTests
                      "ishikawa-beta Problem\n  Cause A\n    Subcause A1\n  Cause B\n",
                  })
         {
-            var effect = IshikawaChart.Read(source).Effect!;
+            var effect = IshikawaChart.Of(MermaidStaged.Read(source)).Effect!;
 
             Assert.AreEqual(2, effect.Causes.Count, source);
             Assert.AreEqual(1, effect.Causes[0].Causes.Count, source);
@@ -42,7 +43,7 @@ public class IshikawaChartTests
     [TestMethod]
     public void ALineIndentedLessThanTheFirstCauseIsACauseOfTheEvent()
     {
-        var effect = IshikawaChart.Read("ishikawa\n  Problem\n    Cause A\n      Sub\n  Cause B").Effect!;
+        var effect = IshikawaChart.Of(MermaidStaged.Read("ishikawa\n  Problem\n    Cause A\n      Sub\n  Cause B")).Effect!;
 
         CollectionAssert.AreEqual(new[] { "Cause A", "Cause B" }, Said(effect.Causes));
     }
@@ -50,17 +51,17 @@ public class IshikawaChartTests
     [TestMethod]
     public void NothingWrittenIsNoEvent()
     {
-        Assert.IsNull(IshikawaChart.Read("ishikawa-beta").Effect);
-        Assert.AreEqual(0, IshikawaChart.Read("ishikawa-beta\n  Problem").Effect!.Causes.Count);
+        Assert.IsNull(IshikawaChart.Of(MermaidStaged.Read("ishikawa-beta")).Effect);
+        Assert.AreEqual(0, IshikawaChart.Of(MermaidStaged.Read("ishikawa-beta\n  Problem")).Effect!.Causes.Count);
     }
 
     [TestMethod]
     public void TheFrontMatterIsRead()
     {
-        var config = IshikawaChart.Read("---\nconfig:\n  fontSize: 18\n  ishikawa:\n    diagramPadding: 40\n    useMaxWidth: true\n    singleBone: true\n  themeVariables:\n    lineColor: \"#ff0000\"\n    mainBkg: \"#00ff00\"\n    textColor: \"#0000ff\"\n---\nishikawa\n  Problem").Config;
+        var config = IshikawaChart.Of(MermaidStaged.Read("---\nconfig:\n  fontSize: 18\n  ishikawa:\n    diagramPadding: 40\n    useMaxWidth: true\n    singleBone: true\n  themeVariables:\n    lineColor: \"#ff0000\"\n    mainBkg: \"#00ff00\"\n    textColor: \"#0000ff\"\n---\nishikawa\n  Problem")).Config;
 
         Assert.AreEqual(new IshikawaConfig { DiagramPadding = 40, UseMaxWidth = true, SingleBone = true, FontSize = 18, LineColour = "#ff0000", Background = "#00ff00", TextColour = "#0000ff" }, config);
-        Assert.AreEqual(IshikawaConfig.Default, IshikawaChart.Read("ishikawa\n  Problem").Config);
+        Assert.AreEqual(IshikawaConfig.Default, IshikawaChart.Of(MermaidStaged.Read("ishikawa\n  Problem")).Config);
     }
 
     private static string[] Said(IReadOnlyList<IshikawaCause> causes) => [.. causes.Select(cause => cause.Says.Text)];

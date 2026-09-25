@@ -98,7 +98,7 @@ public sealed class BlockDiagram
     }
 
     /// <summary>Reads a block: parsed, then worked over by its stages (<see cref="MermaidParser.Read"/>).</summary>
-    public static BlockDiagram Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     /// <summary>Reads a tree the stages have already been over.</summary>
     public static BlockDiagram Of(ContentNode tree) => Of(MermaidBlock.Of(tree));

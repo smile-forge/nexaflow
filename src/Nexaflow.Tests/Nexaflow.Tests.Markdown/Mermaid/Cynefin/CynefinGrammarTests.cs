@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Cynefin;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Cynefin;
 
@@ -72,7 +73,7 @@ public class CynefinGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedDiagramsLinesAreEachRead()
     {
-        var tree = MermaidParser.Read(Sense);
+        var tree = MermaidStaged.Read(Sense);
 
         Assert.AreEqual(5, Nodes(tree, CynefinKinds.Domain).Count);
         Assert.AreEqual(10, Nodes(tree, CynefinKinds.Item).Count);
@@ -102,7 +103,7 @@ public class CynefinGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void ALineStartingWithADomainsWordAndSayingMoreIsAnItem()
     {
-        var item = Nodes(MermaidParser.Read("cynefin-beta\n  complex\n    complex enough to probe"), CynefinKinds.Item).Single();
+        var item = Nodes(MermaidStaged.Read("cynefin-beta\n  complex\n    complex enough to probe"), CynefinKinds.Item).Single();
 
         Assert.AreEqual("complex enough to probe", item.Print());
         Assert.AreEqual(0, Trouble("cynefin-beta\n  complex\n    complex enough to probe").Count);
@@ -112,7 +113,7 @@ public class CynefinGrammarTests : MermaidGrammarContract
     public void AnArrowHardAgainstTheDomainsWordIsStillATransition()
     {
         const string source = "cynefin-beta\n  complex-->clear:\"Found\"";
-        var move = Nodes(MermaidParser.Read(source), CynefinKinds.Move).Single();
+        var move = Nodes(MermaidStaged.Read(source), CynefinKinds.Move).Single();
 
         Assert.AreEqual("complex-->clear:\"Found\"", move.Print());
         Assert.AreEqual(0, Trouble(source).Count);
@@ -132,7 +133,7 @@ public class CynefinGrammarTests : MermaidGrammarContract
     public void AnArrowTypedIntoABareItemPutsItInQuotes()
     {
         const string source = "cynefin-beta\n  complex\n    Investigate";
-        var says = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
             .First(part => part.Kind == MermaidKinds.Words && part.Text == "Investigate");
         var writing = new CynefinGrammar().Escaping(says, says.End, " --> clear")!.Value;
 
@@ -142,7 +143,7 @@ public class CynefinGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AnItemSaysWhichDomainItSitsIn()
     {
-        var items = ContentReading.Of(MermaidParser.Read(Sense)).Root.SelfAndDescendants()
+        var items = ContentReading.Of(MermaidStaged.Read(Sense)).Root.SelfAndDescendants()
             .Where(part => part.Kind == CynefinKinds.Item)
             .Select(item => item.Fact(CynefinRoles.In))
             .ToList();
@@ -154,5 +155,5 @@ public class CynefinGrammarTests : MermaidGrammarContract
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

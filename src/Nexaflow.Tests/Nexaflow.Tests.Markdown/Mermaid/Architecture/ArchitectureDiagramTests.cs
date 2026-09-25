@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Architecture;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Architecture;
 
@@ -14,7 +15,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AGroupHoldsWhatIsPutInIt_WithItsIconAndWhatIsWrittenOnIt()
     {
-        var diagram = ArchitectureDiagram.Read(ArchitectureGrammarTests.Cloud);
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read(ArchitectureGrammarTests.Cloud));
 
         Assert.AreEqual("api", diagram.Groups.Single().Id);
         Assert.AreEqual("API", diagram.Groups.Single().Said!.Text);
@@ -26,7 +27,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AServiceSaysWhatIsWrittenUnderIt_OrWhatItIsCalledWhereNothingIs()
     {
-        var diagram = ArchitectureDiagram.Read("architecture-beta\n  service db(database)[The store]\n  service plain");
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service db(database)[The store]\n  service plain"));
 
         Assert.AreEqual("The store", diagram.Service("db")!.Said!.Text);
         Assert.AreEqual("database", diagram.Service("db")!.Icon!.Text);
@@ -37,7 +38,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AJunctionIsAServiceDrawnAsAPlaceEdgesMeet()
     {
-        var diagram = ArchitectureDiagram.Read(ArchitectureGrammarTests.Meeting);
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read(ArchitectureGrammarTests.Meeting));
 
         CollectionAssert.AreEqual(new[] { "junctionCenter", "junctionRight" },
                                   diagram.Services.Where(service => service.Junction).Select(service => service.Id).ToArray());
@@ -47,8 +48,8 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AnEdgeSaysWhichSideEachEndLeavesBy_AndWhatItDrawsThere()
     {
-        var edges = ArchitectureDiagram.Read("architecture-beta\n  service a\n  service b\n  service c\n  service d\n"
-                                             + "  a:R -- L:b\n  b:R --> L:c\n  c:T <--> B:d").Edges;
+        var edges = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a\n  service b\n  service c\n  service d\n"
+                                             + "  a:R -- L:b\n  b:R --> L:c\n  c:T <--> B:d")).Edges;
 
         Assert.AreEqual(ArchitectureSide.Right, edges[0].FromSide);
         Assert.AreEqual(ArchitectureSide.Left, edges[0].ToSide);
@@ -66,11 +67,11 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AnEdgeMaySayWhatItIs_AndMayLeaveTheGroupItsServiceIsIn()
     {
-        var said = ArchitectureDiagram.Read("architecture-beta\n  service a\n  service b\n  a:R -[reads]- L:b").Edges.Single();
+        var said = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a\n  service b\n  a:R -[reads]- L:b")).Edges.Single();
         Assert.AreEqual("reads", said.Said!.Text);
 
-        var across = ArchitectureDiagram.Read("architecture-beta\n  group one(cloud)[One]\n  group two(cloud)[Two]\n"
-                                              + "  service a in one\n  service b in two\n  a{group}:B --> T:b{group}").Edges.Single();
+        var across = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  group one(cloud)[One]\n  group two(cloud)[Two]\n"
+                                              + "  service a in one\n  service b in two\n  a{group}:B --> T:b{group}")).Edges.Single();
         Assert.IsTrue(across.FromGroup);
         Assert.IsTrue(across.ToGroup);
     }
@@ -78,7 +79,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void TheSidesAnEdgeLeavesBySayWhereItsEndsSit()
     {
-        var diagram = ArchitectureDiagram.Read(ArchitectureGrammarTests.Cloud);
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read(ArchitectureGrammarTests.Cloud));
 
         Assert.AreEqual(diagram.Places["db"].Row, diagram.Places["server"].Row, "the right of one against the left of another shares a row");
         Assert.IsTrue(diagram.Places["server"].Column < diagram.Places["db"].Column, "and db leaving by its left puts the server there");
@@ -90,7 +91,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AnEdgeBendingRoundACornerMovesBothWays()
     {
-        var places = ArchitectureDiagram.Read("architecture-beta\n  service a\n  service b\n  a:R -- T:b").Places;
+        var places = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a\n  service b\n  a:R -- T:b")).Places;
 
         Assert.IsTrue(places["b"].Column > places["a"].Column, "a leaves by its right, so b is to the right of it");
         Assert.IsTrue(places["b"].Row > places["a"].Row, "and arrives at b's top, so b is under it");
@@ -99,7 +100,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AnEdgeLeavingAndArrivingOnTheSameSideMovesNothing()
     {
-        var places = ArchitectureDiagram.Read("architecture-beta\n  service a\n  service b\n  a:R -- R:b").Places;
+        var places = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a\n  service b\n  a:R -- R:b")).Places;
 
         Assert.AreEqual(places["a"].Row, places["b"].Row);
         Assert.AreNotEqual(places["a"].Column, places["b"].Column, "they are two pieces, laid side by side");
@@ -108,7 +109,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void WhatIsReachedByNoEdgeIsAPieceOfItsOwn_LaidBesideTheRest()
     {
-        var places = ArchitectureDiagram.Read("architecture-beta\n  service a\n  service b\n  service c").Places;
+        var places = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a\n  service b\n  service c")).Places;
 
         Assert.AreEqual(3, places.Count);
         Assert.AreEqual(1, places.Values.Select(place => place.Row).Distinct().Count(), "they share a row");
@@ -120,8 +121,8 @@ public class ArchitectureDiagramTests
     {
         // Mermaid keeps only one neighbour per side, so two of these three land on top of one another and align exists to
         // separate them. Here they all land in one cell, which the drawing spreads along whichever axis align asks for.
-        var diagram = ArchitectureDiagram.Read("architecture-beta\n  service db1\n  service db2\n  service db3\n  service mcp\n"
-                                               + "  db1:R --> L:mcp\n  db2:R --> L:mcp\n  db3:R --> L:mcp\n  align column db1 db2 db3");
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service db1\n  service db2\n  service db3\n  service mcp\n"
+                                               + "  db1:R --> L:mcp\n  db2:R --> L:mcp\n  db3:R --> L:mcp\n  align column db1 db2 db3"));
 
         Assert.AreEqual(diagram.Places["db1"], diagram.Places["db2"]);
         Assert.AreEqual(diagram.Places["db1"], diagram.Places["db3"]);
@@ -134,7 +135,7 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void AnAlignLinePullsItsMembersOntoTheRowOrColumnOfTheFirstOfThem()
     {
-        var diagram = ArchitectureDiagram.Read(ArchitectureGrammarTests.Tiers);
+        var diagram = ArchitectureDiagram.Of(MermaidStaged.Read(ArchitectureGrammarTests.Tiers));
 
         foreach (var row in new[] { new[] { "src_a", "src_b", "src_c" }, ["db_one", "db_two", "db_three"] })
             Assert.AreEqual(1, row.Select(id => diagram.Places[id].Row).Distinct().Count(), $"{string.Join(", ", row)} share a row");
@@ -148,10 +149,10 @@ public class ArchitectureDiagramTests
     [TestMethod]
     public void TheFrontMattersOptionsAreRead()
     {
-        Assert.AreEqual(ArchitectureConfig.Icon, ArchitectureDiagram.Read("architecture-beta\n  service a").Config.IconSize);
+        Assert.AreEqual(ArchitectureConfig.Icon, ArchitectureDiagram.Of(MermaidStaged.Read("architecture-beta\n  service a")).Config.IconSize);
 
-        var config = ArchitectureDiagram.Read("---\nconfig:\n  architecture:\n    iconSize: 64\n    fontSize: 15\n    padding: 20\n"
-                                              + "    nodeSeparation: 50\n    idealEdgeLengthMultiplier: 3\n---\narchitecture-beta\n  service a").Config;
+        var config = ArchitectureDiagram.Of(MermaidStaged.Read("---\nconfig:\n  architecture:\n    iconSize: 64\n    fontSize: 15\n    padding: 20\n"
+                                              + "    nodeSeparation: 50\n    idealEdgeLengthMultiplier: 3\n---\narchitecture-beta\n  service a")).Config;
 
         Assert.AreEqual(64, config.IconSize);
         Assert.AreEqual(15, config.FontSize);

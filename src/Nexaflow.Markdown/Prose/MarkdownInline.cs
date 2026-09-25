@@ -240,6 +240,7 @@ public static class MarkdownInline
         if (opens > from) parts.Add(read.Take(opens, Roles.Open, Kinds.Token));
         parts.Add(read.Take(shuts, Roles.Body, Kinds.Verbatim));
         if (end > shuts) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
+        parts.Add(ContentNode.Holding(Kinds.Language, Roles.Derived, MarkdownParser.Maths));
 
         return ContentNode.Branch(MarkdownKinds.Formula, parts);
     }

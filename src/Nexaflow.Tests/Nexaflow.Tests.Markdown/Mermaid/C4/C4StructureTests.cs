@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.C4;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.C4;
 
@@ -11,7 +12,7 @@ namespace Nexaflow.Tests.Markdown.Mermaid.C4;
 [TestClass]
 public class C4StructureTests
 {
-    private static C4Structure Read(string source) => C4Structure.Read(source);
+    private static C4Structure Read(string source) => C4Structure.Of(MermaidStaged.Read(source));
 
     // ── The macro language ──────────────────────────────────────────────────
 

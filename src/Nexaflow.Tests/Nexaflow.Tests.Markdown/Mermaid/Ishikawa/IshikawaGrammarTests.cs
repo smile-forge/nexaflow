@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Ishikawa;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Ishikawa;
 
@@ -75,12 +76,12 @@ public class IshikawaGrammarTests : MermaidGrammarContract
         const string source = "ishikawa-beta Problem  \n  Cause: \"a\" %% b  ";
 
         CollectionAssert.AreEqual(new[] { "Problem", "Cause: \"a\" %% b" }, Causes(source));
-        Assert.IsFalse(MermaidParser.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null));
+        Assert.IsFalse(MermaidStaged.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null));
     }
 
     private static List<string> Causes(string source) =>
     [
-        .. ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        .. ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
             .Where(part => part.Kind == IshikawaKinds.Cause)
             .Select(part => part.Words()!.Text),
     ];

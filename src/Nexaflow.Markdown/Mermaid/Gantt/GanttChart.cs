@@ -94,7 +94,7 @@ public sealed class GanttChart
 {
     private GanttChart(MermaidBlock block, GanttConfig config) => (Block, Config) = (block, config);
 
-    public static GanttChart Read(string? block, DateTime? today = null) => Of(MermaidParser.Read(block), today);
+    
 
     public static GanttChart Of(ContentNode tree, DateTime? today = null) => Of(MermaidBlock.Of(tree), today);
 

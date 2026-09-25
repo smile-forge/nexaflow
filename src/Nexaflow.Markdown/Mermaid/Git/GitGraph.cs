@@ -45,7 +45,7 @@ public sealed class GitGraph
 {
     private GitGraph(MermaidBlock block, GitConfig config) => (Block, Config) = (block, config);
 
-    public static GitGraph Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static GitGraph Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Class;
 
@@ -14,7 +15,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AClassIsDeclaredWhereItIsFirstWrittenAndUsedWhereverItIsWrittenAgain()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  Animal <|-- Duck\n  Animal : +int age\n  class Duck");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Animal <|-- Duck\n  Animal : +int age\n  class Duck"));
 
         CollectionAssert.AreEqual(new[] { "Animal", "Duck" }, diagram.Nodes.Select(node => node.Id).ToArray());
         Assert.AreEqual("+int age", diagram.Find("Animal")!.Members.Single().Says);
@@ -23,7 +24,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AMemberWithBracketsAfterItsNameIsAMethodAndEverythingElseIsAField()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class A {\n    +int age\n    +grow()\n  }").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A {\n    +int age\n    +grow()\n  }")).Find("A")!;
 
         CollectionAssert.AreEqual(new[] { "+int age" }, node.Fields.Select(member => member.Says).ToArray());
         CollectionAssert.AreEqual(new[] { "+grow()" }, node.Methods.Select(member => member.Says).ToArray());
@@ -32,7 +33,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void TypeParametersAreDrawnBetweenAngleBracketsAndAClassifierSaysHowTheMemberIsDrawn()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class Square~Shape~ {\n    List~int~ position\n    +count()$\n    +draw()*\n  }")
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class Square~Shape~ {\n    List~int~ position\n    +count()$\n    +draw()*\n  }"))
             .Find("Square")!;
 
         Assert.AreEqual("Shape", node.Generic);
@@ -45,7 +46,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void APackageVisibilityTildeIsNotATypeParameter()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class A {\n    ~int shared\n  }").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A {\n    ~int shared\n  }")).Find("A")!;
 
         Assert.AreEqual("~int shared", node.Fields.Single().Says);
     }
@@ -54,14 +55,14 @@ public class ClassDiagramTests
     public void SeveralClassesGivenAtOnceAreAllLaidOn()
     {
         var given = ClassDiagram
-            .Read("classDiagram\n  class A:::blue,bold\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px")
+            .Of(MermaidStaged.Read("classDiagram\n  class A:::blue,bold\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px"))
             .Find("A")!;
 
         Assert.AreEqual("#00f", given.Style.Fill);
         Assert.AreEqual(3, given.Style.StrokeWidth);
 
         var taken = ClassDiagram
-            .Read("classDiagram\n  class A\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n  cssClass \"A\" blue,bold")
+            .Of(MermaidStaged.Read("classDiagram\n  class A\n  classDef blue fill:#00f\n  classDef bold stroke-width:3px\n  cssClass \"A\" blue,bold"))
             .Find("A")!;
 
         Assert.AreEqual("#00f", taken.Style.Fill, "and a cssClass line gives every class it names too");
@@ -71,7 +72,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void NestedTypeParametersCloseProperly()
     {
-        var node = ClassDiagram.Read("classDiagram\n  Square : +getDistanceMatrix() List~List~int~~").Find("Square")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Square : +getDistanceMatrix() List~List~int~~")).Find("Square")!;
 
         Assert.AreEqual("+getDistanceMatrix() : List<List<int>>", node.Methods.Single().Says);
     }
@@ -79,7 +80,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void WhatAMethodGivesBackIsDrawnAfterAColonAndOneGivingNothingBackIsDrawnAsWritten()
     {
-        var node = ClassDiagram.Read("classDiagram\n  Square : getId() int\n  Square : setId(int id)").Find("Square")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Square : getId() int\n  Square : setId(int id)")).Find("Square")!;
 
         Assert.AreEqual("getId() : int", node.Methods.First(member => member.Says.StartsWith("getId")).Says);
         Assert.AreEqual("setId(int id)", node.Methods.First(member => member.Says.StartsWith("setId")).Says);
@@ -88,7 +89,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnInterfaceWrittenWithBracketsIsALollipopOnTheClassAndNeitherAClassNorARelation()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  Class01 --() bar\n  foo ()-- Class01");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Class01 --() bar\n  foo ()-- Class01"));
 
         Assert.IsNull(diagram.Find("bar"));
         Assert.IsNull(diagram.Find("foo"));
@@ -103,7 +104,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ARelationWrittenBothWaysDrawsAHeadAtEitherEnd()
     {
-        var relation = ClassDiagram.Read("classDiagram\n  Animal <|--|> Zebra").Relations.Single();
+        var relation = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Animal <|--|> Zebra")).Relations.Single();
 
         Assert.AreEqual("Animal", relation.From);
         Assert.AreEqual("Zebra", relation.To);
@@ -115,7 +116,7 @@ public class ClassDiagramTests
     public void InheritanceDrawsItsHollowTriangleAtTheClassWrittenFirst()
     {
         // Animal <|-- Duck: the left operand is the parent, and the triangle sits at that end of the line.
-        var relation = ClassDiagram.Read("classDiagram\n  Animal <|-- Duck").Relations.Single();
+        var relation = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Animal <|-- Duck")).Relations.Single();
 
         Assert.AreEqual("Animal", relation.From);
         Assert.AreEqual(ClassEnd.Extension, relation.Head);
@@ -125,7 +126,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void SeveralMembersWrittenAfterColonsGatherOnTheOneClass()
     {
-        var node = ClassDiagram.Read("classDiagram\n  A : +int age\n  A : +String name\n  A : +grow()").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  A : +int age\n  A : +String name\n  A : +grow()")).Find("A")!;
 
         Assert.AreEqual(3, node.Members.Count);
         Assert.AreEqual(2, node.Fields.Count());
@@ -135,7 +136,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AMemberEndingInTheLinkTokenPointsSomewhereAndIsNoLongerTheCharactersWritten()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class A {\n    +draw() @@file:///c:/a.cs#ast=T%3AA\n  }").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A {\n    +draw() @@file:///c:/a.cs#ast=T%3AA\n  }")).Find("A")!;
         var member = node.Methods.Single();
 
         Assert.AreEqual("+draw()", member.Says);
@@ -146,7 +147,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AMemberWrittenAsItIsDrawnIsTypedInto()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class A {\n    +int age\n  }").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A {\n    +int age\n  }")).Find("A")!;
 
         Assert.IsTrue(node.Fields.Single().Written);
     }
@@ -154,16 +155,16 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AnAnnotationSaysWhatAClassIsWhereverItIsWritten()
     {
-        Assert.AreEqual("interface", ClassDiagram.Read("classDiagram\n  class Shape <<interface>>").Find("Shape")!.Kind?.Text);
-        Assert.AreEqual("interface", ClassDiagram.Read("classDiagram\n  class Shape\n  <<interface>> Shape").Find("Shape")!.Kind?.Text);
+        Assert.AreEqual("interface", ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class Shape <<interface>>")).Find("Shape")!.Kind?.Text);
+        Assert.AreEqual("interface", ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class Shape\n  <<interface>> Shape")).Find("Shape")!.Kind?.Text);
         Assert.AreEqual("enumeration",
-                        ClassDiagram.Read("classDiagram\n  class Colour {\n    <<enumeration>>\n    RED\n  }").Find("Colour")!.Kind?.Text);
+                        ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class Colour {\n    <<enumeration>>\n    RED\n  }")).Find("Colour")!.Kind?.Text);
     }
 
     [TestMethod, TestCategory("Unit")]
     public void EachRelationSaysWhatItsEndsDrawAndWhetherItsLineIsDotted()
     {
-        var diagram = ClassDiagram.Read(ClassGrammarTests.Related);
+        var diagram = ClassDiagram.Of(MermaidStaged.Read(ClassGrammarTests.Related));
         var drawn = diagram.Relations.Select(relation => (relation.Head, relation.Tail, relation.Dotted)).ToArray();
 
         CollectionAssert.AreEqual(
@@ -184,7 +185,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ARelationCarriesWhatIsWrittenOnItAndHowManyOfEachClassTheOtherHas()
     {
-        var relation = ClassDiagram.Read("classDiagram\n  Customer \"1\" --> \"*\" Ticket : raises").Relations.Single();
+        var relation = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  Customer \"1\" --> \"*\" Ticket : raises")).Relations.Single();
 
         Assert.AreEqual("Customer", relation.From);
         Assert.AreEqual("Ticket", relation.To);
@@ -196,7 +197,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void QuotesPastTheOperatorAreTheClassWhereNoneFollowsThem()
     {
-        var relation = ClassDiagram.Read("classDiagram\n  A --> \"Far away\"").Relations.Single();
+        var relation = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  A --> \"Far away\"")).Relations.Single();
 
         Assert.AreEqual("Far away", relation.To);
         Assert.IsNull(relation.Far);
@@ -205,7 +206,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AClassBelongsToTheNamespaceItIsFirstWrittenIn()
     {
-        var diagram = ClassDiagram.Read(ClassGrammarTests.Spaces);
+        var diagram = ClassDiagram.Of(MermaidStaged.Read(ClassGrammarTests.Spaces));
         var space = diagram.Spaces.Single();
 
         Assert.AreEqual("BaseShapes", space.Name);
@@ -216,7 +217,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANamespaceWrittenWithDotsIsABoxForEachPartOfIt()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  namespace A.B.C {\n    class One\n  }");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  namespace A.B.C {\n    class One\n  }"));
 
         CollectionAssert.AreEqual(new[] { "A", "B", "C" }, diagram.Spaces.Select(space => space.Name).ToArray());
         Assert.AreEqual("C", diagram.Spaces.Single(space => diagram.Inside(space.Key).Any()).Name);
@@ -225,7 +226,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void NamespacesSharingTheirOuterNamesShareTheBoxesForThem()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  namespace A.B {\n    class One\n  }\n  namespace A.C {\n    class Two\n  }");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  namespace A.B {\n    class One\n  }\n  namespace A.C {\n    class Two\n  }"));
 
         Assert.AreEqual(1, diagram.Spaces.Count(space => space.Name == "A"));
         Assert.AreEqual(3, diagram.Spaces.Count);
@@ -234,8 +235,8 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void OneBoxHoldsTheWholeDottedNameWhereTheFrontMatterAsksForNoNesting()
     {
-        var diagram = ClassDiagram.Read("---\nconfig:\n  class:\n    hierarchicalNamespaces: false\n---\n"
-                                        + "classDiagram\n  namespace A.B {\n    class One\n  }");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("---\nconfig:\n  class:\n    hierarchicalNamespaces: false\n---\n"
+                                        + "classDiagram\n  namespace A.B {\n    class One\n  }"));
 
         Assert.AreEqual("A.B", diagram.Spaces.Single().Name);
     }
@@ -243,7 +244,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANamespaceIsBoxedInsideTheOneItIsWrittenIn()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  namespace Outer {\n    namespace Inner {\n      class One\n    }\n  }");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  namespace Outer {\n    namespace Inner {\n      class One\n    }\n  }"));
         var outer = diagram.Within(null).Single();
 
         Assert.AreEqual("Outer", outer.Name);
@@ -253,7 +254,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ANoteSaysWhatItSaysAndWhichClassItIsBeside()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  class A\n  note for A \"About A\"\n  note \"About nothing\"");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A\n  note for A \"About A\"\n  note \"About nothing\""));
 
         Assert.AreEqual(("A", "About A"), (diagram.Notes[0].Of, diagram.Notes[0].Said?.Text));
         Assert.AreEqual((string.Empty, "About nothing"), (diagram.Notes[1].Of, diagram.Notes[1].Said?.Text));
@@ -262,15 +263,15 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void ADirectionLineLaysTheDiagramOut()
     {
-        Assert.AreEqual(ClassWay.Right, ClassDiagram.Read("classDiagram\n  direction LR\n  A --> B").Way);
-        Assert.AreEqual(ClassWay.Down, ClassDiagram.Read("classDiagram\n  A --> B").Way);
+        Assert.AreEqual(ClassWay.Right, ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  direction LR\n  A --> B")).Way);
+        Assert.AreEqual(ClassWay.Down, ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  A --> B")).Way);
     }
 
     [TestMethod, TestCategory("Unit")]
     public void AClassIsStyledByTheClassItIsGivenAndByTheStyleWrittenForIt()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  class A:::blue\n  class B\n  classDef blue fill:#00f\n"
-                                        + "  cssClass \"B\" blue\n  style A stroke:#f00");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A:::blue\n  class B\n  classDef blue fill:#00f\n"
+                                        + "  cssClass \"B\" blue\n  style A stroke:#f00"));
 
         Assert.AreEqual("#00f", diagram.Find("A")!.Style.Fill);
         Assert.AreEqual("#f00", diagram.Find("A")!.Style.Stroke);
@@ -280,7 +281,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AClickLineSaysWhereAClassLeadsAndWhatItSaysWhilePointedAt()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class A\n  click A href \"https://example.com\" \"Go there\"").Find("A")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A\n  click A href \"https://example.com\" \"Go there\"")).Find("A")!;
 
         Assert.AreEqual("https://example.com", node.Href);
         Assert.AreEqual("Go there", node.Tip);
@@ -289,7 +290,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AClassDrawnWithALabelIsCalledByItsIdAndDrawnWithItsLabel()
     {
-        var node = ClassDiagram.Read("classDiagram\n  class Animal[\"Animal with a label\"]").Find("Animal")!;
+        var node = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class Animal[\"Animal with a label\"]")).Find("Animal")!;
 
         Assert.AreEqual("Animal with a label", node.Said?.Text);
     }
@@ -297,7 +298,7 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void AClassNamedInBackticksMayBeCalledAnythingAtAll()
     {
-        var diagram = ClassDiagram.Read("classDiagram\n  class `Car Class!`\n  Animal --> `Car Class!`");
+        var diagram = ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class `Car Class!`\n  Animal --> `Car Class!`"));
 
         Assert.IsNotNull(diagram.Find("Car Class!"));
         Assert.AreEqual("Car Class!", diagram.Relations.Single().To);
@@ -306,15 +307,15 @@ public class ClassDiagramTests
     [TestMethod, TestCategory("Unit")]
     public void TheFrontMatterSaysWhetherAClassWithNoMembersKeepsABoxForThem()
     {
-        Assert.IsFalse(ClassDiagram.Read("classDiagram\n  class A").Config.HideEmptyMembers);
-        Assert.IsTrue(ClassDiagram.Read("---\nconfig:\n  class:\n    hideEmptyMembersBox: true\n---\nclassDiagram\n  class A")
+        Assert.IsFalse(ClassDiagram.Of(MermaidStaged.Read("classDiagram\n  class A")).Config.HideEmptyMembers);
+        Assert.IsTrue(ClassDiagram.Of(MermaidStaged.Read("---\nconfig:\n  class:\n    hideEmptyMembersBox: true\n---\nclassDiagram\n  class A"))
                           .Config.HideEmptyMembers);
     }
 
     [TestMethod, TestCategory("Unit")]
     public void ABlockWithNothingInItReadsIntoNothingRatherThanThrowing()
     {
-        Assert.AreEqual(0, ClassDiagram.Read("classDiagram").Nodes.Count);
-        Assert.AreEqual(0, ClassDiagram.Read(null).Nodes.Count);
+        Assert.AreEqual(0, ClassDiagram.Of(MermaidStaged.Read("classDiagram")).Nodes.Count);
+        Assert.AreEqual(0, ClassDiagram.Of(MermaidStaged.Read(null)).Nodes.Count);
     }
 }

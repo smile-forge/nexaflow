@@ -44,7 +44,7 @@ public class LilyPondPipelineTests
         foreach (var (what, ly) in LilyPondConstructs.Everything)
             for (var start = 0; start < ly.Length; start += 3)
                 for (var length = 1; length <= Math.Min(12, ly.Length - start); length += 4)
-                    Assert.AreEqual(ly, LilyPondPipeline.Read(ly, editing: (start, length)).Print(),
+                    Assert.AreEqual(ly, LilyPondPipeline.Of(editing: (start, length)).Run(LilyPondParser.Parse(ly)).Print(),
                         $"{what}: showing {start}+{length}");
     }
 
@@ -53,7 +53,7 @@ public class LilyPondPipelineTests
     {
         foreach (var (what, ly) in LilyPondConstructs.Everything)
         {
-            var reading = ContentReading.Of(LilyPondPipeline.Read(ly));
+            var reading = ContentReading.Of(LilyPondPipeline.Of().Run(LilyPondParser.Parse(ly)));
 
             foreach (var part in reading.Root.SelfAndDescendants())
             {
@@ -165,7 +165,7 @@ public class LilyPondPipelineTests
     [TestMethod]
     public void ARepeatedChordSoundsTheChordItRepeats()
     {
-        var q = Written(LilyPondPipeline.Read("{ <c e g>4 q }")).Single(n => n.Kind == LilyPondKinds.ChordRepeat);
+        var q = Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse("{ <c e g>4 q }"))).Single(n => n.Kind == LilyPondKinds.ChordRepeat);
         CollectionAssert.AreEqual(new[] { "C3", "E3", "G3" }, ResolvePitches.PitchesOf(q).Select(Named).ToArray());
     }
 
@@ -192,7 +192,7 @@ public class LilyPondPipelineTests
     [TestMethod]
     public void APitchGivenToACommandIsNotPlayed()
     {
-        var tree = LilyPondPipeline.Read(@"\relative c' { \key g \major c4 } \transpose c d { e4 }");
+        var tree = LilyPondPipeline.Of().Run(LilyPondParser.Parse(@"\relative c' { \key g \major c4 } \transpose c d { e4 }"));
         var given = Written(tree).Where(n => n.Kind == LilyPondKinds.Note && n.Role == LilyPondRoles.Argument).ToList();
 
         Assert.AreEqual(4, given.Count, "c', g, c and d are handed to commands");
@@ -215,7 +215,7 @@ public class LilyPondPipelineTests
 
     /// <summary>Everything that takes time, in the order written.</summary>
     private static List<ContentNode> Events(string ly) =>
-        [.. Written(LilyPondPipeline.Read(ly)).Where(n =>
+        [.. Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(ly))).Where(n =>
             n.Kind is LilyPondKinds.Note or LilyPondKinds.Rest or LilyPondKinds.Chord or LilyPondKinds.ChordRepeat
             && n.Role is not (LilyPondRoles.Argument or LilyPondRoles.Note))];
 
@@ -225,7 +225,7 @@ public class LilyPondPipelineTests
 
     /// <summary>What every played note sounds, chord members included, in the order written.</summary>
     private static string[] Sounds(string ly) =>
-        [.. Written(LilyPondPipeline.Read(ly))
+        [.. Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(ly)))
             .Where(n => n.Kind == LilyPondKinds.Note && n.Role != LilyPondRoles.Argument)
             .Select(n => ResolvePitches.PitchOf(n) is { } p ? Named(p) : "?")];
 

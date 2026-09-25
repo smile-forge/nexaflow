@@ -38,7 +38,7 @@ public class LilyPondBuilderTests
         foreach (var (what, ly) in LilyPondConstructs.Everything)
         {
             var layout = Lay(ly);
-            var parts = ContentReading.Of(LilyPondPipeline.Read(ly)).Root
+            var parts = ContentReading.Of(LilyPondPipeline.Of().Run(LilyPondParser.Parse(ly))).Root
                 .SelfAndDescendants()
                 .Select(p => (p.Kind, p.Start, p.Length))
                 .ToHashSet();

@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Gantt;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Gantt;
 
@@ -108,7 +109,7 @@ public class GanttGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedChartsLinesAreEachRead()
     {
-        var tree = MermaidParser.Read(Syntax);
+        var tree = MermaidStaged.Read(Syntax);
 
         Assert.AreEqual(2, Nodes(tree, GanttKinds.Setting).Count);
         Assert.AreEqual(4, Nodes(tree, GanttKinds.Section).Count);
@@ -157,7 +158,7 @@ public class GanttGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AnIdRenamedWhereItIsDeclaredIsRenamedWhereverAfterUntilOrClickNameIt()
     {
-        var names = new GanttGrammar().Names(ContentReading.Of(MermaidParser.Read(Syntax)).Root);
+        var names = new GanttGrammar().Names(ContentReading.Of(MermaidStaged.Read(Syntax)).Root);
 
         Assert.AreEqual(3, names.Single(name => name.Name == "des1").Uses.Count + names.Single(name => name.Name == "isadded").Uses.Count);
         Assert.AreEqual("two_words", new GanttGrammar().Naming("two words"));
@@ -167,7 +168,7 @@ public class GanttGrammarTests : MermaidGrammarContract
     public void AColonTypedIntoATasksNameIsNotWritten()
     {
         const string source = "gantt\n  Design : 2014-01-01, 3d";
-        var name = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Design");
+        var name = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Design");
 
         Assert.AreEqual(string.Empty, new GanttGrammar().Escaping(name, name.End, ":")!.Value.Text);
     }
@@ -175,5 +176,5 @@ public class GanttGrammarTests : MermaidGrammarContract
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

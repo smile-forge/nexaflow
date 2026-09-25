@@ -22,7 +22,7 @@ public sealed class KanbanBoard
 {
     private KanbanBoard(MermaidBlock block, KanbanConfig config) => (Block, Config) = (block, config);
 
-    public static KanbanBoard Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static KanbanBoard Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

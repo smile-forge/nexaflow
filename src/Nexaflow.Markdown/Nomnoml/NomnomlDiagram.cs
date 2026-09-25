@@ -24,7 +24,7 @@ public static class NomnomlDiagram
     public const string NoteWord = "note";
 
     /// <summary>Reads a block.</summary>
-    public static ClassDiagram Read(string? block) => Of(MermaidBlock.Of(MermaidParser.Read(block, grammar: Grammar)));
+    
 
     /// <summary>Reads a block already parsed by <see cref="Grammar"/>.</summary>
     public static ClassDiagram Of(MermaidBlock block)

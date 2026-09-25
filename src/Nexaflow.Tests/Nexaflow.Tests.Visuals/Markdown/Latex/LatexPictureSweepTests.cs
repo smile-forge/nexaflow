@@ -238,7 +238,7 @@ public class LatexPictureSweepTests
         Parsed(ContentReading.Of(TexParser.Parse(latex)).Root, 1, text);
 
         text.Append("read\n");
-        Parsed(ContentReading.Of(TexPipeline.Read(latex, LatexBuilder.Draws, null, false)).Root, 1, text);
+        Parsed(ContentReading.Of(TexPipeline.Of(LatexBuilder.Draws, null, false).Run(TexParser.Parse(latex))).Root, 1, text);
 
         text.Append("layout ").Append(Round(layout.Size.Width)).Append('x').Append(Round(layout.Size.Height)).Append('\n');
         foreach (var node in layout.Root.SelfAndDescendants())
