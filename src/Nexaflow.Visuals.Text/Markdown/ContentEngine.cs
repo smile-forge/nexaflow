@@ -37,8 +37,10 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed class ContentEngine(DiagramRenderOptions? options = null)
 {
     /// <summary>What a piece of content read to: its language's tree, and what each piece in it written in another language read to.</summary>
-    /// <param name="Inside">What each piece in another language read to, by where its body starts in <paramref name="Tree"/>.</param>
-    private sealed record Parsed(ContentLanguage Language, string Named, string Text, ContentNode Tree, IReadOnlyDictionary<int, Parsed> Inside);
+    /// <param name="Pieces">Where its parser placed each piece written in another language.</param>
+    /// <param name="Inside">What each of those read to, by where its body starts in <paramref name="Tree"/>.</param>
+    private sealed record Parsed(ContentLanguage Language, string Named, string Text, ContentNode Tree,
+                                 IReadOnlyList<NestedPiece> Pieces, IReadOnlyDictionary<int, Parsed> Inside);
 
     private static readonly IReadOnlyDictionary<int, Parsed> Nothing = new Dictionary<int, Parsed>();
 
@@ -47,8 +49,8 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     private Nesting? _nesting;
 
     /// <summary>The parse each language keeps for the content asked for, and the one for what is written inside it.</summary>
-    private readonly Dictionary<ContentLanguage, Func<string, ContentNode>> _parses = [];
-    private readonly Dictionary<ContentLanguage, Func<string, ContentNode>> _nestedParses = [];
+    private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _parses = [];
+    private readonly Dictionary<ContentLanguage, Func<string, ContentParse>> _nestedParses = [];
 
     /// <summary>What every piece in another language read to last time and this time, by what it was written as.</summary>
     private Dictionary<(ContentLanguage, string, string), Parsed> _before = [];
@@ -72,7 +74,7 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged };
         var staged = Staged(top, showing);
 
-        Views(top.Tree);
+        Views(top);
 
         return language.Builder(ContentReading.Of(staged, 0, state.Source), showing).Lay(room);
     }
@@ -105,49 +107,25 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
 
         if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-        var tree = parse(source);
-        var read = new Parsed(language, named ?? string.Empty, source, tree, Inside(tree));
+        var parsed = parse(source);
+        var read = new Parsed(language, named ?? string.Empty, source, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
 
         _before = _now;
         return read;
     }
 
-    /// <summary>What every piece in <paramref name="tree"/> written in another language read to, by where its body starts.</summary>
-    private IReadOnlyDictionary<int, Parsed> Inside(ContentNode tree)
+    /// <summary>What every piece the parser placed in another language read to, by where its body starts.</summary>
+    private IReadOnlyDictionary<int, Parsed> Inside(IReadOnlyList<NestedPiece> pieces)
     {
-        Dictionary<int, Parsed>? inside = null;
-        Walk(tree, 0);
-        return inside ?? Nothing;
+        if (pieces.Count == 0) return Nothing;
 
-        void Walk(ContentNode node, int at)
-        {
-            if (node.IsDerived || node.IsLeaf) return;
+        var inside = new Dictionary<int, Parsed>(pieces.Count);
 
-            if (ContentNested.Language(node) is { } name)
-            {
-                if (ContentLanguages.For(name) is not { } language) return;
+        foreach (var piece in pieces)
+            if (ContentLanguages.For(piece.Language) is { } language)
+                inside[piece.At] = Nested(language, piece.Language, piece.Written);
 
-                for (var index = 0; index < node.Children.Count; index++)
-                {
-                    var child = node.Children[index];
-                    if (child.Role == Roles.Body && !child.IsDerived)
-                    {
-                        (inside ??= [])[at] = Nested(language, name, ContentNested.Own(child));
-                        return;
-                    }
-
-                    at += child.Width;
-                }
-
-                return;
-            }
-
-            for (var index = 0; index < node.Children.Count; index++)
-            {
-                Walk(node.Children[index], at);
-                at += node.Children[index].Width;
-            }
-        }
+        return inside;
     }
 
     /// <summary>A piece written in another language, read by that language — or, written as it was last time, what it read to then.</summary>
@@ -164,11 +142,11 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
 
         if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
 
-        var tree = parse(text);
-        var read = new Parsed(language, named, text, tree, Inside(tree));
+        var parsed = parse(text);
+        var read = new Parsed(language, named, text, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
 
         _now[key] = read;
-        _reads[tree] = read;
+        _reads[parsed.Tree] = read;
         return read;
     }
 
@@ -234,29 +212,16 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     /// What the reader has opened in each diagram, handed out afresh in the order the diagrams are written: the one thing a
     /// reading of the same document again keeps, where the source is exactly what may have changed.
     /// </summary>
-    private void Views(ContentNode tree)
+    private void Views(Parsed top)
     {
         _views.Clear();
         if (options?.Views is not { } views) return;
 
         views.Rewind();
 
-        foreach (var (node, start) in tree.Placed())
-            if (node.Kind is MarkdownKinds.Fence or Kinds.Nested && ContentLanguages.Reads(ContentNested.Language(node))
-                && Body(node, start) is { } body)
-                _views[body] = views.Next();
-    }
-
-    /// <summary>Where the body of a node holding another language starts, or null where it has none.</summary>
-    private static int? Body(ContentNode holder, int at)
-    {
-        for (var index = 0; index < holder.Children.Count; index++)
-        {
-            if (holder.Children[index] is { Role: Roles.Body, IsDerived: false }) return at;
-            at += holder.Children[index].Width;
-        }
-
-        return null;
+        foreach (var piece in top.Pieces)
+            if (piece.Holder is MarkdownKinds.Fence or Kinds.Nested && ContentLanguages.Reads(piece.Language))
+                _views[piece.At] = views.Next();
     }
 
     /// <summary>What the reader has opened in the diagram <paramref name="holder"/> holds, or null where nothing says.</summary>

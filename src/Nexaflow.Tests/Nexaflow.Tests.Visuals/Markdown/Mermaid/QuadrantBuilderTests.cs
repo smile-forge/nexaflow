@@ -65,6 +65,17 @@ public class QuadrantBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void ALineWrittenTwiceIsTheLastOneWritten() => UiThread.Run(() =>
+    {
+        const string source = "quadrantChart\n  x-axis Near --> Far\n  quadrant-1 First\n  x-axis Low --> High\n  quadrant-1 Again\n  A: [0.5, 0.5]";
+        var laid = Build(source);
+
+        CollectionAssert.AreEqual(new[] { "Low", "High" },
+                                  Pieces(laid, QuadrantPiece.AxisLabel).Select(label => Written(source, label.Part)).ToArray());
+        Assert.AreEqual("Again", Written(source, Pieces(laid, QuadrantPiece.Caption).Single().Part));
+    });
+
+    [TestMethod]
     public void APointStandsWhereItIsWritten_ItsNameUnderIt() => UiThread.Run(() =>
     {
         var laid = Build(Campaigns);

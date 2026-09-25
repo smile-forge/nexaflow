@@ -25,28 +25,6 @@ namespace Nexaflow.Markdown.Latex;
 /// </summary>
 public static class TexPipeline
 {
-    /// <summary>
-    /// The tree to build a formula from: what was written, with what each macro means hung beneath it, and
-    /// anything that cannot be drawn — and anything currently being typed — shown as the characters it is
-    /// made of.
-    /// </summary>
-    /// <param name="draws">
-    /// Whether whatever is going to set this tree knows how to draw a command, given its name as
-    /// written, backslash and all. Asked for rather than known, because what can be drawn is a fact
-    /// about a typesetter and this is a reader.
-    /// </param>
-    /// <param name="editing">
-    /// A stretch somebody is in the middle of typing, shown rather than read for as long as they are.
-    /// </param>
-    /// <param name="holes">
-    /// Whether an argument or a cell left empty gets a hole standing in it. Asked for by a surface being
-    /// written on, where the hole is how a reader sees there is something still to write and how they aim
-    /// at it; off by default, because a box in a formula that is only being read would simply be wrong.
-    /// </param>
-    public static ContentNode Read(string latex, Func<string, bool>? draws = null,
-                                   (int Start, int Length)? editing = null, bool holes = false) =>
-        Of(draws, editing, holes).Run(TexParser.Parse(latex));
-
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
     public static AstPipeline Of(Func<string, bool>? draws = null, (int Start, int Length)? editing = null,
                                  bool holes = false) =>

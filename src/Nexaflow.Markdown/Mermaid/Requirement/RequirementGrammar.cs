@@ -186,7 +186,7 @@ public sealed class RequirementGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether what is styled is written at all (<see cref="ResolveStyles"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveStyles()];
 
     /// <inheritdoc/>
     /// <remarks>

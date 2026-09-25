@@ -97,7 +97,7 @@ public sealed class GanttGrammar : IMermaidGrammar
     public string Naming(string name) => new([.. name.Select(character => Letter(character) ? character : '_')]);
 
     /// <inheritdoc/>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveSchedule()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSchedule()];
 
     /// <inheritdoc/>
     /// <remarks>Where a name, a date or an id is still to write.</remarks>

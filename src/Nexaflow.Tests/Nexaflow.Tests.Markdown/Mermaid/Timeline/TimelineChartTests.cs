@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Timeline;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Timeline;
 
@@ -14,7 +15,7 @@ public class TimelineChartTests
     [TestMethod]
     public void EachPeriodGathersTheEventsWrittenAfterItsColons()
     {
-        var chart = TimelineChart.Read(TimelineGrammarTests.Social);
+        var chart = TimelineChart.Of(MermaidStaged.Read(TimelineGrammarTests.Social));
         var periods = chart.Periods.ToList();
 
         Assert.AreEqual(4, periods.Count);
@@ -25,7 +26,7 @@ public class TimelineChartTests
     [TestMethod]
     public void ALineOfFurtherEventsAddsThemToThePeriodAboveIt()
     {
-        var period = TimelineChart.Read("timeline\n    2004 : Facebook\n         : Google\n         : Orkut").Periods.Single();
+        var period = TimelineChart.Of(MermaidStaged.Read("timeline\n    2004 : Facebook\n         : Google\n         : Orkut")).Periods.Single();
 
         CollectionAssert.AreEqual(new[] { "Facebook", "Google", "Orkut" }, period.Events.Select(said => said.Says.Says.Text).ToArray());
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, period.Events.Select(said => said.Order).ToArray());
@@ -34,7 +35,7 @@ public class TimelineChartTests
     [TestMethod]
     public void SectionsGroupThePeriodsWrittenUnderThem()
     {
-        var chart = TimelineChart.Read(TimelineGrammarTests.Pizzas);
+        var chart = TimelineChart.Of(MermaidStaged.Read(TimelineGrammarTests.Pizzas));
 
         Assert.IsTrue(chart.Sectioned);
         Assert.AreEqual(2, chart.Sections.Count);
@@ -47,7 +48,7 @@ public class TimelineChartTests
     [TestMethod]
     public void PeriodsWrittenBeforeAnySectionAreASectionWithNoName()
     {
-        var chart = TimelineChart.Read("timeline\n    2002 : LinkedIn\n    section Later\n        2006 : Twitter");
+        var chart = TimelineChart.Of(MermaidStaged.Read("timeline\n    2002 : LinkedIn\n    section Later\n        2006 : Twitter"));
 
         Assert.AreEqual(2, chart.Sections.Count);
         Assert.IsNull(chart.Sections[0].Name);
@@ -58,17 +59,17 @@ public class TimelineChartTests
     [TestMethod]
     public void WhichWayItRunsIsWhatTheLastLineSayingSoAsks()
     {
-        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Read("timeline\n    2002 : LinkedIn").Way);
-        Assert.AreEqual(TimelineWay.TopDown, TimelineChart.Read("timeline TD\n    2002 : LinkedIn").Way);
-        Assert.AreEqual(TimelineWay.TopDown, TimelineChart.Read("timeline\n    direction TB\n    2002 : LinkedIn").Way);
-        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Read("timeline TD\n    direction LR\n    2002 : LinkedIn").Way);
-        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Read("timeline\n    direction sideways\n    2002 : LinkedIn").Way, "a way nobody knows is no way at all");
+        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Of(MermaidStaged.Read("timeline\n    2002 : LinkedIn")).Way);
+        Assert.AreEqual(TimelineWay.TopDown, TimelineChart.Of(MermaidStaged.Read("timeline TD\n    2002 : LinkedIn")).Way);
+        Assert.AreEqual(TimelineWay.TopDown, TimelineChart.Of(MermaidStaged.Read("timeline\n    direction TB\n    2002 : LinkedIn")).Way);
+        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Of(MermaidStaged.Read("timeline TD\n    direction LR\n    2002 : LinkedIn")).Way);
+        Assert.AreEqual(TimelineWay.LeftToRight, TimelineChart.Of(MermaidStaged.Read("timeline\n    direction sideways\n    2002 : LinkedIn")).Way, "a way nobody knows is no way at all");
     }
 
     [TestMethod]
     public void AnEventThatSaysNothingIsNothingWritten()
     {
-        var period = TimelineChart.Read("timeline\n    2004 : : Google").Periods.Single();
+        var period = TimelineChart.Of(MermaidStaged.Read("timeline\n    2004 : : Google")).Periods.Single();
 
         Assert.AreEqual("Google", period.Events.Single().Says.Says.Text);
     }
@@ -76,9 +77,8 @@ public class TimelineChartTests
     [TestMethod]
     public void TheFrontMattersOptionsAndColourSlotsAreRead()
     {
-        var config = TimelineChart.Read(
-            "---\nconfig:\n  timeline:\n    disableMulticolor: true\n    padding: 4\n  themeVariables:\n    cScale2: \"#4e79a7\"\n"
-            + "    cScaleLabel2: \"#ffffff\"\n---\ntimeline\n    2002 : LinkedIn").Config;
+        var config = TimelineChart.Of(MermaidStaged.Read("---\nconfig:\n  timeline:\n    disableMulticolor: true\n    padding: 4\n  themeVariables:\n    cScale2: \"#4e79a7\"\n"
+            + "    cScaleLabel2: \"#ffffff\"\n---\ntimeline\n    2002 : LinkedIn")).Config;
 
         Assert.IsTrue(config.DisableMulticolor);
         Assert.AreEqual(4, config.Padding);
@@ -90,8 +90,8 @@ public class TimelineChartTests
     [TestMethod]
     public void ABlockWithNoPeriodsHasNothingToDraw()
     {
-        Assert.IsTrue(TimelineChart.Read("timeline").Empty);
-        Assert.IsTrue(TimelineChart.Read("timeline\n    section Early").Empty);
-        Assert.IsFalse(TimelineChart.Read("timeline\n    2002").Empty);
+        Assert.IsTrue(TimelineChart.Of(MermaidStaged.Read("timeline")).Empty);
+        Assert.IsTrue(TimelineChart.Of(MermaidStaged.Read("timeline\n    section Early")).Empty);
+        Assert.IsFalse(TimelineChart.Of(MermaidStaged.Read("timeline\n    2002")).Empty);
     }
 }

@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Xy;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Xy;
 
@@ -14,7 +15,7 @@ public class XyChartTests
     [TestMethod]
     public void TheDocumentedChartIsReadWhole()
     {
-        var chart = XyChart.Read(XyGrammarTests.Revenue);
+        var chart = XyChart.Of(MermaidStaged.Read(XyGrammarTests.Revenue));
 
         Assert.AreEqual("Sales Revenue", chart.Block.TitleText);
         Assert.AreEqual(XyOrientation.Vertical, chart.Orientation);
@@ -26,32 +27,32 @@ public class XyChartTests
     [TestMethod]
     public void WhichWayItRunsIsTheHeaders_UnlessTheFrontMatterSays()
     {
-        Assert.AreEqual(XyOrientation.Horizontal, XyChart.Read("xychart horizontal\n  bar [1]").Orientation);
+        Assert.AreEqual(XyOrientation.Horizontal, XyChart.Of(MermaidStaged.Read("xychart horizontal\n  bar [1]")).Orientation);
         Assert.AreEqual(XyOrientation.Vertical,
-                        XyChart.Read("---\nconfig:\n  xyChart:\n    chartOrientation: vertical\n---\nxychart horizontal\n  bar [1]").Orientation);
+                        XyChart.Of(MermaidStaged.Read("---\nconfig:\n  xyChart:\n    chartOrientation: vertical\n---\nxychart horizontal\n  bar [1]")).Orientation);
     }
 
     [TestMethod]
     public void WithNoRangeWrittenTheValuesAreTheirOwn_FromNoughtWhereThereAreBars()
     {
-        Assert.AreEqual((0d, 8d), XyChart.Read("xychart\n  bar [2, 8]").Range);
-        Assert.AreEqual((2d, 8d), XyChart.Read("xychart\n  line [2, 8]").Range);
-        Assert.AreEqual((-5d, 3d), XyChart.Read("xychart\n  bar [-5, 3]").Range);
-        Assert.AreEqual((0d, 1d), XyChart.Read("xychart").Range, "and one wide where there is nothing");
+        Assert.AreEqual((0d, 8d), XyChart.Of(MermaidStaged.Read("xychart\n  bar [2, 8]")).Range);
+        Assert.AreEqual((2d, 8d), XyChart.Of(MermaidStaged.Read("xychart\n  line [2, 8]")).Range);
+        Assert.AreEqual((-5d, 3d), XyChart.Of(MermaidStaged.Read("xychart\n  bar [-5, 3]")).Range);
+        Assert.AreEqual((0d, 1d), XyChart.Of(MermaidStaged.Read("xychart")).Range, "and one wide where there is nothing");
     }
 
     [TestMethod]
     public void WithNoCategoriesTheSlotsAreTheLongestSeries() =>
-        Assert.AreEqual(4, XyChart.Read("xychart\n  x-axis 0 --> 10\n  bar [1, 2]\n  line [1, 2, 3, 4]").Slots);
+        Assert.AreEqual(4, XyChart.Of(MermaidStaged.Read("xychart\n  x-axis 0 --> 10\n  bar [1, 2]\n  line [1, 2, 3, 4]")).Slots);
 
     [TestMethod]
     public void AnAxisWrittenTwiceIsTheLastOneWritten() =>
-        Assert.AreEqual("b", XyChart.Read("xychart\n  x-axis [a]\n  x-axis [b]").X!.Categories.Single().Name.Text);
+        Assert.AreEqual("b", XyChart.Of(MermaidStaged.Read("xychart\n  x-axis [a]\n  x-axis [b]")).X!.Categories.Single().Name.Text);
 
     [TestMethod]
     public void OnlyANamedSeriesHasAName_AndEachTakesThePalettesColourForItsPlace()
     {
-        var chart = XyChart.Read("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000, #00ff00\"\n---\nxychart\n  bar \"Sold\" [1]\n  line [2]\n  bar [3]");
+        var chart = XyChart.Of(MermaidStaged.Read("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000, #00ff00\"\n---\nxychart\n  bar \"Sold\" [1]\n  line [2]\n  bar [3]"));
 
         Assert.AreEqual("Sold", chart.Series[0].Name!.Text);
         Assert.IsNull(chart.Series[1].Name);

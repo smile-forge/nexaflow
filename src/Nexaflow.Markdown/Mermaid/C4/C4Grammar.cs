@@ -153,7 +153,7 @@ public class C4Grammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Which boundary each line is written inside, which is a fact about the whole block rather than about a line.</remarks>
-    public virtual IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveBoundaries()];
+    public virtual IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveBoundaries()];
 
     /// <inheritdoc/>
     /// <remarks>Between an argument's quotes, and wherever a line of the other language has one.</remarks>

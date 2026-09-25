@@ -518,7 +518,7 @@ public class CodeIntelligenceTests
     public void AMembersLinkTokenIsPeeledFromWhatTheRowSays()
     {
         const string src = "classDiagram\n  class Shape {\n    +draw() @@nx:line#42\n    -color\n  }\n";
-        var shape = ClassDiagram.Read(src).Find("Shape");
+        var shape = ClassDiagram.Of(new Nexaflow.Visuals.Text.Markdown.ContentEngine().Read("mermaid", src).Root.Node).Find("Shape");
 
         Assert.IsNotNull(shape);
         var method = shape!.Methods.Single();

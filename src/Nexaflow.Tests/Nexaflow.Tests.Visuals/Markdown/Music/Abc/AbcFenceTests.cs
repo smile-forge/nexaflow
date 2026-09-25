@@ -105,7 +105,7 @@ public class AbcFenceTests
         // Where a tune was collected is a fact ABOUT the tune rather than part of it, so it is read and
         // kept — a details panel is the place for it — and it is not drawn.
         Assert.IsFalse(layout.Root.SelfAndDescendants().Any(n => n.Kind == "source"));
-        Assert.AreEqual("Sussex", AbcHeader.Of(ContentReading.Of(AbcPipeline.Read(tune))).Source);
+        Assert.AreEqual("Sussex", AbcHeader.Of(ContentReading.Of(AbcPipeline.Of().Run(AbcParser.Parse(tune)))).Source);
     });
 
     [TestMethod]

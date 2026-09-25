@@ -58,7 +58,7 @@ public static class RadarPiece
 /// under it where the room is too narrow for both.
 /// </para>
 /// </summary>
-internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
+internal sealed class RadarBuilder : MermaidBuilder
 {
     /// <summary>How big the chart is drawn before anything asks for another size.</summary>
     private const double Radius = 130;
@@ -89,34 +89,55 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
 
     internal RadarBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override RadarChart Of(MermaidBlock block) => RadarChart.Of(block);
+    /// <summary>The chart as its stages left it on the block.</summary>
+    private RadarBlockNode? Chart => Reading.Root.Node as RadarBlockNode;
+
+    /// <summary>A curve as its stages left it, and the part of the reading that is.</summary>
+    private readonly record struct Curve(ContentPart Part, RadarCurveNode Said);
 
     /// <summary>The front matter's <c>titleColor</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleTextColour;
+    protected override string? TitleColour => Chart?.Config.TitleTextColour;
 
     /// <summary>The front matter's <c>fontSize</c>, where it writes one.</summary>
-    protected override double? TitleTextSize => Diagram?.Config.TitleTextSize;
+    protected override double? TitleTextSize => Chart?.Config.TitleTextSize;
 
-    protected override Size Draw(RadarChart chart, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        if (Chart is not { } chart) return AsWritten(build);
         var config = chart.Config;
 
-        // While the chart is being written, an axis or a curve still to name has a spoke or a legend row to name it in, and a
-        // curve still waiting for its values has its row: a piece that went away would take the caret with it. A chart only
-        // being read draws what there is.
-        IReadOnlyList<RadarAxis> axes = Writing ? chart.Axes : [.. chart.Axes.Where(axis => axis.Id.Length > 0)];
-        var curves = chart.Curves.Where(curve => curve.Drawn).ToList();
-        IReadOnlyList<RadarCurve> listed = Writing ? chart.Curves : curves;
+        // Which axes have spokes and which curves the legend lists, its stages said — while the chart is being written, those
+        // still to name as well.
+        var axes = new List<ContentPart>();
+        var listed = new List<Curve>();
+        ContentPart? shaped = null;
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case RadarAxisNode:
+                    axes.Add(part);
+                    break;
+
+                case RadarCurveNode { Listed: true } curve:
+                    listed.Add(new Curve(part, curve));
+                    break;
+
+                case RadarShapingNode:
+                    shaped = part;
+                    break;
+            }
+        }
 
         // A radar of no axes is the source: there is nothing to draw a curve on, and what the reader wants is their own lines
         // back with whatever is wrong with them said underneath.
         if (axes.Count == 0) return AsWritten(build);
 
-        var labels = axes.Select(axis => Written(axis.Says, axis.Hole, config.AxisLabelTextSize ?? LabelSize, Palette.Text)).ToList();
+        var labels = axes.Select(axis => Written(Says(axis), HoleOf(axis), config.AxisLabelTextSize ?? LabelSize, Palette.Text)).ToList();
         var margins = new Thickness(config.MarginLeft ?? Margin, config.MarginTop ?? Margin, config.MarginRight ?? Margin, config.MarginBottom ?? Margin);
 
-        var legend = new DiagramLegend(chart.ShowsLegend ? [.. listed.Select(curve => Key(chart, curve))] : [], Columns, across: false, Palette.TextMuted)
+        var legend = new DiagramLegend(chart.ShowsLegend ? [.. listed.Select(curve => Key(config, curve))] : [], Columns, across: false, Palette.TextMuted)
         {
             Square = config.LegendBoxSize ?? DiagramLegend.SwatchSize,
         };
@@ -130,9 +151,9 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
         var centre = new Point(margins.Left - extent.X, margins.Top - extent.Y);
         var chartSize = new Size(extent.Width + margins.Left + margins.Right, extent.Height + margins.Top + margins.Bottom);
 
-        Graticule(build, chart, axes.Count, centre, radius);
-        Spokes(build, chart, axes, centre, radius);
-        Curves(build, chart, axes, listed.Where(curve => curve.Drawn).ToList(), centre, radius);
+        Graticule(build, chart, shaped, axes.Count, centre, radius);
+        Spokes(build, config, axes, centre, radius);
+        Curves(build, chart, axes.Count, [.. listed.Where(curve => curve.Said.Drawn)], centre, radius);
         Labels(build, labels, axes.Select((_, at) => Label(at, radius, centre)).ToList());
 
         if (legend.Size.Width <= 0) return chartSize;
@@ -192,7 +213,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
 
     // ── The graticule ───────────────────────────────────────────────────────
 
-    private void Graticule(LayoutBuilder build, RadarChart chart, int count, Point centre, double radius)
+    private void Graticule(LayoutBuilder build, RadarBlockNode chart, ContentPart? shaped, int count, Point centre, double radius)
     {
         var config = chart.Config;
         var ink = Ink.Written(config.GraticuleColour) ?? Palette.CodeBorder;
@@ -209,7 +230,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
                 ? DiagramCurve.Closed([.. Enumerable.Range(0, count).Select(at => On(centre, reach, Angle(at, count)))])
                 : Circle(centre, reach);
 
-            build.Open(RadarPiece.Ring, chart.Shaped, stops: Stops.None);
+            build.Open(RadarPiece.Ring, shaped, stops: Stops.None);
             build.Draw(new GeometryMark(shape, fill, ink, config.GraticuleStrokeWidth ?? 1));
             build.Occupies(shape);
             build.Close();
@@ -227,17 +248,17 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
 
     // ── The spokes ──────────────────────────────────────────────────────────
 
-    private void Spokes(LayoutBuilder build, RadarChart chart, IReadOnlyList<RadarAxis> axes, Point centre, double radius)
+    private void Spokes(LayoutBuilder build, RadarConfig config, IReadOnlyList<ContentPart> axes, Point centre, double radius)
     {
-        var stroke = new DiagramStroke(Ink.Written(chart.Config.AxisColour) ?? Palette.TextMuted, chart.Config.AxisStrokeWidth ?? 1);
-        var reach = radius * chart.Config.AxisScaleFactor;
+        var stroke = new DiagramStroke(Ink.Written(config.AxisColour) ?? Palette.TextMuted, config.AxisStrokeWidth ?? 1);
+        var reach = radius * config.AxisScaleFactor;
 
         build.Open(RadarPiece.Spokes, part: null, stops: Stops.None);
 
         // A spoke of no length is nothing to draw, or to press.
         if (reach > 0)
             for (var at = 0; at < axes.Count; at++)
-                DiagramConnector.Draw(build, RadarPiece.Spoke, Standing(axes[at].Part), [centre, On(centre, reach, Angle(at, axes.Count))], stroke,
+                DiagramConnector.Draw(build, RadarPiece.Spoke, Standing(axes[at]), [centre, On(centre, reach, Angle(at, axes.Count))], stroke,
                                       DiagramHead.None, DiagramHead.None);
 
         build.Close();
@@ -245,7 +266,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
 
     // ── The curves ──────────────────────────────────────────────────────────
 
-    private void Curves(LayoutBuilder build, RadarChart chart, IReadOnlyList<RadarAxis> axes, IReadOnlyList<RadarCurve> curves, Point centre, double radius)
+    private void Curves(LayoutBuilder build, RadarBlockNode chart, int spokes, IReadOnlyList<Curve> curves, Point centre, double radius)
     {
         var config = chart.Config;
         var tension = chart.Graticule == RadarGraticule.Circle ? config.CurveTension : 0;
@@ -253,7 +274,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
         // Where a curve gives an axis nothing it stays at the middle, as a value of min would.
         var shapes = curves
             .Select(curve => DiagramCurve.Closed(
-                [.. axes.Select((axis, at) => On(centre, radius * chart.Reach(chart.Value(curve, axis) ?? chart.Min), Angle(at, axes.Count)))], tension))
+                [.. curve.Said.Points.Select((point, at) => On(centre, radius * Reach(chart, point ?? chart.Min), Angle(at, spokes)))], tension))
             .ToList();
 
         build.Open(RadarPiece.Curves, part: null, stops: Stops.None);
@@ -261,7 +282,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
         for (var order = 0; order < curves.Count; order++)
         {
             var curve = curves[order];
-            var ink = Colour(curve);
+            var ink = Colour(curve.Said);
 
             // What a press on it means: all of it but where a curve drawn over it covers it, so a press lands on the curve seen there.
             Geometry stands = shapes[order];
@@ -279,7 +300,10 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
     }
 
     /// <summary>What a curve is drawn in: the front matter's colour for its place, or the theme's.</summary>
-    private Brush Colour(RadarCurve curve) => Ink.Series(curve.Order, curve.Colour);
+    private Brush Colour(RadarCurveNode curve) => Ink.Series(curve.Order, curve.Colour);
+
+    /// <summary>How far out along its axis a value reaches, from nought at the middle to one at the rim — no further either way.</summary>
+    private static double Reach(RadarBlockNode chart, double value) => Math.Clamp((value - chart.Min) / (chart.Max - chart.Min), 0, 1);
 
     // ── The labels ──────────────────────────────────────────────────────────
 
@@ -296,9 +320,9 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
     // ── The legend ──────────────────────────────────────────────────────────
 
     /// <summary>A curve's row: its colour, where it has anything to draw, and what it is called.</summary>
-    private DiagramKey Key(RadarChart chart, RadarCurve curve) =>
-        new(Standing(curve.Part), curve.Drawn ? Colour(curve) : null,
-            [Written(curve.Says, curve.Hole, chart.Config.LegendTextSize ?? LegendSize, Palette.Text)]);
+    private DiagramKey Key(RadarConfig config, Curve curve) =>
+        new(Standing(curve.Part), curve.Said.Drawn ? Colour(curve.Said) : null,
+            [Written(Says(curve.Part), HoleOf(curve.Part), config.LegendTextSize ?? LegendSize, Palette.Text)]);
 
     // ── Where it goes ───────────────────────────────────────────────────────
 
@@ -307,6 +331,16 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
     /// only the hole standing in its name is somewhere to write.
     /// </summary>
     private static ContentPart? Standing(ContentPart part) => part.Length > 0 ? part : null;
+
+    /// <summary>What is written for an axis or a curve: its label, or its name where it has none.</summary>
+    private static ContentPart Says(ContentPart item) => LabelOf(item).Words() ?? NameOf(item).Words()!;
+
+    /// <summary>The hole standing where what is written for an axis or a curve is still to be written, where holes were asked for and it is.</summary>
+    private static ContentPart? HoleOf(ContentPart item) => LabelOf(item) is { } label ? label.Hole() : NameOf(item).Hole();
+
+    private static ContentPart? LabelOf(ContentPart item) => item.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label);
+
+    private static ContentPart? NameOf(ContentPart item) => item.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
 
     /// <summary>Which way the <paramref name="at"/>th of <paramref name="count"/> axes points: the first straight up, and the rest clockwise.</summary>
     private static double Angle(int at, int count) => (-Math.PI / 2) + (2 * Math.PI * at / count);

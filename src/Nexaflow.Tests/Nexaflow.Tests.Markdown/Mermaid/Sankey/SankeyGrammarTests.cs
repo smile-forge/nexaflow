@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Sankey;
 
@@ -74,7 +75,7 @@ public class SankeyGrammarTests : MermaidGrammarContract
                      ("sankey-beta\na,b,10,20", "is not a number"),
                  })
         {
-            var trouble = MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
+            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
             Assert.IsTrue(trouble.Any(reason => reason.Contains(said, StringComparison.Ordinal)),
                           $"{source}\nsays {string.Join(" / ", trouble)}, and nothing about '{said}'");
         }

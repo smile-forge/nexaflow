@@ -122,7 +122,7 @@ public sealed class GitGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>What the history means together — the branch each commit is on, and what is not there to check out, merge or pick (<see cref="ResolveGraph"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveGraph(GitConfig.Read(block.Config).MainBranchName)];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGraph(GitConfig.Read(block.Config).MainBranchName)];
 
     /// <inheritdoc/>
     /// <remarks>Where a branch's name is still to write.</remarks>

@@ -96,9 +96,19 @@ parser cannot make sense of is held as written, carrying the reason.
 **`Kind` and `Role` are open strings.** A shared tree cannot hold an enum of every language's kinds and needs none;
 `Kinds` and `Roles` carry only what is genuinely shared.
 
-**What the characters do not say is a derived part** (`Roles.Derived`): no width, printed as nothing, hung under the node
-it is about — what a macro means, which accidental a note actually prints, which picture a name resolved to
-(`ContentNode.Held`, untyped because what a name resolves to is often something this assembly cannot name).
+**Every parser makes the same node, and the stages make it their language's own.** A parser's `ContentNode` is what
+every tree shares: what a piece is, its characters or its parts, and so where it stands in the source. A stage may put
+a node of its language's own type in its place (`PieSliceNode : ContentNode`) — standing for exactly the same
+characters, and carrying, typed, whatever was worked out about them. What such a node holds is between that language's
+stages and its builder; nothing shared reads it. A rewrite keeps a node's type (`ContentNode.Reshaped`), so a later
+stage, or the engine putting nested content back, never loses what an earlier one said.
+
+**What stands for no characters at all is a derived part** (`Roles.Derived`): no width, printed as nothing, hung under
+the node it is about — a hole, what a macro means, which picture a name resolved to (`ContentNode.Held`, untyped
+because what a name resolves to is often something this assembly cannot name).
+
+**A tree the builder has laid out is finished.** Nothing rewrites it: editing works from where its parts stand in the
+source, writes the source, and the engine reads it again.
 
 ## Content in another language
 
@@ -117,10 +127,12 @@ the holders from a part upwards, what was read in one, and the parts of a tree t
 public interface IAstStage { string Name { get; } ContentNode Run(ContentNode tree); }
 ```
 
-**The one rule: `stage.Run(t).Print() == t.Print()`.** A stage may re-nest, replace a piece with another, or hang facts
-underneath, as long as the characters coming out are the ones that went in. `AstPipeline` checks it between stages in a
-debug build and names the stage that broke it. `AstRewrite.Regrouping` keeps a node's own derived facts from being swept
-into a group made of its children, where they would no longer be true.
+**The one rule: `stage.Run(t).Print() == t.Print()`.** A stage may group pieces whose characters sit side by side, split
+one, replace one with a node of its language's own type, or hang derived parts underneath, as long as the characters
+coming out are the ones that went in. What belongs together but was written apart is gathered under a parent of the
+language's own rather than into one node. `AstPipeline` checks the rule between stages in a debug build and names the
+stage that broke it. `AstRewrite.Regrouping` keeps a node's own derived parts from being swept into a group made of its
+children, where they would no longer be true.
 
 Which stages a language runs, and in what order, is that language's and changes as it learns to read more; that they
 are actors, compose and leave the source alone is fixed. A parser is not a stage: where one token stops and the next

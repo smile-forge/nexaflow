@@ -137,7 +137,7 @@ public class SmilesPipelineTests
     public void AWellFormedMoleculeSaysNothing()
     {
         foreach (var smiles in new[] { "CC(=O)Oc1ccccc1C(=O)O", "Cn1cnc2c1c(=O)n(C)c(=O)n2C", "[NH4+].[Cl-]", "CN(=O)=O", "OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O" })
-            Assert.IsFalse(SmilesPipeline.Read(smiles).SelfAndDescendants().Any(node => node.Trouble is not null), smiles);
+            Assert.IsFalse(SmilesPipeline.Of().Run(SmilesParser.Parse(smiles)).SelfAndDescendants().Any(node => node.Trouble is not null), smiles);
     }
 
     [TestMethod]

@@ -25,7 +25,7 @@ public class AbcEditTests
     /// <summary>The tune read the way an editor holds it, and the notes in it in written order.</summary>
     private static (ContentReading Reading, IReadOnlyList<ContentPart> Notes) Read(string abc = Tune)
     {
-        var reading = ContentReading.Of(AbcPipeline.Read(abc));
+        var reading = ContentReading.Of(AbcPipeline.Of().Run(AbcParser.Parse(abc)));
 
         var notes = reading.Root.SelfAndDescendants()
             .Where(p => p.Kind == AbcKinds.Note && !p.Derived && p.Part(AbcRoles.Letter) is not null)

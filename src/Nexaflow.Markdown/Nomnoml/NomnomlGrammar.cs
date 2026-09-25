@@ -127,7 +127,7 @@ public sealed class NomnomlGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing is worked out after the fact: every part of a nomnoml block is written in its own characters.</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [];
 
     /// <inheritdoc/>
     /// <remarks>In a node's name, in a member, and in what is written along an association.</remarks>

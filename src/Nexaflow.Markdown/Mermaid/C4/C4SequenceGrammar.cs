@@ -25,7 +25,7 @@ public sealed class C4SequenceGrammar : C4Grammar
     /// The same stages a sequence diagram runs, with a boundary counted among the things that open a box and its <c>}</c>
     /// among the things that close one.
     /// </remarks>
-    public override IEnumerable<IAstStage> Stages(MermaidBlock block) =>
+    public override IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
     [
         new ResolveFrames([C4Kinds.Boundary], [C4Kinds.Macro, C4Kinds.Aside], [C4Kinds.Ends]),
         new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered),

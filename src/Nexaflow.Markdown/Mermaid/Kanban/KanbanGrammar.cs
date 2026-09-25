@@ -39,7 +39,7 @@ public sealed class KanbanGrammar : IMermaidGrammar
     /// <inheritdoc/>
     /// <remarks>Under a column, a card with its title still to write, indented under it; anywhere else, one as far in as the line above.</remarks>
     public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above?.Kind == KanbanKinds.Node && above.Said(KanbanRoles.Column) is not null ? ("  [\"\"]", 4) : ("[\"\"]", 2);
+        above is KanbanColumnNode ? ("  [\"\"]", 4) : ("[\"\"]", 2);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -63,7 +63,7 @@ public sealed class KanbanGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether each node is a column or a card, by its indentation over the whole block (<see cref="ResolveColumns"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveColumns()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveColumns(KanbanConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a title is still to write, between its quotes.</remarks>

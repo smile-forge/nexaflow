@@ -99,7 +99,7 @@ public class NomnomlGrammarTests : MermaidGrammarContract
     {
         foreach (var operation in NomnomlGrammar.Operators)
         {
-            var model = NomnomlDiagram.Read($"[A] {operation} [B]");
+            var model = NomnomlDiagram.Of(MermaidBlock.Of(MermaidStaged.Read($"[A] {operation} [B]", grammar: NomnomlDiagram.Grammar)));
 
             Assert.AreEqual(1, model.Relations.Count, operation);
             Assert.AreEqual("A", model.Relations[0].From, operation);
@@ -112,7 +112,7 @@ public class NomnomlGrammarTests : MermaidGrammarContract
     {
         foreach (var operation in NomnomlGrammar.Operators)
         {
-            var read = NomnomlDiagram.Read($"[A] {operation} [B]").Relations[0];
+            var read = NomnomlDiagram.Of(MermaidBlock.Of(MermaidStaged.Read($"[A] {operation} [B]", grammar: NomnomlDiagram.Grammar))).Relations[0];
 
             Assert.AreEqual(NomnomlDiagram.Ends(operation), (read.Head, read.Tail, read.Dotted), operation);
         }

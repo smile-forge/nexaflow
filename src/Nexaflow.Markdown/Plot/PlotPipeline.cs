@@ -28,9 +28,6 @@ public static class PlotPipeline
             new ResolveAesthetics(settings),
             new ResolveCorrelations(settings));
 
-    /// <summary>A block parsed and worked out (<see cref="ResolveSettings"/>).</summary>
-    public static ContentNode Read(string? source, PlotFence fence) => new ResolveSettings(fence).Run(PlotParser.Parse(source));
-
     /// <summary>The settings a tree <see cref="Read"/> made was read with, or null where they could not be read.</summary>
     public static PlotSettings? Settings(ContentNode tree) => tree.HeldAs(PlotRoles.Settings) as PlotSettings;
 }

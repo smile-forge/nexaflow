@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Xy;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Xy;
 
@@ -93,7 +94,7 @@ public class XyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AnAxisIsItsTitleAndItsCategoriesOrItsRange()
     {
-        var chart = XyChart.Read(Revenue);
+        var chart = XyChart.Of(MermaidStaged.Read(Revenue));
 
         Assert.AreEqual(12, chart.X!.Categories.Count);
         Assert.AreEqual("jan", chart.X.Categories[0].Name.Text);
@@ -105,8 +106,8 @@ public class XyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AWordAheadOfTheArrowIsWhereTheRangeStarts_AndOneAheadOfThatIsTheTitle()
     {
-        var bare = XyChart.Read("xychart\n  x-axis 1 --> 12").X!;
-        var titled = XyChart.Read("xychart\n  x-axis Month 1 --> 12").X!;
+        var bare = XyChart.Of(MermaidStaged.Read("xychart\n  x-axis 1 --> 12")).X!;
+        var titled = XyChart.Of(MermaidStaged.Read("xychart\n  x-axis Month 1 --> 12")).X!;
 
         Assert.IsNull(bare.Title);
         Assert.AreEqual(1, bare.Min);
@@ -117,7 +118,7 @@ public class XyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AValueOfALineMayCarryALabel_SignedOrStartingAtItsPoint()
     {
-        var points = XyChart.Read("xychart\n  line [540 \"PaLM\", -.34, +1.3]").Series.Single().Points;
+        var points = XyChart.Of(MermaidStaged.Read("xychart\n  line [540 \"PaLM\", -.34, +1.3]")).Series.Single().Points;
 
         CollectionAssert.AreEqual(new double?[] { 540, -0.34, 1.3 }, points.Select(point => point.Worth).ToArray());
         Assert.AreEqual("PaLM", points[0].Label!.Text);
@@ -167,12 +168,12 @@ public class XyGrammarTests : MermaidGrammarContract
     public void ACategoryGivenASpaceIsPutInQuotes()
     {
         const string source = "xychart\n  x-axis [jan, feb]";
-        var jan = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "jan");
+        var jan = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "jan");
         var writing = new XyGrammar().Escaping(jan, jan.End, " ")!.Value;
 
         Assert.AreEqual("xychart\n  x-axis [\"jan \", feb]", source[..writing.Start] + writing.Text + source[writing.End..]);
     }
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

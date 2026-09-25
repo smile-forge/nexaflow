@@ -125,7 +125,7 @@ public class MarkdownLayoutBench
         var (edit, editKb) = Cost(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
 
         ContentNode read = null!;
-        var tRead = Median(() => read = MarkdownParser.Parse(text));
+        var tRead = Median(() => read = MarkdownParser.Parsing()(text).Tree);
 
         IAstStage[] pipeline =
         [
@@ -259,7 +259,7 @@ public class MarkdownLayoutBench
             if (ContentLanguages.For(language) is not { } read) return;
 
             var parse = read.Parser();
-            var tree = Time(stages, $"{language}: parse", () => parse(source));
+            var tree = Time(stages, $"{language}: parse", () => parse(source).Tree);
 
             var showing = new ContentShowing(language, style, false, null, 0, options)
             {

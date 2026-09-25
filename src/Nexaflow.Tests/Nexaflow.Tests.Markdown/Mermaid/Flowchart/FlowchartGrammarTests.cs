@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Flowchart;
 
@@ -209,14 +210,14 @@ public class FlowchartGrammarTests : MermaidGrammarContract
                      ("flowchart TD\n  a@{ shape: wibble }", "no shape called wibble"),
                  })
         {
-            var trouble = MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
+            var trouble = MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();
             Assert.IsTrue(trouble.Any(reason => reason.Contains(said, StringComparison.Ordinal)),
                           $"{source}\nsays {string.Join(" / ", trouble)}, and nothing about '{said}'");
         }
     }
 
     private static List<ContentPart> Written(string source) =>
-        [.. ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        [.. ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
               .Where(part => part.Kind == FlowchartKinds.Node)];
 
     /// <summary>What the first node of a block is called.</summary>

@@ -38,7 +38,7 @@ public static class KanbanPiece
 /// <c>ticketBaseUrl</c> says, and is drawn in the accent where it does.
 /// </para>
 /// </summary>
-internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
+internal sealed class KanbanBuilder : MermaidBuilder
 {
     private const double SectionWidth = 230;
     private const double TitleSize = 14;
@@ -74,13 +74,37 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
 
     internal KanbanBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override KanbanBoard Of(MermaidBlock block) => KanbanBoard.Of(block);
+    /// <summary>The board as its stage left it on the block.</summary>
+    private KanbanBlockNode? Board => Reading.Root.Node as KanbanBlockNode;
 
-    protected override Size Draw(KanbanBoard board, LayoutBuilder build)
+    /// <summary>A column: the part of the reading it is, what its stage said of it, and the cards in its lane.</summary>
+    private readonly record struct Column(ContentPart Part, KanbanColumnNode Said, List<Item> Cards);
+
+    /// <summary>A card: the part of the reading it is, and what its stage said of it.</summary>
+    private readonly record struct Item(ContentPart Part, KanbanCardNode Said);
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        if (Board is not { } board) return AsWritten(build);
+
+        // Each card goes in the lane of the column written above it.
+        var columns = new List<Column>();
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case KanbanColumnNode { Trouble: null } column:
+                    columns.Add(new Column(part, column, []));
+                    break;
+
+                case KanbanCardNode { Trouble: null } written when columns.Count > 0:
+                    columns[^1].Cards.Add(new Item(part, written));
+                    break;
+            }
+        }
+
         // A board with no column is the source.
-        if (board.Columns.Count == 0) return AsWritten(build);
+        if (columns.Count == 0) return AsWritten(build);
 
         var config = board.Config;
         var width = config.SectionWidth ?? SectionWidth;
@@ -89,19 +113,19 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
 
         // Every column's heading first — its title at the left and how many cards it holds at the right — so that all of them
         // are as tall as the tallest, and the first cards of every column stand level.
-        var headings = board.Columns.Select((column, index) =>
+        var headings = columns.Select((column, index) =>
         {
             var count = Worked(column.Cards.Count.ToString(CultureInfo.InvariantCulture), column.Part, CountSize, Palette.TextMuted);
-            var title = Titled(column.Title, column.Hole, column.Label, column.Part, TitleSize,
+            var title = Titled(Title(column.Part), HoleOf(column.Part), column.Said.Label, column.Part, TitleSize,
                                Ink.Written(config.ScaleLabel.GetValueOrDefault(Scale(index))) ?? text, width - (2 * Margin) - count.Width - Margin, FontWeights.SemiBold);
             return (Title: title, Count: count);
         }).ToList();
         var heading = headings.Max(said => Math.Max(said.Title.Sum(line => line.Height), said.Count.Height)) + (2 * HeadingPad);
 
-        var laid = new List<(KanbanColumn Column, double Left, List<Laying> Cards)>();
-        for (var index = 0; index < board.Columns.Count; index++)
+        var laid = new List<(Column Column, double Left, List<Laying> Cards)>();
+        for (var index = 0; index < columns.Count; index++)
         {
-            var column = board.Columns[index];
+            var column = columns[index];
             var left = index * (width + Apart);
             var cards = new List<Laying>();
             var y = heading + Margin;
@@ -109,7 +133,8 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
             foreach (var item in column.Cards)
             {
                 var inner = card - Stripe - (2 * Padding);
-                var lines = Titled(item.Title, item.Hole, item.Label, item.Part, CardSize, text, inner, null);
+                var said = item.Said;
+                var lines = Titled(Title(item.Part), HoleOf(item.Part), said.Label, item.Part, CardSize, text, inner, null);
                 var titleHeight = lines.Sum(line => line.Height);
                 var bounds = new Rect(left + Margin, y, card, 0);
                 var words = new List<(DiagramWords, Point, string)>();
@@ -118,9 +143,9 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
                 // Under the title, a chip each for its ticket, its priority and who it is assigned to, running on to another row
                 // where they do not all fit.
                 var chips = new List<Chip>();
-                if (item.Ticket is { } ticket) chips.Add(new Chip(Worked(ticket, item.Part, ChipSize, item.Link is null ? text : Palette.Accent), Palette.Accent, KanbanPiece.Ticket));
-                if (Priority(item.Priority) is { } urgency) chips.Add(new Chip(Worked(item.Priority!, item.Part, ChipSize, text), urgency, MermaidPiece.Words));
-                if (item.Assigned is { } who) chips.Add(new Chip(Worked(who, item.Part, ChipSize, text), Palette.TextMuted, KanbanPiece.Assigned));
+                if (said.Ticket is { } ticket) chips.Add(new Chip(Worked(ticket, item.Part, ChipSize, said.Linked ? Palette.Accent : text), Palette.Accent, KanbanPiece.Ticket));
+                if (Priority(said.Priority) is { } urgency) chips.Add(new Chip(Worked(said.Priority!, item.Part, ChipSize, text), urgency, MermaidPiece.Words));
+                if (said.Assigned is { } who) chips.Add(new Chip(Worked(who, item.Part, ChipSize, text), Palette.TextMuted, KanbanPiece.Assigned));
 
                 var foot = y + CardPad + titleHeight;
                 if (chips.Count > 0)
@@ -213,7 +238,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, over);
         foreach (var geometry in new Geometry[] { outline, stripe, stands }) geometry.Freeze();
 
-        var urgency = Priority(laying.Card.Priority);
+        var urgency = Priority(laying.Card.Said.Priority);
 
         build.Open(KanbanPiece.Card, laying.Card.Part, stops: Stops.None);
 
@@ -251,12 +276,22 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
     }
 
     /// <summary>A card laid out: where it is, its title's words and where each goes, and its chips.</summary>
-    private sealed record Laying(KanbanCard Card, Rect Bounds, List<(DiagramWords Words, Point At, string Kind)> Words, IReadOnlyList<Chip> Chips);
+    private sealed record Laying(Item Card, Rect Bounds, List<(DiagramWords Words, Point At, string Kind)> Words, IReadOnlyList<Chip> Chips);
 
     /// <summary>A title as written, wrapped to the room — or the label metadata gives it instead, pressed as the node.</summary>
     private IReadOnlyList<DiagramWords> Titled(ContentPart? title, ContentPart? hole, string? label,
                                                ContentPart node, double size, Brush ink, double room, FontWeight? weight) =>
         label is not null ? [Worked(label, node, size, ink, weight)] : Wrapped(title, hole, size, ink, room, weight);
+
+    /// <summary>A node's title: the words in its brackets, or else its bare id — null where it is still to write.</summary>
+    private static ContentPart? Title(ContentPart node) =>
+        node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label).Words() is { Length: > 0 } label ? label
+        : node.Children.Any(child => child.Kind == MermaidKinds.Label) ? null
+        : node.Children.FirstOrDefault(child => child is { Kind: MermaidKinds.Name, Role: KanbanRoles.Id }).Words() is { Length: > 0 } id ? id
+        : null;
+
+    /// <summary>The hole standing where a node's title is still to write.</summary>
+    private static ContentPart? HoleOf(ContentPart node) => node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label).Hole();
 
     /// <summary>Which of the theme's scale a column takes: Mermaid numbers its columns from one, and styles the first with the scale's third.</summary>
     private static int Scale(int column) => (column + 2) % 12;

@@ -207,7 +207,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     /// Which subgraph each line is in (<see cref="ResolveSubgraphs"/>), whether a link has nodes to join
     /// (<see cref="ResolveLinks"/>), and whether what is styled is written at all (<see cref="ResolveStyles"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveSubgraphs(), new ResolveLinks(), new ResolveStyles(), new ResolveShapes()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSubgraphs(), new ResolveLinks(), new ResolveStyles(), new ResolveShapes()];
 
     /// <inheritdoc/>
     /// <remarks>Between a label's quotes or brackets, and where a link's number is still to be written.</remarks>

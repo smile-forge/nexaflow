@@ -18,14 +18,15 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 /// <param name="Reads">Whether a fence calling itself a word is written in this language.</param>
 /// <param name="Parser">
-/// Makes the parse one showing of content keeps. Most languages hand back the same parse every time; one worth reading again
-/// and again as it is written hands back a parse that remembers what it read last time.
+/// Makes the parse one showing of content keeps, which hands back the tree and every piece in it written in another language.
+/// Most languages hand back the same parse every time; one worth reading again and again as it is written hands back a parse
+/// that remembers what it read last time.
 /// </param>
 /// <param name="Stages">What the parse is worked over by, in order, given the tree and what this showing of it is. A null stage is none.</param>
 /// <param name="Builder">The builder that lays the worked-over tree out, made for this showing.</param>
 public sealed record ContentLanguage(
     Func<string?, bool> Reads,
-    Func<Func<string, ContentNode>> Parser,
+    Func<Func<string, ContentParse>> Parser,
     Func<ContentNode, ContentShowing, IEnumerable<IAstStage?>> Stages,
     Func<ContentReading, ContentShowing, ContentBuilder> Builder)
 {

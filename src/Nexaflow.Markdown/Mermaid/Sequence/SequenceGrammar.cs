@@ -200,7 +200,7 @@ public sealed class SequenceGrammar : IMermaidGrammar
     /// Which box or frame each line is in (<see cref="ResolveFrames"/>), and the number <c>autonumber</c> gives each message
     /// (<see cref="ResolveNumbers"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) =>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveFrames(), new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered)];
 
     /// <inheritdoc/>

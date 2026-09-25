@@ -3,8 +3,15 @@
 A Mermaid diagram on the shared layout tree is read and drawn in four steps, like every other language the Markdown
 renderer draws ([markdown-ast.md](markdown-ast.md)):
 
-**grammar → stages → model → builder**, the builder emitting pieces of the layout tree, each standing for the part of
-the source it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
+**grammar → stages → builder.** The grammar reads the lines and says what each is. The stages write into the tree
+everything the lines mean — what goes together, what the front matter asks with its defaults filled in, the current date,
+what is shown while somebody is writing — so the builder is handed the answers. The builder lays the tree out, mostly a
+`switch` from a node to what is drawn for it, emitting pieces of the layout tree each standing for the part of the source
+it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
+
+Pie is written this way and has no model type. The other diagrams still read their tree back into one inside the builder
+(`<Type>Diagram.Of`), and are being taken apart the same way: what a model works out moves into stages, and what it
+draws stays in the builder.
 
 Every diagram is drawn this way, and each is built from **the Mermaid kit**: the pieces every diagram shares, decided
 once. Pie, Venn and radar are the
@@ -17,10 +24,10 @@ lines list items with values and whose options share a line, xychart one with ax
 |---|---|---|
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what it writes across several lines rather than one (`Stretches`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
-| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
+| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and said in the diagram's own nodes — `PieSliceNode`, `PieBlockNode` — or, where a diagram still has a model, hung underneath as facts | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
-| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | The model: the tree read back into what it describes, every part kept. `Of(MermaidBlock)`. The title is `MermaidBlock.Title` | `PieChart`, `VennDiagram`, `RadarChart` |
-| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder<TDiagram>`: `Of` reads the model, `Draw` draws it at the origin; a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
+| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | Only where a diagram still has a model: the tree read back into what it describes. A diagram without one has its stages write that into its own nodes (`…/<Type>/<Type>Nodes.cs`, as `PieNodes` and `RadarNodes`) | `VennDiagram` |
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading what its stages wrote (`MermaidBuilder<TDiagram>` where a diagram still has a model); a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
 **A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
@@ -73,7 +80,7 @@ diagram's own code sits in a folder of its own under each.
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since`; `Undo` to go back and say why, which is what a reading that did not work out returns |
 | end a line: the semicolon and the space one may end with, and what is wrong where anything else is written there | `MermaidLine.Closed` |
-| read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
+| read the tree the builder draws from | `Reading.Root` — the engine parsed it and ran its stages before the builder was made |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
 | say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens; several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame |
@@ -148,7 +155,8 @@ the curves after it). A piece standing for a stretch nothing is written in yet s
    tests derive from `MermaidGrammarContract` and list every construct, and what nobody means to write, in `Blocks`, and
    the documentation's examples in `DocumentedBlocks`.
 3. **Stages** for what lines mean together, and `Holds` for where a hole stands while the diagram is written.
-4. **The config and the model.**
+4. **The config**, hung on the block by a stage, and **stages writing the rest** of what the builder needs — a share, a
+   place in the order, whether something is listed — so the builder only lays out.
 5. **The builder**, named in `MermaidBuilders.For`: layers by how the diagram looks, each piece standing for the part it
    was drawn from. Its tests derive from `MermaidBuilderContract` and list what it draws in `Drawn`.
 6. **Writing in place**: `Blank`, `Escaping`, `Names` and `Naming` on the grammar, with editing tests like

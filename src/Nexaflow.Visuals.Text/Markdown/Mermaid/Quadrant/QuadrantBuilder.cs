@@ -47,7 +47,7 @@ public static class QuadrantPiece
 /// colour, goes in the middle of its quadrant where that is clear, or to whichever edge or corner of it is clearest.
 /// </para>
 /// </summary>
-internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
+internal sealed class QuadrantBuilder : MermaidBuilder
 {
     /// <summary>How big the chart is drawn before anything asks for another size.</summary>
     private const double Side = 380;
@@ -64,24 +64,57 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
 
     internal QuadrantBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override QuadrantChart Of(MermaidBlock block) => QuadrantChart.Of(block);
+    /// <summary>The chart as its stages left it on the block.</summary>
+    private QuadrantBlockNode? Chart => Reading.Root.Node as QuadrantBlockNode;
+
+    /// <summary>A point drawn: the part of the reading it is, what its stages said of it, where it comes among the points, and where it stands.</summary>
+    private readonly record struct Dot(ContentPart Part, QuadrantPointNode Said, int Order, Point Centre, double Radius);
 
     /// <summary>The front matter's <c>quadrantTitleFill</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleFill;
+    protected override string? TitleColour => Chart?.Config.TitleFill;
 
     /// <summary>The front matter's <c>titleFontSize</c>, where it writes one.</summary>
-    protected override double? TitleTextSize => Diagram?.Config.TitleFontSize;
+    protected override double? TitleTextSize => Chart?.Config.TitleFontSize;
 
-    protected override Size Draw(QuadrantChart chart, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        if (Chart is not { } chart) return AsWritten(build);
+        var config = chart.Config;
+
+        // Each line goes where what it writes is drawn — a line written twice is the last one written — and each point its
+        // stages made one of its own.
+        ContentPart? across = null, upwards = null;
+        var regions = new ContentPart?[4];
+        var points = new List<(ContentPart Part, QuadrantPointNode Said)>();
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case QuadrantPointNode point:
+                    points.Add((part, point));
+                    break;
+
+                case { Kind: QuadrantKinds.Axis } when Word(part) is { } word:
+                    if (word.Equals(QuadrantGrammar.XAxis, StringComparison.OrdinalIgnoreCase)) across = part;
+                    else upwards = part;
+                    break;
+
+                case { Kind: QuadrantKinds.Region } when Region(part) is >= 0 and var index:
+                    regions[index] = part;
+                    break;
+            }
+        }
+
+        var ends = new[] { Text(across, QuadrantRoles.Low), Text(across, QuadrantRoles.High), Text(upwards, QuadrantRoles.Low), Text(upwards, QuadrantRoles.High) };
+        var captions = regions.Select(line => Text(line, QuadrantRoles.Caption)).ToArray();
+
         // A chart with nothing written in it is the source.
-        if (chart.Points.Count == 0 && chart.Regions.All(region => region is null) && new[] { chart.Left, chart.Right, chart.Bottom, chart.Top }.All(end => end is null))
+        if (points.Count == 0 && captions.All(caption => caption is null) && ends.All(end => end is null))
             return AsWritten(build);
 
-        var config = chart.Config;
-        var along = new[] { chart.Left, chart.Right }.Select(end => Words(end, config.XAxisLabelFontSize ?? AxisSize, config.XAxisTextFill, Palette.TextMuted)).ToList();
-        var up = new[] { chart.Bottom, chart.Top }.Select(end => Words(end, config.YAxisLabelFontSize ?? AxisSize, config.YAxisTextFill, Palette.TextMuted)).ToList();
+        var along = ends[..2].Select(end => Words(end, config.XAxisLabelFontSize ?? AxisSize, config.XAxisTextFill, Palette.TextMuted)).ToList();
+        var up = ends[2..].Select(end => Words(end, config.YAxisLabelFontSize ?? AxisSize, config.YAxisTextFill, Palette.TextMuted)).ToList();
 
         // As big as it is asked to be, unless the room less the y-axis's words says smaller — kept its shape either way. Those
         // words read up the chart's side, so they take only their height beside it.
@@ -96,15 +129,18 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         var plot = new Rect(0, 0, wide, tall);
         var words = new List<Placing>();
 
-        var dots = new List<(QuadrantPoint Point, Point Centre, double Radius)>();
+        var dots = new List<Dot>();
         var names = new List<(DiagramWords Words, Point Centre, double Radius)>();
-        foreach (var point in chart.Points.Where(point => point.Placed))
+        for (var order = 0; order < points.Count; order++)
         {
+            var (part, point) = points[order];
+            if (!point.Placed) continue;
+
             var centre = new Point(Math.Clamp(point.X!.Value, 0, 1) * wide, (1 - Math.Clamp(point.Y!.Value, 0, 1)) * tall);
             var radius = point.Style.Radius ?? config.PointRadius ?? Radius;
-            dots.Add((point, centre, radius));
+            dots.Add(new Dot(part, point, order, centre, radius));
 
-            if (Words(point.Name, config.PointLabelFontSize ?? NameSize, config.PointTextFill, Palette.Text) is { } name)
+            if (Words(Text(part, QuadrantRoles.Name), config.PointLabelFontSize ?? NameSize, config.PointTextFill, Palette.Text) is { } name)
                 names.Add((name, centre, radius));
         }
 
@@ -137,7 +173,7 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         var cells = Enumerable.Range(0, 4).Select(index => Cell(plot, index)).ToList();
         for (var index = 0; index < 4; index++)
         {
-            if (Words(chart.Regions[index], config.QuadrantLabelFontSize ?? CaptionSize, config.QuadrantTextFills[index], Palette.TextMuted) is not { } caption) continue;
+            if (Words(captions[index], config.QuadrantLabelFontSize ?? CaptionSize, config.QuadrantTextFills[index], Palette.TextMuted) is not { } caption) continue;
             words.Add(new Placing(caption, Captioned(caption, cells[index], circles, words.Select(placing => placing.Box).ToList()), QuadrantPiece.Caption));
         }
 
@@ -145,16 +181,16 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         var room = new DiagramRoom();
         room.Reach(plot);
         foreach (var placing in words) room.Reach(placing.Box);
-        foreach (var (_, centre, radius) in dots) room.Reach(new Rect(centre.X - radius, centre.Y - radius, radius * 2, radius * 2));
+        foreach (var dot in dots) room.Reach(new Rect(dot.Centre.X - dot.Radius, dot.Centre.Y - dot.Radius, dot.Radius * 2, dot.Radius * 2));
         var shift = room.Shift;
 
         // What is drawn over the quadrants, which a press there means rather than the quadrant under it.
         var over = new GeometryGroup();
         foreach (var placing in words) over.Children.Add(new RectangleGeometry(Rect.Offset(placing.Box, shift)));
-        foreach (var (_, centre, radius) in dots) over.Children.Add(new EllipseGeometry(centre + shift, radius, radius));
+        foreach (var dot in dots) over.Children.Add(new EllipseGeometry(dot.Centre + shift, dot.Radius, dot.Radius));
         over.Freeze();
 
-        Quadrants(build, chart, cells, shift, over);
+        Quadrants(build, config, regions, captions, cells, shift, over);
         Borders(build, config, plot, shift);
         Points(build, config, dots, shift);
 
@@ -288,10 +324,22 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         return new Rect(plot.Left + (right ? plot.Width / 2 : 0), plot.Top + (top ? 0 : plot.Height / 2), plot.Width / 2, plot.Height / 2);
     }
 
-    private DiagramWords? Words(QuadrantText? text, double size, string? fill, Brush ink) =>
-        text is null ? null : Written(text.Says, text.Hole, size, Ink.Written(fill) ?? ink);
+    private DiagramWords? Words(ContentPart? text, double size, string? fill, Brush ink) =>
+        text is null ? null : Written(text.Words()!, text.Hole(), size, Ink.Written(fill) ?? ink);
 
-    private void Quadrants(LayoutBuilder build, QuadrantChart chart, IReadOnlyList<Rect> cells, Vector shift, Geometry over)
+    /// <summary>The words a line writes in one of its places — an axis's end, a caption, a point's name — where it writes any.</summary>
+    private static ContentPart? Text(ContentPart? line, string role) =>
+        line?.Children.FirstOrDefault(child => child.Kind == QuadrantKinds.Text && child.Role == role) is { } text && text.Words() is not null ? text : null;
+
+    /// <summary>The word a line starts with: <c>x-axis</c>, <c>quadrant-2</c>.</summary>
+    private static string? Word(ContentPart line) => line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Key)?.Text;
+
+    /// <summary>Which quadrant a caption's line is for — the first top right, then anticlockwise — or -1 for none.</summary>
+    private static int Region(ContentPart line) =>
+        Word(line) is { } word ? QuadrantGrammar.Regions.ToList().FindIndex(region => region.Equals(word, StringComparison.OrdinalIgnoreCase)) : -1;
+
+    private void Quadrants(LayoutBuilder build, QuadrantConfig config, IReadOnlyList<ContentPart?> regions, IReadOnlyList<ContentPart?> captions,
+                           IReadOnlyList<Rect> cells, Vector shift, Geometry over)
     {
         build.Open(QuadrantPiece.Quadrants, part: null, stops: Stops.None);
 
@@ -300,13 +348,14 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
             var shape = new RectangleGeometry(Rect.Offset(cells[index], shift));
             shape.Freeze();
 
-            var fill = Ink.Written(chart.Config.QuadrantFills[index]) ?? DiagramInk.Faded(Ink.Series(index), Tint);
+            var fill = Ink.Written(config.QuadrantFills[index]) ?? DiagramInk.Faded(Ink.Series(index), Tint);
+            var captioned = captions[index] is not null;
 
-            build.Open(QuadrantPiece.Quadrant, chart.Regions[index]?.Part, stops: Stops.None);
+            build.Open(QuadrantPiece.Quadrant, captioned ? regions[index] : null, stops: Stops.None);
             build.Draw(new GeometryMark(shape, fill, null, 0));
 
             // A quadrant stands where nothing drawn over it does: a press on its caption or a point means that.
-            if (chart.Regions[index] is not null)
+            if (captioned)
             {
                 var stands = new CombinedGeometry(GeometryCombineMode.Exclude, shape, over);
                 stands.Freeze();
@@ -341,20 +390,21 @@ internal sealed class QuadrantBuilder : MermaidBuilder<QuadrantChart>
         build.Close();
     }
 
-    private void Points(LayoutBuilder build, QuadrantConfig config, IReadOnlyList<(QuadrantPoint Point, Point Centre, double Radius)> dots, Vector shift)
+    private void Points(LayoutBuilder build, QuadrantConfig config, IReadOnlyList<Dot> dots, Vector shift)
     {
         build.Open(QuadrantPiece.Points, part: null, stops: Stops.None);
 
-        foreach (var (point, centre, radius) in dots)
+        foreach (var dot in dots)
         {
-            var shape = new EllipseGeometry(centre + shift, radius, radius);
+            var shape = new EllipseGeometry(dot.Centre + shift, dot.Radius, dot.Radius);
             shape.Freeze();
 
-            var fill = Ink.Written(point.Style.Colour) ?? Ink.Written(config.PointFill) ?? Ink.Series(point.Order);
-            var stroke = Ink.Written(point.Style.StrokeColour);
+            var style = dot.Said.Style;
+            var fill = Ink.Written(style.Colour) ?? Ink.Written(config.PointFill) ?? Ink.Series(dot.Order);
+            var stroke = Ink.Written(style.StrokeColour);
 
-            build.Open(QuadrantPiece.Point, point.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, fill, stroke, stroke is null ? 0 : point.Style.StrokeWidth ?? 1));
+            build.Open(QuadrantPiece.Point, dot.Part, stops: Stops.None);
+            build.Draw(new GeometryMark(shape, fill, stroke, stroke is null ? 0 : style.StrokeWidth ?? 1));
             build.Occupies(shape);
             build.Close();
         }

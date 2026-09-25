@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Pie;
 
@@ -191,14 +192,14 @@ public class PieGrammarTests : MermaidGrammarContract
     public void AQuoteTypedIntoALabelIsWrittenAsItsEntityCode()
     {
         const string source = "pie\n  \"Dogs\" : 3";
-        var label = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants().Single(part => part.Kind == MermaidKinds.Words);
+        var label = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().Single(part => part.Kind == MermaidKinds.Words);
 
         var writing = new PieGrammar().Escaping(label, label.End, "\"")!.Value;
         var written = source[..writing.Start] + writing.Text + source[writing.End..];
 
         Assert.AreEqual("pie\n  \"Dogs#quot;\" : 3", written);
         Assert.IsNull(new PieGrammar().Escaping(label, label.End, "s"), "and anything else goes in as it is");
-        Assert.AreEqual("Dogs\"", MermaidText.Decode(PieChart.Read(written).Slices.Single().Name), "which reads as the quote typed");
+        Assert.AreEqual("Dogs\"", MermaidText.Decode(MermaidStaged.Read(written).SelfAndDescendants().Single(node => node.Kind == PieKinds.Slice).Inner(MermaidKinds.Words)!.Print()), "which reads as the quote typed");
     }
 
     [TestMethod]

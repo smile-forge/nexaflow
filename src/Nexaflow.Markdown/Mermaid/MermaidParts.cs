@@ -45,6 +45,10 @@ public static class MermaidParts
     public static ContentPart? Words(this ContentPart? part) =>
         part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Nested);
 
+    /// <summary>The words a node holds — or the content in another language written where they would be — or null where it holds none.</summary>
+    public static ContentNode? Words(this ContentNode? node) =>
+        node?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Nested);
+
     /// <summary>What a name or a list's names say, as text: empty for a name still to be written.</summary>
     public static IReadOnlyList<string> SaidNames(this ContentNode? names) =>
         names is null ? []
@@ -68,6 +72,10 @@ public static class MermaidParts
     /// <summary>The number written in a part — its <see cref="MermaidKinds.Number"/> — or null where none is written or it is wrong.</summary>
     public static double? Number(this ContentPart? part) =>
         part.Inner(MermaidKinds.Number) is { Trouble: null, Length: > 0 } number ? MermaidNumber.Read(number.Text) : null;
+
+    /// <summary>The number a node holds, where it holds one that is not wrong.</summary>
+    public static double? Number(this ContentNode? node) =>
+        node.Inner(MermaidKinds.Number) is { Trouble: null, Width: > 0 } number ? MermaidNumber.Read(number.Text) : null;
 
     /// <summary>How far the line <paramref name="stated"/> is stated on is indented: the space before it, a tab counting as one.</summary>
     public static int Indent(this ContentPart stated) =>

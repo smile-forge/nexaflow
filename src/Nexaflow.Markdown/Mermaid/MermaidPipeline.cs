@@ -21,7 +21,7 @@ public static class MermaidPipeline
 
         if ((grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is { } reading)
         {
-            stages.AddRange(reading.Stages(block));
+            stages.AddRange(reading.Stages(block, holes));
             if (holes) stages.Add(new WithHoles(reading.Holds));
         }
 

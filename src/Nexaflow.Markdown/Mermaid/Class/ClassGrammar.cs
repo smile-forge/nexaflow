@@ -207,7 +207,7 @@ public sealed class ClassGrammar : IMermaidGrammar
     /// Which namespace each line is in (<see cref="ResolveNamespaces"/>), and whether what is styled is written at all
     /// (<see cref="ResolveStyles"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveNamespaces(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveNamespaces(), new ResolveStyles()];
 
     /// <inheritdoc/>
     /// <remarks>Between a name's quotes, and where a member or what is written on a relation is still to come after its colon.</remarks>

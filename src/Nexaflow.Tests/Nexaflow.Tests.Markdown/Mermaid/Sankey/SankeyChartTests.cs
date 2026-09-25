@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Sankey;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Sankey;
 
@@ -14,7 +15,7 @@ public class SankeyChartTests
     [TestMethod]
     public void TheNodesAreTheNamesTheFlowsAreWrittenBetween_InTheOrderTheyAreFirstWritten()
     {
-        var chart = SankeyChart.Read(SankeyGrammarTests.Energy);
+        var chart = SankeyChart.Of(MermaidStaged.Read(SankeyGrammarTests.Energy));
 
         CollectionAssert.AreEqual(new[] { "Agricultural 'waste'", "Bio-conversion", "Liquid", "Losses", "Solid", "Gas" },
                                   chart.Nodes.Select(node => node.Name).ToArray());
@@ -25,7 +26,7 @@ public class SankeyChartTests
     [TestMethod]
     public void ANodeIsWorthWhateverFlowsIntoItOrOutOfIt_WhicheverIsTheMore()
     {
-        var chart = SankeyChart.Read(SankeyGrammarTests.Energy);
+        var chart = SankeyChart.Of(MermaidStaged.Read(SankeyGrammarTests.Energy));
         var conversion = chart.Node("Bio-conversion")!;
 
         Assert.AreEqual(124.729, chart.Into(conversion), 1e-9);
@@ -37,15 +38,15 @@ public class SankeyChartTests
     [TestMethod]
     public void ANameInQuotesSaysWhatIsBetweenThem_AQuoteWrittenTwiceStandingForOne()
     {
-        Assert.AreEqual("Waste, agricultural", SankeyChart.Read("sankey-beta\n\"Waste, agricultural\",b,10").Nodes[0].Name);
-        Assert.AreEqual("Agricultural \"waste\"", SankeyChart.Read("sankey-beta\n\"Agricultural \"\"waste\"\"\",b,10").Nodes[0].Name);
-        Assert.AreEqual("a", SankeyChart.Read("sankey-beta\n  a , b , 10").Nodes[0].Name, "and the space round a field is not part of it");
+        Assert.AreEqual("Waste, agricultural", SankeyChart.Of(MermaidStaged.Read("sankey-beta\n\"Waste, agricultural\",b,10")).Nodes[0].Name);
+        Assert.AreEqual("Agricultural \"waste\"", SankeyChart.Of(MermaidStaged.Read("sankey-beta\n\"Agricultural \"\"waste\"\"\",b,10")).Nodes[0].Name);
+        Assert.AreEqual("a", SankeyChart.Of(MermaidStaged.Read("sankey-beta\n  a , b , 10")).Nodes[0].Name, "and the space round a field is not part of it");
     }
 
     [TestMethod]
     public void AFlowWorthNothingIsReadButNotDrawn()
     {
-        var chart = SankeyChart.Read("sankey-beta\na,b,10\nb,c,0\nc,d,lots");
+        var chart = SankeyChart.Of(MermaidStaged.Read("sankey-beta\na,b,10\nb,c,0\nc,d,lots"));
 
         Assert.AreEqual(3, chart.Flows.Count, "every row written is a flow, whatever is wrong with it");
         CollectionAssert.AreEqual(new[] { true, false, false }, chart.Flows.Select(flow => flow.Drawn).ToArray());
@@ -56,12 +57,11 @@ public class SankeyChartTests
     [TestMethod]
     public void TheFrontMattersOptionsAreRead()
     {
-        Assert.AreEqual(SankeyLinkColour.Gradient, SankeyChart.Read("sankey-beta\na,b,10").Config.LinkColour);
+        Assert.AreEqual(SankeyLinkColour.Gradient, SankeyChart.Of(MermaidStaged.Read("sankey-beta\na,b,10")).Config.LinkColour);
 
-        var config = SankeyChart.Read(
-            "---\nconfig:\n  sankey:\n    width: 800\n    height: 400\n    linkColor: source\n    nodeAlignment: left\n"
+        var config = SankeyChart.Of(MermaidStaged.Read("---\nconfig:\n  sankey:\n    width: 800\n    height: 400\n    linkColor: source\n    nodeAlignment: left\n"
             + "    showValues: false\n    prefix: \"$\"\n    suffix: B\n    nodeWidth: 14\n    nodePadding: 20\n    labelStyle: outlined\n"
-            + "    nodeColors:\n      a: \"#ff0000\"\n---\nsankey-beta\n\na,b,10").Config;
+            + "    nodeColors:\n      a: \"#ff0000\"\n---\nsankey-beta\n\na,b,10")).Config;
 
         Assert.AreEqual(800, config.Width);
         Assert.AreEqual(400, config.Height);
@@ -79,7 +79,7 @@ public class SankeyChartTests
     [TestMethod]
     public void AColourWrittenForTheFlowsIsTheOneTheyAllTake()
     {
-        var config = SankeyChart.Read("---\nconfig:\n  sankey:\n    linkColor: \"#7f7f7f\"\n---\nsankey-beta\n\na,b,10").Config;
+        var config = SankeyChart.Of(MermaidStaged.Read("---\nconfig:\n  sankey:\n    linkColor: \"#7f7f7f\"\n---\nsankey-beta\n\na,b,10")).Config;
 
         Assert.AreEqual(SankeyLinkColour.Written, config.LinkColour);
         Assert.AreEqual("#7f7f7f", config.LinkWritten);
@@ -87,5 +87,5 @@ public class SankeyChartTests
 
     [TestMethod]
     public void ATitleIsTheFrontMatters_SankeyHavingNoTitleLineOfItsOwn() =>
-        Assert.AreEqual("Where it goes", SankeyChart.Read("---\ntitle: Where it goes\n---\nsankey-beta\n\na,b,10").Block.Title?.Text);
+        Assert.AreEqual("Where it goes", SankeyChart.Of(MermaidStaged.Read("---\ntitle: Where it goes\n---\nsankey-beta\n\na,b,10")).Block.Title?.Text);
 }

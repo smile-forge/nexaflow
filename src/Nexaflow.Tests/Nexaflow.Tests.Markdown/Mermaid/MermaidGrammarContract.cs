@@ -46,7 +46,7 @@ public abstract class MermaidGrammarContract
     private ContentNode Parsed(string source) => MermaidParser.Parse(source, Named);
 
     /// <summary>A block parsed and run through its stages, as this grammar reads it.</summary>
-    private ContentNode Reading(string source, bool holes = false) => MermaidParser.Read(source, holes, Named);
+    private ContentNode Reading(string source, bool holes = false) => MermaidStaged.Read(source, holes, Named);
 
     [TestMethod]
     public void EveryBlockIsTheDiagramItsHeaderNames()

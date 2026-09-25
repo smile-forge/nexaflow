@@ -253,7 +253,7 @@ public class MarkdownFindTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static ContentPart Read(string source) =>
-        ContentPart.Of(MarkdownParser.Parse(source));
+        ContentPart.Of(MarkdownParser.Parsing()(source).Tree);
 
     private static ContentPart Item(ContentPart root, int at) =>
         root.SelfAndDescendants().Where(part => part.Kind == MarkdownKinds.Item).ElementAt(at);

@@ -78,7 +78,7 @@ public sealed class TimelineGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Which section each period is in, and which period each line of further events belongs to (<see cref="ResolveSections"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveSections()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSections()];
 
     /// <inheritdoc/>
     /// <remarks>Where a period's name, an event or a section's name is still to write.</remarks>

@@ -1,0 +1,256 @@
+{
+  "branch": "claude/content-engine-stages",
+  "nodes": {
+    "pie-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs",
+          "class": "PieGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/Stages/ResolveShares.cs",
+          "class": "ResolveShares"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieConfig.cs",
+          "class": "PieConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieNodes.cs",
+          "class": "PieSliceNode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieGrammarTests.cs",
+            "class": "PieGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieStagesTests.cs",
+            "class": "PieStagesTests"
+          }
+        ]
+      }
+    },
+    "radar-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs",
+          "class": "RadarGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs",
+          "class": "ResolveCurves"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarNodes.cs",
+          "class": "RadarCurveNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/RadarConfig.cs",
+          "class": "RadarConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveOptions.cs",
+          "class": "ResolveOptions"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Radar/RadarGrammarTests.cs",
+            "class": "RadarGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Radar/RadarStagesTests.cs",
+            "class": "RadarStagesTests"
+          }
+        ]
+      }
+    },
+    "latex-document-seam": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/DocumentSelection.cs",
+          "class": "DocumentSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownContent.cs",
+          "class": "MarkdownContent",
+          "method": "Aimed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNested.cs",
+          "class": "ContentNested",
+          "method": "Own"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnEdit.cs",
+          "class": "IOnEdit"
+        }
+      ]
+    },
+    "markdown-always-drawn": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/Laid.cs",
+          "class": "Laid",
+          "method": "Drew"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
+          "class": "ContentEngine",
+          "method": "Nested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "AsWritten"
+        }
+      ]
+    },
+    "markdown-maths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
+          "class": "ContentEngine",
+          "method": "Inside"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Displayed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Formula"
+        }
+      ]
+    },
+    "quadrant-graph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs",
+          "class": "QuadrantGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolvePoints.cs",
+          "class": "ResolvePoints"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantNodes.cs",
+          "class": "QuadrantPointNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantConfig.cs",
+          "class": "QuadrantConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantGrammarTests.cs",
+            "class": "QuadrantGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantStagesTests.cs",
+            "class": "QuadrantStagesTests"
+          }
+        ]
+      }
+    },
+    "kanban-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanGrammar.cs",
+          "class": "KanbanGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanNodes.cs",
+          "class": "KanbanCardNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs",
+          "class": "KanbanConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanGrammarTests.cs",
+            "class": "KanbanGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Kanban/KanbanStagesTests.cs",
+            "class": "KanbanStagesTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 11,
+  "touched_nodes": [
+    "kanban-ast",
+    "latex-document-seam",
+    "markdown-always-drawn",
+    "markdown-maths",
+    "pie-ast",
+    "quadrant-graph-ast",
+    "radar-ast"
+  ]
+}

@@ -52,7 +52,8 @@ public sealed class PieGrammar : IMermaidGrammar
     /// What a slice is drawn in is written in the front matter by position rather than on the slice, so it is worked out and
     /// hung underneath it (<see cref="ResolveSlices"/>). Everything else a pie says, it says in its own characters.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveSlices(PieConfig.Read(block.Config))];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+        [new ResolveSlices(PieConfig.Read(block.Config)), new ResolveShares(writing)];
 
     /// <inheritdoc/>
     /// <remarks>Between a label's quotes, and after a slice's colon.</remarks>

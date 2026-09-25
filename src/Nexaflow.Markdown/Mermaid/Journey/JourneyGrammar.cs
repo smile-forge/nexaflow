@@ -88,7 +88,7 @@ public sealed class JourneyGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Which section each task is in is worked out over the whole block (<see cref="ResolveTasks"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveTasks()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveTasks()];
 
     /// <inheritdoc/>
     /// <remarks>Where what a task says, a section's name or an actor's is still to write.</remarks>

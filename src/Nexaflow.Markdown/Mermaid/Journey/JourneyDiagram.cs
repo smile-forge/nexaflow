@@ -45,7 +45,7 @@ public sealed class JourneyDiagram
 
     private JourneyDiagram(MermaidBlock block, JourneyConfig config) => (Block, Config) = (block, config);
 
-    public static JourneyDiagram Read(string? block) => Of(MermaidParser.Read(block));
+    
 
     public static JourneyDiagram Of(ContentNode tree) => Of(MermaidBlock.Of(tree));
 

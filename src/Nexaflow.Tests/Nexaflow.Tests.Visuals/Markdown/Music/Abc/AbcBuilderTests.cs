@@ -49,7 +49,7 @@ public class AbcBuilderTests
             // Read again here rather than taken from the builder, which hands back a layout and nothing else.
             // So the parts cannot be matched by identity, and are matched by what they are and where they are
             // written instead — see the root check below, which is what identity was really buying.
-            var parts = ContentReading.Of(AbcPipeline.Read(abc, AbcBuilder.Draws, null)).Root
+            var parts = ContentReading.Of(AbcPipeline.Of(AbcBuilder.Draws, null).Run(AbcParser.Parse(abc))).Root
                 .SelfAndDescendants()
                 .Select(p => (p.Kind, p.Start, p.Length))
                 .ToHashSet();

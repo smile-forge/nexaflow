@@ -16,12 +16,6 @@ namespace Nexaflow.Markdown.Chemistry;
 /// </summary>
 public static class SmilesPipeline
 {
-    /// <summary>
-    /// The tree to draw a block from: what was written, with which atom each ring closure reaches, how many
-    /// hydrogens each atom carries and where each aromatic ring's double bonds go hung underneath it.
-    /// </summary>
-    public static ContentNode Read(string block) => Of().Run(SmilesParser.Parse(block));
-
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
     public static AstPipeline Of() =>
         new(

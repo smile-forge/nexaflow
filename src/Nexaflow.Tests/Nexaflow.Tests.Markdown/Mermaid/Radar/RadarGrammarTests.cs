@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Radar;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Radar;
 
@@ -149,14 +150,14 @@ public class RadarGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void ANumberIsForTheAxisInItsPlace_AndAValueNamingItsAxisIsForThatAxis()
     {
-        CollectionAssert.AreEqual(new[] { "axis1", "axis2", "axis3" }, For(Details, "id1"));
-        CollectionAssert.AreEqual(new[] { "axis1", "axis2", "axis3" }, For(Details, "id3"), "a curve sharing its line with another has values of its own");
-        CollectionAssert.AreEqual(new[] { "axis3", "axis1", "axis2" }, For(Details, "id4"), "each in the order written, for the axis it names");
+        CollectionAssert.AreEqual(new double?[] { 1, 2, 3 }, Points(Details, "id1"));
+        CollectionAssert.AreEqual(new double?[] { 7, 8, 9 }, Points(Details, "id3"), "a curve sharing its line with another has values of its own");
+        CollectionAssert.AreEqual(new double?[] { 20, 10, 30 }, Points(Details, "id4"), "each for the axis it names, whatever the order it is written in");
     }
 
     [TestMethod]
     public void AxesWrittenUnderACurveAreStillTheAxesItsValuesAreFor() =>
-        CollectionAssert.AreEqual(new[] { "a", "b" }, For("radar-beta\n  curve x{1, 2}\n  axis a, b", "x"));
+        CollectionAssert.AreEqual(new double?[] { 1, 2 }, Points("radar-beta\n  curve x{1, 2}\n  axis a, b", "x"));
 
     [TestMethod]
     public void ACurveThatDoesNotGiveEachAxisOneValueSaysSo()
@@ -198,7 +199,7 @@ public class RadarGrammarTests : MermaidGrammarContract
     {
         const string source = "radar-beta\n  axis a, b\n  curve c{1, 2";
 
-        CollectionAssert.AreEqual(new[] { "a", "b" }, For(source, "c"));
+        CollectionAssert.AreEqual(new double?[] { 1, 2 }, Points(source, "c"));
         StringAssert.Contains(Trouble(source).Single(), "never closed");
     }
 
@@ -274,7 +275,7 @@ public class RadarGrammarTests : MermaidGrammarContract
     {
         const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
         var grammar = new RadarGrammar();
-        var a = grammar.Names(ContentReading.Of(MermaidParser.Read(source)).Root).Single(name => name.Name == "a");
+        var a = grammar.Names(ContentReading.Of(MermaidStaged.Read(source)).Root).Single(name => name.Name == "a");
 
         Assert.AreEqual(1, a.Uses.Count, "the value that names it");
 
@@ -288,16 +289,15 @@ public class RadarGrammarTests : MermaidGrammarContract
     }
 
     private static List<ContentNode> Nodes(string source, string kind) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 
     private static string Name(ContentNode item) =>
         item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)!.Text;
 
-    /// <summary>The axis each of a curve's values is for, as the stage worked it out.</summary>
-    private static string?[] For(string source, string curve) =>
-        [.. Nodes(source, RadarKinds.Curve).Single(node => Name(node) == curve)
-            .SelfAndDescendants().Where(node => node.Kind == RadarKinds.Entry).Select(entry => entry.Said(RadarRoles.For))];
+    /// <summary>How far a curve reaches along each spoke, as the stages worked it out.</summary>
+    private static double?[] Points(string source, string curve) =>
+        [.. Nodes(source, RadarKinds.Curve).OfType<RadarCurveNode>().Single(node => Name(node) == curve).Points];
 }

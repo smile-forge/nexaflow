@@ -118,4 +118,58 @@ public static class ContentNested
         }
     }
 
+    /// <summary>
+    /// Every piece of <paramref name="tree"/> written in another language, in the order written — found by following the counts
+    /// each node keeps of what it holds (<see cref="ContentNode.Nests"/>), so only the way down to each piece is visited.
+    /// </summary>
+    public static IReadOnlyList<NestedPiece> Pieces(ContentNode tree)
+    {
+        if (tree.Nests == 0) return [];
+
+        var found = new List<NestedPiece>(tree.Nests);
+        Find(tree, 0, found);
+        return found;
+    }
+
+    private static void Find(ContentNode node, int at, List<NestedPiece> found)
+    {
+        if (Language(node) is { } language)
+        {
+            for (var index = 0; index < node.Children.Count; index++)
+            {
+                var child = node.Children[index];
+                if (child is { Role: Roles.Body, IsDerived: false })
+                {
+                    found.Add(new NestedPiece(at, Own(child), language, node.Kind));
+                    return;
+                }
+
+                at += child.Width;
+            }
+
+            return;
+        }
+
+        for (var index = 0; index < node.Children.Count; index++)
+        {
+            var child = node.Children[index];
+            if (child.Nests > 0) Find(child, at, found);
+            at += child.Width;
+        }
+    }
+
+}
+
+/// <summary>A piece of content written in another language, as the parser that placed it says where it is.</summary>
+/// <param name="At">Where its body starts in what was parsed.</param>
+/// <param name="Written">The characters its language reads — the body's own (<see cref="ContentNested.Own(ContentNode)"/>).</param>
+/// <param name="Language">The word naming the language.</param>
+/// <param name="Holder">The kind of node holding it — a fence, a formula, a label.</param>
+public readonly record struct NestedPiece(int At, string Written, string Language, string Holder);
+
+/// <summary>What a parser hands back: the tree, and every piece in it written in another language.</summary>
+public sealed record ContentParse(ContentNode Tree, IReadOnlyList<NestedPiece> Nested)
+{
+    /// <summary>A tree and the pieces in it written in another language, as the tree's own counts say where they are.</summary>
+    public static ContentParse Of(ContentNode tree) => new(tree, ContentNested.Pieces(tree));
 }

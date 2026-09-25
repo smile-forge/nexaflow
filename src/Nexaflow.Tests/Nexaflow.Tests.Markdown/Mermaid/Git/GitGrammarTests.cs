@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Git;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Git;
 
@@ -85,7 +86,7 @@ public class GitGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheDocumentedGraphsLinesAreEachRead()
     {
-        var tree = MermaidParser.Read(History);
+        var tree = MermaidStaged.Read(History);
 
         Assert.AreEqual(6, Nodes(tree, GitKinds.Commit).Count);
         Assert.AreEqual(1, Nodes(tree, GitKinds.Branch).Count);
@@ -96,7 +97,7 @@ public class GitGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EveryOptionWrittenAfterACommitIsReadAsItsOwn()
     {
-        var properties = MermaidParser.Read(Kept).SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Property).ToList();
+        var properties = MermaidStaged.Read(Kept).SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Property).ToList();
 
         Assert.AreEqual(8, properties.Count, "four ids, two tags and two types");
         Assert.AreEqual(0, Trouble(Kept).Count);
@@ -134,7 +135,7 @@ public class GitGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EachCommitSaysWhichBranchItIsMadeOn()
     {
-        var read = ContentReading.Of(MermaidParser.Read(History)).Root;
+        var read = ContentReading.Of(MermaidStaged.Read(History)).Root;
 
         CollectionAssert.AreEqual(
             new[] { "main", "main", "develop", "develop", "main", "main" },
@@ -155,7 +156,7 @@ public class GitGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void ABranchRenamedWhereItIsMadeIsRenamedWhereverItIsCheckedOutOrMerged()
     {
-        var branches = new GitGrammar().Names(ContentReading.Of(MermaidParser.Read(History)).Root);
+        var branches = new GitGrammar().Names(ContentReading.Of(MermaidStaged.Read(History)).Root);
 
         Assert.AreEqual(1, branches.Count);
         Assert.AreEqual("develop", branches[0].Name);
@@ -166,7 +167,7 @@ public class GitGrammarTests : MermaidGrammarContract
     public void AQuoteTypedIntoAnIdIsWrittenAsTheEntityCodeForIt()
     {
         const string source = "gitGraph\n   commit id: \"Alpha\"";
-        var setting = ContentReading.Of(MermaidParser.Read(source)).Root.SelfAndDescendants()
+        var setting = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
             .First(part => part.Kind == MermaidKinds.Setting);
         var writing = new GitGrammar().Escaping(setting, setting.End - 1, "\"")!.Value;
 
@@ -176,5 +177,5 @@ public class GitGrammarTests : MermaidGrammarContract
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
-        [.. MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
+        [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

@@ -23,17 +23,6 @@ namespace Nexaflow.Markdown.Music.LilyPond;
 /// </summary>
 public static class LilyPondPipeline
 {
-    /// <summary>
-    /// The tree to build music from: what was written, with how long each event lasts and what each note
-    /// sounds hung underneath it.
-    /// </summary>
-    /// <param name="editing">
-    /// A stretch somebody is in the middle of typing, shown rather than read for as long as they are. Runs last
-    /// on purpose: a half-written note is invalid almost by definition.
-    /// </param>
-    public static ContentNode Read(string source, (int Start, int Length)? editing = null) =>
-        Of(editing).Run(LilyPondParser.Parse(source));
-
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
     public static AstPipeline Of((int Start, int Length)? editing = null) =>
         new AstPipeline(

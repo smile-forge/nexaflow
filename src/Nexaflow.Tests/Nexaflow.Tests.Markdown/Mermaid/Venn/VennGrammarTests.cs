@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Venn;
 
@@ -187,7 +188,7 @@ public class VennGrammarTests : MermaidGrammarContract
     public void ASizeOrAUnionStillBeingWrittenIsNoComplaint()
     {
         foreach (var source in new[] { "venn-beta\n  set A: ", "venn-beta\n  set A\n  union A, " })
-            Assert.IsFalse(MermaidParser.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null), source);
+            Assert.IsFalse(MermaidStaged.Read(source).SelfAndDescendants().Any(node => node.Trouble is not null), source);
     }
 
     [TestMethod]
@@ -237,7 +238,7 @@ public class VennGrammarTests : MermaidGrammarContract
             Assert.AreEqual(becomes, written, $"{source}: typing {typed}");
             Assert.AreEqual(typed, MermaidText.Decode(written[(written.IndexOf(typedAfter, StringComparison.Ordinal) + typedAfter.Length)..writing.Value.Caret]),
                             $"{source}: the caret goes after what was typed");
-            Assert.IsFalse(MermaidParser.Read(written).SelfAndDescendants().Any(node => node.Trouble is not null), $"{written} still reads");
+            Assert.IsFalse(MermaidStaged.Read(written).SelfAndDescendants().Any(node => node.Trouble is not null), $"{written} still reads");
         }
     }
 
@@ -294,7 +295,7 @@ public class VennGrammarTests : MermaidGrammarContract
     }
 
     /// <summary>A block read through the pipeline, with where each part sits.</summary>
-    private static ContentPart Reading(string source, bool holes = false) => ContentReading.Of(MermaidParser.Read(source, holes)).Root;
+    private static ContentPart Reading(string source, bool holes = false) => ContentReading.Of(MermaidStaged.Read(source, holes)).Root;
 
     private static List<ContentNode> Nodes(string source, string kind) =>
         [.. MermaidParser.Parse(source).SelfAndDescendants().Where(node => node.Kind == kind)];

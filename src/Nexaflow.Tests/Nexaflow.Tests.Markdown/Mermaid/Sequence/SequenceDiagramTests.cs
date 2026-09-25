@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Mermaid.Sequence;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Sequence;
 
@@ -14,7 +15,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AParticipantStandsWhereItIsFirstWritten()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  Bob->>Alice: hi\n  Alice->>Carol: hi");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  Bob->>Alice: hi\n  Alice->>Carol: hi"));
 
         CollectionAssert.AreEqual(new[] { "Bob", "Alice", "Carol" }, diagram.Participants.Select(one => one.Id).ToList());
     }
@@ -22,7 +23,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void DeclaringOneFirstIsHowTheOrderIsChosen()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant Alice\n  participant Bob\n  Bob->>Alice: hi");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant Alice\n  participant Bob\n  Bob->>Alice: hi"));
 
         CollectionAssert.AreEqual(new[] { "Alice", "Bob" }, diagram.Participants.Select(one => one.Id).ToList());
     }
@@ -30,7 +31,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void OneWrittenAgainIsTheSameParticipant()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant A as Alice\n  A->>B: hi\n  B->>A: hi");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant A as Alice\n  A->>B: hi\n  B->>A: hi"));
 
         Assert.AreEqual(2, diagram.Participants.Count);
         Assert.AreEqual("Alice", diagram.Find("A")?.Said?.Text);
@@ -39,7 +40,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AnActorIsDrawnAsAFigure()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  actor Alice\n  participant Bob");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  actor Alice\n  participant Bob"));
 
         Assert.AreEqual(SequenceKind.Actor, diagram.Find("Alice")?.Kind);
         Assert.AreEqual(SequenceKind.Participant, diagram.Find("Bob")?.Kind);
@@ -48,7 +49,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AParticipantWrittenAsItselfIsANameInABoxAndNothingMore()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant Alice\n  Alice->>Bob: hi");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant Alice\n  Alice->>Bob: hi"));
 
         Assert.IsTrue(diagram.Participants.All(one => one.Card is null), "only a diagram that writes a card has one");
         Assert.IsTrue(diagram.Messages.All(message => message.Under.Count == 0 && message.Ink is null));
@@ -58,7 +59,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void MetadataSaysWhatOneIsDrawnAs()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant DB@{ \"type\": \"database\" }\n  DB->>DB: x");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant DB@{ \"type\": \"database\" }\n  DB->>DB: x"));
 
         Assert.AreEqual(SequenceKind.Database, diagram.Find("DB")?.Kind);
     }
@@ -66,7 +67,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AnAliasInTheMetadataIsDrawnInsteadOfTheName()
     {
-        var diagram = SequenceDiagram.Read("sequenceDiagram\n  participant API@{ \"alias\": \"Public API\" }\n  API->>API: x");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant API@{ \"alias\": \"Public API\" }\n  API->>API: x"));
 
         Assert.AreEqual("Public API", diagram.Find("API")?.Said?.Text);
     }
@@ -74,8 +75,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void WhatIsWrittenAfterAsWinsOverTheAlias()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  participant API@{ \"alias\": \"Internal\" } as External\n  API->>API: x");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant API@{ \"alias\": \"Internal\" } as External\n  API->>API: x"));
 
         Assert.AreEqual("External", diagram.Find("API")?.Said?.Text);
     }
@@ -83,7 +83,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AMessageSaysWhatItJoinsAndWhatItIsDrawnWith()
     {
-        var message = SequenceDiagram.Read("sequenceDiagram\n  Alice-->>John: Great!").Messages.Single();
+        var message = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  Alice-->>John: Great!")).Messages.Single();
 
         Assert.AreEqual("Alice", message.From);
         Assert.AreEqual("John", message.To);
@@ -111,14 +111,14 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AMessageToItselfSaysSo()
     {
-        Assert.IsTrue(SequenceDiagram.Read("sequenceDiagram\n  A->>A: thinking").Messages.Single().Self);
-        Assert.IsFalse(SequenceDiagram.Read("sequenceDiagram\n  A->>B: asking").Messages.Single().Self);
+        Assert.IsTrue(SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>A: thinking")).Messages.Single().Self);
+        Assert.IsFalse(SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>B: asking")).Messages.Single().Self);
     }
 
     [TestMethod]
     public void ThePlusAndMinusAgainstAMessageTurnABarOnAndOff()
     {
-        var messages = SequenceDiagram.Read("sequenceDiagram\n  A->>+B: x\n  B-->>-A: y").Messages.ToList();
+        var messages = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>+B: x\n  B-->>-A: y")).Messages.ToList();
 
         Assert.IsTrue(messages[0].Starts);
         Assert.IsFalse(messages[0].Stops);
@@ -129,7 +129,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ThePairOfBracketsRunsAnEndToTheMiddleOfItsLifeline()
     {
-        var messages = SequenceDiagram.Read("sequenceDiagram\n  A->>()B: x\n  A()->>B: y").Messages.ToList();
+        var messages = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>()B: x\n  A()->>B: y")).Messages.ToList();
 
         Assert.IsTrue(messages[0].ToCentre);
         Assert.IsFalse(messages[0].FromCentre);
@@ -140,7 +140,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ANoteSaysWhereItSitsAndWhatItIsOver()
     {
-        var note = SequenceDiagram.Read("sequenceDiagram\n  Note over Alice,John: A typical interaction")
+        var note = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  Note over Alice,John: A typical interaction"))
                                   .Items.OfType<SequenceNote>().Single();
 
         Assert.AreEqual(SequencePlace.Over, note.Place);
@@ -152,15 +152,15 @@ public class SequenceDiagramTests
     public void ANoteSitsToEitherSideToo()
     {
         Assert.AreEqual(SequencePlace.LeftOf,
-                        SequenceDiagram.Read("sequenceDiagram\n  Note left of A: x").Items.OfType<SequenceNote>().Single().Place);
+                        SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  Note left of A: x")).Items.OfType<SequenceNote>().Single().Place);
         Assert.AreEqual(SequencePlace.RightOf,
-                        SequenceDiagram.Read("sequenceDiagram\n  Note right of A: x").Items.OfType<SequenceNote>().Single().Place);
+                        SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  Note right of A: x")).Items.OfType<SequenceNote>().Single().Place);
     }
 
     [TestMethod]
     public void ABarIsStartedAndEndedInOrder()
     {
-        var turns = SequenceDiagram.Read("sequenceDiagram\n  activate A\n  A->>B: x\n  deactivate A")
+        var turns = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  activate A\n  A->>B: x\n  deactivate A"))
                                    .Items.OfType<SequenceTurn>().ToList();
 
         Assert.AreEqual(2, turns.Count);
@@ -171,8 +171,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AParticipantIsMadeAndEndedPartwayDown()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  A->>B: x\n  create participant C\n  A->>C: hi\n  destroy C\n  A-xC: bye");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>B: x\n  create participant C\n  A->>C: hi\n  destroy C\n  A-xC: bye"));
 
         Assert.IsTrue(diagram.Find("C")?.Created);
         Assert.IsTrue(diagram.Find("C")?.Destroyed);
@@ -182,8 +181,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AFrameOpensDividesAndCloses()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  alt is sick\n    A->>B: x\n  else is well\n    A->>B: y\n  end");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  alt is sick\n    A->>B: x\n  else is well\n    A->>B: y\n  end"));
 
         var opening = diagram.Items.OfType<SequenceOpening>().Single();
         var divider = diagram.Items.OfType<SequenceDivider>().Single();
@@ -200,7 +198,7 @@ public class SequenceDiagramTests
     public void AFrameStandsForEverythingWrittenInIt()
     {
         var source = "sequenceDiagram\n  loop every day\n    A->>B: x\n  end";
-        var opening = SequenceDiagram.Read(source).Items.OfType<SequenceOpening>().Single();
+        var opening = SequenceDiagram.Of(MermaidStaged.Read(source)).Items.OfType<SequenceOpening>().Single();
 
         Assert.AreEqual("loop every day\n    A->>B: x\n  end", source.Substring(opening.Whole.Start, opening.Whole.Length));
     }
@@ -208,9 +206,8 @@ public class SequenceDiagramTests
     [TestMethod]
     public void EveryWordOpensItsOwnKindOfFrame()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  alt a\n  end\n  opt b\n  end\n  loop c\n  end\n  par d\n  end\n  critical e\n  end\n"
-            + "  break f\n  end\n  rect red\n  end");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  alt a\n  end\n  opt b\n  end\n  loop c\n  end\n  par d\n  end\n  critical e\n  end\n"
+            + "  break f\n  end\n  rect red\n  end"));
 
         CollectionAssert.AreEqual(
             new[]
@@ -224,7 +221,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AFrameInsideOneSaysWhichItIsIn()
     {
-        var frames = SequenceDiagram.Read("sequenceDiagram\n  loop a\n    alt b\n      A->>B: x\n    end\n  end")
+        var frames = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  loop a\n    alt b\n      A->>B: x\n    end\n  end"))
                                     .Items.OfType<SequenceOpening>().ToList();
 
         Assert.IsNull(frames[0].Parent);
@@ -234,8 +231,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ABoxHoldsTheParticipantsWrittenInIt()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  box Purple Alice & John\n  participant A\n  participant J\n  end\n  participant B\n  A->>J: x");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  box Purple Alice & John\n  participant A\n  participant J\n  end\n  participant B\n  A->>J: x"));
 
         var box = diagram.Boxes.Single();
 
@@ -249,7 +245,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ABoxWithNoColourIsAllName()
     {
-        var box = SequenceDiagram.Read("sequenceDiagram\n  box Another Group\n  participant A\n  end").Boxes.Single();
+        var box = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  box Another Group\n  participant A\n  end")).Boxes.Single();
 
         Assert.IsNull(box.Colour);
         Assert.AreEqual("Another Group", box.Said?.Text);
@@ -258,7 +254,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AWashIsTheColourWrittenAfterRect()
     {
-        var opening = SequenceDiagram.Read("sequenceDiagram\n  rect rgb(191, 223, 255)\n  A->>B: x\n  end")
+        var opening = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  rect rgb(191, 223, 255)\n  A->>B: x\n  end"))
                                      .Items.OfType<SequenceOpening>().Single();
 
         Assert.AreEqual(SequenceFrame.Rect, opening.Kind);
@@ -268,7 +264,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void AutonumberNumbersTheMessagesUnderIt()
     {
-        var messages = SequenceDiagram.Read("sequenceDiagram\n  A->>B: x\n  autonumber\n  A->>B: y\n  A->>B: z").Messages.ToList();
+        var messages = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  A->>B: x\n  autonumber\n  A->>B: y\n  A->>B: z")).Messages.ToList();
 
         Assert.IsNull(messages[0].Number);
         Assert.AreEqual("1", messages[1].Number);
@@ -278,7 +274,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ItStartsAndStepsWhereItSays()
     {
-        var messages = SequenceDiagram.Read("sequenceDiagram\n  autonumber 10 5\n  A->>B: x\n  A->>B: y").Messages.ToList();
+        var messages = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  autonumber 10 5\n  A->>B: x\n  A->>B: y")).Messages.ToList();
 
         Assert.AreEqual("10", messages[0].Number);
         Assert.AreEqual("15", messages[1].Number);
@@ -287,7 +283,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void ItStopsWhereItSaysOff()
     {
-        var messages = SequenceDiagram.Read("sequenceDiagram\n  autonumber\n  A->>B: x\n  autonumber off\n  A->>B: y")
+        var messages = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  autonumber\n  A->>B: x\n  autonumber off\n  A->>B: y"))
                                       .Messages.ToList();
 
         Assert.AreEqual("1", messages[0].Number);
@@ -299,14 +295,13 @@ public class SequenceDiagramTests
     {
         var source = "---\nconfig:\n  sequence:\n    showSequenceNumbers: true\n---\nsequenceDiagram\n  A->>B: x";
 
-        Assert.AreEqual("1", SequenceDiagram.Read(source).Messages.Single().Number);
+        Assert.AreEqual("1", SequenceDiagram.Of(MermaidStaged.Read(source)).Messages.Single().Number);
     }
 
     [TestMethod]
     public void ALinkIsSomewhereAParticipantLeads()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  participant A\n  link A: Dashboard @ https://example.com/a\n  link A: Wiki @ https://example.com/w");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant A\n  link A: Dashboard @ https://example.com/a\n  link A: Wiki @ https://example.com/w"));
 
         var links = diagram.Find("A")!.Links;
 
@@ -319,8 +314,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void SeveralAtOnceAreReadFromTheBracesToo()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  participant A\n  links A: {\"One\": \"https://one\", \"Two\": \"https://two\"}");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant A\n  links A: {\"One\": \"https://one\", \"Two\": \"https://two\"}"));
 
         var links = diagram.Find("A")!.Links;
 
@@ -332,8 +326,7 @@ public class SequenceDiagramTests
     [TestMethod]
     public void WhatAParticipantIsSaidToBeIsNotSomewhereItLeads()
     {
-        var diagram = SequenceDiagram.Read(
-            "sequenceDiagram\n  participant A\n  properties A: {\"class\": \"internal\"}\n  details A: {\"Comment\": \"x\"}");
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  participant A\n  properties A: {\"class\": \"internal\"}\n  details A: {\"Comment\": \"x\"}"));
 
         Assert.AreEqual(0, diagram.Find("A")!.Links.Count);
     }
@@ -343,17 +336,17 @@ public class SequenceDiagramTests
     {
         var source = "sequenceDiagram\n  participant A\n  participant B\n  participant C\n  A->>B: x";
 
-        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, SequenceDiagram.Read(source).Drawn.Select(one => one.Id).ToList());
+        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, SequenceDiagram.Of(MermaidStaged.Read(source)).Drawn.Select(one => one.Id).ToList());
 
         var hidden = "---\nconfig:\n  sequence:\n    hideUnusedParticipants: true\n---\n" + source;
 
-        CollectionAssert.AreEqual(new[] { "A", "B" }, SequenceDiagram.Read(hidden).Drawn.Select(one => one.Id).ToList());
+        CollectionAssert.AreEqual(new[] { "A", "B" }, SequenceDiagram.Of(MermaidStaged.Read(hidden)).Drawn.Select(one => one.Id).ToList());
     }
 
     [TestMethod]
     public void ANameWithNothingInItYetIsAParticipantOfItsOwn()
     {
-        var diagram = SequenceDiagram.Of(Nexaflow.Markdown.Mermaid.MermaidParser.Read("sequenceDiagram\n  ->>: ", holes: true));
+        var diagram = SequenceDiagram.Of(MermaidStaged.Read("sequenceDiagram\n  ->>: ", holes: true));
 
         Assert.AreEqual(2, diagram.Participants.Count);
         Assert.IsTrue(diagram.Participants.All(one => one.SaidHole is not null));

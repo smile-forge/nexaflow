@@ -23,8 +23,16 @@ namespace Nexaflow.Markdown.Ast;
 /// assembly switches on either, and each language declares its own set of constants. What is shared is
 /// the shape — text, parts, width, printing — which is the same for a formula, a tune and a barcode.
 /// </para>
+/// <para>
+/// A language's stages may put a node of its own type in place of one its parser made — a slice that knows its share of
+/// the whole, a chart that carries what its front matter asks for. It stands for exactly the characters the node it
+/// replaces did, so the tree still prints as what was written and still says where everything is; what it adds is
+/// between that language's stages and its builder, and nothing shared reads it. A rewrite of it keeps its type
+/// (<see cref="Reshaped"/>), which is what lets a later stage, or the engine putting nested content back, rebuild a node
+/// above or around it. Once the builder has laid a tree out, it is finished: nothing rewrites it.
+/// </para>
 /// </summary>
-public sealed class ContentNode
+public class ContentNode
 {
     private static readonly ContentNode[] Childless = [];
 
@@ -44,9 +52,27 @@ public sealed class ContentNode
         if (this.IsDerived) { this.Width = 0; return; }
 
         var width = text.Length;
-        for (var i = 0; i < children.Count; i++) width += children[i].Width;
+        var nests = 0;
+        for (var i = 0; i < children.Count; i++)
+        {
+            width += children[i].Width;
+            nests += children[i].Kind == Kinds.Language ? 1 : children[i].Nests;
+        }
+
         this.Width = width;
+        this.Nests = nests;
     }
+
+    /// <summary>A language's own node, standing for exactly what <paramref name="shape"/> stands for.</summary>
+    protected ContentNode(ContentNode shape)
+        : this(shape.Kind, shape.Role, shape.Text, shape.Children, shape.Trouble, shape.Held) { }
+
+    /// <summary>
+    /// What a rewrite of this node makes of <paramref name="shape"/> — this node rebuilt with another role, other parts or
+    /// something else to say. A node the parser made is simply that; a language's own type makes another of itself from it,
+    /// carrying what it knows.
+    /// </summary>
+    protected virtual ContentNode Reshaped(ContentNode shape) => shape;
 
     /// <summary>What this piece is, in its own language's vocabulary.</summary>
     public string Kind { get; }
@@ -62,6 +88,12 @@ public sealed class ContentNode
 
     /// <summary>How many characters this piece prints as, itself and everything under it.</summary>
     public int Width { get; }
+
+    /// <summary>
+    /// How many pieces written in another language this node is or holds (<see cref="ContentNested"/>) — counted as the node is
+    /// made, as its width is, so where they are is found by following the counts rather than by walking the tree.
+    /// </summary>
+    public int Nests { get; }
 
     /// <summary>
     /// What is wrong with this piece, where anything is — the reason a reader would want a line drawn
@@ -135,15 +167,15 @@ public sealed class ContentNode
 
     /// <summary>The same piece, meaning something else to whatever holds it.</summary>
     public ContentNode As(string role) =>
-        role == this.Role ? this : new ContentNode(this.Kind, role, this.Text, this.Children, this.Trouble);
+        role == this.Role ? this : this.Reshaped(new ContentNode(this.Kind, role, this.Text, this.Children, this.Trouble, this.Held));
 
     /// <summary>The same piece, made of different parts.</summary>
     public ContentNode With(IReadOnlyList<ContentNode> children) =>
-        new(this.Kind, this.Role, this.Text, children, this.Trouble);
+        this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, children, this.Trouble, this.Held));
 
     /// <summary>The same piece, with something to say about it.</summary>
     public ContentNode Saying(string? trouble) =>
-        trouble == this.Trouble ? this : new ContentNode(this.Kind, this.Role, this.Text, this.Children, trouble);
+        trouble == this.Trouble ? this : this.Reshaped(new ContentNode(this.Kind, this.Role, this.Text, this.Children, trouble, this.Held));
 
     // ── Reading them ────────────────────────────────────────────────────────
 
@@ -254,6 +286,7 @@ public sealed class ContentNode
         if (ReferenceEquals(this, other)) return true;
 
         if (other is null
+            || this.GetType() != other.GetType()
             || this.Kind != other.Kind
             || this.Role != other.Role
             || this.Text != other.Text

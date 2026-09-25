@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Markdown.Plot;
 public class PlotStagesTests
 {
     private static ContentNode Read(string source, PlotFence fence = PlotFence.Scatter) =>
-        PlotPipeline.Read(source, fence);
+        new Nexaflow.Markdown.Plot.Stages.ResolveSettings(fence).Run(PlotParser.Parse(source));
 
     private static IReadOnlyList<ContentNode> Rows(string source, PlotFence fence = PlotFence.Scatter) =>
         Read(source, fence).Rows();

@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Markdown.Mermaid.Swimlane;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Swimlane;
 
@@ -153,7 +154,7 @@ public class SwimlaneGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void TheLanesAreTheSubgraphsWrittenOutsideThemAll()
     {
-        var diagram = FlowchartDiagram.Read(Intro);
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read(Intro));
 
         CollectionAssert.AreEqual(new[] { "Customer", "Warehouse", "Finance" }, diagram.Lanes.Select(lane => lane.Id).ToArray(),
                                   "each subgraph written at the outermost level is a lane, in the order it is written");
@@ -162,8 +163,7 @@ public class SwimlaneGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void EverythingInALaneSaysWhichLaneItIsIn()
     {
-        var diagram = FlowchartDiagram.Read(
-            "swimlane-beta TB\n  subgraph Team\n    subgraph Morning\n      early\n    end\n  end\n  late");
+        var diagram = FlowchartDiagram.Of(MermaidStaged.Read("swimlane-beta TB\n  subgraph Team\n    subgraph Morning\n      early\n    end\n  end\n  late"));
 
         Assert.AreEqual("Team", diagram.Lane(diagram.Find("early")?.Group)?.Id,
                         "a node inside a subgraph inside a lane is still in that lane");
@@ -175,12 +175,12 @@ public class SwimlaneGrammarTests : MermaidGrammarContract
     {
         const string source = "swimlane-beta TB\n  subgraph Sales\n    one\n  end";
 
-        var root = ContentReading.Of(MermaidParser.Read(source)).Root;
+        var root = ContentReading.Of(MermaidStaged.Read(source)).Root;
         var name = root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Sales");
 
         Assert.IsNull(Grammar.Escaping(name, name.End, " team"),
                       "Mermaid names a subgraph in words, so a space between two of them is a space the name may hold");
-        Assert.AreEqual("Sales team", FlowchartDiagram.Read("swimlane-beta TB\n  subgraph Sales team\n    one\n  end").Lanes.Single().Id,
+        Assert.AreEqual("Sales team", FlowchartDiagram.Of(MermaidStaged.Read("swimlane-beta TB\n  subgraph Sales team\n    one\n  end")).Lanes.Single().Id,
                         "and a lane written that way is called all of it");
     }
 

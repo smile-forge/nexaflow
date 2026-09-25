@@ -79,7 +79,7 @@ public sealed class CynefinGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Which domain each item sits in is worked out over the whole block (<see cref="ResolveDomains"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveDomains()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveDomains()];
 
     /// <inheritdoc/>
     /// <remarks>Where what an item or a transition says is still to write, between its quotes.</remarks>
