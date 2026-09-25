@@ -81,26 +81,11 @@ internal sealed class PieBuilder : MermaidBuilder
 
     internal PieBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <summary>What the front matter asks of the chart, as its stages hung it on the block.</summary>
-    private PieConfig Config => Reading.Root.Node.HeldAs(PieRoles.Config) as PieConfig ?? PieConfig.Default;
+    /// <summary>What the front matter asks of the chart, as its stages left it on the block.</summary>
+    private PieConfig Config => (Reading.Root.Node as PieBlockNode)?.Config ?? PieConfig.Default;
 
-    /// <summary>A slice as its stages left it: the part written for it and everything worked out about it.</summary>
-    private sealed record Slice(ContentPart Part, ContentPart Label, ContentPart? Value, double Share, int Order, bool Listed, bool ValueShown)
-    {
-        /// <summary>Whether it has a wedge.</summary>
-        public bool Drawn => Order >= 0;
-
-        public string? Colour => Part.Fact(PieRoles.Colour);
-
-        public bool Highlighted => Part.Fact(PieRoles.Highlighted) is not null;
-
-        public static Slice? Of(ContentPart part) =>
-            part.Words() is { } label
-                ? new Slice(part, label, part.Inner(MermaidKinds.Number),
-                            (double)part.Node.HeldAs(PieRoles.Share)!, (int)part.Node.HeldAs(PieRoles.Order)!,
-                            (bool)part.Node.HeldAs(PieRoles.Listed)!, (bool)part.Node.HeldAs(PieRoles.ValueShown)!)
-                : null;
-    }
+    /// <summary>A slice as its stages left it, and the part of the reading that is.</summary>
+    private readonly record struct Slice(ContentPart Part, PieSliceNode Said);
 
     /// <summary>The front matter's <c>pieTitleTextColor</c>, where it writes one.</summary>
     protected override string? TitleColour => Config.TitleTextColour;
@@ -114,10 +99,10 @@ internal sealed class PieBuilder : MermaidBuilder
         var all = new List<Slice>();
 
         foreach (var part in Reading.Root.SelfAndDescendants())
-            if (part.Kind == PieKinds.Slice && Slice.Of(part) is { } slice) all.Add(slice);
+            if (part.Node is PieSliceNode said && part.Words() is not null) all.Add(new Slice(part, said));
 
-        var slices = all.Where(slice => slice.Drawn).ToList();
-        var listed = all.Where(slice => slice.Listed).ToList();
+        var slices = all.Where(slice => slice.Said.Drawn).ToList();
+        var listed = all.Where(slice => slice.Said.Listed).ToList();
 
         // A pie of nothing is the source: there is no chart to look at, and what the reader wants is their own lines
         // back with whatever is wrong with them said underneath.
@@ -164,14 +149,14 @@ internal sealed class PieBuilder : MermaidBuilder
         for (var at = 0; at < slices.Count; at++)
         {
             var slice = slices[at];
-            var sweep = slice.Share * 2 * Math.PI;
+            var sweep = slice.Said.Share * 2 * Math.PI;
             var whole = slices.Count == 1;
 
             var shape = whole
                 ? Ring(centre, inner, radius)
                 : Sector(centre, inner, radius, from, from + sweep, gap);
 
-            if (slice.Highlighted) shape = Moved(shape, Out(from + (sweep / 2), PulledOut));
+            if (slice.Said.Highlighted) shape = Moved(shape, Out(from + (sweep / 2), PulledOut));
 
             build.Open(PiePiece.Wedge, slice.Part, stops: Stops.None);
             build.Draw(new GeometryMark(shape, Fill(config, slice), rim, edge));
@@ -268,7 +253,7 @@ internal sealed class PieBuilder : MermaidBuilder
         for (var order = 0; order < slices.Count; order++)
         {
             var slice = slices[order];
-            var share = slice.Share;
+            var share = slice.Said.Share;
             var sweep = share * 2 * Math.PI;
             var middle = from + (sweep / 2);
             from += sweep;
@@ -278,7 +263,7 @@ internal sealed class PieBuilder : MermaidBuilder
             // What a share says is worked out rather than written, so there is nowhere in it to put a caret — but it
             // still stands for the slice, so pressing it means that slice like everything else drawn for it.
             var words = Worked(Percent(share), slice.Part, config.SectionTextSize ?? ShareSize, Over(config, slice), FontWeights.SemiBold);
-            var where = On(centre, reach, middle) + (slice.Highlighted ? Out(middle, PulledOut) : default);
+            var where = On(centre, reach, middle) + (slice.Said.Highlighted ? Out(middle, PulledOut) : default);
 
             words.Set(build, new Point(where.X - (words.Width / 2), where.Y - (words.Height / 2)), PiePiece.Share);
         }
@@ -296,12 +281,14 @@ internal sealed class PieBuilder : MermaidBuilder
     {
         var size = config.LegendTextSize ?? LegendSize;
         var ink = Ink.Written(config.LegendTextColour) ?? Palette.Text;
+        var label = slice.Part.Words()!;
+        var value = slice.Part.Inner(MermaidKinds.Number);
 
-        return new DiagramKey(slice.Part, slice.Drawn ? Fill(config, slice) : null,
+        return new DiagramKey(slice.Part, slice.Said.Drawn ? Fill(config, slice) : null,
         [
-            Written(slice.Label, slice.Label.Parent.Hole(), size, ink),
-            slice.ValueShown && slice.Value is not null ? Written(slice.Value, slice.Value.Parent.Hole(), size, ink) : null,
-            slice.Drawn ? Worked(Percent(slice.Share), slice.Part, size, Palette.TextMuted) : null,
+            Written(label, label.Parent.Hole(), size, ink),
+            slice.Said.ValueShown && value is not null ? Written(value, value.Parent.Hole(), size, ink) : null,
+            slice.Said.Drawn ? Worked(Percent(slice.Said.Share), slice.Part, size, Palette.TextMuted) : null,
         ]);
     }
 
@@ -370,8 +357,8 @@ internal sealed class PieBuilder : MermaidBuilder
     /// </summary>
     private Brush Fill(PieConfig config, Slice slice)
     {
-        var colour = Ink.Series(Math.Max(0, slice.Order), slice.Colour);
-        return config.Opacity is { } opacity && !slice.Highlighted ? DiagramInk.Faded(colour, opacity) : colour;
+        var colour = Ink.Series(Math.Max(0, slice.Said.Order), slice.Said.Colour);
+        return config.Opacity is { } opacity && !slice.Said.Highlighted ? DiagramInk.Faded(colour, opacity) : colour;
     }
 
     /// <summary>What is written on a slice: the front matter's ink, or whichever of the theme's reads against the slice.</summary>

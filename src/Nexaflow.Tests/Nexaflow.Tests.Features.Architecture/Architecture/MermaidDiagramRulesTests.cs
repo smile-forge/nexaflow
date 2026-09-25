@@ -63,7 +63,6 @@ public class MermaidDiagramRulesTests
         new(new(@"\.Opacity\s*="), "DiagramInk.Faded"),
         new(new(@"Palette\.Series\s*\["), "DiagramInk.Series"),
         new(new(@"System\.Windows\.Controls|\bTextBlock\b|\bCanvas\b"), "the layout tree — a diagram is pieces and marks, not controls"),
-        new(new(@":\s*MermaidBuilder\s*(\{|$)"), "MermaidBuilder<TDiagram> — the block read into its model, and the model drawn"),
     ];
 
     /// <summary>

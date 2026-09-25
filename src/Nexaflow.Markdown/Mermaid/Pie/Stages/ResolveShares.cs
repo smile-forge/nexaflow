@@ -4,8 +4,8 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Mermaid.Pie.Stages;
 
 /// <summary>
-/// What each slice comes to, hung underneath it: what it is worth, its share of the whole, where it comes among the slices
-/// that get a wedge, whether it has a row in the legend, and whether that row shows its value.
+/// What each slice comes to, said on the slice: its share of the whole, where it comes among the slices that get a wedge,
+/// whether it has a row in the legend, and whether that row shows its value.
 ///
 /// <para>
 /// None of it is in the slice's own characters. A share is its value against every other slice's; its place among the
@@ -39,17 +39,19 @@ public sealed class ResolveShares(bool writing) : IAstStage
 
         return AstRewrite.Each(tree, node => node.Kind == PieKinds.Slice ? Said(node, worths[at++]) : node);
 
-        ContentNode Said(ContentNode slice, double worth)
+        PieSliceNode Said(ContentNode slice, double worth)
         {
             var wedge = worth > 0;
             var value = slice.Inner(MermaidKinds.Number);
             var unwritten = writing && slice.Inner(MermaidKinds.Amount) is { Width: 0 };
 
-            return slice
-                .Holding(PieKinds.Fact, PieRoles.Share, wedge && total > 0 ? worth / total : 0.0)
-                .Holding(PieKinds.Fact, PieRoles.Order, wedge ? drawn++ : -1)
-                .Holding(PieKinds.Fact, PieRoles.Listed, wedge || writing)
-                .Holding(PieKinds.Fact, PieRoles.ValueShown, value is not null && (showsData || unwritten || value.Trouble is not null));
+            return new PieSliceNode(slice)
+            {
+                Share = wedge && total > 0 ? worth / total : 0.0,
+                Order = wedge ? drawn++ : -1,
+                Listed = wedge || writing,
+                ValueShown = value is not null && (showsData || unwritten || value.Trouble is not null),
+            };
         }
     }
 

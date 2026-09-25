@@ -24,9 +24,9 @@ lines list items with values and whose options share a line, xychart one with ax
 |---|---|---|
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what it writes across several lines rather than one (`Stretches`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
-| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and hung underneath as facts | `ResolveSlices`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
+| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together, worked out and said in the diagram's own nodes — `PieSliceNode`, `PieBlockNode` — or, where a diagram still has a model, hung underneath as facts | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
-| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | Only where a diagram still has a model: the tree read back into what it describes. A diagram without one has its stages write that into the tree | `VennDiagram`, `RadarChart` |
+| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | Only where a diagram still has a model: the tree read back into what it describes. A diagram without one has its stages write that into its own nodes (`…/<Type>/<Type>Nodes.cs`, as `PieNodes`) | `VennDiagram`, `RadarChart` |
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading what its stages wrote (`MermaidBuilder<TDiagram>` where a diagram still has a model); a `<Type>Piece` class names its pieces | `PieBuilder`, `VennBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
@@ -80,7 +80,7 @@ diagram's own code sits in a folder of its own under each.
 | hold the line, or the rest of it, as written with the reason | `Shown`, `Held` |
 | try one reading and go back | `Save`, `Restore`, `Since`; `Undo` to go back and say why, which is what a reading that did not work out returns |
 | end a line: the semicolon and the space one may end with, and what is wrong where anything else is written there | `MermaidLine.Closed` |
-| read the tree the builder draws from | `MermaidParser.Read(source, holes)` |
+| read the tree the builder draws from | `Reading.Root` — the engine parsed it and ran its stages before the builder was made |
 | read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | say which group each line is in — a timeline's sections, a journey's, a Cynefin diagram's domains | `MermaidGrouping.Under`, hung as a fact the model reads back |
 | say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens; several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame |
