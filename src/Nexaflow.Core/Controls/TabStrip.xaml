@@ -51,7 +51,8 @@
                 Style="{StaticResource RibbonButton}"
                 Padding="10,0"
                 ToolTip="{loc:Str Shell.Tabs.More.Tooltip}"
-                Click="OverflowBtn_Click">
+                Click="OverflowBtn_Click"
+                AutomationProperties.AutomationId="Chrome_TabOverflow">
             <TextBlock Text="•••" FontSize="12" FontWeight="SemiBold"
                        Foreground="{StaticResource TextMutedBrush}"/>
         </Button>

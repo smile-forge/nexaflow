@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Automation.Peers;
 
 namespace Nexaflow.Features.Solver.Views;
 
@@ -39,7 +40,8 @@ public sealed class OctagonNavigator : FrameworkElement
     /// <summary>The tiles to draw, clockwise from the top. Eight or fewer; more are ignored.</summary>
     public static readonly DependencyProperty NodesProperty =
         DependencyProperty.Register(nameof(Nodes), typeof(IReadOnlyList<OctagonNode?>), typeof(OctagonNavigator),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender,
+                (d, _) => UIElementAutomationPeer.FromElement((UIElement)d)?.ResetChildrenCache()));
 
     /// <summary>What the centre reads — where you are now.</summary>
     public static readonly DependencyProperty CentreLabelProperty =
@@ -182,12 +184,28 @@ public sealed class OctagonNavigator : FrameworkElement
     /// <inheritdoc/>
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
-        var hit = IndexAt(e.GetPosition(this));
-        if (hit == -1) CentreClicked?.Invoke(this, EventArgs.Empty);
-        else if (hit >= 0 && Nodes is { } nodes && hit < nodes.Count && nodes[hit] is { } node)
-            NodeClicked?.Invoke(this, node.Id);
+        Press(IndexAt(e.GetPosition(this)));
         base.OnMouseLeftButtonUp(e);
     }
+
+    /// <summary>Acts on a region as a click on it would: <c>-1</c> is the centre, anything else a tile.</summary>
+    internal void Press(int index)
+    {
+        if (index == -1) CentreClicked?.Invoke(this, EventArgs.Empty);
+        else if (index >= 0 && Nodes is { } nodes && index < nodes.Count && nodes[index] is { } node)
+            NodeClicked?.Invoke(this, node.Id);
+    }
+
+    /// <summary>The box around a region in this control's own coordinates — <c>-1</c> is the centre.</summary>
+    internal Rect RegionBounds(int index)
+    {
+        if (ActualWidth <= 0 || ActualHeight <= 0) return Rect.Empty;
+        var m = Measurements();
+        return (index < 0 ? CentreGeometry(m) : TileGeometry(index, m)).Bounds;
+    }
+
+    /// <inheritdoc/>
+    protected override AutomationPeer OnCreateAutomationPeer() => new OctagonNavigatorAutomationPeer(this);
 
     /// <inheritdoc/>
     protected override void OnRender(DrawingContext dc)

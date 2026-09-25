@@ -58,7 +58,8 @@
                     <Button Grid.Column="2"
                             Command="{Binding CloseAiResponseOverlayCommand}"
                             Background="Transparent" BorderThickness="0" Cursor="Hand"
-                            ToolTip="{loc:Str Shell.AiResponse.Dismiss}">
+                            ToolTip="{loc:Str Shell.AiResponse.Dismiss}"
+                            AutomationProperties.AutomationId="AiBanner_Close">
                         <TextBlock Text="✕" FontSize="12" Foreground="{StaticResource OnAccentBrush}"/>
                     </Button>
                 </Grid>
@@ -103,7 +104,8 @@
                                 Background="Transparent"
                                 Foreground="{StaticResource AccentBrush}"
                                 BorderThickness="0" Cursor="Hand"
-                                Template="{StaticResource BannerPill}"/>
+                                Template="{StaticResource BannerPill}"
+                                AutomationProperties.AutomationId="AiBanner_OpenInConversation"/>
                     </StackPanel>
 
                     <!-- Approval state: summary + Deny / Accept -->
@@ -124,14 +126,16 @@
                                     Background="{StaticResource BorderBrush}"
                                     Foreground="{StaticResource TextBrush}"
                                     BorderThickness="0"
-                                    Template="{StaticResource BannerPill}"/>
+                                    Template="{StaticResource BannerPill}"
+                                    AutomationProperties.AutomationId="AiBanner_Deny"/>
                             <Button Content="{loc:Str Shell.AiResponse.Accept}"
                                     Command="{Binding AcceptToolBatchCommand}"
                                     FontSize="12"
                                     Background="{StaticResource AccentBrush}"
                                     Foreground="{StaticResource OnAccentBrush}"
                                     BorderThickness="0"
-                                    Template="{StaticResource BannerPill}"/>
+                                    Template="{StaticResource BannerPill}"
+                                    AutomationProperties.AutomationId="AiBanner_Accept"/>
                         </StackPanel>
                     </Grid>
                 </Grid>

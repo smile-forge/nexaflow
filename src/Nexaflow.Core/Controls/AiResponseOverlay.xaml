@@ -83,7 +83,8 @@
                         <Button Grid.Column="2"
                                 Style="{StaticResource TopBarAction}"
                                 Command="{Binding CloseAiResponseOverlayCommand}"
-                                ToolTip="{loc:Str Shell.AiResponse.Close}">
+                                ToolTip="{loc:Str Shell.AiResponse.Close}"
+                                AutomationProperties.AutomationId="AiOverlay_Close">
                             <TextBlock Text="✕" FontSize="13" Foreground="{StaticResource OnAccentBrush}"/>
                         </Button>
                     </Grid>
@@ -150,7 +151,8 @@
                                     Background="{StaticResource AccentBrush}"
                                     Foreground="{StaticResource OnAccentBrush}"
                                     BorderThickness="0"
-                                    Template="{StaticResource PillButton}"/>
+                                    Template="{StaticResource PillButton}"
+                                    AutomationProperties.AutomationId="AiOverlay_ContinueAsConversation"/>
                         </StackPanel>
 
                         <!-- Approval state -->
@@ -172,14 +174,16 @@
                                         Background="{StaticResource BorderBrush}"
                                         Foreground="{StaticResource TextBrush}"
                                         BorderThickness="0"
-                                        Template="{StaticResource PillButton}"/>
+                                        Template="{StaticResource PillButton}"
+                                        AutomationProperties.AutomationId="AiOverlay_Deny"/>
                                 <Button Content="{loc:Str Shell.AiResponse.Accept}"
                                         Command="{Binding AcceptToolBatchCommand}"
                                         FontSize="12"
                                         Background="{StaticResource AccentBrush}"
                                         Foreground="{StaticResource OnAccentBrush}"
                                         BorderThickness="0"
-                                        Template="{StaticResource PillButton}"/>
+                                        Template="{StaticResource PillButton}"
+                                        AutomationProperties.AutomationId="AiOverlay_Accept"/>
                             </StackPanel>
                         </Grid>
                     </Grid>

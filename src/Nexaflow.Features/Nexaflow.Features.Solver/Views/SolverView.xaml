@@ -333,7 +333,8 @@
                                                 ToolTip="{Binding Tooltip}"
                                                 Command="{Binding DataContext.PressKeyCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"/>
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="{Binding Label, StringFormat='Solver_Recent_{0}'}"/>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -346,7 +347,8 @@
                                                     Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
                                                     StrokeBrush="{StaticResource SurfaceBrush}"
                                                     CentreFill="{StaticResource Surface2Brush}"
-                                                    CentreForeground="{StaticResource TextBrush}"/>
+                                                    CentreForeground="{StaticResource TextBrush}"
+                                                    AutomationProperties.AutomationId="Solver_Navigator"/>
 
                             <!-- The calculator keypad, for Calc and Text. LaTeX has no grid: its
                                  symbols are the navigator's last ring, which is what keeps the
@@ -367,7 +369,8 @@
                                                 ToolTip="{Binding Tooltip}"
                                                 Command="{Binding DataContext.PressKeyCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"/>
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="{Binding Label, StringFormat='Solver_Key_{0}'}"/>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -392,7 +395,8 @@
                                                 Style="{StaticResource BreadcrumbStep}"
                                                 Command="{Binding DataContext.NavigateToCrumbCommand,
                                                           RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding Depth}"/>
+                                                CommandParameter="{Binding Depth}"
+                                                AutomationProperties.AutomationId="{Binding Depth, StringFormat='Solver_Crumb_{0}'}"/>
                                         <TextBlock Text="&#x203A;" FontSize="11" Margin="4,0"
                                                    VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextMutedBrush}"
@@ -476,13 +480,16 @@
                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                             <Button Style="{StaticResource IconButton}" Content="⎘"
                                                     ToolTip="Copy this answer"
-                                                    Command="{Binding CopyCommand}"/>
+                                                    Command="{Binding CopyCommand}"
+                                                    AutomationProperties.AutomationId="Solver_Result_Copy"/>
                                             <Button Style="{StaticResource IconButton}" Content="↥"
                                                     ToolTip="Use this answer as the definition"
-                                                    Command="{Binding UseAsDefinitionCommand}"/>
+                                                    Command="{Binding UseAsDefinitionCommand}"
+                                                    AutomationProperties.AutomationId="Solver_Result_UseAsDefinition"/>
                                             <Button Style="{StaticResource IconButton}" Content="✕"
                                                     ToolTip="Remove this result"
-                                                    Command="{Binding RemoveCommand}"/>
+                                                    Command="{Binding RemoveCommand}"
+                                                    AutomationProperties.AutomationId="Solver_Result_Remove"/>
                                         </StackPanel>
 
                                         <StackPanel Orientation="Horizontal">

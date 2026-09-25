@@ -669,7 +669,7 @@ public partial class RibbonBar : UserControl
             Tag     = item,
             Padding = new Thickness(8, 6, 8, 6)
         };
-        AutomationProperties.SetAutomationId(btn, "Ribbon_" + item.Label);
+        AutomationProperties.SetAutomationId(btn, "RibbonOverflow_" + item.Label);
         btn.Click += (_, _) =>
         {
             OverflowPopup.IsOpen = false;

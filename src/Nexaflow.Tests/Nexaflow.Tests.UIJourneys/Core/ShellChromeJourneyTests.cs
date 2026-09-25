@@ -179,6 +179,70 @@ public class ShellChromeJourneyTests : UiJourneyTestBase
         CheckPresent("Options overlay",       "Chrome_OptionsPanel");
         CheckInvoke("Options button (close)", "Chrome_OptionsButton");
 
+        // ── Overflow — each ••• exists only while something does not fit ──
+        // The window is narrowed to its minimum width for this and put back afterwards. The ribbon stops offering an
+        // overflow below a floor of its own, and at the window's MinWidth it has to be above it — otherwise the last
+        // ribbon buttons are simply cut off.
+        var size = MainWindow.BoundingRectangle;
+        Check("at its minimum width the window spills the ribbon", () =>
+            ResizeWindow(600, size.Height) && WaitForFs(() => Exists("Chrome_RibbonOverflow"), 3));
+        CheckDoes("Ribbon overflow lists the buttons that did not fit", "Chrome_RibbonOverflow",
+                  () => WaitForFs(() => WithIdPrefix("RibbonOverflow_").Length > 0, 3));
+        Check("a ribbon overflow entry closes the list", () => PressFirstAndWaitGone("RibbonOverflow_"));
+
+        Check("opening pages until the tab strip spills", OpenTabsUntilTheStripSpills);
+        CheckDoes("Tab overflow lists the tabs that did not fit", "Chrome_TabOverflow",
+                  () => WaitForFs(() => WithIdPrefix("TabOverflow_").Length > 0, 3));
+        Check("picking a hidden tab closes the list", () => PressFirstAndWaitGone("TabOverflow_"));
+        Check("the window goes back to its size", () => ResizeWindow(size.Width, size.Height));
+
         AssertJourney();
+    }
+
+    private bool ResizeWindow(double width, double height)
+    {
+        var transform = MainWindow.Patterns.Transform.PatternOrDefault;
+        if (transform is null || !transform.CanResize.ValueOrDefault) return false;
+        transform.Resize(width, height);
+        Wait.UntilInputIsProcessed();
+        System.Threading.Thread.Sleep(400);
+        return true;
+    }
+
+    /// <summary>
+    /// Controls in any of the app's windows whose id starts with <paramref name="prefix"/>. UIA may report a Popup's
+    /// content under the shell or as a window of its own, so every window is searched.
+    /// </summary>
+    private AutomationElement[] WithIdPrefix(string prefix) =>
+        Automation.GetDesktop()
+                  .FindAllChildren(cf => cf.ByProcessId(App.ProcessId))
+                  .SelectMany(w => w.FindAllDescendants())
+                  .Where(e => e.Properties.AutomationId.ValueOrDefault?.StartsWith(prefix, StringComparison.Ordinal) == true)
+                  .ToArray();
+
+    private bool PressFirstAndWaitGone(string prefix)
+    {
+        var entry = WithIdPrefix(prefix).FirstOrDefault();
+        if (entry is null) return false;
+        entry.AsButton().Invoke();
+        Wait.UntilInputIsProcessed();
+        return WaitForFs(() => WithIdPrefix(prefix).Length == 0, 3);
+    }
+
+    /// <summary>Presses the ribbon's page buttons in turn until the strip has more tabs than it can show.</summary>
+    private bool OpenTabsUntilTheStripSpills()
+    {
+        var ribbon = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("RibbonControl"));
+        if (ribbon is null) return false;
+        var pages = ribbon.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.Button))
+                          .Where(b => b.Properties.AutomationId.ValueOrDefault?.StartsWith("Ribbon_", StringComparison.Ordinal) == true);
+        foreach (var page in pages)
+        {
+            if (Exists("Chrome_TabOverflow")) return true;
+            try { page.AsButton().Invoke(); } catch { continue; }
+            Wait.UntilInputIsProcessed();
+            System.Threading.Thread.Sleep(600);
+        }
+        return WaitForFs(() => Exists("Chrome_TabOverflow"), 2);
     }
 }
