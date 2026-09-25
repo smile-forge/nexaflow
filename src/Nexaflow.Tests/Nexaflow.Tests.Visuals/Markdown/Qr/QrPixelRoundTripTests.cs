@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Visuals.Markdown.Matrix;
@@ -54,7 +55,7 @@ public class QrPixelRoundTripTests
 
         foreach (var (name, source) in blocks)
         {
-            Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
+            Assert.IsTrue(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
 
             var matrix = QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
             var read   = ReadBackFromPixels(source, block, matrix);
@@ -70,7 +71,7 @@ public class QrPixelRoundTripTests
         // One device-independent pixel per module is the floor the parser allows, and the place a
         // rounding error would first swallow a row.
         const string source = "type: text\ntext: TIGHT PACKED 123\ncellSize: 1\nmargin: 0";
-        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
+        Assert.IsTrue(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
 
         var matrix = QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
         Assert.AreEqual(block.Payload, QrTestDecoder.Decode(ReadBackFromPixels(source, block, matrix)));

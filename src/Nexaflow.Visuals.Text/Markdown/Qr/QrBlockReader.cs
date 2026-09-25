@@ -24,52 +24,50 @@ namespace Nexaflow.Visuals.Text.Markdown.Qr;
 public static class QrBlockReader
 {
     /// <summary>
-    /// Reads what the parser made of a block. Returns false with a message written for whoever is looking
+    /// Reads what the parser made of a block — or false with the part of it at fault and why, written for whoever is looking
     /// at the block, not for a log.
     /// </summary>
-    public static bool TryRead(ContentNode tree, out QrBlock? block, out string? error)
+    public static bool TryRead(ContentPart tree, out QrBlock? block, out (ContentPart Part, string Reason) wrong)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out wrong)) return false;
 
         if (fields.Count == 0)
         {
-            error = "An empty qr block. Start with a `type:` line — "
-                  + string.Join(", ", QrPayload.FieldsByType.Keys) + ".";
+            wrong = (tree, "An empty qr block. Start with a `type:` line — " + string.Join(", ", QrPayload.FieldsByType.Keys) + ".");
             return false;
         }
 
         if (!fields.TryGetValue("type", out string? type) || type.Length == 0)
         {
-            error = "This qr block has no `type:` line. Supported types: "
-                  + string.Join(", ", QrPayload.FieldsByType.Keys) + ".";
+            wrong = (fields.Value("type"), "This qr block has no `type:` line. Supported types: " + string.Join(", ", QrPayload.FieldsByType.Keys) + ".");
             return false;
         }
 
         if (!QrPayload.FieldsByType.TryGetValue(type, out string[]? typeFields))
         {
-            error = $"Unknown QR type '{type}'. Supported types: "
-                  + string.Join(", ", QrPayload.FieldsByType.Keys) + ".";
+            wrong = (fields.Value("type"), $"Unknown QR type '{type}'. Supported types: " + string.Join(", ", QrPayload.FieldsByType.Keys) + ".");
             return false;
         }
 
         // Now the type is known, so is the set of keys that mean anything here.
-        foreach (string key in fields.Keys)
-        {
-            if (key.Equals("type", StringComparison.OrdinalIgnoreCase) || key.Equals("ec", StringComparison.OrdinalIgnoreCase)) continue;
-            if (MatrixBlockReader.IsSetting(key)) continue;
-            if (typeFields.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
+        if (MatrixBlockReader.Unknown(fields,
+                                      key => key.Equals("type", StringComparison.OrdinalIgnoreCase) || key.Equals("ec", StringComparison.OrdinalIgnoreCase)
+                                             || typeFields.Contains(key, StringComparer.OrdinalIgnoreCase),
+                                      key => $"'{key}' is not a field of a `{type.ToLowerInvariant()}` QR code. It takes {string.Join(", ", typeFields)}"
+                                             + $"; and ec, {MatrixBlockReader.SettingNames}.",
+                                      out wrong))
+            return false;
 
-            error = $"'{key}' is not a field of a `{type.ToLowerInvariant()}` QR code. "
-                  + $"It takes {string.Join(", ", typeFields)}"
-                  + $"; and ec, {MatrixBlockReader.SettingNames}.";
+        if (!QrPayload.TryBuild(type, fields, out string? payload, out var error))
+        {
+            wrong = (tree, error ?? "This block could not be read.");
             return false;
         }
 
-        if (!QrPayload.TryBuild(type, fields, out string? payload, out error)) return false;
-        if (!TryErrorCorrection(fields, out var ecl, out error)) return false;
-        if (!MatrixBlockReader.TrySettings(fields, out var settings, out error)) return false;
+        if (!TryErrorCorrection(fields, out var ecl, out wrong)) return false;
+        if (!MatrixBlockReader.TrySettings(fields, out var settings, out wrong)) return false;
 
         block = new QrBlock
         {
@@ -81,11 +79,10 @@ public static class QrBlockReader
         return true;
     }
 
-    private static bool TryErrorCorrection(IReadOnlyDictionary<string, string> fields,
-                                           out QrErrorCorrection ecl, out string? error)
+    private static bool TryErrorCorrection(MatrixFields fields, out QrErrorCorrection ecl, out (ContentPart Part, string Reason) wrong)
     {
         ecl   = QrErrorCorrection.Medium;
-        error = null;
+        wrong = default;
 
         if (!fields.TryGetValue("ec", out string? value) || value.Length == 0) return true;
 
@@ -96,7 +93,7 @@ public static class QrBlockReader
             case "Q": ecl = QrErrorCorrection.Quartile; return true;
             case "H": ecl = QrErrorCorrection.High;     return true;
             default:
-                error = $"`ec: {value}` is not an error-correction level. Use L, M, Q or H.";
+                wrong = (fields.Value("ec"), $"`ec: {value}` is not an error-correction level. Use L, M, Q or H.");
                 return false;
         }
     }

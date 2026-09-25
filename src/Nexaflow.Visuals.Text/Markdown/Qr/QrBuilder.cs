@@ -29,10 +29,10 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
     internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
         new QrBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
 
-    protected override Drawn? Encode(ContentNode tree, out string? trouble)
+    protected override Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong)
     {
-        if (!QrBlockReader.TryRead(tree, out var block, out trouble)) return null;
-        if (!QrEncoder.TryEncode(block!.Payload, block.ErrorCorrection, out var matrix, out trouble)) return null;
+        if (!QrBlockReader.TryRead(tree, out var block, out wrong)) return null;
+        if (!QrEncoder.TryEncode(block!.Payload, block.ErrorCorrection, out var matrix, out var trouble)) return Refused(tree, trouble, out wrong);
 
         return new Drawn(matrix!, block.Settings);
     }

@@ -19,53 +19,51 @@ public static class DataMatrixBlockReader
 {
     private static readonly string[] OwnKeys = ["type", "shape", "size"];
 
-    public static bool TryRead(ContentNode tree, out DataMatrixBlock? block, out string? error)
+    public static bool TryRead(ContentPart tree, out DataMatrixBlock? block, out (ContentPart Part, string Reason) wrong)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out wrong)) return false;
 
         string types = string.Join(", ", DataMatrixPayload.FieldsByType.Keys);
 
         if (fields.Count == 0)
         {
-            error = $"An empty datamatrix block. Start with a `type:` line — {types}.";
+            wrong = (tree, $"An empty datamatrix block. Start with a `type:` line — {types}.");
             return false;
         }
 
         if (!fields.TryGetValue("type", out string? type) || type.Length == 0)
         {
-            error = $"This datamatrix block has no `type:` line. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"This datamatrix block has no `type:` line. Supported types: {types}.");
             return false;
         }
 
         if (!DataMatrixPayload.FieldsByType.TryGetValue(type, out string[]? typeFields))
         {
-            error = $"Unknown Data Matrix type '{type}'. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"Unknown Data Matrix type '{type}'. Supported types: {types}.");
             return false;
         }
 
-        foreach (string key in fields.Keys)
-        {
-            if (OwnKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
-            if (MatrixBlockReader.IsSetting(key)) continue;
-            if (typeFields.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
-
-            error = $"'{key}' is not a field of a `{type.ToLowerInvariant()}` Data Matrix. "
-                  + $"It takes {string.Join(", ", typeFields)}"
-                  + $"; and shape, size, {MatrixBlockReader.SettingNames}.";
+        if (MatrixBlockReader.Unknown(fields,
+                                      key => OwnKeys.Contains(key, StringComparer.OrdinalIgnoreCase) || typeFields.Contains(key, StringComparer.OrdinalIgnoreCase),
+                                      key => $"'{key}' is not a field of a `{type.ToLowerInvariant()}` Data Matrix. It takes {string.Join(", ", typeFields)}"
+                                             + $"; and shape, size, {MatrixBlockReader.SettingNames}.",
+                                      out wrong))
             return false;
-        }
 
-        if (!TryShape(fields, out var shape, out error)) return false;
-        if (!TrySize(fields, out var size, out error)) return false;
+        if (!TryShape(fields, out var shape, out wrong)) return false;
+        if (!TrySize(fields, out var size, out wrong)) return false;
 
         var baseline = new DataMatrixOptions { Shape = shape, Size = size };
 
-        if (!DataMatrixPayload.TryBuild(type, fields, baseline, out string? payload, out var options, out error))
+        if (!DataMatrixPayload.TryBuild(type, fields, baseline, out string? payload, out var options, out var error))
+        {
+            wrong = (tree, error ?? "This block could not be read.");
             return false;
+        }
 
-        if (!MatrixBlockReader.TrySettings(fields, out var settings, out error)) return false;
+        if (!MatrixBlockReader.TrySettings(fields, out var settings, out wrong)) return false;
 
         block = new DataMatrixBlock
         {
@@ -77,11 +75,10 @@ public static class DataMatrixBlockReader
         return true;
     }
 
-    private static bool TryShape(IReadOnlyDictionary<string, string> fields,
-                                 out DataMatrixShape shape, out string? error)
+    private static bool TryShape(MatrixFields fields, out DataMatrixShape shape, out (ContentPart Part, string Reason) wrong)
     {
         shape = DataMatrixShape.Any;
-        error = null;
+        wrong = default;
 
         if (!fields.TryGetValue("shape", out string? value) || value.Length == 0) return true;
 
@@ -91,17 +88,16 @@ public static class DataMatrixBlockReader
             case "square":                  shape = DataMatrixShape.Square;    return true;
             case "rectangle" or "rect":     shape = DataMatrixShape.Rectangle; return true;
             default:
-                error = $"`shape: {value}` is not a Data Matrix shape. Use square, rectangle or any.";
+                wrong = (fields.Value("shape"), $"`shape: {value}` is not a Data Matrix shape. Use square, rectangle or any.");
                 return false;
         }
     }
 
     /// <summary>A <c>size: 32x32</c> — rows by columns, one of the sizes the standard defines.</summary>
-    private static bool TrySize(IReadOnlyDictionary<string, string> fields,
-                                out (int Rows, int Columns)? size, out string? error)
+    private static bool TrySize(MatrixFields fields, out (int Rows, int Columns)? size, out (ContentPart Part, string Reason) wrong)
     {
         size  = null;
-        error = null;
+        wrong = default;
 
         if (!fields.TryGetValue("size", out string? value) || value.Length == 0) return true;
 
@@ -113,7 +109,7 @@ public static class DataMatrixBlockReader
             return true;
         }
 
-        error = $"`size: {value}` is not a Data Matrix size. Write it as rows×columns — 10x10 up to 144x144, or one of the rectangles 8x18, 8x32, 12x26, 12x36, 16x36, 16x48.";
+        wrong = (fields.Value("size"), $"`size: {value}` is not a Data Matrix size. Write it as rows×columns — 10x10 up to 144x144, or one of the rectangles 8x18, 8x32, 12x26, 12x36, 16x36, 16x48.");
         return false;
     }
 }

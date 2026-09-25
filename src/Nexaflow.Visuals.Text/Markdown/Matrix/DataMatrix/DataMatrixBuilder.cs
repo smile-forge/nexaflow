@@ -31,10 +31,10 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
     internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
         new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
 
-    protected override Drawn? Encode(ContentNode tree, out string? trouble)
+    protected override Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong)
     {
-        if (!DataMatrixBlockReader.TryRead(tree, out var block, out trouble)) return null;
-        if (!DataMatrixEncoder.TryEncode(block!.Payload, block.Options, out var symbol, out trouble)) return null;
+        if (!DataMatrixBlockReader.TryRead(tree, out var block, out wrong)) return null;
+        if (!DataMatrixEncoder.TryEncode(block!.Payload, block.Options, out var symbol, out var trouble)) return Refused(tree, trouble, out wrong);
 
         return new Drawn(symbol!, block.Settings);
     }

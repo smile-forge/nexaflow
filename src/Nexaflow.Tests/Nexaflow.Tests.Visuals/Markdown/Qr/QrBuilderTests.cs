@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -115,6 +116,19 @@ public class QrBuilderTests
     });
 
     [TestMethod]
+    public void WhatStopsABlockReadingIsMarkedWhereItIsWritten() => UiThread.Run(() =>
+    {
+        // The value of the setting that is wrong, the key nothing takes, or the type nobody knows — not the whole block.
+        foreach (var (source, at) in new[]
+                 {
+                     ("type: text\ntext: x\ncellSize: huge", "huge"),
+                     ("type: text\ntext: x\ncolour: red", "colour"),
+                     ("type: barcode\ntext: x", "barcode"),
+                 })
+            Assert.AreEqual(source.IndexOf(at, System.StringComparison.Ordinal), Build(source).Trouble.Single().Start, source);
+    });
+
+    [TestMethod]
     public void AnOversizedPayload_SaysSo() => UiThread.Run(() =>
     {
         var laid = Build($"type: text\ntext: {new string('a', 3000)}\nec: H");
@@ -140,7 +154,7 @@ public class QrBuilderTests
 
     private static QrMatrix Encoded(string source)
     {
-        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
+        Assert.IsTrue(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
         return QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
     }
 }

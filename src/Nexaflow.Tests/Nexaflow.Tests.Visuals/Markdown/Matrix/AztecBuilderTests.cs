@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -156,13 +157,13 @@ public class AztecBuilderTests
 
     private static AztecBlock Read(string source)
     {
-        Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
+        Assert.IsTrue(AztecBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 
     private static void AssertRefused(string source, string expected)
     {
-        Assert.IsFalse(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out string? error), $"'{source}' was accepted");
-        StringAssert.Contains(error!, expected, $"'{source}' said: {error}");
+        Assert.IsFalse(AztecBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out _, out var wrong), $"'{source}' was accepted");
+        StringAssert.Contains(wrong.Reason, expected, $"'{source}' said: {wrong.Reason}");
     }
 }
