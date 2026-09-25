@@ -3381,6 +3381,101 @@ internal sealed class MarkdownSamples : ISampleSet
         	G@{ shape: tag-rect, label: "Tagged process" }
         ```
 
+        Every shape `@{ shape: … }` names — processes
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: rect, label: "Process" }
+            b@{ shape: rounded, label: "Event" }
+            c@{ shape: stadium, label: "Terminal" }
+            d@{ shape: fr-rect, label: "Subprocess" }
+            e@{ shape: lin-rect, label: "Lined process" }
+            f@{ shape: div-rect, label: "Divided process" }
+            g@{ shape: win-pane, label: "Internal storage" }
+            h@{ shape: tag-rect, label: "Tagged process" }
+            i@{ shape: st-rect, label: "Processes" }
+            a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g ~~~ h ~~~ i
+        ```
+
+        Decisions, inputs and outputs
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: diam, label: "Decision" }
+            b@{ shape: hex, label: "Prepare" }
+            c@{ shape: lean-r, label: "In / out" }
+            d@{ shape: lean-l, label: "Out / in" }
+            e@{ shape: trap-b, label: "Priority" }
+            f@{ shape: trap-t, label: "Manual" }
+            g@{ shape: sl-rect, label: "Manual input" }
+            h@{ shape: notch-pent, label: "Loop limit" }
+            i@{ shape: odd, label: "Odd" }
+            a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g ~~~ h ~~~ i
+        ```
+
+        Documents and storage
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: doc, label: "Document" }
+            b@{ shape: lin-doc, label: "Lined document" }
+            c@{ shape: docs, label: "Documents" }
+            d@{ shape: tag-doc, label: "Tagged document" }
+            e@{ shape: cyl, label: "Database" }
+            f@{ shape: lin-cyl, label: "Disk" }
+            g@{ shape: h-cyl, label: "Direct access" }
+            h@{ shape: datastore, label: "Data store" }
+            i@{ shape: bucket, label: "Bucket" }
+            j@{ shape: bow-rect, label: "Stored data" }
+            a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g ~~~ h ~~~ i ~~~ j
+        ```
+
+        The rest with words
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: delay, label: "Delay" }
+            b@{ shape: curv-trap, label: "Display" }
+            c@{ shape: flag, label: "Paper tape" }
+            d@{ shape: tri, label: "Extract" }
+            e@{ shape: flip-tri, label: "Manual file" }
+            f@{ shape: notch-rect, label: "Card" }
+            g@{ shape: cloud, label: "Cloud" }
+            h@{ shape: bang, label: "Bang" }
+            i@{ shape: text, label: "Just words" }
+            a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g ~~~ h ~~~ i
+        ```
+
+        Comments and pictures
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: brace, label: "A comment" }
+            b@{ shape: brace-r, label: "On the right" }
+            c@{ shape: braces, label: "Both sides" }
+            d@{ shape: browser, label: "Browser" }
+            e@{ shape: console, label: "Console" }
+            f@{ shape: folder, label: "Folder" }
+            g@{ shape: person, label: "Person" }
+            a ~~~ b ~~~ c ~~~ d ~~~ e ~~~ f ~~~ g
+        ```
+
+        Markers, which Mermaid draws without their words
+
+        ```mermaid
+        flowchart LR
+            a@{ shape: sm-circ, label: "Start" }
+            b@{ shape: circle, label: "Circle" }
+            c@{ shape: fork, label: "Fork" }
+            d@{ shape: hourglass, label: "Collate" }
+            e@{ shape: bolt, label: "Link" }
+            f@{ shape: f-circ, label: "Junction" }
+            g@{ shape: cross-circ, label: "Summary" }
+            h@{ shape: dbl-circ, label: "Stop" }
+            i@{ shape: fr-circ, label: "Stop" }
+            a --> b --> c --> d --> e --> f --> g --> h --> i
+        ```
+
         Chained links
 
         ```mermaid

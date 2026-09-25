@@ -206,6 +206,7 @@ public class FlowchartGrammarTests : MermaidGrammarContract
                      ("flowchart LR\n  a\n  class a nowhere", "No classDef nowhere is written"),
                      ("flowchart LR\n  a\n  click a \"https://example.com\" _sideways", "_self, _blank, _parent or _top"),
                      ("flowchart TD\n  a@{ wibble: 3 }", "Metadata sets"),
+                     ("flowchart TD\n  a@{ shape: wibble }", "no shape called wibble"),
                  })
         {
             var trouble = MermaidParser.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>().ToList();

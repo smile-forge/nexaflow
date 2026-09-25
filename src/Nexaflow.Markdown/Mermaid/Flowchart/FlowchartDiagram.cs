@@ -451,7 +451,7 @@ public sealed class FlowchartDiagram
 
         if (known.TryGetValue(id, out var node))
         {
-            if (Set(properties, "shape") is { } shape) node.Shape = MermaidShapes.Named(shape.Text);
+            if (Set(properties, "shape") is { } shape) node.Shape = MermaidShapes.Named(shape.Text) ?? MermaidShape.Rectangle;
 
             if ((Set(properties, "label") ?? Set(properties, "title")) is { } written)
             {

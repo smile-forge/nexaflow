@@ -182,9 +182,14 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             var words = Said(node, diagram.Config.Wrapping);
             var around = DiagramShapes.Around(shape, DiagramWords.Taken(words), Pad);
 
+            // A marker drawn without words is the size it always is rather than the least a node takes, and a fork lies across the way
+            // the chart runs, standing on end where it runs across the page.
+            if (shape == DiagramShape.Fork && diagram.Way is FlowchartWay.Right or FlowchartWay.Left) around = new Size(around.Height, around.Width);
+            var least = DiagramShapes.Worded(shape) ? new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)) : around;
+
             var sized = new Sized(node, words, shape)
             {
-                Cell = new DiagramCell(new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)))
+                Cell = new DiagramCell(least)
                 {
                     Shape = shape,
                     Inside = Holding(plan, node.Group),

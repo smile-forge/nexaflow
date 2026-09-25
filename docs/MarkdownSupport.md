@@ -166,8 +166,10 @@ JS/Mermaid.js, no browser).
 Nodes joined by links, laid out in ranks by how far along the links reach them
 ([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
 as few lines crossing as can be managed, then each node set across its rank beside the ones it joins). A node is an id with a
-label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, of which the fifty-odd
-names come to the nearest shape this draws; a bare id is carried on by a dash or a dot, and ends where a link starts, which is
+label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, every one of Mermaid's
+fifty-odd names drawn as its own shape: its markers (a start, a stop, a junction, a fork, a collate, a communication link, a
+summary) at a size of their own and without their words, as Mermaid draws them, a fork standing across the way the chart runs,
+and a name Mermaid has no shape by said to be wrong, as Mermaid refuses it; a bare id is carried on by a dash or a dot, and ends where a link starts, which is
 Mermaid's own rule and the reason `A-->B` needs no space in it. **A node written again is the same node**, the second writing
 saying more about it, so a link may name nodes a line above laid out. Links are read from the characters they are drawn as
 ([`MermaidLinks`](../src/Nexaflow.Markdown/Mermaid/MermaidLinks.cs)): `-->`, `---`, `--o`, `--x`, `<-->`, `o--o`, `x--x`, thick
@@ -187,8 +189,7 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; the `@{ shape: … }` names Mermaid draws with a detail of their own — a window pane, a bow tie, a crossed circle —
-come to the nearest shape this has; an `icon:` or `img:` node is drawn as its label, and `fa:fa-…` in a label is drawn as the
+nodes come to; an `icon:` or `img:` node is drawn as its label, and `fa:fa-…` in a label is drawn as the
 characters written, there being no icon pack to fetch; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
 rather than styled; `interpolate` on a `linkStyle` is read, `linear` against anything else being all that changes how a line is
 drawn; and a `click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the
