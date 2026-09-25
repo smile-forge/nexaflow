@@ -127,7 +127,7 @@ public sealed class VennGrammar : IMermaidGrammar
     /// sets a union overlaps, the region an item written on its own sits in, what a style styles — is a fact about the lines
     /// above it rather than its own, so it is worked out and hung underneath (<see cref="ResolveRegions"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new GroupRegions(), new ResolveRegions()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new GroupRegions(), new ResolveRegions()];
 
     /// <inheritdoc/>
     /// <remarks>

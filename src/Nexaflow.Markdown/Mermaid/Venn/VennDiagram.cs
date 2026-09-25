@@ -119,7 +119,7 @@ public sealed class VennUnion : VennRegion
 /// their styles, and what its front matter asks for. Its title is the block's (<see cref="MermaidBlock.Title"/>).
 ///
 /// <para>
-/// What <see cref="Pie.PieChart"/> is to a pie — the tree read back into the thing it describes, every part kept, so what
+/// The tree read back into the thing it describes, every part kept, so what
 /// the builder draws can point at what the reader wrote. A set written twice is one set, its later label and size
 /// winning; a union naming a set not written above it, or fewer than two, is no overlap and is not drawn, the reason
 /// already on its line.

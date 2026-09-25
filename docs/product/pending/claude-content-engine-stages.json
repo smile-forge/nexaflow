@@ -1,0 +1,43 @@
+{
+  "branch": "claude/content-engine-stages",
+  "nodes": {
+    "pie-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieGrammar.cs",
+          "class": "PieGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/Stages/ResolveShares.cs",
+          "class": "ResolveShares"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Pie/PieConfig.cs",
+          "class": "PieConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieGrammarTests.cs",
+            "class": "PieGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Pie/PieStagesTests.cs",
+            "class": "PieStagesTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 2,
+  "touched_nodes": [
+    "pie-ast"
+  ]
+}

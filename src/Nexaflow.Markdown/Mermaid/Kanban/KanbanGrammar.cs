@@ -63,7 +63,7 @@ public sealed class KanbanGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether each node is a column or a card, by its indentation over the whole block (<see cref="ResolveColumns"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveColumns()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveColumns()];
 
     /// <inheritdoc/>
     /// <remarks>Where a title is still to write, between its quotes.</remarks>

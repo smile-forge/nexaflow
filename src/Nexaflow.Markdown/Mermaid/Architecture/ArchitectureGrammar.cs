@@ -102,7 +102,7 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether what a line names is declared, and what it is (<see cref="ResolveArchitecture"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveArchitecture()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveArchitecture()];
 
     /// <inheritdoc/>
     /// <remarks>Between a title's or an icon's brackets, and where an id is still to be written.</remarks>

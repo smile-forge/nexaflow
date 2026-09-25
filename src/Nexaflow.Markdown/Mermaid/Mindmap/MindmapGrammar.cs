@@ -59,7 +59,7 @@ public sealed class MindmapGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether every node hangs off the root, by its indentation over the whole block (<see cref="ResolveRoot"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveRoot()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveRoot()];
 
     /// <inheritdoc/>
     /// <remarks>Where a title is still to write, between its quotes.</remarks>

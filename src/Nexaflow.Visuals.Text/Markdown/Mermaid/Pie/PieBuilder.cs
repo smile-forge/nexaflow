@@ -8,6 +8,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
@@ -51,7 +52,7 @@ public static class PiePiece
 /// what it occupies: it breaks the moment anything is drawn behind it, and hands a press on one slice to another.
 /// </para>
 /// </summary>
-internal sealed class PieBuilder : MermaidBuilder<PieChart>
+internal sealed class PieBuilder : MermaidBuilder
 {
     /// <summary>How big the chart is drawn before anything asks it to be smaller.</summary>
     private const double Radius = 130;
@@ -80,34 +81,54 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
 
     internal PieBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override PieChart Of(MermaidBlock block) => PieChart.Of(block);
+    /// <summary>What the front matter asks of the chart, as its stages hung it on the block.</summary>
+    private PieConfig Config => Reading.Root.Node.HeldAs(PieRoles.Config) as PieConfig ?? PieConfig.Default;
+
+    /// <summary>A slice as its stages left it: the part written for it and everything worked out about it.</summary>
+    private sealed record Slice(ContentPart Part, ContentPart Label, ContentPart? Value, double Share, int Order, bool Listed, bool ValueShown)
+    {
+        /// <summary>Whether it has a wedge.</summary>
+        public bool Drawn => Order >= 0;
+
+        public string? Colour => Part.Fact(PieRoles.Colour);
+
+        public bool Highlighted => Part.Fact(PieRoles.Highlighted) is not null;
+
+        public static Slice? Of(ContentPart part) =>
+            part.Words() is { } label
+                ? new Slice(part, label, part.Inner(MermaidKinds.Number),
+                            (double)part.Node.HeldAs(PieRoles.Share)!, (int)part.Node.HeldAs(PieRoles.Order)!,
+                            (bool)part.Node.HeldAs(PieRoles.Listed)!, (bool)part.Node.HeldAs(PieRoles.ValueShown)!)
+                : null;
+    }
 
     /// <summary>The front matter's <c>pieTitleTextColor</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleTextColour;
+    protected override string? TitleColour => Config.TitleTextColour;
 
     /// <summary>The front matter's <c>pieTitleTextSize</c>, where it writes one.</summary>
-    protected override double? TitleTextSize => Diagram?.Config.TitleTextSize;
+    protected override double? TitleTextSize => Config.TitleTextSize;
 
-    protected override Size Draw(PieChart chart, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-        var slices = chart.Slices.Where(slice => slice.Drawn).ToList();
+        var config = Config;
+        var all = new List<Slice>();
 
-        // While the chart is being written every slice written has a row, drawn or not: one still waiting for its value, or
-        // worth nothing yet, is where the reader is typing, and a row that went away would take the caret with it. A chart
-        // only being read lists what it draws.
-        IReadOnlyList<PieSlice> listed = Writing ? chart.Slices : slices;
+        foreach (var part in Reading.Root.SelfAndDescendants())
+            if (part.Kind == PieKinds.Slice && Slice.Of(part) is { } slice) all.Add(slice);
+
+        var slices = all.Where(slice => slice.Drawn).ToList();
+        var listed = all.Where(slice => slice.Listed).ToList();
 
         // A pie of nothing is the source: there is no chart to look at, and what the reader wants is their own lines
         // back with whatever is wrong with them said underneath.
         if (listed.Count == 0) return AsWritten(build);
 
-        var rows = listed.Select(slice => Key(chart, slice, slices.IndexOf(slice))).ToList();
+        var rows = listed.Select(slice => Key(config, slice)).ToList();
 
         // The room the block is given is what the chart is fitted into: it shrinks, and where it cannot shrink enough
         // beside its legend, the legend goes under it. What is done with the block after that — where it sits on the
         // line, whether it is centred — is the document's, not the chart's.
-        var where = Fitted(Legend(rows, chart.Config.Legend), chart.Config.Legend);
+        var where = Fitted(Legend(rows, config.Legend), config.Legend);
         var legend = Legend(rows, where);
 
         var radius = Fitting(legend.Size, where);
@@ -115,8 +136,8 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
         var (at, legendAt, size) = Places(chartSize, legend.Size, where, radius);
 
         var centre = new Point(at.X + Margin + radius, at.Y + Margin + radius);
-        Wedges(build, chart, slices, centre, radius);
-        Shares(build, chart, slices, centre, radius);
+        Wedges(build, config, slices, centre, radius);
+        Shares(build, config, slices, centre, radius);
         legend.Draw(build, legendAt);
 
         return size;
@@ -124,15 +145,15 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
 
     // ── The wedges ──────────────────────────────────────────────────────────
 
-    private void Wedges(LayoutBuilder build, PieChart chart, IReadOnlyList<PieSlice> slices, Point centre, double radius)
+    private void Wedges(LayoutBuilder build, PieConfig config, IReadOnlyList<Slice> slices, Point centre, double radius)
     {
-        var inner = radius * chart.Config.DonutHole;
-        var gap = chart.Config.StrokeWidth;
+        var inner = radius * config.DonutHole;
+        var gap = config.StrokeWidth;
 
         // A line round each wedge rather than one round the chart: a slice the config pulls out has to carry its own,
         // or it stands outside the very ring that was meant to hold it.
-        var edge = chart.Config.OuterStrokeWidth ?? 0;
-        var rim = edge > 0 ? Ink.Written(chart.Config.OuterStroke) ?? Palette.CodeBorder : null;
+        var edge = config.OuterStrokeWidth ?? 0;
+        var rim = edge > 0 ? Ink.Written(config.OuterStroke) ?? Palette.CodeBorder : null;
 
         build.Open(PiePiece.Slices, part: null, stops: Stops.None);
 
@@ -143,7 +164,7 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
         for (var at = 0; at < slices.Count; at++)
         {
             var slice = slices[at];
-            var sweep = chart.Share(slice) * 2 * Math.PI;
+            var sweep = slice.Share * 2 * Math.PI;
             var whole = slices.Count == 1;
 
             var shape = whole
@@ -153,7 +174,7 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
             if (slice.Highlighted) shape = Moved(shape, Out(from + (sweep / 2), PulledOut));
 
             build.Open(PiePiece.Wedge, slice.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(shape, Fill(chart, slice, at), rim, edge));
+            build.Draw(new GeometryMark(shape, Fill(config, slice), rim, edge));
             build.Occupies(shape);
             build.Close();
 
@@ -236,10 +257,10 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
 
     // ── What is written on them ─────────────────────────────────────────────
 
-    private void Shares(LayoutBuilder build, PieChart chart, IReadOnlyList<PieSlice> slices, Point centre, double radius)
+    private void Shares(LayoutBuilder build, PieConfig config, IReadOnlyList<Slice> slices, Point centre, double radius)
     {
-        var inner = radius * chart.Config.DonutHole;
-        var reach = inner + ((radius - inner) * chart.Config.TextPosition);
+        var inner = radius * config.DonutHole;
+        var reach = inner + ((radius - inner) * config.TextPosition);
 
         build.Open(PiePiece.Shares, part: null, stops: Stops.None);
 
@@ -247,7 +268,7 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
         for (var order = 0; order < slices.Count; order++)
         {
             var slice = slices[order];
-            var share = chart.Share(slice);
+            var share = slice.Share;
             var sweep = share * 2 * Math.PI;
             var middle = from + (sweep / 2);
             from += sweep;
@@ -256,7 +277,7 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
 
             // What a share says is worked out rather than written, so there is nowhere in it to put a caret — but it
             // still stands for the slice, so pressing it means that slice like everything else drawn for it.
-            var words = Worked(Percent(share), slice.Part, chart.Config.SectionTextSize ?? ShareSize, Over(chart, slice, order), FontWeights.SemiBold);
+            var words = Worked(Percent(share), slice.Part, config.SectionTextSize ?? ShareSize, Over(config, slice), FontWeights.SemiBold);
             var where = On(centre, reach, middle) + (slice.Highlighted ? Out(middle, PulledOut) : default);
 
             words.Set(build, new Point(where.X - (words.Width / 2), where.Y - (words.Height / 2)), PiePiece.Share);
@@ -271,21 +292,16 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     // ── The legend ──────────────────────────────────────────────────────────
 
     /// <summary>A slice's row: its colour, its label, its value where the row shows one, and its share where it has a wedge to have one.</summary>
-    /// <param name="order">Where the slice comes among those drawn, which is the colour it takes — or -1 for one not drawn.</param>
-    private DiagramKey Key(PieChart chart, PieSlice slice, int order)
+    private DiagramKey Key(PieConfig config, Slice slice)
     {
-        var size = chart.Config.LegendTextSize ?? LegendSize;
-        var ink = Ink.Written(chart.Config.LegendTextColour) ?? Palette.Text;
+        var size = config.LegendTextSize ?? LegendSize;
+        var ink = Ink.Written(config.LegendTextColour) ?? Palette.Text;
 
-        // The value where the chart shows its values — and, however it is set, wherever one is still to be written or is
-        // wrong, since the row is then the only place to write it.
-        var shown = chart.ShowsData || slice.ValueHole is not null || slice.Trouble is not null;
-
-        return new DiagramKey(slice.Part, slice.Drawn ? Fill(chart, slice, order) : null,
+        return new DiagramKey(slice.Part, slice.Drawn ? Fill(config, slice) : null,
         [
-            Written(slice.Label, slice.LabelHole, size, ink),
-            shown && slice.Value is not null ? Written(slice.Value, slice.ValueHole, size, ink) : null,
-            slice.Drawn ? Worked(Percent(chart.Share(slice)), slice.Part, size, Palette.TextMuted) : null,
+            Written(slice.Label, slice.Label.Parent.Hole(), size, ink),
+            slice.ValueShown && slice.Value is not null ? Written(slice.Value, slice.Value.Parent.Hole(), size, ink) : null,
+            slice.Drawn ? Worked(Percent(slice.Share), slice.Part, size, Palette.TextMuted) : null,
         ]);
     }
 
@@ -352,13 +368,13 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     /// What a slice is drawn in: the colour its front matter asks for, and otherwise the theme's next series colour.
     /// A slice the config picks out is drawn at full strength, whatever the rest are drawn at.
     /// </summary>
-    private Brush Fill(PieChart chart, PieSlice slice, int order)
+    private Brush Fill(PieConfig config, Slice slice)
     {
-        var colour = Ink.Series(Math.Max(0, order), slice.Colour);
-        return chart.Config.Opacity is { } opacity && !slice.Highlighted ? DiagramInk.Faded(colour, opacity) : colour;
+        var colour = Ink.Series(Math.Max(0, slice.Order), slice.Colour);
+        return config.Opacity is { } opacity && !slice.Highlighted ? DiagramInk.Faded(colour, opacity) : colour;
     }
 
     /// <summary>What is written on a slice: the front matter's ink, or whichever of the theme's reads against the slice.</summary>
-    private Brush Over(PieChart chart, PieSlice slice, int order) =>
-        Ink.Written(chart.Config.SectionTextColour) ?? Ink.Over(Fill(chart, slice, order));
+    private Brush Over(PieConfig config, Slice slice) =>
+        Ink.Written(config.SectionTextColour) ?? Ink.Over(Fill(config, slice));
 }

@@ -117,7 +117,7 @@ public sealed class RadarGrammar : IMermaidGrammar
     /// Which axis each value is for is a fact about every axis the block writes, wherever it writes them, so it is worked out and
     /// hung underneath (<see cref="ResolveCurves"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveCurves()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveCurves()];
 
     /// <inheritdoc/>
     /// <remarks>

@@ -14,6 +14,9 @@ public static class PieKinds
 
     /// <summary>What a stage worked out about a slice: the colour it takes, which key that came from, whether it is picked out.</summary>
     public const string Fact = "pie-fact";
+
+    /// <summary>What the front matter asks of the chart, with Mermaid's own default wherever it asks nothing — hung on the block.</summary>
+    public const string Config = "pie-config";
 }
 
 /// <summary>What a piece of a <c>pie</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -33,4 +36,19 @@ public static class PieRoles
 
     /// <summary>Hung under a slice the config picks out.</summary>
     public const string Highlighted = "pie-highlighted";
+
+    /// <summary>A slice's share of the whole: its value against every slice worth a wedge — nought for one that is not.</summary>
+    public const string Share = "pie-share";
+
+    /// <summary>Where a slice comes among those worth a wedge, which is the colour the theme gives it — -1 for one that is not.</summary>
+    public const string Order = "pie-order";
+
+    /// <summary>Whether a slice has a row in the legend.</summary>
+    public const string Listed = "pie-listed";
+
+    /// <summary>Whether a slice's row shows its value.</summary>
+    public const string ValueShown = "pie-value-shown";
+
+    /// <summary>What the front matter asks of the chart (<see cref="PieKinds.Config"/>).</summary>
+    public const string Config = "pie-config";
 }

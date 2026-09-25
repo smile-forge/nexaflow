@@ -198,7 +198,7 @@ public sealed class StateGrammar : IMermaidGrammar
     /// Which composite state each line is in (<see cref="ResolveComposites"/>), and whether what is styled is written at all
     /// (<see cref="ResolveStyles"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveComposites(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveComposites(), new ResolveStyles()];
 
     /// <inheritdoc/>
     /// <remarks>Between a name's quotes, and where what is written on a state is still to come after its colon.</remarks>

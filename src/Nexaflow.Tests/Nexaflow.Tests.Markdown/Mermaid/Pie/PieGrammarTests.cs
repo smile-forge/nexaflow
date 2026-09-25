@@ -199,7 +199,7 @@ public class PieGrammarTests : MermaidGrammarContract
 
         Assert.AreEqual("pie\n  \"Dogs#quot;\" : 3", written);
         Assert.IsNull(new PieGrammar().Escaping(label, label.End, "s"), "and anything else goes in as it is");
-        Assert.AreEqual("Dogs\"", MermaidText.Decode(PieChart.Of(MermaidStaged.Read(written)).Slices.Single().Name), "which reads as the quote typed");
+        Assert.AreEqual("Dogs\"", MermaidText.Decode(MermaidStaged.Read(written).SelfAndDescendants().Single(node => node.Kind == PieKinds.Slice).Inner(MermaidKinds.Words)!.Print()), "which reads as the quote typed");
     }
 
     [TestMethod]

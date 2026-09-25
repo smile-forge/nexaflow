@@ -115,7 +115,7 @@ public sealed class BlockGrammar : IMermaidGrammar
     /// What each line is inside (<see cref="ResolveBlocks"/>), whether a link has blocks to join (<see cref="ResolveLinks"/>),
     /// and whether what is styled is written at all (<see cref="ResolveStyles"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveBlocks(), new ResolveLinks(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveBlocks(), new ResolveLinks(), new ResolveStyles()];
 
     /// <inheritdoc/>
     /// <remarks>Between a label's quotes, and where a width or a column count is still to be written.</remarks>

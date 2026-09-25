@@ -4,7 +4,8 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Mermaid.Pie.Stages;
 
 /// <summary>
-/// Gives each slice what the config says about it: the colour it is drawn in, and whether it is the one picked out.
+/// Gives each slice what the config says about it — the colour it is drawn in, and whether it is the one picked out — and
+/// hangs what the front matter asks of the whole chart, Mermaid's defaults filled in, on the block.
 ///
 /// <para>
 /// A slice's colour is written nowhere near it. Mermaid keeps the palette in the front matter as <c>pie1</c>…
@@ -27,7 +28,8 @@ public sealed class ResolveSlices(PieConfig config) : IAstStage
     {
         // Depth first, so the slices are met in the order they were written — which is the order they are drawn.
         var order = 0;
-        return AstRewrite.Each(tree, node => node.Kind == PieKinds.Slice ? Said(node, order++) : node);
+        return AstRewrite.Each(tree, node => node.Kind == PieKinds.Slice ? Said(node, order++) : node)
+            .Holding(PieKinds.Config, PieRoles.Config, config);
     }
 
     private ContentNode Said(ContentNode slice, int order)

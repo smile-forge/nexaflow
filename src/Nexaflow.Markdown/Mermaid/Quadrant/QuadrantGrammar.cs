@@ -108,7 +108,7 @@ public sealed class QuadrantGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether each point's class is written is worked out over the whole block (<see cref="ResolveClasses"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block) => [new ResolveClasses()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveClasses()];
 
     /// <inheritdoc/>
     /// <remarks>Where text or a class's name is still to write — an axis end, a caption, a point's name, between quotes.</remarks>

@@ -76,7 +76,7 @@ public interface IMermaidGrammar
     /// own — which region an item sits in, what colour a slice takes — worked out and hung underneath (<see cref="IAstStage"/>).
     /// None, for a diagram whose lines say everything they mean.
     /// </summary>
-    IEnumerable<IAstStage> Stages(MermaidBlock block) => [];
+    IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [];
 
     /// <summary>
     /// Whether a hole stands in <paramref name="node"/>, held by <paramref name="holder"/>, where nothing is written in it yet
