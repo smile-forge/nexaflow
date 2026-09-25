@@ -186,4 +186,21 @@ public class BarcodeLayoutTests
         Assert.AreNotEqual(0, Of(root, BarcodeKind.Character).Length,
             "the caption is still the value, so the caret still has somewhere to be");
     });
+
+    [TestMethod]
+    public void AValueNotYetWritten_IsAHoleUnderAFaintSymbol_WhereSomebodyIsWriting() => UiThread.Run(() =>
+    {
+        const string source = "format: CODE128\nvalue:";
+
+        var written = Written(source);
+        var hole = written.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.HoleKind);
+
+        Assert.IsFalse(written.ShowsSource, "the barcode stays on the page");
+        Assert.AreEqual(0, written.Trouble.Count, "nothing is wrong yet, there is only something still to write");
+        Assert.AreEqual(source.Length, hole.Sits().Start, "and the hole stands where the value goes");
+
+        var looked = BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: true);
+        Assert.IsTrue(looked.ShowsSource, "only being read, a missing value is shown as written");
+        Assert.AreEqual(source.IndexOf("value:", StringComparison.Ordinal), looked.Trouble.Single().Start, "with its line marked");
+    });
 }

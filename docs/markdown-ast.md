@@ -417,7 +417,9 @@ is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
 
 The 2D codes' parser and one stage. A `barcode` body is the same field a line, and `SpellValue` then spells its `value:`
 out a piece per character — structure, because a barcode prints its value back a character at a time, and each character
-it prints stands for one it was given. `BarcodeBlockReader` reads the tree into a `BarcodeBlock`, saying what stops it
+it prints stands for one it was given. Where the block is being written in, `HoldValue` gives a `value:` with nothing
+after its colon a piece holding a hole: `WithHoles` puts a hole inside a piece that holds nothing, and a value never
+written has no piece to be inside. `BarcodeBlockReader` reads the tree into a `BarcodeBlock`, saying what stops it
 against the piece at fault, and `BarcodeBuilder` encodes the value and hands each printed `Character` the piece of the
 tree it counts to along the value — never a position of its own working out.
 

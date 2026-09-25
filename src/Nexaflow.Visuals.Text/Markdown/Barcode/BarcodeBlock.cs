@@ -35,6 +35,9 @@ public sealed class BarcodeBlock
     public IReadOnlyList<ContentPart> Characters =>
         Written is { } written ? [.. written.Children.Where(part => part.Kind == BarcodeKinds.Character)] : [];
 
+    /// <summary>The hole standing where a value not yet written goes, where the block is being written in — or null.</summary>
+    public ContentPart? Hole => Written?.Children.FirstOrDefault(part => part.Kind == Kinds.Hole);
+
     /// <summary>How wide one module is drawn, in device-independent pixels.</summary>
     public double BarWidth { get; init; } = DefaultBarWidth;
 

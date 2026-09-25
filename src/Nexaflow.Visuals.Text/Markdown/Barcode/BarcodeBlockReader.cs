@@ -32,7 +32,8 @@ public static class BarcodeBlockReader
         block = null;
         wrong = default;
 
-        if (tree.SelfAndDescendants().FirstOrDefault(part => part.Trouble is not null) is { } troubled)
+        // A hole says something still has to go where it stands, which is not something wrong with what is written.
+        if (tree.SelfAndDescendants().FirstOrDefault(part => part.Trouble is not null && !part.Derived) is { } troubled)
         {
             wrong = (troubled, troubled.Trouble!);
             return false;

@@ -282,9 +282,11 @@ public class ContentElement : FrameworkElement
     public (int Start, int Length)? ShownAsWritten =>
         _state.Raw is { Length: > 0 } zone ? (zone.Start, zone.Length) : null;
 
+    // Somewhere written, or a hole standing where something is still to be written - which is somewhere to write too.
+
     /// <summary>Whether the caret belongs in this content at all. Asked of the tree rather than declared, since a piece naming a stretch of source is one somebody typed — a barcode that only prints a worked-out number has none.</summary>
     public bool AcceptsCaret =>
-            _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 });
+            _state.Source.Length == 0 || _laid.Root.SelfAndDescendants().Any(piece => piece.Part is { Length: > 0 } || (piece.Part is not null && piece.Kind == LayoutText.HoleKind));
 
     /// <summary>A translucent wash from the theme accent, falling back to the highlight token.</summary>
     private static Brush Wash(StyleFormat palette)

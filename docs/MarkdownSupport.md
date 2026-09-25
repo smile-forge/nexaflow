@@ -1207,7 +1207,11 @@ and the renderer never learns what an EAN is.
   where it is being written and its value is printed to be typed into, it keeps rendering: a valid sample value's bars
   are drawn faint, struck through, with a red wave under the value and the reason on hover. A value is invalid for every
   keystroke but the last while an EAN-13 is being typed. Where the block is only being read, or its value is not
-  printed, there is nowhere to put it right but its source, so it is shown as written with the value marked.
+    printed, there is nowhere to put it right but its source, so it is shown as written with the value marked.
+  - A value **not yet written** — `value:` with nothing after it — is a hole under a faint symbol of its kind where the
+    block is being written in ([`HoldValue`](../src/Nexaflow.Markdown/Barcode/Stages/HoldValue.cs)), and the caret goes
+    into it to type the value; nothing is wrong yet, so nothing is waved. Only being read, it is shown as written with its
+    line marked.
 
 **Human-readable layout is a property of the format, not of the encoding**, so it is worked out in one
 place — [`BarcodeTextLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeTextLayout.cs) —

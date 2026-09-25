@@ -58,13 +58,21 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
     /// <summary>Lays a block's source out. Never null, and never throws.</summary>
     public static Laid Lay(string source, StyleFormat style, bool isReadOnly = true, int at = 0) =>
-        new BarcodeBuilder(ContentReading.Of(BarcodeParser.Parse(source), at), EditState.For(source), style, isReadOnly).Lay();
+        new BarcodeBuilder(ContentReading.Of(BarcodeParser.Parse(source, holes: !isReadOnly), at), EditState.For(source), style, isReadOnly).Lay();
 
     protected override Laid Build()
     {
         if (!BarcodeBlockReader.TryRead(Reading.Root, out var block, out var wrong)) return AsSource([wrong]);
 
         _block = block!;
+
+        // A value not yet written, where somebody is writing and it would be printed, is a hole under a faint symbol of its kind:
+        // nothing is wrong yet, there is only something still to write.
+        if (_block.Hole is not null && _block.DisplayValue)
+        {
+            _drawn = BarcodeEncoder.TryEncode(_block.Format, BarcodeEncoder.SampleValue(_block.Format), out var stand, out _) ? stand : null;
+            return Drawn();
+        }
 
         if (_block.Value.Length == 0) _trouble = "A barcode needs a value.";
         else if (BarcodeEncoder.TryEncode(_block.Format, _block.Value, out var encoded, out var error)) _pattern = encoded;
@@ -79,7 +87,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
         // A value that will not encode is put right where it is shown, when it is shown somewhere it can be: typed into under the
         // bars, which stay on the page, faint and struck through, since editing passes through values that do not encode on the way
         // to one that does. Anywhere else it is put right in the block's source.
-        if (IsReadOnly || !_block.DisplayValue || _block.Written is null) return AsSource([(_block.Written ?? _block.Field, _trouble)]);
+        if (IsReadOnly || !_block.DisplayValue || _block.Characters.Count == 0)
+            return AsSource([(_block.Characters.Count > 0 ? _block.Written! : _block.Field, _trouble)]);
 
         _drawn = BarcodeEncoder.TryEncode(_block.Format, BarcodeEncoder.SampleValue(_block.Format), out var sample, out _) ? sample : null;
         return Drawn();
@@ -311,6 +320,15 @@ internal sealed class BarcodeBuilder : ContentBuilder
                           double barsWidth, double gap)
     {
         if (!_block.DisplayValue) return;
+
+        // The hole where the value goes, under the middle of the bars, the size a character of it would be.
+        if (_block.Hole is { } hole)
+        {
+            var letter = Text("0");
+            LayoutText.Hole(into, hole, new Point(_barsLeft + ((barsWidth - LayoutText.HoleWidth(letter)) / 2), _barsTop + _block.BarHeight), letter,
+                            Brush(_block.LineColor, Style.BarcodeDark));
+            return;
+        }
 
         var parts = symbol.Children
             .Where(c => c.Role is BarcodeRole.Label or BarcodeRole.AddOn)

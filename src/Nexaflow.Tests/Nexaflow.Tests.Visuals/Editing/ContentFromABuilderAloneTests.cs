@@ -73,4 +73,19 @@ public class ContentFromABuilderAloneTests
         content.Arrange(new Rect(new Point(0, 0), content.DesiredSize));
         return content;
     }
+
+    [TestMethod]
+    [CoversNode("barcode-editing")]
+    public void ABarcodesEmptyValueIsAHoleTypedInto() => UiThread.Run(() =>
+    {
+        const string source = "format: CODE128\nvalue:";
+        var barcode = Laid(Barcode(source));
+
+        Assert.IsTrue(barcode.AcceptsCaret, "the hole where the value goes is somewhere to stand");
+
+        barcode.TakeCaret(source.Length);
+        barcode.Type('9');
+
+        Assert.AreEqual("format: CODE128\nvalue:9", barcode.Source, "what was typed is the value");
+    });
 }

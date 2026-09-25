@@ -36,4 +36,20 @@ public class BarcodeParserTests
     [TestMethod]
     public void AValueWithNothingAfterItsColonHasNothingToSpell() =>
         Assert.IsFalse(BarcodeParser.Parse("value:").SelfAndDescendants().Any(node => node.Kind == BarcodeKinds.Character));
+
+    [TestMethod]
+    public void AValueNotYetWrittenIsAHole_OnlyWhereSomebodyIsWriting()
+    {
+        const string source = "format: CODE128\nvalue:";
+
+        Assert.IsFalse(BarcodeParser.Parse(source).SelfAndDescendants().Any(node => node.Kind == Kinds.Hole), "a page being read wants none");
+
+        var written = BarcodeParser.Parse(source, holes: true);
+        var hole = written.SelfAndDescendants().Single(node => node.Kind == Kinds.Hole);
+
+        Assert.AreEqual(source, written.Print(), "and it takes up none of the source");
+        Assert.IsTrue(hole.IsDerived);
+        Assert.AreEqual(0, BarcodeParser.Parse("format: CODE128\nvalue: X", holes: true).SelfAndDescendants().Count(node => node.Kind == Kinds.Hole),
+                        "a value that is written has none");
+    }
 }
