@@ -93,8 +93,8 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     protected override double? TitleTextSize => Diagram?.Config.TitleFontSize;
 
     /// <summary>No title where the front matter's <c>showTitle</c> is false.</summary>
-    protected override (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) =>
-        Diagram?.Config.ShowTitle == false ? (null, null) : base.TitleOf(block);
+    protected override (ContentPart? Part, string? Says, bool AsWritten) TitleOf(MermaidBlock block) =>
+        Diagram?.Config.ShowTitle == false ? (null, null, false) : base.TitleOf(block);
 
     protected override Size Draw(XyChart chart, LayoutBuilder build)
     {

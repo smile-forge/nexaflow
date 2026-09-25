@@ -108,6 +108,12 @@ public sealed class MermaidBlock
     /// <summary>What <see cref="Title"/> says, without the quotes a front-matter one may carry — or null where there is none, or it is blank.</summary>
     public string? TitleText => OwnTitle is { } own ? string.IsNullOrWhiteSpace(own.Text) ? null : own.Text : FrontMatterTitleText;
 
+    /// <summary>What the title says, read back from its entity codes — what is drawn where nobody is writing in it.</summary>
+    public string? TitleSays => TitleText is { } text ? MermaidText.Decode(text) : null;
+
+    /// <summary>Whether the title says exactly the characters it is written as, so each one drawn stands where it was typed.</summary>
+    public bool TitleAsWritten => Title is { } title && TitleSays == title.Text;
+
     /// <summary>What the diagram's own first title says, or null where it writes none.</summary>
     private ContentPart? OwnTitle { get; }
 

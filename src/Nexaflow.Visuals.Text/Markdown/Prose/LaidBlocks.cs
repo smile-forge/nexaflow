@@ -111,6 +111,7 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
                 ContentPart written => Found(written),
                 TexSourcePart named => Found(named),
                 PartRun run => Found(run),
+                PartSlice slice => Found(slice),
                 SourceSpan span => span with { Start = span.Start + By },
 
                 // Something this cannot follow stays put, which is right only where nothing moved.
@@ -193,6 +194,9 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
 
             return new PartRun(moved);
         }
+
+        /// <summary>A stretch inside a part, followed with the part — or null where the part is gone.</summary>
+        private PartSlice? Found(PartSlice slice) => Try(slice.Of, out var of) && of is not null ? slice with { Of = of } : null;
 
         private static ContentPart Root(ContentPart part)
         {

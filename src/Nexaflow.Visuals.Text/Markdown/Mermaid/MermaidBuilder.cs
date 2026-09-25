@@ -103,7 +103,8 @@ internal abstract class MermaidBuilder : ContentBuilder
 
     /// <summary>The title to set over the diagram: the diagram's own where it writes one, else the
     /// front matter's (<see cref="MermaidBlock.Title"/>).</summary>
-    protected virtual (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) => (block.Title, block.TitleText);
+    protected virtual (ContentPart? Part, string? Says, bool AsWritten) TitleOf(MermaidBlock block) =>
+        (block.Title, block.TitleSays, block.TitleAsWritten);
 
     /// <summary>The colour the diagram's front matter asks its title to be written in, or null for the theme's heading.</summary>
     protected virtual string? TitleColour => null;
@@ -168,19 +169,21 @@ internal abstract class MermaidBuilder : ContentBuilder
         // Everything the block stacks is measured before any of it is placed, and the width of the block is the widest of
         // them. A piece set down before that is known sits off to one side of the block as soon as a later one turns out to
         // be wider — which is how a drawing comes to stand off-centre under its own title, or beside its own legend.
-        var (titlePart, titleText) = TitleOf(block);
+        var (titlePart, titleSays, titleAsWritten) = TitleOf(block);
 
         FormattedText? title = null;
         string says = string.Empty;
+        var maps = false;
         Brush ink = Palette.Heading;
 
-        if (titlePart is not null && !string.IsNullOrWhiteSpace(titleText))
+        if (titlePart is not null && !string.IsNullOrWhiteSpace(titleSays))
         {
             // What was written, where the reader is writing in it — a front-matter title says one thing and is written
             // as another, quotes and all, and only the characters they typed can be typed into.
             var written = State.Raw is { } raw && raw.Start <= titlePart.Start && raw.End >= titlePart.End();
 
-            says = written ? titlePart.Text : MermaidText.Decode(titleText!);
+            says = written ? titlePart.Text : titleSays!;
+            maps = written || titleAsWritten;
             ink = TitleInk;
             title = Text(says, TitleTextSize ?? TitleSize, ink, FontWeights.SemiBold);
         }
@@ -196,7 +199,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (title is not null)
         {
             LayoutText.Words(build, title, new Point(Pad, top), width, TextAlignment.Center, titlePart,
-                             MermaidPiece.Title, maps: says == titlePart!.Text, writes: true, ink: ink);
+                             MermaidPiece.Title, maps: maps, writes: true, ink: ink);
             top += title.Height + TitleGap;
         }
 
@@ -276,18 +279,71 @@ internal abstract class MermaidBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What a part says, as against what it was written as: entity codes read back, bindings read against whatever
-    /// the diagram was given to read against.
+    /// What a run of words says, as one line of text — what a chip says it stands for.
     ///
     /// <para>
-    /// Which parts of it are which was settled when it was read, so this asks the tree and never the characters. While
-    /// the reader is writing inside it, it says exactly what they typed — there is nothing to show them but that.
+    /// Which pieces of it are which was settled when it was read (<see cref="WithWordPieces"/>), so this asks the tree and never
+    /// the characters. While the reader is writing inside it, it says exactly what they typed — there is nothing to show them but that.
     /// </para>
     /// </summary>
-    protected string Shown(ContentPart part) =>
-        State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End
-            ? part.Wrote()
-            : ContentWords.Says(part, MermaidText.Decode);
+    protected string Shown(ContentPart part) => string.Join(' ', Lines(part, breaks: true).Select(line => line.Says));
+
+    /// <summary>One line of a run of words: what it says, what it stands for, and whether each of its characters is one written there.</summary>
+    private readonly record struct Line(string Says, ISourcePart Part, bool Maps);
+
+    /// <summary>What the diagram holds about what its words are made of — asked once, of the tree the builder was handed.</summary>
+    private MermaidWords Pieces => this.pieces ??= MermaidWords.Held(Reading.Root.Node);
+
+    private MermaidWords? pieces;
+
+    /// <summary>
+    /// The lines a run of words is set as: broken at each line break written in it where <paramref name="breaks"/>, and
+    /// otherwise one, with any break in it shown as it was typed.
+    ///
+    /// <para>
+    /// What each piece of the run is — its own characters, an entity code, a line break, a binding — was settled when it was
+    /// read (<see cref="WithWordPieces"/>). A line is the pieces between two breaks set one after another, and stands for those
+    /// pieces; a run that is only its own characters is one line, standing for the run.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<Line> Lines(ContentPart part, bool breaks)
+    {
+        // A name or a label handed over whole is set as the words in it.
+        var words = part.Kind == MermaidKinds.Words || part.Node.IsLeaf ? part
+            : part.Words() is { Kind: MermaidKinds.Words } inner ? inner
+            : part;
+
+        if (Pieces.Of(words.Node) is not { } pieces)
+            return [words.Node.IsLeaf ? new Line(words.Text, words, Maps: true) : new Line(string.Empty, words, Maps: false)];
+
+        var writing = Writing(words);
+        var lines = new List<Line>();
+        var from = 0;
+
+        for (var at = 0; at <= pieces.Count; at++)
+        {
+            if (at < pieces.Count && !(breaks && pieces[at].Breaks)) continue;
+
+            lines.Add(Set(from, at));
+            from = at + 1;
+        }
+
+        return lines;
+
+        Line Set(int first, int end)
+        {
+            if (end == first) return new Line(string.Empty, words, Maps: false);
+
+            var run = new List<WordPiece>(end - first);
+            for (var at = first; at < end; at++) run.Add(pieces[at]);
+
+            // Where the reader is writing, every piece is the characters they typed.
+            var says = string.Concat(run.Select(piece => writing ? piece.Written : piece.Says));
+            ISourcePart stands = run.Count == pieces.Count ? words : new PartRun([.. run.Select(piece => piece.In(words))]);
+
+            return new Line(says, stands, Maps: writing || run.All(piece => piece.AsWritten));
+        }
+    }
 
     /// <summary>A run of diagram text: the face every diagram label is set in, at the standard size a layout is measured at.</summary>
     private FormattedText Text(string text, double size, Brush ink, FontWeight? weight = null, FontStyle? slant = null) =>
@@ -318,12 +374,16 @@ internal abstract class MermaidBuilder : ContentBuilder
 
         // A line broken where it was written is set as the lines it was broken into, and pressed rather than typed into, since
         // what it shows is no longer the characters written.
-        var says = Writing(part) ? Shown(part) : Broken(Shown(part));
-        return new DiagramWords(Text(says, size, ink, weight, slant), part, null, letter, ink, maps: says == part.Wrote(), writes: true);
+        var lines = Lines(part, breaks: !Writing(part));
+
+        return lines is [var line]
+            ? new DiagramWords(Text(line.Says, size, ink, weight, slant), line.Part, null, letter, ink, line.Maps, writes: true)
+            : new DiagramWords(Text(string.Join('\n', lines.Select(each => each.Says)), size, ink, weight, slant), part, null, letter,
+                               ink, maps: false, writes: true);
     }
 
-    /// <summary>As <see cref="Written"/>, wrapped to <paramref name="width"/>: broken at a <c>&lt;br&gt;</c> or a <c>\n</c>,
-    /// after a space past the width, or inside an overlong word.</summary>
+    /// <summary>As <see cref="Written"/>, a line to each line break written in it, and each line set no wider than
+    /// <paramref name="width"/> (<see cref="Fitted"/>).</summary>
     protected IReadOnlyList<DiagramWords> Wrapped(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
                                                   FontWeight? weight = null, FontStyle? slant = null)
     {
@@ -333,81 +393,32 @@ internal abstract class MermaidBuilder : ContentBuilder
         // Another content is one thing, however wide it turned out: breaking it would be breaking a tune in half.
         if (whole.Nested) return [whole];
 
-        var says = Shown(part);
-        var maps = says == part.Text;
-        var breaks = Breaks(says);
-        if (breaks.Count == 1 && whole.Width <= width) return [whole];
+        var lines = Lines(part, breaks: true);
+        if (lines.Count == 1 && whole.Width <= width) return [whole];
 
         var letter = Text("x", size, ink);
-        var lines = new List<DiagramWords>();
-
-        foreach (var (from, to) in breaks)
-            for (var start = from; start < to || (start == from && from == to);)
-            {
-                var end = Math.Min(start + 1, to);
-                var broken = -1;
-                while (end < to && Text(says[start..(end + 1)], size, ink, weight, slant).Width <= width)
-                {
-                    end++;
-                    if (says[end - 1] == ' ') broken = end;
-                }
-
-                if (end < to && broken > start) end = broken;
-
-                var line = says[start..end];
-                lines.Add(new DiagramWords(Text(line, size, ink, weight, slant), maps ? new SourceSpan(part.Start + start, end - start) : part, null, letter, ink, maps, writes: maps));
-                if (end == start) break;
-                start = end;
-            }
-
-        return lines.Count == 0 ? [whole] : lines;
-    }
-
-    /// <summary>What a piece of text says, wrapped to <paramref name="width"/> and broken at a
-    /// <c>&lt;br&gt;</c> or a <c>\n</c> — or, for an entity code (<see cref="MermaidText"/>), what it stands for.</summary>
-    protected IReadOnlyList<DiagramWords> Says(ContentPart? part, ContentPart? hole, double size, Brush ink, double width,
-                                               FontWeight? weight = null)
-    {
-        var written = part?.Text ?? string.Empty;
-        var says = MermaidText.Decode(written);
-
-        return says == written ? Wrapped(part, hole, size, ink, width, weight) : [Worked(Broken(says), part, size, ink, weight)];
-    }
-
-    /// <summary>Where the stretches between line breaks start and end — one stretch, for words with none.</summary>
-    private static IReadOnlyList<(int From, int To)> Breaks(string says)
-    {
-        var stretches = new List<(int, int)>();
-
-        for (var at = 0; at <= says.Length;)
-        {
-            var (start, length) = (says.Length, 0);
-            foreach (var mark in Marks)
-            {
-                var found = says.IndexOf(mark, at, StringComparison.OrdinalIgnoreCase);
-                if (found >= 0 && found < start) (start, length) = (found, mark.Length);
-            }
-
-            stretches.Add((at, start));
-            if (length == 0) break;
-            at = start + length;
-        }
-
-        return stretches;
+        return [.. lines.Select(line => new DiagramWords(Fitted(Text(line.Says, size, ink, weight, slant), width), line.Part, null, letter,
+                                                         ink, line.Maps, writes: line.Maps))];
     }
 
     /// <summary>
-    /// What breaks a line in what a diagram says: a <c>&lt;br&gt;</c> however it is written, and a <c>\n</c> — the two ways
-    /// anybody writes a new line where a line of the source cannot hold one.
+    /// A line of words set no wider than <paramref name="width"/>: where it is wider, the type engine breaks it after the last
+    /// space that fits, or inside a word longer than the width, into lines set in the middle of one another — as wide as the
+    /// widest of them, so it is measured and placed as what it takes.
     /// </summary>
-    private static readonly string[] Marks = ["<br/>", "<br />", "<br>", @"\n"];
-
-    /// <summary>Words with every line break written in them made one — what is set where they are one run of words rather than wrapped.</summary>
-    private static string Broken(string says)
+    private static FormattedText Fitted(FormattedText text, double width)
     {
-        var breaks = Breaks(says);
-        return breaks.Count == 1 ? says : string.Join('\n', breaks.Select(stretch => says[stretch.From..stretch.To]));
+        if (text.Width <= width) return text;
+
+        text.MaxTextWidth = Math.Max(1, width);
+        text.TextAlignment = TextAlignment.Center;
+        text.MaxTextWidth = Math.Max(1, text.Width + Hair);
+
+        return text;
     }
+
+    /// <summary>How much wider than its widest line a broken line's room is set, so measuring it again breaks it the same way.</summary>
+    private const double Hair = 0.01;
 
     /// <summary>Whether the reader is writing inside <paramref name="part"/>, where it is shown exactly as typed.</summary>
     private bool Writing(ContentPart part) => State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End;

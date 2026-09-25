@@ -301,7 +301,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     /// pressed rather than typed into.
     /// </summary>
     private IReadOnlyList<DiagramWords> Said(TimelineText text, double size, Brush ink, double width, FontWeight? weight = null) =>
-        Says(text.Says, text.Hole, size, ink, width, weight);
+        Wrapped(text.Says, text.Hole, size, ink, width, weight);
 
     /// <summary>The colour a slot is drawn in: the one its <c>cScale</c> writes, or the theme's own.</summary>
     private Brush Colour(TimelineChart chart, int slot) => Ink.Series(slot, chart.Config.ScaleAt(slot));

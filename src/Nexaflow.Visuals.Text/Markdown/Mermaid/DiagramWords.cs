@@ -93,7 +93,9 @@ internal sealed class DiagramWords
             return;
         }
 
-        LayoutText.Words(build, _text, at, _text.Width, TextAlignment.Left, Part, kind, maps: _maps, writes: _writes, ink: Ink, degrees: degrees);
+        // A line broken to fit keeps the room it was broken in, and the lines it was broken into stay set in the middle of one another.
+        LayoutText.Words(build, _text, at, _text.MaxTextWidth > 0 ? _text.MaxTextWidth : _text.Width, _text.TextAlignment, Part, kind,
+                         maps: _maps, writes: _writes, ink: Ink, degrees: degrees);
     }
 
     /// <summary>

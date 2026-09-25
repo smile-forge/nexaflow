@@ -148,4 +148,25 @@ public class LayoutWordsTests
         // The point is only a word of its own where nothing wordy is written before it.
         Assert.AreEqual((3, 4), new LayoutWords(Set("38 .6"), default, true).WordAt(3));
     });
+
+    [TestMethod]
+    public void APressOnARunBrokenIntoLinesMeansTheLetterOnTheLineItLandedOn() => UiThread.Run(() =>
+    {
+        const string said = "one two three four five six";
+        var set = Set(said);
+        set.MaxTextWidth = set.Width / 2.5;
+
+        var words = new LayoutWords(set, default, Maps: true);
+        var first = words.Covers(0, 1);
+        var last = words.Covers(said.Length - 1, said.Length);
+
+        Assert.IsTrue(last.Y > first.Y, "set as more than one line");
+        Assert.AreEqual(said.Length, words.IndexAt(new Point(last.Right + 50, last.Y + (last.Height / 2))),
+                        "past the end of the last line is the end of the run");
+        Assert.AreEqual(said.Length - 1, words.IndexAt(new Point(last.X + (last.Width * 0.25), last.Y + (last.Height / 2))),
+                        "the left half of the last letter is before it, on its own line");
+        Assert.AreEqual(0, words.IndexAt(new Point(first.X, first.Y - 50)), "above every line is the first");
+        Assert.IsTrue(words.IndexAt(new Point(first.Right + 400, first.Y + (first.Height / 2))) < said.Length / 2,
+                      "past the end of the first line is the end of that line");
+    });
 }

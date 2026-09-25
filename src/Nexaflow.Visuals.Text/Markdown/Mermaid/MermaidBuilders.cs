@@ -28,9 +28,13 @@ internal static class MermaidBuilders
     /// </summary>
     public delegate Editing.ContentBuilder Make(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly);
 
+    /// <summary>What every block read is worked over by once all else has been: what its words are made of.</summary>
+    private static readonly WithWordPieces WordPieces = new();
+
     /// <summary>
     /// A block read: parsed by its grammar, worked over by that grammar's stages, then by whatever the host put
-    /// after them, and positioned where it sits in the document holding it.
+    /// after them, then told what its words are made of (<see cref="WithWordPieces"/>), and positioned where it sits in the
+    /// document holding it.
     /// </summary>
     /// <param name="holes">Whether somebody is writing in it, which puts a hole wherever something is still to be written.</param>
     /// <param name="grammar">What reads it, where the fence's language names the diagram rather than the first line. Null for a Mermaid block, whose header names its own.</param>
@@ -40,8 +44,10 @@ internal static class MermaidBuilders
                                       Nexaflow.Markdown.Pipeline.AstPipeline? after = null)
     {
         var tree = MermaidParser.Read(source, holes, grammar);
+        if (after is not null) tree = after.Run(tree);
 
-        return ContentReading.Of(after is null ? tree : after.Run(tree), at);
+        // Last, so every binding the host resolved says its value in the piece it is.
+        return ContentReading.Of(WordPieces.Run(tree), at);
     }
 
     /// <summary>

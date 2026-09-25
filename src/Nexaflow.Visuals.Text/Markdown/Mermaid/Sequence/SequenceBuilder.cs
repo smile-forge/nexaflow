@@ -928,14 +928,14 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
 
         var said = message.Said is null && message.SaidHole is null
             ? []
-            : Says(message.Said, message.SaidHole, config.SaidText, ink, config.Wrapping);
+            : Wrapped(message.Said, message.SaidHole, config.SaidText, ink, config.Wrapping);
 
         if (message.Under.Count == 0) return said;
 
         return
         [
             .. said,
-            .. message.Under.SelectMany(under => Says(under, null, Math.Max(8, config.SaidText - 4), Palette.TextMuted,
+            .. message.Under.SelectMany(under => Wrapped(under, null, Math.Max(8, config.SaidText - 4), Palette.TextMuted,
                                                       config.Wrapping)),
         ];
     }
@@ -943,7 +943,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     private IReadOnlyList<DiagramWords> Noting(SequenceNote note, SequenceConfig config) =>
         note.Said is null && note.SaidHole is null
             ? []
-            : Says(note.Said, note.SaidHole, config.NoteText, Palette.Text, config.Wrapping);
+            : Wrapped(note.Said, note.SaidHole, config.NoteText, Palette.Text, config.Wrapping);
 
     private IReadOnlyList<DiagramWords> Dividing(SequenceDivider divider, SequenceConfig config) =>
         divider.Said is null ? [] : Wrapped(divider.Said, null, config.SaidText, Palette.TextMuted, config.Wrapping);

@@ -70,7 +70,8 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         foreach (var cause in new[] { "Out of focus", "Shutter speed too slow", "Shaky hands", "LENS", "Dirty lens", "Damaged lens", "SENSOR", "Dirty sensor", "Too dark" })
             StringAssert.Contains(said.Replace(" ", ""), cause.Replace(" ", ""), cause);
 
-        Assert.IsTrue(labels.Count > 9, "the longest cause takes more than one line");
+        Assert.IsTrue(labels.Max(label => label.Bounds.Height) > labels.Min(label => label.Bounds.Height) * 1.5,
+                      "the longest cause takes more than one line");
     });
 
     [TestMethod]

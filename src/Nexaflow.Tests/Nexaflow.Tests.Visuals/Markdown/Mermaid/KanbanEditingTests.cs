@@ -37,11 +37,15 @@ public class KanbanEditingTests : MermaidEditing
             Write(editor, "!");
 
             // The card's title wraps: a press at the end of its first line and at the end of its last each write there.
-            PressPast(chart, "Create");
+            var one = chart.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == "Title").Min(piece => piece.Bounds.Height);
+            var wrapped = Title(chart);
+            Assert.IsTrue(wrapped.Bounds.Height > one * 1.5, "the card's title wraps");
+            chart.BeginPointerSelect(new Point(wrapped.Bounds.Right - 1, wrapped.Bounds.Top + (one / 2)));
+            chart.EndPointerSelect();
             Write(editor, "X");
-            var lines = chart.Laid.Root.SelfAndDescendants().Where(piece => piece is { Kind: "Title", Words.Maps: true } && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal) && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal)).ToList();
-            Assert.IsTrue(lines.Count > 1, "the card's title wraps");
-            chart.BeginPointerSelect(new Point(lines[^1].Bounds.Right - 1, lines[^1].Bounds.Y + (lines[^1].Bounds.Height / 2)));
+
+            wrapped = Title(chart);
+            chart.BeginPointerSelect(new Point(wrapped.Bounds.Right - 1, wrapped.Bounds.Bottom - (one / 2)));
             chart.EndPointerSelect();
             Write(editor, "?");
 
@@ -53,6 +57,12 @@ public class KanbanEditingTests : MermaidEditing
             Assert.IsTrue(title.IndexOf('X') > 0 && title.IndexOf('X') < title.Length / 2, chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message)));
         }));
+
+    /// <summary>The long card's title, as it is drawn now: one run of words, broken into lines to fit its card.</summary>
+    private static Piece Title(DocumentBlock chart) =>
+        chart.Laid.Root.SelfAndDescendants().Single(piece => piece is { Kind: "Title", Words.Maps: true }
+                                                            && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)
+                                                            && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal));
 }
 
 

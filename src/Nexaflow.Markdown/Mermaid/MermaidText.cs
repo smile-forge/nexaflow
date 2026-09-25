@@ -33,6 +33,18 @@ public static partial class MermaidText
     public static string Decode(string written) =>
         written.Contains('#') || written.Contains('&') ? Entity().Replace(written, Decoded) : written;
 
+    /// <summary>
+    /// Every entity code written in <paramref name="written"/> that stands for something: where it is written, how long it is,
+    /// and the character it names — what <see cref="Decode"/> puts in its place.
+    /// </summary>
+    public static IEnumerable<(int At, int Length, string Says)> Codes(string written)
+    {
+        if (!written.Contains('#') && !written.Contains('&')) yield break;
+
+        foreach (Match match in Entity().Matches(written))
+            if (Decoded(match) is var says && says != match.Value) yield return (match.Index, match.Length, says);
+    }
+
     /// <summary>Text as a place in quotes holds it: every quote written as the entity code that stands for it.</summary>
     public static string Quoted(string text) => text.Replace("\"", "#quot;", StringComparison.Ordinal);
 

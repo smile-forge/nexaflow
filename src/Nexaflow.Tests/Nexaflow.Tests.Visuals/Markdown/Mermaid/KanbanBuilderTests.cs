@@ -60,10 +60,12 @@ public class KanbanBuilderTests : MermaidBuilderContract
     public void ALongTitleWrapsInsideItsCard_EachLineTheCharactersWritten() => UiThread.Run(() =>
     {
         var laid = Build(Board);
-        var card = Pieces(laid, KanbanPiece.Card)[2];
+        var cards = Pieces(laid, KanbanPiece.Card);
+        var card = cards[2];
         var lines = card.SelfAndDescendants().Where(piece => piece.Kind == KanbanPiece.Title).ToList();
+        var one = cards[0].SelfAndDescendants().First(piece => piece.Kind == KanbanPiece.Title);
 
-        Assert.IsTrue(lines.Count > 1, "wrapped");
+        Assert.IsTrue(lines.Sum(line => line.Bounds.Height) > one.Bounds.Height * 1.5, "wrapped");
         Assert.IsTrue(lines.All(line => card.Bounds.Contains(line.Bounds)), "inside its card");
         Assert.AreEqual("Create parsing tests that cover every case anybody could think of writing", string.Concat(lines.Select(line => Written(Board, line.Part))));
     });
