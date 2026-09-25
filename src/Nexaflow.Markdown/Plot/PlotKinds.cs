@@ -23,6 +23,9 @@ public static class PlotKinds
     /// <summary>A <c>key: value</c> line, which is a setting only while the settings are still open.</summary>
     public const string Setting = "plot-setting";
 
+    /// <summary>The settings a block was read with, hung on it once they read (<see cref="PlotPipeline.Read"/>).</summary>
+    public const string Settings = "plot-settings";
+
     /// <summary>The key of a setting.</summary>
     public const string Key = "plot-key";
 
@@ -65,6 +68,9 @@ public static class PlotRoles
 {
     /// <summary>What a setting is set to.</summary>
     public const string Value = "value";
+
+    /// <summary>What the settings a block was read with are to it.</summary>
+    public const string Settings = "settings";
 
     // ── What the stages work out ────────────────────────────────────────────
     //

@@ -30,22 +30,19 @@ public static class PlotPipeline
             new ResolveCorrelations(settings));
 
     /// <summary>
-    /// A block read the whole way: parsed, its settings taken off it, and the stages run over it.
-    ///
-    /// <para>
-    /// The tree comes back whatever happens, because it is what is shown when nothing else can be — a
-    /// block whose settings will not read is still every character somebody typed.
-    /// </para>
+    /// A block read: its tree, worked out by the stages its settings call for, with those settings hung on it — or, where a
+    /// setting cannot be read, the tree as parsed with that setting marked with why, since nothing can be worked out without it.
     /// </summary>
-    public static ContentNode Read(string? source, PlotFence fence,
-                                   out PlotSettings settings, out string? error)
+    public static ContentNode Read(string? source, PlotFence fence)
     {
         var tree = PlotParser.Parse(source);
 
-        settings = PlotReader.TrySettings(tree, fence, out var read, out error) && read is not null
-            ? read
-            : PlotSettings.Default;
+        if (!PlotReader.TrySettings(tree, fence, out var settings, out var error, out var key) || settings is null)
+            return PlotReader.Marked(tree, key, error ?? "This plot's settings could not be read.");
 
-        return error is null ? For(settings).Run(tree) : tree;
+        return For(settings).Run(tree).Holding(PlotKinds.Settings, PlotRoles.Settings, settings);
     }
+
+    /// <summary>The settings a tree <see cref="Read"/> made was read with, or null where they could not be read.</summary>
+    public static PlotSettings? Settings(ContentNode tree) => tree.HeldAs(PlotRoles.Settings) as PlotSettings;
 }

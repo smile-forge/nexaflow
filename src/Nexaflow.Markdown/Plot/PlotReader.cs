@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Settings;
 using System.Globalization;
 using static Nexaflow.Markdown.Settings.SettingValues;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Plot;
 
@@ -27,67 +28,93 @@ public static class PlotReader
     /// </summary>
     public static bool TrySettings(ContentNode root, PlotFence fence,
                                    out PlotSettings? settings, out string? error) =>
-        TrySettings(SettingKeys.Written(root, PlotKinds.Setting, PlotRoles.Value), fence, out settings, out error);
+        TrySettings(root, fence, out settings, out error, out _);
+
+    /// <summary>The settings the tree describes, or false with the reason and the setting that gave it, where one did.</summary>
+    public static bool TrySettings(ContentNode root, PlotFence fence,
+                                   out PlotSettings? settings, out string? error, out string? key) =>
+        TrySettings(SettingKeys.Written(root, PlotKinds.Setting, PlotRoles.Value), fence, out settings, out error, out key);
+
+    /// <summary>
+    /// The tree with the setting that stopped it reading marked with why — its value, where one is written, and the last line
+    /// setting it, since that is the one read — or the whole of it where no one setting did.
+    /// </summary>
+    public static ContentNode Marked(ContentNode root, string? key, string reason)
+    {
+        var plain = SettingKeys.Plain(key);
+        var culprit = key is null
+            ? null
+            : root.SelfAndDescendants().LastOrDefault(node => node.Kind == PlotKinds.Setting && SettingKeys.Plain(node.Part(Roles.Name)?.Text) == plain);
+
+        if (culprit is null) return root.Saying(reason);
+
+        return AstRewrite.Each(root, node => !ReferenceEquals(node, culprit)
+            ? node
+            : node.Children.Any(child => child.Role == PlotRoles.Value)
+                ? node.With([.. node.Children.Select(child => child.Role == PlotRoles.Value ? child.Saying(reason) : child)])
+                : node.Saying(reason));
+    }
 
     private static bool TrySettings(IReadOnlyDictionary<string, string> fields, PlotFence fence,
-                                    out PlotSettings? settings, out string? error)
+                                    out PlotSettings? settings, out string? error, out string? key)
     {
         settings = null;
+        key = null;
 
         // Every key here is a setting already: the parser only makes a setting of a key it knows, and one
         // it does not know is a row. So there is no unknown-setting fault to report here.
         var it = PlotSettings.Default;
 
-        if (!Choice(fields, "geom", PlotFences.Geom(fence), out var geom, out error)) return false;
-        if (!Choice(fields, "legend", it.Legend, out var legend, out error)) return false;
-        if (!Choice(fields, "xScale", it.XScale, out var xScale, out error)) return false;
-        if (!Choice(fields, "yScale", it.YScale, out var yScale, out error)) return false;
-        if (!Choice(fields, "grid", it.Grid, out var grid, out error)) return false;
+        if (!Choice(fields, "geom", PlotFences.Geom(fence), out var geom, out error)) return Stop("geom", out key);
+        if (!Choice(fields, "legend", it.Legend, out var legend, out error)) return Stop("legend", out key);
+        if (!Choice(fields, "xScale", it.XScale, out var xScale, out error)) return Stop("xScale", out key);
+        if (!Choice(fields, "yScale", it.YScale, out var yScale, out error)) return Stop("yScale", out key);
+        if (!Choice(fields, "grid", it.Grid, out var grid, out error)) return Stop("grid", out key);
 
-        if (!Limits(fields, "xLimits", out var xLimits, out error)) return false;
-        if (!Limits(fields, "yLimits", out var yLimits, out error)) return false;
-        if (!Limits(fields, "fillLimits", out var fillLimits, out error)) return false;
+        if (!Limits(fields, "xLimits", out var xLimits, out error)) return Stop("xLimits", out key);
+        if (!Limits(fields, "yLimits", out var yLimits, out error)) return Stop("yLimits", out key);
+        if (!Limits(fields, "fillLimits", out var fillLimits, out error)) return Stop("fillLimits", out key);
 
-        if (!Numbers(fields, "xBreaks", out var xBreaks, out error)) return false;
-        if (!Numbers(fields, "yBreaks", out var yBreaks, out error)) return false;
+        if (!Numbers(fields, "xBreaks", out var xBreaks, out error)) return Stop("xBreaks", out key);
+        if (!Numbers(fields, "yBreaks", out var yBreaks, out error)) return Stop("yBreaks", out key);
 
-        if (!Number(fields, "width", 0, 0, PlotSettings.MaxSide, out var width, out error)) return false;
-        if (!Number(fields, "height", 0, 0, PlotSettings.MaxSide, out var height, out error)) return false;
+        if (!Number(fields, "width", 0, 0, PlotSettings.MaxSide, out var width, out error)) return Stop("width", out key);
+        if (!Number(fields, "height", 0, 0, PlotSettings.MaxSide, out var height, out error)) return Stop("height", out key);
 
         if (!Range(fields, "sizeRange", it.MinSize, it.MaxSize, PlotSettings.SmallestSize,
-                   PlotSettings.LargestSize, out var minSize, out var maxSize, out error)) return false;
+                   PlotSettings.LargestSize, out var minSize, out var maxSize, out error)) return Stop("sizeRange", out key);
 
-    if (!Maybe(fields, "header", out var header, out error)) return false;
-            if (!Flag(fields, "flip", it.Flip, out var flip, out error)) return false;
+    if (!Maybe(fields, "header", out var header, out error)) return Stop("header", out key);
+            if (!Flag(fields, "flip", it.Flip, out var flip, out error)) return Stop("flip", out key);
 
-            if (!Number(fields, "jitter", it.Jitter, 0, 1, out var jitter, out error)) return false;
+            if (!Number(fields, "jitter", it.Jitter, 0, 1, out var jitter, out error)) return Stop("jitter", out key);
             if (!Range(fields, "alphaRange", it.MinAlpha, it.MaxAlpha, 0, 1,
-                       out var minAlpha, out var maxAlpha, out error)) return false;
+                       out var minAlpha, out var maxAlpha, out error)) return Stop("alphaRange", out key);
 
             double? aspect = null;
             if (Text(fields, "aspect") is not null)
             {
-                if (!Number(fields, "aspect", 1, 0.05, 20, out var shape, out error)) return false;
+                if (!Number(fields, "aspect", 1, 0.05, 20, out var shape, out error)) return Stop("aspect", out key);
 
                 aspect = shape;
             }
-        if (!Flag(fields, "labels", it.Labels, out var labels, out error)) return false;
+        if (!Flag(fields, "labels", it.Labels, out var labels, out error)) return Stop("labels", out key);
 
-        if (!Colours(fields, "palette", out var palette, out error)) return false;
-    if (!Counting(fields, it, out var binsX, out var binsY, out error)) return false;
-            if (!Choice(fields, "contour", it.Contour, out var contour, out error)) return false;
-            if (!Widths(fields, out var bandwidth, out error)) return false;
-        if (!Flag(fields, "points", it.Points, out var points, out error)) return false;
-                if (!Choice(fields, "fit", it.Fit, out var fit, out error)) return false;
-                if (!Choice(fields, "method", it.Method, out var method, out error)) return false;
-                if (!Flag(fields, "se", it.Se, out var se, out error)) return false;
-                if (!Number(fields, "level", it.Level, 0.5, 0.999, out var confidence, out error)) return false;
-                if (!Reported(fields, out var stats, out error)) return false;
+        if (!Colours(fields, "palette", out var palette, out error)) return Stop("palette", out key);
+    if (!Counting(fields, it, out var binsX, out var binsY, out error)) return Stop("bins", out key);
+            if (!Choice(fields, "contour", it.Contour, out var contour, out error)) return Stop("contour", out key);
+            if (!Widths(fields, out var bandwidth, out error)) return Stop("bandwidth", out key);
+        if (!Flag(fields, "points", it.Points, out var points, out error)) return Stop("points", out key);
+                if (!Choice(fields, "fit", it.Fit, out var fit, out error)) return Stop("fit", out key);
+                if (!Choice(fields, "method", it.Method, out var method, out error)) return Stop("method", out key);
+                if (!Flag(fields, "se", it.Se, out var se, out error)) return Stop("se", out key);
+                if (!Number(fields, "level", it.Level, 0.5, 0.999, out var confidence, out error)) return Stop("level", out key);
+                if (!Reported(fields, out var stats, out error)) return Stop("stats", out key);
 
-    if (!Number(fields, "levels", it.Levels, 1, 40, out var levels, out error)) return false;
-            if (!Number(fields, "facetCols", 0, 0, 12, out var facetCols, out error)) return false;
-            if (!Number(fields, "adjust", it.Adjust, 0.05, 20, out var adjust, out error)) return false;
-        if (!Middle(fields, out var midpoint, out error)) return false;
+    if (!Number(fields, "levels", it.Levels, 1, 40, out var levels, out error)) return Stop("levels", out key);
+            if (!Number(fields, "facetCols", 0, 0, 12, out var facetCols, out error)) return Stop("facetCols", out key);
+            if (!Number(fields, "adjust", it.Adjust, 0.05, 20, out var adjust, out error)) return Stop("adjust", out key);
+        if (!Middle(fields, out var midpoint, out error)) return Stop("midpoint", out key);
 
         settings = it with
         {
@@ -160,6 +187,13 @@ public static class PlotReader
         };
 
         return true;
+    }
+
+    /// <summary>Says which setting stopped the block reading, and that it stopped.</summary>
+    private static bool Stop(string setting, out string? key)
+    {
+        key = setting;
+        return false;
     }
 
     /// <summary>
