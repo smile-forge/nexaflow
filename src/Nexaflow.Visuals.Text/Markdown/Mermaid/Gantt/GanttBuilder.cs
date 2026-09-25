@@ -84,6 +84,9 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     /// <inheritdoc/>
     protected override GanttChart Of(MermaidBlock block) => GanttChart.Of(block);
 
+    /// <summary>A chart is drawn as of today: its line at today's date, and a task written with no start starting today.</summary>
+    protected override bool Passing => true;
+
     /// <summary>The front matter's <c>titleColor</c>, where it writes one.</summary>
     protected override string? TitleColour => Diagram?.Config.TitleColour;
 
@@ -119,11 +122,20 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var text = Ink.Written(c.TextColour) ?? Palette.TextMuted;
         var words = new List<(DiagramWords Words, Point At, string Kind)>();
 
+        // The rows each section takes, found in one pass over the rows rather than one for each section.
+        var taken = new Dictionary<GanttSection, (int From, int To)>();
+        foreach (var task in rowed)
+            if (task.Section is { } holding)
+                taken[holding] = taken.TryGetValue(holding, out var had)
+                    ? (Math.Min(had.From, task.Order), Math.Max(had.To, task.Order + 1))
+                    : (task.Order, task.Order + 1);
+
         // Each section's name set right against the dates, in the middle of its rows.
         foreach (var section in chart.Sections)
         {
-            var own = rowed.Where(task => task.Section == section).ToList();
-            var (from, to) = (own.Min(task => task.Order), own.Max(task => task.Order) + 1);
+            if (!taken.TryGetValue(section, out var their)) continue;
+
+            var (from, to) = their;
             var lines = names[section];
             var tall = lines.Sum(line => line.Height);
             var middle = top + (((from + to) * gap) - (gap - bar)) / 2;
@@ -134,19 +146,20 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
 
         // Each task: its bar, diamond or marker, and its name in the bar where it fits, beside it where it does not.
         var shapes = new List<(GanttTask Task, DiagramShape Shape, Rect Bounds, Brush Fill, DiagramStroke? Stroke, DiagramWords? Words)>();
+        var (marker, clickable, outside) = (Marker(c), Ink.Written(c.TaskTextClickable) ?? Palette.Accent, Ink.Written(c.TaskTextOutside) ?? Palette.Text);
         foreach (var task in chart.Tasks.OrderBy(task => task.Vert).ThenBy(task => task.Start))
         {
             var y = (task.Order * gap) + top;
             var (from, to) = (X(task.Start), X(task.Shown));
             var (fill, stroke, inside) = Inks(task, c);
             var name = Written(task.Name, task.Hole, task.Vert ? MarkerSize : c.FontSize ?? 11,
-                               task.Vert ? Marker(c) : task.Clickable ? Ink.Written(c.TaskTextClickable) ?? Palette.Accent : inside,
+                               task.Vert ? marker : task.Clickable ? clickable : inside,
                                task.Clickable ? FontWeights.Bold : null, task.Milestone ? FontStyles.Italic : null);
 
             if (task.Vert)
             {
                 var x = X(task.Start) + left;
-                shapes.Add((task, DiagramShape.Rectangle, new Rect(x, gridStart, Math.Max(1.5, 0.08 * bar), (rows * gap) + (2 * bar)), Marker(c), null, null));
+                shapes.Add((task, DiagramShape.Rectangle, new Rect(x, gridStart, Math.Max(1.5, 0.08 * bar), (rows * gap) + (2 * bar)), marker, null, null));
                 words.Add((name, new Point(x - (name.Width / 2), gridStart + (rows * gap) + 60 - name.Baseline), GanttPiece.Label));
                 continue;
             }
@@ -168,9 +181,8 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             if (!task.Milestone)
                 shapes.Add((task, DiagramShape.Rounded, new Rect(from + left, y, Math.Max(1, to - from), bar), fill, stroke, null));
 
-            if (!task.Clickable)
-                name = Written(task.Name, task.Hole, c.FontSize ?? 11, Ink.Written(c.TaskTextOutside) ?? Palette.Text, null,
-                               task.Milestone ? FontStyles.Italic : null);
+            // Beside the bar it is on the page rather than on the bar, so it takes the page's ink — the same words, set once.
+            if (!task.Clickable) name = name.In(outside);
             var beside = to + name.Width + (1.5 * left) > width ? from + left - 5 - name.Width : to + left + 5;
             words.Add((name, new Point(beside, y + (bar / 2) - (name.Height / 2)), GanttPiece.Label));
         }
@@ -190,13 +202,13 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         // Words reach past the chart's edges: everything moves over so they are not cut off.
         // The chart reaches from where its grid starts to under its dates; Mermaid's room over the grid is the title's, set above it.
         var foot = height - 50;
-        var taken = new DiagramRoom();
-        taken.Reach(new Rect(0, Math.Min(top + gridStart - 50, top - 2), width, 0));
-        taken.Reach(new Rect(0, foot, width, DiagramAxis.Room(ticks, upright: false, tick: 0)));
-        if (chart.TopAxis) taken.Reach(new Rect(0, top - DiagramAxis.Room(ticks, upright: false, tick: 0), width, 0));
-        foreach (var (said, at, _) in words) taken.Reach(said, at);
-        foreach (var shape in shapes) taken.Reach(shape.Bounds);
-        var shift = taken.Shift;
+        var reached = new DiagramRoom();
+        reached.Reach(new Rect(0, Math.Min(top + gridStart - 50, top - 2), width, 0));
+        reached.Reach(new Rect(0, foot, width, DiagramAxis.Room(ticks, upright: false, tick: 0)));
+        if (chart.TopAxis) reached.Reach(new Rect(0, top - DiagramAxis.Room(ticks, upright: false, tick: 0), width, 0));
+        foreach (var (said, at, _) in words) reached.Reach(said, at);
+        foreach (var shape in shapes) reached.Reach(shape.Bounds);
+        var shift = reached.Shift;
 
         Excluded(build, chart, first, last, X, left, gridStart, height - top - gridStart, shift);
         Rows(build, chart, rowed, (left, left + span, width - (right / 2)), bar, gap, top, styles, shift);
@@ -211,9 +223,9 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             DiagramShapes.Draw(build, GanttPiece.Task, task.Part, shape, Rect.Offset(bounds, shift), fill, stroke, name, GanttPiece.Label);
         build.Close();
 
-        Today(build, chart, first, last, X(DateTime.Now) + left, Math.Max(titleTop, taken.Reached.Top), Math.Min(height - titleTop, taken.Reached.Bottom), shift);
+        Today(build, chart, first, last, X(DateTime.Now) + left, Math.Max(titleTop, reached.Reached.Top), Math.Min(height - titleTop, reached.Reached.Bottom), shift);
 
-        return taken.Size;
+        return reached.Size;
     }
 
     /// <summary>The dates the axis marks: every so often as <c>tickInterval</c> says, or else about <paramref name="count"/> on round boundaries.</summary>
@@ -222,9 +234,15 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             ? marks
             : DiagramTime.Ticks(first, last, count);
 
-    /// <summary>A task's fill, outline and the ink of a name set in it, by whether it is active, done or critical.</summary>
+    /// <summary>
+    /// A task's fill, outline and the ink of a name set in it, by whether it is active, done or critical — worked out once for
+    /// each of those a chart has rather than once for every task, since each is colours read from the front matter.
+    /// </summary>
     private (Brush Fill, DiagramStroke Stroke, Brush Text) Inks(GanttTask task, GanttConfig c)
     {
+        var kind = (task.Active, task.Done, task.Critical);
+        if (_inks.TryGetValue(kind, out var known)) return known;
+
         var critical = Ink.Written(c.CritBorder) ?? Palette.Danger;
         var dark = Ink.Written(c.TaskTextDark) ?? Palette.Text;
 
@@ -236,8 +254,10 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             _ => (Ink.Written(c.TaskBackground) ?? DiagramInk.Faded(Palette.Accent, 0.6), Ink.Written(c.TaskBorder) ?? Palette.Accent, Ink.Written(c.TaskText) ?? Palette.Text),
         };
 
-        return (fill, new DiagramStroke(border, task.Active || task.Critical ? 1.5 : 1), text);
+        return _inks[kind] = (fill, new DiagramStroke(border, task.Active || task.Critical ? 1.5 : 1), text);
     }
+
+    private readonly Dictionary<(bool Active, bool Done, bool Critical), (Brush Fill, DiagramStroke Stroke, Brush Text)> _inks = [];
 
     private Brush Marker(GanttConfig c) => Ink.Written(c.VertLine) ?? Palette.Important;
 
@@ -280,18 +300,29 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var lines = new GeometryGroup();
         build.Open(GanttPiece.Rows, part: null, stops: Stops.None);
 
+        // Which of the section styles each section takes, and the three tints they come to — each worked out once.
+        var placed = new Dictionary<GanttSection, int>();
+        foreach (var section in chart.Sections) placed.TryAdd(section, placed.Count);
+
+        var tints = new Brush[]
+        {
+            Ink.Written(c.SectionBackground) is { } first ? DiagramInk.Faded(first, 0.2) : DiagramInk.Faded(Ink.Series(0), 0.12),
+            Ink.Written(c.AltSectionBackground) is { } other ? DiagramInk.Faded(other, 0.2) : DiagramInk.Faded(Palette.TextMuted, 0.06),
+            Ink.Written(c.SectionBackground2) is { } second ? DiagramInk.Faded(second, 0.2) : DiagramInk.Faded(Ink.Series(2), 0.12),
+        };
+
         foreach (var row in rowed.GroupBy(task => task.Order).Select(group => group.First()))
         {
             var y = (row.Order * gap) + top;
             var band = new RectangleGeometry(Rect.Offset(new Rect(0, y - ((gap - bar) / 2), across.Wide, gap), shift));
             band.Freeze();
 
-            var style = Math.Max(0, row.Section is null ? 0 : chart.Sections.ToList().IndexOf(row.Section)) % styles;
+            var style = (row.Section is { } section && placed.TryGetValue(section, out var index) ? index : 0) % styles;
             var fill = style switch
             {
-                0 => Ink.Written(c.SectionBackground) is { } written ? DiagramInk.Faded(written, 0.2) : DiagramInk.Faded(Ink.Series(0), 0.12),
-                2 => Ink.Written(c.SectionBackground2) is { } written ? DiagramInk.Faded(written, 0.2) : DiagramInk.Faded(Ink.Series(2), 0.12),
-                _ => Ink.Written(c.AltSectionBackground) is { } written ? DiagramInk.Faded(written, 0.2) : DiagramInk.Faded(Palette.TextMuted, 0.06),
+                0 => tints[0],
+                2 => tints[2],
+                _ => tints[1],
             };
 
             build.Draw(new GeometryMark(band, fill, null, 0));

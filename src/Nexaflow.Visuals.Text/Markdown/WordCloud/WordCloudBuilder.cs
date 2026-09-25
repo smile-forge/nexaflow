@@ -186,19 +186,25 @@ internal sealed class WordCloudBuilder : ContentBuilder
     /// fits) — <c>wordcloud2.js</c>'s <c>shrinkToFit</c>.</summary>
     private Placement? Place(WordCloudBoard board, WordCloudEntry word, double size, double turn, Brush ink)
     {
+        // Set, and outlined, once — at the size it is tried at first, and to the same width the layout sets it to, so the
+        // outline is of the word as it is drawn. A word that has to shrink to fit is the same letters smaller, so each
+        // smaller size is that outline scaled down rather than the word set and outlined again.
+        var first = Set(word.Text, size);
+        first.MaxTextWidth = Math.Max(1, first.Width);
+        var letters = Letters(first);
+
         for (var at = size; at >= _settings.MinSize; at *= Shrink)
         {
-            var text = Set(word.Text, at);
-            var room = Math.Max(1, text.Width);
-
-            // Set to the same width the layout will set it to, so the outlines filled onto the grid are the
-            // outlines of the word as it is finally drawn.
-            text.MaxTextWidth = room;
-
-            var mask = WordMask.Of(Outline(text, turn), _settings.GridSize, _settings.Gap);
+            var mask = WordMask.Of(Turned(letters, at / size, turn), _settings.GridSize, _settings.Gap);
 
             if (mask is not null && board.TryPlace(mask, out var spot))
+            {
+                var text = at == size ? first : Set(word.Text, at);
+                var room = Math.Max(1, text.Width);
+                text.MaxTextWidth = room;
+
                 return new Placement(text, room, new Point(spot.X - mask.Left, spot.Y - mask.Top), turn, ink, word.Word);
+            }
 
             if (!_settings.Fit) return null;
         }
@@ -309,44 +315,67 @@ internal sealed class WordCloudBuilder : ContentBuilder
     }
 
     /// <summary>The word's letter outlines, rotated to its set angle, as closed pixel figures for the mask.</summary>
-    private static IReadOnlyList<IReadOnlyList<(double X, double Y)>> Outline(FormattedText text, double turn, double scale = 1)
+    private static IReadOnlyList<IReadOnlyList<(double X, double Y)>> Outline(FormattedText text, double turn, double scale = 1) =>
+        Turned(Letters(text), scale, turn);
+
+    /// <summary>The outlines of the letters set in <paramref name="text"/>, level and at its own size, as closed figures of points.</summary>
+    private static List<(double X, double Y)[]> Letters(FormattedText text)
     {
-        var figures = new List<IReadOnlyList<(double X, double Y)>>();
+        var figures = new List<(double X, double Y)[]>();
 
         if (text.BuildGeometry(new Point(0, 0)) is not { } drawn) return figures;
 
         var flattened = drawn.GetFlattenedPathGeometry(Tolerance, ToleranceType.Absolute);
-
-        var about = System.Windows.Media.Matrix.Identity;
-        if (scale != 1) about.Scale(scale, scale);
-        if (turn != 0) about.Rotate(turn);
+        var points = new List<(double X, double Y)>();
 
         foreach (var figure in flattened.Figures)
         {
-            var points = new List<(double X, double Y)> { Turned(about, figure.StartPoint) };
+            points.Clear();
+            points.Add((figure.StartPoint.X, figure.StartPoint.Y));
 
             foreach (var segment in figure.Segments)
                 switch (segment)
                 {
                     case PolyLineSegment poly:
-                        foreach (var point in poly.Points) points.Add(Turned(about, point));
+                        foreach (var point in poly.Points) points.Add((point.X, point.Y));
                         break;
 
                     case LineSegment line:
-                        points.Add(Turned(about, line.Point));
+                        points.Add((line.Point.X, line.Point.Y));
                         break;
                 }
 
-            if (points.Count > 2) figures.Add(points);
+            if (points.Count > 2) figures.Add([.. points]);
         }
 
         return figures;
     }
 
-    private static (double X, double Y) Turned(System.Windows.Media.Matrix about, Point at)
+    /// <summary>Outlines scaled by <paramref name="scale"/> and turned by <paramref name="turn"/> degrees about where the word is set.</summary>
+    private static IReadOnlyList<IReadOnlyList<(double X, double Y)>> Turned(List<(double X, double Y)[]> letters, double scale, double turn)
     {
-        var turned = about.Transform(at);
-        return (turned.X, turned.Y);
+        var about = System.Windows.Media.Matrix.Identity;
+        if (scale != 1) about.Scale(scale, scale);
+        if (turn != 0) about.Rotate(turn);
+
+        if (about.IsIdentity) return letters;
+
+        var turned = new List<(double X, double Y)[]>(letters.Count);
+
+        foreach (var figure in letters)
+        {
+            var moved = new (double X, double Y)[figure.Length];
+
+            for (var at = 0; at < figure.Length; at++)
+            {
+                var point = about.Transform(new Point(figure[at].X, figure[at].Y));
+                moved[at] = (point.X, point.Y);
+            }
+
+            turned.Add(moved);
+        }
+
+        return turned;
     }
 
     /// <summary>One word, set in the face and at the size the cloud asks for.</summary>

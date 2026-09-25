@@ -65,6 +65,13 @@ internal sealed class DiagramWords
 
     public Brush Ink { get; }
 
+    /// <summary>
+    /// The same words drawn in <paramref name="ink"/> — set once, since what colour they are is only said as they are drawn,
+    /// so a name measured in one colour to see whether it fits and drawn in another where it does not is shaped the once.
+    /// </summary>
+    public DiagramWords In(Brush ink) =>
+        ReferenceEquals(ink, Ink) ? this : new DiagramWords(_text, Part, Hole, _letter, ink, _maps, _writes, _inset);
+
     /// <summary>How wide they are set: what is written there, the words, or the hole.</summary>
     public double Width => _inset?.Width ?? (Hole is null ? _text.Width : LayoutText.HoleWidth(_letter));
 

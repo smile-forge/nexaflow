@@ -27,13 +27,13 @@ public sealed class WordMask
     /// </summary>
     private const int Samples = 3;
 
-    private WordMask(int across, int down, double left, double top, IReadOnlyList<int> ink)
+    private WordMask(int across, int down, double left, double top, int[] ink)
     {
         Across = across;
         Down = down;
         Left = left;
         Top = top;
-        Ink = ink;
+        Cells = ink;
     }
 
     /// <summary>How many cells across the word's shape is.</summary>
@@ -49,7 +49,10 @@ public sealed class WordMask
     public double Top { get; }
 
     /// <summary>The cells with ink in them, each as <c>y * <see cref="Across"/> + x</c>.</summary>
-    public IReadOnlyList<int> Ink { get; }
+    public IReadOnlyList<int> Ink => Cells;
+
+    /// <summary>The same cells, as the array the fitting walks — tens of thousands of times a cloud, so never through an enumerator.</summary>
+    internal int[] Cells { get; }
 
     /// <summary>
     /// The shape of the letters in <paramref name="outline"/> — closed figures in pixels, already turned to
@@ -88,7 +91,7 @@ public sealed class WordMask
         for (var at = 0; at < cells.Length; at++)
             if (cells[at]) ink.Add(at);
 
-        return ink.Count == 0 ? null : new WordMask(across, down, left, top, ink);
+        return ink.Count == 0 ? null : new WordMask(across, down, left, top, [.. ink]);
     }
 
     /// <summary>

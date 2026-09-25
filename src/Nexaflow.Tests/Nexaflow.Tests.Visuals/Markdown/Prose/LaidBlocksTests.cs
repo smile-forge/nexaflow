@@ -149,7 +149,9 @@ public class LaidBlocksTests
             var (a, b) = (want[at], got[at]);
 
             Assert.AreEqual(a.Kind, b.Kind, $"{what}: piece {at}");
-            Assert.AreEqual(a.Bounds, b.Bounds, $"{what}: where piece {at} ({a.Kind}) stands");
+            // Except the line at today, drawn from the clock: two layouts made a moment apart need not agree on the moment.
+            if (a.Kind != Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttPiece.Today)
+                Assert.AreEqual(a.Bounds, b.Bounds, $"{what}: where piece {at} ({a.Kind}) stands");
             Assert.AreEqual(Span(a.Part), Span(b.Part), $"{what}: what piece {at} ({a.Kind}) stands for");
             Assert.AreEqual(a.Part?.GetType(), b.Part?.GetType(), $"{what}: piece {at} ({a.Kind})");
         }
@@ -164,4 +166,17 @@ public class LaidBlocksTests
 
     private static string Said(Diagnostic trouble) =>
         $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
+
+    [TestMethod]
+    public void ADrawingOfTheMomentIsLaidAgainNotSetDownAsItWas()
+    {
+        // A Gantt chart draws a line at today, which the clock says rather than the block.
+        const string chart = "```mermaid\ngantt\n    dateFormat YYYY-MM-DD\n    Task :2024-01-01, 3d\n```\n";
+        var content = MarkdownContent.Of(StyleFormat.Dark);
+
+        var before = Wholes(content.Lay(EditState.For(chart + "\nWords.\n"), Room, false));
+        var after = Wholes(content.Lay(EditState.For(chart + "\nMore words.\n"), Room, false));
+
+        Assert.AreNotSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
+    }
 }

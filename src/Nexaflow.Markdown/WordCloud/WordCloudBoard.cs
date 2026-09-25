@@ -77,16 +77,33 @@ public sealed class WordCloudBoard
     {
         at = default;
 
+        // Where each of the word's cells is on the board, from wherever its top left is put — worked out once for the word,
+        // since every place it is tried at asks the same of every one of them.
+        var offsets = Offsets(mask);
+        var shuffled = _settings.Shuffle;
+
         for (var radius = 0; radius <= Reach; radius++)
         {
-            foreach (var spot in Ring(radius))
+            var ring = Ring(radius);
+
+            for (var step = 0; step < ring.Count; step++)
             {
+                // Drawn as it is tried: the next place is any of those at this radius not yet tried, swapped into the ring where
+                // it is kept. So a word that fits early draws a few places rather than shuffling the whole ring first, and
+                // nothing is copied to do it.
+                if (shuffled && ring.Count - step > 1)
+                {
+                    var other = step + _random.Below(ring.Count - step);
+                    (ring[step], ring[other]) = (ring[other], ring[step]);
+                }
+
+                var spot = ring[step];
                 var x = (int)Math.Floor(spot.X - mask.Across / 2.0);
                 var y = (int)Math.Floor(spot.Y - mask.Down / 2.0);
 
-                if (!Fits(mask, x, y)) continue;
+                if (!Fits(mask, offsets, x, y)) continue;
 
-                Take(mask, x, y);
+                Take(offsets, x, y);
                 at = new WordSpot(x * _grid, y * _grid);
                 return true;
             }
@@ -95,16 +112,29 @@ public sealed class WordCloudBoard
         return false;
     }
 
-    /// <summary>
-    /// The places to try at one radius, in cells from the top left. Worked out once per radius and kept,
-    /// because every word asks for the same rings in the same order.
-    /// </summary>
-    private IReadOnlyList<WordSpot> Ring(int radius)
+    /// <summary>Each of the word's cells as a step from its top left on this board.</summary>
+    private int[] Offsets(WordMask mask)
     {
-        if (_rings.TryGetValue(radius, out var kept)) return Shuffled(kept);
+        var cells = mask.Cells;
+        var offsets = new int[cells.Length];
+
+        for (var at = 0; at < cells.Length; at++)
+            offsets[at] = (cells[at] / mask.Across * Across) + (cells[at] % mask.Across);
+
+        return offsets;
+    }
+
+    /// <summary>
+    /// The places to try at one radius, in cells from the top left. Worked out once per radius and kept, because every word
+    /// asks for the same rings — and kept in whatever order the last search left them, since each search draws its own order
+    /// from them as it goes.
+    /// </summary>
+    private List<WordSpot> Ring(int radius)
+    {
+        if (_rings.TryGetValue(radius, out var kept)) return kept;
 
         var middle = new WordSpot(Across / 2.0, Down / 2.0);
-        var spots = new List<WordSpot>();
+        var spots = new List<WordSpot>(Math.Max(1, radius * 8));
 
         if (radius == 0)
         {
@@ -128,32 +158,24 @@ public sealed class WordCloudBoard
         }
 
         _rings[radius] = spots;
-        return Shuffled(spots);
-    }
-
-    private IReadOnlyList<WordSpot> Shuffled(List<WordSpot> spots)
-    {
-        if (!_settings.Shuffle || spots.Count < 2) return spots;
-
-        var order = new List<WordSpot>(spots);
-        _random.Shuffle(order);
-        return order;
+        return spots;
     }
 
     /// <summary>Whether every cell the word has ink in is inside the picture and still free.</summary>
-    private bool Fits(WordMask mask, int x, int y)
+    private bool Fits(WordMask mask, int[] offsets, int x, int y)
     {
         if (x < 0 || y < 0 || x + mask.Across > Across || y + mask.Down > Down) return false;
 
-        foreach (var cell in mask.Ink)
-            if (_taken[(y + cell / mask.Across) * Across + x + cell % mask.Across]) return false;
+        var corner = (y * Across) + x;
+        for (var at = 0; at < offsets.Length; at++)
+            if (_taken[corner + offsets[at]]) return false;
 
         return true;
     }
 
-    private void Take(WordMask mask, int x, int y)
+    private void Take(int[] offsets, int x, int y)
     {
-        foreach (var cell in mask.Ink)
-            _taken[(y + cell / mask.Across) * Across + x + cell % mask.Across] = true;
+        var corner = (y * Across) + x;
+        for (var at = 0; at < offsets.Length; at++) _taken[corner + offsets[at]] = true;
     }
 }

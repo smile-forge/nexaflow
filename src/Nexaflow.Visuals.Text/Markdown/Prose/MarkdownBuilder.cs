@@ -169,6 +169,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         var (y, reach, borrowed) = (_y, _reach, _borrowed.Count);
         (_y, _reach) = (0, 0);
+        _passing = false;
 
         var apart = Rent();
         apart.Open(MarkdownPieces.Whole, stops: Stops.None, paints: new LayoutPaint(Kept: new LayoutKept()));
@@ -183,7 +184,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         _y += height;
 
         if (laid is not null)
-            laid.Last = shown ? null : new Laying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
+            laid.Last = shown || _passing ? null : new Laying(part, made, height, reached, [.. _borrowed.Skip(borrowed)], room, IsReadOnly);
     }
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
@@ -222,10 +223,19 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>
     /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
-    /// written in it and whether anybody is writing, which it draws from as this builder does.
+    /// written in it and whether anybody is writing, which it draws from as this builder does. One drawn as of the moment it was
+    /// laid says so, and the block holding it is not kept (<see cref="Laid.Passing"/>).
     /// </summary>
-    private ContentInset? Nested(ContentPart part, double room) =>
-        ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
+    private ContentInset? Nested(ContentPart part, double room)
+    {
+        var inset = ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
+        if (inset?.Laid.Passing == true) _passing = true;
+
+        return inset;
+    }
+
+    /// <summary>Whether the block being laid holds a drawing of the moment it was laid.</summary>
+    private bool _passing;
 
     /// <summary>
     /// A block set as the characters it was written with (<see cref="MarkdownKinds.Written"/>). The same face unreadable source
