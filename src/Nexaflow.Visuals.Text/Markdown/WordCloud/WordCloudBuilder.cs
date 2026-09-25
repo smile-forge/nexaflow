@@ -141,12 +141,12 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
         var board = new WordCloudBoard(width, height, packing, new WordCloudRandom(_settings.Seed + 1), stencil);
 
-        var trouble = new List<Diagnostic>();
+        // A cloud is only read where it is drawn, so a line it cannot make a word of is put right in its source: shown as
+        // written, each such line marked and why.
+        var unread = chart.Words.Where(word => word.Trouble is not null).Select(word => (word.Number ?? word.Word, word.Trouble!)).ToList();
+        if (unread.Count > 0) return AsSource(unread);
 
-        // Unparseable lines (e.g. mid-edit) are flagged in place; the rest of the cloud still renders.
-        foreach (var word in chart.Words)
-            if (word.Trouble is { } reason)
-                trouble.Add(Say(word.Number ?? word.Word, reason, DiagnosticSeverity.Error));
+        var trouble = new List<Diagnostic>();
 
         var placed = new List<Placement>();
         var at = 0;
@@ -359,15 +359,10 @@ internal sealed class WordCloudBuilder : ContentBuilder
             Brushes.Black,
             Editing.LayoutText.Density);
 
-    private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) =>
-        new(part.Start, Math.Max(part.Length, 1), severity, reason);
+    private static Diagnostic Say(ContentPart part, string reason, DiagnosticSeverity severity) => Diagnostic.Of(part, reason, severity);
 
-    /// <summary>
-    /// A block with no cloud in it: nothing drawn, and why. What goes where it would have been is the host's — the characters
-    /// somebody typed, with this reason under them, which is the only thing that says what to fix.
-    /// </summary>
-    private Laid Stopped(string reason) =>
-        Laid.Nothing with { Trouble = [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)] };
+    /// <summary>The cloud as it is written, and why nothing of it could be drawn.</summary>
+    private Laid Stopped(string reason) => AsSource(reason);
 
     protected override FormattedText Characters(string text) =>
         new(text,

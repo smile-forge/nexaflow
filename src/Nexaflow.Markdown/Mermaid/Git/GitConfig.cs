@@ -5,7 +5,8 @@ namespace Nexaflow.Markdown.Mermaid.Git;
 /// is called and where its lane goes, whether the branches and the commits' ids are shown, whether an id is turned where
 /// it is written under its commit, and whether the branches commit side by side rather than one after another — and the
 /// <c>themeVariables</c> <c>git0</c>…<c>git7</c> lane colours with the <c>gitBranchLabel0</c>…<c>gitBranchLabel7</c> ink
-/// for their labels, and the colours a commit's id and a tag are drawn in.
+/// for their labels and the <c>gitInv0</c>…<c>gitInv7</c> colour round their highlighted commits, and the colours a
+/// commit's id and a tag are drawn in. Past the eighth, lanes take the colours over again from the first.
 ///
 /// <para>A colour or a size nobody wrote is the theme's, so it is null here.</para>
 /// </summary>
@@ -43,6 +44,9 @@ public sealed record GitConfig
     /// <summary>The ink written for each lane's label, by the number it was written for.</summary>
     public IReadOnlyDictionary<int, string> LaneLabel { get; init; } = new Dictionary<int, string>();
 
+    /// <summary>The colour written round each lane's highlighted commits, by the number it was written for.</summary>
+    public IReadOnlyDictionary<int, string> Inverse { get; init; } = new Dictionary<int, string>();
+
     public string? CommitLabelColour { get; init; }
     public string? CommitLabelBackground { get; init; }
     public double? CommitLabelFontSize { get; init; }
@@ -71,6 +75,7 @@ public sealed record GitConfig
 
             Lane = theme.Swatches("git", Lanes, first: 0),
             LaneLabel = theme.Swatches("gitBranchLabel", Lanes, first: 0),
+            Inverse = theme.Swatches("gitInv", Lanes, first: 0),
             CommitLabelColour = theme.Value("commitLabelColor"),
             CommitLabelBackground = theme.Value("commitLabelBackground"),
             CommitLabelFontSize = theme.Size("commitLabelFontSize"),
@@ -81,9 +86,12 @@ public sealed record GitConfig
         };
     }
 
-    /// <summary>The colour written for a lane, or null for the theme's.</summary>
-    public string? LaneAt(int lane) => Lane.GetValueOrDefault(lane);
+    /// <summary>The colour written for a lane, or null for the theme's — the ninth lane taking the first's, as Mermaid's do.</summary>
+    public string? LaneAt(int lane) => Lane.GetValueOrDefault(lane % Lanes);
 
     /// <summary>The ink written for a lane's label, or null for the theme's.</summary>
-    public string? LaneLabelAt(int lane) => LaneLabel.GetValueOrDefault(lane);
+    public string? LaneLabelAt(int lane) => LaneLabel.GetValueOrDefault(lane % Lanes);
+
+    /// <summary>The colour written round a lane's highlighted commits, or null for the theme's.</summary>
+    public string? InverseAt(int lane) => Inverse.GetValueOrDefault(lane % Lanes);
 }

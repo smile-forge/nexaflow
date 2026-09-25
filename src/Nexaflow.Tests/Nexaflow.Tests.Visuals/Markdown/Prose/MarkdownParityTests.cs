@@ -354,7 +354,8 @@ public class MarkdownParityTests
         [.. Pieces(laid, MarkdownPieces.Words).Where(piece => piece.Words!.Glyphs.Text.Trim().Length > 0)];
 
     private static string Drawn(Laid laid) =>
-        string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null).Select(piece => piece.Words!.Glyphs.Text));
+        string.Concat(laid.Root.SelfAndDescendants().SelectMany(piece =>
+            piece.Words is { } words ? [words.Glyphs.Text] : piece.Marks.ToArray().OfType<TextMark>().Select(mark => mark.Glyphs.Text)));
 
     private static List<LayoutMark> Marks(Piece piece)
     {

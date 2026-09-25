@@ -20,10 +20,4 @@ public static class MoleculePiece
 
     /// <summary>The caption under a structure.</summary>
     public const string Caption = "Caption";
-
-    /// <summary>A string with no atom in it that could be read, shown as written and struck through.</summary>
-    public const string StandIn = "StandIn";
-
-    /// <summary>Why an entry did not draw as itself.</summary>
-    public const string Trouble = "Trouble";
 }

@@ -114,6 +114,17 @@ public class AbcPipelineTests
     }
 
     [TestMethod]
+    public void ARepeatMayOpenAfterAThickLine_AndCloseOnOne()
+    {
+        var tune = AbcPipeline.Read("X:1\nK:C\nABc[|:def:|]gab|\n");
+
+        CollectionAssert.AreEqual(new[] { "[|:", ":|]", "|" },
+                                  tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Barline).Select(n => n.Print()).ToArray());
+    var troubled = ContentPart.Of(tune).SelfAndDescendants().Where(p => p.Trouble is not null && p.Length > 0 && !p.Derived).Select(p => $"{p.Kind} '{p.Print()}': {p.Trouble}").ToList();
+        Assert.AreEqual(0, troubled.Count, "each is a bar line, not a stray ':' or ']': " + string.Join("; ", troubled));
+    }
+
+    [TestMethod]
     public void ABarThatRunsOnToTheNextLineSaysSo()
     {
         var tune = AbcPipeline.Read("X:1\nK:C\nABc|def\nghi|\n");

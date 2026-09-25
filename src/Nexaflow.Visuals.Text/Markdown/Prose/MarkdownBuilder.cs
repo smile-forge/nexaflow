@@ -69,7 +69,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         // Nothing written but the spaces between blocks is nothing to draw, and is shown as the characters it is — which is
         // also where the caret stands in it, since the page itself takes none.
-        if (Source.Length == 0 || Reading.Root.Children.All(child => child.Role == Roles.Trivia || child.Derived)) return null;
+        if (Reading.Root.Length == 0 || Reading.Root.Children.All(child => child.Role == Roles.Trivia || child.Derived)) return null;
 
         var into = new LayoutBuilder(Expected());
 
@@ -579,7 +579,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         var nested = Nested(part, room);
 
-        if (nested is { Draws: true } inset)
+        if (nested is { Draws: true, Laid.ShowsSource: false } inset)
         {
             _borrowed.AddRange(inset.Laid.Trouble);
             // The card a language's drawing sits on is nowhere to write: what it drew says where the caret can go.
@@ -593,7 +593,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             return;
         }
 
-        if (nested is { Laid.Trouble.Count: > 0 } refused) Refused(into, part, x, room, refused.Laid.Trouble);
+        if (nested is { Laid.Trouble.Count: > 0 } unread) Unreadable(into, part, x, room, unread.Laid.Trouble);
         else AsWritten(into, part, x, room);
     }
 
@@ -612,9 +612,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Displayed(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        if (Nested(part, room) is not { Draws: true } inset)
+        if (Nested(part, room) is not { Draws: true, Laid.ShowsSource: false } inset)
         {
-            if (Nested(part, room) is { Laid.Trouble.Count: > 0 } refused) Refused(into, part, x, room, refused.Laid.Trouble);
+            if (Nested(part, room) is { Laid.Trouble.Count: > 0 } unread) Unreadable(into, part, x, room, unread.Laid.Trouble);
             else AsWritten(into, part, x, room);
 
             return;
@@ -675,40 +675,22 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// A block another language could make nothing of: the characters as written, so they are there to put right, in a box
-    /// ruled in the colour of trouble — with what that language said was wrong written under them.
+    /// A block whose content could not be drawn, shown as it is written — its fences and all — with what its content said was
+    /// wrong marked where it stands, and why written beneath. The marks are the document's to draw, as for anything else.
     /// </summary>
-    private void Refused(LayoutBuilder into, ContentPart part, double x, double room, IReadOnlyList<Diagnostic> why)
+    private void Unreadable(LayoutBuilder into, ContentPart part, double x, double room, IReadOnlyList<Diagnostic> why)
     {
-        var body = part.Part(Roles.Body) ?? part;
-        var shown = body.Print().TrimEnd('\n', '\r');
-        var pad = Style.TextSize * 0.55;
-        var inside = Math.Max(1, room - (pad * 2));
+    // The whole of what the language is written in: from its body up to the part holding it, delimiters and all.
+        var block = ContentNesting.Holders(part.Part(Roles.Body) ?? part).FirstOrDefault() ?? part;
+        var shown = SourceShown.Lay(block, why, text => Glyphs(text, Face.Plain with { Mono = true, Scale = 0.94 }), Style, Fits(room));
+        _borrowed.AddRange(shown.Trouble);
 
-        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, Face.Plain with { Mono = true, Scale = 0.94 });
-        glyphs.MaxTextWidth = inside;
-
-        var said = Glyphs(string.Join("\n", why.Select(one => one.Message).Distinct()), Face.Plain with { Scale = 0.9, Ink = Style.Danger });
-        said.MaxTextWidth = inside;
-
-        var gap = pad * 0.6;
-        var height = pad + glyphs.Height + gap + said.Height + pad;
-        var top = _y;
-
-        into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
-        into.Draw(new GeometryMark(new RectangleGeometry(new Rect(0, 0, Math.Max(room, 1), height), pad * 0.4, pad * 0.4),
-                                   Style.CodeBg, Style.Danger, Math.Max(1, Style.TextSize / 10)));
+    // Standing for the block, as every block's piece does, so what is pressed in it and what is said of it are the block's.
+        into.Open(MarkdownPieces.Block, part, new Point(x, _y), stops: Stops.None);
+        into.Graft(shown.Tree, default);
         into.Close();
-
-        LayoutText.Words(into, glyphs, new Point(x + pad, top + pad), inside, TextAlignment.Left,
-                         new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim, maps: shown.Length > 0, ink: Style.Text);
-
-        // What was wrong is not anything written, so it stands for nothing and takes no caret.
-        LayoutText.Words(into, said, new Point(x + pad, top + pad + glyphs.Height + gap), inside, TextAlignment.Left,
-                         null, MarkdownPieces.Words, maps: false, ink: Style.Danger);
-
-        _y = top + height;
-        Reached(x + room);
+        _y += shown.Size.Height;
+        Reached(x + shown.Size.Width);
     }
 
     /// <summary>
@@ -864,7 +846,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private IReadOnlyList<Diagnostic> Trouble() =>
         [.. Reading.Root.SelfAndDescendants()
             .Where(part => part.Node.Trouble is not null)
-            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Error, part.Node.Trouble!)),
+            .Select(part => Diagnostic.Of(part, part.Node.Trouble!)),
          .. _borrowed];
 
     /// <summary>The trouble of every language's content set down in this document.</summary>

@@ -69,7 +69,12 @@ internal sealed class PlotBuilder : ContentBuilder
             return Stopped("An empty plot. It takes a row of values for each point — two columns for where "
                          + "it goes — and settings written as `key: value` above them.");
 
-        return Lay(chart);
+        // A plot is only read where it is drawn, so a row or a setting it cannot use is put right in its source: shown as
+        // written, with what could not be used marked and why.
+        var laid = Lay(chart);
+        return laid.Trouble.Count == 0
+            ? laid
+            : AsSource([.. laid.Trouble.Select(said => (said.Part as ContentPart ?? Reading.Root, said.Message))]);
     }
 
     // ── Turning a value into a place ────────────────────────────────────────
@@ -205,8 +210,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     {
         if (chart.Settings.Jitter <= 0) return (0, 0);
 
-        // Seeded by where the row is in the block, never in the document: typing above a plot must not shake its points.
-        var throws = new Random((mark.Part.Start - At) * 397);
+        // Seeded by which row it is, never by where anything is written: typing above a plot must not shake its points.
+        var throws = new Random((chart.Marks.ToList().IndexOf(mark) + 1) * 397);
 
         var wide = chart.Settings.Jitter * across.Slot * plot.Width;
         var tall = chart.Settings.Jitter * up.Slot * plot.Height;
@@ -291,17 +296,17 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                 continue;
             }
 
-            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(Diagnostic.Of(Reading.Root,
                                        $"`gradient: {it.Gradient}` names no run of colours — `{colour}` is not "
-                                       + $"a colour. The runs are {DiagramColours.Names}."));
+                                       + $"a colour. The runs are {DiagramColours.Names}.", DiagnosticSeverity.Warning));
 
             return DiagramColours.Stops(DiagramRamp.Viridis);
         }
 
         if (written.Count >= 2) return written;
 
-        trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
-                                   $"`gradient: {it.Gradient}` is one colour, and a run takes at least two."));
+        trouble.Add(Diagnostic.Of(Reading.Root,
+                                   $"`gradient: {it.Gradient}` is one colour, and a run takes at least two.", DiagnosticSeverity.Warning));
 
         return DiagramColours.Stops(DiagramRamp.Viridis);
     }
@@ -335,9 +340,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
             if (x is null || y is null)
             {
-                trouble.Add(new Diagnostic(mark.Part.Start, Math.Max(1, mark.Part.Length),
-                                           DiagnosticSeverity.Warning,
-                                           "This row has no place: it takes a value across and a value up."));
+                trouble.Add(Diagnostic.Of(mark.Part,
+                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -393,9 +397,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
             if (x is null || y is null)
             {
-                trouble.Add(new Diagnostic(mark.Part.Start, Math.Max(1, mark.Part.Length),
-                                           DiagnosticSeverity.Warning,
-                                           "This row has no place: it takes a value across and a value up."));
+                trouble.Add(Diagnostic.Of(mark.Part,
+                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -406,8 +409,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         if (points.Count < 3)
         {
             if (points.Count > 0)
-                trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
-                                           "Too few rows to say how thickly they lie. A density takes at least three."));
+                trouble.Add(Diagnostic.Of(Reading.Root,
+                                           "Too few rows to say how thickly they lie. A density takes at least three.", DiagnosticSeverity.Warning));
 
             return null;
         }
@@ -502,9 +505,8 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             if (x is null || y is null)
             {
                 // Skip rows with no placeable value (e.g. mid-edit) — the rest still renders as a plot.
-                trouble.Add(new Diagnostic(mark.Part.Start, Math.Max(1, mark.Part.Length),
-                                           DiagnosticSeverity.Warning,
-                                           "This row has no place: it takes a value across and a value up."));
+                trouble.Add(Diagnostic.Of(mark.Part,
+                                           "This row has no place: it takes a value across and a value up.", DiagnosticSeverity.Warning));
                 continue;
             }
 
@@ -945,9 +947,9 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         var shapes = Ordered(named);
 
         if (it.Shape is not null && named.Count == 0 && DiagramGlyphs.Named(it.Shape) is null)
-            trouble.Add(new Diagnostic(At, Math.Max(1, Source.Length), DiagnosticSeverity.Warning,
+            trouble.Add(Diagnostic.Of(Reading.Root,
                                        $"`shape: {it.Shape}` names neither a column nor a mark. "
-                                       + $"The marks are {DiagramGlyphs.Names}."));
+                                       + $"The marks are {DiagramGlyphs.Names}.", DiagnosticSeverity.Warning));
 
         var title = it.Title is null ? null : this.Worked(it.Title, null, TitleSize, _palette.Heading);
         var subtitle = it.Subtitle is null ? null : this.Worked(it.Subtitle, null, LabelSize, _palette.TextMuted);
@@ -1227,10 +1229,6 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
             Brushes.Black,
             Editing.LayoutText.Density);
 
-    /// <summary>
-    /// A block with no plot in it: nothing drawn, and why. What goes where it would have been is the host's — the characters
-    /// somebody typed, with this reason under them, which is the only thing that says what to fix.
-    /// </summary>
-    private Laid Stopped(string reason) =>
-        Laid.Nothing with { Trouble = [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, reason)] };
+    /// <summary>The plot as it is written, and why nothing of it could be drawn.</summary>
+    private Laid Stopped(string reason) => AsSource(reason);
 }

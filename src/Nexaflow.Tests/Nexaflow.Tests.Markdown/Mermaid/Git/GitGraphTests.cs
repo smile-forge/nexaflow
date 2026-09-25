@@ -54,7 +54,7 @@ public class GitGraphTests
 
         Assert.AreEqual("Alpha", commits[0].Id);
         Assert.AreEqual("Alpha", commits[0].Said!.Says);
-        Assert.AreEqual("v1.0.0", commits[1].Tag!.Says);
+        Assert.AreEqual("v1.0.0", commits[1].Tags.Single().Says);
         Assert.AreEqual(GitKept.Reverse, commits[2].Kept);
         Assert.AreEqual(GitKept.Highlight, commits[3].Kept);
         Assert.IsNull(GitGraph.Read("gitGraph\n  commit").Commits[0].Said, "a commit nothing names says nothing under itself");
@@ -86,12 +86,34 @@ public class GitGraphTests
     [TestMethod]
     public void CommitsRunOneAfterAnother_OrSideBySideWhereTheFrontMatterAsks()
     {
-        const string source = "gitGraph\n  commit\n  branch develop\n  commit\n  commit";
+        const string source = "gitGraph\n  commit\n  branch develop\n  commit\n  commit\n  checkout main\n  commit\n  commit";
         var along = GitGraph.Read(source).Commits.Select(commit => commit.Position).ToArray();
         var beside = GitGraph.Read("---\nconfig:\n  gitGraph:\n    parallelCommits: true\n---\n" + source).Commits.Select(commit => commit.Position).ToArray();
 
-        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, along);
-        CollectionAssert.AreEqual(new[] { 0, 0, 1 }, beside, "every branch keeping its own count");
+        CollectionAssert.AreEqual(new[] { 0, 1, 2, 3, 4 }, along);
+        CollectionAssert.AreEqual(new[] { 0, 1, 2, 1, 2 }, beside, "each one past what it follows, as Mermaid places them");
+    }
+
+    [TestMethod]
+    public void ABranchAskingForNoLaneComesBeforeOneAskingForAny_AsMermaidOrdersThem()
+    {
+        // Mermaid's own example: main asks for 2, test1 for 3 and test4 for 1; test2 and test3 ask nothing.
+        var branches = GitGraph.Read("---\nconfig:\n  gitGraph:\n    mainBranchOrder: 2\n---\ngitGraph\n  commit\n  branch test1 order: 3\n  branch test2\n  branch test3\n  branch test4 order: 1").Branches;
+
+        CollectionAssert.AreEqual(new[] { "test2", "test3", "test4", "main", "test1" }, branches.OrderBy(branch => branch.Lane).Select(branch => branch.Name).ToArray());
+    }
+
+    [TestMethod]
+    public void AnIdWrittenTwiceIsWrong_ButNamesTheNewestCommitGivenIt()
+    {
+        const string source = "gitGraph\n  commit id: \"A\"\n  branch side\n  commit id: \"B\"\n  checkout main\n  commit id: \"B\"\n  commit id: \"C\"";
+        var graph = GitGraph.Read(source);
+
+        Assert.AreEqual(1, MermaidParser.Read(source).SelfAndDescendants().Count(node => node.Trouble is not null), "no two commits in git share an id");
+        Assert.AreEqual("main", graph.Of("B")!.Branch.Name, "the newest B");
+        CollectionAssert.AreEqual(new[] { "B" }, graph.Of("C")!.Parents.ToArray(), "what follows B follows the newest");
+        Assert.AreEqual("side", graph.Commits[1].Branch.Name);
+        Assert.AreNotEqual("B", graph.Commits[1].Id, "the older is one of the graph's own");
     }
 
     [TestMethod]
@@ -128,5 +150,6 @@ public class GitGraphTests
 
         Assert.AreEqual(0, MermaidParser.Read(source).SelfAndDescendants().Count(node => node.Trouble is not null), "a parent of the merge is no complaint");
         Assert.AreEqual("M", GitGraph.Read(source).Commits.Single(commit => commit.Picked).Taken!.Says);
+        Assert.AreEqual("cherry-pick:M|parent:A", GitGraph.Read(source).Commits.Single(commit => commit.Picked).Tags.Single().Says, "tagged as Mermaid tags it");
     }
 }

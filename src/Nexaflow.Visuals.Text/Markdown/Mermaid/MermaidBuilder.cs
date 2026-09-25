@@ -137,12 +137,28 @@ internal abstract class MermaidBuilder : ContentBuilder
         var block = MermaidBlock.Of(Reading);
 
         var diagram = new LayoutBuilder();
+        this.blamed = null;
         var body = Draw(block, diagram);
 
-        var trouble = block.Reading.Root.SelfAndDescendants()
-            .Where(part => part.Trouble is not null && !part.Derived)
-            .Select(part => new Diagnostic(part.Start, Math.Max(part.Length, 1), DiagnosticSeverity.Error, part.Trouble!))
-            .ToList();
+        var troubled = block.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && !part.Derived).ToList();
+
+        // A diagram with nothing to draw is shown as it is written, with what was wrong and what could not be drawn marked in
+        // it — or, where nothing says why, every line it could make nothing of.
+        if (this.blamed is { } blamed)
+        {
+            IReadOnlyList<(ContentPart Part, string Reason)> said = [.. troubled.Select(part => (part, part.Trouble!)), .. blamed];
+            if (said.Count == 0) said = Unread(block);
+            return AsSource(said);
+        }
+
+        // Something wrong in what did draw is marked where it is drawn — but only where the reader can put it right there:
+        // the block is being written in, and each wrong part is drawn as words that are typed into. Otherwise the block is
+        // shown as it is written, with the wrong parts marked in it.
+        var drawn = diagram.Seal();
+        if (troubled.Count > 0 && (IsReadOnly || troubled.Any(part => !Typed(drawn, part))))
+            return AsSource([.. troubled.Select(part => (part, part.Trouble!))]);
+
+        var trouble = troubled.Select(part => Diagnostic.Of(part, part.Trouble!)).ToList();
 
         var build = new LayoutBuilder();
         // The whole block, so choosing it chooses all of it — but no place for a caret of its own: what is written in a
@@ -184,7 +200,7 @@ internal abstract class MermaidBuilder : ContentBuilder
             top += title.Height + TitleGap;
         }
 
-        build.Graft(diagram.Seal(), new Point(Pad + Math.Max(0, (width - body.Width) / 2), top));
+        build.Graft(drawn, new Point(Pad + Math.Max(0, (width - body.Width) / 2), top));
         top += body.Height;
 
         foreach (var (tree, taken, gap) in this.beneath)
@@ -215,13 +231,36 @@ internal abstract class MermaidBuilder : ContentBuilder
         return new Laid(build.Seal(), size, trouble);
     }
 
-    /// <summary>The block as it was written, laid out as its own characters — what a diagram with
-    /// nothing it can draw shows.</summary>
-    protected Size AsWritten(LayoutBuilder build)
+    /// <summary>Whether a part of the tree is drawn as words the reader types into — itself, or something inside it.</summary>
+    private static bool Typed(LayoutTree drawn, ContentPart part)
     {
-        var shown = LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), [], At);
-        build.Graft(shown.Tree);
-        return shown.Size;
+        var inside = part.SelfAndDescendants().ToHashSet();
+        return drawn.Root.SelfAndDescendants().Any(piece => piece.Words is { Maps: true } && piece.Part is ContentPart written && inside.Contains(written));
+    }
+
+    /// <summary>
+    /// Says the diagram is to be shown as it is written — what a diagram with nothing to draw shows — with each part it could
+    /// make nothing of blamed, and why. Where it blames nothing and nothing else is wrong, every line it could make nothing of
+    /// is.
+    /// </summary>
+    protected Size AsWritten(LayoutBuilder build, params (ContentPart Part, string Reason)[] blamed)
+    {
+        this.blamed = blamed;
+        return default;
+    }
+
+    /// <summary>What the diagram blamed in asking to be shown as it is written, or null where it drew.</summary>
+    private IReadOnlyList<(ContentPart Part, string Reason)>? blamed;
+
+    /// <summary>Every line of a diagram shown as it is written that says anything — not its header, a comment or a directive.</summary>
+    private static IReadOnlyList<(ContentPart Part, string Reason)> Unread(MermaidBlock block)
+    {
+        var keyword = block.Keyword?.Text is { Length: > 0 } named ? named : "diagram";
+        var reason = $"Nothing written here is something a {keyword} draws, so it is shown as it is written.";
+
+        return [.. block.Reading.Root.SelfAndDescendants()
+            .Where(part => part.Kind == MermaidKinds.Line && part.Stated() is { Kind: not (Kinds.Comment or MermaidKinds.Directive or MermaidKinds.Header) })
+            .Select(line => (line, reason))];
     }
 
     /// <summary>The card a diagram sits on, same surface and border as a code block. Drawn last but

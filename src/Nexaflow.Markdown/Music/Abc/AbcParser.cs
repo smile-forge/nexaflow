@@ -565,7 +565,7 @@ public static class AbcParser
             case ':' when next == '|':
                 i += 2;
                 while (i < s.Length && s[i] == '|') i++;
-                if (i < s.Length && s[i] == ':') i++;
+                if (i < s.Length && s[i] is ':' or ']') i++;   // ':|:' carries on repeating; ':|]' ends on a thick line
                 break;
 
             case ':' when next == ':':
@@ -590,6 +590,7 @@ public static class AbcParser
 
             case '[' when next == '|':
                 i += 2;
+                while (i < s.Length && s[i] == ':') i++;       // '[|:' opens a repeat after a thick line
                 break;
 
             case '[' when char.IsAsciiDigit(next):

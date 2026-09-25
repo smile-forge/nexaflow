@@ -18,12 +18,6 @@ public static class MatrixPiece
 
     /// <summary>The modules a code does not name as a part of its own.</summary>
     public const string Modules = "Modules";
-
-    /// <summary>The line through a stand-in symbol.</summary>
-    public const string Strike = "Strike";
-
-    /// <summary>Why the block did not draw as itself.</summary>
-    public const string Trouble = "Trouble";
 }
 
 /// <summary>
@@ -49,16 +43,7 @@ public static class MatrixPiece
 /// </summary>
 internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : IModuleMatrix
 {
-    private static readonly FontFamily ReasonFont = new("Segoe UI, Arial, sans-serif");
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
-
-    private const double ReasonSize = 12;
-
-    /// <summary>Clear air between a stand-in symbol and the reason beneath it.</summary>
-    private const double ReasonGap = 4;
-
-    /// <summary>The narrowest a reason is set to, so a small symbol does not stack it a word to a line.</summary>
-    private const double ReasonRoom = 240;
 
     protected MatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
@@ -82,34 +67,20 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     /// </summary>
     protected abstract Drawn? Encode(ContentNode tree, out string? trouble);
 
-    /// <summary>A valid symbol of this kind, to stand in faintly for one that could not be drawn.</summary>
-    protected abstract Drawn StandIn(MatrixSettings settings);
-
     /// <summary>
     /// The parts <paramref name="symbol"/> is made of. A module goes to the first region that holds it, and one
     /// that none does is <see cref="MatrixPiece.Modules"/>.
     /// </summary>
     protected abstract IReadOnlyList<Region> Regions(TSymbol symbol);
 
-    protected sealed override Laid Build()
-    {
-        var tree = Reading.Root.Node;
+    protected sealed override Laid Build() =>
+        // A code is only ever read where it is drawn, so a block that does not read, or a payload the code cannot carry, is
+        // put right in its source: shown as written, with why.
+        Encode(Reading.Root.Node, out string? trouble) is { } drawn
+            ? Lay(drawn)
+            : AsSource(trouble ?? "This block could not be read.");
 
-        return Encode(tree, out string? trouble) is { } drawn
-            ? Lay(drawn, trouble: null)
-            : Lay(StandIn(SettingsOf(tree)), trouble ?? "This block could not be read.");
-    }
-
-    /// <summary>
-    /// The block's own drawing settings, where they read, so a stand-in is the size and colour that was asked for.
-    /// </summary>
-    private static MatrixSettings SettingsOf(ContentNode tree) =>
-        MatrixBlockReader.TryReadFields(tree, out var fields, out _)
-        && MatrixBlockReader.TrySettings(fields, out var settings, out _)
-            ? settings
-            : MatrixSettings.Default;
-
-    private Laid Lay(Drawn drawn, string? trouble)
+    private Laid Lay(Drawn drawn)
     {
         var symbol = drawn.Modules;
         double cell = drawn.Settings.CellSize;
@@ -118,41 +89,15 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
         var ground = new Size(symbol.Width * cell + 2 * quiet, symbol.Height * row + 2 * quiet);
 
-        var dark = Brush(drawn.Settings.Dark, Palette.QrDark);
-        var ink = trouble is null ? dark : Faded(dark);
-
-        var reason = trouble is null ? null : Reason(trouble, Math.Max(ground.Width, ReasonRoom));
-        var size = reason is null
-            ? ground
-            : new Size(Math.Max(ground.Width, reason.Width), ground.Height + ReasonGap + reason.Height);
-
         var build = new LayoutBuilder();
         build.Open(MatrixPiece.Symbol);
 
         // A code paints its own light field whatever the theme, because a scanner needs dark modules on a light one.
         build.Draw(new RuleMark(new Rect(ground), Brush(drawn.Settings.Light, Palette.QrLight)));
-
-        LayRegions(build, drawn, new Point(quiet, quiet), cell, row, ink);
-
-        if (reason is not null)
-        {
-            build.Open(MatrixPiece.Strike, part: null, new Point(quiet, quiet));
-            var across = symbol.Width * cell;
-            var middle = symbol.Height * row / 2;
-            var thickness = Math.Max(cell, 3);
-            build.Draw(new RuleMark(new Rect(0, middle - thickness / 2, across, thickness), Palette.Danger));
-            build.Close();
-
-            build.Open(MatrixPiece.Trouble, part: null, new Point(0, ground.Height + ReasonGap));
-            build.Draw(new TextMark(reason, default, Palette.Danger));
-            build.Close();
-        }
+        LayRegions(build, drawn, new Point(quiet, quiet), cell, row, Brush(drawn.Settings.Dark, Palette.QrDark));
 
         build.Close();
-
-        return new Laid(build.Seal(), size, trouble is null
-            ? []
-            : [new Diagnostic(At, Math.Max(Source.Length, 1), DiagnosticSeverity.Error, trouble)]);
+        return new Laid(build.Seal(), ground, []);
     }
 
     /// <summary>
@@ -229,18 +174,6 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
     // ── Painting ──────────────────────────────────────────────────────────
 
-    private FormattedText Reason(string trouble, double room) =>
-        new(trouble,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(ReasonFont),
-            ReasonSize,
-            Palette.Danger,
-            Editing.LayoutText.Density)
-        {
-            MaxTextWidth = room,
-        };
-
     private static Brush Brush(HexColor? explicitColor, Brush fallback)
     {
         if (explicitColor is not { } c) return fallback;
@@ -250,22 +183,16 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
         return brush;
     }
 
-    /// <summary>The same colour at a quarter strength — for a stand-in symbol.</summary>
-    private static Brush Faded(Brush brush)
-    {
-        var faded = brush.Clone();
-        faded.Opacity = 0.25;
-        faded.Freeze();
-        return faded;
-    }
-
     /// <summary>How a code sets the source it could not lay out at all: as the fields it was written as.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             Style.Face(SourceFont),
-            ReasonSize,
-            Brushes.Black,
+            SourceSize,
+            Style.Text,
             Editing.LayoutText.Density);
+
+    /// <summary>How big the characters of a block shown as written are set.</summary>
+    private const double SourceSize = 13;
 }

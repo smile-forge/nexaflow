@@ -115,12 +115,14 @@ public class ContentLanguageDrawingTests
         Assert.IsFalse(laid?.Draws ?? false, "nothing to draw");
         Assert.AreNotEqual(0, laid?.Trouble.Count ?? 0, "and it says why");
 
-        var shown = Lay("barcode", "format:\nvalue:\n").Root.SelfAndDescendants()
-            .Where(piece => piece.Kind == MarkdownPieces.Verbatim)
-            .ToList();
+        var document = Lay("barcode", "format:\nvalue:\n");
+        var shown = document.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind);
+        var text = shown.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text;
 
-        Assert.AreEqual(1, shown.Count, "the block that could not be read is on the page as what was typed");
-        Assert.IsTrue(shown[0].Words!.Maps, "and the caret goes straight into it");
+        StringAssert.StartsWith(text, "```barcode", "the block that could not be read is on the page as what was typed, its fences and all");
+        var sits = shown.Sits();
+        Assert.IsTrue(document.Stops.Count(stop => stop > sits.Start && stop < sits.End) > 1, "and the caret goes straight into it");
+        Assert.IsTrue(document.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "with why under it");
     });
 
     // ── Reading the answers ─────────────────────────────────────────────────

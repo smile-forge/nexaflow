@@ -205,7 +205,7 @@ public class WordCloudBuilderTests
         // round cloud would look like the mask had simply not worked.
         var laid = Lay("mask: nowhere.png\n" + Stack);
 
-        Assert.IsFalse(laid.Draws);
+        StringAssert.Contains(Text(laid, LayoutText.SourceKind), "mask: nowhere.png", "shown as written");
         StringAssert.Contains(laid.Trouble[0].Message, "nowhere.png");
     });
 
@@ -254,25 +254,31 @@ public class WordCloudBuilderTests
     // ── When it will not read ──────────────────────────────────────────────
 
     [TestMethod]
-    public void ABlockThatIsNotACloudDrawsNothing_AndSaysWhy() => UiThread.Run(() =>
+    public void ABlockThatIsNotACloudIsShownAsWritten_AndSaysWhyUnderIt() => UiThread.Run(() =>
     {
-        // Its lines are all a reader has left to work with, so they are what the host shows — and this says
-        // why, which is what goes under them.
+        // Its lines are all a reader has left to work with, so they are what is shown — and this says why, under them.
         var laid = Lay("shape: blob\nWPF: 40");
 
-        Assert.IsFalse(laid.Draws, "there is no cloud to draw");
+        Assert.AreEqual("shape: blob\nWPF: 40", Text(laid, LayoutText.SourceKind), "there is no cloud to draw");
         Assert.AreEqual(1, laid.Trouble.Count);
         StringAssert.Contains(laid.Trouble[0].Message, "not a shape");
+        StringAssert.Contains(Text(laid, SourceShown.Reason), "not a shape");
     });
 
+    private static string Text(Laid laid, string kind) =>
+        string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)
+            .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
+
     [TestMethod]
-    public void AWordThatWillNotReadIsWavedAndTheRestStillDraw() => UiThread.Run(() =>
+    public void AWordThatWillNotReadIsMarkedInTheSource() => UiThread.Run(() =>
     {
+        // A cloud is only read where it is drawn, so a line that is no word is put right where it is written.
         var laid = Lay("WPF: 40\nXAML: lots\nMVVM: 12");
 
-        Assert.AreEqual(2, Words(laid).Length, "the two that read are still a cloud");
+        Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
         Assert.AreEqual(DiagnosticSeverity.Error, laid.Trouble[0].Severity);
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that line marked");
     });
 
     [TestMethod]
@@ -280,8 +286,8 @@ public class WordCloudBuilderTests
     {
         var laid = Lay("");
 
-        Assert.IsFalse(laid.Draws);
         StringAssert.Contains(laid.Trouble[0].Message, "word");
+        StringAssert.Contains(Text(laid, SourceShown.Reason), "word", "said under what is written");
     });
 
     [TestMethod]

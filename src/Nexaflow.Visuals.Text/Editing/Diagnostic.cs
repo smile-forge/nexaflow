@@ -34,6 +34,13 @@ public enum DiagnosticSeverity
 public sealed record Diagnostic(int Start, int Length, DiagnosticSeverity Severity, string Message)
 {
     /// <summary>
+    /// What a builder says about a part of the tree it was given: the part, and why. Where the part's characters are is the
+    /// part's own to say, so a builder never has to know.
+    /// </summary>
+    public static Diagnostic Of(ISourcePart part, string message, DiagnosticSeverity severity = DiagnosticSeverity.Error) =>
+        new(part.Start, Math.Max(part.Length, 1), severity, message) { Part = part };
+
+    /// <summary>
     /// The part of the parse tree this is about, where it came from one.
     ///
     /// <para>

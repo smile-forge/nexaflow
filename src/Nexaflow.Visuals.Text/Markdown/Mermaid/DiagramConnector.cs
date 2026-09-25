@@ -118,20 +118,21 @@ internal static class DiagramConnector
     /// <summary>
     /// Draws a connector through <paramref name="route"/>, as a piece of <paramref name="kind"/> standing for
     /// <paramref name="part"/>: straight from point to point, or <paramref name="curved"/> through them, ending in
-    /// <paramref name="start"/> at its first point and <paramref name="end"/> at its last.
+    /// <paramref name="start"/> at its first point and <paramref name="end"/> at its last — each head <paramref name="heads"/>
+    /// times its usual size.
     /// </summary>
     public static void Draw(LayoutBuilder build, string kind, ISourcePart? part, IReadOnlyList<Point> route, DiagramStroke stroke,
-                            DiagramHead start = DiagramHead.None, DiagramHead end = DiagramHead.Arrow, bool curved = false)
+                            DiagramHead start = DiagramHead.None, DiagramHead end = DiagramHead.Arrow, bool curved = false, double heads = 1)
     {
         if (route.Count < 2) throw new ArgumentException("A connector runs between two points at least.", nameof(route));
 
         var points = route.ToList();
-        var heads = new GeometryGroup();
+        var headed = new GeometryGroup();
         var filled = new GeometryGroup();
 
-        Capped(points, end, stroke.Thickness, heads, filled);
+        Capped(points, end, stroke.Thickness, heads, lines: headed, filled);
         points.Reverse();
-        Capped(points, start, stroke.Thickness, heads, filled);
+        Capped(points, start, stroke.Thickness, heads, lines: headed, filled);
         points.Reverse();
 
         var line = Line(points, curved);
@@ -139,9 +140,9 @@ internal static class DiagramConnector
         build.Open(kind, part, stops: Stops.None);
         build.Draw(new GeometryMark(line, null, stroke.Ink, stroke.Thickness) { Dashes = stroke.Dashes });
         if (filled.Children.Count > 0) build.Draw(new GeometryMark(Frozen(filled), stroke.Ink, stroke.Ink, stroke.Thickness));
-        if (heads.Children.Count > 0) build.Draw(new GeometryMark(Frozen(heads), null, stroke.Ink, stroke.Thickness));
+        if (headed.Children.Count > 0) build.Draw(new GeometryMark(Frozen(headed), null, stroke.Ink, stroke.Thickness));
 
-        var band = new GeometryGroup { Children = { line, heads, filled } }
+        var band = new GeometryGroup { Children = { line, headed, filled } }
             .GetWidenedPathGeometry(new Pen(Brushes.Black, Math.Max(Reach, stroke.Thickness)));
         build.Occupies(band);
         build.Close();
@@ -161,16 +162,16 @@ internal static class DiagramConnector
     /// to the foot — a hook where it goes into the head.
     /// </para>
     /// </summary>
-    private static void Capped(List<Point> points, DiagramHead head, double thickness, GeometryGroup lines, GeometryGroup solid)
+    private static void Capped(List<Point> points, DiagramHead head, double thickness, double scale, GeometryGroup lines, GeometryGroup solid)
     {
         var tip = points[^1];
         var last = Direction(points[^2], tip);
 
         var back = points.Count - 2;
-        while (back > 0 && (tip - points[back]).Length < HeadLength && Vector.Multiply(Direction(points[back - 1], points[back]), last) > Bent)
+        while (back > 0 && (tip - points[back]).Length < HeadLength * scale && Vector.Multiply(Direction(points[back - 1], points[back]), last) > Bent)
             back--;
 
-        var foot = Head(tip, Direction(points[back], tip), head, thickness, lines, solid);
+        var foot = Head(tip, Direction(points[back], tip), head, thickness, scale, lines, solid);
         var cut = (tip - foot).Length;
 
         if (cut > 1e-9)
@@ -385,10 +386,10 @@ internal static class DiagramConnector
     /// Draws what a connector ends in at <paramref name="tip"/>, pointing along <paramref name="along"/>, and hands back where
     /// the line itself stops — short of a head it would otherwise run through.
     /// </summary>
-    private static Point Head(Point tip, Vector along, DiagramHead head, double thickness, GeometryGroup lines, GeometryGroup solid)
+    private static Point Head(Point tip, Vector along, DiagramHead head, double thickness, double scale, GeometryGroup lines, GeometryGroup solid)
     {
         var across = new Vector(-along.Y, along.X);
-        var (length, half) = (HeadLength + thickness, (HeadWidth + thickness) / 2);
+        var (length, half) = ((HeadLength + thickness) * scale, (HeadWidth + thickness) / 2 * scale);
         var back = tip - (along * length);
 
         switch (head)

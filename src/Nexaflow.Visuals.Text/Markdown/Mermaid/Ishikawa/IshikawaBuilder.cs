@@ -63,6 +63,9 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     private const double BoxAcross = 20;
     private const double BoxUp = 2;
 
+    /// <summary>How big a fine bone's arrowhead is against a cause's: Mermaid sizes its heads by the line they end.</summary>
+    private const double FineHeads = 0.5;
+
     /// <summary>The room between words and the end of their bone.</summary>
     private const double Gap = 4;
 
@@ -79,6 +82,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     {
         // A diagram with nothing written in it is the source.
         if (chart.Effect is not { } effect) return AsWritten(build);
+        if (chart.Config.SingleBone) return SingleBoned(chart.Config, effect, build);
 
         var config = chart.Config;
         var fish = new Fish(Ink.Written(config.LineColour) ?? Palette.TextMuted, Ink.Written(config.Background) ?? Palette.CodeBg,
@@ -126,6 +130,203 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
         return fish.Taken;
     }
+
+    /// <summary>
+    /// Draws the diagram as Nexaflow's single bones (<c>singleBone</c>): the spine running right into the event in an accented box;
+    /// each of the event's causes on one short bone off it, above and below in turn, named in a chip of its own colour; and
+    /// everything under a cause listed beside a stem running out from its chip, each level further in and quieter than the last.
+    /// </summary>
+    private Size SingleBoned(IshikawaConfig config, IshikawaCause effect, LayoutBuilder build)
+    {
+        var size = config.FontSize ?? CauseSize;
+        var line = Ink.Written(config.LineColour) ?? Palette.TextMuted;
+        var text = Ink.Written(config.TextColour) ?? Palette.Text;
+        var room = new DiagramRoom(config.DiagramPadding ?? 0);
+
+        // Each cause's chip and outline first, since they say how wide its slot along the spine is.
+        var along = 0.0;
+        var clusters = new List<Cluster>();
+        for (var index = 0; index < effect.Causes.Count; index++)
+        {
+            var cause = effect.Causes[index];
+            var name = Wrapped(cause.Says, null, size, text, Widest, FontWeights.SemiBold);
+            var chip = new Size(name.Max(said => said.Width) + (2 * ChipAcross), name.Sum(said => said.Height) + (2 * ChipUp));
+
+            var rows = new List<Row>();
+            Listed(cause.Causes, 1, size - 1, text, rows);
+            var outline = new Size(rows.Select(row => Indented(row.Depth) + row.Size.Width).DefaultIfEmpty(0).Max(),
+                                   rows.Sum(row => row.Size.Height + RowGap));
+
+            var wide = Math.Max(Math.Max(chip.Width, outline.Width), Narrowest) + Between;
+            clusters.Add(new Cluster(cause, Ink.Series(index), name, chip, rows, outline, along + (wide / 2), index % 2 == 0 ? -1 : 1));
+            along += wide;
+        }
+
+        var said = Wrapped(effect.Says, null, size + 1, text, Widest, FontWeights.SemiBold);
+        var head = new Rect(along + HeadGap, 0, said.Max(one => one.Width) + (2 * HeadAcross), said.Sum(one => one.Height) + (2 * HeadUp));
+        head.Y = -head.Height / 2;
+        room.Reach(head);
+        room.Reach(new Rect(0, 0, head.Left, 0));
+
+        // Where every cause's bone, chip, stem and outline go.
+        foreach (var cluster in clusters)
+        {
+            var sign = cluster.Side;
+            cluster.Tip = new Point(cluster.Middle - Lean, sign * Rise);
+            cluster.Box = new Rect(cluster.Tip.X - (cluster.Chip.Width / 2), sign < 0 ? cluster.Tip.Y - cluster.Chip.Height : cluster.Tip.Y, cluster.Chip.Width, cluster.Chip.Height);
+
+            var left = cluster.Tip.X - (Math.Max(cluster.Chip.Width, cluster.Outline.Width) / 2);
+            var y = sign < 0 ? cluster.Box.Top - Drop - cluster.Outline.Height : cluster.Box.Bottom + Drop;
+            foreach (var row in cluster.Rows)
+            {
+                row.At = new Point(left + Indented(row.Depth), y);
+                row.Dot = new Point(row.At.X - Bullet, y + (row.Lines[0].Height / 2));
+                y += row.Size.Height + RowGap;
+            }
+
+            room.Reach(cluster.Box);
+            room.Reach(new Rect(new Point(cluster.Middle, 0), cluster.Tip));
+            foreach (var row in cluster.Rows) room.Reach(new Rect(row.Dot.X - Bullet, row.At.Y, row.Size.Width + (2 * Bullet), row.Size.Height));
+        }
+
+        var shift = room.Shift;
+
+        build.Open(IshikawaPiece.Bones, part: null, stops: Stops.None);
+        DiagramConnector.Draw(build, IshikawaPiece.Spine, effect.Part, [new Point(0, 0) + shift, new Point(head.Left, 0) + shift], new DiagramStroke(line, 2));
+        foreach (var cluster in clusters) Boned(build, cluster, shift);
+        build.Close();
+
+        var accent = Palette.Accent;
+        var box = Rect.Offset(head, shift);
+        DiagramShapes.Draw(build, IshikawaPiece.Head, effect.Part, DiagramShape.Rounded, box, accent, new DiagramStroke(accent, 1.5),
+                           DiagramWords.Placed(Wrapped(effect.Says, null, size + 1, Ink.Over(accent), Widest, FontWeights.SemiBold), box, MermaidPiece.Words));
+
+        build.Open(IshikawaPiece.Causes, part: null, stops: Stops.None);
+        foreach (var cluster in clusters)
+        {
+            var bounds = Rect.Offset(cluster.Box, shift);
+            DiagramShapes.Draw(build, IshikawaPiece.Cause, cluster.Cause.Part, DiagramShape.Rounded, bounds,
+                               DiagramInk.Faded(cluster.Ink, ChipWash), new DiagramStroke(cluster.Ink, 1.5), DiagramWords.Placed(cluster.Name, bounds, MermaidPiece.Words));
+        }
+
+        build.Close();
+
+        build.Open(IshikawaPiece.Words, part: null, stops: Stops.None);
+        foreach (var row in clusters.SelectMany(cluster => cluster.Rows))
+            foreach (var (words, at) in DiagramWords.Stack(row.Lines, new Rect(row.At + shift, row.Size), TextAlignment.Left))
+                words.Set(build, at, IshikawaPiece.Label);
+        build.Close();
+
+        return room.Size;
+    }
+
+    /// <summary>
+    /// A cause's bone off the spine, the stem out from its chip past every cause directly under it, and a dot for each cause
+    /// listed — each standing for its cause.
+    /// </summary>
+    private void Boned(LayoutBuilder build, Cluster cluster, Vector shift)
+    {
+        DiagramConnector.Draw(build, IshikawaPiece.Bone, cluster.Cause.Part, [new Point(cluster.Middle, 0) + shift, cluster.Tip + shift],
+                              new DiagramStroke(cluster.Ink, 2), end: DiagramHead.None);
+
+        var firsts = cluster.Rows.Where(row => row.Depth == 1).ToList();
+        if (firsts.Count > 0)
+        {
+            var edge = cluster.Side < 0 ? cluster.Box.Top : cluster.Box.Bottom;
+            var furthest = cluster.Side < 0 ? firsts[0] : firsts[^1];
+            DiagramConnector.Draw(build, IshikawaPiece.Bone, cluster.Cause.Part, [new Point(furthest.Dot.X, edge) + shift, furthest.Dot + shift],
+                                  new DiagramStroke(DiagramInk.Faded(cluster.Ink, StemWash), 1), end: DiagramHead.None);
+        }
+
+        foreach (var row in cluster.Rows)
+        {
+            var (radius, fill, stroke) = row.Depth switch
+            {
+                1 => (3.0, cluster.Ink, (Brush?)null),
+                2 => (2.5, Ink.Surface, cluster.Ink),
+                _ => (1.8, Palette.TextMuted, null),
+            };
+
+            var dot = new EllipseGeometry(row.Dot + shift, radius, radius);
+            dot.Freeze();
+
+            build.Open(IshikawaPiece.Bone, row.Cause.Part, stops: Stops.None);
+            build.Draw(new GeometryMark(dot, fill, stroke, stroke is null ? 0 : 1.2));
+            build.Occupies(dot);
+            build.Close();
+        }
+    }
+
+    /// <summary>Every cause under a cause, depth first, each wrapped — the first level in the diagram's ink, the rest quieter.</summary>
+    private void Listed(IReadOnlyList<IshikawaCause> causes, int depth, double size, Brush text, List<Row> rows)
+    {
+        foreach (var cause in causes)
+        {
+            var lines = Wrapped(cause.Says, null, size, depth == 1 ? text : Palette.TextMuted, Widest - Indented(depth));
+            rows.Add(new Row(cause, depth, lines, new Size(lines.Max(said => said.Width), lines.Sum(said => said.Height))));
+            Listed(cause.Causes, depth + 1, size, text, rows);
+        }
+    }
+
+    /// <summary>How far in a cause's words stand at a depth of the outline: past its dot, and further for each level.</summary>
+    private static double Indented(int depth) => (2 * Bullet) + ((depth - 1) * Indent);
+
+    /// <summary>One of the event's causes on its single bone: its chip, its outline, and where they went.</summary>
+    private sealed class Cluster(IshikawaCause cause, Brush ink, IReadOnlyList<DiagramWords> name, Size chip, IReadOnlyList<Row> rows, Size outline, double middle, int side)
+    {
+        public IshikawaCause Cause { get; } = cause;
+        public Brush Ink { get; } = ink;
+        public IReadOnlyList<DiagramWords> Name { get; } = name;
+        public Size Chip { get; } = chip;
+        public IReadOnlyList<Row> Rows { get; } = rows;
+        public Size Outline { get; } = outline;
+
+        /// <summary>Where its bone leaves the spine, and which side of it the bone goes: up is negative.</summary>
+        public double Middle { get; } = middle;
+        public int Side { get; } = side;
+
+        public Point Tip { get; set; }
+        public Rect Box { get; set; }
+    }
+
+    /// <summary>A cause in an outline: how deep, what it says, and where its words and its dot went.</summary>
+    private sealed class Row(IshikawaCause cause, int depth, IReadOnlyList<DiagramWords> lines, Size size)
+    {
+        public IshikawaCause Cause { get; } = cause;
+        public int Depth { get; } = depth;
+        public IReadOnlyList<DiagramWords> Lines { get; } = lines;
+        public Size Size { get; } = size;
+        public Point At { get; set; }
+        public Point Dot { get; set; }
+    }
+
+    /// <summary>How far a single bone rises off the spine, and leans back from where it leaves it.</summary>
+    private const double Rise = 26;
+    private const double Lean = 16;
+
+    /// <summary>How wide a slot along the spine is at least, and the room between slots.</summary>
+    private const double Narrowest = 56;
+    private const double Between = 26;
+
+    /// <summary>The room round a chip's words, and round the event's in its box, and how far the box stands off the last slot.</summary>
+    private const double ChipAcross = 8;
+    private const double ChipUp = 4;
+    private const double HeadAcross = 12;
+    private const double HeadUp = 8;
+    private const double HeadGap = 16;
+
+    /// <summary>How wide words run before they wrap, in the single-bone outline.</summary>
+    private const double Widest = 180;
+
+    /// <summary>The gap between a chip and its outline, between rows, how far in each level goes, and how much room a dot takes.</summary>
+    private const double Drop = 8;
+    private const double RowGap = 3;
+    private const double Indent = 12;
+    private const double Bullet = 6;
+
+    /// <summary>How strongly a chip is washed in its cause's colour, and how faint a stem is drawn.</summary>
+    private const double ChipWash = 0.2;
+    private const double StemWash = 0.6;
 
     /// <summary>
     /// What a cause says, wrapped as Mermaid wraps it — at most <paramref name="letters"/> characters to a line — and how much room
@@ -288,7 +489,8 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
         foreach (var (cause, far, near, thickness) in fish.Bones)
             if ((near - far).Length > 0)
-                DiagramConnector.Draw(build, IshikawaPiece.Bone, cause.Part, [far + shift, near + shift], new DiagramStroke(fish.Line, thickness));
+    DiagramConnector.Draw(build, IshikawaPiece.Bone, cause.Part, [far + shift, near + shift], new DiagramStroke(fish.Line, thickness),
+                                      heads: thickness < 2 ? FineHeads : 1);
 
         build.Close();
     }

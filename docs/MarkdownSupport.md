@@ -356,19 +356,30 @@ Drawn on the **shared layout tree**, so what is drawn is selectable and every br
 as. Supported: the way it runs after the keyword (`gitGraph LR:`, `TB:`, `BT:`, and the bare `gitGraph:`); `title`;
 `commit` with `id:`, `tag:` and `type: NORMAL|REVERSE|HIGHLIGHT`, written one after another with only space between them;
 `branch <name>` with `order:`, `checkout`/`switch <name>`, `merge <branch>` with a commit's own options, and
-`cherry-pick id: "<commit>"` with `parent:` and `tag:`. A branch takes its lane from its `order:`, else from where it is
-made; a commit follows the last commit on its branch, a merge follows the branch merged in as well, and a cherry-pick
-follows the commit it takes, drawn dashed. A merge is ringed, a cherry-pick marked, a reversed commit crossed through and
-a highlighted one squared off. **What the history means together is said where it is wrong**: a branch made twice,
+`cherry-pick id: "<commit>"` with `parent:` and `tag:`; a commit may be tagged more than once. A branch takes its lane
+as Mermaid orders them: by its `order:`, a branch asking none coming before any that asks for 1 or more, and the branch
+everything starts on at `mainBranchOrder` (nought unless written); a commit follows the last commit on its branch, a merge
+follows the branch merged in as well, and a cherry-pick follows the commit it takes, drawn dashed. A merge is ringed, a
+cherry-pick drawn as a cherry, a reversed commit crossed through and a highlighted one squared off inside a square of the
+lane's `gitInv` colour. **The lanes are a grid the lines run on**: each is a faint dashed line from its label — set right
+against where the lane starts, over it running down the page and under it running up — to past its last commit, and lanes
+stand as far apart as the ids and tags written between them need. A line between lanes runs along them through the
+columns: out of a branch it turns at the commit it leaves, into a merge or a cherry-pick at the commit taking it, the
+other way round where a commit stands in its way, and along a track of its own between the lanes where both ways are
+blocked. An id is written on a faint backing (`commitLabelBackground`) so a line under it does not strike it through, and
+nothing written is cut off at the edges. **What the history means together is said where it is wrong**: a branch made twice,
 checked out or merged before it is made, or merged into itself; an id given to two commits; a commit picked that nothing
 above writes; a cherry-pick of a commit on the branch it is picked onto, or onto a branch with nothing committed yet; a
 cherry-pick of a merge that does not name which of the merge's parents it takes, or names one that is not a parent; and
-a `type:` a git graph does not keep. A cherry-pick is tagged with the commit it took unless it is tagged itself, as
-Mermaid tags one. **The front matter is applied**
+a `type:` a git graph does not keep. An id given twice is said to be wrong — git gives no two commits one id — and is
+drawn as Mermaid draws it, the id naming the newest commit given it. A cherry-pick is tagged `cherry-pick:<id>` (and
+`|parent:<id>` for a merge) unless it is tagged itself, as Mermaid tags one. **The front matter is applied**
 ([`GitConfig`](../src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs)): `config: gitGraph:` `mainBranchName`,
 `mainBranchOrder`, `showBranches`, `showCommitLabel`, `rotateCommitLabel` (an id turned where it is written, which a press
-and a caret follow round) and `parallelCommits` (every branch keeping its own count), and the `themeVariables`
-`git0…git7` lane colours, `gitBranchLabel0…7` label ink, and the `commitLabel`/`tagLabel` colours and sizes. Writing in
+and a caret follow round) and `parallelCommits` (each commit one past what it follows, so branches made together run
+level), and the `themeVariables` `git0…git7` lane colours, `gitBranchLabel0…7` label ink and `gitInv0…7` highlight
+colours — a ninth lane taking the first's again — and the `commitLabel`/`tagLabel` colours and sizes. Mermaid's named
+themes are read and kept; the graph is drawn in the app's palette with any `themeVariables` over it. Writing in
 place: a branch's name is typed into in its label, and **renaming it where it is made renames it wherever it is checked
 out or merged**; Enter starts another `commit`; a name that cannot go bare is put in quotes, and a quote typed into a
 value in quotes goes in as `#quot;`. **Limitations:** an id and a tag are read as one value with its quotes, so they are
@@ -381,13 +392,14 @@ its stage [`ResolveRoot`](../src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/Resolv
 Drawn on the **shared layout tree**, so what is drawn is selectable and every title is the characters it was written as.
 Supported, as Mermaid documents it: `mindmap`; a node as `id[Title]`, `[Title]` or a bare `Title`, read as every outline
 diagram's is ([`MermaidOutline`](../src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs)); each pair of brackets its own shape —
-`[…]` a square, `(…)` a rounded square, `((…))` a circle, `)…(` a cloud, `))…((` a bang, `{{…}}` a hexagon, and a bare id no
-border with an underline instead; the first node is the root and every later node hangs off the nearest node before it indented
+`[…]` a square, `(…)` a pill, `((…))` a circle, `)…(` a cloud, `))…((` a bang, `{{…}}` a hexagon, and a bare id a softly
+rounded box; the first node is the root and every later node hangs off the nearest node before it indented
 less, so unclear indentation — deeper than an uncle, shallower than a sibling — still nests as Mermaid nests it, and a second
 root is said to be wrong; `<br>` breaks a title's line; `::icon(…)` and `:::class` lines (read); and `%%` comments.
 **Drawn as a tidy tree** ([`DiagramTree`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTree.cs)): the root in the
-middle, its children taking turns either side of it, each node beside its parent with its subtree given the room it needs, and
-a branch off the root drawn in its own colour, thinning as it goes further out. Mermaid's own mindmap layout is a force
+middle, its children taking turns either side of it, each node beside its parent with its subtree given the room it needs;
+every node washed and edged in its branch's colour, and each branch sweeping in that colour from its parent's side into the
+middle of its child's, thinning as it goes further out. Where the theme's `cScale` colours a branch, its nodes are filled solid. Mermaid's own mindmap layout is a force
 simulation (`cose-bilkent`) that settles somewhere different every run; this is its `tidy-tree` layout, which is the same every
 time, and what `layout:` names is read and kept.
 **The front matter is applied** ([`MindmapConfig`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs)): `config:
@@ -412,11 +424,11 @@ bare or in quotes, and `<br>` breaking a line of it; the first node's indentatio
 column's, and a node indented further is a card in the column above it (one indented less than the first is said to be
 wrong); a node's `@{ … }` metadata — `ticket`, `assigned`, `priority` (`Very High`, `High`, `Medium`, `Low`, `Very Low`),
 `label`, `icon`, `shape` — values bare or quoted, a comma inside quotes kept; `::icon(…)` and `:::class` lines (read); and
-`%%` comments. Drawn as Mermaid lays it out: columns side by side, each `sectionWidth` wide with its title at its top and its
-cards stacked in it; a card's title wrapped at its top left, its ticket under the title at the left and its assignee at the
-right, and a stripe down its left edge coloured by its priority (Very High → `Danger`, High → `Warning`, Low → `Accent`,
-Very Low → a faded `Accent`, Medium none). Mermaid's arithmetic sets a card's ticket and assignee against its edges; here they
-sit inside its padding. A title is wrapped by the kit ([`MermaidBuilder.Wrapped`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs)),
+`%%` comments. Drawn as a board: columns side by side as lanes, each `sectionWidth` wide and all as tall as the longest,
+washed in the column's colour under a deeper heading holding its title and how many cards it has; each card a raised box in
+its lane, its title wrapped at its top, a chip each for its ticket, its priority and its assignee under the title, and a
+stripe down its left edge in its priority's colour (Very High → `Danger`, High → `Warning`, Low → `Accent`, Very Low → a
+faded `Accent`) or, with no priority, its column's. A title is wrapped by the kit ([`MermaidBuilder.Wrapped`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs)),
 each line standing for the characters it holds.
 **The front matter is applied** ([`KanbanConfig`](../src/Nexaflow.Markdown/Mermaid/Kanban/KanbanConfig.cs)): `config: kanban:`
 `ticketBaseUrl` (a linked ticket drawn in the accent), `sectionWidth`, and `padding` and `useMaxWidth` (read); and the
@@ -441,10 +453,14 @@ standing for today; `dateFormat` in day.js tokens, read strictly, with `X`/`x` s
 ([`MermaidDate`](../src/Nexaflow.Markdown/Mermaid/MermaidTime.cs)); `axisFormat` in d3 directives
 ([`MermaidTimeFormat`](../src/Nexaflow.Markdown/Mermaid/MermaidTime.cs)); `tickInterval` and `weekday`; `excludes` and
 `includes` (dates, days of the week, `weekends`, several lines merged) with `weekend friday|saturday`, an excluded day pushing a
-length's end on and banded on the chart; `inclusiveEndDates`; `topAxis`; `todayMarker` styled or `off`; `click … href` and
-`click … call` (the task's name set bold in the clickable colour); and `%%` comments. Drawn as Mermaid lays it out: a row per
-task banded by its section, its section's name at the left, the name in its bar where it fits and beside it where it does not,
-a milestone's diamond half way through its time, a marker's line down the chart with its name under it, dates along the foot.
+length's end on and banded on the chart; `inclusiveEndDates`; `topAxis`; `todayMarker` styled (`stroke`, `stroke-width`,
+`opacity`, `stroke-dasharray`) or `off`; `click … href` and `click … call` (the task's name set bold in the clickable colour);
+and `%%` comments. `dateFormat` reads `DDD`/`DDDD` as the day of the year; `tickInterval` counts in Mermaid's units
+(`millisecond` to `month`), and one that does not — `1year`, `1decade` — is said to be wrong and the dates chosen as if none
+were written. Drawn as Mermaid lays it out: a row per task banded by its section, with a faint dashed line along it that its
+bar sits on in the middle of the band; its section's name set right against the dates, the room left of them as wide as the
+widest name needs; the name in its bar where it fits and beside it where it does not; a milestone's diamond half way through
+its time; a marker's line down the chart with its name under it; dates along the foot.
 What is wrong is said on the piece it is wrong in — a start that is no date in the chart's format, an end that is neither a date
 nor a length, an id no task has, a first task with no start, a day `excludes` names that is none — and a task that cannot be
 worked out is not drawn.
@@ -455,7 +471,10 @@ compact` at the top of the front matter or under `config: gantt:`; `config: gant
 — `sectionBkgColor`, `altSectionBkgColor`, `sectionBkgColor2`, `excludeBkgColor`, `taskBkgColor`, `taskBorderColor`,
 `taskTextColor`, `taskTextOutsideColor`, `taskTextDarkColor`, `taskTextClickableColor`, `activeTaskBkgColor`,
 `activeTaskBorderColor`, `doneTaskBkgColor`, `doneTaskBorderColor`, `critBkgColor`, `critBorderColor`, `gridColor`,
-`todayLineColor`, `vertLineColor`, `titleColor` and `textColor`. A size nobody wrote is Mermaid's, and a colour the theme's.
+`todayLineColor`, `vertLineColor`, `titleColor` and `textColor`. A bar nobody sizes is 16 tall with 10 between rows — slimmer
+than Mermaid's 20 and 4 — and a bar's edge is fine unless it is active or critical; any other size nobody wrote is Mermaid's,
+and a colour the theme's. The front matter's YAML may quote its keys and write comments after its values, and a quoted value
+may run on over several lines.
 The chart is as wide as its room; where nothing says how far apart the dates are, as many are marked as have room to be read.
 A section's name wraps to the room left of the chart and breaks where a `<br>` says to; a milestone's name is set in italics.
 **Not applied:** following a `click`'s link (which wants a press on a piece to reach the host) or its `call` (a JavaScript
@@ -472,8 +491,11 @@ Drawn on the **shared layout tree**. Supported, as Mermaid documents it: `quadra
 and `y-axis Low --> High`, the high end optional and either end in quotes; `quadrant-1`…`quadrant-4` captions (the first top
 right, then anticlockwise); points as `Name: [x, y]` from 0 to 1, a class after `:::` and a style after the position —
 `radius`, `color`, `stroke-color`, `stroke-width` — laid over the class's; and `classDef` lines, written above the points
-or below. Captions sit in the middle of their quadrants, or at the top where there are points; the x-axis's ends go over
-the chart where there are no points and under it where there are. A quadrant stands for its caption's line, a dot for its
+or below. The axes' ends stand out at the chart's corners, the y-axis's reading up its side; the x-axis's go over the chart
+where there are no points and under it where there are, clear of any dot hanging over its edge. Each point's name goes under
+its dot where that is clear, or wherever round the dot covers least of the other dots, names and axes' words; then each
+caption, in the axes' colour, sits in the middle of its quadrant where that is clear, or at whichever edge or corner is
+clearest. A quadrant stands for its caption's line, a dot for its
 point. What Mermaid would refuse is said beneath — a position outside 0 to 1 or not two numbers, a class no `classDef`
 writes, a style key nobody knows. **The front matter is applied** ([`QuadrantConfig`](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantConfig.cs)):
 `config: quadrantChart:` `chartWidth`, `chartHeight`, `titleFontSize`, `quadrantLabelFontSize`, `x`/`yAxisLabelFontSize`,
@@ -548,7 +570,11 @@ above and below in turn, and every cause further in on a bone of its own off its
 slants, slanting where its parent's is level — the bones' lengths shared out by how many causes each side holds.
 **The front matter is applied** ([`IshikawaConfig`](../src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs)):
 `config: ishikawa:` `diagramPadding` and `useMaxWidth` (read, the diagram drawn to its content), `config: fontSize`, and
-`themeVariables:` `lineColor`, `mainBkg` and `textColor`; a front-matter `title:` is set over the diagram.
+`themeVariables:` `lineColor`, `mainBkg` and `textColor`; a front-matter `title:` is set over the diagram. A fine bone's
+arrowhead is half the size of a cause's, as Mermaid sizes its heads by the line they end. Nexaflow's own
+`config: ishikawa: singleBone: true` draws the diagram another way: the spine running into the event in an accented box, each
+of the event's causes on one short bone off it — above and below in turn — named in a chip of its own colour, and everything
+under a cause listed beside a stem running out from its chip, each level further in and quieter.
 A cause's words wrap onto several lines where they are long, as Mermaid wraps them — the event's at thirteen characters and a
 cause's at fifteen — each line typed into as the characters it holds.
 **Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
@@ -1250,7 +1276,7 @@ layout is hosted read-only in the shared `ContentElement`, which the caret arrow
 | [`IModuleMatrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs) | any finished symbol: `Width`, `Height`, and whether a module is dark. Rectangular, because Data Matrix is |
 | [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | any 2D block's body → a tree: a line per line, a field its key, colon and value. `Print(Parse(s)) == s` for anything |
 | [`MatrixSettings`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the fields the parser found; a symbology's reader takes the fields these hand back and adds its own keys |
-| [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) | what the four builders share: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode draws a valid symbol of its kind, faint and struck through, with the reason beneath. Takes a row-height multiplier for stacked symbologies |
+| [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) | what the four builders share: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode is only ever read, so it is shown as it is written, with the reason beneath. Takes a row-height multiplier for stacked symbologies |
 | [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
 
 The QR code is re-pointed at all of it; its suite is what proves the shared codec. `QrColor` folded into
@@ -1421,9 +1447,10 @@ fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smi
 | [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `StyleFormat.Elements`, wedges, captions, and entries flowing to the column |
 
 **Read-only, but selectable.** Every atom and every written bond is a piece carrying the part it was
-typed as, so a selection across a structure copies its SMILES and trouble is waved under the atom that
-caused it — a carbon with five bonds, an aromatic ring that cannot alternate — with the reason in red
-beneath the caption. A string with no atom that reads is shown as itself, struck through.
+typed as, so a selection across a structure copies its SMILES. A structure is only ever read, so
+anything wrong — a carbon with five bonds, an aromatic ring that cannot alternate, a string with no atom
+that reads — shows the block as it is written, the atom or entry at fault waved under and the reason in
+red beneath.
 
 **Held to RDKit.** Hydrogen counts and what is refused follow RDKit, which is what most SMILES is written
 for. Nitrogen makes three bonds, except that a nitro group written `N(=O)=O` is accepted, as RDKit's
@@ -1924,7 +1951,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Qr/QrEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrEncoderTests.cs) | The QR encoder: round trips through every version and level via `QrTestDecoder`, non-ASCII, the capacity boundary, and the published capacity / alignment-centre / format-code-word tables. |
 | [`Matrix/MatrixParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Matrix/MatrixParserTests.cs) | The 2D block tree: every block and every prefix of it prints back as written, every leaf is copied from the source, a field's key / colon / value, and a line that is not a field held with its reason. |
 | [`Markdown/Qr/QrBlockReaderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBlockReaderTests.cs) | The `qr` block's fields: the exact payload each `type:` builds (escaping included), every setting, and each diagnostic — unknown type, mistyped setting, foreign field, missing field, bad value. |
-| [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | A `qr` fence drawn by its language with nowhere in it to write, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — drawing a struck-through code with its reason. (UI category.) |
+| [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | A `qr` fence drawn by its language with nowhere in it to write, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — shown as written with its reason. (UI category.) |
 | [`Markdown/Barcode/BarcodeEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs) | Every one of the twenty-three formats down to the module: published symbol tables, computed and verified check digits, Code 128 subset switching, and each value a format refuses. |
 | [`Markdown/Barcode/BarcodeReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeReferenceImageTests.cs) | Reads externally generated PNGs back to modules and compares. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; inconclusive without it. |
 | [`Markdown/Barcode/BarcodeBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs) | The `barcode` block body: every setting and its bounds, the value offset, and each structural diagnostic — separately from a value the format cannot carry, which is not one. |
@@ -1943,7 +1970,7 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
 | [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
 | [`Chemistry/SmilesCorpusTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs) | 5,481 real molecules against RDKit: round trip, refusals, hydrogens, and overlaps. Opt-in via `NEXAFLOW_SMILES_CORPUS` (default `D:\Datasets\smiles`, made by the `make_reference.py` beside it). |
-| [`Markdown/Chemistry/SmilesBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs) | The `smiles` drawing: dispatch, atoms and written bonds carrying their parts, captions, wrapping, element colours, a cage's rear bond broken where it passes behind, trouble on the offending atom, and the stand-in. (UI category.) |
+| [`Markdown/Chemistry/SmilesBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs) | The `smiles` drawing: dispatch, atoms and written bonds carrying their parts, captions, wrapping, element colours, a cage's rear bond broken where it passes behind, and trouble — on the offending atom, or an entry with no atom — shown as written with its reason. (UI category.) |
 
 Sample fixtures (driving `MarkdownSampleRenderTests`) live in
 [`Nexaflow.Tests.Fixtures/MarkdownSamples.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Fixtures/MarkdownSamples.cs):

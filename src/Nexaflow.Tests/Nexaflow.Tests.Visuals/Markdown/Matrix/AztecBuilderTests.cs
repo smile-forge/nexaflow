@@ -141,13 +141,13 @@ public class AztecBuilderTests
     });
 
     [TestMethod]
-    public void ABadBlock_StillDrawsACode_WithTheReason() => UiThread.Run(() =>
+    public void ABadBlock_IsShownAsWritten_WithTheReason() => UiThread.Run(() =>
     {
         var laid = Build("type: text");
 
         StringAssert.Contains(laid.Trouble.Single().Message, "text:");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, AztecBuilder.Finder).Length, "a code-shaped absence, not a gap");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, MatrixPiece.Strike).Length);
+        Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, SourceShown.Reason).Length, "with why, under it");
     });
 
     // ── Helpers ─────────────────────────────────────────────────────────────

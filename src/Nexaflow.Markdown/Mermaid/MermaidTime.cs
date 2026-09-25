@@ -76,6 +76,8 @@ public static class MermaidDate
                 "MMMM" => Months[date.Month - 1],
                 "D" => date.Day.ToString(CultureInfo.InvariantCulture),
                 "DD" => date.Day.ToString("00", CultureInfo.InvariantCulture),
+                "DDD" => date.DayOfYear.ToString(CultureInfo.InvariantCulture),
+                "DDDD" => date.DayOfYear.ToString("000", CultureInfo.InvariantCulture),
                 "d" => ((int)date.DayOfWeek).ToString(CultureInfo.InvariantCulture),
                 "dd" => Days[(int)date.DayOfWeek][..2],
                 "ddd" => ShortDays[(int)date.DayOfWeek],
@@ -129,7 +131,7 @@ public static class MermaidDate
     /// <summary>The token a format writes at <paramref name="at"/>: the longest day.js token there, or the one character.</summary>
     private static string WriteToken(string format, int at)
     {
-        foreach (var token in (string[])["Do", "kk", "k", "Q", "X", "x", "YYYY", "YY", "MMMM", "MMM", "MM", "M", "DD", "D", "dddd", "ddd", "dd", "d",
+        foreach (var token in (string[])["Do", "kk", "k", "Q", "X", "x", "YYYY", "YY", "MMMM", "MMM", "MM", "M", "DDDD", "DDD", "DD", "D", "dddd", "ddd", "dd", "d",
                                          "HH", "H", "hh", "h", "a", "A", "mm", "m", "ss", "s", "SSS", "SS", "S", "ZZ", "Z"])
             if (string.CompareOrdinal(format, at, token, 0, token.Length) == 0)
                 return token;
@@ -147,7 +149,7 @@ public static class MermaidDate
     /// <summary>A date read token by token, as day.js reads one: the tokens it knows, the separators between them skipped.</summary>
     private static DateTime? Parsed(string text, string format, DateTime today)
     {
-        int? year = null, month = null, day = null, offset = null;
+        int? year = null, month = null, day = null, offset = null, dayOfYear = null;
         int hours = 0, minutes = 0, seconds = 0, milliseconds = 0;
         bool? afternoon = null;
         var at = 0;
@@ -217,7 +219,7 @@ public static class MermaidDate
                 default:
                     var (least, most) = token switch
                     {
-                        "YYYY" => (4, 4), "YY" => (2, 2), "Y" => (1, 9), "Q" or "S" => (1, 1), "SS" => (2, 2), "SSS" => (3, 3),
+                        "YYYY" => (4, 4), "YY" => (2, 2), "Y" => (1, 9), "Q" or "S" => (1, 1), "SS" => (2, 2), "SSS" or "DDDD" => (3, 3), "DDD" => (1, 3),
                         "MM" or "DD" or "HH" or "hh" or "mm" or "ss" => (2, 2),
                         _ => (1, 2),
                     };
@@ -233,6 +235,7 @@ public static class MermaidDate
                         case "Q": month = ((value - 1) * 3) + 1; break;
                         case "M" or "MM": month = value; break;
                         case "D" or "DD": day = value; break;
+                        case "DDD" or "DDDD": dayOfYear = value; break;
                         case "H" or "HH" or "h" or "hh": hours = value; break;
                         case "m" or "mm": minutes = value; break;
                         case "s" or "ss": seconds = value; break;
@@ -252,7 +255,8 @@ public static class MermaidDate
         var m = year is not null && month is null ? 1 : month ?? today.Month;
         if (y is < 1 or > 9998) return null;
 
-        var date = new DateTime(y, 1, 1).AddMonths(m - 1).AddDays(d - 1)
+        // A day of the year counts from the year's first day, whatever month or day is written with it.
+        var date = (dayOfYear is { } counted ? new DateTime(y, 1, 1).AddDays(counted - 1) : new DateTime(y, 1, 1).AddMonths(m - 1).AddDays(d - 1))
             .AddHours(hours).AddMinutes(minutes).AddSeconds(seconds).AddMilliseconds(milliseconds);
 
         return offset is { } minutesEast
@@ -263,7 +267,7 @@ public static class MermaidDate
     /// <summary>The day.js token a format reads at <paramref name="at"/> — or nothing, for a character it skips.</summary>
     private static string ParseToken(string format, int at)
     {
-        foreach (var token in (string[])["A", "a", "Q", "YYYY", "YY", "Y", "MMMM", "MMM", "MM", "M", "Do", "DD", "D", "hh", "h", "HH", "H",
+        foreach (var token in (string[])["A", "a", "Q", "YYYY", "YY", "Y", "MMMM", "MMM", "MM", "M", "Do", "DDDD", "DDD", "DD", "D", "hh", "h", "HH", "H",
                                          "mm", "m", "ss", "s", "SSS", "SS", "S", "ZZ", "Z"])
             if (string.CompareOrdinal(format, at, token, 0, token.Length) == 0)
                 return token;

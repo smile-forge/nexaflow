@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
@@ -61,6 +62,36 @@ public class GanttBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual(tasks["A"].Bounds.Right, tasks["B"].Bounds.Left, 3, "B starts where a1 ends");
         Assert.AreEqual(tasks["A"].Bounds.Width / 2, tasks["B"].Bounds.Width, 3, "and lasts half as long");
+    });
+
+    [TestMethod]
+    public void ABarIsSlimUnlessTheFrontMatterSaysHowTall_AndSitsInTheMiddleOfItsRow() => UiThread.Run(() =>
+    {
+        var slim = Pieces(Build(Plan), GanttPiece.Task).First(task => Task(Plan, task) == "Code").Bounds;
+        const string tall = "---\nconfig:\n  gantt:\n    barHeight: 30\n---\ngantt\n  A : 2014-01-01, 3d";
+
+        Assert.AreEqual(16, slim.Height, 1, "slimmer than Mermaid's twenty");
+        Assert.AreEqual(30, Pieces(Build(tall), GanttPiece.Task).Single().Bounds.Height, 1);
+
+        var laid = Build("gantt\n  A : 2014-01-01, 3d");
+        var row = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
+        var bar = Pieces(laid, GanttPiece.Task).Single().SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray())
+            .OfType<GeometryMark>().First(mark => mark.Fill is not null).Shape.Bounds;
+        Assert.AreEqual(row.Top + (row.Height / 2), bar.Top + (bar.Height / 2), 1, "in the middle of its band");
+    });
+
+    [TestMethod]
+    public void EachSectionsNameStandsRightAgainstTheDates_AndEachRowHasALineAlongIt() => UiThread.Run(() =>
+    {
+        var laid = Build(Plan);
+        var names = Pieces(laid, GanttPiece.SectionName).Select(name => name.Bounds).ToList();
+        var bars = Pieces(laid, GanttPiece.Task).Select(task => task.Bounds).ToList();
+
+        Assert.AreEqual(names[0].Right, names[^1].Right, 0.5, "every name set right");
+        Assert.IsTrue(names.All(name => name.Right <= bars.Min(bar => bar.Left) - 8), "clear of where the dates start");
+
+        var lines = Pieces(laid, GanttPiece.Rows).Single().Marks.ToArray().OfType<GeometryMark>().Single(mark => mark.Dashes is not null);
+        Assert.AreEqual(4, ((GeometryGroup)lines.Shape).Children.Count, "one along each of the four rows");
     });
 
     [TestMethod]

@@ -24,6 +24,60 @@ public sealed record GanttTask(
 /// <summary>A section: what its name says, where it is written, and the hole standing where its name is still to write.</summary>
 public sealed record GanttSection(string Says, ContentPart? Name, ContentPart? Hole, int Index);
 
+/// <summary>How far apart a gantt chart's axis marks are: every so many of one of the units Mermaid counts in.</summary>
+public sealed record GanttTick(int Every, string Unit)
+{
+    /// <summary>What a <c>tickInterval</c> says — <c>1week</c> — or null where it is not a whole number and a unit Mermaid counts in.</summary>
+    public static GanttTick? Read(string? written)
+    {
+        if (written?.Trim() is not { Length: > 0 } said) return null;
+
+        var digits = said.TakeWhile(char.IsAsciiDigit).Count();
+        var unit = said[digits..].Trim();
+
+        return digits > 0 && int.TryParse(said.AsSpan(0, digits), out var every) && every > 0 && GanttGrammar.Intervals.Contains(unit)
+            ? new GanttTick(every, unit)
+            : null;
+    }
+}
+
+/// <summary>How the line at today is drawn, as <c>todayMarker</c> styles it: not at all, or in its own stroke, width, opacity and dashes.</summary>
+public sealed record GanttToday(bool Off, string? Stroke, double? Width, double? Opacity, IReadOnlyList<double>? Dashes)
+{
+    public static GanttToday Default { get; } = new(false, null, null, null, null);
+
+    /// <summary>What a <c>todayMarker</c> says — <c>off</c>, or CSS such as <c>stroke-width:5px,stroke:#0f0,opacity:0.5</c>.</summary>
+    public static GanttToday Read(string? written)
+    {
+        if (written is null) return Default;
+        if (written.Trim().Equals("off", StringComparison.OrdinalIgnoreCase)) return Default with { Off = true };
+
+        var today = Default;
+        foreach (var style in written.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (style.Split(':', 2) is not [var key, var value]) continue;
+
+            value = value.Trim();
+            today = key.Trim().ToLowerInvariant() switch
+            {
+                "stroke" => today with { Stroke = value },
+                "stroke-width" => today with { Width = MermaidNumber.Pixels(value) ?? today.Width },
+                "opacity" => today with { Opacity = MermaidNumber.Read(value) is { } opacity ? Math.Clamp(opacity, 0, 1) : today.Opacity },
+                "stroke-dasharray" => today with { Dashes = Dashed(value) },
+                _ => today,
+            };
+        }
+
+        return today;
+    }
+
+    private static IReadOnlyList<double>? Dashed(string value)
+    {
+        var dashes = value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries).Select(MermaidNumber.Pixels).ToList();
+        return dashes.Count > 0 && dashes.All(dash => dash is > 0) ? dashes.Select(dash => dash!.Value).ToList() : null;
+    }
+}
+
 /// <summary>
 /// A <c>gantt</c> block, read and worked out as Mermaid works it out: its settings, its sections, and every task's start and end.
 ///
@@ -70,8 +124,8 @@ public sealed class GanttChart
                     {
                         case var role when role == GanttRoles.Of("dateFormat"): chart.DateFormat = said; break;
                         case var role when role == GanttRoles.Of("axisFormat"): chart.AxisFormat = said; break;
-                        case var role when role == GanttRoles.Of("tickInterval"): chart.TickInterval = said; break;
-                        case var role when role == GanttRoles.Of("todayMarker"): chart.TodayMarker = said; break;
+                        case var role when role == GanttRoles.Of("tickInterval"): chart._tickInterval = said; break;
+                        case var role when role == GanttRoles.Of("todayMarker"): chart.Today = GanttToday.Read(said); break;
                         case var role when role == GanttRoles.Of("weekday") && value.Trouble is null: chart.Weekday = Enum.Parse<DayOfWeek>(said, ignoreCase: true); break;
                         case var role when role == GanttRoles.Of("weekend") && value.Trouble is null: chart.WeekendStartsFriday = said.Equals("friday", StringComparison.OrdinalIgnoreCase); break;
                         case var role when role == GanttRoles.Of("excludes"): Merge(excludes, said); break;
@@ -133,17 +187,16 @@ public sealed class GanttChart
 
     private string? _axisFormat;
 
-    /// <summary>How far apart the axis's marks are — <c>1week</c> — or null to choose.</summary>
-    public string? TickInterval
-    {
-        get => _tickInterval ?? Config.TickInterval;
-        private set => _tickInterval = value;
-    }
-
     private string? _tickInterval;
 
-    /// <summary>How the line marking today is styled — <c>off</c> for none — or null for the theme's.</summary>
-    public string? TodayMarker { get; private set; }
+    /// <summary>How the line marking today is drawn, as the last <c>todayMarker</c> written styles it.</summary>
+    public GanttToday Today { get; private set; } = GanttToday.Default;
+
+    /// <summary>
+    /// How far apart the axis's marks are, as the last <c>tickInterval</c> written — or the front matter's — says; null to
+    /// choose, where neither says anything Mermaid counts in.
+    /// </summary>
+    public GanttTick? Tick => GanttTick.Read(_tickInterval ?? Config.TickInterval);
 
     /// <summary>The day a week starts on, for marks a week apart.</summary>
     public DayOfWeek Weekday

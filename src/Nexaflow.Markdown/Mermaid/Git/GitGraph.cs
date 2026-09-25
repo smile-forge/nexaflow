@@ -24,17 +24,19 @@ public sealed record GitBranch(ContentPart? Part, ContentPart? Named, string Nam
 /// <param name="Id">What it is called: the id written for it, or one of the graph's own where none is.</param>
 /// <param name="Said">The id as written, where one is — what a commit says under itself.</param>
 /// <param name="Parents">What it follows: the branch's last commit, then the branch merged in or the commit picked.</param>
-/// <param name="Taken">The commit a cherry-pick takes, as written — what it is tagged with where nothing else tags it.</param>
-public sealed record GitCommit(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, GitSaid? Tag, GitKept Kept, GitBranch Branch,
-                                int Position, IReadOnlyList<string> Parents, bool Merge, bool Picked, int Order);
+/// <param name="Taken">The commit a cherry-pick takes, as written.</param>
+/// <param name="Tags">Every tag written for it, in the order written — or, for a cherry-pick nothing tags, what it takes.</param>
+public sealed record GitCommit(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, IReadOnlyList<GitSaid> Tags, GitKept Kept, GitBranch Branch,
+                               int Position, IReadOnlyList<string> Parents, bool Merge, bool Picked, int Order);
 
 /// <summary>
 /// A <c>gitGraph</c> block, read: its branches in the lanes they take, and its commits with what each follows — the
 /// history the block writes as a graph to draw. Its title is the block's (<see cref="MermaidBlock.Title"/>).
 ///
 /// <para>
-/// A branch takes its lane from its <c>order:</c> where it writes one, and otherwise from where it is made; the branch
-/// everything starts on is the front matter's <c>mainBranchName</c>. A commit follows the last commit on the branch it is
+/// A branch takes its lane from its <c>order:</c> as Mermaid orders them — a branch writing none ordered as "0." and how
+/// many were made before it, so before any asking for 1 or more — and the branch everything starts on is the front
+/// matter's <c>mainBranchName</c>, at its <c>mainBranchOrder</c>. A commit follows the last commit on the branch it is
 /// made on, a merge follows that branch merged in as well, and a cherry-pick follows the commit it takes. Which branch a
 /// commit is made on is the stage's (<see cref="Stages.ResolveGraph"/>).
 /// </para>
@@ -57,11 +59,12 @@ public sealed class GitGraph
             (null, null, config.MainBranchName, config.MainBranchOrder, 0),
         };
 
-        var made = new List<(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, GitSaid? Tag, GitKept Kept, string Branch,
+        var made = new List<(ContentPart Part, string Id, GitSaid? Said, GitSaid? Taken, IReadOnlyList<GitSaid> Tags, GitKept Kept, string Branch,
                              int Position, List<string> Parents, bool Merge, bool Picked)>();
+        var placed = new Dictionary<string, int>(StringComparer.Ordinal);
 
         var heads = new Dictionary<string, string>(StringComparer.Ordinal);
-        var along = new Dictionary<string, int>(StringComparer.Ordinal);
+
         var current = config.MainBranchName;
         var at = 0;
         var own = 0;
@@ -91,35 +94,64 @@ public sealed class GitGraph
                     var picked = part.Kind == GitKinds.Pick;
                     var taken = Said(part, "id");
 
+                    // An id written twice is wrong (the stage says so), but is drawn as Mermaid draws it: the id names the newest
+                    // commit given it, and the older keeps one of its own.
                     var id = !picked && taken is { Says.Length: > 0 } ? taken.Says : Own(part.Kind, own++);
+                    if (placed.ContainsKey(id) && made.FindIndex(commit => StringComparer.Ordinal.Equals(commit.Id, id)) is var older and >= 0)
+                    {
+                        var renamed = Own(part.Kind, own++);
+                        made[older] = made[older] with { Id = renamed };
+                        placed[renamed] = placed[id];
+                        foreach (var (branch, head) in heads.ToList())
+                            if (StringComparer.Ordinal.Equals(head, id)) heads[branch] = renamed;
+                        foreach (var commit in made)
+                            for (var follows = 0; follows < commit.Parents.Count; follows++)
+                                if (StringComparer.Ordinal.Equals(commit.Parents[follows], id)) commit.Parents[follows] = renamed;
+                    }
                     var parents = new List<string>();
                     if (heads.TryGetValue(on, out var parent)) parents.Add(parent);
 
                     if (part.Kind == GitKinds.Merge && Named(part) is { Length: > 0 } merged && heads.TryGetValue(merged, out var second)) parents.Add(second);
                     if (picked && taken is { Says.Length: > 0 }) parents.Add(taken.Says);
 
-                    // Side by side, every branch keeps its own count; one after another, they share the graph's.
-                    var position = config.ParallelCommits ? along.GetValueOrDefault(on) : at;
-                    along[on] = position + 1;
+                    // One after another, every commit takes the next place along; side by side, as Mermaid places them,
+                    // a commit stands one past the furthest of what it follows, so branches made together run level.
+                    var position = config.ParallelCommits
+                        ? parents.Select(follows => placed.TryGetValue(follows, out var there) ? there + 1 : 0).DefaultIfEmpty(0).Max()
+                        : at;
+                    placed[id] = position;
                     at++;
 
-                    made.Add((part, id, picked ? null : taken, picked ? taken : null, Said(part, "tag"), Keeping(part), on, position, parents,
+                    // A cherry-pick nothing tags is tagged with the commit it takes, as Mermaid tags one — and, taking a merge,
+                    // with which of the merge's parents it takes it against.
+                    var tags = Saying(part, "tag");
+                    if (picked && tags.Count == 0 && taken is { Says.Length: > 0 })
+                    {
+                        var against = made.Any(commit => commit.Merge && StringComparer.Ordinal.Equals(commit.Id, taken.Says)) && Said(part, "parent") is { Says.Length: > 0 } of
+                            ? $"|parent:{of.Says}"
+                            : "";
+                        tags = [new GitSaid(taken.Part, $"cherry-pick:{taken.Says}{against}")];
+                    }
+
+                    made.Add((part, id, picked ? null : taken, picked ? taken : null, tags, Keeping(part), on, position, parents,
                               part.Kind == GitKinds.Merge, picked));
                     heads[on] = id;
                     break;
             }
         }
 
-        // A lane each, in the order the branches ask for — and otherwise in the order they are made.
+        // A lane each, in the order the branches ask for. As Mermaid orders them, a branch asking nothing is ordered as
+        // "0." and the count of branches made before it — so it comes before any asking for 1 or more — and the branch
+        // everything starts on asks for nought where the front matter does not say.
         var lanes = branches
-            .OrderBy(branch => branch.Order ?? branch.Made)
+            .OrderBy(branch => branch.Made == 0 ? branch.Order ?? 0 : branch.Order ?? Unasked(branch.Made))
             .Select((branch, lane) => new GitBranch(branch.Part, branch.Named, branch.Name, branch.Order, branch.Made, lane))
             .ToList();
 
         graph.Branches = [.. lanes.OrderBy(branch => branch.Made)];
         graph.Commits =
         [
-            .. made.Select((commit, order) => new GitCommit(commit.Part, commit.Id, commit.Said, commit.Taken, commit.Tag, commit.Kept,
+            .. made.Select((commit, order) => new GitCommit(commit.Part, commit.Id, commit.Said, commit.Taken, commit.Tags, commit.Kept,
                 lanes.First(branch => StringComparer.Ordinal.Equals(branch.Name, commit.Branch)),
                 commit.Position, commit.Parents, commit.Merge, commit.Picked, order)),
         ];
@@ -182,6 +214,19 @@ public sealed class GitGraph
             .OfType<ContentPart>()
             .Select(setting => new GitSaid(setting, MermaidText.Bare(setting.Text)))
             .FirstOrDefault();
+
+    /// <summary>Everything a line's option says, each time the line sets it — a commit may be tagged more than once.</summary>
+    private static IReadOnlyList<GitSaid> Saying(ContentPart line, string key) =>
+        line.Inner(MermaidKinds.Properties)?.Children
+            .Where(property => property.Kind == MermaidKinds.Property)
+            .Where(property => property.Children.Any(child => child.Kind == MermaidKinds.Key && child.Text.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            .Select(property => property.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting))
+            .OfType<ContentPart>()
+            .Select(setting => new GitSaid(setting, MermaidText.Bare(setting.Text)))
+            .ToList() ?? [];
+
+    /// <summary>Where Mermaid orders a branch that asks for nowhere: the number written as "0." and how many were made before it.</summary>
+    private static double Unasked(int made) => double.Parse("0." + made.ToString(System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture);
 
     private static double? Number(ContentPart line, string key) => MermaidNumber.Read(Said(line, key)?.Says);
 }

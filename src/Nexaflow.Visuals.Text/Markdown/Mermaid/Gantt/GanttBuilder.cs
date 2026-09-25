@@ -60,6 +60,25 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     private const double DateSize = 10;
     private const double MarkerSize = 15;
 
+    /// <summary>How tall a bar is and the room between one row's and the next, where the front matter does not say: slimmer than Mermaid's, as the bars were drawn before.</summary>
+    private const double BarHeight = 16;
+    private const double BarGap = 10;
+
+    /// <summary>The room between a section's name and the dates, round the name, and how wide the name runs before it wraps.</summary>
+    private const double Beside = 12;
+    private const double Pad = 10;
+    private const double Widest = 200;
+
+    /// <summary>How faint the line along a row is drawn, and its dashes.</summary>
+    private const double RowWash = 0.35;
+    private static readonly DoubleCollection Dotted = Frozen([3, 3]);
+
+    private static DoubleCollection Frozen(DoubleCollection dashes)
+    {
+        dashes.Freeze();
+        return dashes;
+    }
+
     internal GanttBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
     /// <inheritdoc/>
@@ -74,14 +93,18 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         if (chart.Tasks.Count == 0) return AsWritten(build);
 
         var c = chart.Config;
-        var bar = c.BarHeight ?? 20;
-        var gap = bar + (c.BarGap ?? 4);
+        var bar = c.BarHeight ?? BarHeight;
+        var gap = bar + (c.BarGap ?? BarGap);
         var top = c.TopPadding ?? 50;
-        var left = c.LeftPadding ?? 75;
         var right = c.RightPadding ?? 75;
         var gridStart = c.GridLineStartPadding ?? 35;
         var titleTop = c.TitleTopMargin ?? 25;
         var styles = c.NumberSectionStyles ?? 4;
+
+        // Each section's name first: the room left of the dates is as wide as the widest needs, where nothing says how wide.
+        var names = chart.Sections.ToDictionary(section => section, section =>
+            Wrapped(section.Name, section.Hole, c.SectionFontSize ?? 11, Ink.Written(c.TitleColour) ?? Palette.Text, Widest));
+        var left = c.LeftPadding ?? Math.Max(75, names.Values.Select(lines => lines.Max(line => line.Width) + Beside + Pad).DefaultIfEmpty(0).Max());
 
         var width = Math.Max(c.UseWidth ?? (double.IsInfinity(Space) ? Wide : Space), left + right + Narrowest);
         var span = width - left - right;
@@ -96,17 +119,17 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var text = Ink.Written(c.TextColour) ?? Palette.TextMuted;
         var words = new List<(DiagramWords Words, Point At, string Kind)>();
 
-        // Each section's name at the left, in the middle of its rows.
+        // Each section's name set right against the dates, in the middle of its rows.
         foreach (var section in chart.Sections)
         {
             var own = rowed.Where(task => task.Section == section).ToList();
             var (from, to) = (own.Min(task => task.Order), own.Max(task => task.Order) + 1);
-            var beside = Math.Max(40, left - 20);
-            var lines = Wrapped(section.Name, section.Hole, c.SectionFontSize ?? 11, Ink.Written(c.TitleColour) ?? Palette.Text, beside);
+            var lines = names[section];
             var tall = lines.Sum(line => line.Height);
-            var aside = new Rect(10, top + ((from + to) * gap / 2) - (tall / 2), beside, tall);
+            var middle = top + (((from + to) * gap) - (gap - bar)) / 2;
+            var aside = new Rect(Pad, middle - (tall / 2), Math.Max(1, left - Beside - Pad), tall);
 
-            words.AddRange(DiagramWords.Placed(lines, aside, GanttPiece.SectionName, TextAlignment.Left));
+            words.AddRange(DiagramWords.Placed(lines, aside, GanttPiece.SectionName, TextAlignment.Right));
         }
 
         // Each task: its bar, diamond or marker, and its name in the bar where it fits, beside it where it does not.
@@ -157,7 +180,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var sample = Worked(MermaidTimeFormat.Write(last, chart.AxisFormat), null, DateSize, text).Width + (4 * DiagramAxis.Gap);
         var room = (int)Math.Max(2, Math.Floor(span / sample) + 1);
         var marks = Ticks(chart, first, last, Math.Min(10, room));
-        for (var count = Math.Min(10, room) - 1; marks.Count > room && count >= 1 && chart.TickInterval is null; count--)
+        for (var count = Math.Min(10, room) - 1; marks.Count > room && count >= 1 && chart.Tick is null; count--)
             marks = Ticks(chart, first, last, count);
 
         var ticks = marks
@@ -176,7 +199,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var shift = taken.Shift;
 
         Excluded(build, chart, first, last, X, left, gridStart, height - top - gridStart, shift);
-        Rows(build, chart, rowed, width - (right / 2), gap, top, styles, shift);
+        Rows(build, chart, rowed, (left, left + span, width - (right / 2)), bar, gap, top, styles, shift);
         Grid(build, chart, ticks, span, left, foot, top, height, gridStart, shift);
 
         build.Open(GanttPiece.Words, part: null, stops: Stops.None);
@@ -193,19 +216,11 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         return taken.Size;
     }
 
-    /// <summary>The dates the axis marks: every so often as <c>tickInterval</c> says, where it says so sensibly, or else about <paramref name="count"/> on round boundaries.</summary>
-    private static IReadOnlyList<DateTime> Ticks(GanttChart chart, DateTime first, DateTime last, int count)
-    {
-        if (chart.TickInterval is { } interval)
-        {
-            var digits = interval.TakeWhile(char.IsAsciiDigit).Count();
-            if (digits > 0 && int.TryParse(interval.AsSpan(0, digits), out var every)
-                && DiagramTime.Every(first, last, every, interval[digits..], chart.Weekday) is { } marks)
-                return marks;
-        }
-
-        return DiagramTime.Ticks(first, last, count);
-    }
+    /// <summary>The dates the axis marks: every so often as <c>tickInterval</c> says, or else about <paramref name="count"/> on round boundaries.</summary>
+    private static IReadOnlyList<DateTime> Ticks(GanttChart chart, DateTime first, DateTime last, int count) =>
+        chart.Tick is { } tick && DiagramTime.Every(first, last, tick.Every, tick.Unit, chart.Weekday) is { } marks
+            ? marks
+            : DiagramTime.Ticks(first, last, count);
 
     /// <summary>A task's fill, outline and the ink of a name set in it, by whether it is active, done or critical.</summary>
     private (Brush Fill, DiagramStroke Stroke, Brush Text) Inks(GanttTask task, GanttConfig c)
@@ -221,7 +236,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             _ => (Ink.Written(c.TaskBackground) ?? DiagramInk.Faded(Palette.Accent, 0.6), Ink.Written(c.TaskBorder) ?? Palette.Accent, Ink.Written(c.TaskText) ?? Palette.Text),
         };
 
-        return (fill, new DiagramStroke(border, 2), text);
+        return (fill, new DiagramStroke(border, task.Active || task.Critical ? 1.5 : 1), text);
     }
 
     private Brush Marker(GanttConfig c) => Ink.Written(c.VertLine) ?? Palette.Important;
@@ -254,14 +269,21 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         build.Close();
     }
 
-    private void Rows(LayoutBuilder build, GanttChart chart, IReadOnlyList<GanttTask> rowed, double wide, double gap, double top, int styles, Vector shift)
+    /// <summary>
+    /// The band behind each row, tinted by its section, with the bar centred in it — and a faint line along the row from where
+    /// the dates start to where they end, which its bars sit on.
+    /// </summary>
+    private void Rows(LayoutBuilder build, GanttChart chart, IReadOnlyList<GanttTask> rowed, (double From, double To, double Wide) across,
+                      double bar, double gap, double top, int styles, Vector shift)
     {
         var c = chart.Config;
+        var lines = new GeometryGroup();
         build.Open(GanttPiece.Rows, part: null, stops: Stops.None);
 
         foreach (var row in rowed.GroupBy(task => task.Order).Select(group => group.First()))
         {
-            var band = new RectangleGeometry(Rect.Offset(new Rect(0, (row.Order * gap) + top - 2, wide, gap), shift));
+            var y = (row.Order * gap) + top;
+            var band = new RectangleGeometry(Rect.Offset(new Rect(0, y - ((gap - bar) / 2), across.Wide, gap), shift));
             band.Freeze();
 
             var style = Math.Max(0, row.Section is null ? 0 : chart.Sections.ToList().IndexOf(row.Section)) % styles;
@@ -273,8 +295,11 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             };
 
             build.Draw(new GeometryMark(band, fill, null, 0));
+            lines.Children.Add(new LineGeometry(new Point(across.From, y + (bar / 2)) + shift, new Point(across.To, y + (bar / 2)) + shift));
         }
 
+        lines.Freeze();
+        build.Draw(new GeometryMark(lines, null, DiagramInk.Faded(Ink.Written(c.Grid) ?? Palette.TextMuted, RowWash), 1) { Dashes = Dotted });
         build.Close();
     }
 
@@ -308,26 +333,20 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     private void Today(LayoutBuilder build, GanttChart chart, DateTime first, DateTime last, double x, double from, double to, Vector shift)
     {
         var now = DateTime.Now;
-        if (string.Equals(chart.TodayMarker, "off", StringComparison.OrdinalIgnoreCase) || now < first || now > last) return;
+        var today = chart.Today;
+        if (today.Off || now < first || now > last) return;
 
-        var ink = Ink.Written(chart.Config.TodayLine) ?? Palette.Danger;
-        var thickness = 2d;
-        foreach (var style in (chart.TodayMarker ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var (key, value) = style.Split(':', 2) is [var k, var v] ? (k.Trim().ToLowerInvariant(), v.Trim()) : (string.Empty, string.Empty);
-            switch (key)
-            {
-                case "stroke": ink = Ink.Written(value) ?? ink; break;
-                case "stroke-width": thickness = MermaidNumber.Pixels(value) ?? thickness; break;
-                case "opacity" when MermaidNumber.Read(value) is { } opacity: ink = DiagramInk.Faded(ink, Math.Clamp(opacity, 0, 1)); break;
-            }
-        }
+        var ink = Ink.Written(today.Stroke) ?? Ink.Written(chart.Config.TodayLine) ?? Palette.Danger;
+        if (today.Opacity is { } opacity) ink = DiagramInk.Faded(ink, opacity);
 
         var line = new LineGeometry(new Point(x, from) + shift, new Point(x, to) + shift);
         line.Freeze();
 
+        var dashes = today.Dashes is { } written ? new DoubleCollection(written.Select(dash => dash / (today.Width ?? 2))) : null;
+        dashes?.Freeze();
+
         build.Open(GanttPiece.Today, part: null, stops: Stops.None);
-        build.Draw(new GeometryMark(line, null, ink, thickness));
+        build.Draw(new GeometryMark(line, null, ink, today.Width ?? 2) { Dashes = dashes });
         build.Close();
     }
 }

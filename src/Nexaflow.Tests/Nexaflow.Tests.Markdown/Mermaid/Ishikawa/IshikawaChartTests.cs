@@ -57,9 +57,9 @@ public class IshikawaChartTests
     [TestMethod]
     public void TheFrontMatterIsRead()
     {
-        var config = IshikawaChart.Read("---\nconfig:\n  fontSize: 18\n  ishikawa:\n    diagramPadding: 40\n    useMaxWidth: true\n  themeVariables:\n    lineColor: \"#ff0000\"\n    mainBkg: \"#00ff00\"\n    textColor: \"#0000ff\"\n---\nishikawa\n  Problem").Config;
+        var config = IshikawaChart.Read("---\nconfig:\n  fontSize: 18\n  ishikawa:\n    diagramPadding: 40\n    useMaxWidth: true\n    singleBone: true\n  themeVariables:\n    lineColor: \"#ff0000\"\n    mainBkg: \"#00ff00\"\n    textColor: \"#0000ff\"\n---\nishikawa\n  Problem").Config;
 
-        Assert.AreEqual(new IshikawaConfig { DiagramPadding = 40, UseMaxWidth = true, FontSize = 18, LineColour = "#ff0000", Background = "#00ff00", TextColour = "#0000ff" }, config);
+        Assert.AreEqual(new IshikawaConfig { DiagramPadding = 40, UseMaxWidth = true, SingleBone = true, FontSize = 18, LineColour = "#ff0000", Background = "#00ff00", TextColour = "#0000ff" }, config);
         Assert.AreEqual(IshikawaConfig.Default, IshikawaChart.Read("ishikawa\n  Problem").Config);
     }
 

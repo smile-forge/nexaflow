@@ -108,7 +108,7 @@ public class SmilesBuilderTests
     });
 
     [TestMethod]
-    public void AnAtomWithTooManyBonds_IsWavedUnderAndTheReasonSetBeneath() => UiThread.Run(() =>
+    public void AnAtomWithTooManyBonds_IsMarkedInTheSourceWithTheReasonBeneath() => UiThread.Run(() =>
     {
         const string source = "C(C)(C)(C)(C)C";
         var laid = Build(source);
@@ -118,18 +118,21 @@ public class SmilesBuilderTests
         Assert.AreEqual(1, trouble.Length, "said of the carbon that has them, not of the block");
         StringAssert.Contains(trouble.Message, "five bonds");
 
-        Assert.AreEqual(1, Pieces(laid, MoleculePiece.Trouble).Count(), "the reason is drawn as well as hovered");
-        Assert.AreEqual(6, Pieces(laid, MoleculePiece.Atom).Count(), "and the molecule still draws");
+        // A structure is only read, never typed into where it is drawn, so what is wrong is put right in its source.
+        Assert.IsTrue(laid.ShowsSource, "shown as it is written");
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Unread).Count(), "the carbon marked where it is written");
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]
-    public void AStringWithNoAtomThatReads_IsShownStruckThrough() => UiThread.Run(() =>
+    public void AStringWithNoAtomThatReads_IsShownAsWrittenWithWhy() => UiThread.Run(() =>
     {
         var laid = Build("[Xx");
 
-        Assert.AreEqual(1, Pieces(laid, MoleculePiece.StandIn).Count());
+        Assert.IsTrue(laid.ShowsSource, "no molecule to draw: the block is shown as it is written");
         Assert.AreEqual(0, Pieces(laid, MoleculePiece.Molecule).Count());
         Assert.IsTrue(laid.Trouble.Count > 0);
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]

@@ -46,6 +46,15 @@ public class MermaidTimeTests
     }
 
     [TestMethod]
+    public void ADayOfTheYearCountsFromTheYearsFirstDay()
+    {
+        Assert.AreEqual(new DateTime(2024, 2, 29), MermaidDate.Read("2024-060", "YYYY-DDDD", Today));
+        Assert.AreEqual(new DateTime(2025, 12, 31), MermaidDate.Read("2025 365", "YYYY DDD", Today));
+        Assert.AreEqual("032", MermaidDate.Write(new DateTime(2024, 2, 1), "DDDD"));
+        Assert.AreEqual("32", MermaidDate.Write(new DateTime(2024, 2, 1), "DDD"));
+    }
+
+    [TestMethod]
     public void ALengthOfTimeIsANumberAndItsUnit_AddedAsDayJsAddsIt()
     {
         var start = new DateTime(2014, 1, 31);

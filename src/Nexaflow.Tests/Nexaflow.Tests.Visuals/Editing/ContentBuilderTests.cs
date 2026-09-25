@@ -46,7 +46,7 @@ public class ContentBuilderTests
         var laid = new Unwilling("a+b", () => null).Lay();
 
         Assert.IsTrue(laid.ShowsSource, "the source is shown as its own characters");
-        Assert.AreEqual(3, laid.Root.Sits().Length, "standing for every character of it");
+        Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Sits().Length, "standing for every character of it");
         Assert.IsTrue(laid.Size.Width > 0 && laid.Size.Height > 0, "and it takes up room");
         Assert.AreEqual(0, laid.Trouble.Count, "nothing went wrong — there was simply nothing to read");
     });
@@ -73,6 +73,46 @@ public class ContentBuilderTests
         Assert.AreEqual(DiagnosticSeverity.Error, trouble.Severity);
         Assert.AreEqual((0, 2), (trouble.Start, trouble.Length), "covering all of it — it has no better idea");
         StringAssert.Contains(trouble.Message, "ran off the end");
+    });
+
+    [TestMethod]
+    public void ABuilderThatThrowsSaysWhyUnderTheSource() => UiThread.Run(() =>
+    {
+        var laid = new Unwilling("x^", () => throw new InvalidOperationException("ran off the end")).Lay();
+        var reason = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Reason);
+
+        StringAssert.Contains(reason.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text, "ran off the end");
+    var source = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Bounds;
+        Assert.IsTrue(reason.Bounds.Top > source.Bottom - 5 && reason.Bounds.Top < source.Bottom, "tucked right under the source it is about");
+    });
+
+    [TestMethod]
+    public void APartBlamedStandsOverItsOwnCharacters_AndIsWhatTheTroubleNames() => UiThread.Run(() =>
+    {
+        // A tree the builder was given: it names the part it could not draw, and the helper finds where that part's characters are.
+        var tree = ContentPart.Of(ContentNode.Branch("line", [ContentNode.Leaf("word", "one "), ContentNode.Leaf("word", "two"), ContentNode.Leaf("word", " three")]));
+        var two = tree.Children[1];
+        var laid = SourceShown.Lay(tree, [(two, "Two is not a word here.")],
+                                   text => new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Consolas"), 13, Brushes.Black, 1.0),
+                                   StyleFormat.Dark);
+
+        var unread = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == SourceShown.Unread);
+        var letters = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind + "-letter").ToList();
+
+        Assert.AreSame(two, unread.Part, "standing for the part itself");
+        Assert.AreEqual(letters[4].Bounds.Left, unread.Bounds.Left, 0.5, "over the characters it printed as");
+        Assert.AreEqual(letters[6].Bounds.Right, unread.Bounds.Right, 0.5);
+        Assert.AreEqual((4, 3), (laid.Trouble.Single().Start, laid.Trouble.Single().Length), "and the trouble is that part's");
+        Assert.AreSame(two, laid.Trouble.Single().Part);
+    });
+
+    [TestMethod]
+    public void ReadingThatFallsOverBeforeAnyBuilderIsShownAsWrittenWithWhy() => UiThread.Run(() =>
+    {
+        var element = new Nexaflow.Visuals.Text.Editing.ContentElement("a+b", StyleFormat.Dark, (state, room) => throw new InvalidOperationException("no reader"));
+        element.Measure(new Size(400, double.PositiveInfinity));
+
+        Assert.IsTrue(element.HasError, "the element still stands, saying something is wrong");
     });
 
     [TestMethod]
