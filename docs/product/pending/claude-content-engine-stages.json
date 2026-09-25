@@ -164,15 +164,54 @@
           "method": "Formula"
         }
       ]
+    },
+    "quadrant-graph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs",
+          "class": "QuadrantGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolvePoints.cs",
+          "class": "ResolvePoints"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantNodes.cs",
+          "class": "QuadrantPointNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantConfig.cs",
+          "class": "QuadrantConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantGrammarTests.cs",
+            "class": "QuadrantGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Quadrant/QuadrantStagesTests.cs",
+            "class": "QuadrantStagesTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 9,
   "touched_nodes": [
     "latex-document-seam",
     "markdown-always-drawn",
     "markdown-maths",
     "pie-ast",
+    "quadrant-graph-ast",
     "radar-ast"
   ]
 }

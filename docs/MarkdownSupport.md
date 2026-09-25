@@ -137,7 +137,7 @@ JS/Mermaid.js, no browser).
 |---|---|---|
 | `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + nodes, links, subgraphs, styling + config (`FlowchartDiagramTests`) + draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
-| `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantChartTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
+| `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantStagesTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
 | `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
 | `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttChartTests`) + draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitGraphTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
@@ -489,8 +489,8 @@ task's name is not written, since a name runs to its colon; an id renamed where 
 `until` and `click` naming it; Enter on a task or a section starts a task with its name still to write.
 
 **Quadrant-chart sub-features** ([`QuadrantGrammar`](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantGrammar.cs) →
-its stage [`ResolveClasses`](../src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolveClasses.cs) →
-[`QuadrantChart`](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantChart.cs) →
+its stage [`ResolvePoints`](../src/Nexaflow.Markdown/Mermaid/Quadrant/Stages/ResolvePoints.cs), which says it in
+[its own nodes](../src/Nexaflow.Markdown/Mermaid/Quadrant/QuadrantNodes.cs) →
 [`QuadrantBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Quadrant/QuadrantBuilder.cs)).
 Drawn on the **shared layout tree**. Supported, as Mermaid documents it: `quadrantChart`; a `title`; `x-axis Low --> High`
 and `y-axis Low --> High`, the high end optional and either end in quotes; `quadrant-1`…`quadrant-4` captions (the first top
