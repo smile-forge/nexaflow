@@ -120,6 +120,24 @@ public class CodeLanguageTests
     }
 
     [TestMethod]
+    public void ALineWrittenTwiceIsEachWhereItIsWritten()
+    {
+        // Reported from the app: the caret in the second of two identical lines landed in the first, because each line was
+        // found by what it says rather than cut where it ends.
+        const string twice = "x = 1;\r\nx = 1;\ny\n";
+        CodeSpans.Forget();
+
+        var starts = Words(CodeBuilder.Lay(twice, null, StyleFormat.Dark, 480, 0)).Select(part => part.Start).ToArray();
+        CollectionAssert.AreEqual(new[] { 0, 8, 15 }, starts, "held as written, each line where it is written");
+
+        Read("c-sharp", twice);
+        var read = Words(CodeBuilder.Lay(twice, "c-sharp", StyleFormat.Dark, 480, 0)).ToList();
+
+        Assert.AreEqual(read.Count, read.Select(part => part.Start).Distinct().Count(), "and read, no two runs in one place");
+        Assert.IsTrue(read.Any(part => part.Start >= 8 && part.Start < 14), "with runs of the second line in it");
+    }
+
+    [TestMethod]
     public void ADocumentDrawsItsFenceAsCode()
     {
         var laid = MarkdownBuilder.Lay("```csharp\n" + Source + "```\n", StyleFormat.Dark, 480);
@@ -161,4 +179,7 @@ public class CodeLanguageTests
 
     private static System.Collections.Generic.IEnumerable<string> Pieces(Laid laid) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null).Select(piece => piece.Kind);
+
+    private static System.Collections.Generic.IEnumerable<ISourcePart> Words(Laid laid) =>
+        laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null && piece.Part is not null).Select(piece => piece.Part!);
 }

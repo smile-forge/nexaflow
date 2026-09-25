@@ -242,15 +242,50 @@
           }
         ]
       }
+    },
+    "md-code-highlighting": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeSpans.cs",
+          "class": "CodeSpans"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeGrammars.cs",
+          "class": "CodeGrammars"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithTokens.cs",
+          "class": "WithTokens"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Code/CodeBuilder.cs",
+          "class": "CodeBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "CodeLanguage"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/CodeLines.cs",
+          "class": "CodeLines"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 7,
+  "changed_sets": 8,
   "touched_nodes": [
     "barcode-block-syntax",
     "barcode-editing",
     "flowchart-ast",
     "ly-ast",
+    "md-code-highlighting",
     "mermaid-diagram-kit"
   ]
 }

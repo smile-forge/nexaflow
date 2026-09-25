@@ -17,6 +17,9 @@ public static class CodeKinds
 {
     /// <summary>A whole stretch of code.</summary>
     public const string Code = "code";
+
+    /// <summary>Where one line of it ends and the next begins: a line feed, and the return before it where there is one.</summary>
+    public const string LineEnd = "line-end";
 }
 
 /// <summary>
@@ -51,8 +54,8 @@ public sealed class CodeBuilder : ContentBuilder
         var text = source ?? string.Empty;
         var tree = ContentNode.Branch(CodeKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, text, Roles.Body)]);
 
-        if (grammar is { Length: > 0 } reads && CodeSpans.For(reads, text) is { } spans)
-            tree = new AstPipeline(new WithTokens(spans)).Run(tree);
+        var tokens = grammar is { Length: > 0 } reads && CodeSpans.For(reads, text) is { } spans ? new WithTokens(spans) : null;
+        tree = new AstPipeline().Then(tokens).Then(new CodeLines()).Run(tree);
 
         return new CodeBuilder(ContentReading.Of(tree, at), EditState.For(text), style, isReadOnly: true).Lay(room);
     }
@@ -68,26 +71,24 @@ public sealed class CodeBuilder : ContentBuilder
         into.Open(CodeKinds.Code, Reading.Root);
 
         foreach (var token in Tokens())
-            foreach (var (line, ends) in Lines(token.Text))
+        {
+            if (token.Kind == CodeKinds.LineEnd)
             {
-                if (line.Length > 0)
-                {
-                    var glyphs = Glyphs(line, Ink(token.Kind));
-
-                    // The piece is called what the grammar called it, so what a reader pressed and what the
-                    // theme coloured are the same question asked of the same piece.
-                    LayoutText.Words(into, glyphs, new Point(x, y), glyphs.Width + 1, TextAlignment.Left,
-                                     Written(token, line), token.Kind, maps: true, ink: Ink(token.Kind));
-
-                    x += glyphs.Width;
-                    wide = Math.Max(wide, x);
-                }
-
-                if (!ends) continue;
-
                 y += Height;
                 x = 0;
+                continue;
             }
+
+            var glyphs = Glyphs(token.Text, Ink(token.Kind));
+
+            // The piece is called what the grammar called it, so what a reader pressed and what the
+            // theme coloured are the same question asked of the same piece.
+            LayoutText.Words(into, glyphs, new Point(x, y), glyphs.Width + 1, TextAlignment.Left,
+                             token, token.Kind, maps: true, ink: Ink(token.Kind));
+
+            x += glyphs.Width;
+            wide = Math.Max(wide, x);
+        }
 
         into.Close();
 
@@ -98,8 +99,8 @@ public sealed class CodeBuilder : ContentBuilder
     protected override FormattedText Characters(string text) => Glyphs(text, Style.Text);
 
     /// <summary>
-    /// The pieces to set: what a grammar found, where one has been read against this — and otherwise the body
-    /// itself, one stretch held as written, which is the uncoloured case and the same path.
+    /// The pieces to set, a line at a time with a line end between (<see cref="CodeLines"/>): what a grammar found, where one
+    /// has been read against this — and otherwise the body held as written, which is the uncoloured case and the same path.
     /// </summary>
     private IEnumerable<ContentPart> Tokens()
     {
@@ -113,27 +114,6 @@ public sealed class CodeBuilder : ContentBuilder
         }
 
         foreach (var token in body.Children) yield return token;
-    }
-
-    /// <summary>Where a run of one line sits in the source, so the caret lands a character at a time in it.</summary>
-    private static SourceSpan Written(ContentPart token, string line) =>
-        new(token.Start + Math.Max(token.Text.IndexOf(line, StringComparison.Ordinal), 0), line.Length);
-
-    /// <summary>Each line of a stretch, and whether a line ending followed it.</summary>
-    private static IEnumerable<(string Line, bool Ends)> Lines(string text)
-    {
-        var from = 0;
-
-        for (var at = 0; at < text.Length; at++)
-            if (text[at] == '\n')
-            {
-                var line = text[from..at];
-
-                yield return (line.EndsWith('\r') ? line[..^1] : line, true);
-                from = at + 1;
-            }
-
-        if (from < text.Length) yield return (text[from..], false);
     }
 
     /// <summary>How tall one line is.</summary>
