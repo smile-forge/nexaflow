@@ -333,7 +333,7 @@ public class WithBlocksTests
         var fence = Blocks("```mermaid\npie\n```\n")[0];
 
         Assert.AreEqual(Kinds.Verbatim, Body(fence).Kind);
-        Assert.AreEqual("pie\n", Body(fence).Text);
+        Assert.AreEqual("pie\n", Body(fence).Print(), "its body, the line break closing it a piece of its own");
     }
 
     [TestMethod]
@@ -348,7 +348,7 @@ public class WithBlocksTests
         Assert.AreEqual("$$", maths.Part(Roles.Open)?.Text);
         Assert.IsNull(maths.Part(Roles.Name));
         Assert.AreEqual(Kinds.Verbatim, Body(maths).Kind);
-        Assert.AreEqual("\\frac{x^2}{2}\n", Body(maths).Text);
+        Assert.AreEqual("\\frac{x^2}{2}\n", Body(maths).Print());
         Assert.AreEqual("$$\n", maths.Part(Roles.Close)?.Text);
     }
 

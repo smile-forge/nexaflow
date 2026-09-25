@@ -10,37 +10,6 @@ using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 
-/// <summary>The pieces a flowchart's layout is made of — its layers, and what is in them.</summary>
-public static class FlowchartPiece
-{
-    /// <summary>The chart itself: the nodes, and the subgraphs they are gathered into.</summary>
-    public const string Nodes = "Nodes";
-
-    /// <summary>One node, standing for what was written for it.</summary>
-    public const string Node = "Node";
-
-    /// <summary>A subgraph: the box, and the nodes it holds drawn inside its piece.</summary>
-    public const string Group = "Group";
-
-    /// <summary>A subgraph's own box and what is written at the top of it, behind the nodes it holds.</summary>
-    public const string Holding = "Holding";
-
-    /// <summary>A lane: the band work runs through, standing for the whole of the subgraph that opened it.</summary>
-    public const string Lane = "Lane";
-
-    /// <summary>The strip at the near end of a lane's band, with the lane's own name in it.</summary>
-    public const string Title = "Title";
-
-    /// <summary>The links, drawn over the chart.</summary>
-    public const string Links = "Links";
-
-    /// <inheritdoc cref="Links"/>
-    public const string Link = "Link";
-
-    /// <summary>What is written on a link, over the middle of its line.</summary>
-    public const string Label = "Label";
-}
-
 /// <summary>
 /// Draws a <c>flowchart</c> — or a <c>graph</c>, which Mermaid reads the same way. The nodes are laid out in ranks by how far
 /// along the links reach them (<see cref="DiagramLayers"/>), each rank ordered so as few lines cross as can be managed, and the
@@ -642,6 +611,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         var room = pictured.Above ? new Rect(bounds.X, bounds.Y, bounds.Width, said.Height) : new Rect(bounds.X, frame.Bottom + Caption, bounds.Width, said.Height);
 
         var stroke = Stroke(Ink, node.Style, Ink.NodeEdge);
+        DiagramWords? asked = null;
 
         build.Open(FlowchartPiece.Node, node.Part, stops: Stops.None);
         if (Answers(node) is { } acts) build.Acts(acts);
@@ -659,9 +629,8 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
             // The icons this draws, drawn; any other a question mark, which is what Mermaid draws for an icon it has no pack for.
-            build.Draw(Architecture.ArchitectureIcons.Picture(icon, inner) is { } drawn
-                ? new GeometryMark(drawn, null, ink, 1.5)
-                : new GeometryMark(Asked(inner, ink), ink, null, 0));
+            if (Architecture.ArchitectureIcons.Picture(icon, inner) is { } drawn) build.Draw(new GeometryMark(drawn, null, ink, 1.5));
+            else asked = Worked("?", null, inner.Height * 0.8, ink);
         }
         else if (Stages.WithDiagramPictures.Of(pictured.Written) is { } picture) build.Draw(new PictureMark(picture, frame));
         else build.Draw(new GeometryMark(new RectangleGeometry(frame), null, stroke?.Ink ?? Palette.TextMuted, 1) { Dashes = new DoubleCollection([4, 3]) });
@@ -671,19 +640,11 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         build.Occupies(stands);
         build.Close();
 
+        asked?.Set(build, new Point(frame.X + ((frame.Width - asked.Width) / 2), frame.Y + ((frame.Height - asked.Height) / 2)), MermaidPiece.Words);
+
         foreach (var (words, at, kind) in DiagramWords.Placed(sized.Words, room, MermaidPiece.Words)) words.Set(build, at, kind);
 
         build.Close();
-    }
-
-    /// <summary>A question mark filling <paramref name="room"/>, as a shape.</summary>
-    private Geometry Asked(Rect room, Brush ink)
-    {
-        var mark = new FormattedText("?", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Palette.Face(),
-                                     room.Height, ink, LayoutText.Density);
-        var drawn = mark.BuildGeometry(new Point(room.X + ((room.Width - mark.Width) / 2), room.Y + ((room.Height - mark.Height) / 2)));
-        drawn.Freeze();
-        return drawn;
     }
 
     /// <summary>

@@ -30,23 +30,36 @@ public interface ISourcePart
 }
 
 /// <summary>
-/// A stretch of source that no one part of the tree names, for a piece of layout standing for several
-/// that do.
+/// A stretch of source that no one part of the tree names — one a language's reader works out as it reads, such as a word
+/// inside a label, or one the editing layer measures.
 ///
 /// <para>
-/// A section of a tune is the case it was written for: a run of bars between one double bar and the next
-/// is a thing a reader points at, copies and transposes, and the parser has no node for it because
-/// nothing in the notation declares one — the bars simply stop. Rather than invent a parse-tree node for
-/// a grouping that is a fact about the <em>music</em>, the piece of layout says which characters it
-/// covers and everything that selects, copies or replaces goes on working unchanged.
-/// </para>
-/// <para>
-/// It is not a licence to skip the parse tree. A part is the answer wherever one exists, because a part
-/// survives an edit and a pair of numbers does not; this is for a grouping there is genuinely no part
-/// for.
+/// It is not a licence to skip the parse tree. A part is the answer wherever one exists, because a part survives an edit and a
+/// pair of numbers does not; and a builder never makes one — a piece of layout standing for several parts names them
+/// (<see cref="PartRun"/>).
 /// </para>
 /// </summary>
 public readonly record struct SourceSpan(int Start, int Length) : ISourcePart;
+
+/// <summary>
+/// A piece of layout standing for several parts that no one part holds — a bar's notes, a beam's, a section's bars, the letters
+/// of a title: named by those parts, and reaching over them.
+///
+/// <para>
+/// What is handed over is the parts, never a position: where the run starts and how far it reaches is worked out here from
+/// the parts themselves, so it goes on standing for them when an edit moves them.
+/// </para>
+/// </summary>
+public sealed record PartRun(IReadOnlyList<ISourcePart> Parts) : ISourcePart
+{
+    public int Start => this.Parts.Min(part => part.Start);
+
+    public int Length => this.Parts.Max(part => part.End()) - this.Start;
+
+    /// <summary>The run of those of <paramref name="parts"/> that are there, or null where none is.</summary>
+    public static ISourcePart? Of(IEnumerable<ISourcePart?> parts) =>
+        parts.OfType<ISourcePart>().ToList() is { Count: > 0 } named ? new PartRun(named) : null;
+}
 
 /// <summary>
 /// Where a piece of layout sits in the source — a stretch of it, or a point in it.
@@ -74,22 +87,4 @@ public static class SourcePartExtensions
     /// <summary>Whether this part's stretch of source wholly contains another's.</summary>
     public static bool Covers(this ISourcePart part, ISourcePart other) =>
         other.Start >= part.Start && other.End() <= part.End();
-
-    /// <summary>
-    /// The stretch of source a run of parts covers between them, as one part — a <see cref="SourceSpan"/> for a piece of
-    /// layout standing for several parts no one part holds: a bar's notes, a beam's, a section's bars. Null where none is given.
-    /// </summary>
-    public static ISourcePart? Across(IEnumerable<ISourcePart?> parts)
-    {
-        var (start, end) = (int.MaxValue, int.MinValue);
-
-        foreach (var part in parts)
-        {
-            if (part is null) continue;
-            start = Math.Min(start, part.Start);
-            end = Math.Max(end, part.End());
-        }
-
-        return start > end ? null : new SourceSpan(start, end - start);
-    }
 }

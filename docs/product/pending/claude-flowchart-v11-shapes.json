@@ -129,6 +129,11 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramShapes.Drawn.cs",
           "class": "DiagramShapes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramShape.cs",
+          "class": "DiagramShape"
         }
       ]
     },
@@ -330,18 +335,60 @@
           "type": "code",
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithDiagramPictures.cs",
           "class": "WithDiagramPictures"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartPiece.cs",
+          "class": "FlowchartPiece"
+        }
+      ]
+    },
+    "fenced-code-blocks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/Stages/WithClosingLines.cs",
+          "class": "WithClosingLines"
+        }
+      ]
+    },
+    "markdown-surface": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "Blocked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "PaintOver"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/ShowBlocksAsWritten.cs",
+          "class": "ShowBlocksAsWritten"
         }
       ]
     }
   },
   "is_empty": false,
-  "changed_sets": 10,
+  "changed_sets": 12,
   "touched_nodes": [
     "barcode-block-syntax",
     "barcode-editing",
+    "fenced-code-blocks",
     "flowchart-ast",
     "graph-flowchart",
     "ly-ast",
+    "markdown-surface",
     "maths-latex",
     "md-code-highlighting",
     "mermaid-diagram-kit"

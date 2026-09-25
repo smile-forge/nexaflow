@@ -586,7 +586,7 @@ internal abstract partial class MusicBuilder
 
     /// <summary>The stretch of source a run of bars covers, start to end — or null if none of it was written.</summary>
     private static ISourcePart? Spanning(List<Bar> bars) =>
-        SourcePartExtensions.Across(bars.SelectMany(bar =>
+        PartRun.Of(bars.SelectMany(bar =>
             new[] { bar.Part, bar.Opened?.Part, bar.Closed?.Part }.Concat(bar.Events.Select(ev => ev.Part))));
 
     // ── The small pieces ────────────────────────────────────────────────────

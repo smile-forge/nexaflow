@@ -307,5 +307,5 @@ internal sealed partial class LilyPondBuilder
     /// a time, an escape selected as the one character it writes.
     /// </summary>
     private static MusicHeader.Prose Inside(ContentPart quoted) =>
-        new(LilyPondText.Said(quoted) ?? "", SourcePartExtensions.Across(LilyPondText.Letters(quoted)) ?? quoted, LilyPondText.Letters(quoted));
+        new(LilyPondText.Said(quoted) ?? "", PartRun.Of(LilyPondText.Letters(quoted)) ?? quoted, LilyPondText.Letters(quoted));
 }

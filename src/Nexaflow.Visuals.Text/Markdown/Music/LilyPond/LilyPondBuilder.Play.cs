@@ -289,7 +289,7 @@ internal sealed partial class LilyPondBuilder
         var beamable = run.Where(s => s.Event.Beamable).ToList();
         if (beamable.Count < 2) return;
 
-        var group = SourcePartExtensions.Across(beamable.Select(s => s.Event.Part));
+        var group = PartRun.Of(beamable.Select(s => s.Event.Part));
         foreach (var sounded in beamable)
         {
             sounded.Event.Beam = group;

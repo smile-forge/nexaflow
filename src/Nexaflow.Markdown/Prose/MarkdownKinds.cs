@@ -188,6 +188,12 @@ public static class MarkdownKinds
 
     /// <summary>How deep a heading is, one to six — as many hashes as open it, or which character underlines it.</summary>
     public const string Rank = "rank";
+
+    /// <summary>
+    /// A block somebody is changing the markup of, as the characters it is written with — its body — and the line break closing
+    /// them (<c>ShowBlocksAsWritten</c>).
+    /// </summary>
+    public const string Written = "written";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>

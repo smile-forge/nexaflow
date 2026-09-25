@@ -291,12 +291,19 @@ public sealed partial class MarkdownBuilder
         }
 
         var mono = face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent };
-        var shown = nested is { Laid.Trouble.Count: > 0 } unread
-            ? SourceShown.Lay(part, unread.Laid.Trouble, text => Glyphs(text, mono), Style)
-            : SourceShown.Written(part, text => Glyphs(text, mono), Style.Accent);
 
-        _borrowed.AddRange(shown.Trouble);
-        runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: new ContentInset(shown)));
+        if (nested is { Laid.Trouble.Count: > 0 } unread)
+        {
+            var shown = SourceShown.Lay(part, unread.Laid.Trouble, text => Glyphs(text, mono), Style);
+            _borrowed.AddRange(shown.Trouble);
+            runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: new ContentInset(shown)));
+
+            return;
+        }
+
+        // Nothing reads it and nothing is wrong with it: its marks and what is between them, each piece set as it is written.
+        foreach (var written in part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && !piece.Derived && piece.Length > 0))
+            runs.Add(new Run(written.Text, written, mono, Maps: true));
     }
 
     /// <summary>

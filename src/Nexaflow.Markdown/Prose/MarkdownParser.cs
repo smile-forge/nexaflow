@@ -53,14 +53,14 @@ public static class MarkdownParser
     /// kind names. Here rather than at each surface, so an editor and a view read the same document the same
     /// way.
     /// </summary>
-    public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithGroups());
+    public static AstPipeline Reader { get; } = new(new WithBlocks(), new WithGroups(), new WithClosingLines());
 
     /// <summary>
     /// A reader for one document, read again and again as it is written: what it read of a block last time is what it hands
     /// back for the same block this time, so a keystroke reads the block it was typed in rather than every block there is.
     /// One per document — what it keeps is that document's blocks.
     /// </summary>
-    public static AstPipeline Rereading() => new(new WithBlocks(remembering: true), new WithGroups());
+    public static AstPipeline Rereading() => new(new WithBlocks(remembering: true), new WithGroups(), new WithClosingLines());
 
     /// <summary>
     /// The same options, so a host adding an extension of its own starts from what is already read. Every

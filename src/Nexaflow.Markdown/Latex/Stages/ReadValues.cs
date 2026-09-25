@@ -22,6 +22,7 @@ public sealed class ReadValues : IAstStage
         @"\tag", @"\tag*",
         @"\color", @"\textcolor", @"\colorbox",
         @"\hspace", @"\hspace*", @"\kern", @"\mkern", @"\mspace",
+        @"\cfrac",
     };
 
     public string Name => "tex:values";

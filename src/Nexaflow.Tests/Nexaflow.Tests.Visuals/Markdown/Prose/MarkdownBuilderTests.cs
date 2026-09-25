@@ -403,8 +403,8 @@ public class MarkdownBuilderTests
         // so they are what is drawn, and typing into them is what starts the formula off.
         var shown = Pieces(Lay("$$\n$$\n"), MarkdownPieces.Verbatim);
 
-        Assert.AreEqual(1, shown.Count);
-        Assert.IsTrue(shown[0].Words!.Maps, "so the caret lands in the dollars and the next key writes maths");
+        Assert.AreNotEqual(0, shown.Count);
+        Assert.IsTrue(shown.All(piece => piece.Words!.Maps), "so the caret lands in the dollars and the next key writes maths");
     }
 
     // ── What a construct is set as ──────────────────────────────────────────

@@ -60,6 +60,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     {
         var source = markdown ?? string.Empty;
         var read = (reader ?? MarkdownParser.Reader.Then(new Stages.WithNested(style))).Run(MarkdownParser.Read(source));
+        if (shownAsWritten is { } zone) read = new Stages.ShowBlocksAsWritten(zone, at).Run(read);
 
         return new MarkdownBuilder(ContentReading.Of(read, at, source),
                                    new EditState(source, 0, null, shownAsWritten), style, isReadOnly).Lay(room);
@@ -121,7 +122,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             // Front matter is what a document says about itself rather than anything it says, and a link's definition
             // says where a link goes rather than anything a reader reads, so neither is on the page at all — until
             // somebody puts the caret in it, when it is the characters they are editing.
-            if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference && !Shown(part)) continue;
+            if (part.Kind is MarkdownKinds.FrontMatter or MarkdownKinds.Reference) continue;
 
             if (!first) _y += Gap;
             first = false;
@@ -187,18 +188,10 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     private void Block(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        // Somebody is changing the markup rather than the words, so the markup is what is shown. Asked of the
-        // innermost block that holds the stretch: a block that holds blocks lets the one being written in answer —
-        // unless the whole of it is being shown, when the marks it holds its blocks with are what is being written.
-        if (Shown(part) && (!Holds(part) || Opened(part)))
-        {
-            Sourced(into, part, x, room);
-
-            return;
-        }
-
         switch (part.Kind)
         {
+            // Somebody is changing the markup rather than the words, so the markup is what is shown (ShowBlocksAsWritten).
+            case MarkdownKinds.Written: Sourced(into, part, x, room); return;
             case MarkdownKinds.Heading: Heading(into, part, x, room); return;
             case MarkdownKinds.Rule: Rule(into, part, x, room); return;
             case MarkdownKinds.Quote:
@@ -228,43 +221,46 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// Whether this block is one somebody is being shown the characters of. Not where the stretch is inside a formula or a
-    /// diagram the block holds: that is a command half spelled in another language, which that language shows.
-    /// </summary>
-    private bool Shown(ContentPart part) =>
-        State.Raw is { } zone && zone.Start < part.End && part.Start < zone.End && !ContentNesting.Nests(part, zone);
-
-    /// <summary>Whether the whole of this block is being shown as written, as far as it is drawn when it is.</summary>
-    private bool Opened(ContentPart part) =>
-        State.Raw is { } zone && zone.Start <= part.Start && zone.End >= SourceShown.Reach(part);
-
-    /// <summary>
     /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
     /// written in it and whether anybody is writing, which it draws from as this builder does.
     /// </summary>
     private ContentInset? Nested(ContentPart part, double room) =>
         ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
 
-    /// <summary>Whether this block holds blocks, so there is something further in to ask.</summary>
-    private static bool Holds(ContentPart part) =>
-        part.Kind is MarkdownKinds.Quote or MarkdownKinds.Alert or MarkdownKinds.List or MarkdownKinds.Item
-            or MarkdownKinds.Definition or MarkdownKinds.Described or MarkdownKinds.Figure or MarkdownKinds.Footer;
+    /// <summary>
+    /// A block set as the characters it was written with (<see cref="MarkdownKinds.Written"/>). The same face unreadable source
+    /// is set in, so it reads as source at a glance — and the same kind of piece, so anything asking whether a reader is looking
+    /// at markup has one question to ask however it came to be showing.
+    /// </summary>
+    private void Sourced(LayoutBuilder into, ContentPart part, double x, double room) =>
+        Set(into, part.Part(Roles.Body), part, Face.Plain with { Mono = true, Scale = 0.96 }, x, room, LayoutText.SourceKind, Style.Text);
 
     /// <summary>
-    /// A block set as the characters it was written with. The same face unreadable source is set in, so it reads as
-    /// source at a glance — and the same kind of piece, so anything asking whether a reader is looking at markup has one
-    /// question to ask however it came to be showing.
+    /// The characters a piece of the tree holds, set as they are and standing for it a character at a time — or, where it holds
+    /// none, a blank line standing for <paramref name="holder"/>. Returns how tall it is.
     /// </summary>
-    private void Sourced(LayoutBuilder into, ContentPart part, double x, double room)
+    private double Set(LayoutBuilder into, ContentPart? written, ContentPart holder, Face face, double x, double room, string kind, Brush ink)
     {
-        var face = Face.Plain with { Mono = true, Scale = 0.96 };
-        var shown = SourceShown.Written(part, text => Glyphs(text, face), Style.Text, Math.Max(1, room));
+        var says = written?.Text ?? string.Empty;
+        var glyphs = Glyphs(says.Length == 0 ? " " : says, face);
+        glyphs.MaxTextWidth = Math.Max(1, room);
 
-        into.Graft(shown.Tree, new Point(x, _y));
+        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left, written ?? holder, kind,
+                         maps: says.Length > 0, ink: ink);
 
-        _y += shown.Size.Height;
+        _y += glyphs.Height;
         Reached(x + room);
+        return glyphs.Height;
     }
+
+    /// <summary>
+    /// What a block held as written holds: its body's characters, less the line break closing them, which is a piece of its own
+    /// (<see cref="Nexaflow.Markdown.Prose.Stages.WithClosingLines"/>) — or null for a block with nothing in it.
+    /// </summary>
+    private static ContentPart? Held(ContentPart part) =>
+        part.Part(Roles.Body) is not { } body ? null
+        : body.Children.Count == 0 ? body
+        : body.Children.FirstOrDefault(child => child.Role != Roles.Trivia);
 
     /// <summary>How big each rank of heading is set, against the reader's text size.</summary>
     private static readonly double[] Ranks = [1.9, 1.55, 1.3, 1.15, 1.0, 0.92];
@@ -625,34 +621,59 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>
     /// Source held as written, set in a monospaced face on a panel of its own — a fence in a language nothing draws,
-    /// indented code, raw markup, the front matter a document says about itself.
-    ///
-    /// <para>
-    /// The line endings are left off the run rather than trimmed out of it: the characters drawn are the ones a caret lands
-    /// between, a character at a time. What they are is <see cref="SourceShown"/>'s to say — a block with no body of its own,
-    /// a fence or a formula with nothing between its marks, is shown as the characters under it.
-    /// </para>
+    /// indented code, raw markup, the front matter a document says about itself: its characters, as the block holds them. A
+    /// block with nothing in it — a fence or a formula with nothing between its marks — is its marks, each where it stands.
     /// </summary>
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var body = part.Part(Roles.Body) ?? part;
+        var held = Held(part);
         var pad = Style.TextSize * 0.55;
-
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
-        var shown = SourceShown.Written(body, text => Glyphs(text, face), Style.Text, Math.Max(1, room - pad * 2), MarkdownPieces.Verbatim);
 
-        var height = shown.Size.Height + pad * 2;
+        var glyphs = held is null ? null : Glyphs(held.Text.Length == 0 ? " " : held.Text, face);
+        if (glyphs is not null) glyphs.MaxTextWidth = Math.Max(1, room - pad * 2);
+
+        var marks = held is null ? Marks(part) : [];
+        var line = Glyphs(" ", face).Height;
+        var height = (glyphs?.Height ?? (marks.Count(Ends) + 1) * line) + pad * 2;
         var top = _y;
 
         into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.CodeBg));
         into.Close();
 
-        into.Graft(shown.Tree, new Point(x + pad, top + pad));
+        if (glyphs is not null)
+            LayoutText.Words(into, glyphs, new Point(x + pad, top + pad), Math.Max(1, room - pad * 2),
+                             TextAlignment.Left, held, MarkdownPieces.Verbatim, maps: held!.Text.Length > 0, ink: Style.Text);
+        else
+        {
+            // Each mark where it was written: a line break starts the next line, and the rest are set one after another.
+            var (across, down) = (x + pad, top + pad);
+
+            foreach (var mark in marks)
+            {
+                if (Ends(mark))
+                {
+                    (across, down) = (x + pad, down + line);
+                    continue;
+                }
+
+                var set = Glyphs(mark.Text, face);
+                LayoutText.Words(into, set, new Point(across, down), set.Width + 1, TextAlignment.Left, mark, MarkdownPieces.Verbatim,
+                                 maps: true, ink: Style.Text);
+                across += set.Width;
+            }
+        }
 
         _y = top + height;
         Reached(x + room);
+
+        static bool Ends(ContentPart mark) => mark.Text.Trim('\r', '\n').Length == 0;
     }
+
+    /// <summary>The pieces a block is written with, in order — the ones standing for characters.</summary>
+    private static List<ContentPart> Marks(ContentPart part) =>
+        [.. part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && !piece.Derived && piece.Length > 0)];
 
     /// <summary>
     /// A block whose content could not be drawn, shown as it is written — its fences and all — with what its content said was
@@ -677,17 +698,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// Source shown quietly, with nothing drawn round it: what a block of raw HTML gets. It is not code and
     /// it is not prose, and the panel a code block sits in would claim it was one.
     /// </summary>
-    private void Muted(LayoutBuilder into, ContentPart part, double x, double room)
-    {
-        var body = part.Part(Roles.Body) ?? part;
-        var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted };
-        var shown = SourceShown.Written(body, text => Glyphs(text, face), Style.TextMuted, Math.Max(1, room), MarkdownPieces.Verbatim);
-
-        into.Graft(shown.Tree, new Point(x, _y));
-
-        _y += shown.Size.Height;
-        Reached(x + room);
-    }
+    private void Muted(LayoutBuilder into, ContentPart part, double x, double room) =>
+        Set(into, Held(part), part, Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted }, x, room, MarkdownPieces.Verbatim, Style.TextMuted);
 
     /// <summary>What a term is explained by, set in from the term so the two read as a pair.</summary>
     private void Described(LayoutBuilder into, ContentPart part, double x, double room)

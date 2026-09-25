@@ -196,9 +196,13 @@ block content look the same. The same helper is what a builder that throws is sh
 the element shows when the reading falls over before any builder has a tree (`ContentElement`). A document shows a
 nested block that came back as its source through it too, as the whole of what the language is written in — fences
 and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes. Anything
-else a builder sets as its own characters — markup under the caret, a code block held as written, raw HTML passed
-through — is laid by `SourceShown.Written`, so printing a part back stays in the one place; and what a nested language is
-handed to read is printed by the stage that names the language (`WithNested`), not while the page is built.
+else a builder sets as its own characters arrives as characters in the tree it is handed, so no builder prints a part or
+counts where one ends — nor asks a helper to on its behalf. A block held as written (a fence nothing draws, indented code,
+raw HTML, front matter) holds its characters as a leaf, the line break closing them cut off as a trivia piece of its own
+(`WithClosingLines`); the block whose markup is under the caret is made a `written` block of its characters by a stage
+run before the builder (`ShowBlocksAsWritten`); a grouping the notation declares no node for — a beam, a slur, a
+syllable's letters — names the parts it spans as one `PartRun`, whose extent the AST type works out. What a nested
+language is handed to read is printed by the stage that names the language (`WithNested`), not while the page is built.
 
 **Which way something goes, by why it cannot be drawn:**
 

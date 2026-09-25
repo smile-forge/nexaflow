@@ -493,10 +493,7 @@ public sealed class FlowchartDiagram
 
         static string? Bared(ContentPart? value) => value is null ? null : MermaidText.Bare(value.Text).Trim();
 
-        static double? Measured(ContentPart? value) =>
-            double.TryParse(Bared(value), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var size) && size > 0
-                ? size
-                : null;
+        static double? Measured(ContentPart? value) => MermaidNumber.Read(Bared(value)) is { } size && size > 0 ? size : null;
     }
 
     /// <summary>What a property of some metadata is set to, or null where the metadata does not set it.</summary>

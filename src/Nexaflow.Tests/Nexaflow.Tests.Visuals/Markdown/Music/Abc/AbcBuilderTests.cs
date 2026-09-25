@@ -76,6 +76,12 @@ public class AbcBuilderTests
                     root ??= mine;
                     Assert.AreSame(root, mine, $"{what}: {node.Kind} was drawn from a different reading");
                 }
+                else if (node.Part is PartRun run)
+                {
+                    // A grouping the notation declares no node for names the parts it stands for, every one of them from this reading.
+                    foreach (var named in run.Parts.OfType<ContentPart>())
+                        Assert.IsTrue(parts.Contains((named.Kind, named.Start, named.Length)), $"{what}: {node.Kind} names a part that is not in this reading");
+                }
                 else
                 {
                     Assert.IsInstanceOfType<SourceSpan>(node.Part, $"{what}: {node.Kind} names something else");

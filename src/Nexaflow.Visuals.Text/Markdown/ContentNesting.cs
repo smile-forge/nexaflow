@@ -81,9 +81,13 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
         part.SelfAndDescendants().Any(inner => Of(inner) is not null && inner.Part(Roles.Body) is { } body && Holds(body, zone));
 
     /// <summary>
-    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line. That
-    /// ending belongs to the line the closing delimiter stands on — written into, it would put what was typed on that line
-    /// and the delimiter would no longer close anything.
+    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line, which is a
+    /// piece of its own (<see cref="Nexaflow.Markdown.Prose.Stages.WithClosingLines"/>). That ending belongs to the line the
+    /// closing delimiter stands on — written into, it would put what was typed on that line and the delimiter would no longer
+    /// close anything.
     /// </summary>
-    public static (int Start, int Length) Own(ContentPart body) => (body.Start, body.Length - SourceShown.Closing(body));
+    public static (int Start, int Length) Own(ContentPart body) =>
+        body.Children.Count > 0 && body.Children[^1] is { Role: Roles.Trivia } closing
+            ? (body.Start, closing.Start - body.Start)
+            : (body.Start, body.Length);
 }

@@ -66,42 +66,6 @@ public static class SourceShown
               [.. trouble.Select(said => (said.Part ?? new SourceSpan(said.Start, said.Length), said.Start - tree.Start, said.Length))],
               characters, style, room);
 
-    /// <summary>
-    /// A part laid out as the characters it prints to and nothing more — a block somebody is writing the markup of, source held
-    /// as written, raw markup passed through — as one piece of <paramref name="kind"/> standing for those characters a letter at
-    /// a time, up to the line break closing its last line.
-    /// </summary>
-    /// <param name="ink">What the characters are drawn in.</param>
-    /// <param name="room">How wide they may run before they wrap; unbounded, as wide as they are.</param>
-    public static Laid Written(ContentPart part, Func<string, FormattedText> characters, Brush ink,
-                               double room = double.PositiveInfinity, string kind = LayoutText.SourceKind)
-    {
-        var printed = Printed(part);
-        var text = characters(printed.Length == 0 ? " " : printed);
-        if (!double.IsInfinity(room)) text.MaxTextWidth = Math.Max(1, room);
-
-        var width = double.IsInfinity(room) ? Math.Max(text.WidthIncludingTrailingWhitespace, 1) : Math.Max(1, room);
-
-        var build = new LayoutBuilder();
-        LayoutText.Words(build, text, default, width, TextAlignment.Left, new SourceSpan(part.Start, printed.Length), kind,
-                         maps: printed.Length > 0, ink: ink);
-
-        return new Laid(build.Seal(), new Size(width, text.Height), []);
-    }
-
-    /// <summary>
-    /// Where a part's written characters end, less every line break closing it: where the next block starts is not a line of
-    /// the one before it.
-    /// </summary>
-    public static int Reach(ContentPart part) => part.Start + Printed(part).Length;
-
-    /// <summary>How long the one line break closing a part's last line is — two for a return and a line feed, one, or none.</summary>
-    public static int Closing(ContentPart part)
-    {
-        var written = part.Print();
-        return written.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : written.EndsWith('\n') ? 1 : 0;
-    }
-
     /// <summary>What a part prints to, up to the line break closing its last line.</summary>
     private static string Printed(ContentPart part) => part.Print().TrimEnd('\r', '\n');
 

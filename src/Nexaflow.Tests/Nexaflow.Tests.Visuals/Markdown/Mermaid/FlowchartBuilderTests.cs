@@ -263,7 +263,7 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         var laid = Build("flowchart LR\n  A@{ icon: \"fa:user\", form: \"circle\", label: \"User\", pos: \"t\", h: 48 }");
         var node = laid.Root.SelfAndDescendants().Single(piece => piece.Kind == FlowchartPiece.Node);
         var shape = node.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
-        var words = node.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Words);
+        var words = node.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Words).MinBy(piece => piece.Bounds.Top)!;
 
         Assert.AreEqual(48, shape.Bounds.Height, 0.5, "as tall as it is asked to be");
         Assert.IsTrue(words.Bounds.Bottom <= shape.Bounds.Top + 0.5, "with its label above it, as pos: t asks");

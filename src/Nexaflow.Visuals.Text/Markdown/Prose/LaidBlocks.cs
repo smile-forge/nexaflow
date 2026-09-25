@@ -110,6 +110,7 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
                 null => null,
                 ContentPart written => Found(written),
                 TexSourcePart named => Found(named),
+                PartRun run => Found(run),
                 SourceSpan span => span with { Start = span.Start + By },
 
                 // Something this cannot follow stays put, which is right only where nothing moved.
@@ -178,6 +179,20 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
         }
 
 
+
+        /// <summary>A run of parts, each followed to where it now is — or null where any of them is gone.</summary>
+        private PartRun? Found(PartRun run)
+        {
+            var moved = new List<ISourcePart>(run.Parts.Count);
+
+            foreach (var part in run.Parts)
+            {
+                if (!Try(part, out var to) || to is null) return null;
+                moved.Add(to);
+            }
+
+            return new PartRun(moved);
+        }
 
         private static ContentPart Root(ContentPart part)
         {
