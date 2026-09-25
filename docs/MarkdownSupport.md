@@ -147,7 +147,7 @@ JS/Mermaid.js, no browser).
 | `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + requirements, fields, relations + config (`RequirementDiagramTests`) + draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanBoardTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
-| `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + curves, options + config (`RadarChartTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
+| `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + spokes, curves, options + config (`RadarStagesTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + nesting + config (`IshikawaChartTests`) + draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + nodes, flows + config (`SankeyChartTests`) + draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (shared layout tree; attributes in columns, crow's feet, subgraphs, written in place) | ✅ grammar (`ErGrammarTests`) + entities, attributes, relationships + config (`ErDiagramTests`) + draw (`ErBuilderTests`) + writing (`ErEditingTests`) + sample render. See sub-features below. |
@@ -538,8 +538,9 @@ axis leaves for its words is worked out square, so turned tick words would want 
 **Written in place:** a category is typed into under its tick, an axis's title where it is drawn, and a series' name in
 its legend row; a word given a space or a bracket is put in quotes; a category deleted to nothing leaves a hole; Enter
 on a series starts another of its kind with its values still to write.**Radar-chart sub-features** ([`RadarGrammar`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarGrammar.cs) →
-its stage [`ResolveCurves`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs) →
-[`RadarChart`](../src/Nexaflow.Markdown/Mermaid/Radar/RadarChart.cs) →
+its stages [`ResolveCurves`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveCurves.cs) and
+[`ResolveOptions`](../src/Nexaflow.Markdown/Mermaid/Radar/Stages/ResolveOptions.cs), which say it in
+[its own nodes](../src/Nexaflow.Markdown/Mermaid/Radar/RadarNodes.cs) →
 [`RadarBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Radar/RadarBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
 Supported, as Mermaid documents it: `radar-beta` (with or without a colon); a `title`, on its own line or in the front

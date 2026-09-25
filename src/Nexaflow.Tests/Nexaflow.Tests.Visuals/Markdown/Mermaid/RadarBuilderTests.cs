@@ -105,6 +105,17 @@ public class RadarBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
+    public void AValuePastMaxReachesOnlyToTheRim_AndOneShortOfMinStaysInTheMiddle() => UiThread.Run(() =>
+    {
+        var laid = Build("radar-beta\n  axis a, b, c, d\n  curve past{8, 8, 8, 8}\n  curve short{1, 1, 1, 1}\n  max 4\n  min 2\n  graticule polygon");
+        var rim = Pieces(laid, RadarPiece.Ring).Last().Bounds;
+        var curves = Pieces(laid, RadarPiece.Curve);
+
+        Assert.AreEqual(rim.Width, curves[0].Bounds.Width, 3, "past max is at the rim");
+        Assert.IsTrue(curves[1].Bounds.Width < 5, "and short of min in the middle");
+    });
+
+    [TestMethod]
     public void ACurveStandsInItsOwnShape_AndItsLegendRowForTheSameCurve() => UiThread.Run(() =>
     {
         var laid = Build(Restaurants);

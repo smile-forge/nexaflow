@@ -29,9 +29,6 @@ public static class RadarKinds
 
     /// <summary>One option: its word, and what it is set to.</summary>
     public const string Option = "radar-option";
-
-    /// <summary>What a stage worked out about a value: the axis it is for.</summary>
-    public const string Fact = "radar-fact";
 }
 
 /// <summary>What a piece of a <c>radar-beta</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -48,7 +45,4 @@ public static class RadarRoles
 
     /// <summary>A value, or what an option is set to.</summary>
     public const string Value = "radar-value";
-
-    /// <summary>The axis a value is for, worked out from where it stands or from the axis it names.</summary>
-    public const string For = "radar-for";
 }
