@@ -4,19 +4,8 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 namespace Nexaflow.Tests.Visuals.Markdown.Latex;
 
 /// <summary>
-/// Two ways of asking for a formula, because there are two things to ask about.
-///
-/// <para>
-/// <see cref="Lay"/> is what the builder makes and all it makes: a tree of pieces. Everything about
-/// where things are, what a press means and what a drag took is asked of that, and is the same code a
-/// tune and a barcode run.
-/// </para>
-/// <para>
-/// <see cref="Read"/> adds the formula as TeX sees it — roles, matrices, what backspace un-renders —
-/// which is a question about a parse tree and belongs to LaTeX alone. It reads the source itself,
-/// exactly as the element does, which is why the reading it uses is the one the layout was built from
-/// rather than a second opinion.
-/// </para>
+/// A formula laid out as the engine lays one out: a tree of pieces. Everything about where things are, what a press means
+/// and what a drag took is asked of that, and is the same code a tune and a barcode run.
 /// </summary>
 internal static class Formula
 {

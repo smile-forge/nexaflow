@@ -14,9 +14,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 /// The diagrams drawn on the shared layout tree, and the builder each is drawn by.
 ///
 /// <para>
-/// What <c>MermaidDiagramHandler</c> asks first: a diagram named here is shown in an element it can be selected and written
-/// in, and never reaches a drawing made any other way. A diagram is named here once its grammar is named in
-/// <see cref="MermaidDiagrams.Grammar"/> — the two lists are the same list, which the tests hold them to.
+/// What the Mermaid language makes its builder from (<see cref="Languages.Shipped.Mermaid"/>), once the block's header has
+/// named its diagram. A diagram is named here once its grammar is named in <see cref="MermaidDiagrams.Grammar"/> — the two
+/// lists are the same list, which the tests hold them to.
 /// </para>
 /// </summary>
 internal static class MermaidBuilders

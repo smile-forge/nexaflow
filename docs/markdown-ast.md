@@ -13,6 +13,8 @@ source
   │
 PARSER      language-specific    → ContentNode      lossless. Print(Parse(s)) == s, and the
   │                                                 parser only ever copies.
+NEST        the engine           → ContentNode      every piece written in another language parsed
+  │                                                 by that language and put in the piece's body.
 PIPELINE    AstPipeline          → ContentNode      an ordered list of IAstStage actors, each
   │                                                 taking a tree and giving one back.
 BUILDER     language-specific    → layout           reads the tree, decides where everything goes,
@@ -20,11 +22,20 @@ BUILDER     language-specific    → layout           reads the tree, decides wh
 LAYOUT      ILayoutNode + marks                     painting, hit-testing, the caret, selection.
 ```
 
+**One engine runs every step** (`ContentEngine`), and a language runs none. A language is a description
+(`ContentLanguage`): which fence words it answers to, its parser, its stages, its builder, and what editing means in it
+(`IContentLanguage`) — registered in `ContentLanguages`. For any content the engine parses it with its language; parses
+every piece the parser named as written in another language (`Kinds.Language`, `ContentNested`) with that language, and
+puts the tree it read in the piece's body, until nothing is left unread; runs the language's stages; and makes its
+builder. A stage sees only its own language's nodes — it works over the characters of a piece in another language, and
+the piece's tree goes back in once the stages are done.
+
 **Each arrow is somebody else's.** A builder is handed a `ContentReading` and gives back a `Laid`; it does not read
-source, does not choose stages, and does not outlive the drawing. That is why every builder is the same shape — one
-constructor taking what was read, what is being written, the colours and whether it is read-only — and why a
-capability that needs the tree changed is a stage rather than something a builder works out while drawing. The shape
-is held by `ContentBuilderRulesTests`.
+source, does not choose stages, and does not outlive the drawing. Every builder is the same shape — one constructor
+taking what was read, what is being written, the colours, whether it is read-only, and `Nesting` — and `Nesting` is the
+one thing it may ask: `Nested(part, room)` works a piece in another language over with that language's stages and lays
+it out with that language's builder at the room this builder is giving it. So a capability that needs the tree changed
+is a stage rather than something a builder works out while drawing. The shape is held by `ContentBuilderRulesTests`.
 
 **A layout is at a standard size, in the content's own units.** Nothing in it knows the screen: text is measured at
 `LayoutText.Density`, and `ContentElement` scales the finished tree as it paints (`Zoom`, a transform on the drawing
@@ -195,14 +206,14 @@ in the error colour. The waves under the blamed parts are the host's, drawn from
 block content look the same. The same helper is what a builder that throws is shown as (`ContentBuilder.Lay`), and what
 the element shows when the reading falls over before any builder has a tree (`ContentElement`). A document shows a
 nested block that came back as its source through it too, as the whole of what the language is written in — fences
-and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes. Anything
+and all — which is the part holding the language: `ContentNested.Holders`, the same climb the edit routing makes. Anything
 else a builder sets as its own characters arrives as characters in the tree it is handed, so no builder prints a part or
 counts where one ends — nor asks a helper to on its behalf. A block held as written (a fence nothing draws, indented code,
 raw HTML, front matter) holds its characters as a leaf, the line break closing them cut off as a trivia piece of its own
 (`WithClosingLines`); the block whose markup is under the caret is made a `written` block of its characters by a stage
 run before the builder (`ShowBlocksAsWritten`); a grouping the notation declares no node for — a beam, a slur, a
 syllable's letters — names the parts it spans as one `PartRun`, whose extent the AST type works out. What a nested
-language is handed to read is printed by the stage that names the language (`WithNested`), not while the page is built.
+language is handed to read is cut out by the engine as it parses it (`ContentNested.Own`), not while the page is built.
 
 **Which way something goes, by why it cannot be drawn:**
 
@@ -228,13 +239,16 @@ block that came back as its source through the same helper, fences and all.
 
 ## Markdown
 
-**A document is a list of blocks, and each block is its own content.** `MarkdownParser` says only where each
-block starts and which of them it is — Markdig decides the boundaries and nothing else, because where one
-block stops and the next begins is a question with a decade of corner cases behind it. What a block *holds*
-is settled by whoever reads that kind, when it is read (`WithBlocks`): a paragraph, a heading and a table
-cell by `MarkdownInline`, a quote's and an alert's body by the block reader again, a list by `MarkdownList`,
-a table by `MarkdownTable`. That is what lets a keystroke re-read one paragraph rather than a thousand-line
-file, and what lets a kind nothing can read yet be shown exactly as it was typed.
+**A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in passes. The first says
+only where each block starts and which of them it is — Markdig decides the boundaries and nothing else, because where one
+block stops and the next begins is a question with a decade of corner cases behind it. What a block *holds* is read by
+the reader for that kind (`WithBlocks`): a paragraph, a heading and a table cell by `MarkdownInline`, a quote's and an
+alert's body by the block reader again, a list by `MarkdownList`, a table by `MarkdownTable`. Then what pieces read side
+by side make together (`WithGroups`: the pairs a definition list is, the marker an alert's `[!`, name and `]` are, and the
+display formula a paragraph of nothing but `$$ … $$` is), the line ending closing a block's last line
+(`WithClosingLines`), and which language every fence and formula is written in. Reading a block at a time is what lets a
+keystroke re-read one paragraph rather than a thousand-line file, and what lets a kind nothing can read yet be shown
+exactly as it was typed.
 
 **A fence is a delimiter, another language, and a delimiter**, and so is a formula: `$$ … $$` is the same
 shape with the language implied by the marks instead of written after them, and `$x$` is that shape again,
@@ -243,12 +257,10 @@ an opening token, a verbatim body, a closing token — and nothing downstream ha
 
 | Stage | What it works out |
 |---|---|
-| `WithBlocks` | what each block holds, read by the parser its kind names |
-| `WithGroups` | what pieces read side by side make together, in one walk: the pairs a definition list is, the marker an alert's `[!`, name and `]` are, and the display formula a paragraph of nothing but `$$ … $$` is |
-| `WithNested` | which language reads what is written inside a piece, and how big it is set |
 | `WithImages` | the picture an `![alt](where)` names, where this showing of the document can find one |
 | `WithLinks` | how this showing of the document wants each link to look |
 | `WithUnchanged` | which blocks read exactly as they did the last time the document was read |
+| `ShowBlocksAsWritten` | the block somebody is changing the markup of, as the characters it is written with |
 
 A reader is also asked, while it still knows, the things the characters do not say: which way a table's
 column is set, how many squares a cell covers, whether a cell holds blocks or a run of words, and which
@@ -266,17 +278,15 @@ of its own somewhere else in the document, and a block's words are read from the
 definition three paragraphs up is not in front of the reader when the sentence is read. The word draws as
 itself and nothing is invented. Giving the block reader what the document already worked out is a change to
 the seam between the two, and it is the one thing markdown's own constructs do not yet reach.
-| `WithTokens` | what a grammar made of a stretch of code, where it has read one *(code fences)* |
 
-**`WithNested` hangs a language, never a picture.** It answers the one question a builder has no business
-asking — which of the languages the host assembled reads this — and hangs the answer on the node as a
-derived part (`ContentNesting`). It settles one more thing, because the tree is where facts about content
-live: **how big the content is set**. A formula on its own line is display maths and drawn half as big again
-as the words around it; one in the middle of a sentence is drawn at the size of the sentence. Neither is a
-fact about the room it lands in, which is the only size a builder is given.
+**The parser names a language and reads none of it.** A fence says which language by the word after it and a formula
+by being one — nobody writes a language after `$$` — and the parser hangs that word on the node. Which of the
+languages the host registered reads it is the engine's to look up. How big nested content is set is the builder's
+to say: a formula on its own line is drawn half as big again as the words round it and one in a sentence at the
+sentence's size, so the markdown builder hands the style it wants with the room.
 
-**The builder keeps every decision that was its.** By the time it sees the node the language is on it, and
-it asks for a `ContentInset` at a room *it* chose — so a fence in a narrow table cell and the same fence
+**The builder keeps every decision that was its.** By the time it sees the node, what the other language wrote is
+already parsed and in its body, and it asks `Nested` for a `ContentInset` at a room *it* chose — so a fence in a narrow table cell and the same fence
 across the page are laid out differently, and the walk order, the placement and what has to sit around it
 never left the builder. `ContentInset.Set` grafts the child's tree in whole, so a tune inside a document is
 still every piece it was drawn as and a drag across the page picks up its bars.
@@ -286,8 +296,8 @@ turned up and the buttons a block offers in its corner; `MarkdownElement` owns t
 selection. Because the prose, the diagrams and the tunes are all pieces of one laid tree, a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 
-**A block written as it was is read as it was.** A document being written is read by a reader kept for it
-(`MarkdownParser.Rereading`): `WithBlocks` hands back what it read of every block written exactly as last time beside the
+**A block written as it was is read as it was.** A document being written is read by a parse the engine keeps for it
+(`MarkdownParser.Parsing`): `WithBlocks` hands back what it read of every block written exactly as last time beside the
 same definitions, because reading a block is a function of those two and nothing else — so a keystroke reads the block it
 was typed in. `RereadingTests` holds a reading made that way to the same document read from nothing.
 
@@ -295,7 +305,9 @@ was typed in. `RereadingTests` holds a reading made that way to the same documen
 long as the host keeps it: it remembers the last reading's blocks and says which of this reading's are the same one —
 the same characters and everything the stages before it hung on them, so a paragraph whose link was defined again three
 paragraphs away is not the same. What the builder laid for such a block is set down again rather than laid again
-(`LaidBlocks`), and only what its pieces stand for is moved along, by the one amount everything after an edit moves: a
+(`LaidBlocks`, by where the block comes among the document's parts — putting what another language read into a block
+makes it a node of its own and leaves it the block it was), and only what its pieces stand for is moved along, by the
+one amount everything after an edit moves: a
 part is found again in the new reading by the way down to it (`ContentPart.Order`), and what is kept then names the new
 reading's parts, so no reading outlives the one after it. Each
 block of the document is a piece of its own at the top of its own frame and keeps the picture it was painted as
@@ -307,14 +319,13 @@ block is the one it was. A drawing of the moment it was laid rather than only of
 today — says so (`Laid.Passing`), and the block holding it is laid again each time rather than kept. `LaidBlocksTests`
 holds every sample, typed into and taken back, to the same source laid from nothing.
 
-**What a block offers is the language's to say**, asked through `IContentLanguage.Corner`: code offers no
+**What a block offers is the language's to say**, asked through its `IContentLanguage.Corner`: code offers no
 picture of itself, because a picture of code is a worse copy of the code, and prose has no corner at all
 (`BlockCorner.None`) — it is read rather than handled, and copying it is what selecting it is for. A block's corner
 answers for the whole width of the page from the block's top to its bottom, since the corner stands at the page's edge. What
 a reader may do *there* — the things to add, behind one Insert button, and the things to do to what is
 already there, standing on their own — is `IContentLanguage.Offers`, asked of whatever language is being
-shown at that point. Which language that is was settled by a stage and is on the node, so nothing looks one
-up.
+shown at that point. Which language that is, its parser named on the node.
 
 **Which block a point is in is asked of the tree that was read**, never of the one that was drawn. A piece
 knows the characters it came from but not always as a part of this document's tree — a code fence's runs
@@ -328,8 +339,7 @@ into places on the page, which works through every nested language already becau
 offset its body starts at. Anything **drawn as something other than what was typed** — an entity, an escape,
 a renumbered marker, an alert's label — already says so on its run, because that is what makes a caret
 possible inside it, so those are found centrally too and nothing had to be told which constructs they are. A
-line number is arithmetic on the same source. A language is asked (`IContentLanguage.Finds`) only for what
-neither would catch, and nothing in the table has needed it yet.
+line number is arithmetic on the same source.
 
 **A saved reference says what a thing is, not where it sits.** `heading:getting-started/list/item#2` — the
 shape a snaplink names a declaration with, because it is the same question asked of a different tree. It
@@ -734,7 +744,7 @@ splices a character its own tree did not have to reshape.
 
 **Editing is shared, and a language may say otherwise for its own source.** From the piece holding the caret, up the
 layout to the first piece that names a part of the syntax tree, then up the tree to the first part another language was
-written in — which `WithNested` hung there, so nothing is looked up — and that language's `IContentLanguage.OnEdit` is
+written in — which its parser named (`ContentNested`) — and that language's `IContentLanguage.OnEdit` is
 asked what the key means (`IOnEdit`: what typing, settling and taking back mean, and what an edit came to). Where it
 registered nothing, or says nothing, the key does to the characters what a key does. No such part means markdown's own
 source, and markdown's rules answer (`MarkdownEdits`, the root's hook in `MarkdownContent`).
@@ -742,7 +752,7 @@ source, and markdown's rules answer (`MarkdownEdits`, the root's hook in `Markdo
 A language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at: the
 caret, a hole and a run of words all agree without anything being moved, and `ContentEdit.Local` is there for what reads
 the language's own source from the top. That source stops before the line ending its closing delimiter stands after
-(`ContentNesting.Own`) — written into, that ending would carry what was typed onto the delimiter's line. A key taking back
+(`ContentNested.Own`) — written into, that ending would carry what was typed onto the delimiter's line. A key taking back
 characters stops at the edges of it, and takes the whole construct once nothing is left inside.
 
 What each says: LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a

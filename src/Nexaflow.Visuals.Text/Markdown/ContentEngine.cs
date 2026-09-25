@@ -127,8 +127,9 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
             {
                 if (ContentLanguages.For(name) is not { } language) return;
 
-                foreach (var child in node.Children)
+                for (var index = 0; index < node.Children.Count; index++)
                 {
+                    var child = node.Children[index];
                     if (child.Role == Roles.Body && !child.IsDerived)
                     {
                         (inside ??= [])[at] = Nested(language, name, ContentNested.Own(child));
@@ -141,10 +142,10 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
                 return;
             }
 
-            foreach (var child in node.Children)
+            for (var index = 0; index < node.Children.Count; index++)
             {
-                Walk(child, at);
-                at += child.Width;
+                Walk(node.Children[index], at);
+                at += node.Children[index].Width;
             }
         }
     }
@@ -200,8 +201,9 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
 
         if (ContentNested.Language(node) is not null)
         {
-            foreach (var child in node.Children)
+            for (var index = 0; index < node.Children.Count; index++)
             {
+                var child = node.Children[index];
                 if (child.Role == Roles.Body && !child.IsDerived)
                     return inside.TryGetValue(at, out var read) ? ContentNested.Reading(node, read.Tree) : node;
 
@@ -248,10 +250,10 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     /// <summary>Where the body of a node holding another language starts, or null where it has none.</summary>
     private static int? Body(ContentNode holder, int at)
     {
-        foreach (var child in holder.Children)
+        for (var index = 0; index < holder.Children.Count; index++)
         {
-            if (child.Role == Roles.Body && !child.IsDerived) return at;
-            at += child.Width;
+            if (holder.Children[index] is { Role: Roles.Body, IsDerived: false }) return at;
+            at += holder.Children[index].Width;
         }
 
         return null;
