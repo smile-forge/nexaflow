@@ -11,7 +11,7 @@
         xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
         Title="NexaFlow" Height="880" Width="1280"
         AutomationProperties.AutomationId="MainWindow"
-        MinHeight="600" MinWidth="900"
+        MinHeight="600" MinWidth="980"
         Background="{StaticResource BgBrush}"
         WindowStyle="SingleBorderWindow"
         AllowsTransparency="False">

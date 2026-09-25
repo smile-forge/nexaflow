@@ -159,9 +159,7 @@ Projects_Refresh
 # src/Nexaflow.Features/Nexaflow.Features.Scratchpad/Views/ScratchpadView.xaml
 Scratchpad_Canvas
 
-# src/Nexaflow.Features/Nexaflow.Features.Solver/Views/SolverView.xaml
-Solver_ClearDefinition
-Solver_SourceToggle
+
 
 # src/Nexaflow.Features/Nexaflow.Features.Text/Views/TextView.xaml
 Text_FindMenu_Find
@@ -290,3 +288,17 @@ Options_Toggle
 # not carry (the upgrade path is the likely gate). It also deletes and writes with no confirmation, unlike
 # the backlog delete, so whatever journey reaches it must be pressing a row it created itself.
 Projects_Detail_RemoveCriterion
+
+# src/Nexaflow.Core/Controls/AiResponseOverlay.xaml, src/Nexaflow.Core/Controls/AiResponseBanner.xaml
+# The shell's two AI response surfaces open only for a model turn or for a query handler with something to
+# say, and every handler that answers without a model renders its answer itself and says nothing. So both
+# need a configured provider, and Accept / Deny a live agent asking to run a tool batch — the same gate as
+# Conversation_ApprovalAccept, and the same stubbed-agent journey would reach all of them.
+AiOverlay_Close
+AiOverlay_ContinueAsConversation
+AiOverlay_Deny
+AiOverlay_Accept
+AiBanner_Close
+AiBanner_OpenInConversation
+AiBanner_Deny
+AiBanner_Accept
