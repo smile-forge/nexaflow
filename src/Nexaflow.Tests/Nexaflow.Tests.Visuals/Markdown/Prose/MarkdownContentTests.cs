@@ -33,7 +33,7 @@ public class MarkdownContentTests
     public void AShownLineIsDrawnAsItsCharacters()
     {
         var state = Erase("# Title\n\nwords\n", caret: 7)!;
-        var laid = MarkdownBuilder.Lay(state.Source, StyleFormat.Dark, 480, state.Raw);
+        var laid = Laying.Lay(null, state.Source, 480, shown: state.Raw);
 
         var source = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == LayoutText.SourceKind).ToList();
 
@@ -64,7 +64,7 @@ public class MarkdownContentTests
     public void AShownLineIsTextToItsEndsAndNoFurther()
     {
         var state = new EditState("# Title\n", 0, null, new RawZone(0, 7));
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         // At its start there is nothing of it left to take, so the key stops rather than eating the line before it.
         Assert.IsNotNull(content.Erasing(Land(content, state), forward: false));
@@ -77,7 +77,7 @@ public class MarkdownContentTests
     public void TypingIntoAShownLineKeepsItShown()
     {
         var state = new EditState("# Title\n", 7, null, new RawZone(0, 7));
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         var typed = content.Typing(Land(content, state), "!");
 
@@ -88,7 +88,7 @@ public class MarkdownContentTests
     [TestMethod]
     public void DeleteIsLeftAloneEntirely()
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
         var state = new EditState("# Title\n", 7);
 
         Assert.IsNull(content.Erasing(Land(content, state), forward: true));
@@ -211,7 +211,7 @@ public class MarkdownContentTests
 
     private static EditState? Erase(string source, int caret)
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         return content.Erasing(Land(content, new EditState(source, caret)), forward: false);
     }

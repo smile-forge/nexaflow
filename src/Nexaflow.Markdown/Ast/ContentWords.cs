@@ -108,7 +108,7 @@ public static class ContentWords
         // its own parser's business — which is why it is not this language's kind of words.
         parts.Add(ContentNode.Leaf(Kinds.Verbatim, text[at..], Roles.Body));
 
-        return ContentNode.Branch(Kinds.Nested, parts, role);
+        return ContentNested.Naming(ContentNode.Branch(Kinds.Nested, parts, role), text[ContentLink.Fence.Length..named]);
     }
 
     /// <summary>

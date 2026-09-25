@@ -38,16 +38,12 @@ internal sealed class PlotBuilder : ContentBuilder
 
     private readonly StyleFormat _palette;
     private readonly DiagramInk _ink;
-    private PlotBuilder(ContentReading reading, EditState state, StyleFormat palette, bool isReadOnly)
-        : base(reading, state, palette, isReadOnly)
+    internal PlotBuilder(ContentReading reading, EditState state, StyleFormat palette, bool isReadOnly, Nesting nesting)
+        : base(reading, state, palette, isReadOnly, nesting)
     {
         _palette = palette;
         _ink = new DiagramInk(palette);
     }
-
-    /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
-    public static Laid Build(string source, PlotFence fence, StyleFormat palette, double room, int at = 0) =>
-        new PlotBuilder(ContentReading.Of(PlotPipeline.Read(source, fence), at), EditState.For(source), palette, isReadOnly: true).Lay(room);
 
     protected override Laid? Build()
     {
@@ -1226,4 +1222,10 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>The plot as it is written, and why nothing of it could be drawn.</summary>
     private Laid Stopped(string reason) => AsSource(reason);
+
+    /// <summary>A panel a reader can take in at once, whatever room it lands in — and one to scale the axes against where it lands in unbounded room.</summary>
+    protected override double Within(double room) => double.IsFinite(room) ? Math.Min(room, Panel) : Panel;
+
+    /// <summary>How wide a plot is laid out at most.</summary>
+    private const double Panel = 560;
 }

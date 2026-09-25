@@ -153,7 +153,7 @@ public class AztecBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => AztecBuilder.Lay(source, StyleFormat.Light);
+    private static Laid Build(string source) => Laying.Lay("aztec", source, style: StyleFormat.Light);
 
     private static AztecBlock Read(string source)
     {

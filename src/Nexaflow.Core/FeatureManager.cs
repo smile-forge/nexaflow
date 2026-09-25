@@ -83,9 +83,6 @@ public sealed class FeatureManager
     private static readonly string ArchiveHandlerName = typeof(IArchiveHandler).FullName!;
     private static readonly string StreamCodecName    = typeof(IStreamCodec).FullName!;
 
-    /// <summary>A language a markdown fence can be written in — see <see cref="IContentLanguage"/>.</summary>
-    private static readonly string ContentLanguageName = typeof(IContentLanguage).FullName!;
-
     /// <summary>
     /// Side-effects of loading a feature assembly, performed once on its first load: register its global
     /// configs with <see cref="ConfigManager"/>, register its archive handlers / stream codecs into the VFS,
@@ -119,10 +116,7 @@ public sealed class FeatureManager
             if (te.Contracts.Contains(StreamCodecName) && asm.GetType(te.Name) is { } ct)
                 try { if (Activator.CreateInstance(ct) is IStreamCodec c) VirtualFileSystem.Instance.RegisterCodec(c); } catch { }
 
-            // A language a fence can be written in — a parser, a pipeline and a builder the feature brought
-            // with it. Registered into the one table, so it draws on every markdown surface at once.
-            if (te.Contracts.Contains(ContentLanguageName) && asm.GetType(te.Name) is { } lt)
-                try { if (Activator.CreateInstance(lt) is IContentLanguage l) ContentLanguages.Register(l); } catch { }
+
 
             // Theme contributions. Fast path: the pack:// URIs captured during a WPF-up scan. Fallback: a
             // scan that ran WITHOUT a WPF Application (e.g. a unit-test run that rebuilt the shared catalog)

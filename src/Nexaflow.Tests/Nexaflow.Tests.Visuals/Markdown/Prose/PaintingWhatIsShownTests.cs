@@ -54,8 +54,7 @@ public class PaintingWhatIsShownTests
     });
 
     private static Laid Long() =>
-        MarkdownBuilder.Lay(string.Join("\n\n", Enumerable.Range(1, 200).Select(n => $"Paragraph {n} says something.")),
-                            StyleFormat.Dark, 480);
+        Laying.Lay(null, string.Join("\n\n", Enumerable.Range(1, 200).Select(n => $"Paragraph {n} says something.")), 480);
 
     private static List<LayoutKept> Blocks(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == MarkdownPieces.Whole).Select(piece => piece.Painting!.Kept!)];

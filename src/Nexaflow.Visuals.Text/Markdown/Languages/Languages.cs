@@ -1,12 +1,26 @@
 using System;
-using System.Windows;
+using System.Collections.Generic;
 
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Chemistry;
+using Nexaflow.Markdown.Latex;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Music.Abc;
+using Nexaflow.Markdown.Music.LilyPond;
+using Nexaflow.Markdown.Nomnoml;
+using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.Plot;
+using Nexaflow.Markdown.Plot.Stages;
+using Nexaflow.Markdown.Prose;
+using Nexaflow.Markdown.WordCloud;
+using Nexaflow.Markdown.Barcode;
 
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Barcode;
 using Nexaflow.Visuals.Text.Markdown.Chemistry;
+using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
 using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
@@ -17,202 +31,187 @@ using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
 using Nexaflow.Visuals.Text.Markdown.Plot;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
-using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
-using Nexaflow.Markdown.Nomnoml;
-using Nexaflow.Visuals.Text.Markdown.Code;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
-/// <summary>Every kind of diagram Mermaid names, which all arrive under the one fence word.</summary>
-/// <remarks>
-/// The block is read once and the diagram its header names chooses the builder. A header naming no type
-/// falls to <see cref="UnknownDiagramBuilder"/>, which shows the block as written with the reason —
-/// so a mermaid fence always draws something.
-/// </remarks>
-public sealed class MermaidLanguage : IContentLanguage
+/// <summary>
+/// Every language that ships, each described: what parses it, what its parse is worked over by, and what lays it out. The
+/// engine runs them (<see cref="ContentEngine"/>); nothing here runs anything.
+/// </summary>
+internal static class Shipped
 {
-    public bool Reads(string? language) => "mermaid".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
+    /// <summary>What every Mermaid block is worked over by once all else has been: what its words are made of.</summary>
+    private static readonly WithWordPieces WordPieces = new();
 
-    public Laid? Lay(ContentRequest request) =>
-        MermaidBuilders.Lay(request.Source, request.Style, request.Room, writing: !request.IsReadOnly,
-                            at: request.At, options: request.Options, shown: request.Shown);
+    /// <summary>
+    /// A document. Named by no fence: it is what content is written in where nothing says otherwise.
+    /// </summary>
+    public static readonly ContentLanguage Markdown = new(
+        Reads: static _ => false,
+        Parser: MarkdownParser.Parsing,
+        Stages: static (_, show) =>
+        [
+            new WithImages(show.Options?.Pictures),
+            new WithLinks(show.Options?.Links),
 
+            // Last of what is read, because a block is only the same as it was when everything worked out about it is too.
+            show.Unchanged,
+
+            // After it: a block shown as written is not what was read, and is never kept as if it were.
+            show.Shown is { } zone ? new ShowBlocksAsWritten(zone, show.At, show.Reads) : null,
+        ],
+        Builder: static (reading, show) =>
+            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting));
+
+    /// <summary>
+    /// Every kind of diagram Mermaid names, which all arrive under the one fence word. The block's header names the diagram,
+    /// and so its stages and its builder; a header naming none is shown as written, with the reason.
+    /// </summary>
+    public static readonly ContentLanguage Mermaid = new(
+        Reads: static word => "mermaid".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => MermaidParser.Parse(source),
+        Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
+        Builder: static (reading, show) =>
+            (MermaidBuilders.For(MermaidBlock.Of(reading).Diagram) ?? MermaidBuilders.Unknown)(
+                    reading, EditState.For(reading.Source) with { Raw = show.Shown }, show.Style, !show.Writing, show.Nesting))
+        {
+            Editing = new MermaidEditing(),
+        };
+
+    /// <summary>UML class notation written shorter — <see href="https://www.nomnoml.com/"/> — read by Mermaid's kit as a class diagram.</summary>
+    public static readonly ContentLanguage Nomnoml = new(
+        Reads: static word => "nomnoml".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => MermaidParser.Parse(source, NomnomlDiagram.Grammar),
+        Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, holes: false, NomnomlDiagram.Grammar), .. Hosted(show), WordPieces],
+        Builder: static (reading, show) => new NomnomlBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>What a host puts between reading a diagram and drawing it: what its words are bound against, and the pictures it names.</summary>
+    private static IEnumerable<IAstStage?> Hosted(ContentShowing show) =>
+    [
+        show.Options?.DataContext is { } data ? new WithBindings(data) : null,
+        new WithDiagramPictures(show.Options?.Pictures),
+    ];
+
+    /// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
+    public static readonly ContentLanguage Qr = Symbol(
+        static word => "qr".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        static (reading, show) => new QrBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>An Aztec symbol.</summary>
+    public static readonly ContentLanguage Aztec = Symbol(
+        static word => word?.Trim().ToLowerInvariant() is "aztec" or "aztec-code",
+        static (reading, show) => new AztecBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A Data Matrix symbol.</summary>
+    public static readonly ContentLanguage DataMatrix = Symbol(
+        static word => word?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix",
+        static (reading, show) => new DataMatrixBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A PDF417 symbol.</summary>
+    public static readonly ContentLanguage Pdf417 = Symbol(
+        static word => "pdf417".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        static (reading, show) => new Pdf417Builder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A two-dimensional code: a <c>key: value</c> field a line, drawn by the builder its fence names.</summary>
+    private static ContentLanguage Symbol(Func<string?, bool> reads, Func<ContentReading, ContentShowing, ContentBuilder> builder) =>
+        new(reads, static () => static source => MatrixParser.Parse(source), static (_, _) => [], builder);
+
+    /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
+    public static readonly ContentLanguage Barcode = new(
+        Reads: static word => "barcode".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => BarcodeParser.Parse(source),
+        Stages: static (_, show) => BarcodeParser.Stages(holes: show.Writing),
+        Builder: static (reading, show) => new BarcodeBuilder(reading, EditState.For(reading.Source), show.Style, !show.Writing, show.Nesting));
+
+    /// <summary>A chemical structure written as SMILES.</summary>
+    public static readonly ContentLanguage Smiles = new(
+        Reads: static word => "smiles".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => SmilesParser.Parse(source),
+        Stages: static (_, _) => SmilesPipeline.Of().Stages,
+        Builder: static (reading, show) => new SmilesBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A formula, written in LaTeX — on a line of its own, or in the middle of a sentence.</summary>
+    public static readonly ContentLanguage Latex = new(
+        Reads: static word => word?.Trim().ToLowerInvariant() is "latex" or "math" or "tex",
+        Parser: static () => static source => TexParser.Parse(source),
+        Stages: static (tree, show) => TexPipeline.Of(LatexBuilder.Draws, Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
+        Builder: static (reading, show) =>
+                new LatexBuilder(reading, new EditState(reading.Source, 0, null, show.Own(reading.Source.Length)), show.Style, !show.Writing, show.Nesting))
+        {
+            Editing = new LatexEditing(),
+        };
+
+    /// <summary>A tune written in ABC.</summary>
+    public static readonly ContentLanguage Abc = new(
+        Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
+        Parser: static () => static source => AbcParser.Parse(source),
+        Stages: static (tree, show) => AbcPipeline.Of(AbcBuilder.Draws, Editing(show.Own(tree.Width))).Stages,
+        Builder: static (reading, show) => new AbcBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A tune written in LilyPond.</summary>
+    public static readonly ContentLanguage LilyPond = new(
+        Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.LilyPond,
+        Parser: static () => static source => LilyPondParser.Parse(source),
+        Stages: static (tree, show) => LilyPondPipeline.Of(Editing(show.Own(tree.Width))).Stages,
+        Builder: static (reading, show) => new LilyPondBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>The stretch being written in, as a pipeline that shows it as typed is told it — or null where there is none to show.</summary>
+    private static (int Start, int Length)? Editing(RawZone? zone) =>
+        zone is { Length: > 0 } shown ? (shown.Start, shown.Length) : null;
+
+    /// <summary>A table of values against a pair of axes, drawn the way its fence names.</summary>
+    public static ContentLanguage Plot(PlotFence fence) => new(
+        Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
+        Parser: static () => static source => PlotParser.Parse(source),
+        Stages: (_, _) => [new ResolveSettings(fence)],
+        Builder: static (reading, show) => new PlotBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>A cloud of words sized by how often each is said.</summary>
+    public static readonly ContentLanguage WordCloud = new(
+        Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => WordCloudParser.Parse(source),
+        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures)],
+        Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+
+    /// <summary>
+    /// Code, in any language a grammar reads — and in any language it does not, which is the same drawing with nothing named.
+    /// Coloured where the grammar has read it already, and plain until it has.
+    /// </summary>
+    public static readonly ContentLanguage Code = new(
+        Reads: static word => CodeGrammars.For(word) is not null,
+        Parser: static () => static source => CodeParser.Parse(source),
+        Stages: static (_, show) => [new WithHighlights(CodeGrammars.For(show.Named)), new CodeLines()],
+            Builder: static (reading, show) => new CodeBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting))
+        {
+            Editing = new CodeEditing(),
+        };
+}
+
+/// <summary>What an edit means in a Mermaid diagram.</summary>
+internal sealed class MermaidEditing : IContentLanguage
+{
     public IOnEdit OnEdit => MermaidEdits.Instance;
 }
 
-/// <summary>UML class notation written shorter — <see href="https://www.nomnoml.com/"/>.</summary>
-public sealed class NomnomlLanguage : IContentLanguage
+/// <summary>What an edit means in a formula.</summary>
+internal sealed class LatexEditing : IContentLanguage
 {
-    /// <summary>The fence word this answers to.</summary>
-    public const string Name = "nomnoml";
-
-    public bool Reads(string? language) => Name.Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) =>
-        MermaidBuilders.Lay(static (r, s, f, o) => new NomnomlBuilder(r, s, f, o), NomnomlDiagram.Grammar,
-                            request.Source, request.Style, request.Room, request.At, request.Options);
-}
-
-/// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
-public sealed class QrLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => "qr".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) => QrBuilder.Lay(request.Source, request.Style, request.At);
-}
-
-/// <summary>An Aztec symbol.</summary>
-public sealed class AztecLanguage : IContentLanguage
-{
-    public bool Reads(string? language) =>
-        language?.Trim().ToLowerInvariant() is "aztec" or "aztec-code";
-
-    public Laid? Lay(ContentRequest request) => AztecBuilder.Lay(request.Source, request.Style, request.At);
-}
-
-/// <summary>A Data Matrix symbol.</summary>
-public sealed class DataMatrixLanguage : IContentLanguage
-{
-    public bool Reads(string? language) =>
-        language?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix";
-
-    public Laid? Lay(ContentRequest request) => DataMatrixBuilder.Lay(request.Source, request.Style, request.At);
-}
-
-/// <summary>A PDF417 symbol.</summary>
-public sealed class Pdf417Language : IContentLanguage
-{
-    public bool Reads(string? language) => "pdf417".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) => Pdf417Builder.Lay(request.Source, request.Style, request.At);
-}
-
-/// <summary>A chemical structure written as SMILES.</summary>
-public sealed class SmilesLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => "smiles".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) =>
-        SmilesBuilder.Lay(request.Source, request.Style, request.Room, request.At);
-}
-
-/// <summary>A formula, written in LaTeX — on a line of its own, or in the middle of a sentence.</summary>
-public sealed class LatexLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => language?.Trim().ToLowerInvariant() is "latex" or "math" or "tex";
-
-    public Laid? Lay(ContentRequest request) =>
-        LatexBuilder.Lay(request.Source, request.Style,
-                         shownAsWritten: request.Shown is { } shown ? new RawZone(shown.Start - request.At, shown.End - request.At) : null,
-                         placeholders: !request.IsReadOnly,
-                         block: double.IsFinite(request.Room) ? request.Room : 0,
-                         at: request.At);
-
     public IOnEdit OnEdit => LatexEdits.Instance;
 }
 
-/// <summary>
-/// A tune, in whichever notation it was written — ABC or LilyPond, which decides only which engraver reads it.
-///
-/// <para>
-/// Given a page, the music takes a share of its width and sits in the middle of it, the block being the whole width with
-/// the margins inside. A score set edge to edge across a wide window is a score nobody can read: the eye has to travel
-/// the whole width to follow one system, and the systems stop looking like lines of music. Printed music has margins for
-/// the same reason prose does. What fills the share is the engraver's; how wide the share is belongs to the page.
-/// </para>
-/// </summary>
-public sealed class MusicLanguage(MusicDialect dialect) : IContentLanguage
+/// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>
+internal sealed class CodeEditing : IContentLanguage
 {
-    /// <summary>How much of a page's width the music takes.</summary>
-    public const double PageWidth = 0.8;
-
-    /// <summary>A width to engrave against where there is no page, since a score set to infinity has nowhere to break.</summary>
-    private const double Unbounded = 420;
-
-    public bool Reads(string? language) => MusicDialectExtensions.FromTag(language ?? string.Empty) == dialect;
-
-    public Laid? Lay(ContentRequest request)
-    {
-        if (!double.IsFinite(request.Room) || request.Room <= 0) return Engraved(request, Unbounded);
-
-        if (Engraved(request, request.Room * PageWidth) is not { } score) return null;
-
-        var page = new LayoutBuilder();
-        var width = Math.Max(request.Room, score.Size.Width);
-
-        new ContentInset(score).Set(page, new Point((width - score.Size.Width) / 2, 0), MusicPiece.Page);
-
-        return new Laid(page.Seal(), new Size(width, score.Size.Height), score.Trouble);
-    }
-
-    private Laid? Engraved(ContentRequest request, double room) =>
-        dialect == MusicDialect.LilyPond
-            ? LilyPondBuilder.Lay(request.Source, room, request.Style, at: request.At)
-            : AbcBuilder.Lay(request.Source, room, request.Style, at: request.At);
-}
-
-/// <summary>The kinds of piece a score's page is made of, round what its engraver drew.</summary>
-public static class MusicPiece
-{
-    /// <summary>The whole width a score was given, the music set in the middle of it.</summary>
-    public const string Page = "MusicPage";
-}
-
-/// <summary>A table of values against a pair of axes.</summary>
-public sealed class PlotLanguage(PlotFence fence) : IContentLanguage
-{
-    public bool Reads(string? language) => PlotFences.Named(language ?? string.Empty) == fence;
-
-    public Laid? Lay(ContentRequest request) =>
-        PlotBuilder.Build(request.Source, fence, request.Style, Panel(request.Room), request.At);
-
-    /// <summary>A width to plot against, since a panel given infinity has no axis to scale.</summary>
-    private static double Panel(double room) =>
-        double.IsFinite(room) && room > 0 ? Math.Min(room, 560) : 560;
-}
-
-/// <summary>A cloud of words sized by how often each is said.</summary>
-public sealed class WordCloudLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => "wordcloud".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) =>
-        WordCloudBuilder.Lay(request.Source, request.Style, request.Room, at: request.At);
-}
-
-/// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
-public sealed class BarcodeLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => "barcode".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
-
-    public Laid? Lay(ContentRequest request) =>
-        BarcodeBuilder.Lay(request.Source, request.Style, request.IsReadOnly, request.At);
-}
-
-/// <summary>
-/// Code, in any language a grammar reads — and in any language it does not, which is the same drawing with
-/// nothing named.
-///
-/// <para>
-/// Last in the table on purpose: it answers to a great many words, and a fence calling itself something a
-/// real language already claims should reach that language. It is asked only once nothing else has.
-/// </para>
-/// </summary>
-public sealed class CodeLanguage : IContentLanguage
-{
-    public bool Reads(string? language) => CodeGrammars.For(language) is not null;
-
     /// <summary>Colouring code is still showing it: every character a writer typed is on the page.</summary>
     public bool ShowsWhatWasWritten => true;
 
     /// <summary>
-    /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything —
-    /// so that is the one usual button this does not offer.
+    /// A picture of code is a worse copy of the code — it cannot be searched, pasted or read by anything — so that is the one
+    /// usual button this does not offer.
     /// </summary>
     public BlockCorner Corner(ContentAsk ask) => new(Saves: false);
-
-    public Laid? Lay(ContentRequest request) =>
-        CodeBuilder.Lay(request.Source, CodeGrammars.For(request.Named), request.Style, request.Room, request.At);
 }

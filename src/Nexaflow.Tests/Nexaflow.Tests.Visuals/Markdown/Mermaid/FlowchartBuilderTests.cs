@@ -277,8 +277,7 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         var options = new DiagramRenderOptions { Palette = StyleFormat.Dark, Pictures = name => name == "found.png" ? picture : null };
         const string source = "flowchart LR\n  A@{ img: \"found.png\", label: \"Found\", h: 30 }\n  B@{ img: \"lost.png\", label: \"Lost\", w: 50, h: 40 }";
 
-        var laid = new FlowchartBuilder(MermaidBuilders.Read(source, after: MermaidBuilders.After(StyleFormat.Dark, options)), EditState.For(source),
-                                        StyleFormat.Dark, isReadOnly: true).Lay(900);
+        var laid = Laying.Lay("mermaid", source, 900, options: options);
         var marks = laid.Root.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).ToList();
 
         var drawn = marks.OfType<PictureMark>().Single();
@@ -289,7 +288,7 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     });
 
     private static Laid Build(string source, double room = 900) =>
-        new FlowchartBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     /// <summary>Every node drawn, by what is written on it.</summary>
     private static Dictionary<string, Rect> Nodes(string source) => Nodes(Build(source));

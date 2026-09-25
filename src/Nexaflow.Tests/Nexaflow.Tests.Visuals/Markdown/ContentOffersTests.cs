@@ -62,10 +62,10 @@ public class ContentOffersTests
     public void ABlockSaysWhichOfTheUsualButtonsMakeSenseForIt()
     {
         // A picture of a diagram is worth keeping. A picture of a code fence is a worse copy of the code.
-        Assert.IsTrue(ContentLanguages.For("mermaid")!.Corner(Ask("mermaid", "pie\n")).Saves);
-        Assert.IsFalse(ContentLanguages.For("csharp")!.Corner(Ask("csharp", "var x = 1;\n")).Saves);
+        Assert.IsTrue(ContentLanguages.For("mermaid")!.Editing.Corner(Ask("mermaid", "pie\n")).Saves);
+        Assert.IsFalse(ContentLanguages.For("csharp")!.Editing.Corner(Ask("csharp", "var x = 1;\n")).Saves);
 
-        Assert.IsTrue(ContentLanguages.For("csharp")!.Corner(Ask("csharp", "var x = 1;\n")).Copies,
+        Assert.IsTrue(ContentLanguages.For("csharp")!.Editing.Corner(Ask("csharp", "var x = 1;\n")).Copies,
             "code is the one thing there most certainly is a point in copying");
     }
 
@@ -74,8 +74,8 @@ public class ContentOffersTests
     {
         // Nothing, rather than something guessed at — a language that has not been asked what its content
         // is made of has no business putting buttons in front of a reader.
-        Assert.AreEqual(0, ContentLanguages.For("qr")!.Offers(Ask("qr", "text: hello\n")).Count);
-        Assert.IsTrue(ContentLanguages.For("qr")!.Corner(Ask("qr", "text: hello\n")).Adds.Count == 0);
+        Assert.AreEqual(0, ContentLanguages.For("qr")!.Editing.Offers(Ask("qr", "text: hello\n")).Count);
+        Assert.IsTrue(ContentLanguages.For("qr")!.Editing.Corner(Ask("qr", "text: hello\n")).Adds.Count == 0);
     }
 
     [TestMethod]

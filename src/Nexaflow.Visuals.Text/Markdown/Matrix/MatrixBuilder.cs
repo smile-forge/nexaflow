@@ -44,8 +44,8 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 {
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
 
-    protected MatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
+    protected MatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
 
 
@@ -199,4 +199,7 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
     /// <summary>How big the characters of a block shown as written are set.</summary>
     private const double SourceSize = 13;
+
+    /// <summary>A code is drawn at the size its modules say, whatever room it lands in — and so is its source, where it will not draw.</summary>
+    protected override double Within(double room) => double.PositiveInfinity;
 }

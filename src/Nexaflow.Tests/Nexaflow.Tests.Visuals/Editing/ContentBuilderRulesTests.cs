@@ -41,7 +41,7 @@ public class ContentBuilderRulesTests
 {
     /// <summary>The one signature. Read, written, drawn with, and whether anybody may write in it.</summary>
     private static readonly Type[] TheOneShape =
-        [typeof(ContentReading), typeof(EditState), typeof(StyleFormat), typeof(bool)];
+        [typeof(ContentReading), typeof(EditState), typeof(StyleFormat), typeof(bool), typeof(Nesting)];
 
     /// <summary>The ratchet. One type's full name per line; <c>#</c> starts a comment.</summary>
     private static string BaselineFile => Path.Combine(

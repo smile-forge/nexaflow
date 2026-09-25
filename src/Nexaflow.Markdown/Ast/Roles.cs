@@ -121,15 +121,23 @@ public static class Kinds
 
     /// <summary>
     /// A whole other content written inside this one — a tune in a flowchart node, a molecule in a song's lyrics, a
-    /// barcode in a formula.
+    /// barcode in a formula — where the grammar holding it has no kind of its own for the construct.
     ///
     /// <para>
-    /// One node, holding the characters as they were written and nothing read out of them. What is inside is a
-    /// different language with a different grammar, so it is read by <em>its own</em> parser into a tree of its own,
-    /// positioned where it was written (<see cref="ContentLink"/>) — a tree that mixed the two would be neither.
+    /// The parser holds the characters as written and names the language they are in (<see cref="Language"/>). Reading
+    /// them is that language's own parser's, which the engine runs and puts where the characters were: the body of any node
+    /// holding another language is, once read, a node of this kind holding that language's tree (<see cref="ContentNested"/>).
     /// </para>
     /// </summary>
     public const string Nested = "nested";
+
+    /// <summary>
+    /// Which language what a node holds is written in: a derived part whose <see cref="ContentNode.Held"/> is the word naming it,
+    /// hung on the node by the parser that read it — a fence by the word after it, <c>$$</c> by being <c>$$</c>. Anything that
+    /// holds one is written in another language, and its <see cref="Roles.Body"/> is what that language reads
+    /// (<see cref="ContentNested"/>).
+    /// </summary>
+    public const string Language = "language";
 
     /// <summary>
     /// A run standing in for a value somebody else holds, rather than for itself: what a document says about data

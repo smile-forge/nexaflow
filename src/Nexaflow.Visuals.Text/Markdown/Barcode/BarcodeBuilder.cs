@@ -53,12 +53,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
     // A barcode's value is one run of characters and has no grammar of its own, so what it is read as is that
     // run: enough for the base to report the source and to show it when nothing can be drawn. It is read where it
     // sits, so every place in the caption names the character it shows in the document holding it.
-    private BarcodeBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    public static Laid Lay(string source, StyleFormat style, bool isReadOnly = true, int at = 0) =>
-        new BarcodeBuilder(ContentReading.Of(BarcodeParser.Parse(source, holes: !isReadOnly), at), EditState.For(source), style, isReadOnly).Lay();
+    internal BarcodeBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Laid Build()
     {
@@ -446,4 +442,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
     /// <summary>How big the characters of a block shown as written are set.</summary>
     private const double SourceSize = 13;
+
+    /// <summary>A barcode is drawn at the size its bars say, whatever room it lands in — and so is its source, where it will not draw.</summary>
+    protected override double Within(double room) => double.PositiveInfinity;
 }

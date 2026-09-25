@@ -21,13 +21,18 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// </summary>
 internal sealed class LaidBlocks
 {
-    private readonly Dictionary<ContentNode, LaidBlock> _blocks = [];
+    /// <summary>
+    /// What was laid for each block, by where the block comes among the document's parts — which is all that settles which block
+    /// it is. Not by the node: what another language wrote inside a block is put in it after this is said
+    /// (<see cref="ContentEngine"/>), which makes the block a node of its own and leaves it the block it was.
+    /// </summary>
+    private readonly Dictionary<int, LaidBlock> _blocks = [];
 
-    /// <summary>What was laid for <paramref name="block"/>, the node as this reading has it — null for one never read.</summary>
-    public LaidBlock? For(ContentNode block) => _blocks.GetValueOrDefault(block);
+    /// <summary>What was laid for the block that is the document's part <paramref name="at"/> — null for one never read.</summary>
+    public LaidBlock? For(int at) => _blocks.GetValueOrDefault(at);
 
-    /// <summary>Says <paramref name="block"/> carries <paramref name="laid"/>.</summary>
-    public void Add(ContentNode block, LaidBlock laid) => _blocks[block] = laid;
+    /// <summary>Says the block that is the document's part <paramref name="at"/> carries <paramref name="laid"/>.</summary>
+    public void Add(int at, LaidBlock laid) => _blocks[at] = laid;
 
     /// <summary>What a document's reading says about its blocks, or null where nothing kept anything.</summary>
     public static LaidBlocks? Of(ContentPart root) =>

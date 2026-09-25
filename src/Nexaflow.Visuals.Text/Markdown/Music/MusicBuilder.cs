@@ -36,8 +36,8 @@ internal abstract partial class MusicBuilder : ContentBuilder
     private static readonly ScoreSpacing _spacing = ScoreSpacing.Current;
 
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    protected MusicBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly)
+    protected MusicBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting)
     {
     
     
@@ -51,17 +51,45 @@ internal abstract partial class MusicBuilder : ContentBuilder
     /// <summary>The reading as rows of bars of events. The one thing each notation works out for itself.</summary>
     protected abstract Tune ReadTune();
 
-    /// <summary>Reads and engraves the tune, returning the laid-out tree, its size, and anything unreadable.</summary>
+    /// <summary>
+    /// Reads and engraves the tune — given a page, in a share of its width, set in the middle of it.
+    ///
+    /// <para>
+    /// The block is the whole width with the margins inside. A score set edge to edge across a wide window is a score nobody can
+    /// read: the eye has to travel the whole width to follow one system, and the systems stop looking like lines of music.
+    /// Printed music has margins for the same reason prose does.
+    /// </para>
+    /// </summary>
     protected sealed override Laid? Build()
+    {
+        if (!double.IsFinite(Room)) return Score(Unbounded);
+
+        var score = Score(Room * PageWidth);
+        var page = new LayoutBuilder();
+        var width = Math.Max(Room, score.Size.Width);
+
+        new ContentInset(score).Set(page, new Point((width - score.Size.Width) / 2, 0), MusicPiece.Page);
+
+        return new Laid(page.Seal(), new Size(width, score.Size.Height), score.Trouble);
+    }
+
+    /// <summary>How much of a page's width the music takes.</summary>
+    private const double PageWidth = 0.8;
+
+    /// <summary>A width to engrave against where there is no page, since a score set to infinity has nowhere to break.</summary>
+    private const double Unbounded = 420;
+
+    /// <summary>The tune engraved at <paramref name="room"/>, returning the laid-out tree, its size, and anything unreadable.</summary>
+    private Laid Score(double room)
     {
         var tune = ReadTune();
 
         // A tune is only ever read where it is drawn — nothing in a score is typed into — so anything wrong in it is put right
         // in its source: shown as written, with each wrong part marked and why.
         var troubled = tune.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && part.Length > 0 && !part.Derived).ToList();
-        if (troubled.Count > 0) return AsSource([.. troubled.Select(part => (part, part.Trouble!))]);
+        if (troubled.Count > 0) return AsSource([.. troubled.Select(part => (part, part.Trouble!))], room);
 
-        var (tree, size) = Engrave(tune, Room);
+        var (tree, size) = Engrave(tune, room);
         return new Laid(tree, size, []);
     }
 

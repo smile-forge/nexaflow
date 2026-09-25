@@ -13,14 +13,15 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
   starts from `Reading(new())` rather than writing the list again.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
-  abbreviations — `MarkdownDefinitions`); the stages then read each block's body by the parser its kind names
-  (`WithBlocks`, each block's words read beside those definitions), pair definition lists, and say which language
-  every fence and formula is written in (`WithNested`, `WithImages`, `WithLinks`). Markdig's own HTML renderer is
+  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`WithBlocks`, each
+  block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
+  is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
+  language's parser read each one, then runs the stages (`WithImages`, `WithLinks`). Markdig's own HTML renderer is
   **not** used.
 - **Drawing:** one builder, [`MarkdownBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs), turns
-  the tree into the shared layout tree; another language's content is laid by that language
-  (`IContentLanguage.Lay`) and grafted in where its fence was, so its pieces are selectable in the document that holds
-  them.
+  the tree into the shared layout tree; another language's content is laid by that language's builder when the
+  markdown builder asks for it, and grafted in where its fence was, so its pieces are selectable in the document that
+  holds them.
 - **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
   markdown host uses — read-only or written in, a whole document or one block of a language (`SingleBlock`). It
   draws the whole document on one element; there is no text box underneath.
@@ -107,7 +108,7 @@ These are turned on in the pipeline **and** drawn by the builder. Every row is a
 
 ## Diagrams — sub-support
 
-Diagram fences are laid by their language ([`IContentLanguage`](../src/Nexaflow.Visuals.Text/Markdown/IContentLanguage.cs),
+Diagram fences are laid by their language ([`ContentLanguage`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguage.cs),
 found in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) and drawn natively in WPF (no
 JS/Mermaid.js, no browser).
 
@@ -1038,8 +1039,8 @@ names the characters a reader is actually selecting in the document holding both
 That is what makes it editable rather than a picture: selection and editing go from a layout piece to its part to
 the AST node behind it, and for the formula's pieces that is the *formula's* node, at the right offset.
 
-The builder then asks for that content's **layout tree** — `abc`, `lilypond`, `latex`, `smiles`, `qr` and `mermaid`
-itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
+The engine has already parsed that content with its own language, and the builder asks for its **layout tree** — `abc`,
+`lilypond`, `latex`, `smiles`, `qr` and `mermaid` itself ([`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs)) — sizes its own content
 around it, and grafts the two into one combined layout tree
 ([`ContentInset`](../src/Nexaflow.Visuals.Text/Markdown/ContentInset.cs)). A language nothing here draws leaves the
 label drawn as the words it is.
@@ -1602,8 +1603,8 @@ stays inside it — and no hover or click behaviour beyond the selection every b
 ABC and LilyPond are two ways of writing the same thing, and one engraver draws both.
 
 - **Where it is written.** A fenced ```abc or ```lilypond block, or a file of its own, `.abc` or `.ly`.
-  Both reach [`MusicLanguage`](../src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs) — one
-  registration per notation in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
+  Both are described in [`Shipped`](../src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs) — one
+  language per notation in [`ContentLanguages`](../src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs) —
   so one path lights it up on both markdown surfaces. Music has no block syntax of its own: it is a
   fenced language like Mermaid or a QR code, read by the same table.
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
@@ -1618,7 +1619,7 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
   the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
-  of it — a page decision, made by the language (`MusicLanguage.PageWidth`) rather than by the engraver, which fills
+  of it — a page decision, made by the builder round the score (`MusicBuilder`) rather than by the engraving, which fills
   whatever width it is handed. Design: [docs/markdown-ast.md](markdown-ast.md).
 
 A notation's builder does only what that notation leaves to it. ABC writes down where its bars and beams

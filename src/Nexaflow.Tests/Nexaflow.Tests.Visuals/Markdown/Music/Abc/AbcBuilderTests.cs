@@ -44,7 +44,7 @@ public class AbcBuilderTests
     {
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcBuilder.Lay(abc, 700, StyleFormat.Light);
+            var layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
 
             // Read again here rather than taken from the builder, which hands back a layout and nothing else.
             // So the parts cannot be matched by identity, and are matched by what they are and where they are
@@ -99,7 +99,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void AndWhatNobodyWroteIsDrawnWithoutBeingSelectable() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay(SpeedThePlough, 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", SpeedThePlough, 700, StyleFormat.Light);
 
         foreach (var node in layout.Root.SelfAndDescendants())
         {
@@ -117,7 +117,7 @@ public class AbcBuilderTests
     {
         foreach (var (what, abc) in AbcConstructs.Everything)
         {
-            var layout = AbcBuilder.Lay(abc, 700, StyleFormat.Light);
+            var layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
 
             if (!abc.Contains('|') && !abc.Contains("ABc")) continue;
 
@@ -129,7 +129,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void ABarLineCanBePointedAtBecauseSomebodyWroteIt() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay("X:1\nK:C\nCDE|FGA|]\n", 400, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", "X:1\nK:C\nCDE|FGA|]\n", 400, StyleFormat.Light);
 
         var lines = layout.Root.SelfAndDescendants().Where(n => n.Kind == "barline").ToList();
 
@@ -148,7 +148,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void ATieAndASlurAreCurvesThatNobodyTyped() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay("X:1\nL:1/8\nK:C\nA-A (BcdB)|\n", 500, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", "X:1\nL:1/8\nK:C\nA-A (BcdB)|\n", 500, StyleFormat.Light);
 
         var ties = layout.Root.SelfAndDescendants().Where(n => n.Kind == "tie").ToList();
         var slurs = layout.Root.SelfAndDescendants().Where(n => n.Kind == "slur").ToList();
@@ -170,7 +170,7 @@ public class AbcBuilderTests
     public void AndASlurAcrossASystemBreakIsDrawnAtBothEnds() => UiThread.Run(() =>
     {
         // Narrow enough that the tune cannot sit on one line, with a slur running over the break.
-        var layout = AbcBuilder.Lay(
+        var layout = Laying.Engraved("abc", 
             "X:1\nL:1/8\nK:C\n(ABcd ABcd|ABcd ABcd|ABcd ABcd|ABcd ABcd)|\n", 300, StyleFormat.Light);
 
         var systems = layout.Root.SelfAndDescendants().Count(n => n.Kind == "system");
@@ -183,8 +183,8 @@ public class AbcBuilderTests
     [TestMethod]
     public void ADecorationIsDrawnWhereItsKindBelongs() => UiThread.Run(() =>
     {
-        var plain = AbcBuilder.Lay("X:1\nK:C\nA|\n", 400, StyleFormat.Light);
-        var marked = AbcBuilder.Lay("X:1\nK:C\n.HA|\n", 400, StyleFormat.Light);
+        var plain = Laying.Engraved("abc", "X:1\nK:C\nA|\n", 400, StyleFormat.Light);
+        var marked = Laying.Engraved("abc", "X:1\nK:C\n.HA|\n", 400, StyleFormat.Light);
 
         // A staccato hugs the head and a fermata stacks clear of the staff, but both are marks on the same
         // piece — so what says they landed is that the piece drew more than a bare note does.
@@ -197,8 +197,8 @@ public class AbcBuilderTests
     [TestMethod]
     public void GraceNotesAreDrawnOnTheNoteTheyBelongTo() => UiThread.Run(() =>
     {
-        var plain = AbcBuilder.Lay("X:1\nK:C\nA|\n", 400, StyleFormat.Light);
-        var graced = AbcBuilder.Lay("X:1\nK:C\n{gAG}A|\n", 400, StyleFormat.Light);
+        var plain = Laying.Engraved("abc", "X:1\nK:C\nA|\n", 400, StyleFormat.Light);
+        var graced = Laying.Engraved("abc", "X:1\nK:C\n{gAG}A|\n", 400, StyleFormat.Light);
 
         var note = Note(graced);
 
@@ -210,7 +210,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void ARepeatBracketRunsFromItsNumberToWhereTheRepeatEnds() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay(
+        var layout = Laying.Engraved("abc", 
             "X:1\nL:1/8\nK:G\n|:GABc dedB|1 dedB dedB:|2 c2ec B2dB|]\n", 700, StyleFormat.Light);
 
         var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "volta").ToList();
@@ -228,7 +228,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void APlacedAnnotationGoesWhereItsQuotesSaid() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay("""
+        var layout = Laying.Engraved("abc", """
             X:1
             K:C
             "^over"A "_under"B|
@@ -253,7 +253,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void TwoVoicesAreBracketedIntoOneSystem() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay(PartSong.Replace('!', '"'), 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", PartSong.Replace('!', '"'), 700, StyleFormat.Light);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var brackets = layout.Root.SelfAndDescendants().Where(n => n.Kind == "bracket").ToList();
@@ -280,7 +280,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void AndTheirBarsLineUp() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay(PartSong.Replace('!', '"'), 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", PartSong.Replace('!', '"'), 700, StyleFormat.Light);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         var lines = systems
@@ -297,7 +297,7 @@ public class AbcBuilderTests
     {
         // Both are written on the V: line, which is in the header — before any music. Reading them under
         // the guard that stops the header's meter being printed twice is how the first voice lost both.
-        var layout = AbcBuilder.Lay(PartSong.Replace('!', '"'), 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", PartSong.Replace('!', '"'), 700, StyleFormat.Light);
 
         Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "voice"),
             "both voices are named at the left");
@@ -320,7 +320,7 @@ public class AbcBuilderTests
         // about where the bars are would misalign every bar after the first difference.
         var uneven = "X:1\nM:4/4\nL:1/8\nK:C\nV:1\nCDEF GABc|cBAG|\nV:2\nC,D,E,F,|G,A,B,C|CB,A,G,|\n";
 
-        var layout = AbcBuilder.Lay(uneven, 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", uneven, 700, StyleFormat.Light);
 
         Assert.AreEqual(2, layout.Root.SelfAndDescendants().Count(n => n.Kind == "system"));
         Assert.AreEqual(0, layout.Root.SelfAndDescendants().Count(n => n.Kind == "bracket"),
@@ -334,7 +334,7 @@ public class AbcBuilderTests
         // staff and far under a treble one, so where its head lands says which clef it was drawn in.
         foreach (var key in new[] { "K:C bass", "K:C clef=bass" })
         {
-            var layout = AbcBuilder.Lay($"X:1\nL:1/4\n{key}\nC,|\n", 400, StyleFormat.Light);
+            var layout = Laying.Engraved("abc", $"X:1\nL:1/4\n{key}\nC,|\n", 400, StyleFormat.Light);
             var staff = layout.Root.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
             var head = layout.Root.SelfAndDescendants().First(n => n.Kind == "head").Ink();
 
@@ -343,7 +343,7 @@ public class AbcBuilderTests
         }
 
         // …and only a K: or a V: can name one: a title about a bass is not a clef.
-        var titled = AbcBuilder.Lay("X:1\nT:Bass line\nL:1/4\nK:C\nc|\n", 400, StyleFormat.Light);
+        var titled = Laying.Engraved("abc", "X:1\nT:Bass line\nL:1/4\nK:C\nc|\n", 400, StyleFormat.Light);
         var lines = titled.Root.SelfAndDescendants().Where(n => n.Kind == "staff-line").ToList();
         var c = titled.Root.SelfAndDescendants().First(n => n.Kind == "head").Ink();
         Assert.IsTrue(c.Top >= lines[0].Bounds.Top - 1 && c.Bottom <= lines[^1].Bounds.Bottom + 1,
@@ -357,7 +357,7 @@ public class AbcBuilderTests
         // it belongs to. Filed under the voice before it, every part took its neighbour's clef — the soprano hung
         // off a bass staff and the bass off a treble one. One voice is declared `V: 2`, the way the chorales
         // declare theirs: split on the space before its id, every voice was filed under the same empty one.
-        var layout = AbcBuilder.Lay(
+        var layout = Laying.Engraved("abc", 
             "X:1\nL:1/4\nM:C\nV:1 clef=treble\nV: 2 clef=bass\nK:C\n[V:1] c d e f |\n[V:2] C, D, E, F, |\n",
             700, StyleFormat.Light);
 
@@ -438,7 +438,7 @@ public class AbcBuilderTests
     [TestMethod]
     public void EveryLineButAShortLastOneSharesOneWidth() => UiThread.Run(() =>
     {
-        var layout = AbcBuilder.Lay(SpeedThePlough, 600, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", SpeedThePlough, 600, StyleFormat.Light);
 
         var systems = layout.Root.SelfAndDescendants().Where(n => n.Kind == "system").ToList();
         Assert.IsTrue(systems.Count >= 2, "the tune should not fit on one line at this width");

@@ -29,7 +29,7 @@ public class PlotBuilderTests
     private const string Cars = "weight  mpg\n3504  18\n2372  24\n1613  35";
 
     private static Laid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
-        PlotBuilder.Build(source, fence, StyleFormat.Dark, room);
+        Laying.Lay(fence.ToString().ToLowerInvariant(), source, room);
 
     [TestMethod]
     public void ASettingThatWillNotRead_IsMarkedWhereItIsWritten() => UiThread.Run(() =>

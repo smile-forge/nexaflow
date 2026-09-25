@@ -44,13 +44,8 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     /// <summary>The smallest a structure is drawn at to fit its room, before it is let overflow instead.</summary>
     private const double SmallestScale = 0.5;
-    internal SmilesBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Lays a block's source out to fit <paramref name="room"/>. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style, double room = double.PositiveInfinity, int at = 0) =>
-        new SmilesBuilder(ContentReading.Of(SmilesPipeline.Read(source), at), EditState.For(source), style, isReadOnly: true)
-            .Lay(room);
+    internal SmilesBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Laid? Build()
     {

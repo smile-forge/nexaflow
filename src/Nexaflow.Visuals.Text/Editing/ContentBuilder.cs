@@ -42,13 +42,17 @@ public abstract class ContentBuilder
     /// <param name="state">What is being written, and where — see <see cref="State"/>.</param>
     /// <param name="style">What it is drawn in: colours, type, and anything else about this showing of it.</param>
     /// <param name="isReadOnly">Whether the block is only being looked at.</param>
-    protected ContentBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+    /// <param name="nesting">What lays out content written in another language inside this one — see <see cref="Nested"/>.</param>
+    protected ContentBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
     {
         Reading = reading;
         State = state;
         Style = style;
         IsReadOnly = isReadOnly;
+        _nesting = nesting;
     }
+
+    private readonly Nesting _nesting;
 
     /// <summary>The content this is laying out, read and worked over before it ever got here.</summary>
     protected ContentReading Reading { get; }
@@ -100,7 +104,7 @@ public abstract class ContentBuilder
     /// </summary>
     public Laid Lay(double room = double.PositiveInfinity)
     {
-        Room = double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room;
+        Room = Within(double.IsNaN(room) || room <= 0 ? double.PositiveInfinity : room);
 
         try
         {
@@ -114,6 +118,26 @@ public abstract class ContentBuilder
             return AsSource([(Reading.Root, $"This could not be set: {error.Message}")]);
         }
     }
+
+    /// <summary>
+    /// How much of the room it is handed this content is laid out within. Most take all of it; a plot keeps to a panel a reader
+    /// can take in, and a symbol is drawn at the size its modules say whatever room it lands in.
+    /// </summary>
+    protected virtual double Within(double room) => room;
+
+    /// <summary>
+    /// What <paramref name="holder"/> holds written in another language — a fence's body, a formula in a sentence, a tune on a
+    /// node — laid out at <paramref name="room"/>, or null where nothing read it.
+    ///
+    /// <para>
+    /// The one thing a builder asks for. The content was parsed by its own language before this builder was made; it is worked
+    /// over and laid out now because only this builder knows the room it is giving it and what the content is drawn in there.
+    /// Where it goes is this builder's to decide.
+    /// </para>
+    /// </summary>
+    /// <param name="style">What it is drawn in, where not what this content is drawn in — a formula on its own line is set larger than the words round it.</param>
+    private protected ContentInset? Nested(ContentPart holder, double room, StyleFormat? style = null) =>
+        _nesting.Lay(holder, room, style ?? Style, State.Raw, Writing);
 
     /// <summary>
     /// Lay the content out, or null where none of it is this builder's to draw.
@@ -140,8 +164,11 @@ public abstract class ContentBuilder
     /// shows for what it cannot draw. It names parts of the tree it was given, never characters: turning the tree back into
     /// what was written is <see cref="SourceShown"/>'s.
     /// </summary>
-    protected Laid AsSource(IReadOnlyList<(ContentPart Part, string Reason)> blamed) =>
-        SourceShown.Lay(Reading.Root, blamed, Characters, Style, Room);
+    protected Laid AsSource(IReadOnlyList<(ContentPart Part, string Reason)> blamed) => AsSource(blamed, Room);
+
+    /// <summary>The same, wrapped to <paramref name="room"/> rather than to all the room this content was given.</summary>
+    protected Laid AsSource(IReadOnlyList<(ContentPart Part, string Reason)> blamed, double room) =>
+        SourceShown.Lay(Reading.Root, blamed, Characters, Style, room);
 
     /// <summary>The whole block as it is written, and why none of it could be drawn.</summary>
     protected Laid AsSource(string reason) => AsSource([(Reading.Root, reason)]);

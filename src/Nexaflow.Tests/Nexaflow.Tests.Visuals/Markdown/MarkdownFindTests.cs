@@ -46,7 +46,7 @@ public class MarkdownFindTests
     {
         // The slice is drawn as a label, a share and a legend row, each its own piece and none of them the
         // word on its own. Looking in the source finds it; looking at the drawing would not.
-        var laid = MarkdownBuilder.Lay(Doc, StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, Doc, 480, StyleFormat.Dark);
         var inside = MarkdownFind.Every(Doc, "chrome")[1];
 
         Assert.IsTrue(laid.Root.RangeRects(inside.Start, inside.Length).Count > 0,
@@ -75,7 +75,7 @@ public class MarkdownFindTests
         // A writer who numbered every line 1. meant a list, and the page says 1. 2. 3. — so a reader looking
         // for the third item searches for what they can see, and the source has never said it.
         const string source = "1. one\n1. two\n1. three\n";
-        var laid = MarkdownBuilder.Lay(source, StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, source, 480, StyleFormat.Dark);
 
         Assert.AreEqual(0, MarkdownFind.Every(source, "3.").Count, "nowhere in the source does it say 3.");
 
@@ -91,7 +91,7 @@ public class MarkdownFindTests
         // A run already says whether what is drawn is what was written, because that is what makes a caret
         // possible inside it. The ones that say no are exactly the ones to look at — whatever they are, and
         // whatever language drew them.
-        var laid = MarkdownBuilder.Lay("> [!CAUTION]\n> Mind out.\n\na &amp; b and not \\*this\\*\n", StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, "> [!CAUTION]\n> Mind out.\n\na &amp; b and not \\*this\\*\n", 480, StyleFormat.Dark);
 
         Assert.AreEqual(1, MarkdownFind.Shown(laid, "Caution").Count, "an alert's label");
         Assert.AreEqual(1, MarkdownFind.Shown(laid, "&").Count, "an entity");
@@ -102,7 +102,7 @@ public class MarkdownFindTests
     public void AndASearchIsBothAtOnceWithEachPlaceOnlyOnce() => UiThread.Run(() =>
     {
         const string source = "Item 2 is below.\n\n1. one\n1. two\n";
-        var laid = MarkdownBuilder.Lay(source, StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, source, 480, StyleFormat.Dark);
 
         var found = MarkdownFind.In(laid, source, "2");
 
@@ -110,13 +110,6 @@ public class MarkdownFindTests
         CollectionAssert.AreEqual(found.OrderBy(place => place.Start).ToArray(), found.ToArray(),
             "in the order a reader comes to them");
     });
-
-    [TestMethod]
-    public void ALanguageIsOnlyAskedForWhatNeitherOfThoseWouldCatch()
-    {
-        // The escape hatch, and it should stay one: nothing in the table has needed it.
-        Assert.AreEqual(0, ContentLanguages.For("mermaid")!.Finds(new ContentAsk("mermaid", "pie\n"), "chrome").Count);
-    }
 
     // ── A line number ───────────────────────────────────────────────────────
 
@@ -260,7 +253,7 @@ public class MarkdownFindTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static ContentPart Read(string source) =>
-        ContentPart.Of(MarkdownParser.Reader.Run(MarkdownParser.Read(source)));
+        ContentPart.Of(MarkdownParser.Parse(source));
 
     private static ContentPart Item(ContentPart root, int at) =>
         root.SelfAndDescendants().Where(part => part.Kind == MarkdownKinds.Item).ElementAt(at);

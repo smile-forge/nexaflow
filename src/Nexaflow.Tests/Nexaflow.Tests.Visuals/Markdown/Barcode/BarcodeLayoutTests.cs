@@ -25,7 +25,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 public class BarcodeLayoutTests
 {
     /// <summary>A block laid out as a document being written lays it: somewhere its value can be put right in place.</summary>
-    private static Laid Written(string source) => BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: false);
+    private static Laid Written(string source) => Laying.Lay("barcode", source, style: StyleFormat.Dark, writing: true);
 
     private static Piece Root(string source) => Written(source).Root;
 
@@ -98,7 +98,7 @@ public class BarcodeLayoutTests
     {
         const string source = "format: CODE39\nvalue: MARKdOWN-39";
 
-        var looked = BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: true);
+        var looked = Laying.Lay("barcode", source, style: StyleFormat.Dark);
         Assert.IsTrue(looked.ShowsSource, "only being looked at, there is nowhere to put it right but its source");
         Assert.AreEqual(ValueAt(source, "MARKdOWN-39"), looked.Trouble.Single().Start, "with the value marked");
 
@@ -199,7 +199,7 @@ public class BarcodeLayoutTests
         Assert.AreEqual(0, written.Trouble.Count, "nothing is wrong yet, there is only something still to write");
         Assert.AreEqual(source.Length, hole.Sits().Start, "and the hole stands where the value goes");
 
-        var looked = BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: true);
+        var looked = Laying.Lay("barcode", source, style: StyleFormat.Dark);
         Assert.IsTrue(looked.ShowsSource, "only being read, a missing value is shown as written");
         Assert.AreEqual(source.IndexOf("value:", StringComparison.Ordinal), looked.Trouble.Single().Start, "with its line marked");
     });

@@ -136,7 +136,7 @@ public class Pdf417BuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => Pdf417Builder.Lay(source, StyleFormat.Dark);
+    private static Laid Build(string source) => Laying.Lay("pdf417", source, style: StyleFormat.Dark);
 
     private static Pdf417Block Read(string source)
     {

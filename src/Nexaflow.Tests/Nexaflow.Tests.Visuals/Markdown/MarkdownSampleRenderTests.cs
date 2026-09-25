@@ -117,7 +117,7 @@ public class MarkdownSampleRenderTests
             {
                 string latex = math.Content.ToString();
 
-                var layout = LatexBuilder.Lay(latex, 20);
+                var layout = Laying.Formula(latex, 20);
                 var ok = layout is not null
                          && !layout.Trouble.Any(d => d.Severity == DiagnosticSeverity.Error);
 
@@ -328,7 +328,7 @@ public class MarkdownSampleRenderTests
     /// </summary>
     private static void Lays(string md, IEnumerable<FencedCodeBlock> fences, string what)
     {
-        var laid = MarkdownBuilder.Lay(md, StyleFormat.Dark, 700);
+        var laid = Laying.Lay(null, md, 700, StyleFormat.Dark);
         Assert.IsTrue(laid.Draws, $"{what}: the document drew nothing");
 
         var drawn = laid.Root.SelfAndDescendants().Where(piece => piece.Part is not null).Select(piece => piece.Sits().Start).ToList();

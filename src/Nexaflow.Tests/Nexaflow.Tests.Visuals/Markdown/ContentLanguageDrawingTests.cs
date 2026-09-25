@@ -102,7 +102,7 @@ public class ContentLanguageDrawingTests
         foreach (var (named, _) in Written)
             Assert.IsNotNull(ContentLanguages.For(named), $"nothing reads '{named}' any more");
 
-        Assert.IsTrue(Written.Select(entry => ContentLanguages.For(entry.Named)!.GetType()).Distinct().Count() >= 13,
+        Assert.IsTrue(Written.Select(entry => ContentLanguages.For(entry.Named)).Distinct().Count() >= 17,
             "the sweep should reach every language in the table, not the same one under many names");
     }
 
@@ -111,9 +111,9 @@ public class ContentLanguageDrawingTests
     {
         // The specific shape of the rule: a barcode block that will not read has no symbol in it, so it lays its source
         // with why — and the document puts the block's source there, fences and all, where the caret can reach it.
-        var laid = ContentLanguages.For("barcode")!.Lay(new ContentRequest("format:\nvalue:\n", StyleFormat.Dark));
-        Assert.IsTrue(laid?.ShowsSource ?? false, "shown as written");
-        Assert.AreNotEqual(0, laid?.Trouble.Count ?? 0, "and it says why");
+        var laid = Laying.Lay("barcode", "format:\nvalue:\n");
+        Assert.IsTrue(laid.ShowsSource, "shown as written");
+        Assert.AreNotEqual(0, laid.Trouble.Count, "and it says why");
 
         var document = Lay("barcode", "format:\nvalue:\n");
         var shown = document.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind);
@@ -128,7 +128,7 @@ public class ContentLanguageDrawingTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string named, string source) =>
-        MarkdownBuilder.Lay($"```{named}\n{source}```\n", StyleFormat.Dark, 480);
+        Laying.Lay(null, $"```{named}\n{source}```\n", 480, StyleFormat.Dark);
 
     /// <summary>Whether anything at all reached the page: a run of words, or a mark of any kind.</summary>
     private static bool Anything(Laid laid)

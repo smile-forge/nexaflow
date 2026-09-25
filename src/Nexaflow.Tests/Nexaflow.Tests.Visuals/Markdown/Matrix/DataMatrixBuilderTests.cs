@@ -112,7 +112,7 @@ public class DataMatrixBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => DataMatrixBuilder.Lay(source, StyleFormat.Dark);
+    private static Laid Build(string source) => Laying.Lay("datamatrix", source, style: StyleFormat.Dark);
 
     private static DataMatrixBlock Read(string source)
     {

@@ -102,9 +102,9 @@ public class LilyPondCorpusParityTests
     private static string? Compare(string abc, string ly)
     {
         Laid one, other;
-        try { one = AbcBuilder.Lay(abc, Width, StyleFormat.Light); }
+        try { one = Laying.Engraved("abc", abc, Width, StyleFormat.Light); }
         catch (Exception e) { return $"abc threw {e.GetType().Name}: {e.Message}"; }
-        try { other = LilyPondBuilder.Lay(ly, Width, StyleFormat.Light); }
+        try { other = Laying.Engraved("lilypond", ly, Width, StyleFormat.Light); }
         catch (Exception e) { return $"ly threw {e.GetType().Name}: {e.Message}"; }
 
         var (abcNotes, abcBars) = Read(one);
@@ -188,8 +188,8 @@ public class LilyPondCorpusParityTests
     /// </summary>
     private static void Picture(string abc, string ly, string file)
     {
-        var one = Engraved(abc, (source, room) => AbcBuilder.Lay(source, room, StyleFormat.Light));
-        var other = Engraved(ly, (source, room) => LilyPondBuilder.Lay(source, room, StyleFormat.Light));
+        var one = Engraved(abc, (source, room) => Laying.Engraved("abc", source, room, StyleFormat.Light));
+        var other = Engraved(ly, (source, room) => Laying.Engraved("lilypond", source, room, StyleFormat.Light));
 
         var height = one.PixelHeight + other.PixelHeight + 24;
         var visual = new DrawingVisual();

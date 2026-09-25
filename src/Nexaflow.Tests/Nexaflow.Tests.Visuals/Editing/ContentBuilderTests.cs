@@ -31,7 +31,7 @@ public class ContentBuilderTests
     /// <summary>A builder that draws nothing, however it is asked.</summary>
     private sealed class Unwilling(string source, Func<Laid?> read)
         : ContentBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, source)), EditState.For(source),
-                         StyleFormat.Dark, isReadOnly: true)
+                         StyleFormat.Dark, isReadOnly: true, Nexaflow.Tests.Visuals.Markdown.Laying.NestingNothing)
     {
         protected override Laid? Build() => read();
 

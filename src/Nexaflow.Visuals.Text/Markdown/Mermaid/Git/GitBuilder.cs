@@ -95,7 +95,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
     private static readonly DoubleCollection Dotted = Frozen([3, 3]);
 
-    internal GitBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal GitBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override GitGraph Of(MermaidBlock block) => GitGraph.Of(block);

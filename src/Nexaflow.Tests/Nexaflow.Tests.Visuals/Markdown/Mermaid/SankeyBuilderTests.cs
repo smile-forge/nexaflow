@@ -186,7 +186,7 @@ public class SankeyBuilderTests : MermaidBuilderContract
     });
 
     private static Laid Build(string source, double room = 900) =>
-        new SankeyBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     private static GeometryMark Marks(Laid laid) =>
         Pieces(laid, SankeyPiece.Flow).Single().Marks.ToArray().OfType<GeometryMark>().First();

@@ -40,7 +40,7 @@ public class MindmapBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        new MindmapBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     private static Piece Node(Laid laid, string source, string title) =>
         Pieces(laid, MindmapPiece.Node).Single(node => Written(source, node.Part).Contains(title, System.StringComparison.Ordinal));

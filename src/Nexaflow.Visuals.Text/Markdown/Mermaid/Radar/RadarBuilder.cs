@@ -87,7 +87,7 @@ internal sealed class RadarBuilder : MermaidBuilder<RadarChart>
     /// <summary>What the legend's one column is.</summary>
     private static readonly string[] Columns = [RadarPiece.Name];
 
-    internal RadarBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal RadarBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override RadarChart Of(MermaidBlock block) => RadarChart.Of(block);

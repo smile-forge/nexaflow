@@ -72,7 +72,7 @@ internal sealed class KanbanBuilder : MermaidBuilder<KanbanBoard>
     /// <summary>How tall a lane is with no cards in it, at least.</summary>
     private const double Least = 50;
 
-    internal KanbanBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal KanbanBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override KanbanBoard Of(MermaidBlock block) => KanbanBoard.Of(block);

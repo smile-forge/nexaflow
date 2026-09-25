@@ -79,7 +79,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         return dashes;
     }
 
-    internal GanttBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal GanttBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override GanttChart Of(MermaidBlock block) => GanttChart.Of(block);

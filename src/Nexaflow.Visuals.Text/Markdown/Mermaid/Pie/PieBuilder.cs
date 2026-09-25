@@ -78,7 +78,7 @@ internal sealed class PieBuilder : MermaidBuilder<PieChart>
     /// <summary>What each of the legend's columns is: a slice's label, its value, and its share.</summary>
     private static readonly string[] Columns = [PiePiece.Label, PiePiece.Value, PiePiece.Share];
 
-    internal PieBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal PieBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override PieChart Of(MermaidBlock block) => PieChart.Of(block);

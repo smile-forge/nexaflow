@@ -74,7 +74,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     private const double Shaft = 0.16;
     private const double Wing = 0.3;
 
-    internal BlockBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal BlockBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override BlockDiagram Of(MermaidBlock block) => BlockDiagram.Of(block);

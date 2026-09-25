@@ -68,7 +68,7 @@ public class LatexPaintTests
     {
         // The formula is painted with the theme's brush, so a theme change must repaint without
         // re-typesetting. What a \textcolor asked for is its own and must survive that.
-        var layout = LatexBuilder.Lay(@"\textcolor{red}{x} + y", Scale);
+        var layout = Laying.Formula(@"\textcolor{red}{x} + y", Scale);
         Assert.IsNotNull(layout);
 
         var black = Draw(layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black));
@@ -87,7 +87,7 @@ public class LatexPaintTests
         // What the whole-formula drawing cache used to prevent. Painting a subtree must give that subtree
         // and nothing else, in the same place it sits in the whole.
         const string latex = @"\frac{x^2}{2}+y";
-        var layout = LatexBuilder.Lay(latex, Scale);
+        var layout = Laying.Formula(latex, Scale);
         Assert.IsNotNull(layout);
 
         var fraction = layout.Root.SelfAndDescendants()

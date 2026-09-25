@@ -81,7 +81,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     /// <summary>How big the dot marking a value on a line is.</summary>
     private const double Dotted = 4;
 
-    internal XyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal XyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override XyChart Of(MermaidBlock block) => XyChart.Of(block);

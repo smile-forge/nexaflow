@@ -30,7 +30,7 @@ public class DiagramRendererTests
     [CoversNode("sequence-diagram")]
     public void Sequence_DrawsOnTheSharedLayoutTree() => UiThread.Run(() =>
     {
-        var laid = MermaidBuilders.Lay(SequenceSrc, StyleFormat.Dark);
+        var laid = Laying.Lay("mermaid", SequenceSrc, style: StyleFormat.Dark);
 
         Assert.IsNotNull(laid);
         Assert.IsTrue(laid!.Root.SelfAndDescendants().Any(piece => piece.Kind == SequencePiece.Lifeline));
@@ -48,7 +48,7 @@ public class DiagramRendererTests
     public void C4Sequence_DrawsOnTheSharedLayoutTreeToo() => UiThread.Run(() =>
     {
         const string source = "C4Sequence\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\", \"HTTPS\")";
-        var laid = MermaidBuilders.Lay(source, StyleFormat.Dark);
+        var laid = Laying.Lay("mermaid", source, style: StyleFormat.Dark);
 
         Assert.IsNotNull(laid);
         Assert.AreEqual(2, laid!.Root.SelfAndDescendants().Count(piece => piece.Kind == SequencePiece.Lifeline));

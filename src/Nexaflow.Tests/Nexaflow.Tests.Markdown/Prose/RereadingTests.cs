@@ -19,22 +19,22 @@ public class RereadingTests
     [TestMethod]
     public void ReadingAgainAfterAnEditIsReadingFromNothing()
     {
-        var reader = MarkdownParser.Rereading();
-        reader.Run(MarkdownParser.Read(Document));
+        var parse = MarkdownParser.Parsing();
+        parse(Document);
 
         var edited = Document.Replace("First", "The first");
-        var again = reader.Run(MarkdownParser.Read(edited));
+        var again = parse(edited);
 
-        Assert.IsTrue(again.Same(MarkdownParser.Reader.Run(MarkdownParser.Read(edited))));
+        Assert.IsTrue(again.Same(MarkdownParser.Parse(edited)));
         Assert.AreEqual(edited, again.Print());
     }
 
     [TestMethod]
     public void ABlockWrittenAsItWasIsTheBlockReadLastTime()
     {
-        var reader = MarkdownParser.Rereading();
-        var before = Blocks(reader.Run(MarkdownParser.Read(Document)));
-        var after = Blocks(reader.Run(MarkdownParser.Read(Document.Replace("First", "The first"))));
+        var parse = MarkdownParser.Parsing();
+        var before = Blocks(parse(Document));
+        var after = Blocks(parse(Document.Replace("First", "The first")));
 
         Assert.AreSame(before[0], after[0], "the heading nobody touched");
         Assert.AreNotSame(before[1], after[1], "the paragraph typed in");
@@ -47,10 +47,10 @@ public class RereadingTests
     {
         // Every block's words are read beside what the document defines, so a change there is a change to every block.
         const string defined = "Go [there][a].\n\n[a]: https://one.example\n";
-        var reader = MarkdownParser.Rereading();
+        var parse = MarkdownParser.Parsing();
 
-        var before = Blocks(reader.Run(MarkdownParser.Read(defined)));
-        var after = Blocks(reader.Run(MarkdownParser.Read(defined.Replace("one", "two"))));
+        var before = Blocks(parse(defined));
+        var after = Blocks(parse(defined.Replace("one", "two")));
 
         Assert.AreNotSame(before[0], after[0]);
     }

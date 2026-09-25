@@ -36,7 +36,7 @@ public class PieBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        new PieBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind);

@@ -52,7 +52,7 @@ internal class SequenceBuilder : MermaidBuilder<SequenceDiagram>
     /// <summary>How much of a box's or a wash's colour is laid over what is behind it.</summary>
     private const double Wash = 0.14;
 
-    internal SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal SequenceBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override SequenceDiagram Of(MermaidBlock block) => SequenceDiagram.Of(block);

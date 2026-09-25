@@ -140,8 +140,14 @@ public sealed class ContentPart : ISourcePart
             var from = this.Start;
             var to = this.End;
 
-            if (this._children[0].Role == Roles.Open) from = this._children[0].End;
-            if (this._children[^1].Role is Roles.Close or Roles.Separator) to = this._children[^1].Start;
+            // What a stage or a parser hangs on a part prints as nothing and stands nowhere, so it is no delimiter.
+            var first = 0;
+            var last = this._children.Length - 1;
+            while (first < last && this._children[first].Derived) first++;
+            while (last > first && this._children[last].Derived) last--;
+
+            if (this._children[first].Role == Roles.Open) from = this._children[first].End;
+            if (this._children[last].Role is Roles.Close or Roles.Separator) to = this._children[last].Start;
 
             return from <= to ? (from, to - from) : this.Span;
         }

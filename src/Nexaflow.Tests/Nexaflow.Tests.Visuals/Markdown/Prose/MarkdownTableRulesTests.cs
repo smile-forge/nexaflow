@@ -21,7 +21,7 @@ public class MarkdownTableRulesTests
     [TestMethod]
     public void ATableIsRuledOverAndUnderEveryRowAndBesideEveryColumn()
     {
-        var (across, down, table) = Rules(MarkdownBuilder.Lay("| a | b |\n|---|---|\n| c | d |\n", StyleFormat.Dark, 480));
+        var (across, down, table) = Rules(Laying.Lay(null, "| a | b |\n|---|---|\n| c | d |\n", 480, StyleFormat.Dark));
 
         var levels = across.GroupBy(rule => Math.Round(rule.Y, 1)).ToList();
         var edges = down.GroupBy(rule => Math.Round(rule.X, 1)).ToList();
@@ -36,8 +36,7 @@ public class MarkdownTableRulesTests
     [TestMethod]
     public void NoLineIsDrawnThroughACellCoveringTwoColumns()
     {
-        var laid = MarkdownBuilder.Lay("+-------+------+\n| Big          |\n+=======+======+\n| a     | b    |\n+-------+------+\n",
-                                       StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, "+-------+------+\n| Big          |\n+=======+======+\n| a     | b    |\n+-------+------+\n", 480);
         var (_, down, table) = Rules(laid);
 
         var inner = down.Where(rule => rule.X > table.Left + 1 && rule.X < table.Right - 2).ToList();

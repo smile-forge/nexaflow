@@ -259,7 +259,7 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     {
         get
         {
-            var (start, length) = ContentNesting.Own(Body);
+            var (start, length) = ContentNested.Own(Body);
             return start + length;
         }
     }

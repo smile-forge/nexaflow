@@ -42,7 +42,7 @@ public class JourneyBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 900) =>
-        new JourneyBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     [TestMethod]
     public void TheTasksRunInARowUnderTheBandOfTheSectionTheyAreIn() => UiThread.Run(() =>

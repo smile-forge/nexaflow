@@ -21,12 +21,8 @@ internal sealed class UnknownDiagramBuilder : MermaidBuilder
     /// Read-only whatever it was asked for: written in or not, a block shown as its own characters looks the
     /// same, because there is nothing in it still to be written.
     /// </remarks>
-    internal UnknownDiagramBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly: true) { }
-
-    /// <summary>The same, for a block nobody is writing in.</summary>
-    internal static Laid Lay(string source, StyleFormat style, double room = double.PositiveInfinity) =>
-        new UnknownDiagramBuilder(MermaidBuilders.Read(source), EditState.For(source), style, isReadOnly: true).Lay(room);
+    internal UnknownDiagramBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly: true, nesting) { }
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build) => AsWritten(build);
 
