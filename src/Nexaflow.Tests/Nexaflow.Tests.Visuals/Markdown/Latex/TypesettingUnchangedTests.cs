@@ -53,24 +53,29 @@ public class TypesettingUnchangedTests
     /// the ones that draw something. Every hash moved and no formula did — which is the point of the
     /// change, and the reason the old numbers are not worth keeping beside the new ones.
     /// </para>
+    /// <para>
+    /// Recorded again when the check was put back after going unrun, by which time every hash had moved with the
+    /// leaf rules. Nothing here says which of those formulas moved for a good reason; the corpus sweep is what
+    /// holds them against LaTeX's own renderings.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, string> Settled = new(StringComparer.Ordinal)
     {
-        ["fractions and binomials"] = "1448FD4EF22417F5",
-        ["roots, bars and boxes"] = "681D9E8E48FBA6D4",
+        ["fractions and binomials"] = "013DDD0E2CE9C3F5",
+        ["roots, bars and boxes"] = "EE52D9AB5FB6ED7E",
         // Moved 2026-08-30. A script on something typed as a big operator is a limit, set over and under
         // the sign rather than beside it. Only an atom that *was* a BigOperatorAtom got that, so \sum did
         // and \mathop{X} did not — and \mathop is how a paper writes an operator of its own.
-        ["scripts, primes and big operators"] = "D1FCDD41BA85DE33",
-        ["accents and arrows"] = "195E9AEA77EA1A0A",
-        ["fences and delimiters"] = "EB24F7C32E81A8E7",
-        ["matrices and environments"] = "AFE71FA801602FA1",
+        ["scripts, primes and big operators"] = "FDF8D818212AC094",
+        ["accents and arrows"] = "2A255E3A539DA8D9",
+        ["fences and delimiters"] = "C86116062C9363D2",
+        ["matrices and environments"] = "27CBEAB5C83474E3",
         // Moved 2026-08-29 with the array work: an array is strutted like the table it is, and no longer
         // spaced by a bare 0.35 of padding, so its rows sit a line apart. And a row taller than its strut
         // keeps at least TeX %s lineskip beneath the one above, which is what stopped `\frac T m` over
         // `\frac 1 3` putting the m and the 1 in the same pixels.
-        ["aligned and gathered blocks"] = "925C975D6DD4248B",
-        ["stacked and gathered"] = "AEE4C548EF2E7028",
+        ["aligned and gathered blocks"] = "083F700A655BC7F3",
+        ["stacked and gathered"] = "47339FF03EBE02A1",
         // These three moved 2026-08-29, when the engine's own parser stopped being a fallback and every
         // formula started being set from our reading. All three contain constructs that used to decline
         // — the `\text` family, `\mod`, the overlap commands — so what changed hands is who set them,
@@ -88,22 +93,45 @@ public class TypesettingUnchangedTests
         // Moved when `\text{…}` stopped being padded with a thin space at each end. That padding was
         // meant for a stretch shown because it could not be read, and reached every text command by
         // sharing the same builder — see LatexBuilder.LettersItem.
-        ["text styles and fonts"] = "FCAB07860B836086",
+        ["text styles and fonts"] = "402805D413B24375",
         // These two moved 2026-08-29 because two things stopped being set as their own characters. `\ `
         // is drawn by the builder and was not in the table the reading asks whether anything can draw it,
         // so it came out red; and characters shown because nothing could read or draw them are now set as
         // text rather than as maths, where a backslash and a brace have no glyph worth the name.
-        ["spacing, dots and modular arithmetic"] = "80629F46344E0338",
-        ["colour, phantoms and overlap"] = "D49F6D37947045CE",
-        ["styles and sizes"] = "CAE74BF57299F92F",
+        ["spacing, dots and modular arithmetic"] = "7AE4CF9BC2F64409",
+        ["colour, phantoms and overlap"] = "5EBB82F1708AB4AD",
+        ["styles and sizes"] = "B25AB0726B456C03",
         // Moved 2026-08-29, and for the reason this guard exists to make somebody give: \mapsto is now
         // set as TeX sets it. Computer Modern has a \mapstochar — zero width, on the axis, made for
         // exactly this — sitting beside \not in cmsy and never named in our symbol table, so the bar had
         // been faked with a full-height \vert pulled back five mu. Held against the corpus's own LaTeX
         // renderings of the 528 formulas that use it, the change moved 430 closer and 98 further, mean
         // ink overlap 0.6907 → 0.7069.
-        ["greek, relations and symbols"] = "67FD8491CB5D1FE4",
+        ["greek, relations and symbols"] = "F4865C6BBC7481E6",
     };
+
+    [TestMethod]
+    public void EveryConstructIsStillSetWhereItWas() => UiThread.Run(() =>
+    {
+        var moved = new List<string>();
+
+        foreach (var (what, written) in LatexConstructs.Everything)
+        {
+            var settled = Shape(Formula.Lay(LatexConstructs.Flatten(written), Scale));
+
+            if (!Settled.TryGetValue(what, out var was))
+            {
+                moved.Add($"[\"{what}\"] = \"{settled}\",   // new");
+                continue;
+            }
+
+            if (was != settled) moved.Add($"[\"{what}\"] = \"{settled}\",   // was {Short(was)}");
+        }
+
+        Assert.AreEqual(0, moved.Count,
+            "the typesetting moved. Look at each formula, decide whether it moved for a good reason, "
+            + "and paste these in:\n" + string.Join("\n", moved));
+    });
 
     /// <summary>
     /// Where every piece of the layout went, as one string: what each piece is and the rectangle it
