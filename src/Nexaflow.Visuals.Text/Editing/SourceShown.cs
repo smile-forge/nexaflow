@@ -97,7 +97,7 @@ public static class SourceShown
         var build = new LayoutBuilder();
         build.Open(Block, part: null, stops: Stops.None);
         LayoutText.Place(build, text, default, Math.Max(text.WidthIncludingTrailingWhitespace, 1), TextAlignment.Left,
-                         new SourceSpan(tree.Start, printed.Length), LayoutText.SourceKind, letters);
+                         new SourceSpan(tree.Start, printed.Length), LayoutText.SourceKind, letters, characters);
 
         // A piece over each blamed part's characters, so pressing them means the part. It is drawn in nothing: the characters
         // under it are the source's, and the wave under them the host's.

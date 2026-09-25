@@ -29,20 +29,16 @@ public static class LayoutText
     /// since that's what a reader drags across and a wash covers; a centred title extending to the whole page
     /// would highlight the margins beside itself.
     /// </summary>
-    /// <param name="at">Where the column begins, in the frame of whatever is open.</param>
-    /// <param name="part">The source this text was written in; without one the piece is drawn but can't be selected (right for an invented label, wrong for anything a reader typed).</param>
-    /// <param name="letters">
-    /// Where each character was written, so words select the way words select (letter, word, phrase) rather
-    /// than all-or-nothing. Handed in rather than worked out: whether the nth character drawn is the nth
-    /// character written is a fact about the content (a label with a prefix isn't), which nothing here can
-    /// know. Null draws the run as one piece.
+    /// <param name="lines">
+    /// How the text's characters are set, where the caller has it — the builder's own setting of raw characters — so each line
+    /// can be measured on its own for where its letters stand. Measuring a letter inside a text of many lines sets every line of
+    /// it again, which for a whole block shown as written is every line for every character.
     /// </param>
     public static int Place(LayoutBuilder into, FormattedText text, Point at, double room,
                             TextAlignment align, ISourcePart? part, string kind,
-                            IReadOnlyList<ISourcePart>? letters = null)
+                            IReadOnlyList<ISourcePart>? letters = null, System.Func<string, FormattedText>? lines = null)
     {
-        text.MaxTextWidth = System.Math.Max(1, room);
-        text.TextAlignment = align;
+        Bound(text, room, align);
 
         var piece = into.Open(kind, part, at);
 
@@ -50,7 +46,8 @@ public static class LayoutText
         // engine's and the mark reports it, so the piece comes out as wide as the words and no wider.
         into.Draw(new TextMark(text, default, null));
 
-        Letters(into, text, letters, kind);
+        if (lines is not null && align == TextAlignment.Left && text.Text.Contains('\n')) Lined(into, text.Text, letters, kind, lines);
+        else Letters(into, text, letters, kind);
 
         into.Close();
         return piece;
@@ -160,6 +157,44 @@ public static class LayoutText
             into.Open(kind + "-letter", letters[i], bounds.TopLeft);
             into.Covers(new Rect(0, 0, bounds.Width, bounds.Height));
             into.Close();
+        }
+    }
+
+    /// <summary>
+    /// A letter for each character, measured a line at a time: each line set on its own, and its letters placed a line's height
+    /// further down for every line above it — which is where a text of many lines, one high each and never broken, sets them.
+    /// </summary>
+    private static void Lined(LayoutBuilder into, string source, IReadOnlyList<ISourcePart>? letters, string kind,
+                              System.Func<string, FormattedText> lines)
+    {
+        if (letters is null || letters.Count != source.Length) return;
+
+        var blank = lines(" ").Height;
+        var top = 0.0;
+
+        for (var start = 0; start <= source.Length;)
+        {
+            var end = source.IndexOf('\n', start);
+            if (end < 0) end = source.Length;
+
+            // A line's own ending is where it stops, not a letter of it.
+            var shown = end > start && source[end - 1] == '\r' ? end - 1 : end;
+            var line = shown > start ? lines(source[start..shown]) : null;
+
+            for (var at = start; at < shown; at++)
+            {
+                if (line!.BuildHighlightGeometry(new Point(0, top), at - start, 1) is not { } box) continue;
+
+                var bounds = box.Bounds;
+                if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) continue;
+
+                into.Open(kind + "-letter", letters[at], bounds.TopLeft);
+                into.Covers(new Rect(0, 0, bounds.Width, bounds.Height));
+                into.Close();
+            }
+
+            top += line?.Height ?? blank;
+            start = end + 1;
         }
     }
 
