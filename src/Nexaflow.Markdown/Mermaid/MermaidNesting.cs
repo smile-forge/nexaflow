@@ -6,8 +6,8 @@ namespace Nexaflow.Markdown.Mermaid;
 
 /// <summary>
 /// What each line of a block is inside, worked out over the whole block: the group opened by the nearest line above it that
-/// opens one and has not been ended yet. Groups nest, so this is what <see cref="MermaidGrouping"/> is for a diagram whose
-/// groups close with a word of their own — a block diagram's composites.
+/// opens one and has not been ended yet — for a diagram whose groups nest and close with a word of their own, as a block
+/// diagram's composites do.
 ///
 /// <para>
 /// A group is named by where it was opened rather than by what it is called, since a group need not be called anything and

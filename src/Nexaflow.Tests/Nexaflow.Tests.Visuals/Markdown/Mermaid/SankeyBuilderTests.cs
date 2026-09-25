@@ -198,4 +198,39 @@ public class SankeyBuilderTests : MermaidBuilderContract
             var bar = piece.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds;
             return Rect.Offset(bar, piece.Bounds.X - piece.Box.X, piece.Bounds.Y - piece.Box.Y);
         })];
+
+    [TestMethod]
+    public void TheNodesAreTheNamesTheFlowsAreWrittenBetween_InTheOrderTheyAreFirstWritten() => UiThread.Run(() =>
+    {
+        var named = Pieces(Build(Energy), SankeyPiece.Node).Select(piece => Written(Energy, piece.Part)).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Agricultural waste", "Bio-conversion", "Liquid", "Losses", "Solid", "Gas" }, named);
+    });
+
+    [TestMethod]
+    public void ANodeIsWorthWhateverFlowsIntoItOrOutOfIt_WhicheverIsTheMore() => UiThread.Run(() =>
+    {
+        var said = Pieces(Build("sankey-beta\na,b,10\nb,c,4"), SankeyPiece.Label).Select(piece => piece.Words!.Glyphs.Text).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "a", "10", "b", "10", "c", "4" }, said, "b takes in ten and passes on four, so it is worth ten");
+    });
+
+    [TestMethod]
+    public void ANameInQuotesSaysWhatIsBetweenThem_AQuoteWrittenTwiceStandingForOne() => UiThread.Run(() =>
+    {
+        string First(string source) => Pieces(Build(source), SankeyPiece.Label)[0].Words!.Glyphs.Text;
+
+        Assert.AreEqual("Waste, agricultural", First("sankey-beta\n\"Waste, agricultural\",b,10"));
+        Assert.AreEqual("Agricultural \"waste\"", First("sankey-beta\n\"Agricultural \"\"waste\"\"\",b,10"));
+        Assert.AreEqual("a", First("sankey-beta\n  a , b , 10"), "and the space round a field is not part of it");
+        Assert.AreEqual(3, Pieces(Build("sankey-beta\n  a , b , 10\na,c,5"), SankeyPiece.Node).Count, "so a is the one node however it is spaced");
+    });
+
+    [TestMethod]
+    public void WhatAFlowWorthNothingNamesIsWorthNothingByIt() => UiThread.Run(() =>
+    {
+        var named = Pieces(Build("sankey-beta\na,b,10\nb,c,0\nc,d,0"), SankeyPiece.Node).Count;
+
+        Assert.AreEqual(2, named, "c and d are named only by flows worth nothing, so neither has a bar");
+    });
 }

@@ -140,18 +140,6 @@ public class CynefinGrammarTests : MermaidGrammarContract
         Assert.AreEqual("cynefin-beta\n  complex\n    \"Investigate --> clear\"", source[..writing.Start] + writing.Text + source[writing.End..]);
     }
 
-    [TestMethod]
-    public void AnItemSaysWhichDomainItSitsIn()
-    {
-        var items = ContentReading.Of(MermaidStaged.Read(Sense)).Root.SelfAndDescendants()
-            .Where(part => part.Kind == CynefinKinds.Item)
-            .Select(item => item.Fact(CynefinRoles.In))
-            .ToList();
-
-        Assert.AreEqual("complex", items[0]);
-        Assert.AreEqual("confusion", items[^1]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

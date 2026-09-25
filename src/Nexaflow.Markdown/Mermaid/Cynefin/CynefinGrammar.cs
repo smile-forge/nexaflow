@@ -16,8 +16,8 @@ namespace Nexaflow.Markdown.Mermaid.Cynefin;
 /// "Pattern found"</c>, its label optional.
 /// </para>
 /// <para>
-/// Which domain an item sits in is a fact about the block rather than about the item's own line, so it is the stage's
-/// (<see cref="ResolveDomains"/>).
+/// An item sits in the domain opened above it, which is the order the lines are written in; one written before any domain is
+/// opened sits in none, which is worked out over the block (<see cref="ResolveDomains"/>).
 /// </para>
 /// </summary>
 public sealed class CynefinGrammar : IMermaidGrammar
@@ -78,8 +78,9 @@ public sealed class CynefinGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Which domain each item sits in is worked out over the whole block (<see cref="ResolveDomains"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveDomains()];
+    /// <remarks>Where an item has no domain above it (<see cref="ResolveDomains"/>), and what the front matter asks for.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+        [new ResolveDomains(), new WithConfig<CynefinConfig>(CynefinConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where what an item or a transition says is still to write, between its quotes.</remarks>

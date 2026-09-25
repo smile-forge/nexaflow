@@ -42,7 +42,7 @@ public static class SankeyPiece
 /// line it came from. What a node is called is the characters written, typed into where it is drawn.
 /// </para>
 /// </summary>
-internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
+internal sealed class SankeyBuilder : MermaidBuilder
 {
     /// <summary>How big the diagram is drawn before the front matter or the room says otherwise.</summary>
     private const double Wide = 720;
@@ -71,39 +71,112 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
 
     internal SankeyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override SankeyChart Of(MermaidBlock block) => SankeyChart.Of(block);
-
-    protected override Size Draw(SankeyChart chart, LayoutBuilder build)
+    /// <summary>
+    /// A node. Nothing declares one: it is a name the flows are written between, and it stands for the first flow that wrote
+    /// it.
+    /// </summary>
+    /// <param name="said">The name as it was first written, which is what typing beside the node changes.</param>
+    /// <param name="order">Where it comes among the nodes, which is the colour it takes and the order it is stacked in.</param>
+    private sealed class Node(string name, ContentPart said, int order)
     {
-        var drawn = chart.Nodes.Where(node => chart.Worth(node) > 0).ToList();
+        public string Name { get; } = name;
+
+        public ContentPart Said { get; } = said;
+
+        public int Order { get; } = order;
+
+        /// <summary>What flows into it, and out of it, of the flows drawn.</summary>
+        public double Into { get; set; }
+
+        public double OutOf { get; set; }
+
+        /// <summary>What it is worth: whatever flows into it, or out of it, whichever is the more.</summary>
+        public double Worth => Math.Max(Into, OutOf);
+    }
+
+    /// <summary>One flow: the row it was written on, where it comes from and goes, and what it is worth — nought where no value is written or it is no number.</summary>
+    private sealed record Flow(ContentPart Part, string From, string To, double Worth)
+    {
+        /// <summary>Whether it is worth drawing a ribbon for.</summary>
+        public bool Drawn => Worth > 0 && From.Length > 0 && To.Length > 0;
+    }
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var (nodes, flows) = Read();
+        var drawn = nodes.Where(node => node.Worth > 0).ToList();
 
         // Nothing worth drawing is the source: what the reader wants back is their own rows.
         if (drawn.Count == 0) return AsWritten(build);
 
-        var config = chart.Config;
-        var columns = Columns(chart, drawn);
-        var said = drawn.ToDictionary(node => node.Name, node => Labelled(chart, node), StringComparer.Ordinal);
+        var config = Configured(SankeyConfig.Default);
+        var named = drawn.ToDictionary(node => node.Name, StringComparer.Ordinal);
+        var columns = Columns(flows, drawn, config.Alignment);
+        var said = drawn.ToDictionary(node => node.Name, node => Labelled(config, node), StringComparer.Ordinal);
         var tall = Math.Max(config.Height ?? Tall, 80);
-        var (tops, heights, scale) = Stacked(chart, drawn, columns, tall, config);
+        var (tops, heights, scale) = Stacked(flows, drawn, columns, tall, config);
         var (step, offset, wide, right) = Across(drawn, said, columns, config);
 
         var bars = drawn.ToDictionary(node => node.Name,
                                       node => new Rect(offset + (columns[node.Name] * step), tops[node.Name], config.NodeWidth, heights[node.Name]),
                                       StringComparer.Ordinal);
 
-        var ribbons = Ribbons(chart, bars, columns, scale);
+        var ribbons = Ribbons(flows, bars, columns, scale);
 
         build.Open(SankeyPiece.Flows, part: null, stops: Stops.None);
-        foreach (var (flow, shape) in ribbons) Ribbon(build, chart, flow, shape);
+        foreach (var (flow, shape) in ribbons) Ribbon(build, config, named, flow, shape);
         build.Close();
 
         build.Open(SankeyPiece.Nodes, part: null, stops: Stops.None);
-        foreach (var node in drawn) Bar(build, chart, node, bars[node.Name], said[node.Name], right[node.Name]);
+        foreach (var node in drawn) Bar(build, config, node, bars[node.Name], said[node.Name], right[node.Name]);
         build.Close();
 
         return new Size(wide, tall);
     }
+
+    /// <summary>The nodes, in the order they are first written, and the flows, in the order they are written.</summary>
+    private (List<Node> Nodes, List<Flow> Flows) Read()
+    {
+        var nodes = new List<Node>();
+        var named = new Dictionary<string, Node>(StringComparer.Ordinal);
+        var flows = new List<Flow>();
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            if (part.Kind != SankeyKinds.Flow) continue;
+
+            var names = part.Children.Where(child => child.Kind == MermaidKinds.Name);
+            var (source, target) = (names.ElementAtOrDefault(0).Words(), names.ElementAtOrDefault(1).Words());
+            var flow = new Flow(part, Says(source), Says(target), part.Inner(MermaidKinds.Number).Number() ?? 0);
+
+            flows.Add(flow);
+            Name(flow.From, source);
+            Name(flow.To, target);
+
+            if (!flow.Drawn) continue;
+
+            named[flow.From].OutOf += flow.Worth;
+            named[flow.To].Into += flow.Worth;
+        }
+
+        return (nodes, flows);
+
+        void Name(string name, ContentPart? said)
+        {
+            if (name.Length == 0 || said is null || named.ContainsKey(name)) return;
+
+            named[name] = new Node(name, said, nodes.Count);
+            nodes.Add(named[name]);
+        }
+    }
+
+    /// <summary>
+    /// What a name says: what is between its quotes where it has them, with a quote written twice standing for one — and
+    /// without the space either side of it, as Mermaid reads a field. That is the very string written wherever there is
+    /// nothing to take out of it.
+    /// </summary>
+    private static string Says(ContentPart? words) =>
+        words is null ? string.Empty : words.Text.Replace(SankeyGrammar.Quoted, "\"", StringComparison.Ordinal).Trim();
 
     // ── Where everything sits ───────────────────────────────────────────────
 
@@ -112,10 +185,10 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// matter's alignment asks for it — a node nothing leaves pushed to the far side where it says to justify, and a node
     /// nothing reaches pulled up against what it feeds where it says to centre.
     /// </summary>
-    private static Dictionary<string, int> Columns(SankeyChart chart, IReadOnlyList<SankeyNode> drawn)
+    private static Dictionary<string, int> Columns(IReadOnlyList<Flow> written, IReadOnlyList<Node> drawn, SankeyAlignment alignment)
     {
         var at = drawn.ToDictionary(node => node.Name, _ => 0, StringComparer.Ordinal);
-        var flows = chart.Flows.Where(flow => flow.Drawn && at.ContainsKey(flow.From) && at.ContainsKey(flow.To)).ToList();
+        var flows = written.Where(flow => flow.Drawn && at.ContainsKey(flow.From) && at.ContainsKey(flow.To)).ToList();
 
         // Settled by going round until nothing moves, which a run of flows round in a circle cannot make go on forever.
         for (var round = 0; round < drawn.Count; round++)
@@ -133,14 +206,14 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
 
         var last = at.Values.Max();
 
-        switch (chart.Config.Alignment)
+        switch (alignment)
         {
             case SankeyAlignment.Justify:
-                foreach (var node in drawn.Where(node => chart.OutOf(node) <= 0)) at[node.Name] = last;
+                foreach (var node in drawn.Where(node => node.OutOf <= 0)) at[node.Name] = last;
                 break;
 
             case SankeyAlignment.Centre:
-                foreach (var node in drawn.Where(node => chart.Into(node) <= 0))
+                foreach (var node in drawn.Where(node => node.Into <= 0))
                 {
                     var reaches = flows.Where(flow => flow.From == node.Name).Select(flow => at[flow.To]).ToList();
                     if (reaches.Count > 0) at[node.Name] = Math.Max(0, reaches.Min() - 1);
@@ -149,7 +222,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
                 break;
 
             case SankeyAlignment.Right:
-                foreach (var node in drawn.Where(node => chart.OutOf(node) <= 0)) at[node.Name] = last;
+                foreach (var node in drawn.Where(node => node.OutOf <= 0)) at[node.Name] = last;
                 foreach (var flow in Enumerable.Range(0, drawn.Count).SelectMany(_ => flows).Where(flow => at[flow.From] >= at[flow.To]))
                     at[flow.From] = at[flow.To] - 1;
 
@@ -172,7 +245,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// </para>
     /// </summary>
     private static (Dictionary<string, double> Tops, Dictionary<string, double> Heights, double Scale) Stacked(
-        SankeyChart chart, IReadOnlyList<SankeyNode> drawn, IReadOnlyDictionary<string, int> columns, double tall, SankeyConfig config)
+        IReadOnlyList<Flow> written, IReadOnlyList<Node> drawn, IReadOnlyDictionary<string, int> columns, double tall, SankeyConfig config)
     {
         var last = columns.Values.Max();
         var stacks = Enumerable.Range(0, last + 1)
@@ -180,14 +253,14 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             .ToList();
 
         var scale = stacks
-            .Where(stack => stack.Sum(chart.Worth) > 0)
-            .Select(stack => (tall - (config.NodePadding * Math.Max(0, stack.Count - 1))) / stack.Sum(chart.Worth))
+            .Where(stack => stack.Sum(node => node.Worth) > 0)
+            .Select(stack => (tall - (config.NodePadding * Math.Max(0, stack.Count - 1))) / stack.Sum(node => node.Worth))
             .DefaultIfEmpty(1)
             .Min();
 
-        var heights = drawn.ToDictionary(node => node.Name, node => Math.Max(Thinnest, chart.Worth(node) * scale), StringComparer.Ordinal);
+        var heights = drawn.ToDictionary(node => node.Name, node => Math.Max(Thinnest, node.Worth * scale), StringComparer.Ordinal);
         var tops = new Dictionary<string, double>(StringComparer.Ordinal);
-        var flows = chart.Flows.Where(flow => flow.Drawn && heights.ContainsKey(flow.From) && heights.ContainsKey(flow.To)).ToList();
+        var flows = written.Where(flow => flow.Drawn && heights.ContainsKey(flow.From) && heights.ContainsKey(flow.To)).ToList();
 
         foreach (var stack in stacks) Settle(stack);
 
@@ -213,7 +286,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
         double Middle(string name) => tops[name] + (heights[name] / 2);
 
         // The middle of what a node is joined to, each by what it is worth — or its own, joined to nothing that way.
-        double Wanted(SankeyNode node, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other)
+        double Wanted(Node node, Func<Flow, string> own, Func<Flow, string> other)
         {
             var joined = flows.Where(flow => own(flow) == node.Name && tops.ContainsKey(other(flow))).ToList();
             var worth = joined.Sum(flow => flow.Worth);
@@ -221,7 +294,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             return worth > 0 ? joined.Sum(flow => Middle(other(flow)) * flow.Worth) / worth : Middle(node.Name);
         }
 
-        void Relax(List<SankeyNode> stack, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other, double pull)
+        void Relax(List<Node> stack, Func<Flow, string> own, Func<Flow, string> other, double pull)
         {
             foreach (var node in stack) tops[node.Name] += (Wanted(node, own, other) - Middle(node.Name)) * pull;
 
@@ -232,7 +305,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
         }
 
         // Down the column, each node clear of the one above it; then, where that ran off the foot, back up from the foot.
-        void Clear(List<SankeyNode> stack)
+        void Clear(List<Node> stack)
         {
             var below = 0.0;
             foreach (var node in stack)
@@ -250,7 +323,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             }
         }
 
-        void Settle(List<SankeyNode> stack)
+        void Settle(List<Node> stack)
         {
             var taken = stack.Sum(node => heights[node.Name]) + (config.NodePadding * Math.Max(0, stack.Count - 1));
             var down = Math.Max(0, (tall - taken) / 2);
@@ -262,7 +335,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             }
         }
 
-        void Sort(List<SankeyNode> stack, Func<SankeyFlow, string> own, Func<SankeyFlow, string> other)
+        void Sort(List<Node> stack, Func<Flow, string> own, Func<Flow, string> other)
         {
             // The middle of what it is joined to, each by what it is worth; a node joined to nothing that way keeps where it is.
             var wanted = stack.ToDictionary(node => node.Name, node => Wanted(node, own, other), StringComparer.Ordinal);
@@ -287,7 +360,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// </para>
     /// </summary>
     private (double Step, double Offset, double Wide, Dictionary<string, bool> Right) Across(
-        IReadOnlyList<SankeyNode> drawn, IReadOnlyDictionary<string, IReadOnlyList<DiagramWords>> said,
+        IReadOnlyList<Node> drawn, IReadOnlyDictionary<string, IReadOnlyList<DiagramWords>> said,
         IReadOnlyDictionary<string, int> columns, SankeyConfig config)
     {
         var last = columns.Values.Max();
@@ -313,15 +386,15 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// order of where each goes to or comes from — the flows off one bar in the order of the bars they reach, so they fan out
     /// rather than cross on their way.
     /// </summary>
-    private static List<(SankeyFlow Flow, Geometry Shape)> Ribbons(SankeyChart chart, IReadOnlyDictionary<string, Rect> bars,
-                                                                   IReadOnlyDictionary<string, int> columns, double scale)
+    private static List<(Flow Flow, Geometry Shape)> Ribbons(IReadOnlyList<Flow> written, IReadOnlyDictionary<string, Rect> bars,
+                                                       IReadOnlyDictionary<string, int> columns, double scale)
     {
-        var drawn = chart.Flows.Where(flow => flow.Drawn && bars.ContainsKey(flow.From) && bars.ContainsKey(flow.To)).ToList();
+        var drawn = written.Where(flow => flow.Drawn && bars.ContainsKey(flow.From) && bars.ContainsKey(flow.To)).ToList();
 
         double Middle(string name) => bars[name].Y + (bars[name].Height / 2);
 
-        var starts = new Dictionary<SankeyFlow, double>();
-        var stops = new Dictionary<SankeyFlow, double>();
+        var starts = new Dictionary<Flow, double>();
+        var stops = new Dictionary<Flow, double>();
 
         foreach (var leaving in drawn.GroupBy(flow => flow.From))
         {
@@ -343,7 +416,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             }
         }
 
-        var ribbons = new List<(SankeyFlow, Geometry)>();
+        var ribbons = new List<(Flow, Geometry)>();
 
         foreach (var flow in drawn)
         {
@@ -378,16 +451,16 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
 
     // ── Drawing it ──────────────────────────────────────────────────────────
 
-    private void Ribbon(LayoutBuilder build, SankeyChart chart, SankeyFlow flow, Geometry shape)
+    private void Ribbon(LayoutBuilder build, SankeyConfig config, IReadOnlyDictionary<string, Node> named, Flow flow, Geometry shape)
     {
         build.Open(SankeyPiece.Flow, flow.Part, stops: Stops.None);
-        build.Draw(new GeometryMark(shape, Coloured(chart, flow, shape.Bounds), null, 0));
+        build.Draw(new GeometryMark(shape, Coloured(config, named, flow, shape.Bounds), null, 0));
         build.Occupies(shape);
         build.Close();
     }
 
     /// <summary>A node: its bar, and what it is called beside it — to the <paramref name="right"/> of it, or to the left.</summary>
-    private void Bar(LayoutBuilder build, SankeyChart chart, SankeyNode node, Rect bar, IReadOnlyList<DiagramWords> said, bool right)
+    private void Bar(LayoutBuilder build, SankeyConfig config, Node node, Rect bar, IReadOnlyList<DiagramWords> said, bool right)
     {
         var last = !right;
         var taken = DiagramWords.Taken(said);
@@ -395,10 +468,10 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
                             bar.Y + ((bar.Height - taken.Height) / 2), taken.Width, taken.Height);
 
         build.Open(SankeyPiece.Node, node.Said, stops: Stops.None);
-        build.Draw(new GeometryMark(Outline(bar), Fill(chart, node), null, 0));
+        build.Draw(new GeometryMark(Outline(bar), Fill(config, node), null, 0));
         build.Occupies(Outline(bar));
 
-        if (chart.Config.Labels == SankeyLabels.Outlined)
+        if (config.Labels == SankeyLabels.Outlined)
             build.Draw(new GeometryMark(Outline(Rect.Inflate(room, 3, 1)), Palette.CodeBg, Palette.CodeBorder, 1));
 
         foreach (var (words, at, kind) in DiagramWords.Placed(said, room, SankeyPiece.Label, last ? TextAlignment.Right : TextAlignment.Left))
@@ -417,7 +490,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     // ── What is written beside a node ───────────────────────────────────────
 
     /// <summary>What a node says: its name as it was written, and what it is worth where the front matter shows values.</summary>
-    private IReadOnlyList<DiagramWords> Labelled(SankeyChart chart, SankeyNode node)
+    private IReadOnlyList<DiagramWords> Labelled(SankeyConfig config, Node node)
     {
         var ink = Palette.Text;
 
@@ -427,9 +500,9 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
             ? Worked(node.Name, node.Said, TextSize, ink)
             : Written(node.Said, hole: null, TextSize, ink);
 
-        if (!chart.Config.ShowValues) return [name];
+        if (!config.ShowValues) return [name];
 
-        var worth = chart.Config.Prefix + Said(chart.Worth(node)) + chart.Config.Suffix;
+        var worth = config.Prefix + Said(node.Worth) + config.Suffix;
         return [name, Worked(worth, node.Said, TextSize - 1, Palette.TextMuted)];
     }
 
@@ -439,8 +512,8 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     // ── Colour ──────────────────────────────────────────────────────────────
 
     /// <summary>What a node is drawn in: the colour the front matter writes for it, or its own from the series.</summary>
-    private Brush Fill(SankeyChart chart, SankeyNode node) =>
-        Ink.Written(chart.Config.NodeColours.GetValueOrDefault(node.Name)) ?? Ink.Series(node.Order);
+    private Brush Fill(SankeyConfig config, Node node) =>
+        Ink.Written(config.NodeColours.GetValueOrDefault(node.Name)) ?? Ink.Series(node.Order);
 
     /// <summary>
     /// What a ribbon is drawn in: the colour of the node it leaves, the one it reaches, one written for all of them, or —
@@ -448,16 +521,16 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// it runs between, which are drawn in their colours whole: the bars read as the light ends of the flows, where a flow
     /// starts, passes through and ends, and the ribbons as the darker body of it.
     /// </summary>
-    private Brush Coloured(SankeyChart chart, SankeyFlow flow, Rect bounds)
+    private Brush Coloured(SankeyConfig config, IReadOnlyDictionary<string, Node> named, Flow flow, Rect bounds)
     {
-        var from = chart.Node(flow.From) is { } source ? Fill(chart, source) : Palette.TextMuted;
-        var to = chart.Node(flow.To) is { } target ? Fill(chart, target) : Palette.TextMuted;
+        var from = named.TryGetValue(flow.From, out var source) ? Fill(config, source) : Palette.TextMuted;
+        var to = named.TryGetValue(flow.To, out var target) ? Fill(config, target) : Palette.TextMuted;
 
-        switch (chart.Config.LinkColour)
+        switch (config.LinkColour)
         {
             case SankeyLinkColour.Source: return DiagramInk.Faded(from, Wash);
             case SankeyLinkColour.Target: return DiagramInk.Faded(to, Wash);
-            case SankeyLinkColour.Written: return DiagramInk.Faded(Ink.Written(chart.Config.LinkWritten) ?? Palette.TextMuted, Wash);
+            case SankeyLinkColour.Written: return DiagramInk.Faded(Ink.Written(config.LinkWritten) ?? Palette.TextMuted, Wash);
         }
 
         if (bounds.Width <= 0 || from is not SolidColorBrush start || to is not SolidColorBrush stop) return DiagramInk.Faded(from, Wash);

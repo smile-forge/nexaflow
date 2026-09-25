@@ -1,5 +1,5 @@
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Mermaid.Journey.Stages;
+
 using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.Journey;
@@ -15,8 +15,8 @@ namespace Nexaflow.Markdown.Mermaid.Journey;
 /// as the entity code standing for it (<see cref="MermaidText"/>), which is what typing one in writes.
 /// </para>
 /// <para>
-/// Which section a task is in is a fact about the block rather than about the task's own line, so it is the stage's
-/// (<see cref="ResolveTasks"/>); an actor is named wherever they take part, so a rename carries to every task they are in.
+/// A task is in the section written above it, or in none before any is; an actor is named wherever they take part, so a
+/// rename carries to every task they are in.
 /// </para>
 /// </summary>
 public sealed class JourneyGrammar : IMermaidGrammar
@@ -87,8 +87,8 @@ public sealed class JourneyGrammar : IMermaidGrammar
     public string Naming(string name) => Escaped(name);
 
     /// <inheritdoc/>
-    /// <remarks>Which section each task is in is worked out over the whole block (<see cref="ResolveTasks"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveTasks()];
+    /// <remarks>Only what the front matter asks for: which section each task is in is the order the lines are written in.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<JourneyConfig>(JourneyConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where what a task says, a section's name or an actor's is still to write.</remarks>

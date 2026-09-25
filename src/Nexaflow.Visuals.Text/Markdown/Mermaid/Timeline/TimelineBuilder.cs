@@ -51,7 +51,7 @@ public static class TimelinePiece
 /// each period takes the next, and <c>disableMulticolor</c> puts everything on the first.
 /// </para>
 /// </summary>
-internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
+internal sealed class TimelineBuilder : MermaidBuilder
 {
     /// <summary>How wide a period and its events are drawn, and how far apart one period is from the next.</summary>
     private const double Column = 150;
@@ -81,55 +81,140 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
     internal TimelineBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override TimelineChart Of(MermaidBlock block) => TimelineChart.Of(block);
-
-    protected override Size Draw(TimelineChart chart, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-        // A timeline with no periods written in it is the source.
-        if (chart.Empty) return AsWritten(build);
+        var (down, sections) = Read();
 
-        var pad = chart.Config.Padding ?? Pad;
-        var said = Measured(chart, pad);
+        // A timeline with no periods written in it is the source.
+        if (!sections.Any(section => section.Periods.Count > 0)) return AsWritten(build);
+
+        var config = Configured(TimelineConfig.Default);
+        var sectioned = sections.Any(section => section.Part is not null);
+        var pad = config.Padding ?? Pad;
+        var said = Measured(config, sections, sectioned, pad);
         var room = new DiagramRoom();
 
-        if (chart.Way == TimelineWay.TopDown) Down(build, chart, said, pad, room);
-        else Across(build, chart, said, pad, room);
+        if (down) Down(build, config, sectioned, said, pad, room);
+        else Across(build, config, sectioned, said, pad, room);
 
         return room.Size;
     }
 
+    // ── What is written ─────────────────────────────────────────────────────
+
+    /// <summary>Text somebody wrote: the piece it was written as — what pressing it means — what it says, and the hole standing where it is still to write.</summary>
+    private readonly record struct Phrase(ContentPart Part, ContentPart Says, ContentPart? Hole);
+
+    /// <summary>One period: the line it was written on, what it is called, and the events written for it in the order they are written.</summary>
+    private sealed record Period(ContentPart Part, Phrase Says, List<Phrase> Events);
+
+    /// <summary>A group of periods: the <c>section</c> line naming it, or nothing for the periods written before any section.</summary>
+    private sealed record Section(ContentPart? Part, Phrase? Name, List<Period> Periods, int Order);
+
+    /// <summary>
+    /// Which way the timeline runs — what the last line saying so asks, or across the page — and its sections in the order
+    /// they are written, each with its periods and each period with its events: those after the colons on its own line, and
+    /// on the lines going on from it. Periods written before any section are a section of their own, with nothing naming it,
+    /// as Mermaid groups them.
+    /// </summary>
+    private (bool Down, List<Section> Sections) Read()
+    {
+        var down = false;
+        var sections = new List<Section>();
+        Period? above = null;
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Kind)
+            {
+                case TimelineKinds.Direction when Running(part) is { } way:
+                    down = way;
+                    break;
+
+                case TimelineKinds.Section:
+                    sections.Add(new Section(part, Text(part, TimelineRoles.Name), [], sections.Count));
+                    break;
+
+                case TimelineKinds.Period:
+                    above = Text(part, TimelineRoles.Says) is { } says ? new Period(part, says, [.. Events(part)]) : null;
+                    if (above is null) break;
+
+                    if (sections.Count == 0) sections.Add(new Section(null, null, [], 0));
+                    sections[^1].Periods.Add(above);
+                    break;
+
+                case TimelineKinds.More:
+                    above?.Events.AddRange(Events(part));
+                    break;
+            }
+        }
+
+        return (down, sections);
+    }
+
+    /// <summary>The events written on a line — what says nothing being nothing written.</summary>
+    private static IEnumerable<Phrase> Events(ContentPart line)
+    {
+        foreach (var text in line.Children)
+        {
+            if (text.Kind != TimelineKinds.Text || text.Role != TimelineRoles.Event) continue;
+            if (text.Words() is not { } says || (says.Length == 0 && text.Hole() is null)) continue;
+
+            yield return new Phrase(text, says, text.Hole());
+        }
+    }
+
+    /// <summary>Whether a line saying which way the timeline runs says down the page — or null where it says no way at all.</summary>
+    private static bool? Running(ContentPart line)
+    {
+        if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting) is not { Trouble: null } way) return null;
+
+        var said = way.Text.AsSpan().Trim();
+        if (said.Equals("LR", StringComparison.OrdinalIgnoreCase)) return false;
+        if (said.Equals("TD", StringComparison.OrdinalIgnoreCase) || said.Equals("TB", StringComparison.OrdinalIgnoreCase)) return true;
+
+        return null;
+    }
+
+    private static Phrase? Text(ContentPart line, string role) =>
+        line.Children.FirstOrDefault(child => child.Kind == TimelineKinds.Text && child.Role == role) is { } text && text.Words() is { } says
+            ? new Phrase(text, says, text.Hole())
+            : null;
+
     // ── What each period shows ──────────────────────────────────────────────
 
     /// <summary>One event, its words wrapped, and the box drawn round them.</summary>
-    private sealed record Happening(TimelineEvent Event, IReadOnlyList<DiagramWords> Lines, Size Size);
+    private sealed record Happening(Phrase Event, IReadOnlyList<DiagramWords> Lines, Size Size);
 
     /// <summary>One period as it is drawn: its words, its events, the section it is in, and the colour slot it takes.</summary>
-    private sealed record Shown(TimelinePeriod Period, IReadOnlyList<DiagramWords> Lines, Size Words,
-                                IReadOnlyList<Happening> Events, int Section, int Slot);
+    private sealed record Shown(Period Period, IReadOnlyList<DiagramWords> Lines, Size Words,
+                                IReadOnlyList<Happening> Events, Section Section, int Slot);
 
-    /// <summary>Every period in the order it is written, measured and given the colour slot Mermaid's rule gives it.</summary>
-    private IReadOnlyList<Shown> Measured(TimelineChart chart, double pad)
+    /// <summary>
+    /// Every period in the order it is written, measured and given the colour slot Mermaid's rule gives it: with sections,
+    /// its section's; without, one of its own.
+    /// </summary>
+    private IReadOnlyList<Shown> Measured(TimelineConfig config, IReadOnlyList<Section> sections, bool sectioned, double pad)
     {
         var width = Math.Max(20, Column - (pad * 2));
         var shown = new List<Shown>();
 
-        foreach (var section in chart.Sections)
+        foreach (var section in sections)
         {
             foreach (var period in section.Periods)
             {
-                var slot = chart.Config.DisableMulticolor ? 0 : chart.Sectioned ? section.Order : shown.Count;
-                var lines = Said(period.Says, PeriodSize, Words(chart, slot), width, FontWeights.SemiBold);
+                var slot = config.DisableMulticolor ? 0 : sectioned ? section.Order : shown.Count;
+                var lines = Said(period.Says, PeriodSize, Words(config, slot), width, FontWeights.SemiBold);
 
                 var events = period.Events
                     .Select(happening =>
                     {
-                        var words = Said(happening.Says, EventSize, Palette.Text, width);
+                        var words = Said(happening, EventSize, Palette.Text, width);
                         return new Happening(happening, words, new Size(Column, DiagramWords.Taken(words).Height + (pad * 2)));
                     })
                     .ToList();
 
-                shown.Add(new Shown(period, lines, DiagramWords.Taken(lines), events, section.Order, slot));
+                shown.Add(new Shown(period, lines, DiagramWords.Taken(lines), events, section, slot));
             }
         }
 
@@ -138,16 +223,16 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
 
     // ── Across the page ─────────────────────────────────────────────────────
 
-    private void Across(LayoutBuilder build, TimelineChart chart, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
+    private void Across(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
     {
-        var banded = chart.Sectioned ? Band + Gap : 0;
+        var banded = sectioned ? Band + Gap : 0;
         var tall = Math.Max(Least, said.Max(shown => shown.Words.Height) + (pad * 2));
         var top = banded;
 
         var boxes = said.Select((shown, at) => new Rect(at * (Column + Between), top, Column, tall)).ToList();
         var spine = top + (tall / 2);
 
-        Bands(build, chart, said, boxes, band => new Rect(band.Left, 0, band.Width, Band), pad, room);
+        if (sectioned) Bands(build, config, said, boxes, band => new Rect(band.Left, 0, band.Width, Band), pad, room);
 
         // The spine runs through the middle of the periods, from the first to the last.
         Spine(build, [new Point(boxes[0].Left + (Column / 2), spine), new Point(boxes[^1].Left + (Column / 2), spine)], room);
@@ -164,15 +249,15 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
                 y += happening.Size.Height + Gap;
             }
 
-            Period(build, said[at], chart, box, events, new Point(box.Left + (Column / 2), box.Bottom), pad, room);
+            Placed(build, said[at], config, down: false, box, events, new Point(box.Left + (Column / 2), box.Bottom), pad, room);
         }
     }
 
     // ── Down the page ───────────────────────────────────────────────────────
 
-    private void Down(LayoutBuilder build, TimelineChart chart, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
+    private void Down(LayoutBuilder build, TimelineConfig config, bool sectioned, IReadOnlyList<Shown> said, double pad, DiagramRoom room)
     {
-        var left = chart.Sectioned ? Strip + Gap : 0;
+        var left = sectioned ? Strip + Gap : 0;
         var boxes = new List<Rect>();
         var rows = new List<List<Rect>>();
         var y = 0.0;
@@ -195,33 +280,31 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
             y += tall + Gap;
         }
 
-        Bands(build, chart, said, boxes, band => new Rect(0, band.Top, Strip, band.Height), pad, room);
+        if (sectioned) Bands(build, config, said, boxes, band => new Rect(0, band.Top, Strip, band.Height), pad, room);
 
         var middle = left + (Column / 2);
         Spine(build, [new Point(middle, boxes[0].Top), new Point(middle, boxes[^1].Bottom)], room);
 
         for (var at = 0; at < said.Count; at++)
-            Period(build, said[at], chart, boxes[at], rows[at], new Point(boxes[at].Right, boxes[at].Top + (boxes[at].Height / 2)), pad, room);
+            Placed(build, said[at], config, down: true, boxes[at], rows[at], new Point(boxes[at].Right, boxes[at].Top + (boxes[at].Height / 2)), pad, room);
     }
 
     // ── Layers ──────────────────────────────────────────────────────────────
 
     /// <summary>A band over each run of periods the same section groups — <paramref name="over"/> saying where it goes.</summary>
-    private void Bands(LayoutBuilder build, TimelineChart chart, IReadOnlyList<Shown> said, IReadOnlyList<Rect> boxes,
+    private void Bands(LayoutBuilder build, TimelineConfig config, IReadOnlyList<Shown> said, IReadOnlyList<Rect> boxes,
                        Func<Rect, Rect> over, double pad, DiagramRoom room)
     {
-        if (!chart.Sectioned) return;
-
         build.Open(TimelinePiece.Sections, part: null, stops: Stops.None);
 
-        foreach (var (section, at, _, run) in DiagramBand.Runs(said, shown => shown.Section, boxes))
+        foreach (var (_, at, _, run) in DiagramBand.Runs(said, shown => shown.Section.Order, boxes))
         {
-            if (chart.Sections.FirstOrDefault(group => group.Order == section) is not { Name: { } name } group) continue;
+            if (said[at].Section is not { Name: { } name } group) continue;
 
             var band = over(run);
             // A section's name heads what it holds, so it is written in the title's colour.
             var lines = Said(name, NameSize, TitleInk, Math.Max(20, band.Width - (pad * 2)), FontWeights.SemiBold);
-            var fill = Colour(chart, said[at].Slot);
+            var fill = Colour(config, said[at].Slot);
 
             room.Reach(band);
             DiagramShapes.Draw(build, TimelinePiece.Section, group.Part, DiagramShape.Rounded, band,
@@ -243,14 +326,14 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     }
 
     /// <summary>One period: its box on the spine, what leads from it to its events, and the events themselves.</summary>
-    private void Period(LayoutBuilder build, Shown shown, TimelineChart chart, Rect box, IReadOnlyList<Rect> events, Point from,
+    private void Placed(LayoutBuilder build, Shown shown, TimelineConfig config, bool down, Rect box, IReadOnlyList<Rect> events, Point from,
                         double pad, DiagramRoom room)
     {
-        var colour = Colour(chart, shown.Slot);
+        var colour = Colour(config, shown.Slot);
 
         if (events.Count > 0)
         {
-            var to = chart.Way == TimelineWay.TopDown
+            var to = down
                 ? new Point(events[0].Left, from.Y)
                 : new Point(from.X, events[0].Top);
 
@@ -285,7 +368,7 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
             var happening = shown.Events[at];
             room.Reach(events[at]);
 
-            DiagramShapes.Draw(build, TimelinePiece.Event, happening.Event.Says.Part, DiagramShape.Rounded, events[at],
+            DiagramShapes.Draw(build, TimelinePiece.Event, happening.Event.Part, DiagramShape.Rounded, events[at],
                 DiagramInk.Faded(colour, Tinted), new DiagramStroke(colour),
                 DiagramWords.Placed(happening.Lines, Rect.Inflate(events[at], -pad, -pad), TimelinePiece.Says, TextAlignment.Left));
         }
@@ -300,13 +383,13 @@ internal sealed class TimelineBuilder : MermaidBuilder<TimelineChart>
     /// <c>&lt;br&gt;</c> says to — or, where it holds an entity code, what that code says, which is worked out and so
     /// pressed rather than typed into.
     /// </summary>
-    private IReadOnlyList<DiagramWords> Said(TimelineText text, double size, Brush ink, double width, FontWeight? weight = null) =>
+    private IReadOnlyList<DiagramWords> Said(Phrase text, double size, Brush ink, double width, FontWeight? weight = null) =>
         Wrapped(text.Says, text.Hole, size, ink, width, weight);
 
     /// <summary>The colour a slot is drawn in: the one its <c>cScale</c> writes, or the theme's own.</summary>
-    private Brush Colour(TimelineChart chart, int slot) => Ink.Series(slot, chart.Config.ScaleAt(slot));
+    private Brush Colour(TimelineConfig config, int slot) => Ink.Series(slot, config.ScaleAt(slot));
 
     /// <summary>The ink a period's words are written in: what its <c>cScaleLabel</c> writes, or what reads over its fill.</summary>
-    private Brush Words(TimelineChart chart, int slot) =>
-        Ink.Written(chart.Config.ScaleLabelAt(slot)) ?? Ink.Over(Colour(chart, slot));
+    private Brush Words(TimelineConfig config, int slot) =>
+        Ink.Written(config.ScaleLabelAt(slot)) ?? Ink.Over(Colour(config, slot));
 }

@@ -158,4 +158,61 @@ public class TimelineBuilderTests : MermaidBuilderContract
 
         Assert.IsTrue(said.Any(words => words.Glyphs.Text == "9:00" && !words.Maps), "worked out, so only pressed");
     });
+
+    [TestMethod]
+    public void ALineOfFurtherEventsAddsThemToThePeriodAboveIt() => UiThread.Run(() =>
+    {
+        const string source = "timeline\n  2004 : Facebook\n       : Google\n       : Orkut";
+        var laid = Build(source);
+        var period = Pieces(laid, TimelinePiece.Period).Single();
+        var events = Pieces(laid, TimelinePiece.Event);
+
+        CollectionAssert.AreEqual(new[] { "Facebook", "Google", "Orkut" }, events.Select(said => Written(source, said.Part)).ToArray());
+        Assert.IsTrue(events.All(said => Middle(said.Bounds).X == Middle(period.Bounds).X), "every one under the period");
+    });
+
+    [TestMethod]
+    public void PeriodsWrittenBeforeAnySectionAreAGroupWithNoName() => UiThread.Run(() =>
+    {
+        const string source = "timeline\n  2002 : LinkedIn\n  section Later\n    2006 : Twitter";
+        var laid = Build(source);
+        var periods = Pieces(laid, TimelinePiece.Period);
+        var band = Pieces(laid, TimelinePiece.Section).Single();
+
+        Assert.AreEqual("section Later", Written(source, band.Part), "nothing names the first group, so nothing bands it");
+        Assert.IsTrue(band.Bounds.Left >= periods[0].Bounds.Right, "the band is over the period in its section alone");
+        Assert.AreNotEqual(Fill(periods[0]), Fill(periods[1]), "and each group is its own colour");
+    });
+
+    [TestMethod]
+    public void WhichWayItRunsIsWhatTheLastLineSayingSoAsks() => UiThread.Run(() =>
+    {
+        bool Down(string source)
+        {
+            var periods = Pieces(Build(source + "\n  2002 : LinkedIn\n  2006 : Twitter"), TimelinePiece.Period);
+            return periods[1].Bounds.Top >= periods[0].Bounds.Bottom;
+        }
+
+        Assert.IsFalse(Down("timeline"));
+        Assert.IsTrue(Down("timeline TD"));
+        Assert.IsTrue(Down("timeline\n  direction TB"));
+    Assert.IsFalse(Down("timeline TD\n  direction LR"));
+    });
+
+    [TestMethod]
+    public void AnEventThatSaysNothingIsNothingWritten() => UiThread.Run(() =>
+    {
+        const string source = "timeline\n  2004 : : Google";
+
+        Assert.AreEqual("Google", Written(source, Pieces(Build(source), TimelinePiece.Event).Single().Part));
+    });
+
+    [TestMethod]
+    public void ASectionWithNoPeriodsIsNothingToDraw() => UiThread.Run(() =>
+    {
+        var laid = Build("timeline\n  section Early");
+
+        Assert.AreEqual(0, Pieces(laid, TimelinePiece.Section).Count, "so the block is shown as written");
+        Assert.AreEqual(0, Pieces(laid, TimelinePiece.Period).Count);
+    });
 }

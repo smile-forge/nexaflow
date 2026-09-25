@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.Sankey;
 
@@ -37,6 +38,13 @@ public sealed class SankeyGrammar : IMermaidGrammar
     /// <inheritdoc/>
     /// <remarks>Another flow, with all three of its columns to write.</remarks>
     public (string Text, int Caret)? Blank(ContentNode? above) => (",,", 0);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Only what the front matter asks for. Nothing declares a node: the nodes are the names the flows are written between, in
+    /// the order they are first written, which is the order the lines are read in.
+    /// </remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<SankeyConfig>(SankeyConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>

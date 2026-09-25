@@ -51,7 +51,7 @@ public static class CynefinPiece
 /// drawn with, and a movement that would cross the middle bends round the disorder instead.
 /// </para>
 /// </summary>
-internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
+internal sealed class CynefinBuilder : MermaidBuilder
 {
     /// <summary>The least a domain's cell is drawn at, before what is in it asks for more.</summary>
     private const double Least = 210;
@@ -95,13 +95,124 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         (CynefinDomain.Clear, false, false),
     ];
 
+    /// <summary>
+    /// How each domain is worked, which it says under its name: the decision model it asks for, and the kind of practice that
+    /// comes of it — as the Cynefin framework names them. Disorder is where a thing sits while nobody knows.
+    /// </summary>
+    private static readonly Dictionary<CynefinDomain, IReadOnlyList<string>> Practices = new()
+    {
+        [CynefinDomain.Clear] = ["Sense → Categorise → Respond", "Best Practices"],
+        [CynefinDomain.Complicated] = ["Sense → Analyse → Respond", "Good Practices"],
+        [CynefinDomain.Complex] = ["Probe → Sense → Respond", "Emergent Practices"],
+        [CynefinDomain.Chaotic] = ["Act → Sense → Respond", "Novel Practices"],
+        [CynefinDomain.Confusion] = ["Disorder"],
+    };
+
     internal CynefinBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override CynefinDiagram Of(MermaidBlock block) => CynefinDiagram.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
 
-    protected override Size Draw(CynefinDiagram diagram, LayoutBuilder build)
+    /// <summary>The five sense-making domains, in the order their words are listed (<see cref="CynefinGrammar.Domains"/>).</summary>
+    private enum CynefinDomain { Clear, Complicated, Complex, Chaotic, Confusion }
+
+    /// <summary>Text somebody wrote: the line it was written on — what pressing it means — what it says, without its quotes, and the hole standing where it is still to write.</summary>
+    private readonly record struct Phrase(ContentPart Part, ContentPart Says, ContentPart? Hole);
+
+    /// <summary>Where a domain is opened: the line, and the word opening it — which is what is typed into where it is named.</summary>
+    private sealed record Opening(ContentPart Part, ContentPart Word);
+
+    /// <summary>One item: the item as written — what pressing it means — and what it says.</summary>
+    private sealed record Item(ContentPart Part, Phrase Says);
+
+    /// <summary>A movement from one domain to another — or to none where that is still to write — with what it says where anything does.</summary>
+    private sealed record Move(ContentPart Part, CynefinDomain From, CynefinDomain? To, Phrase? Label);
+
+    /// <summary>
+    /// What the block says, read in the order it is written: where each domain is opened, the items sitting in each, and the
+    /// movements between them. A domain opened twice is the one domain, opened where it is first written, and its items stay
+    /// in the order they are written. An item is in the domain opened above it; one written before any is opened is nowhere to
+    /// draw, which its stage says where it is written.
+    /// </summary>
+    private sealed class Grid(CynefinConfig config)
     {
+        private readonly Dictionary<CynefinDomain, Opening> opened = [];
+        private readonly Dictionary<CynefinDomain, List<Item>> items = [];
+
+        public CynefinConfig Config { get; } = config;
+
+        public List<Move> Moves { get; } = [];
+
+        /// <summary>Whether nothing is written for the diagram to draw.</summary>
+        public bool Empty => opened.Count == 0 && items.Count == 0 && Moves.Count == 0;
+
+        /// <summary>Where a domain is opened — what pressing it means — or null for a domain nothing opens.</summary>
+        public Opening? Opened(CynefinDomain domain) => opened.GetValueOrDefault(domain);
+
+        /// <summary>The items sitting in a domain, in the order they are written.</summary>
+        public IReadOnlyList<Item> ItemsIn(CynefinDomain domain) => items.GetValueOrDefault(domain) ?? [];
+
+        public void Open(CynefinDomain domain, Opening opening) => opened.TryAdd(domain, opening);
+
+        public void Place(CynefinDomain domain, Item item)
+        {
+            if (!items.TryGetValue(domain, out var placed)) items[domain] = placed = [];
+            placed.Add(item);
+        }
+    }
+
+    private Grid Read()
+    {
+        var grid = new Grid(Configured(CynefinConfig.Default));
+        CynefinDomain? above = null;
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Kind)
+            {
+                case CynefinKinds.Domain when Key(part, 0) is { } word && Domain(word.Text) is { } domain:
+                    grid.Open(domain, new Opening(part, word));
+                    above = domain;
+                    break;
+
+                case CynefinKinds.Item when above is { } domain && Text(part, CynefinRoles.Says) is { } says:
+                    grid.Place(domain, new Item(part, says));
+                    break;
+
+                case CynefinKinds.Move when Domain(Key(part, 0)?.Text) is { } from:
+                    grid.Moves.Add(new Move(part, from, Domain(Key(part, 1)?.Text), Text(part, CynefinRoles.Label)));
+                    break;
+            }
+        }
+
+        return grid;
+    }
+
+    /// <summary>The domain a word opens, whatever case it is written in — or null for a word that opens none.</summary>
+    private static CynefinDomain? Domain(string? word)
+    {
+        var said = word.AsSpan().Trim();
+
+        for (var at = 0; at < CynefinGrammar.Domains.Count; at++)
+            if (said.Equals(CynefinGrammar.Domains[at], StringComparison.OrdinalIgnoreCase)) return (CynefinDomain)at;
+
+        return null;
+    }
+
+    /// <summary>The word a line names, of the ones it names — a domain's, or a transition's ends in the order written.</summary>
+    private static ContentPart? Key(ContentPart line, int which) =>
+        line.Children.Where(child => child.Kind == MermaidKinds.Key).ElementAtOrDefault(which);
+
+    private static Phrase? Text(ContentPart line, string role) =>
+        line.Children.FirstOrDefault(child => child.Kind == CynefinKinds.Text && child.Role == role) is { } text && text.Words() is { } says
+            ? new Phrase(line, says, text.Hole())
+            : null;
+
+    // ── Laying it out ───────────────────────────────────────────────────────
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var diagram = Read();
+
         // A diagram with nothing written in it is the source.
         if (diagram.Empty) return AsWritten(build);
 
@@ -193,7 +304,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     // ── What a domain shows ─────────────────────────────────────────────────
 
     /// <summary>One item, its words wrapped, and the card drawn round them.</summary>
-    private sealed record Card(CynefinItem Item, IReadOnlyList<DiagramWords> Lines, Size Size);
+    private sealed record Card(Item Item, IReadOnlyList<DiagramWords> Lines, Size Size);
 
     /// <summary>What a domain shows, stacked from its outer corner: its word, how it is worked, and a card for each item in it.</summary>
     private sealed record Shown(DiagramWords? Name, IReadOnlyList<DiagramWords> About, IReadOnlyList<Card> Cards)
@@ -204,7 +315,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
             (Name?.Height ?? 0) + (About.Count == 0 ? 0 : DiagramWords.Taken(About).Height + Snug) + Cards.Sum(card => card.Size.Height + Gap));
     }
 
-    private Shown Stacked(CynefinDiagram diagram, CynefinDomain domain, double wrap)
+    private Shown Stacked(Grid diagram, CynefinDomain domain, double wrap)
     {
         var config = diagram.Config;
         var items = diagram.ItemsIn(domain);
@@ -219,7 +330,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
         // How the domain is worked, in the words the framework uses for it: the decision model, then the practice.
         var about = config.ShowDomainDescriptions && (opened is not null || items.Count > 0)
-            ? CynefinDiagram.Practice(domain)
+            ? Practices[domain]
                 .Select(says => Worked(says, opened?.Part, config.ItemFontSize ?? AboutSize, Ink.Written(config.TextColour) ?? Palette.TextMuted))
                 .ToList()
             : [];
@@ -251,10 +362,10 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     /// Each movement's route: between the middles of the two domains' cells, to the edge of the cloud where it ends in
     /// disorder, and bent round the cloud where it would otherwise cross it. Its label goes on the list of words as it goes.
     /// </summary>
-    private IReadOnlyList<(CynefinMove Move, IReadOnlyList<Point> Route)> Routes(CynefinDiagram diagram, IReadOnlyDictionary<CynefinDomain, Rect> cells,
+    private IReadOnlyList<(Move Move, IReadOnlyList<Point> Route)> Routes(Grid diagram, IReadOnlyDictionary<CynefinDomain, Rect> cells,
         Point middle, Rect blob, Size cloud, List<(DiagramWords Words, Point At, string Kind)> words)
     {
-        var routes = new List<(CynefinMove Move, IReadOnlyList<Point> Route)>();
+        var routes = new List<(Move Move, IReadOnlyList<Point> Route)>();
 
         foreach (var move in diagram.Moves)
         {
@@ -304,7 +415,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
     // ── Layers ──────────────────────────────────────────────────────────────
 
-    private void Domains(LayoutBuilder build, CynefinDiagram diagram, IReadOnlyDictionary<CynefinDomain, Rect> cells, Vector shift, Geometry over)
+    private void Domains(LayoutBuilder build, Grid diagram, IReadOnlyDictionary<CynefinDomain, Rect> cells, Vector shift, Geometry over)
     {
         build.Open(CynefinPiece.Domains, part: null, stops: Stops.None);
 
@@ -370,7 +481,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         build.Close();
     }
 
-    private void Moves(LayoutBuilder build, CynefinConfig config, IReadOnlyList<(CynefinMove Move, IReadOnlyList<Point> Route)> routes, Vector shift)
+    private void Moves(LayoutBuilder build, CynefinConfig config, IReadOnlyList<(Move Move, IReadOnlyList<Point> Route)> routes, Vector shift)
     {
         if (routes.Count == 0) return;
 
@@ -383,7 +494,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     }
 
     /// <summary>Disorder: a cloud in the middle, with its word and what is in it inside.</summary>
-    private void Centre(LayoutBuilder build, CynefinDiagram diagram, IReadOnlyList<(DiagramWords Words, string Kind)> disorder,
+    private void Centre(LayoutBuilder build, Grid diagram, IReadOnlyList<(DiagramWords Words, string Kind)> disorder,
                         Rect blob, Size cloud, Vector shift)
     {
         if (cloud.Width <= 0) return;
@@ -419,7 +530,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
     // ── Ink ─────────────────────────────────────────────────────────────────
 
     /// <summary>What a domain is drawn in: the colour its front matter writes, or a faded series colour of its own.</summary>
-    private Brush Fill(CynefinDiagram diagram, CynefinDomain domain) =>
+    private Brush Fill(Grid diagram, CynefinDomain domain) =>
         Ink.Written(diagram.Config.DomainFills[(int)domain]) ?? DiagramInk.Faded(Ink.Series(Series(domain)), Tint);
 
     /// <summary>The series colour each domain takes, a hue apart: disorder pink, and the practised domains round it.</summary>
@@ -432,6 +543,6 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         _ => 7,
     };
 
-    private DiagramWords? Said(CynefinText? text, double size, Brush ink) =>
-        text is null ? null : Written(text.Says, text.Hole, size, ink);
+    private DiagramWords? Said(Phrase? text, double size, Brush ink) =>
+        text is not { } said ? null : Written(said.Says, said.Hole, size, ink);
 }
