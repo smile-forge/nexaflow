@@ -73,7 +73,35 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
           "class": "Shipped"
         }
-      ]
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Correlation plots \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "docs/markdown-ast.md",
+            "title_path": [
+              "The content pipeline",
+              "The languages"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownScience.md",
+            "title_path": [
+              "Markdown \u2014 Chemistry, word clouds \u0026 plots",
+              "Correlation plots"
+            ]
+          }
+        ]
+      }
     },
     "correlation-plots-render": {
       "links": [
@@ -200,11 +228,39 @@
           "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
           "class": "Shipped"
         }
-      ]
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/markdown-ast.md",
+            "title_path": [
+              "The content pipeline",
+              "The languages"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Word clouds \u2014 sub-support"
+            ]
+          },
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Localization/en/help/MarkdownScience.md",
+            "title_path": [
+              "Markdown \u2014 Chemistry, word clouds \u0026 plots",
+              "Word clouds"
+            ]
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 14,
+  "changed_sets": 16,
   "touched_nodes": [
     "abc-editing",
     "abc-layout",
