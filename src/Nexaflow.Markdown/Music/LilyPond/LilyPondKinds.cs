@@ -47,8 +47,14 @@ public static class LilyPondKinds
     /// <summary>An articulation written as punctuation — <c>-.</c> <c>-&gt;</c> <c>--</c> — or a fingering.</summary>
     public const string Articulation = "articulation";
 
-    /// <summary>Text in double quotes, quotes included.</summary>
+    /// <summary>Text in double quotes: its quotes, and a <see cref="Letter"/> or an <see cref="Escape"/> for each character between them.</summary>
     public const string Quoted = "quoted";
+
+    /// <summary>One character of a quoted string, which says itself.</summary>
+    public const string Letter = "letter";
+
+    /// <summary>A backslash and the character after it in a quoted string — <c>\"</c>, <c>\\</c> — which says that one character.</summary>
+    public const string Escape = "escape";
 
     /// <summary>Scheme, which is read as far as where it ends and no further: <c>#(set-global-staff-size 20)</c>.</summary>
     public const string Scheme = "scheme";
@@ -117,8 +123,11 @@ public static class LilyPondRoles
     public const string Tremolo = "tremolo";
 
 
-    /// <summary>What kind of chord a chord's name is: its <c>:m7</c>, and the <c>/f</c> of its bass.</summary>
+    /// <summary>What kind of chord a chord's name is: the <c>m7</c> after its colon.</summary>
     public const string Quality = "quality";
+
+    /// <summary>The note a chord's name puts in its bass: the <c>f</c> after its slash.</summary>
+    public const string Bass = "bass";
 
     /// <summary>One note of a chord.</summary>
     public const string Note = "note";

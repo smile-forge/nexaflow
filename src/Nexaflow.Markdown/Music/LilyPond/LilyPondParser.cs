@@ -333,8 +333,19 @@ public static class LilyPondParser
             var word = Run(c => !char.IsWhiteSpace(c) && c is not ('{' or '}' or '"' or '\\' or '%' or '#'));
             if (word.Length == 0) return Held(1, $"nothing here reads '{s[_at]}'");
 
-            return word is "--" or "__" or "_"
-                ? ContentNode.Leaf(LilyPondKinds.LyricMark, word, Roles.Separator)
+            if (word is "--" or "__" or "_") return ContentNode.Leaf(LilyPondKinds.LyricMark, word, Roles.Separator);
+
+            // A duration written after the words — `Twin4.` — is a part of its own: digits, then any dots. Dots with no digits
+            // before them are the words', as a full stop is.
+            var end = word.Length;
+            while (end > 0 && word[end - 1] == '.') end--;
+
+            var digits = end;
+            while (end > 0 && char.IsAsciiDigit(word[end - 1])) end--;
+
+            return end < digits && end > 0
+                ? ContentNode.Branch(LilyPondKinds.Syllable,
+                                     [ContentNode.Leaf(LilyPondKinds.Word, word[..end]), ContentNode.Leaf(LilyPondKinds.Duration, word[end..], LilyPondRoles.Duration)])
                 : ContentNode.Leaf(LilyPondKinds.Syllable, word);
         }
 
@@ -384,10 +395,27 @@ public static class LilyPondParser
                 parts.Add(ContentNode.Leaf(LilyPondKinds.Duration, word[from..at], LilyPondRoles.Duration));
             }
 
+            if (at < word.Length && word[at] is not (':' or '/')) return null;
+
+            // What kind of chord: a colon, and the modifiers after it as far as a slash.
+            if (at < word.Length && word[at] == ':')
+            {
+                parts.Add(ContentNode.Leaf(Kinds.Token, ":", Roles.Separator));
+                from = ++at;
+                while (at < word.Length && word[at] != '/') at++;
+                if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[from..at], LilyPondRoles.Quality));
+            }
+
+            // Its bass: a slash — with a plus, adding the note rather than turning the chord onto it — and the note's name.
             if (at < word.Length)
             {
-                if (word[at] is not (':' or '/')) return null;
-                parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[at..], LilyPondRoles.Quality));
+                var slash = word.AsSpan(at).StartsWith("/+") ? 2 : 1;
+                parts.Add(ContentNode.Leaf(Kinds.Token, word.Substring(at, slash), Roles.Separator));
+                from = at += slash;
+
+                while (at < word.Length && char.IsAsciiLetterLower(word[at])) at++;
+                if (at > from) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[from..at], LilyPondRoles.Bass));
+                if (at < word.Length) parts.Add(ContentNode.Leaf(LilyPondKinds.Word, word[at..]));
             }
 
             return ContentNode.Branch(LilyPondKinds.ChordName, parts);
@@ -402,22 +430,26 @@ public static class LilyPondParser
             return text.Kind == LilyPondKinds.Quoted && Assigning() ? Assignment(text, mode) : text;
         }
 
-        /// <summary>
-        /// Text in double quotes, the quotes kept. A quote with no partner on its line is held on its own, so
-        /// that typing one does not turn the rest of the source into a string.
-        /// </summary>
+        /// <summary>A quoted string: its quotes, and each character between them — an escape, <c>\"</c> or <c>\\</c>, being the one character it writes.</summary>
         private ContentNode QuotedText()
         {
-            var from = _at;
             var at = _at + 1;
+            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open) };
 
             while (at < s.Length && s[at] is not ('"' or '\n'))
-                at += s[at] == '\\' && at + 1 < s.Length && s[at + 1] != '\n' ? 2 : 1;
+            {
+                var escaped = s[at] == '\\' && at + 1 < s.Length && s[at + 1] != '\n';
+                var width = escaped ? 2 : 1;
+
+                pieces.Add(ContentNode.Leaf(escaped ? LilyPondKinds.Escape : LilyPondKinds.Letter, s.Substring(at, width)));
+                at += width;
+            }
 
             if (at >= s.Length || s[at] != '"') return Held(1, "this quotation is never closed");
 
+            pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
             _at = at + 1;
-            return ContentNode.Leaf(LilyPondKinds.Quoted, s[from.._at]);
+            return ContentNode.Branch(LilyPondKinds.Quoted, pieces);
         }
 
         /// <summary>
@@ -515,13 +547,17 @@ public static class LilyPondParser
 
             if (next == '"')
             {
-                // A variable named in quotes — `\"voice1"` — which is how a name holding a digit is written.
-                var close = _at + 2;
-                while (close < s.Length && s[close] is not ('"' or '\n')) close++;
-                if (close >= s.Length || s[close] != '"') return Held(2, "this quotation is never closed");
+                // A variable named in quotes — `\"voice1"` — which is how a name holding a digit is written: the backslash, and the
+                // name as a string.
+                _at++;
+                var quoted = QuotedText();
+                if (quoted.Kind != LilyPondKinds.Quoted)
+                {
+                    _at = from;
+                    return Held(2, "this quotation is never closed");
+                }
 
-                _at = close + 1;
-                return ContentNode.Branch(LilyPondKinds.Command, [ContentNode.Leaf(Kinds.Token, s[from.._at], Roles.Name)]);
+                return ContentNode.Branch(LilyPondKinds.Command, [ContentNode.Leaf(Kinds.Token, "\\", Roles.Open), quoted.As(Roles.Name)]);
             }
 
             if (char.IsAsciiLetter(next))

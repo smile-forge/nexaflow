@@ -94,7 +94,7 @@ internal sealed partial class LilyPondBuilder
             bar.EndsRepeat = line.Drawn.StartsWith(':');
             bar.EndsBracket = unbracket;
             unbracket = false;
-            bar.Part = Across(bar.Events.Select(e => e.Part));
+            bar.Part = PartRun.Of(bar.Events.Select(e => e.Part));
             (barRow ?? row!).Bars.Add(bar);
             closed.Add(new Closed(bar, events, meter));
 
@@ -265,7 +265,7 @@ internal sealed partial class LilyPondBuilder
             {
                 if (run.Count >= 2)
                 {
-                    var group = Across(run.Select(s => s.Event.Part));
+                    var group = PartRun.Of(run.Select(s => s.Event.Part));
                     foreach (var sounded in run) sounded.Event.Beam = group;
                 }
 

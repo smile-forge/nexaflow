@@ -18,12 +18,14 @@ public class MermaidShapesTests
     [TestMethod]
     public void EveryShapeWrittenInBracketsHasAPairThatSaysIt_AndNoPairIsWrittenTwice()
     {
-        MermaidShape[] named =
-            [MermaidShape.None, MermaidShape.Document, MermaidShape.Card, MermaidShape.Cloud, MermaidShape.Bang, MermaidShape.Text];
+        MermaidShape[] bracketed =
+        [
+            MermaidShape.Rectangle, MermaidShape.Rounded, MermaidShape.Stadium, MermaidShape.Subroutine, MermaidShape.Cylinder,
+            MermaidShape.Circle, MermaidShape.DoubleCircle, MermaidShape.Asymmetric, MermaidShape.Diamond, MermaidShape.Hexagon,
+            MermaidShape.Parallelogram, MermaidShape.ParallelogramAlt, MermaidShape.Trapezoid, MermaidShape.TrapezoidAlt,
+        ];
 
-        CollectionAssert.AreEquivalent(
-            Enum.GetValues<MermaidShape>().Except(named).ToArray(),
-            MermaidShapes.Nodes.Select(node => node.Shape).Distinct().ToArray());
+        CollectionAssert.AreEquivalent(bracketed, MermaidShapes.Nodes.Select(node => node.Shape).Distinct().ToArray());
 
         Assert.AreEqual(MermaidShapes.Nodes.Count, MermaidShapes.Nodes.Select(node => (node.Open, node.Close)).Distinct().Count());
         Assert.AreEqual(MermaidShapes.Nodes.Count, MermaidShapes.Brackets.Count);
@@ -56,13 +58,30 @@ public class MermaidShapesTests
         Assert.AreEqual(MermaidShape.Cylinder, MermaidShapes.Named("cyl"));
         Assert.AreEqual(MermaidShape.Cylinder, MermaidShapes.Named("database"), "and every other name for it");
         Assert.AreEqual(MermaidShape.Diamond, MermaidShapes.Named("decision"));
-        Assert.AreEqual(MermaidShape.Document, MermaidShapes.Named("doc"));
-        Assert.AreEqual(MermaidShape.Card, MermaidShapes.Named("notch-rect"));
-        Assert.AreEqual(MermaidShape.Cloud, MermaidShapes.Named("cloud"));
-        Assert.AreEqual(MermaidShape.Text, MermaidShapes.Named("text"));
+        Assert.AreEqual(MermaidShape.WindowPane, MermaidShapes.Named("internal-storage"));
+        Assert.AreEqual(MermaidShape.StackedRectangle, MermaidShapes.Named("procs"));
+        Assert.AreEqual(MermaidShape.Flag, MermaidShapes.Named("paper-tape"), "paper tape is Mermaid's flag, not the notched flag odd is");
         Assert.AreEqual(MermaidShape.Parallelogram, MermaidShapes.Named("LEAN-R"), "however it is capitalised");
-        Assert.AreEqual(MermaidShape.Rectangle, MermaidShapes.Named("win-pane"), "a shape with a detail of its own comes to the nearest");
-        Assert.AreEqual(MermaidShape.Rectangle, MermaidShapes.Named("wibble"), "and so does a name that says nothing");
-        Assert.AreEqual(MermaidShape.Rectangle, MermaidShapes.Named(null));
+        Assert.IsNull(MermaidShapes.Named("wibble"), "a name Mermaid has no shape by is none");
+        Assert.IsNull(MermaidShapes.Named(null));
+    }
+
+    /// <summary>Every short name in Mermaid's table of shapes is a shape of its own, and together they are every shape there is.</summary>
+    [TestMethod]
+    public void EveryShortNameMermaidGivesIsAShapeOfItsOwn()
+    {
+        string[] names =
+        [
+            "rect", "rounded", "stadium", "fr-rect", "cyl", "circle", "dbl-circ", "odd", "diam", "hex", "lean-r", "lean-l", "trap-b",
+            "trap-t", "doc", "lin-doc", "docs", "tag-doc", "notch-rect", "notch-pent", "lin-rect", "div-rect", "win-pane", "tag-rect",
+            "st-rect", "sl-rect", "delay", "curv-trap", "bow-rect", "flag", "tri", "flip-tri", "hourglass", "bolt", "fork", "sm-circ",
+            "fr-circ", "f-circ", "cross-circ", "h-cyl", "lin-cyl", "datastore", "bucket", "brace", "brace-r", "braces", "browser",
+            "console", "folder", "person", "cloud", "bang", "text",
+        ];
+
+        var shapes = names.Select(name => MermaidShapes.Named(name) ?? throw new AssertFailedException($"{name} names no shape")).ToList();
+
+        Assert.AreEqual(names.Length, shapes.Distinct().Count(), "no two names are drawn the same");
+        CollectionAssert.AreEquivalent(Enum.GetValues<MermaidShape>().Except([MermaidShape.None]).ToArray(), shapes.ToArray());
     }
 }

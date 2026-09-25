@@ -26,7 +26,7 @@ public class DiagramShapesTests
     [TestMethod]
     public void EveryShapeHoldsTheWordsItIsMadeToTheSizeOf() => UiThread.Run(() =>
     {
-        foreach (var shape in Shapes)
+        foreach (var shape in Shapes.Where(DiagramShapes.Worded))
             foreach (var words in new[] { new Size(60, 14), new Size(12, 30), new Size(220, 16) })
             {
                 var size = DiagramShapes.Around(shape, words, pad: 6);
@@ -69,6 +69,8 @@ public class DiagramShapesTests
                  {
                      DiagramShape.Rectangle, DiagramShape.Circle, DiagramShape.Diamond, DiagramShape.Hexagon, DiagramShape.Asymmetric,
                      DiagramShape.Parallelogram, DiagramShape.ParallelogramAlt, DiagramShape.Trapezoid, DiagramShape.TrapezoidAlt, DiagramShape.Card,
+                     DiagramShape.NotchedPentagon, DiagramShape.SlopedRectangle, DiagramShape.Triangle, DiagramShape.FlippedTriangle, DiagramShape.Folder,
+                     DiagramShape.SmallCircle, DiagramShape.CrossedCircle,
                  })
         {
             var outline = DiagramShapes.Outline(shape, bounds);
@@ -174,11 +176,53 @@ public class DiagramShapesTests
     });
 
     [TestMethod]
-    public void EveryShapeMermaidsBracketsSayIsDrawnAsOneOfItsOwn()
+    public void EveryShapeMermaidNamesIsDrawnAsOneOfItsOwn()
     {
-        var drawn = MermaidShapes.Nodes.Select(node => DiagramShapes.For(node.Shape)).ToList();
+        var named = Enum.GetValues<MermaidShape>().Except([MermaidShape.None, MermaidShape.Text]).ToList();
+        var drawn = named.Select(DiagramShapes.For).ToList();
 
-        Assert.AreEqual(MermaidShapes.Nodes.Count, drawn.Distinct().Count(), "no two pairs of brackets are drawn the same");
+        Assert.AreEqual(named.Count, drawn.Distinct().Count(), "no two shapes are drawn the same");
         Assert.AreEqual(DiagramShape.Rectangle, DiagramShapes.For(MermaidShape.None), "and brackets that say no shape are a plain box");
     }
+
+    /// <summary>Mermaid's small markers are drawn at a size of their own without their words, and the solid ones filled in their ink.</summary>
+    [TestMethod]
+    public void AMarkerIsDrawnWithoutItsWords_TheSolidOnesInTheirInk() => UiThread.Run(() =>
+    {
+        foreach (var shape in new[] { DiagramShape.SmallCircle, DiagramShape.FilledCircle, DiagramShape.Fork, DiagramShape.Bolt, DiagramShape.Hourglass })
+        {
+            var size = DiagramShapes.Around(shape, new Size(200, 40), pad: 6);
+            Assert.IsTrue(size.Width < 70 && size.Height < 70, $"{shape} is its own size, {size}, whatever its words");
+
+            var build = new LayoutBuilder();
+            build.Open("page");
+            DiagramShapes.Draw(build, "Node", new TestPart(0, 6), shape, new Rect(new Point(10, 10), size), Brushes.White,
+                               new DiagramStroke(Brushes.Navy), Words("Unseen", new TestPart(0, 6)));
+            build.Close();
+
+            var root = build.Seal().Root;
+            Assert.IsFalse(root.SelfAndDescendants().Any(piece => piece.Kind == MermaidPiece.Words), $"{shape} draws no words");
+
+            var fill = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape).Marks.ToArray().OfType<GeometryMark>().First().Fill;
+            Assert.AreEqual(shape is DiagramShape.FilledCircle or DiagramShape.Fork ? Brushes.Navy : Brushes.White, fill, $"{shape}'s fill");
+        }
+    });
+
+    /// <summary>A brace marks the words beside it: nothing is filled, but a press anywhere in its bounds still means it.</summary>
+    [TestMethod]
+    public void ABraceIsNotFilled_ButStandsInAllItsBounds() => UiThread.Run(() =>
+    {
+        var bounds = new Rect(0, 0, 120, 40);
+
+        var build = new LayoutBuilder();
+        build.Open("page");
+        DiagramShapes.Draw(build, "Node", new TestPart(0, 6), DiagramShape.Braces, bounds, Brushes.White, new DiagramStroke(Brushes.Black));
+        build.Close();
+
+        var root = build.Seal().Root;
+        var shape = root.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Shape);
+
+        Assert.IsNull(shape.Marks.ToArray().OfType<GeometryMark>().First().Fill, "no fill behind the words");
+        Assert.AreEqual(MermaidPiece.Shape, root.PieceAt(new Point(60, 20)).Kind, "and a press between the braces means the shape");
+    });
 }

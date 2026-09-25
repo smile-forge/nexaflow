@@ -21,52 +21,52 @@ public static class Pdf417BlockReader
 {
     private static readonly string[] OwnKeys = ["type", "columns", "ec", "rowheight", "truncated"];
 
-    public static bool TryRead(ContentNode tree, out Pdf417Block? block, out string? error)
+    public static bool TryRead(ContentPart tree, out Pdf417Block? block, out (ContentPart Part, string Reason) wrong)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out wrong)) return false;
 
         string types = string.Join(", ", QrPayload.FieldsByType.Keys);
 
         if (fields.Count == 0)
         {
-            error = $"An empty pdf417 block. Start with a `type:` line — {types}.";
+            wrong = (tree, $"An empty pdf417 block. Start with a `type:` line — {types}.");
             return false;
         }
 
         if (!fields.TryGetValue("type", out string? type) || type.Length == 0)
         {
-            error = $"This pdf417 block has no `type:` line. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"This pdf417 block has no `type:` line. Supported types: {types}.");
             return false;
         }
 
         if (!QrPayload.FieldsByType.TryGetValue(type, out string[]? typeFields))
         {
-            error = $"Unknown PDF417 type '{type}'. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"Unknown PDF417 type '{type}'. Supported types: {types}.");
             return false;
         }
 
-        foreach (string key in fields.Keys)
+        if (MatrixBlockReader.Unknown(fields,
+                                      key => OwnKeys.Contains(key.Replace("-", string.Empty), StringComparer.OrdinalIgnoreCase)
+                                             || typeFields.Contains(key, StringComparer.OrdinalIgnoreCase),
+                                      key => $"'{key}' is not a field of a `{type.ToLowerInvariant()}` PDF417 symbol. It takes {string.Join(", ", typeFields)}"
+                                             + $"; and columns, ec, rowHeight, truncated, {MatrixBlockReader.SettingNames}.",
+                                      out wrong))
+            return false;
+
+        if (!QrPayload.TryBuild(type, fields, out string? payload, out var error))
         {
-            if (OwnKeys.Contains(key.Replace("-", string.Empty), StringComparer.OrdinalIgnoreCase)) continue;
-            if (MatrixBlockReader.IsSetting(key)) continue;
-            if (typeFields.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
-
-            error = $"'{key}' is not a field of a `{type.ToLowerInvariant()}` PDF417 symbol. "
-                  + $"It takes {string.Join(", ", typeFields)}"
-                  + $"; and columns, ec, rowHeight, truncated, {MatrixBlockReader.SettingNames}.";
+            wrong = (tree, error ?? "This block could not be read.");
             return false;
         }
-
-        if (!QrPayload.TryBuild(type, fields, out string? payload, out error)) return false;
 
         int? columns = null;
         if (fields.ContainsKey("columns"))
         {
             if (!MatrixBlockReader.TrySize(fields, "columns", Pdf417Encoder.MinColumns,
                                            Pdf417Encoder.MinColumns, Pdf417Encoder.MaxColumns,
-                                           out int c, out error)) return false;
+                                           out int c, out wrong)) return false;
             columns = c;
         }
 
@@ -75,13 +75,13 @@ public static class Pdf417BlockReader
         {
             if (!MatrixBlockReader.TrySize(fields, "ec", Pdf417Encoder.MinErrorLevel,
                                            Pdf417Encoder.MinErrorLevel, Pdf417Encoder.MaxErrorLevel,
-                                           out int e, out error)) return false;
+                                           out int e, out wrong)) return false;
             level = e;
         }
 
-        if (!TryRowHeight(fields, out double rowHeight, out error)) return false;
-        if (!TryFlag(fields, "truncated", out bool truncated, out error)) return false;
-        if (!MatrixBlockReader.TrySettings(fields, out var settings, out error)) return false;
+        if (!TryRowHeight(fields, out double rowHeight, out wrong)) return false;
+        if (!TryFlag(fields, "truncated", out bool truncated, out wrong)) return false;
+        if (!MatrixBlockReader.TrySettings(fields, out var settings, out wrong)) return false;
 
         block = new Pdf417Block
         {
@@ -94,23 +94,23 @@ public static class Pdf417BlockReader
         return true;
     }
 
-    private static bool TryRowHeight(IReadOnlyDictionary<string, string> fields, out double result, out string? error)
+    private static bool TryRowHeight(MatrixFields fields, out double result, out (ContentPart Part, string Reason) wrong)
     {
         result = Pdf417Block.DefaultRowHeight;
-        error  = null;
+        wrong  = default;
 
         if (!fields.TryGetValue("rowHeight", out string? value) || value.Length == 0) return true;
 
         if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
         {
-            error = $"`rowHeight: {value}` is not a number.";
+            wrong = (fields.Value("rowHeight"), $"`rowHeight: {value}` is not a number.");
             return false;
         }
 
         if (parsed < Pdf417Block.MinRowHeight || parsed > Pdf417Block.MaxRowHeight)
         {
-            error = $"`rowHeight: {value}` is outside the usable range "
-                  + $"{Pdf417Block.MinRowHeight}–{Pdf417Block.MaxRowHeight} module widths.";
+            wrong = (fields.Value("rowHeight"), $"`rowHeight: {value}` is outside the usable range "
+                                                + $"{Pdf417Block.MinRowHeight}–{Pdf417Block.MaxRowHeight} module widths.");
             return false;
         }
 
@@ -118,10 +118,10 @@ public static class Pdf417BlockReader
         return true;
     }
 
-    private static bool TryFlag(IReadOnlyDictionary<string, string> fields, string key, out bool result, out string? error)
+    private static bool TryFlag(MatrixFields fields, string key, out bool result, out (ContentPart Part, string Reason) wrong)
     {
         result = false;
-        error  = null;
+        wrong  = default;
 
         if (!fields.TryGetValue(key, out string? value) || value.Length == 0) return true;
 
@@ -130,7 +130,7 @@ public static class Pdf417BlockReader
             case "true" or "yes" or "1":  result = true;  return true;
             case "false" or "no" or "0":  result = false; return true;
             default:
-                error = $"`{key}: {value}` is not true or false.";
+                wrong = (fields.Value(key), $"`{key}: {value}` is not true or false.");
                 return false;
         }
     }

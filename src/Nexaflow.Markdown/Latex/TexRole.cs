@@ -62,4 +62,7 @@ public static class TexRole
     public const string Begin = "begin";
 
     public const string End = "end";
+
+    /// <summary>What an argument holding a value — a colour's name, a length, an equation's number, an array's columns — says.</summary>
+    public const string Value = "value";
 }

@@ -92,7 +92,7 @@ These are turned on in the pipeline **and** drawn by the builder. Every row is a
 | Figures | `UseFigures()` | ✅ | ✅ | `^^^` figure block, caption under the middle. |
 | Footers | `UseFooters()` | ✅ | ✅ | `^^ footer`, ruled off from the document above. |
 | Citations | `UseCitations()` | ✅ | ✅ | `""text""` → raised, coloured citation text. **Delimiter is a doubled double-quote, not `^^`** (see note below). |
-| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A **display** formula keeps its typesetting whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; an **inline** one falls back to its source, because a sentence with a wave through the middle of it cannot be read. |
+| Mathematics | `UseMathematics()` | ✅ | ✅ | Block `$$…$$` and inline `$…$`, typeset by the repo's own LaTeX engine as the `latex` language. A formula keeps its typesetting while it is being written, whatever is wrong with it — maths under a caret is invalid most of the time — and a wave goes under what could not be read; only being read, or with nothing it could set, it is shown as written, delimiters and all, with what is wrong marked and why beneath. **Inline and display are the same**; a sentence reads on round an inline formula shown as written. |
 | Diagrams | `UseDiagrams()` | ✅ (custom) | ✅ | `MarkdownPipelineTests`, `MarkdownSampleRenderTests`. Drawn **natively** (see below). |
 | Musical notation | — (a fenced language) | ✅ (custom) | ✅ | `AbcBuilderTests`, `LilyPondBuilderTests`, `EngravingRulesTests`, `MusicRendererTests`, `MusicSampleDocTests`, `MarkdownSampleRenderTests`. Fenced `abc` / `lilypond` blocks → engraved sheet music, filling a share of the page and centred in it (see below). |
 
@@ -166,8 +166,10 @@ JS/Mermaid.js, no browser).
 Nodes joined by links, laid out in ranks by how far along the links reach them
 ([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
 as few lines crossing as can be managed, then each node set across its rank beside the ones it joins). A node is an id with a
-label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, of which the fifty-odd
-names come to the nearest shape this draws; a bare id is carried on by a dash or a dot, and ends where a link starts, which is
+label in the brackets that say its shape — all fourteen Mermaid writes — or one named by `@{ shape: … }`, every one of Mermaid's
+fifty-odd names drawn as its own shape: its markers (a start, a stop, a junction, a fork, a collate, a communication link, a
+summary) at a size of their own and without their words, as Mermaid draws them, a fork standing across the way the chart runs,
+and a name Mermaid has no shape by said to be wrong, as Mermaid refuses it; a bare id is carried on by a dash or a dot, and ends where a link starts, which is
 Mermaid's own rule and the reason `A-->B` needs no space in it. **A node written again is the same node**, the second writing
 saying more about it, so a link may name nodes a line above laid out. Links are read from the characters they are drawn as
 ([`MermaidLinks`](../src/Nexaflow.Markdown/Mermaid/MermaidLinks.cs)): `-->`, `---`, `--o`, `--x`, `<-->`, `o--o`, `x--x`, thick
@@ -187,9 +189,11 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; the `@{ shape: … }` names Mermaid draws with a detail of their own — a window pane, a bow tie, a crossed circle —
-come to the nearest shape this has; an `icon:` or `img:` node is drawn as its label, and `fa:fa-…` in a label is drawn as the
-characters written, there being no icon pack to fetch; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
+nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as one of the icons this draws —
+cloud, database, disk, internet, server, whatever pack names it — and as a question mark otherwise, which is what Mermaid
+draws for an icon it has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
+picture the host finds by that name, found as a document's `![](…)` is (`WithDiagramPictures`), at the `w:`/`h:` it asks for
+and in its own shape under `constraint: on`, and a dashed box of that size where nothing is found; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
 rather than styled; `interpolate` on a `linkStyle` is read, `linear` against anything else being all that changes how a line is
 drawn; and a `click` line's link is read and not followed, because a press in a diagram on the shared tree puts the caret in the
 source. **A
@@ -1193,15 +1197,24 @@ Every symbology reduces to the same thing — a row of equal-width modules, each
 [`BarcodePattern`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePattern.cs) carries all of them
 and the renderer never learns what an EAN is.
 
-**The parser does not encode.** That split is the whole design:
+**Reading it does not encode.** The body is read as every code block's is — `MatrixParser`, a field a line — and
+[`BarcodeParser`](../src/Nexaflow.Markdown/Barcode/BarcodeParser.cs) then spells the value out a character at a time
+([`SpellValue`](../src/Nexaflow.Markdown/Barcode/Stages/SpellValue.cs)).
+[`BarcodeBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBlockReader.cs) reads that tree into a
+`BarcodeBlock`, and that split is the whole design:
 
-- A **structural** fault (unknown key, no such format, a width that isn't a number) means the block
-  cannot be understood, and it falls back to its source with the reason — the characters the writer typed, as
-  every language that cannot draw does.
-- A value the format **cannot carry** is not structural. The block is well formed and the value is the
-  part being edited, so it must keep rendering: a valid sample value's bars are drawn faint, struck
-  through, with a red wave under the value and the reason on hover. A value is invalid for every
-  keystroke but the last while an EAN-13 is being typed.
+- A fault in **reading** it (a line that is not a field, an unknown key, no such format, a width that isn't a number)
+  means the block cannot be understood, and it is shown as written with the piece at fault marked and the reason under
+  it — the key that is not a setting, the width that is not a number.
+- A value the format **cannot carry** is not one of them. The block reads and the value is the part being edited, so
+  where it is being written and its value is printed to be typed into, it keeps rendering: a valid sample value's bars
+  are drawn faint, struck through, with a red wave under the value and the reason on hover. A value is invalid for every
+  keystroke but the last while an EAN-13 is being typed. Where the block is only being read, or its value is not
+    printed, there is nowhere to put it right but its source, so it is shown as written with the value marked.
+  - A value **not yet written** — `value:` with nothing after it — is a hole under a faint symbol of its kind where the
+    block is being written in ([`HoldValue`](../src/Nexaflow.Markdown/Barcode/Stages/HoldValue.cs)), and the caret goes
+    into it to type the value; nothing is wrong yet, so nothing is waved. Only being read, it is shown as written with its
+    line marked.
 
 **Human-readable layout is a property of the format, not of the encoding**, so it is worked out in one
 place — [`BarcodeTextLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeTextLayout.cs) —
@@ -1216,7 +1229,7 @@ when every module is right, which is exactly what the reference images caught.
 **Editing.** In a document a barcode is pieces of the same laid tree as the words round it, so the caret steps into
 it, selects and types there as it does anywhere else, and a key means what it means to the characters — a barcode
 registers no edit hook of its own.
-It contributes a **layout tree** ([`BarcodeLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeLayout.cs)),
+It contributes a **layout tree** ([`BarcodeBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs)),
 built from a parse tree of the symbol's text
 ([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
 answer where the caret can stand and what a press landed on, exactly as they do for a formula.
@@ -1230,9 +1243,10 @@ and the bars get none at all. A piece with no part is drawn and is not selectabl
 caret is never offered inside a check digit, and why an ISBN takes it in the caption (the number as it
 was written) and not under the bars.
 
-The encoder counts the caption from the value's first character, because that is all it is told. The language lays the
-block at `BarcodeBlock.ValueStart` — where the value sits in the document — and the builder moves every caption part
-there (`BarcodePart.At`), so a caret in the caption stands between the characters of the document it is written in.
+The encoder counts what it prints along the value, because the value is all it is told. The value in the block's tree is
+one piece per character, so the builder gives each printed `Character` the piece it counts to (`BarcodeBlock.Characters`),
+and a caret in the caption stands between the characters of the document it is written in without the builder working out
+where any of them are.
 
 **Settings**: `width` (0.5–20, default 2 — the width of one *bar*, not of the symbol), `height`
 (4–1000, default 100), `displayValue` (default true), `fontSize` (4–200, default 20), `textAlign`
@@ -1610,7 +1624,11 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 A notation's builder does only what that notation leaves to it. ABC writes down where its bars and beams
 go; LilyPond leaves bars, beams and printed accidentals to whoever engraves it, so its builder plays the
 music through to find them (see *LilyPond coverage*). Everything after that — staves, heads, stems, beams,
-curves, words, spacing and line breaks — is the one engraver's.
+curves, words, spacing and line breaks — is the one engraver's. What a string, a name, a chord's name and a syllable say
+is read off the parts the parser made of them ([`LilyPondText`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs)):
+a string is its quotes and a letter for each character, an escape being the one it writes, so a title is selected a
+letter at a time; a chord's name is its root, its quality and its bass; a syllable is its words and any duration after
+them. No builder takes one apart.
 
 **Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
 beamed pair to select the pair, drag for a run — then:

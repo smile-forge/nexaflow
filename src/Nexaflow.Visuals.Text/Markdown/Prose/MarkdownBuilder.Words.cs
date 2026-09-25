@@ -156,8 +156,8 @@ public sealed partial class MarkdownBuilder
 
             // A dotted rule under it is how a reader is told there is more to a word than the word. What it stands
             // for is on the tree, hung there by the reader, for whoever shows a tip to find.
-            case MarkdownKinds.Abbreviation:
-                runs.Add(new Run(part.Print(), part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
+            case MarkdownKinds.Abbreviation when part.Part(Roles.Body) is { } word:
+                runs.Add(new Run(word.Text, part, face with { Dotted = true, Ink = Style.Text }, Maps: true));
                 return;
 
             // Raw HTML is not rendered, so what is drawn for it is nothing at all — the words either side close up
@@ -244,8 +244,9 @@ public sealed partial class MarkdownBuilder
 
         if (body is null || body.Length == 0)
         {
-            // A bare or bracketed url is its own words.
-            runs.Add(new Run(where ?? part.Print(), part, linked, Maps: where is { Length: > 0 }, Act: act));
+            // A bare or bracketed url is its own words; a link with nowhere to go and no words is what it is written with.
+            if (where is null) Inside(part, linked, runs);
+            else runs.Add(new Run(where, part, linked, Maps: where.Length > 0, Act: act));
 
             return;
         }
@@ -272,28 +273,37 @@ public sealed partial class MarkdownBuilder
     /// A formula written in the middle of a sentence, typeset on the line it was written on.
     ///
     /// <para>
-    /// <strong>An inline formula that could not be read shows its source instead, where one on its own line does
-    /// not.</strong> The two are different problems: a display formula is what the reader is looking at and half
-    /// a formula still tells them where they are, but a sentence with a wave through the middle of it is a
-    /// sentence nobody can read. So the dollars and what is between them are set in a monospaced face, in the
-    /// accent, which is a reader saying "this bit is still LaTeX" rather than hiding it.
+    /// <strong>What is wrong with it is shown as it is with a formula on a line of its own.</strong> Being written, it stays typeset
+    /// with a wave under what could not be read; where it could not be typeset — only being read, or nothing to set — it is shown
+    /// as written, its dollars and all, with what was wrong marked in it and why beneath, and the sentence reads on round it.
     /// </para>
     /// </summary>
     private void Formula(ContentPart part, Face face, List<Run> runs)
     {
-        if (Nested(part, double.PositiveInfinity) is { Laid.Trouble.Count: 0 } set)
+        var nested = Nested(part, double.PositiveInfinity);
+
+        if (nested is { Draws: true, Laid.ShowsSource: false } set)
         {
+            _borrowed.AddRange(set.Laid.Trouble);
             runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: set));
 
             return;
         }
 
-        // The marks and what is between them, which is a branch and so holds no text of its own.
-        var written = part.Print();
+        var mono = face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent };
 
-        if (written.Length > 0)
-            runs.Add(new Run(written, part, face with { Mono = true, Scale = face.Scale * 0.94, Ink = Style.Accent },
-                             Maps: true));
+        if (nested is { Laid.Trouble.Count: > 0 } unread)
+        {
+            var shown = SourceShown.Lay(part, unread.Laid.Trouble, text => Glyphs(text, mono), Style);
+            _borrowed.AddRange(shown.Trouble);
+            runs.Add(new Run(string.Empty, part, face, Maps: false, Inset: new ContentInset(shown)));
+
+            return;
+        }
+
+        // Nothing reads it and nothing is wrong with it: its marks and what is between them, each piece set as it is written.
+        foreach (var written in part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && !piece.Derived && piece.Length > 0))
+            runs.Add(new Run(written.Text, written, mono, Maps: true));
     }
 
     /// <summary>

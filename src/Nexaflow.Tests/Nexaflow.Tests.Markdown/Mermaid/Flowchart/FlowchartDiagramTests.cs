@@ -233,6 +233,27 @@ public class FlowchartDiagramTests
     }
 
     [TestMethod]
+    public void MetadataSaysThePictureOrIconANodeIsDrawnAs()
+    {
+        var diagram = FlowchartDiagram.Read("flowchart TD\n  A@{ icon: \"fa:user\", form: \"square\", pos: \"t\", h: 60 }\n  B@{ img: \"a.png\", w: 40, constraint: \"on\" }\n  C");
+
+        var icon = diagram.Find("A")!.Picture!;
+        Assert.AreEqual("fa:user", icon.Icon);
+        Assert.AreEqual("square", icon.Form);
+        Assert.IsTrue(icon.Above);
+        Assert.AreEqual(60, icon.Height);
+
+        var image = diagram.Find("B")!.Picture!;
+        Assert.IsNull(image.Icon, "a picture names no icon");
+        Assert.AreEqual(40, image.Width);
+        Assert.IsNull(image.Height);
+        Assert.IsTrue(image.Keeps);
+        Assert.IsFalse(image.Above, "its label below it where nothing says");
+
+        Assert.IsNull(diagram.Find("C")!.Picture, "and a node naming neither is drawn as its shape");
+    }
+
+    [TestMethod]
     public void MetadataSaysWhatItSaysAboutANodeWrittenBelowIt()
     {
         var node = FlowchartDiagram.Read("flowchart TD\n  a@{ shape: circle }\n  a --> b").Find("a")!;

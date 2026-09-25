@@ -3,7 +3,7 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Barcode;
+
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -110,7 +110,7 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
                 null => null,
                 ContentPart written => Found(written),
                 TexSourcePart named => Found(named),
-                BarcodePart printed => Found(printed),
+                PartRun run => Found(run),
                 SourceSpan span => span with { Start = span.Start + By },
 
                 // Something this cannot follow stays put, which is right only where nothing moved.
@@ -178,24 +178,20 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
             return moved;
         }
 
-        private BarcodePart? Found(BarcodePart part)
+
+
+        /// <summary>A run of parts, each followed to where it now is — or null where any of them is gone.</summary>
+        private PartRun? Found(PartRun run)
         {
-            if (By == 0) return part;
+            var moved = new List<ISourcePart>(run.Parts.Count);
 
-            _made ??= [];
-            if (_made.TryGetValue(part, out var found)) return (BarcodePart)found;
-
-            if (part.Parent is not { } up)
+            foreach (var part in run.Parts)
             {
-                var moved = part.At(By);
-                _made[part] = moved;
-                return moved;
+                if (!Try(part, out var to) || to is null) return null;
+                moved.Add(to);
             }
 
-            if (Found(up) is not { } there || there.Children.Count != up.Children.Count) return null;
-
-            for (var at = 0; at < up.Children.Count; at++) _made[up.Children[at]] = there.Children[at];
-            return (BarcodePart)_made[part];
+            return new PartRun(moved);
         }
 
         private static ContentPart Root(ContentPart part)

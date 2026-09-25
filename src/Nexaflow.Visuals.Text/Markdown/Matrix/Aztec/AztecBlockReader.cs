@@ -20,51 +20,46 @@ public static class AztecBlockReader
 {
     private static readonly string[] OwnKeys = ["type", "format", "layers", "ecc", "eci"];
 
-    public static bool TryRead(ContentNode tree, out AztecBlock? block, out string? error)
+    public static bool TryRead(ContentPart tree, out AztecBlock? block, out (ContentPart Part, string Reason) wrong)
     {
         block = null;
 
-        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out error)) return false;
+        if (!MatrixBlockReader.TryReadFields(tree, out var fields, out wrong)) return false;
 
         string types = string.Join(", ", AztecPayload.FieldsByType.Keys);
 
         if (fields.Count == 0)
         {
-            error = $"An empty aztec block. Start with a `type:` line — {types}.";
+            wrong = (tree, $"An empty aztec block. Start with a `type:` line — {types}.");
             return false;
         }
 
         if (!fields.TryGetValue("type", out string? type) || type.Length == 0)
         {
-            error = $"This aztec block has no `type:` line. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"This aztec block has no `type:` line. Supported types: {types}.");
             return false;
         }
 
         if (!AztecPayload.FieldsByType.TryGetValue(type, out string[]? typeFields))
         {
-            error = $"Unknown Aztec type '{type}'. Supported types: {types}.";
+            wrong = (fields.Value("type"), $"Unknown Aztec type '{type}'. Supported types: {types}.");
             return false;
         }
 
-        foreach (string key in fields.Keys)
-        {
-            if (OwnKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
-            if (MatrixBlockReader.IsSetting(key)) continue;
-            if (typeFields.Contains(key, StringComparer.OrdinalIgnoreCase)) continue;
-
-            error = $"'{key}' is not a field of an `{type.ToLowerInvariant()}` Aztec code. "
-                  + $"It takes {string.Join(", ", typeFields)}"
-                  + $"; and format, layers, ecc, eci, {MatrixBlockReader.SettingNames}.";
+        if (MatrixBlockReader.Unknown(fields,
+                                      key => OwnKeys.Contains(key, StringComparer.OrdinalIgnoreCase) || typeFields.Contains(key, StringComparer.OrdinalIgnoreCase),
+                                      key => $"'{key}' is not a field of an `{type.ToLowerInvariant()}` Aztec code. It takes {string.Join(", ", typeFields)}"
+                                             + $"; and format, layers, ecc, eci, {MatrixBlockReader.SettingNames}.",
+                                      out wrong))
             return false;
-        }
 
-        if (!TryFormat(fields, out var format, out error)) return false;
-        if (!TryLayers(fields, format, out int? layers, out error)) return false;
+        if (!TryFormat(fields, out var format, out wrong)) return false;
+        if (!TryLayers(fields, format, out int? layers, out wrong)) return false;
         if (!MatrixBlockReader.TrySize(fields, "ecc", AztecOptions.DefaultErrorCorrectionPercent,
                                        AztecOptions.MinErrorCorrectionPercent,
-                                       AztecOptions.MaxErrorCorrectionPercent, out int ecc, out error))
+                                       AztecOptions.MaxErrorCorrectionPercent, out int ecc, out wrong))
             return false;
-        if (!TryEci(fields, out int? eci, out error)) return false;
+        if (!TryEci(fields, out int? eci, out wrong)) return false;
 
         var baseline = new AztecOptions
         {
@@ -74,10 +69,13 @@ public static class AztecBlockReader
             Eci                    = eci,
         };
 
-        if (!AztecPayload.TryBuild(type, fields, baseline, out string? payload, out var options, out error))
+        if (!AztecPayload.TryBuild(type, fields, baseline, out string? payload, out var options, out var error))
+        {
+            wrong = (tree, error ?? "This block could not be read.");
             return false;
+        }
 
-        if (!MatrixBlockReader.TrySettings(fields, out var settings, out error)) return false;
+        if (!MatrixBlockReader.TrySettings(fields, out var settings, out wrong)) return false;
 
         block = new AztecBlock
         {
@@ -89,11 +87,10 @@ public static class AztecBlockReader
         return true;
     }
 
-    private static bool TryFormat(IReadOnlyDictionary<string, string> fields,
-                                  out AztecFormat format, out string? error)
+    private static bool TryFormat(MatrixFields fields, out AztecFormat format, out (ContentPart Part, string Reason) wrong)
     {
         format = AztecFormat.Auto;
-        error  = null;
+        wrong  = default;
 
         if (!fields.TryGetValue("format", out string? value) || value.Length == 0) return true;
 
@@ -103,7 +100,7 @@ public static class AztecBlockReader
             case "compact":                 format = AztecFormat.Compact; return true;
             case "full" or "full-range":    format = AztecFormat.Full;    return true;
             default:
-                error = $"`format: {value}` is not an Aztec format. Use compact, full or auto.";
+                wrong = (fields.Value("format"), $"`format: {value}` is not an Aztec format. Use compact, full or auto.");
                 return false;
         }
     }
@@ -112,8 +109,7 @@ public static class AztecBlockReader
     /// A forced layer count. The ceiling depends on the family — four compact, thirty-two full — and a
     /// count above four with <c>format: compact</c> is a contradiction rather than a number to clamp.
     /// </summary>
-    private static bool TryLayers(IReadOnlyDictionary<string, string> fields, AztecFormat format,
-                                  out int? layers, out string? error)
+    private static bool TryLayers(MatrixFields fields, AztecFormat format, out int? layers, out (ContentPart Part, string Reason) wrong)
     {
         layers = null;
 
@@ -121,11 +117,11 @@ public static class AztecBlockReader
             ? AztecOptions.MaxCompactLayers
             : AztecOptions.MaxFullLayers;
 
-        if (!MatrixBlockReader.TrySize(fields, "layers", 0, 1, ceiling, out int value, out error))
+        if (!MatrixBlockReader.TrySize(fields, "layers", 0, 1, ceiling, out int value, out wrong))
         {
             if (format == AztecFormat.Compact)
-                error += $" A compact Aztec symbol has one to {AztecOptions.MaxCompactLayers} layers; "
-                       + "use `format: full` for more.";
+                wrong = (wrong.Part, wrong.Reason + $" A compact Aztec symbol has one to {AztecOptions.MaxCompactLayers} layers; "
+                                                  + "use `format: full` for more.");
             return false;
         }
 
@@ -134,11 +130,11 @@ public static class AztecBlockReader
     }
 
     /// <summary>An ECI number, which FLG(n) writes as up to six digits.</summary>
-    private static bool TryEci(IReadOnlyDictionary<string, string> fields, out int? eci, out string? error)
+    private static bool TryEci(MatrixFields fields, out int? eci, out (ContentPart Part, string Reason) wrong)
     {
         eci = null;
 
-        if (!MatrixBlockReader.TrySize(fields, "eci", -1, 0, AztecOptions.MaxEci, out int value, out error))
+        if (!MatrixBlockReader.TrySize(fields, "eci", -1, 0, AztecOptions.MaxEci, out int value, out wrong))
             return false;
 
         if (value >= 0) eci = value;

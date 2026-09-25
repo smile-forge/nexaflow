@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -59,14 +60,14 @@ public class Pdf417BuilderTests
     [TestMethod]
     public void RefusesSettingsOutsideTheStandard()
     {
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumns: 40"), out _, out var error));
-        StringAssert.Contains(error, "30");
+        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\ncolumns: 40")), out _, out var wrong));
+        StringAssert.Contains(wrong.Reason, "30");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\nrowHeight: 99"), out _, out error));
-        StringAssert.Contains(error, "rowHeight");
+        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\nrowHeight: 99")), out _, out wrong));
+        StringAssert.Contains(wrong.Reason, "rowHeight");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumnz: 4"), out _, out error));
-        StringAssert.Contains(error, "columnz");
+        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\ncolumnz: 4")), out _, out wrong));
+        StringAssert.Contains(wrong.Reason, "columnz");
     }
 
     [TestMethod]
@@ -139,7 +140,7 @@ public class Pdf417BuilderTests
 
     private static Pdf417Block Read(string source)
     {
-        Assert.IsTrue(Pdf417BlockReader.TryRead(MatrixParser.Parse(source), out var block, out var error), error);
+        Assert.IsTrue(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

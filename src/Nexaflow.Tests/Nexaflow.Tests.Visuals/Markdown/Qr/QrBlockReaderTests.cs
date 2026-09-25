@@ -2,6 +2,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Qr;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Markdown.Matrix;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 
@@ -22,15 +23,15 @@ public class QrBlockReaderTests
 {
     private static QrBlock Parse(string source)
     {
-        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out string? error), error);
+        Assert.IsTrue(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 
     private static string Rejects(string source)
     {
-        Assert.IsFalse(QrBlockReader.TryRead(MatrixParser.Parse(source), out _, out string? error), "expected a rejection");
-        Assert.IsFalse(string.IsNullOrWhiteSpace(error), "a rejection should say why");
-        return error!;
+        Assert.IsFalse(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out _, out var wrong), "expected a rejection");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(wrong.Reason), "a rejection should say why");
+        return wrong.Reason;
     }
 
     // ΓöÇΓöÇ Payload types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ

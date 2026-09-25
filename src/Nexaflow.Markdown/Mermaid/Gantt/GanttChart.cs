@@ -35,8 +35,8 @@ public sealed record GanttTick(int Every, string Unit)
         var digits = said.TakeWhile(char.IsAsciiDigit).Count();
         var unit = said[digits..].Trim();
 
-        return digits > 0 && int.TryParse(said.AsSpan(0, digits), out var every) && every > 0 && GanttGrammar.Intervals.Contains(unit)
-            ? new GanttTick(every, unit)
+        return digits > 0 && MermaidNumber.Read(said[..digits]) is { } every && every > 0 && GanttGrammar.Intervals.Contains(unit)
+            ? new GanttTick((int)every, unit)
             : null;
     }
 }

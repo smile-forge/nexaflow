@@ -38,32 +38,27 @@ internal sealed class PlotBuilder : ContentBuilder
 
     private readonly StyleFormat _palette;
     private readonly DiagramInk _ink;
-    private readonly PlotSettings _settings;
-    private readonly string? _unreadable;
-    
-    private PlotBuilder(ContentReading reading, PlotSettings settings, string? unreadable, StyleFormat palette)
-        : base(reading, EditState.For(reading.Source), palette, isReadOnly: true)
+    private PlotBuilder(ContentReading reading, EditState state, StyleFormat palette, bool isReadOnly)
+        : base(reading, state, palette, isReadOnly)
     {
-        _settings = settings;
-        _unreadable = unreadable;
         _palette = palette;
         _ink = new DiagramInk(palette);
-    
     }
 
     /// <summary>Reads a block and lays it out. Never null, and never throws.</summary>
-    public static Laid Build(string source, PlotFence fence, StyleFormat palette, double room, int at = 0)
-    {
-        var tree = PlotPipeline.Read(source, fence, out var settings, out var unreadable);
-
-        return new PlotBuilder(ContentReading.Of(tree, at), settings, unreadable, palette).Lay(room);
-    }
+    public static Laid Build(string source, PlotFence fence, StyleFormat palette, double room, int at = 0) =>
+        new PlotBuilder(ContentReading.Of(PlotPipeline.Read(source, fence), at), EditState.For(source), palette, isReadOnly: true).Lay(room);
 
     protected override Laid? Build()
     {
-        if (_unreadable is not null) return Stopped(_unreadable);
+        // A setting that will not read leaves nothing to work the picture out from: the block is shown as written, the setting
+        // at fault marked with why.
+        if (PlotPipeline.Settings(Reading.Root.Node) is not { } settings)
+            return AsSource([.. Reading.Root.SelfAndDescendants()
+                                  .Where(part => part.Trouble is not null && !part.Derived)
+                                  .Select(part => (part, part.Trouble!))]);
 
-        var chart = PlotChart.Of(Reading.Root, _settings);
+        var chart = PlotChart.Of(Reading.Root, settings);
 
         if (chart.Marks.Count == 0)
             return Stopped("An empty plot. It takes a row of values for each point — two columns for where "

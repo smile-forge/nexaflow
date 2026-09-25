@@ -24,7 +24,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <param name="Language">What reads it.</param>
 /// <param name="Style">What this showing of the content is drawn in.</param>
 /// <param name="Options">What the host said about diagrams, where it said anything.</param>
-internal sealed record ContentNesting(IContentLanguage Language, string Named, StyleFormat Style, DiagramRenderOptions? Options)
+internal sealed record ContentNesting(IContentLanguage Language, string Named, StyleFormat Style, DiagramRenderOptions? Options, string Written)
 {
     /// <summary>What a piece has hanging off it, or null where it holds no other language.</summary>
     public static ContentNesting? Of(ContentPart? part) =>
@@ -54,9 +54,7 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
     {
         if (body is null) return null;
 
-        var (_, length) = Own(body);
-
-        var laid = Language.Lay(new ContentRequest(body.Print()[..length], Style)
+        var laid = Language.Lay(new ContentRequest(Written, Style)
         {
             Named = Named, Room = room, At = body.Start, Options = Options,
             Shown = shown is { } zone && Holds(body, zone) ? zone : null,
@@ -83,15 +81,13 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
         part.SelfAndDescendants().Any(inner => Of(inner) is not null && inner.Part(Roles.Body) is { } body && Holds(body, zone));
 
     /// <summary>
-    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line. That
-    /// ending belongs to the line the closing delimiter stands on — written into, it would put what was typed on that line
-    /// and the delimiter would no longer close anything.
+    /// The stretch of a body that is the language's own: all of it but the line ending that closes its last line, which is a
+    /// piece of its own (<see cref="Nexaflow.Markdown.Prose.Stages.WithClosingLines"/>). That ending belongs to the line the
+    /// closing delimiter stands on — written into, it would put what was typed on that line and the delimiter would no longer
+    /// close anything.
     /// </summary>
-    public static (int Start, int Length) Own(ContentPart body)
-    {
-        var written = body.Print();
-        var closing = written.EndsWith("\r\n", StringComparison.Ordinal) ? 2 : written.EndsWith('\n') ? 1 : 0;
-
-        return (body.Start, body.Length - closing);
-    }
+    public static (int Start, int Length) Own(ContentPart body) =>
+        body.Children.Count > 0 && body.Children[^1] is { Role: Roles.Trivia } closing
+            ? (body.Start, closing.Start - body.Start)
+            : (body.Start, body.Length);
 }

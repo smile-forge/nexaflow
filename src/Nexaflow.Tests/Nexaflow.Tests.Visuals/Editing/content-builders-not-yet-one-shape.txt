@@ -3,16 +3,14 @@
 # The rule is: one constructor, taking (ContentReading, EditState, StyleFormat, bool), nothing told to it
 # afterwards, and nothing named that ContentBuilder does not declare.
 #
-# Each of these is still told something as a fifth thing. What is left is the hard half: a barcode has no
-# grammar and so no reading of its own; a plot's settings are read out of its fence rather than its tree. The
-# easy half — a width, an ink, a spacing, a palette, a whole laying record — has gone.
+# Each of these is still told something as a fifth thing, or names something ContentBuilder does not declare. A
+# width, an ink, a spacing, a palette, a whole laying record, a barcode's value and a plot's settings have gone.
 #
 # This list may only shrink. A name that comes into shape has to come off it, which the second test enforces.
-Nexaflow.Visuals.Text.Markdown.Barcode.BarcodeBuilder
 Nexaflow.Visuals.Text.Markdown.Latex.LatexBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.Aztec.AztecBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix.DataMatrixBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417.Pdf417Builder
 Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidBuilder`1
-Nexaflow.Visuals.Text.Markdown.Plot.PlotBuilder
+
 Nexaflow.Visuals.Text.Markdown.Qr.QrBuilder

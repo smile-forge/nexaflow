@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -115,7 +116,7 @@ public class DataMatrixBuilderTests
 
     private static DataMatrixBlock Read(string source)
     {
-        Assert.IsTrue(DataMatrixBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var error), error);
+        Assert.IsTrue(DataMatrixBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

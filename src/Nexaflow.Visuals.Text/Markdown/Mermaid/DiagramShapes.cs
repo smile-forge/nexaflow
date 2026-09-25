@@ -9,64 +9,6 @@ using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid;
 
-/// <summary>The shapes a diagram draws a node as — Mermaid's, named for what they look like, with the brackets a flowchart writes each with.</summary>
-internal enum DiagramShape
-{
-    /// <summary><c>[text]</c></summary>
-    Rectangle,
-
-    /// <summary><c>(text)</c></summary>
-    Rounded,
-
-    /// <summary><c>([text])</c> — a pill.</summary>
-    Stadium,
-
-    /// <summary><c>[[text]]</c> — a rectangle with a second line down each side.</summary>
-    Subroutine,
-
-    /// <summary><c>[(text)]</c> — a drum, as a database is drawn.</summary>
-    Cylinder,
-
-    /// <summary><c>((text))</c></summary>
-    Circle,
-
-    /// <summary><c>(((text)))</c></summary>
-    DoubleCircle,
-
-    /// <summary><c>&gt;text]</c> — a flag, notched on its left.</summary>
-    Asymmetric,
-
-    /// <summary><c>{text}</c> — a rhombus, as a decision is drawn.</summary>
-    Diamond,
-
-    /// <summary><c>{{text}}</c></summary>
-    Hexagon,
-
-    /// <summary><c>[/text/]</c> — leaning right.</summary>
-    Parallelogram,
-
-    /// <summary><c>[\text\]</c> — leaning left.</summary>
-    ParallelogramAlt,
-
-    /// <summary><c>[/text\]</c> — wider at the bottom.</summary>
-    Trapezoid,
-
-    /// <summary><c>[\text/]</c> — wider at the top.</summary>
-    TrapezoidAlt,
-
-    /// <summary>A page with a wavy foot.</summary>
-    Document,
-
-    /// <summary>A rectangle with its top left corner folded down.</summary>
-    Card,
-
-    /// <summary><c>)text(</c> — a cloud, as a mindmap draws one.</summary>
-    Cloud,
-
-    /// <summary><c>))text((</c> — a starburst, as a mindmap draws a bang.</summary>
-    Bang,
-}
-
 /// <summary>
 /// The shapes nodes are drawn as, as geometry: each shape's outline and the lines inside it, where words fit in it, how big it
 /// has to be to hold words, and where a line from its middle leaves it — which is where a connector meets it.
@@ -77,7 +19,7 @@ internal enum DiagramShape
 /// rather than at its bounding box. <see cref="Draw"/> puts one on the layout tree, standing in its own outline.
 /// </para>
 /// </summary>
-internal static class DiagramShapes
+internal static partial class DiagramShapes
 {
     /// <summary>How round a <see cref="DiagramShape.Rounded"/> corner is.</summary>
     private const double Corner = 6;
@@ -85,7 +27,7 @@ internal static class DiagramShapes
     /// <summary>How far in a <see cref="DiagramShape.Subroutine"/>'s inner lines and a <see cref="DiagramShape.DoubleCircle"/>'s inner ring are.</summary>
     private const double Inner = 5;
 
-    /// <summary>The shape Mermaid's brackets say, as one to draw — a plain box for brackets that say none.</summary>
+    /// <summary>The shape Mermaid's brackets or name say, as one to draw — a plain box for brackets that say none.</summary>
     public static DiagramShape For(MermaidShape shape) => shape switch
     {
         MermaidShape.Rounded => DiagramShape.Rounded,
@@ -102,7 +44,41 @@ internal static class DiagramShapes
         MermaidShape.Trapezoid => DiagramShape.Trapezoid,
         MermaidShape.TrapezoidAlt => DiagramShape.TrapezoidAlt,
         MermaidShape.Document => DiagramShape.Document,
+        MermaidShape.LinedDocument => DiagramShape.LinedDocument,
+        MermaidShape.StackedDocument => DiagramShape.StackedDocument,
+        MermaidShape.TaggedDocument => DiagramShape.TaggedDocument,
         MermaidShape.Card => DiagramShape.Card,
+        MermaidShape.NotchedPentagon => DiagramShape.NotchedPentagon,
+        MermaidShape.LinedRectangle => DiagramShape.LinedRectangle,
+        MermaidShape.DividedRectangle => DiagramShape.DividedRectangle,
+        MermaidShape.WindowPane => DiagramShape.WindowPane,
+        MermaidShape.TaggedRectangle => DiagramShape.TaggedRectangle,
+        MermaidShape.StackedRectangle => DiagramShape.StackedRectangle,
+        MermaidShape.SlopedRectangle => DiagramShape.SlopedRectangle,
+        MermaidShape.Delay => DiagramShape.Delay,
+        MermaidShape.CurvedTrapezoid => DiagramShape.CurvedTrapezoid,
+        MermaidShape.BowTie => DiagramShape.BowTie,
+        MermaidShape.Flag => DiagramShape.Flag,
+        MermaidShape.Triangle => DiagramShape.Triangle,
+        MermaidShape.FlippedTriangle => DiagramShape.FlippedTriangle,
+        MermaidShape.Hourglass => DiagramShape.Hourglass,
+        MermaidShape.Bolt => DiagramShape.Bolt,
+        MermaidShape.Fork => DiagramShape.Fork,
+        MermaidShape.SmallCircle => DiagramShape.SmallCircle,
+        MermaidShape.FramedCircle => DiagramShape.FramedCircle,
+        MermaidShape.FilledCircle => DiagramShape.FilledCircle,
+        MermaidShape.CrossedCircle => DiagramShape.CrossedCircle,
+        MermaidShape.HorizontalCylinder => DiagramShape.HorizontalCylinder,
+        MermaidShape.LinedCylinder => DiagramShape.LinedCylinder,
+        MermaidShape.DataStore => DiagramShape.DataStore,
+        MermaidShape.Bucket => DiagramShape.Bucket,
+        MermaidShape.Brace => DiagramShape.Brace,
+        MermaidShape.BraceRight => DiagramShape.BraceRight,
+        MermaidShape.Braces => DiagramShape.Braces,
+        MermaidShape.Browser => DiagramShape.Browser,
+        MermaidShape.Console => DiagramShape.Console,
+        MermaidShape.Folder => DiagramShape.Folder,
+        MermaidShape.Person => DiagramShape.Person,
         MermaidShape.Cloud => DiagramShape.Cloud,
         MermaidShape.Bang => DiagramShape.Bang,
         _ => DiagramShape.Rectangle,
@@ -113,12 +89,24 @@ internal static class DiagramShapes
     {
         Geometry outline = shape switch
         {
-            DiagramShape.Rounded => new RectangleGeometry(bounds, Corner, Corner),
+            DiagramShape.Rounded or DiagramShape.Browser or DiagramShape.Console => new RectangleGeometry(bounds, Corner, Corner),
             DiagramShape.Stadium => new RectangleGeometry(bounds, bounds.Height / 2, bounds.Height / 2),
-            DiagramShape.Circle or DiagramShape.DoubleCircle => new EllipseGeometry(bounds),
-            DiagramShape.Cylinder => Cylinder(bounds),
-            DiagramShape.Document => Document(bounds),
+            _ when Round(shape) => new EllipseGeometry(bounds),
+            DiagramShape.Cylinder or DiagramShape.LinedCylinder => Cylinder(bounds),
+            DiagramShape.Document or DiagramShape.LinedDocument or DiagramShape.TaggedDocument => Document(bounds),
+            DiagramShape.StackedDocument => United(Stacked(bounds).Select(Document)),
+            DiagramShape.StackedRectangle => United(Stacked(bounds).Select(sheet => (Geometry)new RectangleGeometry(sheet))),
             DiagramShape.Cloud => Cloud(bounds),
+            DiagramShape.Delay => Delay(bounds),
+            DiagramShape.CurvedTrapezoid => CurvedTrapezoid(bounds),
+            DiagramShape.BowTie => BowTie(bounds),
+            DiagramShape.Flag => Flag(bounds),
+            DiagramShape.Hourglass => Polygon([bounds.TopLeft, bounds.TopRight, bounds.BottomLeft, bounds.BottomRight]),
+            DiagramShape.HorizontalCylinder => HorizontalCylinder(bounds),
+            DiagramShape.DataStore => DataStore(bounds),
+            DiagramShape.Bucket => Bucket(bounds),
+            DiagramShape.Brace or DiagramShape.BraceRight or DiagramShape.Braces => Braced(shape, bounds),
+            DiagramShape.Person => Person(bounds),
             _ when Corners(shape, bounds) is { } points => Polygon(points),
             _ => new RectangleGeometry(bounds),
         };
@@ -127,23 +115,36 @@ internal static class DiagramShapes
         return outline;
     }
 
-    /// <summary>The lines a shape draws inside its outline — a subroutine's inner sides, a cylinder's rim, the inner ring of a double circle — or null.</summary>
+    /// <summary>
+    /// The lines a shape draws inside its outline — a subroutine's inner sides, a cylinder's rim, the inner ring of a double circle,
+    /// the sheets showing behind a stack's front one — or null.
+    /// </summary>
     public static Geometry? Details(DiagramShape shape, Rect bounds)
     {
+        var (x, y, w, h) = (bounds.X, bounds.Y, bounds.Width, bounds.Height);
+
         Geometry? details = shape switch
         {
-            DiagramShape.Subroutine => new GeometryGroup
-            {
-                Children =
-                {
-                    new LineGeometry(new Point(bounds.Left + Inner, bounds.Top), new Point(bounds.Left + Inner, bounds.Bottom)),
-                    new LineGeometry(new Point(bounds.Right - Inner, bounds.Top), new Point(bounds.Right - Inner, bounds.Bottom)),
-                },
-            },
-            DiagramShape.DoubleCircle when bounds.Width > Inner * 2 && bounds.Height > Inner * 2 =>
-                new EllipseGeometry(new Rect(bounds.X + Inner, bounds.Y + Inner, bounds.Width - (Inner * 2), bounds.Height - (Inner * 2))),
-            DiagramShape.Cylinder => Rim(bounds),
-            DiagramShape.Card => new LineGeometry(new Point(bounds.Left, bounds.Top + Fold(bounds)), new Point(bounds.Left + Fold(bounds), bounds.Top)),
+            DiagramShape.Subroutine => Group(Segment(x + Inner, y, x + Inner, y + h), Segment(x + w - Inner, y, x + w - Inner, y + h)),
+            DiagramShape.DoubleCircle when w > Inner * 2 && h > Inner * 2 =>
+                new EllipseGeometry(new Rect(x + Inner, y + Inner, w - (Inner * 2), h - (Inner * 2))),
+            DiagramShape.FramedCircle => new EllipseGeometry(new Rect(x + (w / 4), y + (h / 4), w / 2, h / 2)),
+            DiagramShape.CrossedCircle => Crossed(bounds),
+            DiagramShape.Cylinder or DiagramShape.Bucket => Rim(bounds),
+            DiagramShape.LinedCylinder => Group(Rim(bounds), Rim(new Rect(x, y + Ring, w, h))),
+            DiagramShape.HorizontalCylinder => Face(bounds),
+            DiagramShape.Card => Segment(x, y + Fold(bounds), x + Fold(bounds), y),
+            DiagramShape.LinedRectangle => Segment(x + Lining, y, x + Lining, y + h),
+            DiagramShape.DividedRectangle => Segment(x, y + Divide(bounds), x + w, y + Divide(bounds)),
+            DiagramShape.WindowPane => Group(Segment(x, y + Pane, x + w, y + Pane), Segment(x + Pane, y, x + Pane, y + h)),
+            DiagramShape.TaggedRectangle => Segment(x + w - Tag(bounds), y + h, x + w, y + h - Tag(bounds)),
+            DiagramShape.LinedDocument => Segment(x + Lining, y, x + Lining, WaveAt(bounds, x + Lining)),
+            DiagramShape.TaggedDocument => Segment(x + w, y + h - Wave(bounds) - Tag(bounds), x + w - Tag(bounds), WaveAt(bounds, x + w - Tag(bounds))),
+            DiagramShape.StackedRectangle => Behind([.. Stacked(bounds).Select(sheet => (Geometry)new RectangleGeometry(sheet))]),
+            DiagramShape.StackedDocument => Behind([.. Stacked(bounds).Select(Document)]),
+            DiagramShape.Browser => Browser(bounds),
+            DiagramShape.Console => Prompt(bounds),
+            DiagramShape.Person => new EllipseGeometry(Crown(bounds)),
             _ => null,
         };
 
@@ -165,10 +166,33 @@ internal static class DiagramShapes
             DiagramShape.Diamond => Inset(bounds, w / 4, h / 4),
             DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
                 or DiagramShape.Trapezoid or DiagramShape.TrapezoidAlt => Inset(bounds, Slant(bounds), 0),
-            DiagramShape.Asymmetric => new Rect(x + Notch(bounds), y, Math.Max(0, w - Notch(bounds)), h),
-            DiagramShape.Cylinder => new Rect(x, y + Lid(bounds), w, Math.Max(0, h - (Lid(bounds) * 2))),
-            DiagramShape.Document => new Rect(x, y, w, Math.Max(0, h - (Wave(bounds) * 2))),
-            DiagramShape.Card => new Rect(x + (Fold(bounds) / 2), y, Math.Max(0, w - (Fold(bounds) / 2)), h),
+            DiagramShape.Asymmetric => Box(x + Notch(bounds), y, w - Notch(bounds), h),
+            DiagramShape.Cylinder => Box(x, y + Lid(bounds), w, h - (Lid(bounds) * 2)),
+            DiagramShape.LinedCylinder => Box(x, y + Lid(bounds) + Ring, w, h - (Lid(bounds) * 2) - Ring),
+            DiagramShape.Bucket => Box(x + Lip(bounds), y + (Lid(bounds) * 2), w - (Lip(bounds) * 2), h - (Lid(bounds) * 2)),
+            DiagramShape.HorizontalCylinder => Box(x + Cap(bounds), y, w - (Cap(bounds) * 3), h),
+            DiagramShape.Document or DiagramShape.TaggedDocument => Box(x, y, w, h - (Wave(bounds) * 2)),
+            DiagramShape.LinedDocument => Box(x + Lining, y, w - Lining, h - (Wave(bounds) * 2)),
+            DiagramShape.StackedDocument => Inside(DiagramShape.Document, Stacked(bounds)[^1]),
+            DiagramShape.StackedRectangle => Stacked(bounds)[^1],
+            DiagramShape.Card => Box(x + (Fold(bounds) / 2), y, w - (Fold(bounds) / 2), h),
+            DiagramShape.NotchedPentagon => Box(x + (Fold(bounds) / 2), y + (Fold(bounds) / 2), w - Fold(bounds), h - (Fold(bounds) / 2)),
+            DiagramShape.LinedRectangle => Box(x + Lining, y, w - Lining, h),
+            DiagramShape.DividedRectangle => Box(x, y + Divide(bounds), w, h - Divide(bounds)),
+            DiagramShape.WindowPane => Box(x + Pane, y + Pane, w - Pane, h - Pane),
+            DiagramShape.SlopedRectangle => Box(x, y + Slope(bounds), w, h - Slope(bounds)),
+            DiagramShape.Delay => Box(x, y, w - Math.Min(h / 2, w), h),
+            DiagramShape.CurvedTrapezoid => Inset(bounds, Pointed(bounds), 0),
+            DiagramShape.BowTie => Inset(bounds, Bowed(bounds), 0),
+            DiagramShape.Flag => Inset(bounds, 0, Wave(bounds) * 2),
+            DiagramShape.Triangle => Box(x + (w * 0.2), y + (h * 0.6), w * 0.6, h * 0.4),
+            DiagramShape.FlippedTriangle => Box(x + (w * 0.2), y, w * 0.6, h * 0.4),
+            DiagramShape.Brace => Box(x + Curl, y, w - Curl, h),
+            DiagramShape.BraceRight => Box(x, y, w - Curl, h),
+            DiagramShape.Braces => Inset(bounds, Curl, 0),
+            DiagramShape.Browser or DiagramShape.Console => Box(x, y + Bar, w, h - Bar),
+            DiagramShape.Folder => Box(x, y + Tab(bounds), w, h - Tab(bounds)),
+            DiagramShape.Person => Inset(Body(bounds), Rounding(Body(bounds)) / 2, 0),
             DiagramShape.Cloud => Inset(bounds, w * 0.14, h * 0.2),
             DiagramShape.Bang => Inset(bounds, w * 0.22, h * 0.24),
             _ => bounds,
@@ -177,10 +201,12 @@ internal static class DiagramShapes
 
     /// <summary>
     /// How big a shape has to be for <paramref name="words"/> to fit inside it with <paramref name="pad"/> of clear air round
-    /// them — the size <see cref="Inside"/> gives that room back for.
+    /// them — the size <see cref="Inside"/> gives that room back for. A shape drawn without words is the size it always is.
     /// </summary>
     public static Size Around(DiagramShape shape, Size words, double pad)
     {
+        if (Fixed(shape) is { } size) return size;
+
         var (w, h) = (words.Width + (pad * 2), words.Height + (pad * 2));
 
         switch (shape)
@@ -191,9 +217,32 @@ internal static class DiagramShapes
             case DiagramShape.DoubleCircle: return Square((Math.Max(w, h) * Math.Sqrt(2)) + (Inner * 2));
             case DiagramShape.Diamond: return new Size(w * 2, h * 2);
             case DiagramShape.Asymmetric: return new Size(Math.Max(w + 12, w * 4 / 3), h);
-            case DiagramShape.Cylinder: return new Size(w, h / 0.7 * 0.15 < 10 ? h / 0.7 : h + 20);
-            case DiagramShape.Document: return new Size(w, h / 0.85);
+            case DiagramShape.Cylinder: return new Size(w, Drum(h));
+            case DiagramShape.LinedCylinder: return new Size(w, Drum(h + Ring));
+            case DiagramShape.Bucket: return new Size(w / 0.76, Drum(h));
+            case DiagramShape.HorizontalCylinder: return new Size(w + (h * 0.75), h);
+            case DiagramShape.Document or DiagramShape.TaggedDocument: return new Size(w, h / 0.85);
+            case DiagramShape.LinedDocument: return new Size(w + Lining, h / 0.85);
+            case DiagramShape.StackedDocument: return new Size(w + (Stack * 2), (h / 0.85) + (Stack * 2));
+            case DiagramShape.StackedRectangle: return new Size(w + (Stack * 2), h + (Stack * 2));
             case DiagramShape.Card: return new Size(w + (Math.Min(12, h / 3) / 2), h);
+            case DiagramShape.NotchedPentagon: return new Size(w + 12, h + 6);
+            case DiagramShape.LinedRectangle: return new Size(w + Lining, h);
+            case DiagramShape.DividedRectangle: return new Size(w, h / 0.8);
+            case DiagramShape.WindowPane: return new Size(w + Pane, h + Pane);
+            case DiagramShape.SlopedRectangle or DiagramShape.Flag: return new Size(w, h / 0.7);
+            case DiagramShape.Delay or DiagramShape.BowTie: return new Size(w + (h / 2), h);
+            case DiagramShape.CurvedTrapezoid: return new Size(w + (h / 3 * 2), h);
+            case DiagramShape.Triangle or DiagramShape.FlippedTriangle:
+            {
+                var across = Math.Max(w / 0.6, h / 0.4);
+                return new Size(across, Math.Max(h / 0.4, across * 0.8));
+            }
+            case DiagramShape.Brace or DiagramShape.BraceRight: return new Size(w + Curl, h);
+            case DiagramShape.Braces: return new Size(w + (Curl * 2), h);
+            case DiagramShape.Browser or DiagramShape.Console: return new Size(Math.Max(w, 72), h + Bar);
+            case DiagramShape.Folder: return new Size(w, h + 10);
+            case DiagramShape.Person: return new Size(w + 10, h + (Head * 0.8));
             case DiagramShape.Cloud: return new Size(w / 0.72, h / 0.6);
             case DiagramShape.Bang: return new Size(w / 0.56, h / 0.52);
             case DiagramShape.Hexagon or DiagramShape.Parallelogram or DiagramShape.ParallelogramAlt
@@ -203,6 +252,9 @@ internal static class DiagramShapes
         }
 
         static Size Square(double side) => new(side, side);
+
+        // As tall as a drum has to be for this much room between its lid and its foot, each of which takes 15% of it up to 10.
+        static double Drum(double room) => room / 0.7 * 0.15 < 10 ? room / 0.7 : room + 20;
     }
 
     /// <summary>
@@ -216,7 +268,7 @@ internal static class DiagramShapes
     {
         var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
 
-        if (shape is DiagramShape.Circle or DiagramShape.DoubleCircle)
+        if (Round(shape))
         {
             var round = toward - middle;
             if (round.Length < 1e-9) return middle;
@@ -306,6 +358,8 @@ internal static class DiagramShapes
                             Brush? fill, DiagramStroke? stroke, DiagramWords? words = null, string wordsKind = MermaidPiece.Words,
                                                     LayoutActions? acts = null)
     {
+        if (!Worded(shape)) words = null;
+
         var outline = Outline(shape, bounds);
         var room = Inside(shape, bounds);
         var at = words is null ? default : new Point(room.X + ((room.Width - words.Width) / 2), room.Y + ((room.Height - words.Height) / 2));
@@ -316,9 +370,11 @@ internal static class DiagramShapes
         // The drawing is a piece of its own, and a leaf: only what draws is pressed, so a shape with words in it stands in its
         // outline through this — less where its words are, which stand in front.
         build.Open(MermaidPiece.Shape, part, stops: Stops.None);
-        build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        // A shape given neither a fill nor an outline — words alone — draws nothing, though it still stands where it is.
+        if (Filled(shape, fill, stroke) is not null || stroke is not null)
+            build.Draw(new GeometryMark(outline, Filled(shape, fill, stroke), stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         if (Details(shape, bounds) is { } details && stroke is not null)
-            build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
+            build.Draw(new GeometryMark(details, Dotted(shape) ? stroke.Ink : null, stroke.Ink, stroke.Thickness));
         build.Occupies(words is null ? outline : Clear(outline, new Rect(at, new Size(words.Width, words.Height))));
         build.Close();
 
@@ -336,6 +392,9 @@ internal static class DiagramShapes
     IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words, Geometry? covered = null,
                             double degrees = 0, LayoutActions? acts = null, Brush? band = null)
     {
+        if (!Worded(shape)) words = [];
+        fill = Filled(shape, fill, stroke);
+
         var outline = Outline(shape, bounds);
         var over = new GeometryGroup();
         if (covered is not null) over.Children.Add(covered);
@@ -354,9 +413,10 @@ internal static class DiagramShapes
             if (stroke is not null) build.Draw(new GeometryMark(heading.Rule, null, stroke.Ink, stroke.Thickness));
             build.Draw(new GeometryMark(outline, null, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         }
-        else build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
+        else if (fill is not null || stroke is not null)
+            build.Draw(new GeometryMark(outline, fill, stroke?.Ink, stroke?.Thickness ?? 0) { Dashes = stroke?.Dashes });
         if (Details(shape, bounds) is { } details && stroke is not null)
-            build.Draw(new GeometryMark(details, null, stroke.Ink, stroke.Thickness));
+            build.Draw(new GeometryMark(details, Dotted(shape) ? stroke.Ink : null, stroke.Ink, stroke.Thickness));
         var stands = new CombinedGeometry(GeometryCombineMode.Exclude, outline, over);
         stands.Freeze();
         build.Occupies(stands);
@@ -434,7 +494,7 @@ internal static class DiagramShapes
 
         return shape switch
         {
-        DiagramShape.Bang => Bang(r),
+            DiagramShape.Bang => Bang(r),
             DiagramShape.Diamond => [new(cx, y), new(x + w, cy), new(cx, y + h), new(x, cy)],
             DiagramShape.Hexagon => [new(x + k, y), new(x + w - k, y), new(x + w, cy), new(x + w - k, y + h), new(x + k, y + h), new(x, cy)],
             DiagramShape.Asymmetric => [new(x, y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x + Notch(r), cy)],
@@ -443,6 +503,12 @@ internal static class DiagramShapes
             DiagramShape.Trapezoid => [new(x + k, y), new(x + w - k, y), new(x + w, y + h), new(x, y + h)],
             DiagramShape.TrapezoidAlt => [new(x, y), new(x + w, y), new(x + w - k, y + h), new(x + k, y + h)],
             DiagramShape.Card => [new(x + Fold(r), y), new(x + w, y), new(x + w, y + h), new(x, y + h), new(x, y + Fold(r))],
+            DiagramShape.NotchedPentagon => [new(x + Fold(r), y), new(x + w - Fold(r), y), new(x + w, y + Fold(r)), new(x + w, y + h), new(x, y + h), new(x, y + Fold(r))],
+            DiagramShape.SlopedRectangle => [new(x, y + Slope(r)), new(x + w, y), new(x + w, y + h), new(x, y + h)],
+            DiagramShape.Triangle => [new(cx, y), new(x + w, y + h), new(x, y + h)],
+            DiagramShape.FlippedTriangle => [new(x, y), new(x + w, y), new(cx, y + h)],
+            DiagramShape.Bolt => Bolt(r),
+            DiagramShape.Folder => Folder(r),
             _ => null,
         };
     }

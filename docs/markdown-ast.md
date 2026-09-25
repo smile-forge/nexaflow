@@ -48,7 +48,8 @@ Ast/         ContentNode, ContentPart, ContentReading, ContentWords, ContentLink
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles, Stages/WithBindings
 Binding/     IDataContext, ReflectionDataContext, BoundText — what a {{…}} is read against
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
-Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
+Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417, datamatrix and barcode share
+Barcode/     BarcodeParser, BarcodeKinds, Stages/SpellValue — a barcode's value spelled out a character at a time
 Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles
 Mermaid/     MermaidParser, MermaidBlock, MermaidDiagram, MermaidKinds, MermaidConfig — what every mermaid diagram shares
 Mermaid/Pie/ PieGrammar, PieChart, PieConfig, Stages/ResolveSlices — what a pie says for itself
@@ -194,7 +195,14 @@ in the error colour. The waves under the blamed parts are the host's, drawn from
 block content look the same. The same helper is what a builder that throws is shown as (`ContentBuilder.Lay`), and what
 the element shows when the reading falls over before any builder has a tree (`ContentElement`). A document shows a
 nested block that came back as its source through it too, as the whole of what the language is written in — fences
-and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes.
+and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes. Anything
+else a builder sets as its own characters arrives as characters in the tree it is handed, so no builder prints a part or
+counts where one ends — nor asks a helper to on its behalf. A block held as written (a fence nothing draws, indented code,
+raw HTML, front matter) holds its characters as a leaf, the line break closing them cut off as a trivia piece of its own
+(`WithClosingLines`); the block whose markup is under the caret is made a `written` block of its characters by a stage
+run before the builder (`ShowBlocksAsWritten`); a grouping the notation declares no node for — a beam, a slur, a
+syllable's letters — names the parts it spans as one `PartRun`, whose extent the AST type works out. What a nested
+language is handed to read is printed by the stage that names the language (`WithNested`), not while the page is built.
 
 **Which way something goes, by why it cannot be drawn:**
 
@@ -212,7 +220,10 @@ header), and trouble in one that drew is kept in place only where each wrong par
 is being written in. A formula keeps what is written wrong in place while it is being written, and is shown as written
 where it is only read; something it read but has no drawing for is its own shortcoming, not the writer's, so it stays a
 warning in place. A tune, a structure, a 2D code, a plot and a word cloud are only ever read where they are drawn —
-nothing in them is typed into there — so anything wrong in one shows it as written, marked. A document shows a nested
+nothing in them is typed into there — so anything wrong in one shows it as written, marked. A barcode's value is typed
+into where it is printed, so a value that will not encode keeps its faint, struck-through symbol with a wave under the
+value while it is being written and printed; anywhere else, and for anything else wrong with the block, it is shown as
+written with the piece at fault marked. A document shows a nested
 block that came back as its source through the same helper, fences and all.
 
 ## Markdown
@@ -361,9 +372,9 @@ for.
 **Trouble is answered differently in the two places maths is written.** A display formula keeps its
 typesetting whatever is wrong with it — maths under a caret is invalid most of the time, since every command
 is unreadable until its last letter is typed, so a formula that turned into a box of source as it was written
-would spend most of its life as a box of source. An inline one falls back to its own source in a monospaced
-accent, because half a display formula still tells a reader where they are and a sentence with a wave through
-the middle of it does not.
+would spend most of its life as a box of source. An inline one is no different: being written it stays set with a
+wave under what could not be read, and where it could not be set it is shown as written — its dollars and all, what
+is wrong marked in it and why beneath — with the sentence reading on round it.
 
 ## ABC
 
@@ -408,6 +419,16 @@ finders and timing lines, an Aztec code's bullseye, mode message and reference g
 indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
 the module geometry, the quiet zone, and showing a block that will not read or encode as it is written —
 is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+
+## Barcodes
+
+The 2D codes' parser and one stage. A `barcode` body is the same field a line, and `SpellValue` then spells its `value:`
+out a piece per character — structure, because a barcode prints its value back a character at a time, and each character
+it prints stands for one it was given. Where the block is being written in, `HoldValue` gives a `value:` with nothing
+after its colon a piece holding a hole: `WithHoles` puts a hole inside a piece that holds nothing, and a value never
+written has no piece to be inside. `BarcodeBlockReader` reads the tree into a `BarcodeBlock`, saying what stops it
+against the piece at fault, and `BarcodeBuilder` encodes the value and hands each printed `Character` the piece of the
+tree it counts to along the value — never a position of its own working out.
 
 ## Mermaid
 

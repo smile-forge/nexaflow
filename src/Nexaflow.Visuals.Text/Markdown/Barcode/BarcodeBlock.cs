@@ -1,26 +1,42 @@
+using System.Collections.Generic;
+using System.Linq;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Barcode;
+using Nexaflow.Markdown.Matrix;
+
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
 /// <summary>Where the human-readable text sits under the bars.</summary>
 public enum BarcodeTextAlign { Left, Center, Right }
 
 /// <summary>
-/// One parsed <c>barcode</c> block: what to encode, and how to draw it.
+/// One <c>barcode</c> block as <see cref="BarcodeBlockReader"/> read it: what to encode, and how to draw it.
 ///
 /// <para>
-/// The <see cref="Value"/> is kept as written rather than as encoded, because it is the thing the reader
-/// edits in place. What goes <em>under</em> the bars is the encoder's business — several of these
-/// formats add a check digit, and the label on a real package shows it.
+/// The value is kept as the piece of the tree it was written as rather than as encoded, because it is the thing the reader edits
+/// in place. What goes <em>under</em> the bars is the encoder's business — several of these formats add a check digit, and the
+/// label on a real package shows it.
 /// </para>
 /// </summary>
 public sealed class BarcodeBlock
 {
     public required BarcodeSymbology Format { get; init; }
 
-    /// <summary>The value as the author wrote it, and as they edit it.</summary>
-    public required string Value { get; init; }
+    /// <summary>The <c>value:</c> line the value is written on.</summary>
+    public required ContentPart Field { get; init; }
 
-    /// <summary>Where in the block source the value sits, so an edit can be spliced back into it.</summary>
-    public int ValueStart { get; init; }
+    /// <summary>The value as it is written, one piece per character — or null where nothing follows the colon.</summary>
+    public ContentPart? Written => Field.Part(MatrixRoles.Value);
+
+    /// <summary>The value, as the author wrote it and as they edit it.</summary>
+    public string Value => string.Concat(Characters.Select(character => character.Text));
+
+    /// <summary>Each character of the value, in order: what a character printed from it stands for.</summary>
+    public IReadOnlyList<ContentPart> Characters =>
+        Written is { } written ? [.. written.Children.Where(part => part.Kind == BarcodeKinds.Character)] : [];
+
+    /// <summary>The hole standing where a value not yet written goes, where the block is being written in — or null.</summary>
+    public ContentPart? Hole => Written?.Children.FirstOrDefault(part => part.Kind == Kinds.Hole);
 
     /// <summary>How wide one module is drawn, in device-independent pixels.</summary>
     public double BarWidth { get; init; } = DefaultBarWidth;
@@ -56,39 +72,4 @@ public sealed class BarcodeBlock
     public const double MinBarHeight = 4,    MaxBarHeight = 1000;
     public const double MinFontSize  = 4,    MaxFontSize  = 200;
     public const double MaxMargin    = 200;
-
-    /// <summary>The same block with a different value — what an in-place edit produces.</summary>
-    public BarcodeBlock With(string value) => new()
-    {
-        Format       = Format,
-        Value        = value,
-        ValueStart   = ValueStart,
-        BarWidth     = BarWidth,
-        BarHeight    = BarHeight,
-        DisplayValue = DisplayValue,
-        FontSize     = FontSize,
-        TextAlign    = TextAlign,
-        LineColor    = LineColor,
-        Background   = Background,
-        Margin       = Margin,
-    };
-
-    /// <summary>
-    /// The same block with the value's offset rebased onto a larger source — how a parser handed only a
-    /// fence's content reports a position an editing host can splice against.
-    /// </summary>
-    public BarcodeBlock At(int valueStart) => new()
-    {
-        Format       = Format,
-        Value        = Value,
-        ValueStart   = valueStart,
-        BarWidth     = BarWidth,
-        BarHeight    = BarHeight,
-        DisplayValue = DisplayValue,
-        FontSize     = FontSize,
-        TextAlign    = TextAlign,
-        LineColor    = LineColor,
-        Background   = Background,
-        Margin       = Margin,
-    };
 }

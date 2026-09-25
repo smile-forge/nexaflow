@@ -10,37 +10,6 @@ using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 
-/// <summary>The pieces a flowchart's layout is made of — its layers, and what is in them.</summary>
-public static class FlowchartPiece
-{
-    /// <summary>The chart itself: the nodes, and the subgraphs they are gathered into.</summary>
-    public const string Nodes = "Nodes";
-
-    /// <summary>One node, standing for what was written for it.</summary>
-    public const string Node = "Node";
-
-    /// <summary>A subgraph: the box, and the nodes it holds drawn inside its piece.</summary>
-    public const string Group = "Group";
-
-    /// <summary>A subgraph's own box and what is written at the top of it, behind the nodes it holds.</summary>
-    public const string Holding = "Holding";
-
-    /// <summary>A lane: the band work runs through, standing for the whole of the subgraph that opened it.</summary>
-    public const string Lane = "Lane";
-
-    /// <summary>The strip at the near end of a lane's band, with the lane's own name in it.</summary>
-    public const string Title = "Title";
-
-    /// <summary>The links, drawn over the chart.</summary>
-    public const string Links = "Links";
-
-    /// <inheritdoc cref="Links"/>
-    public const string Link = "Link";
-
-    /// <summary>What is written on a link, over the middle of its line.</summary>
-    public const string Label = "Label";
-}
-
 /// <summary>
 /// Draws a <c>flowchart</c> — or a <c>graph</c>, which Mermaid reads the same way. The nodes are laid out in ranks by how far
 /// along the links reach them (<see cref="DiagramLayers"/>), each rank ordered so as few lines cross as can be managed, and the
@@ -180,11 +149,16 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
             var shape = Shaped(node);
             var words = Said(node, diagram.Config.Wrapping);
-            var around = DiagramShapes.Around(shape, DiagramWords.Taken(words), Pad);
+            var around = node.Picture is { } pictured ? Pictured(pictured, DiagramWords.Taken(words)) : DiagramShapes.Around(shape, DiagramWords.Taken(words), Pad);
+
+            // A marker drawn without words is the size it always is rather than the least a node takes, and a fork lies across the way
+            // the chart runs, standing on end where it runs across the page.
+            if (shape == DiagramShape.Fork && diagram.Way is FlowchartWay.Right or FlowchartWay.Left) around = new Size(around.Height, around.Width);
+            var least = node.Picture is null && DiagramShapes.Worded(shape) ? new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)) : around;
 
             var sized = new Sized(node, words, shape)
             {
-                Cell = new DiagramCell(new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)))
+                Cell = new DiagramCell(least)
                 {
                     Shape = shape,
                     Inside = Holding(plan, node.Group),
@@ -559,6 +533,13 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
 
         var bounds = room.At(sized.Cell.Bounds);
+
+        if (node.Picture is { } pictured)
+        {
+            Framed(build, sized, bounds, pictured);
+            return;
+        }
+
         var words = DiagramWords.Placed(sized.Words, DiagramShapes.Inside(sized.Shape, bounds), MermaidPiece.Words);
 
         // A node asked to be words alone is drawn as its words: nothing is filled or stroked round them.
@@ -569,6 +550,101 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
                                                       acts: Answers(node));
 
                            Chipped(build, node.Id, bounds, node.Part, Shown(node.Said ?? node.Part));
+    }
+
+    /// <summary>How far a picture's label stands from it.</summary>
+    private const double Caption = 4;
+
+    /// <summary>How big an icon is drawn where nothing says, as Mermaid draws one.</summary>
+    private const double IconSide = 40;
+
+    /// <summary>How wide a picture is drawn at most where nothing says how big: its own size, brought down to this.</summary>
+    private const double Broadest = 160;
+
+    /// <summary>How much room a node drawn as a picture takes: the picture, and its label above or below it.</summary>
+    private static Size Pictured(FlowchartPicture pictured, Size said)
+    {
+        var box = Framing(pictured);
+        return new Size(Math.Max(box.Width, said.Width), box.Height + (said.Height > 0 ? Caption + said.Height : 0));
+    }
+
+    /// <summary>
+    /// The size a picture is drawn at: the size it is asked for — kept to its own shape inside that where it is asked to be —
+    /// or, asked for one side, the other to match; its own size where nothing is said, no wider than <see cref="Broadest"/>. An
+    /// icon is square, as tall as it is asked to be.
+    /// </summary>
+    private static Size Framing(FlowchartPicture pictured)
+    {
+        if (pictured.Icon is not null)
+        {
+            var side = pictured.Height ?? pictured.Width ?? IconSide;
+            return new Size(side, side);
+        }
+
+        var picture = Stages.WithDiagramPictures.Of(pictured.Written);
+        var (wide, tall) = (picture?.Width ?? 0, picture?.Height ?? 0);
+        var aspect = wide > 0 && tall > 0 ? wide / tall : 1;
+
+        return (pictured.Width, pictured.Height) switch
+        {
+            ({ } across, { } down) when pictured.Keeps => across / down > aspect ? new Size(down * aspect, down) : new Size(across, across / aspect),
+            ({ } across, { } down) => new Size(across, down),
+            (null, { } down) => new Size(down * aspect, down),
+            ({ } across, null) => new Size(across, across / aspect),
+            _ when wide > 0 => wide > Broadest ? new Size(Broadest, Broadest / aspect) : new Size(wide, tall),
+            _ => new Size(IconSide * 1.5, IconSide * 1.5),
+        };
+    }
+
+    /// <summary>
+    /// A node drawn as its picture or its icon, with its label above or below — standing in the picture, and meaning the node
+    /// wherever it is pressed.
+    /// </summary>
+    private void Framed(LayoutBuilder build, Sized sized, Rect bounds, FlowchartPicture pictured)
+    {
+        var node = sized.Node;
+        var box = Framing(pictured);
+        var said = DiagramWords.Taken(sized.Words);
+        var label = said.Height > 0 ? said.Height + Caption : 0;
+
+        var frame = new Rect(bounds.X + ((bounds.Width - box.Width) / 2), pictured.Above ? bounds.Y + label : bounds.Y, box.Width, box.Height);
+        var room = pictured.Above ? new Rect(bounds.X, bounds.Y, bounds.Width, said.Height) : new Rect(bounds.X, frame.Bottom + Caption, bounds.Width, said.Height);
+
+        var stroke = Stroke(Ink, node.Style, Ink.NodeEdge);
+        DiagramWords? asked = null;
+
+        build.Open(FlowchartPiece.Node, node.Part, stops: Stops.None);
+        if (Answers(node) is { } acts) build.Acts(acts);
+
+        build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
+
+        if (pictured.Icon is { } icon)
+        {
+            // Stood in its form where it is given one — a square, a circle, a rounded square — and on nothing where it is not.
+            if (pictured.Form is { } form)
+                build.Draw(new GeometryMark(DiagramShapes.Outline(form switch { "circle" => DiagramShape.Circle, "rounded" => DiagramShape.Rounded, _ => DiagramShape.Rectangle }, frame),
+                                            Fill(node), stroke?.Ink, stroke?.Thickness ?? 0));
+
+            var inner = new Rect(frame.X + (frame.Width * 0.2), frame.Y + (frame.Height * 0.2), frame.Width * 0.6, frame.Height * 0.6);
+            var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
+
+            // The icons this draws, drawn; any other a question mark, which is what Mermaid draws for an icon it has no pack for.
+            if (Architecture.ArchitectureIcons.Picture(icon, inner) is { } drawn) build.Draw(new GeometryMark(drawn, null, ink, 1.5));
+            else asked = Worked("?", null, inner.Height * 0.8, ink);
+        }
+        else if (Stages.WithDiagramPictures.Of(pictured.Written) is { } picture) build.Draw(new PictureMark(picture, frame));
+        else build.Draw(new GeometryMark(new RectangleGeometry(frame), null, stroke?.Ink ?? Palette.TextMuted, 1) { Dashes = new DoubleCollection([4, 3]) });
+
+        var stands = new RectangleGeometry(frame);
+        stands.Freeze();
+        build.Occupies(stands);
+        build.Close();
+
+        asked?.Set(build, new Point(frame.X + ((frame.Width - asked.Width) / 2), frame.Y + ((frame.Height - asked.Height) / 2)), MermaidPiece.Words);
+
+        foreach (var (words, at, kind) in DiagramWords.Placed(sized.Words, room, MermaidPiece.Words)) words.Set(build, at, kind);
+
+        build.Close();
     }
 
     /// <summary>

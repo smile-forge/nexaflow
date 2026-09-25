@@ -36,9 +36,8 @@ public static class MatrixPiece
 /// over a code the way it arrows over a word.
 /// </para>
 /// <para>
-/// <b>It always draws a symbol.</b> A block that will not read or will not encode draws a valid one of its kind,
-/// faint and struck through, with the reason set beneath it. A code-shaped absence reads as "this is a code, and
-/// it is wrong"; an empty gap reads as a rendering fault.
+/// <b>A block that will not read or will not encode is shown as written</b>, with the reason set beneath it: a code is
+/// only ever read where it is drawn, so its source is the only place it can be put right.
 /// </para>
 /// </summary>
 internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : IModuleMatrix
@@ -62,10 +61,17 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
     protected readonly record struct Region(string Kind, Func<int, int, bool> Holds);
 
     /// <summary>
-    /// What the parser's tree encodes to, or null with the reason — a block that does not read, or a payload the
-    /// code cannot carry.
+    /// What the parser's tree encodes to — or null with the part of it at fault and why: a block that does not read, or a
+    /// payload the code cannot carry.
     /// </summary>
-    protected abstract Drawn? Encode(ContentNode tree, out string? trouble);
+    protected abstract Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong);
+
+    /// <summary>A payload the code could not carry: what it all comes to is at fault, so the whole block is.</summary>
+    protected static Drawn? Refused(ContentPart tree, string? trouble, out (ContentPart Part, string Reason) wrong)
+    {
+        wrong = (tree, trouble ?? "This block could not be encoded.");
+        return null;
+    }
 
     /// <summary>
     /// The parts <paramref name="symbol"/> is made of. A module goes to the first region that holds it, and one
@@ -75,10 +81,8 @@ internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : 
 
     protected sealed override Laid Build() =>
         // A code is only ever read where it is drawn, so a block that does not read, or a payload the code cannot carry, is
-        // put right in its source: shown as written, with why.
-        Encode(Reading.Root.Node, out string? trouble) is { } drawn
-            ? Lay(drawn)
-            : AsSource(trouble ?? "This block could not be read.");
+        // put right in its source: shown as written, with the part at fault marked and why.
+        Encode(Reading.Root, out var wrong) is { } drawn ? Lay(drawn) : AsSource([wrong]);
 
     private Laid Lay(Drawn drawn)
     {

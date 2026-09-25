@@ -31,6 +31,19 @@ public class PlotBuilderTests
     private static Laid Lay(string source, PlotFence fence = PlotFence.Scatter, double room = 560) =>
         PlotBuilder.Build(source, fence, StyleFormat.Dark, room);
 
+    [TestMethod]
+    public void ASettingThatWillNotRead_IsMarkedWhereItIsWritten() => UiThread.Run(() =>
+    {
+        // A setting nobody can read is a question about the whole picture, so the block is shown as written — with the value
+        // at fault marked, not the whole block.
+        const string source = "jitter: lots\n" + Cars;
+        var laid = Lay(source);
+
+        Assert.IsTrue(laid.ShowsSource);
+        Assert.AreEqual(source.IndexOf("lots", System.StringComparison.Ordinal), laid.Trouble.Single().Start);
+        StringAssert.Contains(laid.Trouble.Single().Message, "jitter");
+    });
+
     private static Piece[] Marks(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == PlotPiece.Mark)];
 

@@ -185,6 +185,15 @@ public static class MarkdownKinds
     /// it out from the words, and two headings saying the same thing are told apart by where they are.
     /// </summary>
     public const string Anchor = "anchor";
+
+    /// <summary>How deep a heading is, one to six — as many hashes as open it, or which character underlines it.</summary>
+    public const string Rank = "rank";
+
+    /// <summary>
+    /// A block somebody is changing the markup of, as the characters it is written with — its body — and the line break closing
+    /// them (<c>ShowBlocksAsWritten</c>).
+    /// </summary>
+    public const string Written = "written";
 }
 
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>
@@ -207,6 +216,9 @@ public static class MarkdownRoles
 
     /// <summary>An item done.</summary>
     public const string Done = "done";
+
+    /// <summary>How deep a heading is (<see cref="MarkdownKinds.Rank"/>).</summary>
+    public const string Rank = "rank";
 }
 
 /// <summary>Which way a column of a table is set, as the rule under its head says.</summary>

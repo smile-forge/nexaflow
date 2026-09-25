@@ -54,7 +54,21 @@ public sealed record FlowchartNode(
 
     /// <summary>What a <c>click</c> line says it says while pointed at.</summary>
     public string? Tip { get; init; }
+
+    /// <summary>The picture or icon it is drawn as, where its metadata names one — null for a node drawn as its shape.</summary>
+    public FlowchartPicture? Picture { get; init; }
 }
+
+/// <summary>
+/// What a node drawn as a picture is drawn with — an <c>@{ img: … }</c> or an <c>@{ icon: … }</c> — and how: the frame an
+/// icon stands in, whether its label goes above it, and the size it is asked for.
+/// </summary>
+/// <param name="Written">The <c>img:</c> or <c>icon:</c> line it was named on, which a found picture is hung on.</param>
+/// <param name="Icon">The icon named, pack and all — or null for a picture.</param>
+/// <param name="Form">What an icon stands in — <c>square</c>, <c>circle</c>, <c>rounded</c> — or null for nothing.</param>
+/// <param name="Above">Whether the label goes above it, as <c>pos: t</c> asks, rather than below.</param>
+/// <param name="Keeps">Whether a picture keeps its shape inside the size it is asked for, as <c>constraint: on</c> asks.</param>
+public sealed record FlowchartPicture(ContentPart Written, string? Icon, string? Form, bool Above, double? Width, double? Height, bool Keeps);
 
 /// <summary>
 /// One link, read: the nodes it joins, what is written on it, what it draws at each end, how its line is drawn, and how far apart
@@ -451,7 +465,8 @@ public sealed class FlowchartDiagram
 
         if (known.TryGetValue(id, out var node))
         {
-            if (Set(properties, "shape") is { } shape) node.Shape = MermaidShapes.Named(shape.Text);
+            if (Set(properties, "shape") is { } shape) node.Shape = MermaidShapes.Named(shape.Text) ?? MermaidShape.Rectangle;
+            if (Pictured(properties) is { } picture) node.Picture = picture;
 
             if ((Set(properties, "label") ?? Set(properties, "title")) is { } written)
             {
@@ -461,6 +476,24 @@ public sealed class FlowchartDiagram
         }
 
         if (named.TryGetValue(id, out var link) && Set(properties, "curve") is { } curve) link.Curve = curve.Text;
+    }
+
+    /// <summary>The picture or icon a node's metadata names, and how it is asked to be drawn — or null where it names neither.</summary>
+    private static FlowchartPicture? Pictured(ContentPart? properties)
+    {
+        var named = Set(properties, "img") ?? Set(properties, "icon");
+        if (named?.Parent is not { } written) return null;
+
+        var icon = string.Equals(written.Part(Roles.Name)?.Text, "icon", StringComparison.OrdinalIgnoreCase) ? Bared(named) : null;
+
+        return new FlowchartPicture(written, icon, Bared(Set(properties, "form")) is { Length: > 0 } form ? form.ToLowerInvariant() : null,
+                                    string.Equals(Bared(Set(properties, "pos")), "t", StringComparison.OrdinalIgnoreCase),
+                                    Measured(Set(properties, "w")), Measured(Set(properties, "h")),
+                                    string.Equals(Bared(Set(properties, "constraint")), "on", StringComparison.OrdinalIgnoreCase));
+
+        static string? Bared(ContentPart? value) => value is null ? null : MermaidText.Bare(value.Text).Trim();
+
+        static double? Measured(ContentPart? value) => MermaidNumber.Read(Bared(value)) is { } size && size > 0 ? size : null;
     }
 
     /// <summary>What a property of some metadata is set to, or null where the metadata does not set it.</summary>
@@ -512,6 +545,7 @@ public sealed class FlowchartDiagram
             WorkedPart = made.WorkedPart,
             Href = made.Href,
             Tip = made.Tip,
+            Picture = made.Picture,
         };
 
     private static FlowchartLink Frozen(Joined joined, IReadOnlyList<(IReadOnlyList<int> Links, bool Every, MermaidStyle Style)> styled)
@@ -564,6 +598,8 @@ public sealed class FlowchartDiagram
         public string? Href { get; set; }
 
         public string? Tip { get; set; }
+
+        public FlowchartPicture? Picture { get; set; }
 
         public List<string> Classes { get; } = [];
     }

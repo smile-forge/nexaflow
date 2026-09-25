@@ -66,11 +66,14 @@ public static class SourceShown
               [.. trouble.Select(said => (said.Part ?? new SourceSpan(said.Start, said.Length), said.Start - tree.Start, said.Length))],
               characters, style, room);
 
+    /// <summary>What a part prints to, up to the line break closing its last line.</summary>
+    private static string Printed(ContentPart part) => part.Print().TrimEnd('\r', '\n');
+
     private static Laid Shown(ContentPart tree, IReadOnlyList<Diagnostic> trouble, IReadOnlyList<(ISourcePart Part, int From, int Length)> runs,
                               Func<string, FormattedText> characters, StyleFormat style, double room)
     {
         // Up to the last line's end, not past it: a block's closing line break is where the next block starts, not a line of its own.
-        var printed = tree.Print().TrimEnd('\r', '\n');
+        var printed = Printed(tree);
         var text = characters(printed.Length == 0 ? " " : printed);
 
         // What is said first, since how wide it runs is part of how wide the block is.

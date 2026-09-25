@@ -6,6 +6,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
 using System;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
 
@@ -161,7 +162,7 @@ internal static class StandardCommands
         /// is an instruction and not a thing on the page, and the atom keeps no memory of which it was.
         /// </summary>
         internal static TexAlignment Leaning(Nexaflow.Markdown.Ast.ContentPart? origin) =>
-            origin?.Part(Nexaflow.Markdown.Latex.TexRole.Option)?.Node.Print().Trim('[', ']', ' ') switch
+            origin?.Part(Nexaflow.Markdown.Latex.TexRole.Option)?.Node.Said(Nexaflow.Markdown.Latex.TexRole.Value)?.Trim() switch
             {
                 "l" => TexAlignment.Left,
                 "r" => TexAlignment.Right,

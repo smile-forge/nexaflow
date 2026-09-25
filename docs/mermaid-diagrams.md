@@ -99,7 +99,7 @@ diagram's own code sits in a folder of its own under each.
 | draw a closed shape through points, straight or rounded as Mermaid rounds it | `DiagramCurve.Closed` |
 | draw an open curve between two points, bowed through a third | `DiagramCurve.Bowed` |
 | set the title in the front matter's colour and size | override `TitleColour`, `TitleTextSize` |
-| draw a node in the shape Mermaid's brackets say | `DiagramShapes.For` — the drawn shape a `MermaidShape` comes to |
+| draw a node in the shape Mermaid's brackets or `@{ shape: … }` say | `DiagramShapes.For` — the drawn shape a `MermaidShape` comes to; `DiagramShapes.Worded` says whether it holds its words, Mermaid's markers being drawn without them at a size of their own |
 | say what a piece stands in where other pieces are drawn over it | `build.Occupies` of its shape less `DiagramShapes.United` of theirs — a group of them would stand wrong, a line's band being wound the other way round from a rectangle |
 | write what is said on a connector over the middle of it | `DiagramConnector.Room` for the room it takes, worked out before anything is drawn so what is under it does not stand there, then `DiagramConnector.Says` to draw it on a patch of the card's colour |
 | draw a node: a shape with words in it | `DiagramShapes.Draw` — its words in the middle, or several placed where the diagram puts them, less what else is drawn over it; `Around` sizes a shape for its words, `Edge` is where a line meets it, `Clear` is where a shape of your own stands with words over it |

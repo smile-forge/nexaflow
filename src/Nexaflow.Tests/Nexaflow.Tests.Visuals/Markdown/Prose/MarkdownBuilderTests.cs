@@ -373,12 +373,27 @@ public class MarkdownBuilderTests
     [TestMethod]
     public void AnUnreadableFormulaInASentenceShowsItsSourceInstead()
     {
-        // Where a display formula keeps its typesetting, an inline one does not: half a display formula still
-        // tells a reader where they are, but a sentence with a wave through the middle of it is a sentence
-        // nobody can read. So the dollars come back and the reader can see what to fix.
-        var drawn = Lay("The value $\\not_a_command{$ and on.\n");
+        // A formula in a sentence is shown as one on its own line is: only being read, what could not be typeset is shown as
+        // written, its dollars and all, with what is wrong marked in it and why beneath — and the sentence reads on round it.
+        const string source = "The value $\\not_a_command{$ and on.\n";
+        var drawn = Lay(source);
 
-        StringAssert.Contains(Drawn(drawn), "$\\not_a_command{$");
+        var shown = drawn.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind);
+        Assert.AreEqual("$\\not_a_command{$", shown.Marks.ToArray().OfType<TextMark>().Single().Glyphs.Text);
+        Assert.AreEqual(source.IndexOf('$'), shown.Sits().Start, "standing where it is written");
+        Assert.IsTrue(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "with why under it");
+        Assert.AreNotEqual(0, drawn.Trouble.Count, "and what is wrong said");
+        StringAssert.Contains(Drawn(drawn), "and on.", "the sentence going on round it");
+    }
+
+    [TestMethod]
+    public void AFormulaInASentenceBeingWrittenStaysTypesetWithAWaveUnderWhatIsWrong()
+    {
+        // Being written, half a formula is what is on the page most of the time — so it stays set, as one on its own line does.
+        var drawn = MarkdownBuilder.Lay("The value $x + \\not_a_command$ and on.\n", StyleFormat.Dark, 480, isReadOnly: false);
+
+        Assert.IsFalse(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), "not shown as written");
+        Assert.AreNotEqual(0, drawn.Trouble.Count, "with what could not be read said");
     }
 
     [TestMethod]
@@ -388,8 +403,8 @@ public class MarkdownBuilderTests
         // so they are what is drawn, and typing into them is what starts the formula off.
         var shown = Pieces(Lay("$$\n$$\n"), MarkdownPieces.Verbatim);
 
-        Assert.AreEqual(1, shown.Count);
-        Assert.IsTrue(shown[0].Words!.Maps, "so the caret lands in the dollars and the next key writes maths");
+        Assert.AreNotEqual(0, shown.Count);
+        Assert.IsTrue(shown.All(piece => piece.Words!.Maps), "so the caret lands in the dollars and the next key writes maths");
     }
 
     // ── What a construct is set as ──────────────────────────────────────────

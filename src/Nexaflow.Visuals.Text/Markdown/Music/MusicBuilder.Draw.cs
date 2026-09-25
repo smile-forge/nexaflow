@@ -1403,9 +1403,5 @@ internal abstract partial class MusicBuilder
     /// chord symbol before the first note (<c>"D"GFGA</c>) and would otherwise drag the chord into a
     /// note-only selection.
     /// </summary>
-    private static ISourcePart? Notes(List<Event> events)
-    {
-        if (events.Count == 0 || events[0].Part is not { } first || events[^1].Part is not { } last) return null;
-        return new SourceSpan(first.Start, last.Start + last.Length - first.Start);
-    }
+    private static ISourcePart? Notes(List<Event> events) => PartRun.Of(events.Select(ev => ev.Part));
 }
