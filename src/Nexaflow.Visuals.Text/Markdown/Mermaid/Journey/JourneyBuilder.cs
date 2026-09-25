@@ -146,7 +146,7 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
 
             var band = new Rect(run.Left, top, run.Width, Band);
             var fill = Ink.Series(order, diagram.Config.SectionFill(order));
-    var words = Says(name.Says, name.Hole, NameSize, Palette.Text, Math.Max(20, band.Width - (Pad * 2)), FontWeights.SemiBold);
+    var words = Wrapped(name.Says, name.Hole, NameSize, Palette.Text, Math.Max(20, band.Width - (Pad * 2)), FontWeights.SemiBold);
 
             room.Reach(band);
             DiagramShapes.Draw(build, JourneyPiece.Section, tasks[at].Section.Part, DiagramShape.Rounded, band,
@@ -228,7 +228,7 @@ internal sealed class JourneyBuilder : MermaidBuilder<JourneyDiagram>
             var (task, section) = tasks[at];
             var box = boxes[at];
             var fill = Ink.Series(section.Order, diagram.Config.SectionFill(section.Order));
-            var words = Says(task.Says.Says, task.Says.Hole, size, Palette.Text, Math.Max(20, box.Width - (Pad * 2)));
+            var words = Wrapped(task.Says.Says, task.Says.Hole, size, Palette.Text, Math.Max(20, box.Width - (Pad * 2)));
 
             DiagramShapes.Draw(build, JourneyPiece.Task, task.Part, DiagramShape.Rounded, box,
                 DiagramInk.Faded(fill, Tinted), new DiagramStroke(fill),

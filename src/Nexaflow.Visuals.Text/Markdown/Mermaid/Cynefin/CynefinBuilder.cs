@@ -226,7 +226,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
 
         var cards = items.Select(item =>
         {
-            var lines = Says(item.Says.Says, item.Says.Hole, said, ink, wrap);
+            var lines = Wrapped(item.Says.Says, item.Says.Hole, said, ink, wrap);
             return new Card(item, lines, DiagramShapes.Around(DiagramShape.Rounded, DiagramWords.Taken(lines), Inset));
         });
 

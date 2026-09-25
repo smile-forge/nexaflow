@@ -38,8 +38,9 @@ public class MindmapEditingTests : MermaidEditing
 
             // The long title wraps: a press at the end of its last line writes there.
             var lines = chart.Laid.Root.SelfAndDescendants().Where(piece => piece is { Kind: "Title", Words.Maps: true } && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)).ToList();
-            Assert.IsTrue(lines.Count > 1, "the long title wraps");
-            chart.BeginPointerSelect(new Point(lines[^1].Bounds.Right - 1, lines[^1].Bounds.Y + (lines[^1].Bounds.Height / 2)));
+            var one = chart.Laid.Root.SelfAndDescendants().Where(piece => piece.Kind == "Title").Min(piece => piece.Bounds.Height);
+            Assert.IsTrue(lines[^1].Bounds.Height > one * 1.5, "the long title wraps");
+            chart.BeginPointerSelect(new Point(lines[^1].Bounds.Right - 1, lines[^1].Bounds.Bottom - (one / 2)));
             chart.EndPointerSelect();
             Write(editor, "?");
 

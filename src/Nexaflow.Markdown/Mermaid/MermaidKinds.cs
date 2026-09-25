@@ -25,6 +25,9 @@ public static class MermaidKinds
     /// <summary>What the front matter says about folding, hung on the diagram by <see cref="WithFolds"/> — written nowhere as one.</summary>
     public const string Folds = "mermaid-folds";
 
+    /// <summary>What each run of a diagram's words is made of, hung on the diagram by <see cref="WithWordPieces"/> — written nowhere as one.</summary>
+    public const string WordPieces = "mermaid-word-pieces";
+
     /// <summary>A <c>---</c> that opens or closes the front matter.</summary>
     public const string Fence = "mermaid-fence";
 

@@ -31,5 +31,5 @@ internal sealed class UnknownDiagramBuilder : MermaidBuilder
     protected override Size Draw(MermaidBlock block, LayoutBuilder build) => AsWritten(build);
 
     /// <summary>None: the front matter is part of what is shown, so its title is already on the page.</summary>
-    protected override (ContentPart? Part, string? Text) TitleOf(MermaidBlock block) => (null, null);
+    protected override (ContentPart? Part, string? Says, bool AsWritten) TitleOf(MermaidBlock block) => (null, null, false);
 }

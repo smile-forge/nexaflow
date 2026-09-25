@@ -110,7 +110,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     {
         var said = item.Said is null && item.SaidHole is null
             ? []
-            : Says(item.Said, item.SaidHole, TextSize, Ink.Written(item.Style.Colour) ?? Palette.Text, Widest);
+            : Wrapped(item.Said, item.SaidHole, TextSize, Ink.Written(item.Style.Colour) ?? Palette.Text, Widest);
 
         var sized = new Sized(item, said) { Items = [.. item.Items.Select(child => Sizing(child, pad))] };
 
@@ -379,7 +379,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
             var said = link.Said is null && link.SaidHole is null
                 ? []
-                : Says(link.Said, link.SaidHole, LabelSize, Palette.Text, Widest);
+                : Wrapped(link.Said, link.SaidHole, LabelSize, Palette.Text, Widest);
 
             routes.Add(new Route(link, along, said, DiagramConnector.Room(along, said)));
         }

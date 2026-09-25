@@ -62,6 +62,20 @@ public sealed record PartRun(IReadOnlyList<ISourcePart> Parts) : ISourcePart
 }
 
 /// <summary>
+/// A stretch inside one part that no node of the tree stands for — a line break written in a label, an entity code — named by
+/// that part and by where in its characters the stage that read them found the stretch.
+///
+/// <para>
+/// What is handed over is the part and that finding, never a position: where the stretch starts is worked out here from the
+/// part, so it goes on standing where it was found when an edit moves the part.
+/// </para>
+/// </summary>
+public sealed record PartSlice(ISourcePart Of, int From, int Length) : ISourcePart
+{
+    public int Start => this.Of.Start + this.From;
+}
+
+/// <summary>
 /// Where a piece of layout sits in the source — a stretch of it, or a point in it.
 ///
 /// <para>

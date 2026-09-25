@@ -119,7 +119,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         var icon = service.Junction ? Dot * 2 : diagram.Config.IconSize;
         var said = service.Junction
             ? []
-            : Says(service.Said, service.SaidHole, diagram.Config.FontSize ?? TextSize, Palette.Text, Widest);
+            : Wrapped(service.Said, service.SaidHole, diagram.Config.FontSize ?? TextSize, Palette.Text, Widest);
 
         var words = DiagramWords.Taken(said);
 
@@ -306,7 +306,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
             .. held.Select(service => (Geometry)new RectangleGeometry(service.Bounds)),
         ]);
 
-        var said = Says(group.Said, group.SaidHole, diagram.Config.FontSize ?? TextSize, Palette.Text, box.Width);
+        var said = Wrapped(group.Said, group.SaidHole, diagram.Config.FontSize ?? TextSize, Palette.Text, box.Width);
         var heading = new Rect(box.X + 6, box.Y + 2, Math.Max(0, box.Width - 12), DiagramWords.Taken(said).Height);
 
         build.Open(ArchitecturePiece.Group, group.Part, stops: Stops.None);
@@ -401,7 +401,7 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
 
             var said = edge.Said is null && edge.SaidHole is null
                 ? []
-                : Says(edge.Said, edge.SaidHole, (diagram.Config.FontSize ?? TextSize) - 1, Palette.Text, Widest);
+                : Wrapped(edge.Said, edge.SaidHole, (diagram.Config.FontSize ?? TextSize) - 1, Palette.Text, Widest);
 
             routes.Add(new Route(edge, along, said, DiagramConnector.Room(along, said)));
         }

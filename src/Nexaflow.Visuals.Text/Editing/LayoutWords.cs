@@ -43,20 +43,43 @@ public sealed record LayoutWords(FormattedText Glyphs, Point At, bool Maps, bool
     public int Length => Glyphs.Text.Length;
 
     /// <summary>
-    /// Which position <paramref name="x"/> means, in characters from the start: the nearer side of the letter
-    /// under it, so pressing the left half of a letter puts the caret before it and the right half after it.
+    /// Which position <paramref name="x"/> means on the first line of the run, in characters from the start — see
+    /// <see cref="IndexAt(Point)"/>.
     /// </summary>
-    public int IndexAt(double x)
+    public int IndexAt(double x) => IndexAt(new Point(x, double.NegativeInfinity));
+
+    /// <summary>
+    /// Which position <paramref name="at"/> means, in characters from the start: on the line of letters it is level with —
+    /// the first, above them all, and the last, below them all — the nearer side of the letter under it, so pressing the left
+    /// half of a letter puts the caret before it and the right half after it. Past the end of a line, the end of that line.
+    /// </summary>
+    public int IndexAt(Point at)
     {
-        for (var index = 0; index < Length; index++)
+        var letters = new Rect[Length];
+        for (var index = 0; index < Length; index++) letters[index] = Box(index);
+        if (letters.Length == 0) return 0;
+
+        // A run broken to fit is set as several lines, and every letter on one stands at the same top.
+        var line = letters.Min(letter => letter.Y);
+        foreach (var letter in letters)
+            if (letter.Y <= at.Y) line = Math.Max(line, letter.Y);
+
+        var last = -1;
+        for (var index = 0; index < letters.Length; index++)
         {
-            var letter = Box(index);
-            if (x > letter.Right) continue;
-            return x <= letter.X + (letter.Width / 2) ? index : index + 1;
+            var letter = letters[index];
+            if (Math.Abs(letter.Y - line) > Level) continue;
+
+            last = index;
+            if (at.X > letter.Right) continue;
+            return at.X <= letter.X + (letter.Width / 2) ? index : index + 1;
         }
 
-        return Length;
+        return last + 1;
     }
+
+    /// <summary>How far apart two letters' tops can be and still be on one line.</summary>
+    private const double Level = 0.5;
 
     /// <summary>Where the caret stands for a position, in the piece's own frame.</summary>
     public Rect Caret(int index)
@@ -69,7 +92,7 @@ public sealed record LayoutWords(FormattedText Glyphs, Point At, bool Maps, bool
     }
 
     /// <summary>
-    /// What a stretch of it covers, in the piece's own frame — one rectangle, since a run is set as one line.
+    /// What a stretch of it covers, in the piece's own frame — one rectangle, round every line of it the stretch runs over.
     /// Empty where the stretch is empty or falls outside it.
     /// </summary>
     public Rect Covers(int from, int to)

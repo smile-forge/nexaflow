@@ -124,7 +124,7 @@ public static class LayoutQuery
 
         // Inside a run of text the press means the letter it landed on rather than the nearer end of the whole run.
         if (piece is { Words: { Maps: true } words, Part: { } inside })
-            return inside.Start + words.IndexAt(Local(piece, point).X);
+            return inside.Start + words.IndexAt(Local(piece, point));
 
         var at = piece.Sits();
         if (at.Length <= 0) return at.Start;
