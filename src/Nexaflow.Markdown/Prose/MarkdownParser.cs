@@ -257,6 +257,10 @@ public static class MarkdownParser
         if (block is HeadingBlock heading && heading.TryGetAttributes()?.Id is { Length: > 0 } named)
             read = AstRewrite.Holding(read, MarkdownKinds.Anchor, Roles.Derived, named);
 
+        // How deep a heading is, which the reader counted as it read the hashes or saw which character underlined it.
+        if (block is HeadingBlock ranked)
+            read = read.Saying(MarkdownKinds.Rank, MarkdownRoles.Rank, ranked.Level.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
         return read;
     }
 

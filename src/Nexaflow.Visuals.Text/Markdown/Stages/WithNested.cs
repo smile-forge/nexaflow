@@ -86,7 +86,7 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
             && Names(node) is { } named && ContentLanguages.For(named) is { } language)
             node = node.With([.. node.Children,
                               ContentNode.Holding(Kinds.Nested, Roles.Derived,
-                                                  new ContentNesting(language, named, Kept(node, Drawn(node)), options))]);
+                                                  new ContentNesting(language, named, Kept(node, Drawn(node)), options, Own(node.Part(Roles.Body)!)))]);
 
         if (node.IsLeaf) return node;
 
@@ -100,5 +100,15 @@ public sealed class WithNested(StyleFormat style, DiagramRenderOptions? options 
         }
 
         return moved ? node.With(seen) : node;
+    }
+
+    /// <summary>
+    /// What the language is handed to read: the body as written, less the line ending that closes its last line — which belongs
+    /// to the line the closing delimiter stands on (<see cref="ContentNesting.Own"/>).
+    /// </summary>
+    private static string Own(ContentNode body)
+    {
+        var written = body.Print();
+        return written.EndsWith("\r\n", System.StringComparison.Ordinal) ? written[..^2] : written.EndsWith('\n') ? written[..^1] : written;
     }
 }

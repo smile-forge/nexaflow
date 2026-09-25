@@ -195,7 +195,10 @@ in the error colour. The waves under the blamed parts are the host's, drawn from
 block content look the same. The same helper is what a builder that throws is shown as (`ContentBuilder.Lay`), and what
 the element shows when the reading falls over before any builder has a tree (`ContentElement`). A document shows a
 nested block that came back as its source through it too, as the whole of what the language is written in — fences
-and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes.
+and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes. Anything
+else a builder sets as its own characters — markup under the caret, a code block held as written, raw HTML passed
+through — is laid by `SourceShown.Written`, so printing a part back stays in the one place; and what a nested language is
+handed to read is printed by the stage that names the language (`WithNested`), not while the page is built.
 
 **Which way something goes, by why it cannot be drawn:**
 
@@ -365,9 +368,9 @@ for.
 **Trouble is answered differently in the two places maths is written.** A display formula keeps its
 typesetting whatever is wrong with it — maths under a caret is invalid most of the time, since every command
 is unreadable until its last letter is typed, so a formula that turned into a box of source as it was written
-would spend most of its life as a box of source. An inline one falls back to its own source in a monospaced
-accent, because half a display formula still tells a reader where they are and a sentence with a wave through
-the middle of it does not.
+would spend most of its life as a box of source. An inline one is no different: being written it stays set with a
+wave under what could not be read, and where it could not be set it is shown as written — its dollars and all, what
+is wrong marked in it and why beneath — with the sentence reading on round it.
 
 ## ABC
 

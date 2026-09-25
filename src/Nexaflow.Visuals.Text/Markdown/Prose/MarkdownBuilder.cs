@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -235,7 +236,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>Whether the whole of this block is being shown as written, as far as it is drawn when it is.</summary>
     private bool Opened(ContentPart part) =>
-        State.Raw is { } zone && zone.Start <= part.Start && zone.End >= part.Start + part.Print().TrimEnd('\n', '\r').Length;
+        State.Raw is { } zone && zone.Start <= part.Start && zone.End >= SourceShown.Reach(part);
 
     /// <summary>
     /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
@@ -256,17 +257,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Sourced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var shown = part.Print().TrimEnd('\n', '\r');
         var face = Face.Plain with { Mono = true, Scale = 0.96 };
+        var shown = SourceShown.Written(part, text => Glyphs(text, face), Style.Text, Math.Max(1, room));
 
-        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, face);
-        glyphs.MaxTextWidth = Math.Max(1, room);
+        into.Graft(shown.Tree, new Point(x, _y));
 
-        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left,
-                         new SourceSpan(part.Start, shown.Length), LayoutText.SourceKind,
-                         maps: shown.Length > 0, ink: Style.Text);
-
-        _y += glyphs.Height;
+        _y += shown.Size.Height;
         Reached(x + room);
     }
 
@@ -306,18 +302,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         _y += thick;
     }
 
-    /// <summary>How deep a heading is, counted off the hashes — or off which character underlined it, where it was written that way.</summary>
-    private static int Rank(ContentPart part)
-    {
-        var text = part.Print().TrimStart();
-
-        var hashes = 0;
-        while (hashes < text.Length && text[hashes] == '#') hashes++;
-
-        if (hashes > 0) return Math.Clamp(hashes, 1, 6);
-
-        return text.Contains('=') ? 1 : 2;
-    }
+    /// <summary>How deep a heading is, as the reader counted it.</summary>
+    private static int Rank(ContentPart part) =>
+        int.TryParse(part.Node.Said(MarkdownRoles.Rank), System.Globalization.CultureInfo.InvariantCulture, out var rank) ? Math.Clamp(rank, 1, 6) : 1;
 
     /// <summary>
     /// A rule across the page. It is pressed as the band it sits in rather than as the line — a line one pixel tall is
@@ -641,34 +628,27 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// indented code, raw markup, the front matter a document says about itself.
     ///
     /// <para>
-    /// The line endings are left off the run rather than trimmed out of it: the part names the characters actually
-    /// drawn, so what is set still <em>is</em> the source and the caret still lands a character at a time in it.
+    /// The line endings are left off the run rather than trimmed out of it: the characters drawn are the ones a caret lands
+    /// between, a character at a time. What they are is <see cref="SourceShown"/>'s to say — a block with no body of its own,
+    /// a fence or a formula with nothing between its marks, is shown as the characters under it.
     /// </para>
     /// </summary>
     private void AsWritten(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        // Printed rather than read off the node: a block with no body of its own — a fence or a formula with
-        // nothing between its marks — is a branch, and a branch holds no text. What it was written as is the
-        // characters under it, which is what Print says and what the caret has to land in.
         var body = part.Part(Roles.Body) ?? part;
-        var shown = body.Print().TrimEnd('\n', '\r');
         var pad = Style.TextSize * 0.55;
 
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
-        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, face);
-        glyphs.MaxTextWidth = Math.Max(1, room - pad * 2);
+        var shown = SourceShown.Written(body, text => Glyphs(text, face), Style.Text, Math.Max(1, room - pad * 2), MarkdownPieces.Verbatim);
 
-        var height = glyphs.Height + pad * 2;
+        var height = shown.Size.Height + pad * 2;
         var top = _y;
 
         into.Open(MarkdownPieces.Block, part, new Point(x, top), Stops.None);
         into.Draw(new WashMark(new Rect(0, 0, Math.Max(room, 1), height), Style.CodeBg));
         into.Close();
 
-        _y = top + pad;
-        LayoutText.Words(into, glyphs, new Point(x + pad, _y), Math.Max(1, room - pad * 2),
-                         TextAlignment.Left, new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim,
-                         maps: shown.Length > 0, ink: Style.Text);
+        into.Graft(shown.Tree, new Point(x + pad, top + pad));
 
         _y = top + height;
         Reached(x + room);
@@ -700,17 +680,12 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private void Muted(LayoutBuilder into, ContentPart part, double x, double room)
     {
         var body = part.Part(Roles.Body) ?? part;
-        var shown = body.Print().TrimEnd('\n', '\r');
-
         var face = Face.Plain with { Mono = true, Scale = 0.94, Ink = Style.TextMuted };
-        var glyphs = Glyphs(shown.Length == 0 ? " " : shown, face);
-        glyphs.MaxTextWidth = Math.Max(1, room);
+        var shown = SourceShown.Written(body, text => Glyphs(text, face), Style.TextMuted, Math.Max(1, room), MarkdownPieces.Verbatim);
 
-        LayoutText.Words(into, glyphs, new Point(x, _y), Math.Max(1, room), TextAlignment.Left,
-                         new SourceSpan(body.Start, shown.Length), MarkdownPieces.Verbatim,
-                         maps: shown.Length > 0, ink: face.Ink);
+        into.Graft(shown.Tree, new Point(x, _y));
 
-        _y += glyphs.Height;
+        _y += shown.Size.Height;
         Reached(x + room);
     }
 
