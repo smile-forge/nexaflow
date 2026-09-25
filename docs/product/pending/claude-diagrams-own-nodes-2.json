@@ -1,0 +1,222 @@
+{
+  "branch": "claude/diagrams-own-nodes-2",
+  "nodes": {
+    "sankey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs",
+          "class": "SankeyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs",
+          "class": "SankeyConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyGrammarTests.cs",
+            "class": "SankeyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sankey/SankeyConfigTests.cs",
+            "class": "SankeyConfigTests"
+          }
+        ]
+      }
+    },
+    "timeline-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs",
+          "class": "TimelineGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/TimelineConfig.cs",
+          "class": "TimelineConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveEvents.cs",
+          "class": "ResolveEvents"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText",
+          "method": "Decode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineGrammarTests.cs",
+            "class": "TimelineGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Timeline/TimelineConfigTests.cs",
+            "class": "TimelineConfigTests"
+          }
+        ]
+      }
+    },
+    "journey-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs",
+          "class": "JourneyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Journey/JourneyConfig.cs",
+          "class": "JourneyConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidConfig.cs",
+          "class": "MermaidConfig",
+          "method": "List"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyGrammarTests.cs",
+            "class": "JourneyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Journey/JourneyConfigTests.cs",
+            "class": "JourneyConfigTests"
+          }
+        ]
+      }
+    },
+    "cynefin-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs",
+          "class": "CynefinGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinConfig.cs",
+          "class": "CynefinConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs",
+          "class": "ResolveDomains"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Keyword"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinGrammarTests.cs",
+            "class": "CynefinGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Cynefin/CynefinConfigTests.cs",
+            "class": "CynefinConfigTests"
+          }
+        ]
+      }
+    },
+    "mermaid-block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidBlock.cs",
+          "class": "MermaidBlock"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/ConfiguredNode.cs",
+          "class": "ConfiguredNode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidParserTests.cs",
+            "class": "MermaidParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidBlockTests.cs",
+            "class": "MermaidBlockTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTextTests.cs",
+            "class": "MermaidTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/WithConfigTests.cs",
+            "class": "WithConfigTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 10,
+  "touched_nodes": [
+    "cynefin-ast",
+    "journey-ast",
+    "mermaid-block-ast",
+    "sankey-ast",
+    "timeline-ast"
+  ]
+}

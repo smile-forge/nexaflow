@@ -126,4 +126,54 @@ public class JourneyBuilderTests : MermaidBuilderContract
         Assert.AreEqual(200, bigger.Width, 0.5);
         Assert.AreEqual(60, bigger.Height, 0.5);
     });
+
+    [TestMethod]
+    public void TheActorsAreEveryoneWhoTakesPart_InTheOrderTheyFirstDo() => UiThread.Run(() =>
+    {
+        const string source = "journey\n  A: 3: Cat\n  B: 3: Me, Cat\n  C: 3: Me";
+        var laid = Build(source);
+        var marks = Pieces(laid, JourneyPiece.Actor).Select(Fill).ToList();
+
+        CollectionAssert.AreEqual(new[] { "Cat", "Me" }, Pieces(laid, MermaidPiece.Key).Select(key => Written(source, key.Part)).ToArray());
+        Assert.AreEqual(marks[0], marks[2], "Cat is the one colour wherever they take part");
+        Assert.AreEqual(marks[1], marks[3], "and Me another");
+        Assert.AreNotEqual(marks[0], marks[1]);
+    });
+
+    [TestMethod]
+    public void AnActorIsWhoeverIsNamed_WhateverSpaceIsRoundTheName() => UiThread.Run(() =>
+    {
+        Assert.AreEqual(2, Pieces(Build("journey\n  A: 3: Me,Cat\n  B: 3:  Me ,  Cat "), MermaidPiece.Key).Count);
+    });
+
+    [TestMethod]
+    public void AFaceFollowsTheScore_AndATaskWithNoneShowsTheMiddlingOne() => UiThread.Run(() =>
+    {
+        var fills = Pieces(Build("journey\n  A: 5: Me\n  B: 3: Me\n  C: 1: Me\n  D: "), JourneyPiece.Face).Select(Fill).ToList();
+
+        Assert.AreEqual(3, fills.Take(3).Distinct().Count(), "a smile, a flat face and a frown, each its own colour");
+        Assert.AreEqual(fills[1], fills[3], "nothing scoring a task shows the middling face");
+    });
+
+    [TestMethod]
+    public void TasksWrittenBeforeAnySectionAreAGroupWithNoName() => UiThread.Run(() =>
+    {
+        const string source = "journey\n  Wake up: 3: Me\n  section Go to work\n    Make tea: 5: Me";
+        var laid = Build(source);
+        var tasks = Pieces(laid, JourneyPiece.Task);
+        var band = Pieces(laid, JourneyPiece.Section).Single();
+
+        Assert.AreEqual("section Go to work", Written(source, band.Part), "nothing names the first group, so nothing bands it");
+        Assert.IsTrue(band.Bounds.Left >= tasks[0].Bounds.Right, "the band is over the task in its section alone");
+        Assert.AreNotEqual(Fill(tasks[0]), Fill(tasks[1]), "and each group is its own colour");
+    });
+
+    [TestMethod]
+    public void ASectionWithNoTasksIsNothingToDraw() => UiThread.Run(() =>
+    {
+        var laid = Build("journey\n  section Go to work");
+
+        Assert.AreEqual(0, Pieces(laid, JourneyPiece.Section).Count, "so the block is shown as written");
+        Assert.AreEqual(0, Pieces(laid, JourneyPiece.Task).Count);
+    });
 }

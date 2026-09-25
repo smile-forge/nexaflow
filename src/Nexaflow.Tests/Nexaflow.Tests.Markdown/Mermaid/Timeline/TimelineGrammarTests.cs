@@ -139,17 +139,6 @@ public class TimelineGrammarTests : MermaidGrammarContract
         Assert.AreEqual("timeline\n    2004 : Facebook#colon; the wall", source[..writing.Start] + writing.Text + source[writing.End..]);
     }
 
-    [TestMethod]
-    public void EachPeriodSaysWhichSectionItIsIn_AndEachContinuationWhichPeriod()
-    {
-        var read = ContentReading.Of(MermaidStaged.Read(Pizzas)).Root;
-
-        CollectionAssert.AreEqual(
-            new[] { "0", "0", "1" },
-            read.SelfAndDescendants().Where(part => part.Kind == TimelineKinds.Period).Select(period => period.Fact(TimelineRoles.In)).ToArray());
-        Assert.AreEqual("0", read.SelfAndDescendants().Single(part => part.Kind == TimelineKinds.More).Fact(TimelineRoles.Of));
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<ContentNode> Events(ContentNode tree) =>

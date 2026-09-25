@@ -14,9 +14,6 @@ public static class CynefinKinds
 
     /// <summary>Text, in quotes or bare to where it ends — what an item says, what a transition is labelled.</summary>
     public const string Text = "cynefin-text";
-
-    /// <summary>What a stage worked out about a line: the domain an item sits in.</summary>
-    public const string Fact = "cynefin-fact";
 }
 
 /// <summary>What a piece of a <c>cynefin-beta</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -27,7 +24,4 @@ public static class CynefinRoles
 
     /// <summary>What a transition says.</summary>
     public const string Label = "cynefin-label";
-
-    /// <summary>The domain an item sits in, worked out over the whole block (<see cref="Stages.ResolveDomains"/>).</summary>
-    public const string In = "cynefin-in";
 }

@@ -11,9 +11,6 @@ public static class JourneyKinds
 
     /// <summary>Text to where it ends — what a task is, what a section is called.</summary>
     public const string Text = "journey-text";
-
-    /// <summary>What a stage worked out about a line: the section a task is in.</summary>
-    public const string Fact = "journey-fact";
 }
 
 /// <summary>What a piece of a <c>journey</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -31,7 +28,4 @@ public static class JourneyRoles
 
     /// <summary>What a section is called.</summary>
     public const string Name = "journey-name";
-
-    /// <summary>The section a task is in, worked out over the whole block (<see cref="Stages.ResolveTasks"/>).</summary>
-    public const string In = "journey-in";
 }

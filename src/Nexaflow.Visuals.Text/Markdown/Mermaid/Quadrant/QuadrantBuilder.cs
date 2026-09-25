@@ -134,7 +134,7 @@ internal sealed class QuadrantBuilder : MermaidBuilder
         for (var order = 0; order < points.Count; order++)
         {
             var (part, point) = points[order];
-            if (!point.Placed) continue;
+            if (!point.Located) continue;
 
             var centre = new Point(Math.Clamp(point.X!.Value, 0, 1) * wide, (1 - Math.Clamp(point.Y!.Value, 0, 1)) * tall);
             var radius = point.Style.Radius ?? config.PointRadius ?? Radius;

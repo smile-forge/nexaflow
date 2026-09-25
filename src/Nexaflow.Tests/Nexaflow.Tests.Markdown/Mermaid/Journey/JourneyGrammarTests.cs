@@ -120,16 +120,6 @@ public class JourneyGrammarTests : MermaidGrammarContract
         Assert.AreEqual("journey\n    Make tea#colon; and toast: 5: Me", source[..writing.Start] + writing.Text + source[writing.End..]);
     }
 
-    [TestMethod]
-    public void EachTaskSaysWhichSectionItIsIn()
-    {
-        var read = ContentReading.Of(MermaidStaged.Read(Working)).Root;
-
-        CollectionAssert.AreEqual(
-            new[] { "0", "0", "0", "1", "1" },
-            read.SelfAndDescendants().Where(part => part.Kind == JourneyKinds.Task).Select(task => task.Fact(JourneyRoles.In)).ToArray());
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

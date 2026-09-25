@@ -13,7 +13,7 @@ public enum RadarGraticule
 /// A <c>radar-beta</c> block as its stages leave it: what its front matter asks for, and the scale, the rings and the legend its
 /// options set — the last one written winning, and Mermaid's own where none is.
 /// </summary>
-public sealed class RadarBlockNode : ContentNode
+internal sealed class RadarBlockNode : ContentNode
 {
     internal RadarBlockNode(ContentNode written, RadarConfig config) : base(written) => this.Config = config;
 
@@ -54,7 +54,7 @@ public sealed class RadarBlockNode : ContentNode
 /// on. The spokes are these in the order they are written, which is the order every curve's
 /// <see cref="RadarCurveNode.Points"/> are in.
 /// </summary>
-public sealed class RadarAxisNode : ContentNode
+internal sealed class RadarAxisNode : ContentNode
 {
     internal RadarAxisNode(ContentNode written) : base(written) { }
 
@@ -62,7 +62,7 @@ public sealed class RadarAxisNode : ContentNode
 }
 
 /// <summary>A curve as its stages leave it: how far it reaches along each spoke, the colour it takes, and whether the legend lists it.</summary>
-public sealed class RadarCurveNode : ContentNode
+internal sealed class RadarCurveNode : ContentNode
 {
     internal RadarCurveNode(ContentNode written) : base(written) { }
 
@@ -94,7 +94,7 @@ public sealed class RadarCurveNode : ContentNode
 }
 
 /// <summary>The option the graticule is shaped by — <c>graticule</c>, or else <c>ticks</c> — which is what a press on a ring means.</summary>
-public sealed class RadarShapingNode : ContentNode
+internal sealed class RadarShapingNode : ContentNode
 {
     internal RadarShapingNode(ContentNode written) : base(written) { }
 

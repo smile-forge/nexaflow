@@ -2,18 +2,8 @@ using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Markdown.Mermaid.Kanban;
 
-/// <summary>A <c>kanban</c> block as its stage leaves it, carrying what its front matter asks for.</summary>
-public sealed class KanbanBlockNode : ContentNode
-{
-    internal KanbanBlockNode(ContentNode written, KanbanConfig config) : base(written) => this.Config = config;
-
-    public KanbanConfig Config { get; }
-
-    protected override ContentNode Reshaped(ContentNode shape) => new KanbanBlockNode(shape, this.Config);
-}
-
 /// <summary>A node indented as far as the first one, which makes it a column: the cards written under it are in its lane.</summary>
-public sealed class KanbanColumnNode : ContentNode
+internal sealed class KanbanColumnNode : ContentNode
 {
     internal KanbanColumnNode(ContentNode written, string? label) : base(written) => this.Label = label;
 
@@ -24,7 +14,7 @@ public sealed class KanbanColumnNode : ContentNode
 }
 
 /// <summary>A node indented further than the first, which makes it a card in the column above it: what its metadata says.</summary>
-public sealed class KanbanCardNode : ContentNode
+internal sealed class KanbanCardNode : ContentNode
 {
     internal KanbanCardNode(ContentNode written) : base(written) { }
 

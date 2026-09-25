@@ -149,14 +149,14 @@ JS/Mermaid.js, no browser).
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + spokes, curves, options + config (`RadarStagesTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
 | `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + nesting + config (`IshikawaChartTests`) + draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
-| `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + nodes, flows + config (`SankeyChartTests`) + draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
+| `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + config (`SankeyConfigTests`) + nodes, flows and draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (shared layout tree; attributes in columns, crow's feet, subgraphs, written in place) | ✅ grammar (`ErGrammarTests`) + entities, attributes, relationships + config (`ErDiagramTests`) + draw (`ErBuilderTests`) + writing (`ErEditingTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
 | `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (shared layout tree; lane bands, written in place) | ✅ grammar (`SwimlaneGrammarTests`) + draw (`SwimlaneBuilderTests`) + writing (`SwimlaneEditingTests`) + lanes (`DiagramLanesTests`) + sample render. See sub-features below. |
-| `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + domains, movements + config (`CynefinDiagramTests`) + draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
-| `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + sections, events + config (`TimelineChartTests`) + draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
-| `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + sections, tasks, actors + config (`JourneyDiagramTests`) + draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
+| `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + config (`CynefinConfigTests`) + domains, movements and draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
+| `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + config (`TimelineConfigTests`) + sections, events and draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
+| `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + config (`JourneyConfigTests`) + sections, tasks, actors and draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
 | `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StructureTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
 | `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + grid, links, styling + config (`BlockDiagramTests`) + draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
@@ -586,7 +586,6 @@ cause's at fifteen — each line typed into as the characters it holds.
 **Not applied:** the `handDrawn` look, which is a look for every Mermaid diagram rather than this one.
 **Written in place:** the event is typed into in the head, a cause in its box or beside its bone.
 **Sankey sub-features** ([`SankeyGrammar`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyGrammar.cs) →
-[`SankeyChart`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyChart.cs) →
 [`SankeyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs)).
 A flow to a line, written as the three columns of a CSV row — where it comes from, where it goes, and what it is worth.
 **Nothing declares a node**: the nodes are the names the flows are written between, in the order they are first written,
@@ -726,7 +725,7 @@ where work happens rather than a step in it; and `layout`, `look`, `theme` and `
 engine, a drawing style, a palette and a knob on a layering pass none of which is here.
 
 **Cynefin sub-features** ([`CynefinGrammar`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinGrammar.cs) →
-[`CynefinDiagram`](../src/Nexaflow.Markdown/Mermaid/Cynefin/CynefinDiagram.cs) →
+[`ResolveDomains`](../src/Nexaflow.Markdown/Mermaid/Cynefin/Stages/ResolveDomains.cs) →
 [`CynefinBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Cynefin/CynefinBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every item is the characters it was written as.
 Supported: `cynefin-beta`; optional `title`; the five domain words — `clear`, `complicated`, `complex`, `chaotic` and
@@ -755,7 +754,7 @@ else the word opening a domain; and text typed in that would open a domain, titl
 or a comment is put in quotes.
 
 **Timeline sub-features** ([`TimelineGrammar`](../src/Nexaflow.Markdown/Mermaid/Timeline/TimelineGrammar.cs) →
-[`TimelineChart`](../src/Nexaflow.Markdown/Mermaid/Timeline/TimelineChart.cs) →
+[`ResolveEvents`](../src/Nexaflow.Markdown/Mermaid/Timeline/Stages/ResolveEvents.cs) →
 [`TimelineBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Timeline/TimelineBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every period and event is the characters it was
 written as. Supported: `title`; `section`; `period : event : event`, with further events on lines starting with `:`;
@@ -774,7 +773,6 @@ colon splits, exactly as in Mermaid, so a
 colon inside an event needs `#colon;`; labels wrap at a fixed column width rather than Mermaid's `useMaxWidth` fit.
 
 **Journey sub-features** ([`JourneyGrammar`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyGrammar.cs) →
-[`JourneyDiagram`](../src/Nexaflow.Markdown/Mermaid/Journey/JourneyDiagram.cs) →
 [`JourneyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Journey/JourneyBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every task and actor is the characters it was
 written as. Tasks run left to right under a band per section; over each task a **face** floats as high as it scored

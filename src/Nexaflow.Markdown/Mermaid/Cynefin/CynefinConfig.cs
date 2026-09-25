@@ -22,7 +22,7 @@ public sealed record CynefinConfig
     /// <summary>Whether each domain says how it is worked under its name — which Mermaid shows unless the front matter says not to.</summary>
     public bool ShowDomainDescriptions { get; init; } = true;
 
-    /// <summary>The fill written for each domain, in <see cref="CynefinDomain"/> order — null where none is.</summary>
+    /// <summary>The fill written for each domain, in the order <see cref="CynefinGrammar.Domains"/> lists them — null where none is.</summary>
     public IReadOnlyList<string?> DomainFills { get; init; } = [null, null, null, null, null];
 
     /// <summary>What the boundaries between the domains are drawn in.</summary>

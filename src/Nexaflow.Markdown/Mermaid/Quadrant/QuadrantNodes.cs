@@ -3,7 +3,7 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Markdown.Mermaid.Quadrant;
 
 /// <summary>How a point is drawn, as its class and its own style write it — null for what neither writes.</summary>
-public sealed record QuadrantStyle(double? Radius, string? Colour, string? StrokeColour, double? StrokeWidth)
+internal sealed record QuadrantStyle(double? Radius, string? Colour, string? StrokeColour, double? StrokeWidth)
 {
     public static QuadrantStyle None { get; } = new(null, null, null, null);
 
@@ -39,7 +39,7 @@ public sealed record QuadrantStyle(double? Radius, string? Colour, string? Strok
 /// A <c>quadrantChart</c> block as its stages leave it: what its front matter asks for, and whether the x-axis's words go over
 /// the chart.
 /// </summary>
-public sealed class QuadrantBlockNode : ContentNode
+internal sealed class QuadrantBlockNode : ContentNode
 {
     internal QuadrantBlockNode(ContentNode written, QuadrantConfig config, bool xAxisOnTop) : base(written) =>
         (this.Config, this.XAxisOnTop) = (config, xAxisOnTop);
@@ -56,7 +56,7 @@ public sealed class QuadrantBlockNode : ContentNode
 /// A point as its stages leave it: where it stands, and how it is drawn — its class, wherever that is written, with its own
 /// style laid over it.
 /// </summary>
-public sealed class QuadrantPointNode : ContentNode
+internal sealed class QuadrantPointNode : ContentNode
 {
     internal QuadrantPointNode(ContentNode written, double? x, double? y, QuadrantStyle style) : base(written) =>
         (this.X, this.Y, this.Style) = (x, y, style);
@@ -68,7 +68,7 @@ public sealed class QuadrantPointNode : ContentNode
     public double? Y { get; }
 
     /// <summary>Whether it has somewhere to stand.</summary>
-    public bool Placed => this.X is not null && this.Y is not null;
+    public bool Located => this.X is not null && this.Y is not null;
 
     public QuadrantStyle Style { get; }
 

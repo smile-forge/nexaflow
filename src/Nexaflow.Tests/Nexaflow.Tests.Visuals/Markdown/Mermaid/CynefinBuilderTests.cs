@@ -163,4 +163,38 @@ public class CynefinBuilderTests : MermaidBuilderContract
         Assert.AreEqual(Color.FromRgb(0, 0xFF, 0), ((SolidColorBrush)move.Stroke!).Color);
 
     });
+
+    [TestMethod]
+    public void ADomainOpenedTwiceIsOneDomain_ItsItemsInTheOrderWritten() => UiThread.Run(() =>
+    {
+        const string source = "cynefin-beta\n  complex\n    \"One\"\n  clear\n    \"Two\"\n  complex\n    \"Three\"";
+        var laid = Build(source);
+        var complex = Pieces(laid, CynefinPiece.Domain)[0];
+        var cards = Pieces(laid, CynefinPiece.Item).ToDictionary(card => Written(source, card.Part), card => card.Bounds);
+
+        Assert.AreEqual(source.IndexOf("complex", StringComparison.Ordinal), complex.Part!.Start, "opened where it is first written");
+        Assert.IsTrue(complex.Bounds.Contains(cards["\"One\""]) && complex.Bounds.Contains(cards["\"Three\""]), "both its items carded in it");
+        Assert.IsTrue(cards["\"One\""].Top < cards["\"Three\""].Top, "in the order written");
+        Assert.IsFalse(complex.Bounds.Contains(cards["\"Two\""]), "and the item between them in the domain it sits in");
+    });
+
+    [TestMethod]
+    public void ADomainNothingOpensStandsForNothing() => UiThread.Run(() =>
+    {
+        Assert.IsNull(Pieces(Build("cynefin-beta\n  complex\n    \"One\""), CynefinPiece.Domain)[2].Part, "chaotic is drawn, and pressing it means nothing written");
+    });
+
+    [TestMethod]
+    public void AMovementStillToSayWhereItGoesGoesNowhere() => UiThread.Run(() =>
+    {
+        Assert.AreEqual(0, Pieces(Build("cynefin-beta\n  complex\n  chaotic --> "), CynefinPiece.Move).Count);
+    });
+
+    [TestMethod]
+    public void DisorderSaysOnlyThatItIsDisorder() => UiThread.Run(() =>
+    {
+        var said = Pieces(Build("cynefin-beta\n  confusion"), CynefinPiece.About).Select(piece => piece.Words!.Glyphs.Text).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Disorder" }, said);
+    });
 }

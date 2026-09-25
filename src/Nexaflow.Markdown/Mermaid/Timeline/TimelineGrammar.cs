@@ -15,8 +15,8 @@ namespace Nexaflow.Markdown.Mermaid.Timeline;
 /// writes. The way it runs is <c>direction LR</c> or <c>direction TD</c>, and may follow the keyword: <c>timeline TD</c>.
 /// </para>
 /// <para>
-/// Which section a period is in, and which period a line of further events belongs to, are facts about the block rather
-/// than about those lines, so they are the stage's (<see cref="ResolveSections"/>).
+/// Which section a period is in, and which period a line of further events adds them to, is the order the lines are
+/// written in. Only a line of events with no period above it at all is worked out over the block (<see cref="ResolveEvents"/>).
 /// </para>
 /// </summary>
 public sealed class TimelineGrammar : IMermaidGrammar
@@ -77,8 +77,9 @@ public sealed class TimelineGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Which section each period is in, and which period each line of further events belongs to (<see cref="ResolveSections"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSections()];
+    /// <remarks>Where a line of further events has no period above it (<see cref="ResolveEvents"/>), and what the front matter asks for.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+        [new ResolveEvents(), new WithConfig<TimelineConfig>(TimelineConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a period's name, an event or a section's name is still to write.</remarks>

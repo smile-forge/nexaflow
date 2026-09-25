@@ -100,8 +100,11 @@ parser cannot make sense of is held as written, carrying the reason.
 every tree shares: what a piece is, its characters or its parts, and so where it stands in the source. A stage may put
 a node of its language's own type in its place (`PieSliceNode : ContentNode`) — standing for exactly the same
 characters, and carrying, typed, whatever was worked out about them. What such a node holds is between that language's
-stages and its builder; nothing shared reads it. A rewrite keeps a node's type (`ContentNode.Reshaped`), so a later
-stage, or the engine putting nested content back, never loses what an earlier one said.
+stages and its builder; nothing shared reads it, so the type is internal to the assembly the stages are in, seen only by
+the builders and the stages' tests. Nor is one needed: a node of its own is for something the stages work out that the
+characters do not say, and a builder reading what was written in the order it was written needs none. A rewrite keeps a
+node's type (`ContentNode.Reshaped`), so a later stage, or the engine putting nested content back, never loses what an
+earlier one said.
 
 **What stands for no characters at all is a derived part** (`Roles.Derived`): no width, printed as nothing, hung under
 the node it is about — a hole, what a macro means, which picture a name resolved to (`ContentNode.Held`, untyped
