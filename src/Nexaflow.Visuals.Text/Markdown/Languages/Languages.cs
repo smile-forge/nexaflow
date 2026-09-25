@@ -187,19 +187,8 @@ public sealed class BarcodeLanguage : IContentLanguage
 {
     public bool Reads(string? language) => "barcode".Equals(language?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    public Laid? Lay(ContentRequest request)
-    {
-        // A block that will not read has no symbol in it to draw. What goes there instead is the caller's — the characters
-        // somebody typed, which are the only thing left to fix — and what is wrong with them is this one's to say.
-        if (!BarcodeBlockParser.TryParse(request.Source, out var block, out var error))
-            return Laid.Nothing with
-            {
-                Trouble = [new Diagnostic(request.At, Math.Max(request.Source.Length, 1), DiagnosticSeverity.Error,
-                                          error ?? "This barcode block could not be read.")],
-            };
-
-        return BarcodeBuilder.Build(block!.At(block.ValueStart + request.At), request.Style);
-    }
+    public Laid? Lay(ContentRequest request) =>
+        BarcodeBuilder.Lay(request.Source, request.Style, request.IsReadOnly, request.At);
 }
 
 /// <summary>

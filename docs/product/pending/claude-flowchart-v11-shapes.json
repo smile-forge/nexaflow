@@ -155,11 +155,62 @@
           "class": "ResolveShapes"
         }
       ]
+    },
+    "barcode-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeParser.cs",
+          "class": "BarcodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Stages/SpellValue.cs",
+          "class": "SpellValue"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBlockReader.cs",
+          "class": "BarcodeBlockReader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockReaderTests.cs",
+            "class": "BarcodeBlockReaderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodeParserTests.cs",
+            "class": "BarcodeParserTests"
+          }
+        ]
+      }
+    },
+    "barcode-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Keys.cs",
+          "class": "MarkdownSurface",
+          "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder",
+          "method": "Spelled"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 5,
   "touched_nodes": [
+    "barcode-block-syntax",
+    "barcode-editing",
     "flowchart-ast",
     "mermaid-diagram-kit"
   ]

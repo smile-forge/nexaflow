@@ -36,9 +36,8 @@ public static class MatrixPiece
 /// over a code the way it arrows over a word.
 /// </para>
 /// <para>
-/// <b>It always draws a symbol.</b> A block that will not read or will not encode draws a valid one of its kind,
-/// faint and struck through, with the reason set beneath it. A code-shaped absence reads as "this is a code, and
-/// it is wrong"; an empty gap reads as a rendering fault.
+/// <b>A block that will not read or will not encode is shown as written</b>, with the reason set beneath it: a code is
+/// only ever read where it is drawn, so its source is the only place it can be put right.
 /// </para>
 /// </summary>
 internal abstract class MatrixBuilder<TSymbol> : ContentBuilder where TSymbol : IModuleMatrix

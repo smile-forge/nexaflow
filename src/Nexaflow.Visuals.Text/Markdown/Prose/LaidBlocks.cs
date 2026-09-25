@@ -3,7 +3,7 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Barcode;
+
 using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -110,7 +110,6 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
                 null => null,
                 ContentPart written => Found(written),
                 TexSourcePart named => Found(named),
-                BarcodePart printed => Found(printed),
                 SourceSpan span => span with { Start = span.Start + By },
 
                 // Something this cannot follow stays put, which is right only where nothing moved.
@@ -178,25 +177,7 @@ internal sealed record Laying(ContentPart Part, LayoutTree Tree, double Height, 
             return moved;
         }
 
-        private BarcodePart? Found(BarcodePart part)
-        {
-            if (By == 0) return part;
 
-            _made ??= [];
-            if (_made.TryGetValue(part, out var found)) return (BarcodePart)found;
-
-            if (part.Parent is not { } up)
-            {
-                var moved = part.At(By);
-                _made[part] = moved;
-                return moved;
-            }
-
-            if (Found(up) is not { } there || there.Children.Count != up.Children.Count) return null;
-
-            for (var at = 0; at < up.Children.Count; at++) _made[up.Children[at]] = there.Children[at];
-            return (BarcodePart)_made[part];
-        }
 
         private static ContentPart Root(ContentPart part)
         {

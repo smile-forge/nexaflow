@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Barcode;
 
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 
@@ -40,12 +41,11 @@ internal sealed class BarcodeBuilder : ContentBuilder
     /// <summary>Clear air between the caption and the bars, in modules, on top of the line's own leading.</summary>
     private const double CaptionSeparationModules = 1.5;
 
-    private readonly BarcodeBlock _block;
-    private readonly BarcodePattern? _pattern;
-    private readonly BarcodePattern? _drawn;
-    private readonly StyleFormat _palette;
+    private BarcodeBlock _block = null!;
+    private BarcodePattern? _pattern;
+    private BarcodePattern? _drawn;
     /// <summary>Why the value would not encode, or null — what the reader gets a wave and a hover for.</summary>
-    private readonly string? _trouble;
+    private string? _trouble;
 
     private double _labelSize;
     private double _barsLeft, _barsTop, _guardDrop;
@@ -53,30 +53,37 @@ internal sealed class BarcodeBuilder : ContentBuilder
     // A barcode's value is one run of characters and has no grammar of its own, so what it is read as is that
     // run: enough for the base to report the source and to show it when nothing can be drawn. It is read where it
     // sits, so every place in the caption names the character it shows in the document holding it.
-    private BarcodeBuilder(BarcodeBlock block, StyleFormat palette)
-        : base(ContentReading.Of(ContentNode.Leaf(Kinds.Verbatim, block.Value), block.ValueStart),
-               EditState.For(block.Value), palette, isReadOnly: true)
-    {
-        _block = block;
-    _palette = palette;
+    private BarcodeBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
+        : base(reading, state, style, isReadOnly) { }
 
-        // Encoding happens here (not in the element) so "does it encode" isn't computed twice per keystroke.
-        if (block.Value.Length == 0) _trouble = "A barcode needs a value.";
-        else if (BarcodeEncoder.TryEncode(block.Format, block.Value, out var encoded, out string? error))
-            _pattern = encoded;
+    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
+    public static Laid Lay(string source, StyleFormat style, bool isReadOnly = true, int at = 0) =>
+        new BarcodeBuilder(ContentReading.Of(BarcodeParser.Parse(source), at), EditState.For(source), style, isReadOnly).Lay();
+
+    protected override Laid Build()
+    {
+        if (!BarcodeBlockReader.TryRead(Reading.Root, out var block, out var wrong)) return AsSource([wrong]);
+
+        _block = block!;
+
+        if (_block.Value.Length == 0) _trouble = "A barcode needs a value.";
+        else if (BarcodeEncoder.TryEncode(_block.Format, _block.Value, out var encoded, out var error)) _pattern = encoded;
         else _trouble = error;
 
-        // Faint stand-in symbol when the value won't encode, so the error reads as "wrong" rather than "broken".
-        _drawn = _pattern ?? (BarcodeEncoder.TryEncode(
-            block.Format, BarcodeEncoder.SampleValue(block.Format), out var sample, out _) ? sample : null);
+        if (_trouble is null)
+        {
+            _drawn = _pattern;
+            return Drawn();
+        }
+
+        // A value that will not encode is put right where it is shown, when it is shown somewhere it can be: typed into under the
+        // bars, which stay on the page, faint and struck through, since editing passes through values that do not encode on the way
+        // to one that does. Anywhere else it is put right in the block's source.
+        if (IsReadOnly || !_block.DisplayValue || _block.Written is null) return AsSource([(_block.Written ?? _block.Field, _trouble)]);
+
+        _drawn = BarcodeEncoder.TryEncode(_block.Format, BarcodeEncoder.SampleValue(_block.Format), out var sample, out _) ? sample : null;
+        return Drawn();
     }
-
-    /// <summary>Lays a barcode out, and gives back the tree and nothing barcode-shaped at all.</summary>
-    public static Laid Build(BarcodeBlock block, StyleFormat palette) =>
-        new BarcodeBuilder(block, palette).Lay();
-
-    /// <summary>The symbol the value encodes to, or null while it will not encode.</summary>
-    public BarcodePattern? Encoded => _pattern;
 
     // ── Laying it out ─────────────────────────────────────────────────────
 
@@ -95,7 +102,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
         Brushes.Black,
         Editing.LayoutText.Density);
 
-        protected override Laid Build()
+        /// <summary>Lays out the symbol a value that reads is drawn as — or, while it will not encode, a faint one of its kind.</summary>
+        private Laid Drawn()
     {
         // Several formats add a check digit or move a group outside the bars, so the printed text comes
         // from the encoded pattern, not the raw value — except when it won't encode, where there's nothing else.
@@ -107,7 +115,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         // No encoded symbol to read when the value is broken, so read the raw value instead — keeps a
         // publication's caption line even when the number itself won't encode.
-        var symbol = (_pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken())).At(At);
+        var symbol = _pattern?.Symbol ?? BarcodeTextLayout.Read(_block.Value, text, [], CaptionWhenBroken());
 
         var barsWidth = PatternWidth * _block.BarWidth;
 
@@ -149,7 +157,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         build.Open(nameof(BarcodeKind.Symbol), part: null);
 
         // Barcode paints its own light background regardless of theme — a scanner needs dark bars on light.
-        build.Draw(new RuleMark(new Rect(size), Brush(_block.Background, _palette.BarcodeLight)));
+        build.Draw(new RuleMark(new Rect(size), Brush(_block.Background, Style.BarcodeLight)));
 
         LayBars(build);
 
@@ -163,10 +171,8 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
         build.Close();
 
-        // Diagnostic spans the whole value — that's what the reader would need to change.
-        return new Laid(build.Seal(), size, _trouble is null
-            ? []
-            : [new Diagnostic(At, Math.Max(_block.Value.Length, 1), DiagnosticSeverity.Error, _trouble)]);
+        // The wave is under the whole value — that is what the reader would need to change.
+        return new Laid(build.Seal(), size, _trouble is null ? [] : [Diagnostic.Of(_block.Written!, _trouble)]);
     }
 
     /// <summary>The caption a publication keeps even when its value won't encode (ISBN/ISSN/ISMN only).</summary>
@@ -262,7 +268,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
         
 
         // Faint when the pattern is a stand-in, so the error reads as the subject.
-        var dark = Brush(_block.LineColor, _palette.BarcodeDark);
+        var dark = Brush(_block.LineColor, Style.BarcodeDark);
         var ink = _pattern is null ? Faded(dark) : dark;
 
         // Guards drop past the digits; an add-on lifts clear of the main bars so it reads as a second symbol.
@@ -287,7 +293,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
                              _block.BarHeight / 2 - Math.Max(_block.BarHeight * 0.04, 1.5),
                              width,
                              Math.Max(_block.BarHeight * 0.08, 3)),
-                    _palette.Danger));
+                    Style.Danger));
 
             into.Close();
     }
@@ -296,7 +302,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
     private void LayCaption(LayoutBuilder into, BarcodePart part, FormattedText glyphs, Point at, double size)
     {
         into.Open(part.Kind.ToString(), part: null, at);
-        into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, _palette.BarcodeDark)));
+        into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, Style.BarcodeDark)));
         LayPieces(into, part, 0, glyphs.Height, size);
         into.Close();
     }
@@ -341,7 +347,7 @@ internal sealed class BarcodeBuilder : ContentBuilder
 
             // Generated digits are still drawn, just with no part — keeps them out of the caret's stops.
             into.Open(part.Kind.ToString(), part: null, at);
-            into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, _palette.BarcodeDark)));
+            into.Draw(new TextMark(glyphs, default, Brush(_block.LineColor, Style.BarcodeDark)));
 
             if (!Generated(part)) LayPieces(into, part, 0, glyphs.Height, null);
             into.Close();
@@ -370,11 +376,15 @@ internal sealed class BarcodeBuilder : ContentBuilder
             var to = Text(run[..consumed], size).Width;
 
             // Only a value character carries a part — a part on generated text would give the caret a stop nobody could type into.
-            into.Open(piece.Kind.ToString(), piece.IsSource ? piece : null, new Point(from, y));
+            into.Open(piece.Kind.ToString(), piece.IsSource ? Spelled(piece) : null, new Point(from, y));
             into.Covers(new Rect(0, 0, Math.Max(to - from, 0), height));
             into.Close();
         }
     }
+
+    /// <summary>The character of the value a printed character is — counted along the value, which is all the encoder was told.</summary>
+    private ContentPart? Spelled(BarcodePart piece) =>
+        _block.Characters is var characters && piece.Start < characters.Count ? characters[piece.Start] : null;
 
     /// <summary>Whether a run of ink begins inside one of the symbol's guard patterns.</summary>
     private static bool IsGuard(BarcodePattern pattern, int start)
@@ -404,13 +414,18 @@ internal sealed class BarcodeBuilder : ContentBuilder
         return faded;
     }
 
-    /// <summary>Fallback glyph rendering when layout fails entirely — same face as the label line.</summary>
+    /// <summary>How a barcode sets the source it could not lay out: as the fields it was written as.</summary>
     protected override FormattedText Characters(string text) =>
         new(text,
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            Style.Face(LabelFont),
-            MinimumLabelSize,
-            Brushes.Black,
+            Style.Face(SourceFont),
+            SourceSize,
+            Style.Text,
             Editing.LayoutText.Density);
+
+    private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
+
+    /// <summary>How big the characters of a block shown as written are set.</summary>
+    private const double SourceSize = 13;
 }

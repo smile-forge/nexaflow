@@ -1194,15 +1194,20 @@ Every symbology reduces to the same thing — a row of equal-width modules, each
 [`BarcodePattern`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePattern.cs) carries all of them
 and the renderer never learns what an EAN is.
 
-**The parser does not encode.** That split is the whole design:
+**Reading it does not encode.** The body is read as every code block's is — `MatrixParser`, a field a line — and
+[`BarcodeParser`](../src/Nexaflow.Markdown/Barcode/BarcodeParser.cs) then spells the value out a character at a time
+([`SpellValue`](../src/Nexaflow.Markdown/Barcode/Stages/SpellValue.cs)).
+[`BarcodeBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBlockReader.cs) reads that tree into a
+`BarcodeBlock`, and that split is the whole design:
 
-- A **structural** fault (unknown key, no such format, a width that isn't a number) means the block
-  cannot be understood, and it falls back to its source with the reason — the characters the writer typed, as
-  every language that cannot draw does.
-- A value the format **cannot carry** is not structural. The block is well formed and the value is the
-  part being edited, so it must keep rendering: a valid sample value's bars are drawn faint, struck
-  through, with a red wave under the value and the reason on hover. A value is invalid for every
-  keystroke but the last while an EAN-13 is being typed.
+- A fault in **reading** it (a line that is not a field, an unknown key, no such format, a width that isn't a number)
+  means the block cannot be understood, and it is shown as written with the piece at fault marked and the reason under
+  it — the key that is not a setting, the width that is not a number.
+- A value the format **cannot carry** is not one of them. The block reads and the value is the part being edited, so
+  where it is being written and its value is printed to be typed into, it keeps rendering: a valid sample value's bars
+  are drawn faint, struck through, with a red wave under the value and the reason on hover. A value is invalid for every
+  keystroke but the last while an EAN-13 is being typed. Where the block is only being read, or its value is not
+  printed, there is nowhere to put it right but its source, so it is shown as written with the value marked.
 
 **Human-readable layout is a property of the format, not of the encoding**, so it is worked out in one
 place — [`BarcodeTextLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeTextLayout.cs) —
@@ -1217,7 +1222,7 @@ when every module is right, which is exactly what the reference images caught.
 **Editing.** In a document a barcode is pieces of the same laid tree as the words round it, so the caret steps into
 it, selects and types there as it does anywhere else, and a key means what it means to the characters — a barcode
 registers no edit hook of its own.
-It contributes a **layout tree** ([`BarcodeLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeLayout.cs)),
+It contributes a **layout tree** ([`BarcodeBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs)),
 built from a parse tree of the symbol's text
 ([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
 answer where the caret can stand and what a press landed on, exactly as they do for a formula.
@@ -1231,9 +1236,10 @@ and the bars get none at all. A piece with no part is drawn and is not selectabl
 caret is never offered inside a check digit, and why an ISBN takes it in the caption (the number as it
 was written) and not under the bars.
 
-The encoder counts the caption from the value's first character, because that is all it is told. The language lays the
-block at `BarcodeBlock.ValueStart` — where the value sits in the document — and the builder moves every caption part
-there (`BarcodePart.At`), so a caret in the caption stands between the characters of the document it is written in.
+The encoder counts what it prints along the value, because the value is all it is told. The value in the block's tree is
+one piece per character, so the builder gives each printed `Character` the piece it counts to (`BarcodeBlock.Characters`),
+and a caret in the caption stands between the characters of the document it is written in without the builder working out
+where any of them are.
 
 **Settings**: `width` (0.5–20, default 2 — the width of one *bar*, not of the symbol), `height`
 (4–1000, default 100), `displayValue` (default true), `fontSize` (4–200, default 20), `textAlign`

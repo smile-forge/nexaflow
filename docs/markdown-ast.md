@@ -48,7 +48,8 @@ Ast/         ContentNode, ContentPart, ContentReading, ContentWords, ContentLink
 Pipeline/    IAstStage, AstPipeline, AstRewrite, Stages/ShowAsWritten, Stages/WithHoles, Stages/WithBindings
 Binding/     IDataContext, ReflectionDataContext, BoundText — what a {{…}} is read against
 Music/Abc/   AbcParser, AbcTheory, AbcPipeline, AbcKinds, Stages/…
-Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417 and datamatrix share
+Matrix/      MatrixParser, MatrixKinds — the one grammar qr, aztec, pdf417, datamatrix and barcode share
+Barcode/     BarcodeParser, BarcodeKinds, Stages/SpellValue — a barcode's value spelled out a character at a time
 Chemistry/   SmilesParser, SmilesPipeline, Stages/…, Molecule, Elements, Depiction/… — smiles
 Mermaid/     MermaidParser, MermaidBlock, MermaidDiagram, MermaidKinds, MermaidConfig — what every mermaid diagram shares
 Mermaid/Pie/ PieGrammar, PieChart, PieConfig, Stages/ResolveSlices — what a pie says for itself
@@ -212,7 +213,10 @@ header), and trouble in one that drew is kept in place only where each wrong par
 is being written in. A formula keeps what is written wrong in place while it is being written, and is shown as written
 where it is only read; something it read but has no drawing for is its own shortcoming, not the writer's, so it stays a
 warning in place. A tune, a structure, a 2D code, a plot and a word cloud are only ever read where they are drawn —
-nothing in them is typed into there — so anything wrong in one shows it as written, marked. A document shows a nested
+nothing in them is typed into there — so anything wrong in one shows it as written, marked. A barcode's value is typed
+into where it is printed, so a value that will not encode keeps its faint, struck-through symbol with a wave under the
+value while it is being written and printed; anywhere else, and for anything else wrong with the block, it is shown as
+written with the piece at fault marked. A document shows a nested
 block that came back as its source through the same helper, fences and all.
 
 ## Markdown
@@ -408,6 +412,14 @@ finders and timing lines, an Aztec code's bullseye, mode message and reference g
 indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
 the module geometry, the quiet zone, and showing a block that will not read or encode as it is written —
 is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+
+## Barcodes
+
+The 2D codes' parser and one stage. A `barcode` body is the same field a line, and `SpellValue` then spells its `value:`
+out a piece per character — structure, because a barcode prints its value back a character at a time, and each character
+it prints stands for one it was given. `BarcodeBlockReader` reads the tree into a `BarcodeBlock`, saying what stops it
+against the piece at fault, and `BarcodeBuilder` encodes the value and hands each printed `Character` the piece of the
+tree it counts to along the value — never a position of its own working out.
 
 ## Mermaid
 

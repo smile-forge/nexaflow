@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Windows;
 using Nexaflow.Tests.Fixtures;
@@ -23,14 +24,13 @@ namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
 [CoversNode("barcode-editing")]
 public class BarcodeLayoutTests
 {
-    private static Piece Root(string source) => UiRoot(source)!;
+    /// <summary>A block laid out as a document being written lays it: somewhere its value can be put right in place.</summary>
+    private static Laid Written(string source) => BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: false);
 
-    private static Piece UiRoot(string source)
-    {
-    // The value read on its own, so every place is counted from its first character.
-        Assert.IsTrue(BarcodeBlockParser.TryParse(source, out var block, out string? error), error);
-        return BarcodeBuilder.Build(block!.At(0), StyleFormat.Dark).Root;
-    }
+    private static Piece Root(string source) => Written(source).Root;
+
+    /// <summary>Where the value begins in the block — what every place in it is counted from.</summary>
+    private static int ValueAt(string source, string value) => source.IndexOf(value, StringComparison.Ordinal);
 
     private static Piece[] Of(Piece root, BarcodeKind kind) =>
         [.. root.SelfAndDescendants().Where(n => n.Kind == kind.ToString())];
@@ -44,11 +44,11 @@ public class BarcodeLayoutTests
     public void ACode128OffersAStopBetweenEveryCharacter() => UiThread.Run(() =>
     {
         const string value = "HELLO123";
-        var root = Root("format: CODE128\nvalue: " + value);
+        const string source = "format: CODE128\nvalue: " + value;
 
         CollectionAssert.AreEqual(
-            Enumerable.Range(0, value.Length + 1).ToArray(),
-            root.CaretStops().ToArray(),
+            Enumerable.Range(ValueAt(source, value), value.Length + 1).ToArray(),
+            Root(source).CaretStops().ToArray(),
             "what is printed is the value, so every boundary in it is somewhere to stand");
     });
 
@@ -59,21 +59,21 @@ public class BarcodeLayoutTests
         // nobody's keystroke, so there is nowhere in it for a caret to be — the stops end where the value
         // ends, not where the printing does.
         const string value = "590123412345";
-        var root = Root("format: EAN13\nvalue: " + value);
+        const string source = "format: EAN13\nvalue: " + value;
 
-        Assert.AreEqual(value.Length, root.CaretStops().Max(),
+        Assert.AreEqual(ValueAt(source, value) + value.Length, Root(source).CaretStops().Max(),
             "the last stop is the end of the value, not the end of the printed number");
     });
 
     [TestMethod]
     public void APublicationWithAnAddOnCanStillBeEdited() => UiThread.Run(() =>
     {
-        // The number in its caption and the add-on over its bars are both what was typed, so both are somewhere to
-        // stand. Before, an add-on left the whole symbol with nowhere at all.
+        // The number in its caption and the add-on over its bars are both what was typed, so both are somewhere to stand.
         const string value = "978-1-56581-231-4 90000";
-        var stops = Root("format: ISBN\nvalue: " + value).CaretStops().ToArray();
+        const string source = "format: ISBN\nvalue: " + value;
+        var at = ValueAt(source, value);
 
-        CollectionAssert.IsSubsetOf(new[] { 0, 17, 18, value.Length }, stops,
+        CollectionAssert.IsSubsetOf(new[] { at, at + 17, at + 18, at + value.Length }, Root(source).CaretStops().ToArray(),
             "either end of the number in the caption, and either end of the add-on");
     });
 
@@ -83,12 +83,37 @@ public class BarcodeLayoutTests
         // Reported from the app: a lower-case letter typed into a Code 39 was drawn as a capital while the source
         // kept the small one, and the symbol could then be neither selected nor typed into.
         const string value = "MARKdOWN-39";
-        Assert.IsTrue(BarcodeBlockParser.TryParse("format: CODE39\nvalue: " + value, out var block, out string? error), error);
-        var laid = BarcodeBuilder.Build(block!.At(0), StyleFormat.Dark);
+        const string source = "format: CODE39\nvalue: " + value;
+        var laid = Written(source);
 
         Assert.AreEqual(1, laid.Trouble.Count, "a letter Code 39 cannot carry is an error like any other");
-        CollectionAssert.AreEqual(Enumerable.Range(0, value.Length + 1).ToArray(), laid.Root.CaretStops().ToArray(),
-                                  "and every character, as typed, is somewhere to stand");
+        Assert.AreEqual(ValueAt(source, value), laid.Trouble[0].Start, "said under the value");
+        Assert.IsFalse(laid.ShowsSource, "and put right where it is shown");
+        CollectionAssert.AreEqual(Enumerable.Range(ValueAt(source, value), value.Length + 1).ToArray(), laid.Root.CaretStops().ToArray(),
+                                  "every character, as typed, is somewhere to stand");
+    });
+
+    [TestMethod]
+    public void AValueThatWillNotEncodeWhereNothingIsWritten_IsShownAsWrittenWithTheValueMarked() => UiThread.Run(() =>
+    {
+        const string source = "format: CODE39\nvalue: MARKdOWN-39";
+
+        var looked = BarcodeBuilder.Lay(source, StyleFormat.Dark, isReadOnly: true);
+        Assert.IsTrue(looked.ShowsSource, "only being looked at, there is nowhere to put it right but its source");
+        Assert.AreEqual(ValueAt(source, "MARKdOWN-39"), looked.Trouble.Single().Start, "with the value marked");
+
+        var hidden = Written(source + "\ndisplayValue: false");
+        Assert.IsTrue(hidden.ShowsSource, "and so it is where the value is not printed to be typed into");
+    });
+
+    [TestMethod]
+    public void ABlockThatDoesNotRead_IsShownAsWrittenWithThePieceAtFaultMarked() => UiThread.Run(() =>
+    {
+        const string source = "format: CODE128\nvalue: X\nheight: tall";
+        var laid = Written(source);
+
+        Assert.IsTrue(laid.ShowsSource);
+        Assert.AreEqual(ValueAt(source, "tall"), laid.Trouble.Single().Start, "the height that is not a number");
     });
 
     [TestMethod]
@@ -106,12 +131,13 @@ public class BarcodeLayoutTests
     [TestMethod]
     public void PressingADigitOfTheValueFindsThatCharacter() => UiThread.Run(() =>
     {
-        var root = Root("format: CODE128\nvalue: HELLO123");
+        const string source = "format: CODE128\nvalue: HELLO123";
+        var root = Root(source);
 
         var third = Of(root, BarcodeKind.Character)[2];
         var found = root.PieceAt(Middle(third));
 
-        Assert.AreEqual(2, found!.Sits().Start);
+        Assert.AreEqual(ValueAt(source, "HELLO123") + 2, found!.Sits().Start);
         Assert.AreEqual(1, found.Sits().Length);
     });
 
@@ -126,7 +152,7 @@ public class BarcodeLayoutTests
 
         Assert.IsTrue(bars.Bounds.Width > 0 && bars.Bounds.Height > 0, "they are on the page");
         Assert.AreEqual(0, bars.Sits().Length,
-            "and hold no place in the source, so the caret is never stood against one");
+            "and hold no place in the source, so the caret is never stood against one");
     });
 
     // ── A publication ─────────────────────────────────────────────────────
@@ -155,10 +181,9 @@ public class BarcodeLayoutTests
         // A value one character short does not encode, so there is no symbol to read a caption off. It is
         // built from the value instead, because losing the caret the moment the number goes wrong would
         // take away the only place it could be put right.
-        var root = UiRoot("format: ISBN\nvalue: 978-1-56581-231-");
+        var root = Root("format: ISBN\nvalue: 978-1-56581-231-");
 
-        Assert.IsNotNull(root);
-        Assert.AreNotEqual(0, Of(root!, BarcodeKind.Character).Length,
+        Assert.AreNotEqual(0, Of(root, BarcodeKind.Character).Length,
             "the caption is still the value, so the caret still has somewhere to be");
     });
 }

@@ -44,14 +44,15 @@ public static class BarcodeRole
 /// the only place "which characters of the value is this" has an answer.
 ///
 /// <para>
-/// Positions are into the value (what an edit would splice back), never into the encoded text or pixels.
+/// Positions are into the value — the <em>n</em>th character of it, which is the <em>n</em>th character piece of the tree it was
+/// read from (<see cref="BarcodeBlock.Characters"/>) — never into the encoded text or pixels.
 /// A piece printing something the value doesn't contain is <see cref="BarcodeKind.EncodedText"/>, tagged
 /// with the value stretch it was derived from rather than claiming characters it hasn't got — for most
 /// formats, drawn text and written text are different strings, and a piece that pretends otherwise can't
 /// round-trip an edit.
 /// </para>
 /// </summary>
-public sealed class BarcodePart : ISourcePart
+public sealed class BarcodePart
 {
     private readonly List<BarcodePart> _children = [];
 
@@ -181,20 +182,6 @@ public sealed class BarcodePart : ISourcePart
             if (end <= start) return;
             pieces.Add(Leaf(BarcodeKind.EncodedText, role, run[(start - at)..(end - at)], 0, whole));
         }
-    }
-
-    /// <summary>
-    /// The same parts, counted from <paramref name="offset"/> — where the value sits in the document holding it. What an
-    /// encoding reads is counted from the value's first character, because that is all the encoder is told.
-    /// </summary>
-    public BarcodePart At(int offset)
-    {
-        if (offset == 0) return this;
-
-        var moved = new BarcodePart(Kind, Role, Text, Start + offset, Length);
-        foreach (var child in _children) moved.Adopt(child.At(offset));
-
-        return moved;
     }
 
     private void Adopt(BarcodePart child)

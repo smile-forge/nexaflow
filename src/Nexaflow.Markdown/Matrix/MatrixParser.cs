@@ -3,7 +3,8 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Markdown.Matrix;
 
 /// <summary>
-/// Reads the body of a 2D-code block — <c>qr</c>, <c>aztec</c>, <c>pdf417</c>, <c>datamatrix</c> — into a tree.
+/// Reads the body of a code block — <c>qr</c>, <c>aztec</c>, <c>pdf417</c>, <c>datamatrix</c>, and the fields of a
+/// <c>barcode</c> (<see cref="Barcode.BarcodeParser"/>) — into a tree.
 ///
 /// <para>
 /// One parser for the four, because the grammar is one: a field per line, the key before the first colon and
