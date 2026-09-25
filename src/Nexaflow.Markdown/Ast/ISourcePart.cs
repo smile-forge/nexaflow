@@ -26,20 +26,7 @@ public interface ISourcePart
     int Start { get; }
 
     /// <summary>How many source characters it is named by. Zero for a part standing for none.</summary>
-        int Length { get; }
-
-        /// <summary>
-        /// A stretch of this part, as a part in its own right — the character at <paramref name="at"/>, a
-        /// word, a line.
-        /// </summary>
-        /// <remarks>
-        /// Asked of the part rather than made by the caller, so that nothing outside this assembly has to
-        /// know what a part is made of. Drawn content needs it to name pieces the parse tree has no node
-        /// for: a title is one field and a reader selects it a letter at a time, and each letter has to be
-        /// able to say where it was written. A content type whose parts mean more than the characters they
-        /// span overrides this to keep that meaning.
-        /// </remarks>
-        
+    int Length { get; }
 }
 
 /// <summary>
@@ -87,4 +74,22 @@ public static class SourcePartExtensions
     /// <summary>Whether this part's stretch of source wholly contains another's.</summary>
     public static bool Covers(this ISourcePart part, ISourcePart other) =>
         other.Start >= part.Start && other.End() <= part.End();
+
+    /// <summary>
+    /// The stretch of source a run of parts covers between them, as one part — a <see cref="SourceSpan"/> for a piece of
+    /// layout standing for several parts no one part holds: a bar's notes, a beam's, a section's bars. Null where none is given.
+    /// </summary>
+    public static ISourcePart? Across(IEnumerable<ISourcePart?> parts)
+    {
+        var (start, end) = (int.MaxValue, int.MinValue);
+
+        foreach (var part in parts)
+        {
+            if (part is null) continue;
+            start = Math.Min(start, part.Start);
+            end = Math.Max(end, part.End());
+        }
+
+        return start > end ? null : new SourceSpan(start, end - start);
+    }
 }

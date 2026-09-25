@@ -123,7 +123,7 @@ public class LilyPondRoundTripTests
 
         Assert.AreEqual(2, definitions.Count);
         Assert.AreEqual("a", definitions[0].Part(Roles.Name)?.Text);
-        Assert.AreEqual("\"words1V1\"", definitions[1].Part(Roles.Name)?.Text);
+        Assert.AreEqual("words1V1", LilyPondText.Said(ContentPart.Of(definitions[1]).Part(Roles.Name)));
         Assert.AreEqual(LilyPondKinds.Sequential, definitions[0].Part(LilyPondRoles.Value)?.Kind);
     }
 

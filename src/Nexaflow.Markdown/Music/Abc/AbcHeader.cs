@@ -113,6 +113,10 @@ public static class AbcHeader
         else if (from < to && raw[from] == ' ') from++;
 
         var text = raw[from..to];
-        return new MusicHeader.Prose(text, part is null ? null : new SourceSpan(part.Start + from, text.Length));
+        if (part is null) return new MusicHeader.Prose(text, null);
+
+        // A field's value is one piece of the tree, and a reader selects its words a letter at a time.
+        return new MusicHeader.Prose(text, new SourceSpan(part.Start + from, text.Length),
+                                     [.. Enumerable.Range(0, text.Length).Select(at => (ISourcePart)new SourceSpan(part.Start + from + at, 1))]);
     }
 }

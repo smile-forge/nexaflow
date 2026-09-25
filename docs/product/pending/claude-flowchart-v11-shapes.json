@@ -209,14 +209,48 @@
           "class": "HoldValue"
         }
       ]
+    },
+    "ly-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondParser.cs",
+          "class": "LilyPondParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondKinds.cs",
+          "class": "LilyPondKinds"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs",
+          "class": "LilyPondText"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/LilyPond/LilyPondRoundTripTests.cs",
+            "class": "LilyPondRoundTripTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Music/LilyPond/LilyPondTextTests.cs",
+            "class": "LilyPondTextTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 5,
+  "changed_sets": 7,
   "touched_nodes": [
     "barcode-block-syntax",
     "barcode-editing",
     "flowchart-ast",
+    "ly-ast",
     "mermaid-diagram-kit"
   ]
 }

@@ -167,26 +167,10 @@ internal abstract partial class MusicBuilder
         var glyphs = ScoreText.Build(prose.Text, size, weight, style);
 
         LayoutText.Place(_build, glyphs, new Point(at ?? LeftMargin, y), room, align, prose.Part, kind,
-                         Letters(prose));
+                         prose.Letters);
 
         // Asked of the type engine after it has been given its room, because that is when it knows: a title
         // too wide for its page is a paragraph, and how tall it is depends on where it broke.
         return y + glyphs.Height + ProseLine;
     }
-
-    /// <summary>
-    /// Where each character of a line of prose was written, so it can be selected a letter at a time — or
-    /// null where the text is not the source, and no character of one is a character of the other.
-    ///
-    /// <para>
-    /// Worked out here because only the reading knows it. A title is the characters between the colon and
-    /// the end of its line; a note field is printed as "Notes: …" and a composer and an origin are set as
-    /// one line, and for those two there is no character-by-character answer to give.
-    /// </para>
-    /// </summary>
-    private static IReadOnlyList<ISourcePart>? Letters(MusicHeader.Prose prose) =>
-        prose is { IsWritten: true, Part: { } part }
-            ? [.. Enumerable.Range(0, prose.Text.Length)
-                  .Select(at => (ISourcePart)new SourceSpan(part.Start + at, 1))]
-            : null;
 }

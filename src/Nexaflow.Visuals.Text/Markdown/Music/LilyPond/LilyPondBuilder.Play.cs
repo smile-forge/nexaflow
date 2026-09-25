@@ -289,7 +289,7 @@ internal sealed partial class LilyPondBuilder
         var beamable = run.Where(s => s.Event.Beamable).ToList();
         if (beamable.Count < 2) return;
 
-        var group = Across(beamable.Select(s => s.Event.Part));
+        var group = SourcePartExtensions.Across(beamable.Select(s => s.Event.Part));
         foreach (var sounded in beamable)
         {
             sounded.Event.Beam = group;
@@ -308,7 +308,7 @@ internal sealed partial class LilyPondBuilder
         switch (target?.Kind)
         {
             case LilyPondKinds.Quoted:
-                Annotate(on.Event, Inside(target).Text, direction);
+                Annotate(on.Event, LilyPondText.Said(target) ?? "", direction);
                 return;
 
             case LilyPondKinds.Command when CommandName(target) is @"\markup" or @"\markuplist":

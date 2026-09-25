@@ -141,26 +141,9 @@ internal sealed partial class LilyPondBuilder
             line = null;
             sung = notes[landed].Event;
 
-            var text = piece.Kind == LilyPondKinds.Quoted ? Inside(piece).Text : Sung(piece.Text);
+            var text = piece.Kind == LilyPondKinds.Quoted ? LilyPondText.Said(piece) ?? "" : LilyPondText.Sung(piece);
             sung.Lyrics.Add((verse, text, false, false, piece));
         }
-    }
-
-    /// <summary>
-    /// A syllable as it is printed: without the duration a syllable may carry — <c>Ly4</c> — but with a full stop
-    /// that ends a sentence. A duration is digits, dotted or not, so dots count as one only after digits. An
-    /// underscore or a tilde inside a word is a space.
-    /// </summary>
-    private static string Sung(string written)
-    {
-        var end = written.Length;
-        while (end > 0 && written[end - 1] == '.') end--;
-
-        var digits = end;
-        while (end > 0 && char.IsAsciiDigit(written[end - 1])) end--;
-
-        var text = end < digits && end > 0 ? written[..end] : written;
-        return text.Replace('_', ' ').Replace('~', ' ');
     }
 
     // ── Chord names ─────────────────────────────────────────────────────────
@@ -232,20 +215,10 @@ internal sealed partial class LilyPondBuilder
         var (step, alter) = LilyPondTheory.Name(name.Part(LilyPondRoles.NoteName)?.Text ?? "") ?? (0, 0);
         var spelled = $"{Pitch.Letters[step]}{Accidental(alter)}";
 
-        var quality = name.Part(LilyPondRoles.Quality)?.Text ?? "";
-        var slash = quality.IndexOf('/');
-        var modifiers = (slash >= 0 ? quality[..slash] : quality).TrimStart(':').Trim();
-        var bass = slash >= 0 ? quality[(slash + 1)..].TrimStart('+') : "";
+        spelled += LilyPondText.Quality(name);
 
-        spelled += modifiers switch
-        {
-            "" => "",
-            "maj" => "maj7",
-            _ => modifiers.Replace("^", "no").Replace(".", ""),
-        };
-
-        var letters = new string([.. bass.TakeWhile(char.IsAsciiLetterLower)]);
-        if (LilyPondTheory.Name(letters) is { } low) spelled += $"/{Pitch.Letters[low.Step]}{Accidental(low.Alter)}";
+        if (LilyPondTheory.Name(name.Part(LilyPondRoles.Bass)?.Text ?? "") is { } low)
+            spelled += $"/{Pitch.Letters[low.Step]}{Accidental(low.Alter)}";
 
         return spelled;
     }
@@ -330,14 +303,9 @@ internal sealed partial class LilyPondBuilder
         Written(part).FirstOrDefault(p => p.Kind == LilyPondKinds.Quoted) is { } first ? Inside(first) : null;
 
     /// <summary>
-    /// A quoted string's text, naming the characters between its quotes — which is what lets it be selected a
-    /// letter at a time. Where an escape makes the text differ from its characters, it names the whole string.
+    /// A quoted string's text, each character of it the piece it is written as — which is what lets it be selected a letter at
+    /// a time, an escape selected as the one character it writes.
     /// </summary>
-    private static MusicHeader.Prose Inside(ContentPart quoted)
-    {
-        var inner = quoted.Text.Length >= 2 ? quoted.Text[1..^1] : "";
-        var text = inner.Replace("\\\"", "\"").Replace("\\\\", "\\");
-
-        return new MusicHeader.Prose(text, text == inner ? new SourceSpan(quoted.Start + 1, inner.Length) : quoted);
-    }
+    private static MusicHeader.Prose Inside(ContentPart quoted) =>
+        new(LilyPondText.Said(quoted) ?? "", SourcePartExtensions.Across(LilyPondText.Letters(quoted)) ?? quoted, LilyPondText.Letters(quoted));
 }

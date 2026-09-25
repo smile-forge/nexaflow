@@ -20,24 +20,13 @@ namespace Nexaflow.Markdown.Music;
 public sealed record MusicHeader
 {
     /// <summary>
-    /// One line of the prose around the music: what it says, and the stretch of source it was written in.
-    ///
-    /// <para>
-    /// The part is what makes it selectable, and it names <em>exactly</em> the characters the text is — space
-    /// around a heading trimmed off, and whatever quotes or colon introduced it gone with it. That exactness is
-    /// what lets the words be drawn a letter at a time: the nth character of the text is the nth character of
-    /// the part, so each letter can say where it was written.
-    /// </para>
-    /// <para>
-    /// Where the two cannot line up — a note field printed as "Notes: …", a composer and an origin set as one
-    /// line — the text simply is not the source, and it is drawn as one piece naming the whole of what it came
-    /// from.
-    /// </para>
+    /// Words a score sets, and what they were written as: the part they name, and — where each character of the words is a
+    /// character written in the source — the part each one is, so a reader can select them a letter at a time.
     /// </summary>
-    public readonly record struct Prose(string Text, ISourcePart? Part)
+    public readonly record struct Prose(string Text, ISourcePart? Part, IReadOnlyList<ISourcePart>? Letters = null)
     {
-        /// <summary>Whether each character of the text is a character of the source it names.</summary>
-        public bool IsWritten => Part is { } part && part.Length == Text.Length;
+        /// <summary>Whether each character of the text is a character of the source, with a part of its own.</summary>
+        public bool IsWritten => Letters is not null;
 
         public override string ToString() => Text;
     }

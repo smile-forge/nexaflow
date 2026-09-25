@@ -312,10 +312,10 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
     private static (string Kind, string? Id, string? Label) Head(ContentPart command)
     {
         var args = command.Children.Where(c => c.Role == LilyPondRoles.Argument).ToList();
-        var kind = args.Count > 0 && args[0].Kind != LilyPondKinds.Command ? Unquoted(args[0].Text) : "";
+        var kind = args.Count > 0 ? LilyPondText.Said(args[0]) ?? "" : "";
 
         var assigned = command.Children.Any(c => c.Role == LilyPondRoles.Assign);
-        var id = assigned && args.Count > 1 && args[1].Kind != LilyPondKinds.Command ? Unquoted(args[1].Text) : null;
+        var id = assigned && args.Count > 1 ? LilyPondText.Said(args[1]) : null;
 
         var label = args.Where(a => a.Kind == LilyPondKinds.Command && CommandName(a) == @"\with")
                         .Select(with => Setting(with, "instrumentName"))
@@ -327,7 +327,7 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
     /// <summary>Words, and the voice a <c>\lyricsto</c> names for them.</summary>
     private Words Lyrics(ContentPart body, Stave? near) =>
         body.Kind == LilyPondKinds.Command && CommandName(body) == @"\lyricsto"
-            ? new Words(Body(body) ?? body, Unquoted(body.Part(LilyPondRoles.Argument)?.Text), near, _piece)
+            ? new Words(Body(body) ?? body, LilyPondText.Said(body.Part(LilyPondRoles.Argument)) ?? "", near, _piece)
             : new Words(body, null, near, _piece);
 
     private Stave NewStave()
@@ -391,27 +391,15 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
     private static IEnumerable<ContentPart> Bodies(ContentPart command) =>
         command.Children.Where(c => c.Role == Roles.Body);
 
-    /// <summary>The first thing a command was handed, as written, quotes taken off.</summary>
+    /// <summary>What a command's first argument says — a word, or a quoted string — or nothing.</summary>
     private static string Argument(ContentPart command) =>
-        Unquoted(command.Children.FirstOrDefault(c => c.Role == LilyPondRoles.Argument)?.Print());
+        LilyPondText.Said(command.Children.FirstOrDefault(c => c.Role == LilyPondRoles.Argument)) ?? "";
 
     /// <summary>The name a command uses, where it is a variable's — <c>\melody</c>, <c>\"voice1"</c>.</summary>
-    private static string? Reference(ContentPart command)
-    {
-        if (command.Kind != LilyPondKinds.Command || command.Children.Count != 1) return null;
-
-        var name = CommandName(command);
-        if (name.Length < 2) return null;
-
-        return name[1] == '"' ? Unquoted(name[1..]) : name[1..];
-    }
+    private static string? Reference(ContentPart command) => LilyPondText.Called(command);
 
     /// <summary>The name a definition defines.</summary>
-    private static string? NameOf(ContentPart assignment) =>
-        assignment.Part(Roles.Name) is { } name ? Unquoted(name.Print()) : null;
-
-    private static string Unquoted(string? text) =>
-        text is { Length: >= 2 } quoted && quoted[0] == '"' && quoted[^1] == '"' ? quoted[1..^1] : text ?? "";
+    private static string? NameOf(ContentPart assignment) => LilyPondText.Said(assignment.Part(Roles.Name));
 
     /// <summary>
     /// What a setting inside a block is set to — <c>instrumentName = "Soprano"</c> inside a <c>\with</c> — or
@@ -436,20 +424,5 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
         if (args.Count < 2 || !args[0].Text.EndsWith(property, StringComparison.Ordinal)) return null;
 
         return Prose(args[1])?.Text;
-    }
-
-    /// <summary>The stretch of source a run of parts covers, as one part — what makes a beam or bar selectable as a whole.</summary>
-    private static ISourcePart? Across(IEnumerable<ISourcePart> parts)
-    {
-        var start = int.MaxValue;
-        var end = int.MinValue;
-
-        foreach (var part in parts)
-        {
-            start = Math.Min(start, part.Start);
-            end = Math.Max(end, part.End());
-        }
-
-        return start > end ? null : new SourceSpan(start, end - start);
     }
 }

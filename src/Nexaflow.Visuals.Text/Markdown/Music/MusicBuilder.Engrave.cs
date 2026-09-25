@@ -585,28 +585,9 @@ internal abstract partial class MusicBuilder
         line is not null && line.Drawn.Trim() is not ("|" or "");
 
     /// <summary>The stretch of source a run of bars covers, start to end — or null if none of it was written.</summary>
-    private static ISourcePart? Spanning(List<Bar> bars)
-    {
-        var start = int.MaxValue;
-        var end = int.MinValue;
-
-        void Take(ISourcePart? part)
-        {
-            if (part is null) return;
-            start = Math.Min(start, part.Start);
-            end = Math.Max(end, part.End());
-        }
-
-        foreach (var bar in bars)
-        {
-            Take(bar.Part);
-            Take(bar.Opened?.Part);
-            Take(bar.Closed?.Part);
-            foreach (var ev in bar.Events) Take(ev.Part);
-        }
-
-        return start > end ? null : new SourceSpan(start, end - start);
-    }
+    private static ISourcePart? Spanning(List<Bar> bars) =>
+        SourcePartExtensions.Across(bars.SelectMany(bar =>
+            new[] { bar.Part, bar.Opened?.Part, bar.Closed?.Part }.Concat(bar.Events.Select(ev => ev.Part))));
 
     // ── The small pieces ────────────────────────────────────────────────────
 

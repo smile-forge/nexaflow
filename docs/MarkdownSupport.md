@@ -1621,7 +1621,11 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 A notation's builder does only what that notation leaves to it. ABC writes down where its bars and beams
 go; LilyPond leaves bars, beams and printed accidentals to whoever engraves it, so its builder plays the
 music through to find them (see *LilyPond coverage*). Everything after that — staves, heads, stems, beams,
-curves, words, spacing and line breaks — is the one engraver's.
+curves, words, spacing and line breaks — is the one engraver's. What a string, a name, a chord's name and a syllable say
+is read off the parts the parser made of them ([`LilyPondText`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs)):
+a string is its quotes and a letter for each character, an escape being the one it writes, so a title is selected a
+letter at a time; a chord's name is its root, its quality and its bass; a syllable is its words and any duration after
+them. No builder takes one apart.
 
 **Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
 beamed pair to select the pair, drag for a run — then:
