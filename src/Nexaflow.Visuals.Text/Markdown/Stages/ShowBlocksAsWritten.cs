@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 
+using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
@@ -14,7 +16,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// <para>
 /// Asked of the innermost block holding the stretch shown as typed: a block that holds blocks lets the one being written in
 /// answer — unless the whole of it is being shown, when the marks it holds its blocks with are what is being written. Not
-/// where the stretch lies inside another language's source: that language shows its own (<see cref="ContentNesting.Nests"/>).
+/// where the stretch lies inside another language's source: that language shows its own (<see cref="Nests"/>).
 /// </para>
 /// <para>
 /// A stage, so the characters are a piece of the tree the builder is handed — the characters and the line break closing them,
@@ -23,7 +25,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// </summary>
 /// <param name="zone">The stretch shown as typed.</param>
 /// <param name="at">Where the content starts in whatever holds it, which is what the stretch is counted from.</param>
-public sealed class ShowBlocksAsWritten(RawZone zone, int at) : IAstStage
+/// <param name="reads">Whether a word names a language anything reads — the only languages with source of their own to show.</param>
+public sealed class ShowBlocksAsWritten(RawZone zone, int at, Func<string?, bool> reads) : IAstStage
 {
     public string Name => "markdown:shown-as-written";
 
@@ -45,11 +48,16 @@ public sealed class ShowBlocksAsWritten(RawZone zone, int at) : IAstStage
 
     private void Asked(ContentPart block, HashSet<ContentNode> shown)
     {
-        if (!(zone.Start < block.End && block.Start < zone.End) || ContentNesting.Nests(block, zone)) return;
+        if (!(zone.Start < block.End && block.Start < zone.End) || Nests(block)) return;
 
         if (!Holds(block) || Opened(block)) shown.Add(block.Node);
         else Walk(block.Kind == MarkdownKinds.List ? block : block.Part(Roles.Body) ?? block, shown);
     }
+
+    /// <summary>Whether the stretch shown as typed lies inside another language's source somewhere in <paramref name="part"/>.</summary>
+    private bool Nests(ContentPart part) =>
+        part.SelfAndDescendants().Any(inner => reads(ContentNested.Language(inner)) && inner.Part(Roles.Body) is { } body
+                                              && ContentNested.Holds(body, zone.Start, zone.End));
 
     /// <summary>Whether a block holds blocks, so there is something further in to ask.</summary>
     private static bool Holds(ContentPart block) =>

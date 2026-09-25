@@ -194,7 +194,7 @@ public class MarkdownParserTests
     [TestMethod]
     public void ALinkNamingADefinitionGoesWhereTheDefinitionSays()
     {
-        var read = MarkdownParser.Reader.Run(MarkdownParser.Read("see [one][ref]\n\n[ref]: https://example.org\n"));
+        var read = MarkdownParser.Parse("see [one][ref]\n\n[ref]: https://example.org\n");
 
         var link = read.SelfAndDescendants().First(node => node.Kind == MarkdownKinds.Link);
 
@@ -204,7 +204,7 @@ public class MarkdownParserTests
     [TestMethod]
     public void AnAbbreviationDefinedElsewhereIsKnownInTheSentence()
     {
-        var read = MarkdownParser.Reader.Run(MarkdownParser.Read("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n"));
+        var read = MarkdownParser.Parse("*[HTML]: HyperText Markup Language\n\nHTML is a thing\n");
 
         Assert.IsTrue(read.SelfAndDescendants().Any(node => node.Kind == MarkdownKinds.Abbreviation));
     }

@@ -68,7 +68,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    internal RequirementBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal RequirementBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override RequirementDiagram Of(MermaidBlock block) => RequirementDiagram.Of(block);

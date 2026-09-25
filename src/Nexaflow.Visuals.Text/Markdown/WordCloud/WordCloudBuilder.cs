@@ -56,23 +56,12 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     private WordCloudSettings _settings = WordCloudSettings.Default;
 
-    internal WordCloudBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly)
+    internal WordCloudBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting)
     {
     
     
     
-    }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    /// <param name="after">What the host runs over the tree once it is read — a picture found, say. Null for nothing.</param>
-    internal static Laid Lay(string source, StyleFormat style, double room,
-                             Nexaflow.Markdown.Pipeline.AstPipeline? after = null, int at = 0)
-    {
-        var tree = WordCloudParser.Parse(source);
-
-        return new WordCloudBuilder(ContentReading.Of(after is null ? tree : after.Run(tree), at),
-                                    EditState.For(source), style, isReadOnly: true).Lay(room);
     }
 
     protected override Laid? Build()

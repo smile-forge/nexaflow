@@ -21,14 +21,8 @@ internal sealed class AbcBuilder : MusicBuilder
 {
     /// <param name="shownAsWritten">A stretch to show as typed characters rather than engraved music — the piece being edited.</param>
     /// <param name="spacing">Null uses the engraver's normal spacing; pass another only to compare two engravings without the comparison being about spacing.</param>
-    internal AbcBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Reads a tune and engraves it. Never null, and never throws.</summary>
-    internal static Laid Lay(string abc, double width, StyleFormat style,
-                             (int Start, int Length)? shownAsWritten = null, int at = 0) =>
-        new AbcBuilder(ContentReading.Of(AbcPipeline.Read(abc, Draws, shownAsWritten), at),
-                       EditState.For(abc), style, isReadOnly: true).Lay(width);
+    internal AbcBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     /// <remarks>What cannot be drawn and what is being typed were both settled while it was read, as parts saying so.</remarks>

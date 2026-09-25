@@ -521,7 +521,7 @@ public class LilyPondBuilderTests
     [CoversNode("lilypond")]
     public void TheSameTuneInBothNotations_EngravesTheSame() => UiThread.Run(() =>
     {
-        var abc = AbcBuilder.Lay("""
+        var abc = Laying.Engraved("abc", """
             X:1
             T:Speed the Plough
             M:4/4
@@ -560,7 +560,7 @@ public class LilyPondBuilderTests
 
     // ── Reading the picture ─────────────────────────────────────────────────
 
-    private static Laid Lay(string ly) => LilyPondBuilder.Lay(ly, 900, StyleFormat.Light);
+    private static Laid Lay(string ly) => Laying.Engraved("lilypond", ly, 900, StyleFormat.Light);
 
     private static List<Piece> All(Laid layout, string kind) => All(layout.Root, kind);
 

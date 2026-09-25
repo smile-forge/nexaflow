@@ -54,7 +54,7 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
     private const double Wash = 0.2;
     private const double RootWash = 0.35;
 
-    internal MindmapBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal MindmapBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override MindmapTree Of(MermaidBlock block) => MindmapTree.Of(block);

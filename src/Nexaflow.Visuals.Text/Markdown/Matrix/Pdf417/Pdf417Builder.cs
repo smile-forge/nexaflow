@@ -32,12 +32,8 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
     /// <summary>How many modules wide one codeword is — and the start pattern, and each row indicator.</summary>
     private const int Codeword = 17;
 
-    internal Pdf417Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
-        new Pdf417Builder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
+    internal Pdf417Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong)
     {

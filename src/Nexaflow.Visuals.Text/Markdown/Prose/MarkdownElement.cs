@@ -31,8 +31,14 @@ public sealed class MarkdownElement : LinkedElement
     /// <param name="options">What the host said about the content written inside the document.</param>
     public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null,
                            DiagramRenderOptions? options = null)
-        : base(source ?? string.Empty, palette, MarkdownContent.Of(palette, options), host)
+        : this(source, palette, host, new ContentEngine(options))
     {
+    }
+
+    private MarkdownElement(string source, StyleFormat palette, ILayoutActions? host, ContentEngine engine)
+        : base(source ?? string.Empty, palette, MarkdownContent.Of(palette, engine), host)
+    {
+        Engine = engine;
         // A fenced block draws uncoloured until its language has been read against it, which happens off the
         // way to drawing. When it lands, this is what shows it — the same refresh a ticked item uses.
         Loaded += (_, _) => Code.CodeSpans.Ready += Coloured;
@@ -53,6 +59,9 @@ public sealed class MarkdownElement : LinkedElement
             Apply(EditState.For(value ?? string.Empty), notify: false);
         }
     }
+
+    /// <summary>What lays the document out — and says what it knows of what it laid, such as what a reader has opened in a diagram.</summary>
+    internal ContentEngine Engine { get; }
 
     /// <summary>The document as it is being written: its source, the caret, what is picked out, and what is shown as typed.</summary>
     public EditState Current => State;
@@ -209,7 +218,7 @@ public sealed class MarkdownElement : LinkedElement
              piece = piece.Parent)
         {
             if (piece.Part is not ContentPart part) continue;
-            if (ContentNesting.Of(part) is null) continue;
+            if (ContentLanguages.Held(part) is null) continue;
 
             return piece.Bounds;
         }
@@ -232,12 +241,11 @@ public sealed class MarkdownElement : LinkedElement
 
         for (var at = part; at is not null; at = at.Parent)
         {
-            if (ContentNesting.Of(at) is not { } nesting) continue;
+            if (ContentLanguages.Held(at) is not { } language) continue;
 
-            var body = at.Part(Roles.Body);
-            if (body is null) continue;
+            var body = at.Part(Roles.Body)!;
 
-            return nesting.Language.Offers(new ContentAsk(nesting.Named, body.Text)
+            return language.Editing.Offers(new ContentAsk(ContentNested.Language(at)!, body.Text)
             {
                 Part = part,
                 Chosen = Chosen(body),

@@ -46,14 +46,15 @@ public sealed class WithUnchanged : IAstStage
         var now = new Dictionary<int, List<(ContentNode Block, LaidBlock Laid)>>(_before.Count);
         var laid = new LaidBlocks();
 
-        foreach (var block in tree.Children)
+        for (var at = 0; at < tree.Children.Count; at++)
         {
+            var block = tree.Children[at];
             if (block.IsDerived || block.Role == Roles.Trivia) continue;
 
             var written = Shape(block);
             var kept = Taken(written, block) ?? new LaidBlock();
 
-            laid.Add(block, kept);
+            laid.Add(at, kept);
 
             if (!now.TryGetValue(written, out var alike)) now[written] = alike = [];
             alike.Add((block, kept));

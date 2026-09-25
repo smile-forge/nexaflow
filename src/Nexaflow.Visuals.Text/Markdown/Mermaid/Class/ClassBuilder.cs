@@ -111,7 +111,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     private const string Opens = "«";
     private const string Shuts = "»";
 
-    internal ClassBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal ClassBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => ClassDiagram.Of(block);

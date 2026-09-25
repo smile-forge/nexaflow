@@ -4,65 +4,59 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
-using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Languages;
-using Nexaflow.Visuals.Text.Markdown.Music;
 
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// Every language a fence can be written in — the one table, and the only one.
+/// Every language content can be written in — the one table, and the only one.
 ///
 /// <para>
-/// A language is a name, a parser, a pipeline, a builder and the rules for writing into the result
-/// (<see cref="IContentLanguage"/>), and whatever holds one only has to know it found one. That is true
-/// wherever a fence appears: a block of a document, a label on a flowchart node, a caption under a picture.
-/// One table answers all of them, so a language added once is drawn everywhere.
-/// </para>
-/// <para>
-/// The ones that ship are registered here. A feature brings its own by implementing
-/// <see cref="IContentLanguage"/>, which is found at assembly load like every other contributed contract and
-/// registered through <see cref="Register"/> — so a feature that wants its own notation drawn in markdown
-/// writes a parser and a builder and nothing else.
+/// Whatever holds content in another language only says which language it is; the engine looks the language up here, has
+/// its parser read the content and its builder lay it out (<see cref="ContentEngine"/>). That is true wherever it appears:
+/// a block of a document, a label on a flowchart node, a caption under a picture. One table answers all of them, so a
+/// language added once is drawn everywhere.
 /// </para>
 /// </summary>
 public static class ContentLanguages
 {
-    private static readonly List<IContentLanguage> Known =
+    private static readonly List<ContentLanguage> Known =
     [
-        new MermaidLanguage(),
-        new NomnomlLanguage(),
-        new QrLanguage(),
-        new BarcodeLanguage(),
-        new MusicLanguage(MusicDialect.Abc),
-        new MusicLanguage(MusicDialect.LilyPond),
-        new DataMatrixLanguage(),
-        new Pdf417Language(),
-        new AztecLanguage(),
-        new SmilesLanguage(),
-        new LatexLanguage(),
-        new WordCloudLanguage(),
-        new PlotLanguage(PlotFence.Scatter),
-        new PlotLanguage(PlotFence.Bubble),
-        new PlotLanguage(PlotFence.Heatmap),
-        new PlotLanguage(PlotFence.Density2d),
+        Shipped.Mermaid,
+        Shipped.Nomnoml,
+        Shipped.Qr,
+        Shipped.Barcode,
+        Shipped.Abc,
+        Shipped.LilyPond,
+        Shipped.DataMatrix,
+        Shipped.Pdf417,
+        Shipped.Aztec,
+        Shipped.Smiles,
+        Shipped.Latex,
+        Shipped.WordCloud,
+        Shipped.Plot(PlotFence.Scatter),
+        Shipped.Plot(PlotFence.Bubble),
+        Shipped.Plot(PlotFence.Heatmap),
+        Shipped.Plot(PlotFence.Density2d),
 
-        // Last, and deliberately. It answers to dozens of words, so a fence calling itself something a
-        // language of its own already claims must reach that one first.
-        new CodeLanguage(),
+        // Last, and deliberately. It answers to dozens of words, so a fence calling itself something a language of its own
+        // already claims must reach that one first.
+        Shipped.Code,
     ];
 
     private static readonly Lock Adding = new();
 
+    /// <summary>What content is written in where nothing names a language.</summary>
+    public static ContentLanguage Markdown => Shipped.Markdown;
+
+    /// <summary>What content is shown as where the language it names is one nothing reads: its characters, as code with no grammar.</summary>
+    public static ContentLanguage Code => Shipped.Code;
+
     /// <summary>
-    /// Adds a language, or replaces one already registered under a name it answers to.
-    ///
-    /// <para>
-    /// Last in wins, which is what lets a host override a language that ships — and means a feature
-    /// registering one nobody else claims is simply added.
-    /// </para>
+    /// Adds a language, or replaces one already registered under a name it answers to. Last in wins, which is what lets a host
+    /// override a language that ships.
     /// </summary>
-    public static void Register(IContentLanguage language)
+    public static void Register(ContentLanguage language)
     {
         ArgumentNullException.ThrowIfNull(language);
 
@@ -72,11 +66,11 @@ public static class ContentLanguages
         }
     }
 
-    /// <summary>Whether anything here draws a fence calling itself <paramref name="language"/>.</summary>
+    /// <summary>Whether anything here reads content calling itself <paramref name="language"/>.</summary>
     public static bool Reads(string? language) => For(language) is not null;
 
-    /// <summary>What draws it, or null where nothing does.</summary>
-    public static IContentLanguage? For(string? language)
+    /// <summary>What reads it, or null where nothing does.</summary>
+    public static ContentLanguage? For(string? language)
     {
         if (string.IsNullOrWhiteSpace(language)) return null;
 
@@ -85,4 +79,11 @@ public static class ContentLanguages
             return Known.FirstOrDefault(known => known.Reads(language));
         }
     }
+
+    /// <summary>
+    /// The language <paramref name="part"/> holds content written in, where it holds content in one anything reads — a fence,
+    /// a formula, a label written in another language — or null.
+    /// </summary>
+    public static ContentLanguage? Held(ContentPart part) =>
+        ContentNested.Language(part) is { } named && part.Part(Roles.Body) is not null ? For(named) : null;
 }

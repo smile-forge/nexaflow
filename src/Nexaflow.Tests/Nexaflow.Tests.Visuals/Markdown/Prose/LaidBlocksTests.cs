@@ -33,7 +33,7 @@ public class LaidBlocksTests
         foreach (var path in documents)
         {
             var text = File.ReadAllText(path);
-            var content = MarkdownContent.Of(style, options);
+            var content = MarkdownContent.Of(style, new ContentEngine(options));
             content.Lay(EditState.For(text), Room, false);
 
             // Typed in the middle, typed before everything so every block moves, taken back near the end, and undone.
@@ -49,7 +49,7 @@ public class LaidBlocksTests
             foreach (var edited in edits)
             {
                 var again = content.Lay(EditState.For(edited), Room, false);
-                var fresh = MarkdownContent.Of(style, options).Lay(EditState.For(edited), Room, false);
+                var fresh = MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(edited), Room, false);
 
                 Same(fresh, again, Path.GetFileName(path));
             }
@@ -59,7 +59,7 @@ public class LaidBlocksTests
     [TestMethod]
     public void ABlockThatReadsAsItDidKeepsItsPicture()
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         var before = Wholes(content.Lay(EditState.For("First words.\n\nSecond words.\n"), Room, false));
         var after = Wholes(content.Lay(EditState.For("First words.\n\nSecond words, and more.\n"), Room, false));
@@ -71,7 +71,7 @@ public class LaidBlocksTests
     [TestMethod]
     public void ABlockSetDownAgainStandsForWhereItsCharactersNowAre()
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
         content.Lay(EditState.For("alpha\n\nbeta\n"), Room, false);
 
         const string source = "an alpha\n\nbeta\n";
@@ -86,7 +86,7 @@ public class LaidBlocksTests
     public void ABlockWhoseLinkWasDefinedAgainElsewhereIsLaidAgain()
     {
         // The paragraph's characters are the same either side of the edit; where its link goes is not.
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         var before = Wholes(content.Lay(EditState.For("Go [there][a].\n\n[a]: https://one.example\n"), Room, false));
         var after = Wholes(content.Lay(EditState.For("Go [there][a].\n\n[a]: https://two.example\n"), Room, false));
@@ -98,7 +98,7 @@ public class LaidBlocksTests
     public void AfterBeingToldToForgetNothingIsSetDownAsItWas()
     {
         // Which nodes of a diagram are opened is not in the characters, so a host changing it says so.
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
         const string source = "First words.\n\nSecond words.\n";
 
         var before = Wholes(content.Lay(EditState.For(source), Room, false));
@@ -111,12 +111,12 @@ public class LaidBlocksTests
     [TestMethod]
     public void ABlockShownAsItWasWrittenIsNotKeptAsIfItWereRead()
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
         const string source = "# Title\n\nwords\n";
 
         content.Lay(new EditState(source, 7, null, new RawZone(0, 7)), Room, false);
         var read = content.Lay(EditState.For(source), Room, false);
-        var fresh = MarkdownContent.Of(StyleFormat.Dark).Lay(EditState.For(source), Room, false);
+        var fresh = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine()).Lay(EditState.For(source), Room, false);
 
         Same(fresh, read, "a title shown as written, then read");
     }
@@ -172,7 +172,7 @@ public class LaidBlocksTests
     {
         // A Gantt chart draws a line at today, which the clock says rather than the block.
         const string chart = "```mermaid\ngantt\n    dateFormat YYYY-MM-DD\n    Task :2024-01-01, 3d\n```\n";
-        var content = MarkdownContent.Of(StyleFormat.Dark);
+        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         var before = Wholes(content.Lay(EditState.For(chart + "\nWords.\n"), Room, false));
         var after = Wholes(content.Lay(EditState.For(chart + "\nMore words.\n"), Room, false));

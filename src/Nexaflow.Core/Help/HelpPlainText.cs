@@ -59,7 +59,7 @@ internal static class HelpPlainText
     /// </summary>
     private static bool IsTypeset(string? info)
         => !string.IsNullOrWhiteSpace(info)
-           && (ContentLanguages.For(info) is { ShowsWhatWasWritten: false }
+           && (ContentLanguages.For(info) is { } language && !language.Editing.ShowsWhatWasWritten
                || TypesetFences.Contains(info.Trim().Split(' ')[0]));
 
     private static void Line(StringBuilder sb, string text)

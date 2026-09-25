@@ -73,7 +73,7 @@ internal sealed class ErBuilder : MermaidBuilder<ErDiagram>
     /// <summary>How wide what is written on a relationship runs before it wraps.</summary>
     private const double Widest = 160;
 
-    internal ErBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal ErBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override ErDiagram Of(MermaidBlock block) => ErDiagram.Of(block);

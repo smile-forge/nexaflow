@@ -14,9 +14,8 @@ namespace Nexaflow.Markdown.Plot;
 /// known for what it is before the columns are counted, or every column would be off by one.
 /// </para>
 /// <para>
-/// The settings are read off the tree before any of this, rather than by a stage, because they are what
-/// several of the stages are told — the same way a Mermaid diagram hands its front matter to the stages
-/// that need it.
+/// The settings are read off the tree before any of this (<see cref="ResolveSettings"/>), because they are what several of
+/// the stages are told — the same way a Mermaid diagram hands its front matter to the stages that need it.
 /// </para>
 /// </summary>
 public static class PlotPipeline
@@ -29,19 +28,8 @@ public static class PlotPipeline
             new ResolveAesthetics(settings),
             new ResolveCorrelations(settings));
 
-    /// <summary>
-    /// A block read: its tree, worked out by the stages its settings call for, with those settings hung on it — or, where a
-    /// setting cannot be read, the tree as parsed with that setting marked with why, since nothing can be worked out without it.
-    /// </summary>
-    public static ContentNode Read(string? source, PlotFence fence)
-    {
-        var tree = PlotParser.Parse(source);
-
-        if (!PlotReader.TrySettings(tree, fence, out var settings, out var error, out var key) || settings is null)
-            return PlotReader.Marked(tree, key, error ?? "This plot's settings could not be read.");
-
-        return For(settings).Run(tree).Holding(PlotKinds.Settings, PlotRoles.Settings, settings);
-    }
+    /// <summary>A block parsed and worked out (<see cref="ResolveSettings"/>).</summary>
+    public static ContentNode Read(string? source, PlotFence fence) => new ResolveSettings(fence).Run(PlotParser.Parse(source));
 
     /// <summary>The settings a tree <see cref="Read"/> made was read with, or null where they could not be read.</summary>
     public static PlotSettings? Settings(ContentNode tree) => tree.HeldAs(PlotRoles.Settings) as PlotSettings;

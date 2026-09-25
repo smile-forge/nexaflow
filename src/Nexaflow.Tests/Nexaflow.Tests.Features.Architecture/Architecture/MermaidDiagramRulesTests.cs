@@ -77,7 +77,7 @@ public class MermaidDiagramRulesTests
     /// </summary>
     private static readonly Rule[] Building =
     [
-        new(new(@"\bContentLanguages\b"), "the node — a stage settles which language reads what is written inside a piece, and hangs the answer on it (ContentNesting)"),
+        new(new(@"\bContentLanguages\b"), "Nested() — the engine parsed what is written inside a piece before the builder was made, and lays it out when the builder asks (ContentEngine)"),
     ];
 
     [TestMethod]
@@ -91,7 +91,9 @@ public class MermaidDiagramRulesTests
     [TestMethod]
     [TestCategory("Unit")]
     public void No_builder_asks_which_language_reads_what_it_is_drawing() =>
-        Holds([.. Files(Builders, typeFoldersOnly: false), .. Files(Prose, typeFoldersOnly: false)], Building);
+        Holds([.. Files(Builders, typeFoldersOnly: false),
+               .. Files(Prose, typeFoldersOnly: false).Where(file => System.IO.Path.GetFileName(file).Contains("Builder", StringComparison.Ordinal))],
+              Building);
 
     // ── Reading the tree ────────────────────────────────────────────────────
 

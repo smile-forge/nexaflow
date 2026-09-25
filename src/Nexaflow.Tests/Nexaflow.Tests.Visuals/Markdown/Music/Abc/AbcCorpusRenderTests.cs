@@ -55,7 +55,7 @@ public class AbcCorpusRenderTests
             Laid layout;
             try
             {
-                layout = AbcBuilder.Lay(abc, 700, StyleFormat.Light);
+                layout = Laying.Engraved("abc", abc, 700, StyleFormat.Light);
             }
             catch (Exception ex)
             {

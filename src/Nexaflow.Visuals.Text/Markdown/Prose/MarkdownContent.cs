@@ -14,7 +14,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// <para>
 /// <strong>Editing is shared, and a language may say otherwise for its own source.</strong> From the piece holding the
 /// caret, up the layout to the first piece naming a part of the syntax tree, then up the tree to the first part another
-/// language was written in — which a stage hung there (<see cref="ContentNesting"/>), so nothing is looked up. That
+/// language was written in — which its parser named (<see cref="ContentNested"/>). That
 /// language's <see cref="IContentLanguage.OnEdit"/> is asked what the key means; where it says nothing, or has nothing to
 /// say, the key does what a key does to the characters. No such part means the caret is in markdown's own source, and
 /// markdown's rules answer (<see cref="MarkdownEdits"/>).
@@ -28,29 +28,9 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// <param name="forget">What is told that something the source does not say has changed — see <see cref="Forget"/>.</param>
 public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay, Action? forget = null) : IContent
 {
-    /// <summary>
-    /// The ordinary case: a document drawn in one style, by the one builder that draws markdown.
-    ///
-    /// <para>
-    /// The pipeline is assembled here rather than by the builder, because which language reads a fenced block is
-    /// looked up in a table the host assembled — and a builder's business is turning a tree into a layout, not
-    /// asking a host anything.
-    /// </para>
-    /// </summary>
-    public static MarkdownContent Of(StyleFormat style, DiagramRenderOptions? options = null)
-    {
-        // Last, because a block is only the same as it was when everything worked out about it is the same too.
-        var unchanged = new Stages.WithUnchanged();
-
-        var read = MarkdownParser.Rereading()
-            .Then(new Stages.WithNested(style, options))
-            .Then(new Stages.WithImages(options?.Pictures))
-            .Then(new Stages.WithLinks(options?.Links))
-            .Then(unchanged);
-
-        return new((state, room, readOnly) =>
-            MarkdownBuilder.Lay(state.Source, style, room, state.Raw, readOnly, reader: read), unchanged.Forget);
-    }
+    /// <summary>The ordinary case: a document drawn in one style, laid out by <paramref name="engine"/>.</summary>
+    public static MarkdownContent Of(StyleFormat style, ContentEngine engine) =>
+        new((state, room, readOnly) => engine.Lay(null, state, style, room, readOnly), engine.Forget);
 
     /// <inheritdoc/>
     public Laid Lay(EditState state, double room, bool readOnly) => lay(state, room, readOnly);
@@ -131,10 +111,10 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay, Act
             : (state.Caret, state.Caret);
 
         foreach (var named in Named(landing))
-            foreach (var holder in ContentNesting.Holders(named))
-                if (ContentNesting.Of(holder) is { } nesting && holder.Part(Roles.Body) is { } body
-                    && ContentNesting.Own(body) is var (start, length) && start <= from && to <= start + length)
-                    return new(nesting.Language.OnEdit, new ContentEdit(landing, start, length), holder);
+            foreach (var holder in ContentNested.Holders(named))
+                if (ContentLanguages.For(ContentNested.Language(holder)) is { } language && holder.Part(Roles.Body) is { } body
+                    && ContentNested.Own(body) is var (start, length) && start <= from && to <= start + length)
+                    return new(language.Editing.OnEdit, new ContentEdit(landing, start, length), holder);
 
         return new(MarkdownEdits.Instance, new ContentEdit(landing, 0, state.Source.Length), null);
     }

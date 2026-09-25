@@ -39,7 +39,7 @@ public class AbcPointerTests
         // A head, a stem, a ledger line and a dot are how a note is drawn, not anything anybody typed.
         // Each is a node so that a press lands on it and climbs — which is the same rule that resolves a
         // staff line, said once rather than per piece.
-        var layout = AbcBuilder.Lay(Sung, 900, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", Sung, 900, StyleFormat.Light);
 
         foreach (var note in Every(layout, "note"))
             foreach (var piece in note.Children)

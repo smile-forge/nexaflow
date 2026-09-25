@@ -38,14 +38,11 @@ internal static class Typeset
         return environment;
     }
 
-    /// <summary>The reading, what was set from it, and what in it was laid as its characters because nothing draws it.</summary>
-    public static (ContentReading Reading, Set Set, IReadOnlyList<ContentPart> Undrawn) Read(
-        string markup, TexStyle style = TexStyle.Display)
+    /// <summary>The reading the engine works a formula over into, and what the typesetter sets from it.</summary>
+    public static (ContentReading Reading, Set Set) Read(string markup, TexStyle style = TexStyle.Display)
     {
-        var reading = ContentReading.Of(TexPipeline.Read(markup, name => LatexBuilder.Draws(name, Knowledge)));
-        var set = LatexBuilder.Formula(reading.Root, Environment(style), Knowledge);
-
-        return (reading, set, LatexBuilder.LayFormula(set, reading, 1.0).Undrawn);
+        var reading = Laying.Read("latex", markup);
+        return (reading, LatexBuilder.Formula(reading.Root, Environment(style), Knowledge));
     }
 
     /// <summary>The formula, set.</summary>
@@ -72,8 +69,8 @@ internal static class Typeset
     /// </summary>
     public static void Renders(string markup)
     {
-        var undrawn = Read(markup).Undrawn;
-        Assert.AreEqual(0, undrawn.Count, $"'{markup}' set as characters: {string.Join(", ", undrawn.Select(part => part.Print()))}");
+        var undrawn = Undrawn(markup);
+        Assert.AreEqual(0, undrawn.Count, $"'{markup}' set as characters: {string.Join(", ", undrawn)}");
         CollectionAssert.AreEqual(Array.Empty<string>(), Unreadable(markup).ToList(), $"'{markup}' has stretches nothing could read");
     }
 
@@ -93,26 +90,22 @@ internal static class Typeset
             .Distinct()
             .ToList();
 
-    /// <summary>The stretches that were read but have no drawing, and so are set as the characters written.</summary>
+    /// <summary>The stretches that were read but have no drawing, and so are set as the characters written — which the layout says, each with a warning.</summary>
     public static IReadOnlyList<string> Undrawn(string markup) =>
-        Read(markup).Undrawn.Select(part => part.Print()).Distinct().ToList();
+        Laid(markup).Trouble.Where(said => said.Severity == DiagnosticSeverity.Warning)
+                            .Select(said => markup.Substring(said.Start, said.Length))
+                            .Distinct()
+                            .ToList();
 
-    /// <summary>
-    /// The formula laid into the layout tree at unit scale, which is settled onto its ink. A formula that draws nothing — a
-    /// space, a phantom — lays no tree at all.
-    /// </summary>
-    public static LatexBuilder.Placed Laid(string markup)
-    {
-        var (reading, set, _) = Read(markup);
-
-        return LatexBuilder.LayFormula(set, reading, 1.0);
-    }
+    /// <summary>The formula laid out at unit scale, which is settled onto its ink.</summary>
+    public static Laid Laid(string markup) => Laying.Formula(markup, 1.0);
 
     /// <summary>Every mark the formula draws, with the x its piece lands at measured from the formula's left edge.</summary>
     public static IReadOnlyList<(LayoutMark Mark, double X)> Marks(string markup)
     {
+        // A formula that sets nothing — a space, a phantom — is shown as the characters written, which is no ink of the formula's.
         var marks = new List<(LayoutMark, double)>();
-        if (Laid(markup).Tree is not { } tree) return marks;
+        if (Laid(markup) is not { ShowsSource: false, Tree: var tree }) return marks;
 
         var left = tree.AnchorOf(0).X;
         for (var at = 0; at < tree.Count; at++)

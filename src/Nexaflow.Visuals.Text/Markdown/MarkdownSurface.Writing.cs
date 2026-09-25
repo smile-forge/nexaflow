@@ -241,14 +241,14 @@ public sealed partial class MarkdownSurface
     /// <summary>The end of what is written in a block: its last character, not the line break that closes its last line.</summary>
     private static int Ending(ContentPart body)
     {
-        var (start, length) = ContentNesting.Own(body);
+        var (start, length) = ContentNested.Own(body);
         return start + length;
     }
 
     /// <summary>The formula whose own text holds <paramref name="offset"/>, or null.</summary>
     private ContentPart? Formula(int offset) =>
         Formulas().FirstOrDefault(part => part.Part(Roles.Body) is { } body
-                                          && ContentNesting.Own(body) is var (start, length)
+                                          && ContentNested.Own(body) is var (start, length)
                                           && start <= offset && offset <= start + length);
 
     /// <summary>Every formula drawn, in the order written — asked of the layout, which names every part it drew.</summary>

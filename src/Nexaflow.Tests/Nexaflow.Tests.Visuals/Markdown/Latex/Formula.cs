@@ -23,7 +23,7 @@ internal static class Formula
     /// <summary>The layout, which is the whole of what a builder returns.</summary>
     public static Laid Lay(string latex, double scale, bool placeholders = false,
                            RawZone? shownAsWritten = null) =>
-        LatexBuilder.Lay(latex, scale, shownAsWritten: shownAsWritten, placeholders: placeholders);
+        Laying.Formula(latex, scale, shownAsWritten: shownAsWritten, placeholders: placeholders);
 
 
 }

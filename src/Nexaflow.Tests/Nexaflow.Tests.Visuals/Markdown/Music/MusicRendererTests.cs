@@ -3,6 +3,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Languages;
+using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Music;
@@ -21,7 +22,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Music;
 [CoversNode("abc-layout")]
 public class MusicRendererTests
 {
-    private static Laid Lay(string md) => MarkdownBuilder.Lay(md, StyleFormat.Dark, 700);
+    private static Laid Lay(string md) => Laying.Lay(null, md, 700, StyleFormat.Dark);
 
     private static bool Engraved(Laid laid) =>
         laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicPiece.Page)

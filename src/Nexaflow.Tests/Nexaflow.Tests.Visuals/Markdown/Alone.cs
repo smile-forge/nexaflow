@@ -15,39 +15,27 @@ using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 namespace Nexaflow.Tests.Visuals.Markdown;
 
 /// <summary>
-/// One language's content drawn on an element of its own: the tree a document grafts, laid through the language's own
-/// entry (<see cref="IContentLanguage.Lay"/>) and shown with nothing round it.
+/// One language's content drawn on an element of its own: laid out by the engine, as a document lays out what it holds in
+/// that language, and shown with nothing round it.
 ///
 /// <para>
-/// For a test about a builder — what a diagram draws, where its pieces go, what it looks like — rather than about a
-/// document. What a document adds, writing in the content and answering what its pieces offer, is tested on a
-/// <see cref="MarkdownSurface"/>, where it happens.
+/// For a test about what a language draws — where its pieces go, what it looks like — rather than about a document. What a
+/// document adds, writing in the content and answering what its pieces offer, is tested on a <see cref="MarkdownSurface"/>,
+/// where it happens.
 /// </para>
 /// </summary>
 internal static class Alone
 {
-    /// <summary>
-    /// <paramref name="source"/> as the language <paramref name="language"/> names draws it, told what the options say.
-    /// A language that has nothing to draw leaves the characters, as a document does.
-    /// </summary>
+    /// <summary><paramref name="source"/> as the language <paramref name="language"/> names draws it, told what the options say.</summary>
     public static ContentElement Drawn(string language, string source, DiagramRenderOptions options)
     {
-        var reads = ContentLanguages.For(language)
-                    ?? throw new ArgumentException($"no language reads '{language}'", nameof(language));
+        if (!ContentLanguages.Reads(language)) throw new ArgumentException($"no language reads '{language}'", nameof(language));
 
         // What a diagram's reader has opened is somewhere to be written down, even with nobody following it.
         var style = options.Palette with { Expansion = options.ViewState ?? new DiagramViewState() };
+        var engine = new ContentEngine(options);
 
-        return new ContentElement(source, options.Palette, Content.Of((state, room) =>
-            reads.Lay(new ContentRequest(state.Source, style)
-            {
-                Named = language,
-                Room = room,
-                IsReadOnly = options.ReadOnly,
-                Options = options,
-                Shown = state.Raw,
-            })
-            ?? Characters(state.Source, options.Palette)))
+        return new ContentElement(source, options.Palette, Content.Of((state, room) => engine.Lay(language, state, style, room, options.ReadOnly)))
         {
             IsReadOnly = options.ReadOnly,
             Cursor = Cursors.Arrow,
@@ -60,27 +48,12 @@ internal static class Alone
     public static ContentElement Drawn(string language, string source, StyleFormat? palette = null, Func<string, bool>? onNavigate = null) =>
         Drawn(language, source, DiagramRenderOptions.For(palette ?? StyleFormat.FromTheme(), onNavigate));
 
-    /// <summary>
-    /// A score as its engraver alone sets it: at exactly the width it is given, with no page round it — for a test about
-    /// the engraving rather than about where a page puts it (<see cref="MusicLanguage"/>).
-    /// </summary>
-    public static ContentElement Engraved(MusicDialect dialect, string source, StyleFormat palette, double zoom = 1) =>
-        new(source, palette, (state, room) =>
-        {
-            (int Start, int Length)? typed = state.Raw is { } raw ? (raw.Start, raw.End - raw.Start) : null;
+    /// <summary>A score on an element of its own, written in to by nobody.</summary>
+    public static ContentElement Engraved(MusicDialect dialect, string source, StyleFormat palette, double zoom = 1)
+    {
+        var engine = new ContentEngine();
+        var named = dialect == MusicDialect.LilyPond ? "lilypond" : "abc";
 
-            return dialect == MusicDialect.LilyPond
-                ? LilyPondBuilder.Lay(state.Source, room, palette, typed)
-                : AbcBuilder.Lay(state.Source, room, palette, typed);
-        })
-        {
-            Zoom = zoom,
-        };
-
-    /// <summary>The characters, for content that had nothing else to draw.</summary>
-    private static Laid Characters(string source, StyleFormat palette) =>
-        LayoutText.Shown(source,
-                         new FormattedText(source.Length == 0 ? " " : source, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                                           new Typeface("Consolas"), palette.TextSize, palette.Text, LayoutText.Density),
-                         []);
+        return new(source, palette, (state, room) => engine.Lay(named, state, palette, room, readOnly: true)) { Zoom = zoom };
+    }
 }

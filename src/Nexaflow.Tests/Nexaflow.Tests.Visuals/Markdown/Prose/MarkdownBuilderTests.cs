@@ -390,7 +390,7 @@ public class MarkdownBuilderTests
     public void AFormulaInASentenceBeingWrittenStaysTypesetWithAWaveUnderWhatIsWrong()
     {
         // Being written, half a formula is what is on the page most of the time — so it stays set, as one on its own line does.
-        var drawn = MarkdownBuilder.Lay("The value $x + \\not_a_command$ and on.\n", StyleFormat.Dark, 480, isReadOnly: false);
+        var drawn = Laying.Lay(null, "The value $x + \\not_a_command$ and on.\n", 480, StyleFormat.Dark, writing: true);
 
         Assert.IsFalse(drawn.Root.SelfAndDescendants().Any(piece => piece.Kind == LayoutText.SourceKind), "not shown as written");
         Assert.AreNotEqual(0, drawn.Trouble.Count, "with what could not be read said");
@@ -579,7 +579,7 @@ public class MarkdownBuilderTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string source, double room = 480) =>
-        MarkdownBuilder.Lay(source, StyleFormat.Dark, room);
+        Laying.Lay(null, source, room, StyleFormat.Dark);
 
     private static List<Piece> Pieces(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];

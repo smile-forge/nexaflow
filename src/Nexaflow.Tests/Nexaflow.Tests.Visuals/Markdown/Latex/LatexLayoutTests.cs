@@ -30,7 +30,7 @@ public class LatexLayoutTests
 
     private static Laid Build(string latex)
     {
-        var layout = LatexBuilder.Lay(latex, Scale);
+        var layout = Laying.Formula(latex, Scale);
         Assert.IsNotNull(layout, $"expected {latex} to typeset");
         return layout;
     }
@@ -67,7 +67,7 @@ public class LatexLayoutTests
         // against the right of the block the formula is displayed in, and the equation stays in the middle.
         const string latex = @"\begin{equation} \label{eq:euler} e^{i\pi} + 1 = 0 \tag{4.2} \end{equation}";
         const double block = 600;
-        var laid = LatexBuilder.Lay(latex, Scale, block: block);
+        var laid = Laying.Formula(latex, Scale, block: block);
 
         Assert.AreEqual(0, laid.Trouble.Count, string.Join("; ", laid.Trouble.Select(t => t.Message)));
         Assert.AreEqual(block, laid.Size.Width, 0.5, "the formula takes the block, so the number can reach its edge");
@@ -84,7 +84,7 @@ public class LatexLayoutTests
     public void AnEquationsNumberGoesUnderItWhenThereIsNoRoomBeside() => UiThread.Run(() =>
     {
         const string latex = @"e^{i\pi} + 1 = 0 \tag{4.2}";
-        var laid = LatexBuilder.Lay(latex, Scale, block: 60);
+        var laid = Laying.Formula(latex, Scale, block: 60);
 
         Assert.IsTrue(Number(laid, latex).Ink().Top >= Equation(laid).Ink().Bottom - 0.5,
                       "a block too narrow for both puts the number under the equation, as LaTeX does");
@@ -184,7 +184,7 @@ public class LatexLayoutTests
     {
         // Boxes can be laid out above or left of the origin; the layout normalises them, and a caret
         // drawn from a negative coordinate would land outside the control.
-        var layout = LatexBuilder.Lay(Fraction, Scale);
+        var layout = Laying.Formula(Fraction, Scale);
         Assert.IsNotNull(layout);
 
         foreach (var node in layout.Root.SelfAndDescendants().Where(n => n.Sits().Length > 0))
@@ -306,7 +306,7 @@ public class LatexLayoutTests
         // character. Answering null is what made the element carry a second measure, render and caret path
         // of its own, and a Latex tab opened on an empty formula showed no caret at all until a keystroke
         // brought a layout into being.
-        var empty = LatexBuilder.Lay("", Scale);
+        var empty = Laying.Formula("", Scale);
 
         Assert.IsTrue(empty.ShowsSource, "empty source is shown as itself");
         Assert.IsTrue(empty.Size.Height > 0, "and takes a line's height, so there is a caret to draw");
@@ -324,8 +324,8 @@ public class LatexLayoutTests
         const string latex = @"x+\frac{a}{b}+y";
         var at = latex.IndexOf(@"\frac", StringComparison.Ordinal);
 
-        var typeset = LatexBuilder.Lay(latex, Scale);
-        var writing = LatexBuilder.Lay(latex, Scale, shownAsWritten: new RawZone(at, latex.LastIndexOf('+')));
+        var typeset = Laying.Formula(latex, Scale);
+        var writing = Laying.Formula(latex, Scale, shownAsWritten: new RawZone(at, latex.LastIndexOf('+')));
         Assert.IsNotNull(typeset);
         Assert.IsNotNull(writing);
 
@@ -351,7 +351,7 @@ public class LatexLayoutTests
     public void TroubleIsConfinedToTheTroublePart() => UiThread.Run(() =>
     {
         const string latex = @"a + \nosuchcommand{b} + c";
-        var layout = LatexBuilder.Lay(latex, Scale);
+        var layout = Laying.Formula(latex, Scale);
         Assert.IsNotNull(layout);
 
         var trouble = layout.Trouble.Single();
@@ -377,7 +377,7 @@ public class LatexLayoutTests
     [CoversNode("latex-diagnostics")]
     public void AFailedReadingIsRedAndAMissingDrawingIsOrange() => UiThread.Run(() =>
     {
-        var unknown = LatexBuilder.Lay(@"x + \nosuchcommand", Scale);
+        var unknown = Laying.Formula(@"x + \nosuchcommand", Scale);
         Assert.IsNotNull(unknown);
         CollectionAssert.AreEqual(
             new[] { DiagnosticSeverity.Error },
@@ -387,7 +387,7 @@ public class LatexLayoutTests
         // \shoveleft is in the typesetter's tables — the reading resolves it and hands it over — and this
         // builder has no case for it — it belongs to a page rather than to a formula. That is the whole of
         // drawn as its own characters, and a job on our list rather than a mistake on theirs.
-        var undrawn = LatexBuilder.Lay(@"\shoveleft{x}", Scale);
+        var undrawn = Laying.Formula(@"\shoveleft{x}", Scale);
         Assert.IsNotNull(undrawn);
         CollectionAssert.AreEqual(
             new[] { DiagnosticSeverity.Warning },
@@ -418,8 +418,8 @@ public class LatexLayoutTests
         var at = latex.IndexOf(@"\frac", StringComparison.Ordinal);
         var end = at + @"\frac{a}{b}".Length;
 
-        var typeset = LatexBuilder.Lay(latex, Scale);
-        var writing = LatexBuilder.Lay(latex, Scale, shownAsWritten: new RawZone(at, end));
+        var typeset = Laying.Formula(latex, Scale);
+        var writing = Laying.Formula(latex, Scale, shownAsWritten: new RawZone(at, end));
         Assert.IsNotNull(typeset);
         Assert.IsNotNull(writing);
 

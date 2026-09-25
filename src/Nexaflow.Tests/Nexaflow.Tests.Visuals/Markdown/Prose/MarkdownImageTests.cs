@@ -121,7 +121,7 @@ public class MarkdownImageTests
     public void AnImageNobodyResolvedIsStillTheLinkItWasWritten() => UiThread.Run(() =>
     {
         // No stage ran at all, which is every surface that was never given a way to find a picture.
-        var laid = MarkdownBuilder.Lay(Doc, StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, Doc, 480, StyleFormat.Dark);
 
         Assert.AreEqual(0, Pictures(laid).Count);
         StringAssert.Contains(Drawn(laid), "pic alt");
@@ -130,8 +130,8 @@ public class MarkdownImageTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string source, Func<string, ImageSource?>? asked, string? folder = null) =>
-        MarkdownBuilder.Lay(source, StyleFormat.Dark, 480,
-                            reader: MarkdownParser.Reader.Then(new WithImages(MarkdownPictures.Found(asked, folder))));
+        Laying.Lay(null, source, 480,
+                   options: new DiagramRenderOptions { Palette = StyleFormat.Dark, Pictures = MarkdownPictures.Found(asked, folder) });
 
     private static List<PictureMark> Marks(Laid laid)
     {

@@ -95,7 +95,7 @@ internal sealed class CynefinBuilder : MermaidBuilder<CynefinDiagram>
         (CynefinDomain.Clear, false, false),
     ];
 
-    internal CynefinBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal CynefinBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override CynefinDiagram Of(MermaidBlock block) => CynefinDiagram.Of(block);

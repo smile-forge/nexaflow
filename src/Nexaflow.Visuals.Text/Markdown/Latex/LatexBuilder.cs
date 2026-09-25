@@ -22,8 +22,8 @@ public sealed partial class LatexBuilder : ContentBuilder
 
 
 
-    internal LatexBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
+    internal LatexBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <summary>How big the formula is set — body size for one in a line of text, larger for one on its own.</summary>
     private double _scale => Style.TextSize;
@@ -36,36 +36,6 @@ public sealed partial class LatexBuilder : ContentBuilder
 
     /// <summary>The width of the display block, for a formula carrying a number — see <see cref="Numbered"/>.</summary>
     private double _block => double.IsInfinity(base.Room) ? 0 : base.Room;
-
-    /// <summary>
-    /// Typesets <paramref name="latex"/> and records where every piece landed. Unreadable or throwing source
-    /// comes back as its own characters with a wave under it rather than null, so a caller never needs a
-    /// second "not a formula" case.
-    /// </summary>
-    /// <param name="shownAsWritten">
-    /// The stretch being edited, shown as typed rather than typeset. Goes through the typesetter itself
-    /// (rather than painted over afterwards) so the rest of the formula lays out around it correctly.
-    /// </param>
-    /// <param name="placeholders">Show a hole for an empty argument/cell, for a surface being written on. Off by default since reading is the common case.</param>
-    /// <param name="block">Width of the display block; only needed when the formula has a number — see <see cref="Numbered"/>.</param>
-    internal static Laid Lay(string latex, StyleFormat style, RawZone? shownAsWritten = null,
-                             bool placeholders = false, double block = 0, int at = 0)
-    {
-        var editing = shownAsWritten is { } zone && zone.Length > 0 ? (zone.Start, zone.Length) : ((int, int)?)null;
-
-        // Draws() is asked of the builder rather than the typesetter's tables: the tables describe what the
-        // engine's own parser could read, a different question — asking them instead once showed `\ ` in red as
-        // unreadable.
-        var read = TexPipeline.Read(latex, Draws, editing, placeholders);
-
-        return new LatexBuilder(ContentReading.Of(read, at), new EditState(latex, 0, null, shownAsWritten), style,
-                                isReadOnly: !placeholders).Lay(block > 0 ? block : double.PositiveInfinity);
-    }
-
-    /// <summary>The same, given a size rather than a whole style — what a caller with nothing else to say uses.</summary>
-    internal static Laid Lay(string latex, double scale, bool inline = false, RawZone? shownAsWritten = null,
-                             bool placeholders = false, double block = 0, int at = 0) =>
-        Lay(latex, StyleFormat.Dark with { TextSize = scale, InlineMath = inline }, shownAsWritten, placeholders, block, at);
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>

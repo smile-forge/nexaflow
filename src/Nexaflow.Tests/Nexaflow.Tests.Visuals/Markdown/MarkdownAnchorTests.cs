@@ -23,7 +23,7 @@ public class MarkdownAnchorTests
     [TestMethod]
     public void Headings_CarryGitHubStyleIds_ARepeatNumbered() => UiThread.Run(() =>
     {
-        var laid = MarkdownBuilder.Lay(Doc, StyleFormat.Dark, 640);
+        var laid = Laying.Lay(null, Doc, 640, StyleFormat.Dark);
 
         foreach (var id in new[] { "intro", "opening-and-closing-help", "searching", "searching-1" })
             Assert.IsTrue(MarkdownAnchors.Sought(laid, id).Exists, $"a heading answers to #{id}");

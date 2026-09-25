@@ -93,7 +93,7 @@ public class LayoutSnapshotTests
         var style = StyleFormat.Dark;
         var options = new DiagramRenderOptions { Palette = style, ReadOnly = readOnly };
 
-        return MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, readOnly);
+        return MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, readOnly);
     }
 
     private static string Dump(Laid laid)

@@ -345,7 +345,7 @@ public class MarkdownParityTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    private static Laid Lay(string source, double room = 480) => MarkdownBuilder.Lay(source, StyleFormat.Dark, room);
+    private static Laid Lay(string source, double room = 480) => Laying.Lay(null, source, room, StyleFormat.Dark);
 
     private static List<Piece> Pieces(Laid laid, string kind) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)];

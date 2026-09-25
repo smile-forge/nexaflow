@@ -614,9 +614,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
         {
-            if (piece.Part is not ContentPart part || ContentNesting.Of(part) is not { } nesting) continue;
+            if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
 
-            return new DiagramActions(nesting.Options ?? Asked(Drawn), nesting.Style.Expansion) { Shown = _shown }.Invoke(act);
+            return new DiagramActions(Asked(Drawn), _shown.Engine.Opened(part)) { Shown = _shown }.Invoke(act);
         }
 
         return null;
@@ -772,10 +772,10 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     {
         for (var at = block; at is not null; at = at.Parent)
         {
-            if (ContentNesting.Of(at) is not { } nesting) continue;
-            if (at.Part(Roles.Body) is not { } body) continue;
+            if (ContentLanguages.Held(at) is not { } language) continue;
 
-            return nesting.Language.Corner(new ContentAsk(nesting.Named, body.Text) { Part = block, IsReadOnly = IsReadOnly });
+            var ask = new ContentAsk(ContentNested.Language(at)!, at.Part(Roles.Body)!.Text) { Part = block, IsReadOnly = IsReadOnly };
+            return language.Editing.Corner(ask);
         }
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.

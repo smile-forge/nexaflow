@@ -305,7 +305,7 @@ public class TexBuilderTests
 
         foreach (var name in TexMacros.All.Keys)
         {
-            var layout = LatexBuilder.Lay(name, 16);
+            var layout = Laying.Formula(name, 16);
 
             if (layout is null) { unbuilt.Add($"{name} draws nothing at all"); continue; }
 

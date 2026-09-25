@@ -19,7 +19,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
 /// </summary>
 internal sealed class SwimlaneBuilder : FlowchartBuilder
 {
-    internal SwimlaneBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal SwimlaneBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram)

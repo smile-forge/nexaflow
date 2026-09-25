@@ -11,6 +11,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Tests.Visuals.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -61,11 +62,11 @@ public class LayoutCostBench
         var lines = new List<string> { $"=== {DateTime.Now:yyyy-MM-dd HH:mm} — {Passes} passes each" };
 
         foreach (var (what, abc) in Tunes)
-            lines.Add(Measure(what, () => AbcBuilder.Lay(abc, 700, StyleFormat.Light),
+            lines.Add(Measure(what, () => Laying.Engraved("abc", abc, 700, StyleFormat.Light),
                               layout => (layout.Root, layout.Size, (Action<DrawingContext>)(dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black)))));
 
         foreach (var (what, latex) in Formulas)
-            lines.Add(Measure(what, () => LatexBuilder.Lay(latex, 22)!,
+            lines.Add(Measure(what, () => Laying.Formula(latex, 22)!,
                               layout => (layout.Root, layout.Size, dc => LayoutPainter.Paint(dc, layout.Root, Brushes.Black))));
 
         lines.Add("");

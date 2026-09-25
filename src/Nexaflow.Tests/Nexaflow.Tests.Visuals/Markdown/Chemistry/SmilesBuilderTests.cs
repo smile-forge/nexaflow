@@ -142,7 +142,7 @@ public class SmilesBuilderTests
     });
 
     private static Laid Build(string source, double room = double.PositiveInfinity) =>
-        SmilesBuilder.Lay(source, StyleFormat.Light, room);
+        Laying.Lay("smiles", source, room, StyleFormat.Light);
 
     private static IEnumerable<Piece> Pieces(Laid laid, string kind) =>
         laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind).ToList();

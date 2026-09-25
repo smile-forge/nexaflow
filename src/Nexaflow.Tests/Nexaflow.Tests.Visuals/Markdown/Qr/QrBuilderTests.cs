@@ -150,7 +150,7 @@ public class QrBuilderTests
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    private static Laid Build(string source) => QrBuilder.Lay(source, StyleFormat.Dark);
+    private static Laid Build(string source) => Laying.Lay("qr", source, style: StyleFormat.Dark);
 
     private static QrMatrix Encoded(string source)
     {

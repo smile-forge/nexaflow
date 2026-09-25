@@ -54,7 +54,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <summary>How thick a link written with equals signs is drawn.</summary>
     private const double Thick = 2.5;
 
-    internal FlowchartBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal FlowchartBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <summary>
     /// How the chart's lanes are laid out, where a subgraph written outside them all is one: whether a link handed from one lane to

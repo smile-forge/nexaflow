@@ -47,12 +47,12 @@ public class CodeLanguageTests
     [TestMethod]
     public void TheTableReadsCodeOnlyAfterEveryLanguageOfItsOwn()
     {
-        Assert.IsInstanceOfType<CodeLanguage>(ContentLanguages.For("csharp"));
-        Assert.IsInstanceOfType<CodeLanguage>(ContentLanguages.For("python"));
+        Assert.AreSame(ContentLanguages.Code, ContentLanguages.For("csharp"));
+        Assert.AreSame(ContentLanguages.Code, ContentLanguages.For("python"));
 
         // A word a language of its own claims must reach that one, however many words code answers to.
-        Assert.IsNotInstanceOfType<CodeLanguage>(ContentLanguages.For("mermaid"));
-        Assert.IsNotInstanceOfType<CodeLanguage>(ContentLanguages.For("qr"));
+        Assert.AreNotSame(ContentLanguages.Code, ContentLanguages.For("mermaid"));
+        Assert.AreNotSame(ContentLanguages.Code, ContentLanguages.For("qr"));
     }
 
     [TestMethod]
@@ -61,11 +61,11 @@ public class CodeLanguageTests
         // Everything else in the table draws a picture of what its source meant; code draws the source. A
         // reader searching a page finds the words in a code fence and not the words inside a chart, and the
         // help index goes looking for exactly this — it dropped every code fence the day code joined the table.
-        Assert.IsTrue(ContentLanguages.For("csharp")!.ShowsWhatWasWritten);
-        Assert.IsTrue(ContentLanguages.For("python")!.ShowsWhatWasWritten);
+        Assert.IsTrue(ContentLanguages.For("csharp")!.Editing.ShowsWhatWasWritten);
+        Assert.IsTrue(ContentLanguages.For("python")!.Editing.ShowsWhatWasWritten);
 
         foreach (var drawn in new[] { "mermaid", "qr", "abc", "lilypond", "smiles" })
-            Assert.IsFalse(ContentLanguages.For(drawn)!.ShowsWhatWasWritten, $"{drawn} draws a picture");
+            Assert.AreNotEqual(true, ContentLanguages.For(drawn)!.Editing.ShowsWhatWasWritten, $"{drawn} draws a picture");
     }
 
     [TestMethod]
@@ -81,7 +81,7 @@ public class CodeLanguageTests
     {
         CodeSpans.Forget();
 
-        var laid = CodeBuilder.Lay(Source, "c-sharp", StyleFormat.Dark, 480, 0);
+        var laid = Laying.Lay("csharp", Source, 480);
 
         Assert.IsTrue(laid.Size.Height > 0, "it drew");
         Assert.IsTrue(Pieces(laid).All(kind => kind == Kinds.Verbatim),
@@ -95,7 +95,7 @@ public class CodeLanguageTests
 
         Assert.IsTrue(Read("c-sharp", Source), "the grammar read it");
 
-        var kinds = Pieces(CodeBuilder.Lay(Source, "c-sharp", StyleFormat.Dark, 480, 0)).ToList();
+        var kinds = Pieces(Laying.Lay("csharp", Source, 480)).ToList();
 
         CollectionAssert.Contains(kinds, "keyword", $"what was found: {string.Join(", ", kinds.Distinct())}");
         Assert.IsTrue(kinds.Distinct().Count() > 1, "and not everything is one thing");
@@ -107,7 +107,7 @@ public class CodeLanguageTests
         CodeSpans.Forget();
         Read("c-sharp", Source);
 
-        var laid = CodeBuilder.Lay(Source, "c-sharp", StyleFormat.Dark, 480, 0);
+        var laid = Laying.Lay("csharp", Source, 480);
 
         // Every run says it is the source, at the offset it was cut from — so the caret lands where it looks.
         foreach (var piece in laid.Root.SelfAndDescendants())
@@ -127,11 +127,11 @@ public class CodeLanguageTests
         const string twice = "x = 1;\r\nx = 1;\ny\n";
         CodeSpans.Forget();
 
-        var starts = Words(CodeBuilder.Lay(twice, null, StyleFormat.Dark, 480, 0)).Select(part => part.Start).ToArray();
+        var starts = Words(Laying.Lay("nothing-reads-this", twice, 480)).Select(part => part.Start).ToArray();
         CollectionAssert.AreEqual(new[] { 0, 8, 15 }, starts, "held as written, each line where it is written");
 
         Read("c-sharp", twice);
-        var read = Words(CodeBuilder.Lay(twice, "c-sharp", StyleFormat.Dark, 480, 0)).ToList();
+        var read = Words(Laying.Lay("csharp", twice, 480)).ToList();
 
         Assert.AreEqual(read.Count, read.Select(part => part.Start).Distinct().Count(), "and read, no two runs in one place");
         Assert.IsTrue(read.Any(part => part.Start >= 8 && part.Start < 14), "with runs of the second line in it");
@@ -140,7 +140,7 @@ public class CodeLanguageTests
     [TestMethod]
     public void ADocumentDrawsItsFenceAsCode()
     {
-        var laid = MarkdownBuilder.Lay("```csharp\n" + Source + "```\n", StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, "```csharp\n" + Source + "```\n", 480, StyleFormat.Dark);
 
         Assert.AreEqual(0, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == MarkdownPieces.Verbatim),
             "the fence was laid by the code language, not shown as characters by the document");
@@ -149,7 +149,7 @@ public class CodeLanguageTests
     [TestMethod]
     public void AFenceInALanguageNoGrammarReadsIsStillShown()
     {
-        var laid = MarkdownBuilder.Lay("```nothing-reads-this\nx = 1\n```\n", StyleFormat.Dark, 480);
+        var laid = Laying.Lay(null, "```nothing-reads-this\nx = 1\n```\n", 480, StyleFormat.Dark);
 
         Assert.IsTrue(laid.Size.Height > 0);
     }

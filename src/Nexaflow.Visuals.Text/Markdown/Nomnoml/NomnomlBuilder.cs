@@ -18,8 +18,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Nomnoml;
 /// <see cref="ClassBuilder"/>, and a fix there is a fix to both.
 /// </para>
 /// </summary>
-internal sealed class NomnomlBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-    : ClassBuilder(reading, state, style, isReadOnly)
+internal sealed class NomnomlBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+    : ClassBuilder(reading, state, style, isReadOnly, nesting)
 {
     /// <inheritdoc/>
     protected override ClassDiagram Of(MermaidBlock block) => NomnomlDiagram.Of(block);

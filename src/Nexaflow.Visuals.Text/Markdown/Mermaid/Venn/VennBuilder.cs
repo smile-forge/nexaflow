@@ -86,7 +86,7 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
     private const double ItemGap = 2;
     private const double ItemApart = 10;
 
-    internal VennBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal VennBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override VennDiagram Of(MermaidBlock block) => VennDiagram.Of(block);

@@ -40,24 +40,9 @@ public sealed class CodeBuilder : ContentBuilder
 {
     private readonly Dictionary<string, Brush?> _inks = [];
 
-    internal CodeBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly)
+    internal CodeBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting)
     {
-    }
-
-    /// <summary>
-    /// Lays <paramref name="source"/> out, coloured where <paramref name="grammar"/> has already been read
-    /// against it and plain where it has not.
-    /// </summary>
-    public static Laid Lay(string? source, string? grammar, StyleFormat style, double room, int at)
-    {
-        var text = source ?? string.Empty;
-        var tree = ContentNode.Branch(CodeKinds.Code, [ContentNode.Leaf(Kinds.Verbatim, text, Roles.Body)]);
-
-        var tokens = grammar is { Length: > 0 } reads && CodeSpans.For(reads, text) is { } spans ? new WithTokens(spans) : null;
-        tree = new AstPipeline().Then(tokens).Then(new CodeLines()).Run(tree);
-
-        return new CodeBuilder(ContentReading.Of(tree, at), EditState.For(text), style, isReadOnly: true).Lay(room);
     }
 
     /// <inheritdoc/>

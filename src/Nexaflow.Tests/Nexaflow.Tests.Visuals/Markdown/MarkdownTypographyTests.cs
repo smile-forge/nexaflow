@@ -78,7 +78,7 @@ public class MarkdownTypographyTests
     /// <summary>How large the heading, the body and the code run are set at a given body size — by where their baseline falls.</summary>
     private static (double H1, double Body, double Code) Sizes(double body)
     {
-        var laid = MarkdownBuilder.Lay(Doc, StyleFormat.Dark with { TextSize = body }, 600);
+        var laid = Laying.Lay(null, Doc, 600, StyleFormat.Dark with { TextSize = body });
         var words = laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null).ToList();
 
         double Of(string said) => words.First(piece => piece.Words!.Glyphs.Text.Contains(said, StringComparison.Ordinal))

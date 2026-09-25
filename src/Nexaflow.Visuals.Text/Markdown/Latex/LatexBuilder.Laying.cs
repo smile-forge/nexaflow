@@ -59,12 +59,6 @@ public sealed partial class LatexBuilder
     /// <summary>Whether any piece arrived at all — not the same as the union being empty: a formula that is only a thin space is a formula of no size, not no formula.</summary>
     private bool _placedAny;
 
-    /// <summary>Lays a formula already set, as a builder with nothing else to do would — what a test measures.</summary>
-    internal static Placed LayFormula(Set formula, ContentReading reading, double scale) =>
-        new LatexBuilder(ContentReading.Of(ContentNode.Leaf(Kinds.Sequence, string.Empty)), EditState.For(string.Empty),
-                         StyleFormat.Dark with { TextSize = scale }, isReadOnly: true)
-            .LayFormula(formula, reading);
-
     /// <summary>Lays a formula already set: its top at the origin, then the tree sealed and settled onto its ink.</summary>
     private Placed LayFormula(Set formula, ContentReading reading)
     {

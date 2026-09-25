@@ -9,6 +9,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Languages;
+using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 
@@ -39,7 +40,7 @@ public class AbcFenceTests
     [TestMethod]
     public void AndItEngravesInADocument() => UiThread.Run(() =>
     {
-        var laid = MarkdownBuilder.Lay(Document, StyleFormat.Dark, 700);
+        var laid = Laying.Lay(null, Document, 700, StyleFormat.Dark);
 
         Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MusicPiece.Page), "no score came out of the fence");
         Assert.IsFalse(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == MarkdownPieces.Verbatim),
@@ -51,7 +52,7 @@ public class AbcFenceTests
     {
         // The engraver reads the fence's body, and every piece it draws has to name the characters in the whole
         // document: laid at the offset the body starts at, not at the top of it.
-        var laid = MarkdownBuilder.Lay(Document, StyleFormat.Dark, 700);
+        var laid = Laying.Lay(null, Document, 700, StyleFormat.Dark);
         var notes = laid.Root.SelfAndDescendants().Where(piece => piece.Kind == "note").ToList();
 
         Assert.AreEqual(4, notes.Count);
@@ -74,7 +75,7 @@ public class AbcFenceTests
         var tune = "X:1\nT:Speed the Plough\nT:a second title\nR:reel\nC:Trad.\nO:England\n"
                  + "S:Sussex\nK:G\nGABc dedB|\nW:a verse printed under the score\n";
 
-        var layout = AbcBuilder.Lay(tune, 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", tune, 700, StyleFormat.Light);
 
         foreach (var (kind, text) in new[]
         {
@@ -113,7 +114,7 @@ public class AbcFenceTests
         // The point of engraving the words rather than stacking text around the drawing: one selection
         // model, so the two ends of a drag are the same kind of thing.
         var tune = "X:1\nT:Speed the Plough\nK:G\nGABc dedB|\n";
-        var layout = AbcBuilder.Lay(tune, 700, StyleFormat.Light);
+        var layout = Laying.Engraved("abc", tune, 700, StyleFormat.Light);
 
         var title = layout.Root.SelfAndDescendants().First(n => n.Kind == "title");
         var note = layout.Root.SelfAndDescendants().First(n => n.Kind == "note");

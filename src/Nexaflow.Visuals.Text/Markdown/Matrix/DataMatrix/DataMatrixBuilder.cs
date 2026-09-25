@@ -24,12 +24,8 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
     /// <summary>The alternating top row and right column of a region.</summary>
     public const string Clock = "Clock";
 
-    internal DataMatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
-        new DataMatrixBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
+    internal DataMatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong)
     {

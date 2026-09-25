@@ -81,8 +81,8 @@ internal abstract class MermaidBuilder : ContentBuilder
     /// <summary>How round the card's corners are.</summary>
     private const double Corner = 6;
 
-    protected MermaidBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) =>
+    protected MermaidBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) =>
         Ink = new DiagramInk(style);
 
     /// <summary>What every diagram calls the style it is drawn in.</summary>
@@ -141,7 +141,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         this.blamed = null;
         var body = Draw(block, diagram);
 
-        var troubled = block.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && !part.Derived).ToList();
+        var troubled = ContentNested.OwnParts(block.Reading.Root).Where(part => part.Trouble is not null && !part.Derived).ToList();
 
         // A diagram with nothing to draw is shown as it is written, with what was wrong and what could not be drawn marked in
         // it — or, where nothing says why, every line it could make nothing of.
@@ -460,7 +460,7 @@ internal abstract class MermaidBuilder : ContentBuilder
         if (part is not { Length: > 0 }) return null;
         if (State.Raw is { } raw && raw.Start <= part.Start && raw.End >= part.End) return null;
 
-        return ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
+        return Nested(part, room);
     }
 
     /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
@@ -478,8 +478,8 @@ internal abstract class MermaidBuilder : ContentBuilder
 /// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
 /// title, trouble text, card — is <see cref="MermaidBuilder"/>'s.</summary>
 /// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-    : MermaidBuilder(reading, state, style, isReadOnly)
+internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+    : MermaidBuilder(reading, state, style, isReadOnly, nesting)
     where TDiagram : class
 {
     /// <summary>The diagram as it was read — null until it has been.</summary>

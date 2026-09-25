@@ -69,7 +69,7 @@ internal sealed class SankeyBuilder : MermaidBuilder<SankeyChart>
     /// <summary>How solid a ribbon is.</summary>
     private const double Wash = 0.5;
 
-    internal SankeyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
+    internal SankeyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
     protected override SankeyChart Of(MermaidBlock block) => SankeyChart.Of(block);

@@ -39,7 +39,7 @@ public class KanbanBuilderTests : MermaidBuilderContract
     ];
 
     private static Laid Build(string source, double room = 700) =>
-        new KanbanBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     [TestMethod]
     public void ColumnsStandSideBySide_WithTheirCardsStackedInThem() => UiThread.Run(() =>

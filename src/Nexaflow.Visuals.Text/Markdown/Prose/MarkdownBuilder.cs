@@ -40,30 +40,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private double _y;
     private double _reach;
 
-    internal MarkdownBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly)
+    internal MarkdownBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting)
     {
-    }
-
-    /// <summary>
-    /// Lays <paramref name="markdown"/> out. Never null and never throws: source nothing can be made of comes
-    /// back as its own characters, which is what a reader is looking at while they type it anyway.
-    /// </summary>
-    /// <param name="at">Where this source starts in the document that holds it, for markdown written inside something else.</param>
-    /// <param name="reader">
-    /// What the document is read by once its blocks are found. A host with something to say about the diagrams
-    /// inside it assembles its own; on its own this reads everything and says nothing about how it is pressed.
-    /// </param>
-    public static Laid Lay(string? markdown, StyleFormat style, double room = double.PositiveInfinity,
-                           RawZone? shownAsWritten = null, bool isReadOnly = true, int at = 0,
-                           Nexaflow.Markdown.Pipeline.AstPipeline? reader = null)
-    {
-        var source = markdown ?? string.Empty;
-        var read = (reader ?? MarkdownParser.Reader.Then(new Stages.WithNested(style))).Run(MarkdownParser.Read(source));
-        if (shownAsWritten is { } zone) read = new Stages.ShowBlocksAsWritten(zone, at).Run(read);
-
-        return new MarkdownBuilder(ContentReading.Of(read, at, source),
-                                   new EditState(source, 0, null, shownAsWritten), style, isReadOnly).Lay(room);
     }
 
     /// <inheritdoc/>
@@ -92,8 +71,8 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         if (LaidBlocks.Of(Reading.Root) is not { } laid) return 0;
 
         var pieces = 1;
-        foreach (var part in Reading.Root.Children)
-            if (!part.Derived && laid.For(part.Node)?.Last is { } last) pieces += last.Tree.Count;
+        for (var at = 0; at < Reading.Root.Children.Count; at++)
+            if (!Reading.Root.Children[at].Derived && laid.For(at)?.Last is { } last) pieces += last.Tree.Count;
 
         return pieces + (pieces / 8);
     }
@@ -115,8 +94,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var whole = holder.Parent is null;
         var laid = whole ? LaidBlocks.Of(holder) : null;
 
-        foreach (var part in holder.Children)
+        for (var at = 0; at < holder.Children.Count; at++)
         {
+            var part = holder.Children[at];
             if (part.Derived || part.Role == Roles.Trivia || part.Kind is MarkdownKinds.Task or MarkdownKinds.Marker) continue;
 
             // Front matter is what a document says about itself rather than anything it says, and a link's definition
@@ -127,7 +107,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             if (!first) _y += Gap;
             first = false;
 
-            if (whole) Whole(into, part, x, room, laid?.For(part.Node));
+            if (whole) Whole(into, part, x, room, laid?.For(at));
             else Block(into, part, x, room);
         }
     }
@@ -222,17 +202,26 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What another language makes of what <paramref name="part"/> holds, laid in <paramref name="room"/> — told what is being
-    /// written in it and whether anybody is writing, which it draws from as this builder does. One drawn as of the moment it was
-    /// laid says so, and the block holding it is not kept (<see cref="Laid.Passing"/>).
+    /// What <paramref name="part"/> holds in another language, laid out at <paramref name="room"/> — drawn at the size of the
+    /// words round it, except a formula on a line of its own, which is set half as big again as the words round it.
     /// </summary>
     private ContentInset? Nested(ContentPart part, double room)
     {
-        var inset = ContentNesting.Of(part)?.At(part.Part(Roles.Body), room, State.Raw, IsReadOnly);
+        var style = part.Kind switch
+        {
+            MarkdownKinds.Math => Style with { TextSize = Style.TextSize * Display, InlineMath = false },
+            MarkdownKinds.Formula => Style with { InlineMath = true },
+            _ => Style,
+        };
+
+        var inset = Nested(part, room, style);
         if (inset?.Laid.Passing == true) _passing = true;
 
         return inset;
     }
+
+    /// <summary>How much bigger than the words around it a formula on its own line is set.</summary>
+    private const double Display = 1.5;
 
     /// <summary>Whether the block being laid holds a drawing of the moment it was laid.</summary>
     private bool _passing;
@@ -692,7 +681,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     private void Unreadable(LayoutBuilder into, ContentPart part, double x, double room, IReadOnlyList<Diagnostic> why)
     {
     // The whole of what the language is written in: from its body up to the part holding it, delimiters and all.
-        var block = ContentNesting.Holders(part.Part(Roles.Body) ?? part).FirstOrDefault() ?? part;
+        var block = ContentNested.Holders(part.Part(Roles.Body) ?? part).FirstOrDefault() ?? part;
         var shown = SourceShown.Lay(block, why, text => Glyphs(text, Face.Plain with { Mono = true, Scale = 0.94 }), Style, Fits(room));
         _borrowed.AddRange(shown.Trouble);
 
@@ -841,7 +830,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// and a wave goes under a broken diagram on the page as it would under one on its own.
     /// </summary>
     private IReadOnlyList<Diagnostic> Trouble() =>
-        [.. Reading.Root.SelfAndDescendants()
+        [.. ContentNested.OwnParts(Reading.Root)
             .Where(part => part.Node.Trouble is not null)
             .Select(part => Diagnostic.Of(part, part.Node.Trouble!)),
          .. _borrowed];

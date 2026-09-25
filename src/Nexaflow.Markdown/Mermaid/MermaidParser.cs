@@ -460,17 +460,11 @@ public static class MermaidParser
         }
     }
 
-    /// <summary>The block parsed and run through its diagram's stages, with a hole wherever something is still to be written.</summary>
+    /// <summary>The block parsed and run through its diagram's stages (<see cref="MermaidPipeline"/>).</summary>
     /// <param name="grammar">What reads the block, where its language names its diagram rather than its first line — see <see cref="Parse"/>.</param>
     public static ContentNode Read(string? source, bool holes = false, IMermaidGrammar? grammar = null)
     {
         var tree = Parse(source, grammar);
-        var block = MermaidBlock.Of(tree);
-
-        var read = (grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is { } reading
-            ? new AstPipeline(reading.Stages(block)).Then(holes ? new WithHoles(reading.Holds) : null).Run(tree)
-            : tree;
-
-        return new WithFolds().Run(read);
+        return new AstPipeline(MermaidPipeline.Of(tree, holes, grammar)).Run(tree);
     }
 }

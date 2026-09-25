@@ -44,12 +44,16 @@ public class BarcodeParserTests
 
         Assert.IsFalse(BarcodeParser.Parse(source).SelfAndDescendants().Any(node => node.Kind == Kinds.Hole), "a page being read wants none");
 
-        var written = BarcodeParser.Parse(source, holes: true);
+        var written = Written(source);
         var hole = written.SelfAndDescendants().Single(node => node.Kind == Kinds.Hole);
 
         Assert.AreEqual(source, written.Print(), "and it takes up none of the source");
         Assert.IsTrue(hole.IsDerived);
-        Assert.AreEqual(0, BarcodeParser.Parse("format: CODE128\nvalue: X", holes: true).SelfAndDescendants().Count(node => node.Kind == Kinds.Hole),
+        Assert.AreEqual(0, Written("format: CODE128\nvalue: X").SelfAndDescendants().Count(node => node.Kind == Kinds.Hole),
                         "a value that is written has none");
     }
+
+    /// <summary>A block as it is worked over for somebody writing in it.</summary>
+    private static ContentNode Written(string source) =>
+        new Nexaflow.Markdown.Pipeline.AstPipeline(BarcodeParser.Stages(holes: true)).Run(BarcodeParser.Parse(source));
 }

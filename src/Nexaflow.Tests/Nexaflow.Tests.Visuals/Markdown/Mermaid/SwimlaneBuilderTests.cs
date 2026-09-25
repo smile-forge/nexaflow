@@ -275,7 +275,7 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
     // ── What it works with ──────────────────────────────────────────────────
 
     private static Laid Build(string source, double room = 900) =>
-        new SwimlaneBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly: true).Lay(room);
+        Laying.Lay("mermaid", source, room);
 
     /// <summary>Every lane drawn, by the name in its strip.</summary>
     private static Dictionary<string, Rect> Lanes(Laid laid, string source)

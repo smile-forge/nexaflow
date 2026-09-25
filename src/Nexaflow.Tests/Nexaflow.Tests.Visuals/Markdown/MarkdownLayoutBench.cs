@@ -114,24 +114,21 @@ public class MarkdownLayoutBench
                                                        Dictionary<string, (int Count, double Ms)> stages,
                                                        Dictionary<string, (int Count, double Ms)> kinds)
     {
-        var (open, openKb) = Cost(() => MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false));
+        var (open, openKb) = Cost(() => MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false));
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
-        var content = MarkdownContent.Of(style, options);
+        var content = MarkdownContent.Of(style, new ContentEngine(options));
         content.Lay(EditState.For(text), Room, false);
         var middle = Middle(text);
         var typed = 0;
         var (edit, editKb) = Cost(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
 
         ContentNode read = null!;
-        var tRead = Median(() => read = MarkdownParser.Read(text));
+        var tRead = Median(() => read = MarkdownParser.Parse(text));
 
         IAstStage[] pipeline =
         [
-            new WithBlocks(),
-            new WithGroups(),
-            new Nexaflow.Visuals.Text.Markdown.Stages.WithNested(style, options),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures),
             new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links),
 
@@ -152,49 +149,52 @@ public class MarkdownLayoutBench
             if (stage is not Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged) tree = stage.Run(input);
         }
 
-        // What reading every block beside the document's definitions costs: the same stage with none to read beside.
-        var bare = read.With([.. read.Children.Where(child => !(child.IsDerived && child.Kind == MarkdownKinds.Definitions))]);
-        var tBare = Median(() => new WithBlocks().Run(bare));
-
         var reading = ContentReading.Of(tree);
+
+        // Laying out is the engine's, parse and all: what building costs is what is left of laying it out once reading it and
+        // working it over are taken away.
         Laid laid = null!;
-        var build = Median(() => laid = new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room));
+        var whole = Median(() => laid = Laying.Lay(null, text, Room, style, writing: true, options: options));
+        var build = Math.Max(0, whole - tRead - staged.Values.Sum(Convert.ToDouble));
 
         var nested = 0.0;
         var count = 0;
 
         foreach (var part in reading.Root.SelfAndDescendants())
         {
-            if (ContentNesting.Of(part) is not { } nesting || part.Part(Roles.Body) is not { } body) continue;
+            if (ContentLanguages.Held(part) is null || part.Part(Roles.Body) is not { } body) continue;
 
             count++;
-            var t = Median(() => nesting.At(body, Room, null, false));
-            nested += t;
-            Add(languages, nesting.Named.ToLowerInvariant(), t);
+            var named = ContentNested.Language(part)!.ToLowerInvariant();
+            var (start, length) = ContentNested.Own(body);
+            var own = text.Substring(start, length);
 
-            var (start, length) = ContentNesting.Own(body);
-            Language(nesting.Named.ToLowerInvariant(), text.Substring(start, length), style, options, stages);
+            var t = Median(() => Laying.Lay(named, own, Room, style, writing: true, options: options));
+            nested += t;
+            Add(languages, named, t);
+
+            Language(named, own, style, options, stages);
         }
 
         foreach (var block in reading.Root.Children.Where(part => part.Role != Roles.Trivia && !part.Derived))
         {
             var source = block.Print();
-            Add(kinds, block.Kind, Median(() => MarkdownBuilder.Lay(source, style, Room, isReadOnly: false)));
+            Add(kinds, block.Kind, Median(() => Laying.Lay(null, source, Room, style, writing: true)));
         }
 
         // Painting what was just laid, as a keystroke does; and painting the same tree again, as a caret blink or a
         // change of selection does — the two differ by whatever painting keeps from one time to the next.
-        var (paint, paintKb) = Timed(() => new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room),
+        var (paint, paintKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, options: options),
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
         // The same, as a window showing a screen of it paints it: only what is near the screen.
-        var (paintShown, paintShownKb) = Timed(() => new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room),
+        var (paintShown, paintShownKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, options: options),
                                                fresh => Painted(fresh, style, Screen));
 
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
-        var painter = MarkdownContent.Of(style, options);
+        var painter = MarkdownContent.Of(style, new ContentEngine(options));
         Painted(painter.Lay(EditState.For(text), Room, false), style);
         var retyped = 0;
         var (editPaint, editPaintKb) = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
@@ -204,7 +204,7 @@ public class MarkdownLayoutBench
         // and the reading kept so the next keystroke knows which blocks it has not touched.
         var retained = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, options);
+            var held = MarkdownContent.Of(style, new ContentEngine(options));
             var shown = held.Lay(EditState.For(text), Room, false);
             Painted(shown, style);
 
@@ -213,7 +213,7 @@ public class MarkdownLayoutBench
 
         var retainedShown = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, options);
+            var held = MarkdownContent.Of(style, new ContentEngine(options));
             var shown = held.Lay(EditState.For(text), Room, false);
             Painted(shown, style, Screen);
 
@@ -232,7 +232,7 @@ public class MarkdownLayoutBench
             ["edit"] = Round(edit),
             ["read"] = Round(tRead),
             ["stages"] = staged,
-            ["definitions"] = Round(Math.Max(0, (double)staged[pipeline[0].Name] - tBare)),
+            
             ["build"] = Round(build),
             ["nested"] = Round(nested),
             ["buildOwn"] = Round(Math.Max(0, build - nested)),
@@ -250,49 +250,25 @@ public class MarkdownLayoutBench
         };
     }
 
-    /// <summary>A nested language's own reading, stage by stage, and — for a diagram — what its builder costs beside it.</summary>
+    /// <summary>A nested language's own parse and each of its stages, and what laying it out costs whole.</summary>
     private static void Language(string language, string source, StyleFormat style, DiagramRenderOptions options,
                                  Dictionary<string, (int Count, double Ms)> stages)
     {
         try
         {
-            ContentNode tree;
+            if (ContentLanguages.For(language) is not { } read) return;
 
-            switch (language)
+            var parse = read.Parser();
+            var tree = Time(stages, $"{language}: parse", () => parse(source));
+
+            var showing = new ContentShowing(language, style, false, null, 0, options)
             {
-                case "mermaid":
-                {
-                    tree = Time(stages, "mermaid: parse", () => MermaidParser.Parse(source));
-                    var block = MermaidBlock.Of(tree);
-                    IAstStage[] after = [.. MermaidDiagrams.Grammar(block.Diagram)?.Stages(block) ?? [], new WithFolds(),
-                                         .. MermaidBuilders.After(style, options).Stages];
-                    tree = Staged(stages, "mermaid", tree, after);
+                Nesting = Laying.NestingNothing,
+                Reads = ContentLanguages.Reads,
+            };
 
-                    if (MermaidBuilders.For(block.Diagram) is { } make)
-                    {
-                        var reading = ContentReading.Of(tree);
-                        Time(stages, "mermaid: build", () => make(reading, EditState.For(source), style, false).Lay(Room));
-                    }
-
-                    return;
-                }
-
-                case "latex":
-                    Staged(stages, "latex", Time(stages, "latex: parse", () => TexParser.Parse(source)), TexPipeline.Of().Stages);
-                    return;
-
-                case "abc":
-                    Staged(stages, "abc", Time(stages, "abc: parse", () => AbcParser.Parse(source)), AbcPipeline.Of().Stages);
-                    return;
-
-                case "lilypond":
-                    Staged(stages, "lilypond", Time(stages, "lilypond: parse", () => LilyPondParser.Parse(source)), LilyPondPipeline.Of().Stages);
-                    return;
-
-                case "smiles":
-                    Staged(stages, "smiles", Time(stages, "smiles: parse", () => SmilesParser.Parse(source)), SmilesPipeline.Of().Stages);
-                    return;
-            }
+            Staged(stages, language, tree, read.Stages(tree, showing).OfType<IAstStage>());
+            Time(stages, $"{language}: lay", () => Laying.Lay(language, source, Room, style, options: options));
         }
         catch (Exception ex)
         {
@@ -467,20 +443,16 @@ public class MarkdownLayoutBench
         }
 
         // Every cache warmed first, so what is held is what the document holds.
-        Paint(MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false));
+        Paint(MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false));
 
         static long Heap() => GC.GetTotalMemory(forceFullCollection: true);
 
         var nothing = Heap();
-        var tree = MarkdownParser.Reader
-            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithNested(style, options))
-            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures))
-            .Then(new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links))
-            .Run(MarkdownParser.Read(text));
+        var tree = Laying.Read(null, text).Root.Node;
         var read = Heap();
         var reading = ContentReading.Of(tree, 0, text);
         var positioned = Heap();
-        var laid = new MarkdownBuilder(reading, EditState.For(text), style, false).Lay(Room);
+        var laid = Laying.Lay(null, text, Room, style, writing: true, options: options);
         var built = Heap();
         Paint(laid);
         var painted = Heap();
@@ -501,14 +473,14 @@ public class MarkdownLayoutBench
         Thread.Sleep(500);
 
         var middle = Middle(text);
-        var typing = MarkdownContent.Of(style, options);
+        var typing = MarkdownContent.Of(style, new ContentEngine(options));
         typing.Lay(EditState.For(text), Room, false);
         var typed = 0;
 
         return new Dictionary<string, object>
         {
             ["held"] = held,
-            ["openByType"] = allocations.Sampled(() => MarkdownContent.Of(style, options).Lay(EditState.For(text), Room, false), 5),
+            ["openByType"] = allocations.Sampled(() => MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false), 5),
             ["editByType"] = allocations.Sampled(() => typing.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false), 10),
         };
     }

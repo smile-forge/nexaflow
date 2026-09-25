@@ -22,12 +22,8 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
     private const int FinderSize = 7;
     private const int TimingLine = 6;
 
-    internal QrBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
-        : base(reading, state, style, isReadOnly) { }
-
-    /// <summary>Lays a block's source out. Never null, and never throws.</summary>
-    internal static Laid Lay(string source, StyleFormat style, int at = 0) =>
-        new QrBuilder(ContentReading.Of(MatrixParser.Parse(source), at), EditState.For(source), style, isReadOnly: true).Lay();
+    internal QrBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : base(reading, state, style, isReadOnly, nesting) { }
 
     protected override Drawn? Encode(ContentPart tree, out (ContentPart Part, string Reason) wrong)
     {

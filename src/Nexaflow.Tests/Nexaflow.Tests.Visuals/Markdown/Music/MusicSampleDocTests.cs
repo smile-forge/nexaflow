@@ -28,11 +28,11 @@ public class MusicSampleDocTests
     [TestMethod]
     [CoversNode("ly-core")]
     public void EveryLilyPondSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-lilypond.md", ly => LilyPondBuilder.Lay(ly, 900, StyleFormat.Light)));
+        AssertDoc("music-lilypond.md", ly => Laying.Engraved("lilypond", ly, 900, StyleFormat.Light)));
 
     [TestMethod]
     public void EveryAbcSampleBlock_Engraves() => UiThread.Run(() =>
-        AssertDoc("music-abc.md", abc => AbcBuilder.Lay(abc, 900, StyleFormat.Light)));
+        AssertDoc("music-abc.md", abc => Laying.Engraved("abc", abc, 900, StyleFormat.Light)));
 
     private static void AssertDoc(string file, Func<string, Laid> build)
     {
