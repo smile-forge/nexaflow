@@ -276,15 +276,54 @@
           "class": "CodeLines"
         }
       ]
+    },
+    "maths-latex": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNode.cs",
+          "class": "ContentNode"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Latex/TexParser.cs",
+          "class": "TexParser"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Latex/TexCommands.cs",
+          "class": "TexCommands"
+        },
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/latex-parse-tree.md"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentReading.cs",
+          "class": "ContentReading"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/Stages/ReadValues.cs",
+          "class": "ReadValues"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 9,
   "touched_nodes": [
     "barcode-block-syntax",
     "barcode-editing",
     "flowchart-ast",
     "ly-ast",
+    "maths-latex",
     "md-code-highlighting",
     "mermaid-diagram-kit"
   ]

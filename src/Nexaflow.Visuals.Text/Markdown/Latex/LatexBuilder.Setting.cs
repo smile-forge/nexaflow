@@ -46,7 +46,7 @@ public sealed partial class LatexBuilder
             || tag.Part(TexRole.Argument) is not { } written)
             return null;
 
-        var number = Inside(written);
+        var number = Value(written) ?? "";
         var starred = tag.Part(Roles.Name)?.Text == @"\tag*";
         return LettersItem(starred ? number : $"({number})", TexUtilities.TextStyleName, spaced: true, tag).Make(environment, null);
     }
@@ -233,10 +233,10 @@ public sealed partial class LatexBuilder
 
         // A model other than HTML says the name is numbers in that model, which this does not read — so the command is
         // shown as written rather than guessed at.
-        var name = Inside(named).Trim();
+        if (Value(named)?.Trim() is not { } name) return null;
         if (command.Part(TexRole.Option) is { } model)
         {
-            if (!Inside(model).Trim().Equals("HTML", System.StringComparison.OrdinalIgnoreCase)) return null;
+            if (Value(model)?.Trim().Equals("HTML", System.StringComparison.OrdinalIgnoreCase) is not true) return null;
 
             name = "#" + name;
         }
@@ -342,7 +342,7 @@ public sealed partial class LatexBuilder
     /// <summary>A piece nothing here can draw, set as its characters and reported, as <see cref="Unread"/>.</summary>
     private static Item UnreadItem(ContentPart part, string? style)
     {
-        var letters = LettersItem(part.Node.Print(), style, spaced: true, part);
+        var letters = WrittenItem(Leaves(part), style, spaced: true, part);
 
         // Where the reading already says what is wrong with it, that is the complaint.
         return part.SelfAndDescendants().Any(piece => piece.Trouble is not null) ? letters : Undrawn(letters, Whole(part));
@@ -364,7 +364,7 @@ public sealed partial class LatexBuilder
     {
         if (part.Part(Roles.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
 
-        var letters = LettersItem(part.Node.Print(), style, spaced: true, part);
+        var letters = WrittenItem(Leaves(part), style, spaced: true, part);
 
         return named.Trouble is null ? Undrawn(letters, Whole(part)) : letters;
     }
@@ -490,7 +490,8 @@ public sealed partial class LatexBuilder
     {
         if (fence.Part(TexRole.Argument) is not { } written) return null;
 
-        var text = written.Node.Print();
+        // A bracket written as itself, or as a command naming one: `(`, `\langle`, `\|`.
+        if ((written.Children.Count == 0 ? written.Text : written.Part(Roles.Name)?.Text) is not { } text) return null;
         var symbol = text switch
         {
             @"\|" => Glyph.Delimiter("Vert"),
@@ -1267,7 +1268,7 @@ public sealed partial class LatexBuilder
             {
                 if (part.Part(TexRole.Argument) is not { } amount) return null;
 
-                return StandardCommands.LengthOf(name, Inside(amount)) is { } length ? SpaceItem(length.Unit, length.Value) : null;
+                return Value(amount) is { } said && StandardCommands.LengthOf(name, said) is { } length ? SpaceItem(length.Unit, length.Value) : null;
             }
 
             case @"\ ":
@@ -1303,7 +1304,9 @@ public sealed partial class LatexBuilder
                 if (part.Part(TexRole.Base) is not { } worded) return null;
 
                 var face = name[1..] == "mbox" ? TexUtilities.TextStyleName : restyled;
-                return LettersItem(Inside(worded), face, spaced: false, part);
+                // Words set as the characters between the braces, each one the piece of the reading it is.
+                return WrittenItem(Leaves(worded).Where(leaf => leaf.Parent != worded || leaf.Role is not (Roles.Open or Roles.Close)),
+                                   face, spaced: false, part);
             }
 
             if (part.Part(TexRole.Base) is not { } styled) return null;
@@ -2110,10 +2113,7 @@ public sealed partial class LatexBuilder
     {
         if (part.Part(TexRole.Option) is not { } option) return null;
 
-        var preamble = option.Node.Print();
-        if (preamble.Length < 2 || preamble[0] != '{' || preamble[^1] != '}') return null;
-
-        var written = preamble[1..^1];
+        if (option.Kind != TexKinds.Group || Value(option) is not { } written) return null;
         var columns = cells.Count == 0 ? 0 : cells.Max(row => row.Count);
         if (columns == 0) return null;
 
@@ -2456,19 +2456,36 @@ public sealed partial class LatexBuilder
         && part.Part(Roles.Name)?.Text is { } name
         && StandardCommands.IsDiscarded(name[1..]);
 
-    /// <summary>What a braced argument holds as written — braces left off, everything else (spaces included) exactly as typed.</summary>
-    private static string Inside(ContentPart argument)
+    /// <summary>
+    /// What an argument holding a value says (<see cref="ReadValues"/>) — or, for one written without braces, the one piece it
+    /// is. Null where it holds no value.
+    /// </summary>
+    private static string? Value(ContentPart argument) =>
+        argument.Node.Said(TexRole.Value) ?? (argument.Children.Count == 0 ? argument.Text : null);
+
+    /// <summary>
+    /// A stretch set as the characters it is written with, as <see cref="Letters"/> — each one standing for the piece of the
+    /// reading it is, and the whole for <paramref name="origin"/>.
+    /// </summary>
+    private static Item WrittenItem(IEnumerable<ContentPart> leaves, string? style, bool spaced, ContentPart origin)
     {
-        if (argument.Children.Count == 0) return argument.Node.Print();
+        style ??= TexUtilities.TextStyleName;
 
-        var text = new System.Text.StringBuilder();
+        var letters = new List<Item>();
+        if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
 
-        foreach (var child in argument.Children)
-            if (child.Role is not (Roles.Open or Roles.Close))
-                text.Append(child.Node.Print());
+        foreach (var leaf in leaves)
+            foreach (var letter in leaf.Text)
+                letters.Add(char.IsWhiteSpace(letter) ? SpaceItem(null, 0) : GlyphItem(Glyph.Letter(letter, style) with { Origin = leaf }));
 
-        return text.ToString();
+        if (spaced) letters.Add(SpaceItem(TexUnit.Mu, 3));
+
+        return Sequenced(letters, origin);
     }
+
+    /// <summary>The pieces of the reading a part is written with, in order: every one that stands for characters.</summary>
+    private static IEnumerable<ContentPart> Leaves(ContentPart part) =>
+        part.SelfAndDescendants().Where(piece => piece.Children.Count == 0 && !piece.Derived && piece.Length > 0);
 
     /// <summary>Where a part with this role was written among its siblings, or -1 for none.</summary>
     private static int Order(ContentPart whole, string role)

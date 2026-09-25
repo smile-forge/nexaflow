@@ -44,4 +44,7 @@ public static class TexKinds
 
     /// <summary>What a row of dots across a table's columns amounts to (<see cref="TexDots"/>), hung under the command that wrote it.</summary>
     public const string Dots = "dots";
+
+    /// <summary>What an argument holding a value rather than maths says (<see cref="Stages.ReadValues"/>), hung under it.</summary>
+    public const string Value = "value";
 }
