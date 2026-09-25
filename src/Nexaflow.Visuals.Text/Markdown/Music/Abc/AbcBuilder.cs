@@ -175,7 +175,7 @@ internal sealed class AbcBuilder : MusicBuilder
 
                 bar.Opened = Line(opened);
                 bar.Closed = Line(closed);
-                bar.EndsRepeat = Printed(closed).Contains(':');
+                bar.EndsRepeat = closed is not null && Spelled(closed).Contains(':');
                 if (bar.Events.Count > 0 || closed is not null) row.Bars.Add(bar);
             }
 
@@ -231,7 +231,10 @@ internal sealed class AbcBuilder : MusicBuilder
     /// by mark and that spelling is the one the engraver reads.
     /// </summary>
     private static Barline? Line(ContentPart? written) =>
-        written is null ? null : new Barline(written.Node.Print(), written);
+        written is null ? null : new Barline(Spelled(written), written);
+
+    /// <summary>How a bar line is spelled: its line alone, without the ending a volta number after it opens.</summary>
+    private static string Spelled(ContentPart written) => written.Part(Roles.Name)?.Text ?? written.Text;
 
     /// <summary>Whether a music line ends with a backslash — trivia to the parser, but it tells the engraver where a system may not break.</summary>
     private static bool Continues(ContentPart line) =>
@@ -267,9 +270,6 @@ internal sealed class AbcBuilder : MusicBuilder
 
         return null;
     }
-
-    /// <summary>What a part was written as, or nothing where there is no part.</summary>
-    private static string Printed(ContentPart? part) => part?.Node.Print() ?? "";
 
     /// <summary>
     /// A <c>V:</c> field's id and the name it asks to be labelled with — <c>V:1 clef=treble name="Soprano"</c>.
@@ -517,7 +517,8 @@ internal sealed class AbcBuilder : MusicBuilder
     private void Graces(ContentPart group)
     {
         // ABC spells the two out explicitly: `{g}` appoggiatura, `{/g}` acciaccatura — nothing to infer.
-        _pendingGraceSlash = group.Node.Print().StartsWith("{/", StringComparison.Ordinal);
+        // A slash straight after the brace is read as the group's name: an acciaccatura rather than an appoggiatura.
+        _pendingGraceSlash = group.Part(Roles.Name) is not null;
 
         foreach (var member in group.Children)
         {

@@ -193,22 +193,29 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
-    public void ASettingThatCannotBeReadDrawsNothing_AndSaysWhy() => UiThread.Run(() =>
+    public void ASettingThatCannotBeReadIsShownAsWritten_AndSaysWhyUnderIt() => UiThread.Run(() =>
     {
-        var laid = Lay("width: wide\n\n1 2\n3 4");
+        const string source = "width: wide\n\n1 2\n3 4";
+        var laid = Lay(source);
 
-        Assert.IsFalse(laid.Draws, "there is no plot to draw: the lines are the host's to show");
-        StringAssert.Contains(laid.Trouble.Single().Message, "width", "and this says what is wrong with them");
+        Assert.AreEqual(source, Text(laid, LayoutText.SourceKind), "there is no plot to draw: the lines are shown as they are written");
+        StringAssert.Contains(laid.Trouble.Single().Message, "width", "this says what is wrong with them");
+        StringAssert.Contains(Text(laid, SourceShown.Reason), "width", "and the reason is written under them");
     });
 
+    private static string Text(Laid laid, string kind) =>
+        string.Concat(laid.Root.SelfAndDescendants().Where(piece => piece.Kind == kind)
+            .SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().Select(mark => mark.Glyphs.Text));
+
     [TestMethod]
-    public void ARowWithNoPlaceIsWavedAndTheRestStillDraw() => UiThread.Run(() =>
+    public void ARowWithNoPlaceIsMarkedInTheSource() => UiThread.Run(() =>
     {
-        // It is the row somebody is editing, and it is wrong every time they are halfway through it.
+        // A plot is only read where it is drawn, so a row it cannot place is put right where it is written.
         var laid = Lay("weight  mpg\n3504  18\n2372  lots\n1613  35");
 
-        Assert.AreEqual(2, Marks(laid).Length);
+        Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
     });
 
     // ── The way in ──────────────────────────────────────────────────────────
@@ -286,13 +293,14 @@ public class PlotBuilderTests
     });
 
     [TestMethod]
-    public void AValueWithNoPlaceOnALogAxisIsWavedRatherThanDrawnAtNought() => UiThread.Run(() =>
+    public void AValueWithNoPlaceOnALogAxisIsMarkedRatherThanDrawnAtNought() => UiThread.Run(() =>
     {
         // Nought is a real place, and a log axis has nothing to say about a value of nought or less.
         var laid = Lay("xScale: log\n\ngdp  life\n0  54\n100  60\n1000  70");
 
-        Assert.AreEqual(2, Marks(laid).Length);
+        Assert.IsTrue(laid.ShowsSource);
         Assert.AreEqual(1, laid.Trouble.Count);
+        Assert.AreEqual(1, laid.Root.SelfAndDescendants().Count(piece => piece.Kind == SourceShown.Unread), "that row marked");
     });
 
     // ── Gridlines ───────────────────────────────────────────────────────────
@@ -331,7 +339,7 @@ public class PlotBuilderTests
     {
         var laid = Lay("shape: sunburst\n\n" + Cars);
 
-        Assert.AreEqual(3, Marks(laid).Length, "and the plot still draws");
+        Assert.IsTrue(laid.ShowsSource, "shown as written, to put right");
         StringAssert.Contains(laid.Trouble[0].Message, "neither a column nor a mark");
     });
 
@@ -430,7 +438,7 @@ public class PlotBuilderTests
     {
         var laid = Lay("gradient: sunburst\n\n" + Sightings, PlotFence.Heatmap);
 
-        Assert.AreEqual(4, Marks(laid).Length, "and the heat map still draws");
+        Assert.IsTrue(laid.ShowsSource, "shown as written, to put right");
         StringAssert.Contains(laid.Trouble[0].Message, "not a colour");
     });
 

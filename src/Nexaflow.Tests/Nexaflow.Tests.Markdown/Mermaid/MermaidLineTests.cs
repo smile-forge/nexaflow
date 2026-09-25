@@ -118,6 +118,21 @@ public class MermaidLineTests
     }
 
     [TestMethod]
+    public void AKeyMayBeQuoted_ACommentAfterAValueIsNotPartOfIt_AndAQuotedValueRunsOnUntilItsQuoteCloses()
+    {
+        var config = MermaidConfig.Read(
+            "displayMode: compact     #gantt specific\nconfig:\n  themeVariables:\n    'git0': '#ff0000'\n    \"git1\": \"#00ff00\" # green\n"
+            + "  themeCSS: \" #item36 { fill: CadetBlue }\n      rect { height: 1px }\"\n  gantt:\n    topAxis: true  #false");
+
+        Assert.AreEqual("compact", config.Value("displayMode"));
+        Assert.AreEqual("#ff0000", config.Theme.Value("git0"), "a quoted key is its words");
+        Assert.AreEqual("#00ff00", config.Theme.Value("git1"));
+        Assert.AreEqual(true, config.Diagram("gantt").Flag("topAxis"), "the comment after it is not the value");
+        StringAssert.StartsWith(config.Shared.Value("themeCSS"), " #item36", "a quoted value keeps a # inside its quotes");
+        Assert.IsNull(config.Shared.Value("rect { height"), "and the lines it runs on over are its, not keys of their own");
+    }
+
+    [TestMethod]
     public void PropertiesInBracesEndAtTheBrace_AndAQuotedCommaIsPartOfTheValue()
     {
         var line = MermaidLine.Of("@{ assigned: 'Smith, J', priority: High }");

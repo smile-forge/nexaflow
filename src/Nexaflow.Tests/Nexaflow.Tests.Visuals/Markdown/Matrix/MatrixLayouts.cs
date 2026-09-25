@@ -21,7 +21,7 @@ internal static class MatrixLayouts
     /// <summary>The module ink of every part of the symbol, whichever part it belongs to.</summary>
     public static GeometryMark[] Ink(Laid laid) =>
         [.. laid.Root.SelfAndDescendants()
-                .Where(piece => piece.Kind is not MatrixPiece.Symbol and not MatrixPiece.Strike and not MatrixPiece.Trouble)
+                .Where(piece => piece.Kind is not MatrixPiece.Symbol)
                 .SelectMany(piece => piece.Marks.ToArray())
                 .OfType<GeometryMark>()];
 

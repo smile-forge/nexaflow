@@ -57,5 +57,5 @@ internal sealed class TexSourcePart(ContentPart of) : ISourcePart
     /// </para>
     /// </summary>
     internal static Diagnostic Trouble(ContentPart part, DiagnosticSeverity severity, string message) =>
-        new(part.Start, part.Length, severity, message) { Part = new TexSourcePart(part) };
+        Diagnostic.Of(part, message, severity) with { Part = new TexSourcePart(part) };
 }

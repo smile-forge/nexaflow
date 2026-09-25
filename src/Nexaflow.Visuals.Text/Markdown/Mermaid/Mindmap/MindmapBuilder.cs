@@ -26,8 +26,9 @@ public static class MindmapPiece
 /// <summary>
 /// Draws a <c>mindmap</c> block as a tidy tree: the root in the middle, its children taking turns either side of it, and every
 /// node beside its parent with its own subtree given the room it needs (<see cref="DiagramTree"/>). Each node takes the shape its
-/// brackets ask for — a square, a rounded square, a circle, a cloud, a bang, a hexagon, or no border at all with an underline —
-/// and a branch off the root is drawn in its own colour, thinning as it goes further out, as Mermaid colours and thickens them.
+/// brackets ask for — a square, a pill, a circle, a cloud, a bang, a hexagon, or a softly rounded box where none are written —
+/// washed and edged in its branch's colour, and each branch off the root sweeps out in that colour from side to side, thinning
+/// as it goes further out.
 ///
 /// <para>
 /// <strong>Everything drawn stands for what was written.</strong> A node stands for its line and a branch for the node it
@@ -44,9 +45,14 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
     private const double MaxNodeWidth = 200;
     private const double Padding = 10;
 
-    /// <summary>How thick a branch is drawn at the root, and how much thinner each level further out is.</summary>
-    private const double Thickest = 11;
-    private const double Thinner = 3;
+    /// <summary>How thick a branch is drawn at the root, how much thinner each level further out is, and the thinnest it gets.</summary>
+    private const double Thickest = 4;
+    private const double Thinner = 1;
+    private const double Thinnest = 1.5;
+
+    /// <summary>How strongly a node is washed in its branch's colour, and the root in the accent.</summary>
+    private const double Wash = 0.2;
+    private const double RootWash = 0.35;
 
     internal MindmapBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly) : base(reading, state, style, isReadOnly) { }
 
@@ -62,15 +68,16 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         var widest = map.Config.MaxNodeWidth ?? MaxNodeWidth;
 
         // Every node's words first, since what a node says is what says how big it is.
-        var said = new Dictionary<MindmapNode, (IReadOnlyList<DiagramWords> Words, Size Size, DiagramShape Shape)>();
+        var said = new Dictionary<MindmapNode, (IReadOnlyList<DiagramWords> Words, Size Size, DiagramShape Shape, Painted Paint)>();
         foreach (var node in map.Nodes)
         {
             var shape = Shaped(node.Shape);
             var pad = Room(node.Shape, padding);
-            var lines = Wrapped(node.Title, node.Hole, TextSize, Words(map, node), Math.Max(20, widest - (pad * 2)));
+            var paint = Paint(map, node);
+            var lines = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
             var words = new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height));
 
-            said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape);
+            said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape, paint);
         }
 
         var placed = DiagramTree.Lay(root, node => node.Children, node => said[node].Size);
@@ -78,19 +85,24 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         var room = new DiagramRoom();
         foreach (var (_, rect) in placed) room.Reach(rect);
 
-        // The branches under the nodes, so a press near where they meet means the node.
+        // The branches under the nodes, so a press near where they meet means the node. Each leaves the middle of its parent's
+        // side facing the child — anywhere round a round root, which they fan out from — and sweeps into the middle of the
+        // child's near side.
         build.Open(MindmapPiece.Branches, part: null, stops: Stops.None);
         foreach (var node in map.Nodes)
             foreach (var child in node.Children)
             {
                 var (from, to) = (room.At(placed[node]), room.At(placed[child]));
-                var start = DiagramShapes.Edge(said[node].Shape, from, Middle(to));
-                var end = DiagramShapes.Edge(said[child].Shape, to, Middle(from));
-                var bend = (start.X + end.X) / 2;
+                var right = Middle(to).X >= Middle(from).X;
+                var end = new Point(right ? to.Left : to.Right, Middle(to).Y);
+                var start = node.Depth == 0 && said[node].Shape is DiagramShape.Circle or DiagramShape.Cloud or DiagramShape.Bang
+                    ? DiagramShapes.Edge(said[node].Shape, from, end)
+                    : new Point(right ? from.Right : from.Left, Middle(from).Y);
+                var lead = (end.X - start.X) / 2;
 
                 DiagramConnector.Draw(build, MindmapPiece.Branch, child.Part,
-                                      [start, new Point(bend, start.Y), new Point(bend, end.Y), end],
-                                      new DiagramStroke(Branch(map, child), Math.Max(2, Thickest - (Thinner * (child.Depth - 1)))),
+                                      DiagramConnector.Curving(start, new Point(start.X + lead, start.Y), new Point(end.X - lead, end.Y), end),
+                                      new DiagramStroke(Branch(map, child), Math.Max(Thinnest, Thickest - (Thinner * (child.Depth - 1)))),
                                       end: DiagramHead.None, curved: true);
             }
 
@@ -99,19 +111,11 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         build.Open(MindmapPiece.Nodes, part: null, stops: Stops.None);
         foreach (var node in map.Nodes)
         {
-            var (lines, _, shape) = said[node];
+            var (lines, _, shape, paint) = said[node];
             var bounds = room.At(placed[node]);
-            var fill = Fill(map, node);
             var words = DiagramWords.Placed(lines, DiagramShapes.Inside(shape, bounds), MindmapPiece.Title);
 
-            // A node with no border of its own is underlined instead, as Mermaid draws one.
-            var under = node.Shape != MindmapShape.Plain ? null : Line(bounds);
-            DiagramShapes.Draw(build, MindmapPiece.Node, node.Part, shape, bounds, fill, null, words, under);
-
-            if (under is null) continue;
-            build.Open(MermaidPiece.Line, node.Part, stops: Stops.None);
-            build.Draw(new GeometryMark(under, null, Ink.Written(map.Config.ScaleInverse.GetValueOrDefault(node.Branch + 1)) ?? Ink.Over(fill), 3));
-            build.Close();
+            DiagramShapes.Draw(build, MindmapPiece.Node, node.Part, shape, bounds, paint.Fill, paint.Edge, words);
         }
 
         build.Close();
@@ -119,46 +123,45 @@ internal sealed class MindmapBuilder : MermaidBuilder<MindmapTree>
         return room.Size;
     }
 
-    /// <summary>The line under a node with no border of its own.</summary>
-    private static Geometry Line(Rect bounds)
-    {
-        var line = new LineGeometry(new Point(bounds.Left, bounds.Bottom), new Point(bounds.Right, bounds.Bottom));
-        line.Freeze();
-        return line;
-    }
-
     private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 
-    /// <summary>The kit's shape a mindmap's brackets ask for.</summary>
+    /// <summary>The kit's shape a mindmap's brackets ask for — a node with none a softly rounded box, and <c>(rounded)</c> a pill.</summary>
     private static DiagramShape Shaped(MindmapShape shape) => shape switch
     {
-        MindmapShape.Rounded => DiagramShape.Rounded,
+        MindmapShape.Square => DiagramShape.Rectangle,
+        MindmapShape.Rounded => DiagramShape.Stadium,
         MindmapShape.Circle => DiagramShape.Circle,
         MindmapShape.Cloud => DiagramShape.Cloud,
         MindmapShape.Bang => DiagramShape.Bang,
         MindmapShape.Hexagon => DiagramShape.Hexagon,
-        _ => DiagramShape.Rectangle,
+        _ => DiagramShape.Rounded,
     };
 
-    /// <summary>How much clear air a shape holds its words in — twice as much for the shapes Mermaid pads twice over.</summary>
+    /// <summary>How much clear air a shape holds its words in — twice as much for a hexagon, whose points take the rest.</summary>
     private static double Room(MindmapShape shape, double padding) => shape switch
     {
-        MindmapShape.Rounded or MindmapShape.Hexagon => padding * 2,
+        MindmapShape.Hexagon => padding * 2,
         MindmapShape.Cloud or MindmapShape.Bang => padding + 2,
         _ => padding,
     };
 
-    /// <summary>A node's fill: the root's own, or its branch's colour.</summary>
-    private Brush Fill(MindmapTree map, MindmapNode node) =>
-        node.Depth == 0
-            ? Ink.Written(map.Config.RootFill) ?? Palette.Accent
-            : Ink.Written(map.Config.Scale.GetValueOrDefault(node.Branch + 1)) ?? Ink.Series(node.Branch);
+    /// <summary>How a node is painted: its fill, the edge round it, and the ink its words are set in.</summary>
+    private readonly record struct Painted(Brush Fill, DiagramStroke? Edge, Brush Words);
 
-    /// <summary>The ink a node's words are set in: what the theme writes for its branch, or whatever reads over its fill.</summary>
-    private Brush Words(MindmapTree map, MindmapNode node) =>
-        node.Depth == 0
-            ? Ink.Written(map.Config.RootTextFill) ?? Ink.Over(Fill(map, node))
-            : Ink.Written(map.Config.ScaleLabel.GetValueOrDefault(node.Branch + 1)) ?? Ink.Over(Fill(map, node));
+    /// <summary>
+    /// How a node is painted. Where the theme colours its branch (or the root), it is filled solid in that colour, as Mermaid
+    /// fills it; otherwise it is washed in its branch's colour and edged in it, its words in the diagram's own ink.
+    /// </summary>
+    private Painted Paint(MindmapTree map, MindmapNode node)
+    {
+        var root = node.Depth == 0;
+        var written = Ink.Written(root ? map.Config.RootFill : map.Config.Scale.GetValueOrDefault(node.Branch + 1));
+        var ink = Ink.Written(root ? map.Config.RootTextFill : map.Config.ScaleLabel.GetValueOrDefault(node.Branch + 1));
+        if (written is not null) return new Painted(written, null, ink ?? Ink.Over(written));
+
+        var colour = root ? Palette.Accent : Ink.Series(node.Branch);
+        return new Painted(DiagramInk.Faded(colour, root ? RootWash : Wash), new DiagramStroke(colour, root ? 2 : 1.5), ink ?? Palette.Text);
+    }
 
     /// <summary>The ink a branch is drawn in: its own colour, as its nodes take.</summary>
     private Brush Branch(MindmapTree map, MindmapNode child) =>

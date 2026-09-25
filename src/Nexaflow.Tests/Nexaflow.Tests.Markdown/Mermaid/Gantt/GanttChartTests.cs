@@ -92,11 +92,33 @@ public class GanttChartTests
             "---\nconfig:\n  gantt:\n    barHeight: 30\n    topAxis: true\n    numberSectionStyles: 2\n  themeVariables:\n    critBkgColor: \"#ff0000\"\n---\n"
             + "gantt\n  tickInterval 1week\n  weekday monday\n  todayMarker off\n  Visit :cl1, 2014-01-07, 3d\n  click cl1 href \"https://mermaidjs.github.io/\"", Today);
 
-        Assert.AreEqual(("1week", DayOfWeek.Monday, "off"), (chart.TickInterval, chart.Weekday, chart.TodayMarker));
+        Assert.AreEqual((new GanttTick(1, "week"), DayOfWeek.Monday, true), (chart.Tick, chart.Weekday, chart.Today.Off));
         Assert.IsTrue(chart.TopAxis);
         Assert.AreEqual((30d, 2, "#ff0000"), (chart.Config.BarHeight!.Value, chart.Config.NumberSectionStyles!.Value, chart.Config.CritBackground));
         Assert.AreEqual("https://mermaidjs.github.io/", Task(chart, "Visit").Link);
         Assert.IsTrue(Task(chart, "Visit").Clickable);
+    }
+
+    [TestMethod]
+    public void ATickIntervalIsAWholeNumberOfAUnitMermaidCountsIn()
+    {
+        Assert.AreEqual(new GanttTick(2, "week"), GanttTick.Read("2week"));
+        Assert.AreEqual(new GanttTick(15, "minute"), GanttTick.Read(" 15minute "));
+        Assert.IsNull(GanttTick.Read("1year"), "Mermaid counts in nothing longer than a month");
+        Assert.IsNull(GanttTick.Read("1decade"));
+        Assert.IsNull(GanttTick.Read("week"), "a number of them");
+        Assert.IsNull(GanttChart.Read("gantt\n  tickInterval 1decade\n  A :2014-01-01, 3d", Today).Tick, "so the axis chooses its own");
+    }
+
+    [TestMethod]
+    public void ATodayMarkerIsReadAsTheStyleItWrites()
+    {
+        var today = GanttToday.Read("stroke-width:5px,stroke:#0f0,opacity:0.5,stroke-dasharray:6 3");
+
+        Assert.AreEqual((5d, "#0f0", 0.5), (today.Width!.Value, today.Stroke, today.Opacity!.Value));
+        CollectionAssert.AreEqual(new[] { 6d, 3d }, today.Dashes!.ToArray());
+        Assert.IsTrue(GanttToday.Read("off").Off);
+        Assert.AreEqual(GanttToday.Default, GanttChart.Read("gantt\n  A :2014-01-01, 3d", Today).Today, "the theme's where nothing is written");
     }
 
     [TestMethod]

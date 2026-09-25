@@ -31,6 +31,17 @@ internal sealed record ContentNesting(IContentLanguage Language, string Named, S
         part?.Children.Select(child => child.Node.Held).OfType<ContentNesting>().FirstOrDefault();
 
     /// <summary>
+    /// Every part holding content another language is written in, from <paramref name="part"/> up the tree — the innermost
+    /// first. Each is the whole of what that language is written in, its delimiters and all: what an edit landing inside it is
+    /// that language's, and what is shown where that language could not draw it.
+    /// </summary>
+    public static IEnumerable<ContentPart> Holders(ContentPart? part)
+    {
+        for (var holder = part; holder is not null; holder = holder.Parent)
+            if (Of(holder) is not null) yield return holder;
+    }
+
+    /// <summary>
     /// <paramref name="body"/> laid out to fit <paramref name="room"/>, ready to be set down where it draws (<see cref="ContentInset.Draws"/>)
     /// — and where it does not, saying why in its trouble. Null where that language had nothing to say.
     /// </summary>

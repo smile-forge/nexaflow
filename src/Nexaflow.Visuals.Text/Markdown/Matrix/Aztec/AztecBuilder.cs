@@ -25,8 +25,6 @@ internal sealed class AztecBuilder : MatrixBuilder<AztecSymbol>
 
     private const int GridPitch = 16;
 
-    private const string Sample = "Nexaflow";
-
     internal AztecBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
 
@@ -41,11 +39,6 @@ internal sealed class AztecBuilder : MatrixBuilder<AztecSymbol>
 
         return new Drawn(symbol!, block.Settings);
     }
-
-    protected override Drawn StandIn(MatrixSettings settings) =>
-        AztecEncoder.TryEncode(Sample, AztecOptions.Default, out var symbol, out string? error)
-            ? new Drawn(symbol!, settings)
-            : throw new InvalidOperationException(error);
 
     protected override IReadOnlyList<Region> Regions(AztecSymbol symbol)
     {

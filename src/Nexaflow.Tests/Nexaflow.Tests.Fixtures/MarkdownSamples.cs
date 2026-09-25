@@ -1176,6 +1176,39 @@ internal sealed class MarkdownSamples : ISampleSet
                 Too dark
         ```
 
+        ## Blurry photo — single bones
+
+        Nexaflow's own `singleBone` setting draws each cause on one short bone off the spine, named in a chip of its own colour,
+        with everything under it listed as an outline — easier to read when causes nest deeply.
+
+        ```mermaid
+        ---
+        config:
+          ishikawa:
+            singleBone: true
+        ---
+        ishikawa-beta
+            Blurry Photo
+            Process
+                Out of focus
+                Shutter speed too slow
+                Protective film not removed
+                Beautification filter applied
+            User
+                Shaky hands
+            Equipment
+                LENS
+                    Inappropriate lens
+                    Damaged lens
+                    Dirty lens
+                SENSOR
+                    Damaged sensor
+                    Dirty sensor
+            Environment
+                Subject moved too quickly
+                Too dark
+        ```
+
         ## Slow API response — two-space indentation
 
         ```mermaid
@@ -2227,10 +2260,15 @@ internal sealed class MarkdownSamples : ISampleSet
         """
         # Mermaid — Git graph
 
-        A `gitGraph` draws a commit history: each branch is a coloured lane, with
-        commits, branch-offs, merges and cherry-picks connecting them.
+        A `gitGraph` draws a commit history: each branch is a lane, with commits, branch-offs, merges and
+        cherry-picks connecting them. The examples below are the ones in Mermaid's own gitGraph documentation, in order.
+
+        ## A first graph
 
         ```mermaid
+        ---
+        title: Example Git diagram
+        ---
         gitGraph
            commit
            commit
@@ -2244,7 +2282,737 @@ internal sealed class MarkdownSamples : ISampleSet
            commit
         ```
 
-        With tags, commit types and a cherry-pick
+        ## Syntax
+
+        ```mermaid
+            gitGraph
+               commit
+               commit
+               commit
+        ```
+
+        ## Adding custom commit id
+
+        ```mermaid
+            gitGraph
+               commit id: "Alpha"
+               commit id: "Beta"
+               commit id: "Gamma"
+        ```
+
+        ## Modifying commit type
+
+        ```mermaid
+            gitGraph
+               commit id: "Normal"
+               commit
+               commit id: "Reverse" type: REVERSE
+               commit
+               commit id: "Highlight" type: HIGHLIGHT
+               commit
+        ```
+
+        ## Adding Tags
+
+        ```mermaid
+            gitGraph
+               commit
+               commit id: "Normal" tag: "v1.0.0"
+               commit
+               commit id: "Reverse" type: REVERSE tag: "RC_1"
+               commit
+               commit id: "Highlight" type: HIGHLIGHT tag: "8.8.4"
+               commit
+        ```
+
+        ## Create a new branch
+
+        ```mermaid
+            gitGraph
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               commit
+        ```
+
+        ## Checking out an existing branch
+
+        ```mermaid
+            gitGraph
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               commit
+               checkout main
+               commit
+               commit
+        ```
+
+        ## Merging two branches
+
+        ```mermaid
+            gitGraph
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               commit
+               checkout main
+               commit
+               commit
+               merge develop
+               commit
+               commit
+        ```
+
+        ```mermaid
+            gitGraph
+               commit id: "1"
+               commit id: "2"
+               branch nice_feature
+               checkout nice_feature
+               commit id: "3"
+               checkout main
+               commit id: "4"
+               checkout nice_feature
+               branch very_nice_feature
+               checkout very_nice_feature
+               commit id: "5"
+               checkout main
+               commit id: "6"
+               checkout nice_feature
+               commit id: "7"
+               checkout main
+               merge nice_feature id: "customID" tag: "customTag" type: REVERSE
+               checkout very_nice_feature
+               commit id: "8"
+               checkout main
+               commit id: "9"
+        ```
+
+        ## Cherry Pick commit from another branch
+
+        ```mermaid
+            gitGraph
+                commit id: "ZERO"
+                branch develop
+                branch release
+                commit id:"A"
+                checkout main
+                commit id:"ONE"
+                checkout develop
+                commit id:"B"
+                checkout main
+                merge develop id:"MERGE"
+                commit id:"TWO"
+                checkout release
+                cherry-pick id:"MERGE" parent:"B"
+                commit id:"THREE"
+                checkout develop
+                commit id:"C"
+        ```
+
+        ## Hiding Branch names and lines
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            showBranches: false
+        ---
+              gitGraph
+                commit
+                branch hotfix
+                checkout hotfix
+                commit
+                branch develop
+                checkout develop
+                commit id:"ash" tag:"abc"
+                branch featureB
+                checkout featureB
+                commit type:HIGHLIGHT
+                checkout main
+                checkout hotfix
+                commit type:NORMAL
+                checkout develop
+                commit type:REVERSE
+                checkout featureB
+                commit
+                checkout main
+                merge hotfix
+                checkout featureB
+                commit
+                checkout develop
+                branch featureA
+                commit
+                checkout develop
+                merge hotfix
+                checkout featureA
+                commit
+                checkout featureB
+                commit
+                checkout develop
+                merge featureA
+                branch release
+                checkout release
+                commit
+                checkout main
+                commit
+                checkout release
+                merge main
+                checkout develop
+                merge release
+        ```
+
+        ## Commit labels Layout: Rotated or Horizontal
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            rotateCommitLabel: true
+        ---
+        gitGraph
+          commit id: "feat(api): ..."
+          commit id: "a"
+          commit id: "b"
+          commit id: "fix(client): .extra long label.."
+          branch c2
+          commit id: "feat(modules): ..."
+          commit id: "test(client): ..."
+          checkout main
+          commit id: "fix(api): ..."
+          commit id: "ci: ..."
+          branch b1
+          commit
+          branch b2
+          commit
+        ```
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            rotateCommitLabel: false
+        ---
+        gitGraph
+          commit id: "feat(api): ..."
+          commit id: "a"
+          commit id: "b"
+          commit id: "fix(client): .extra long label.."
+          branch c2
+          commit id: "feat(modules): ..."
+          commit id: "test(client): ..."
+          checkout main
+          commit id: "fix(api): ..."
+          commit id: "ci: ..."
+          branch b1
+          commit
+          branch b2
+          commit
+        ```
+
+        ## Hiding commit labels
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            showBranches: false
+            showCommitLabel: false
+        ---
+              gitGraph
+                commit
+                branch hotfix
+                checkout hotfix
+                commit
+                branch develop
+                checkout develop
+                commit id:"ash"
+                branch featureB
+                checkout featureB
+                commit type:HIGHLIGHT
+                checkout main
+                checkout hotfix
+                commit type:NORMAL
+                checkout develop
+                commit type:REVERSE
+                checkout featureB
+                commit
+                checkout main
+                merge hotfix
+                checkout featureB
+                commit
+                checkout develop
+                branch featureA
+                commit
+                checkout develop
+                merge hotfix
+                checkout featureA
+                commit
+                checkout featureB
+                commit
+                checkout develop
+                merge featureA
+                branch release
+                checkout release
+                commit
+                checkout main
+                commit
+                checkout release
+                merge main
+                checkout develop
+                merge release
+        ```
+
+        ## Customizing main branch name
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            showBranches: true
+            showCommitLabel: true
+            mainBranchName: 'MetroLine1'
+        ---
+              gitGraph
+                commit id:"NewYork"
+                commit id:"Dallas"
+                branch MetroLine2
+                commit id:"LosAngeles"
+                commit id:"Chicago"
+                commit id:"Houston"
+                branch MetroLine3
+                commit id:"Phoenix"
+                commit type: HIGHLIGHT id:"Denver"
+                commit id:"Boston"
+                checkout MetroLine1
+                commit id:"Atlanta"
+                merge MetroLine3
+                commit id:"Miami"
+                commit id:"Washington"
+                merge MetroLine2 tag:"MY JUNCTION"
+                commit id:"Boston"
+                commit id:"Detroit"
+                commit type:REVERSE id:"SanFrancisco"
+        ```
+
+        ## Customizing branch ordering
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            showBranches: true
+            showCommitLabel: true
+        ---
+              gitGraph
+              commit
+              branch test1 order: 3
+              branch test2 order: 2
+              branch test3 order: 1
+
+        ```
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+          gitGraph:
+            showBranches: true
+            showCommitLabel: true
+            mainBranchOrder: 2
+        ---
+              gitGraph
+              commit
+              branch test1 order: 3
+              branch test2
+              branch test3
+              branch test4 order: 1
+
+        ```
+
+        ## Left to Right (default, `LR:`)
+
+        ```mermaid
+            gitGraph LR:
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               checkout main
+               commit
+               commit
+               merge develop
+               commit
+               commit
+        ```
+
+        ## Top to Bottom (`TB:`)
+
+        ```mermaid
+            gitGraph TB:
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               checkout main
+               commit
+               commit
+               merge develop
+               commit
+               commit
+        ```
+
+        ## Bottom to Top (`BT:`) (v11.0.0+)
+
+        ```mermaid
+            gitGraph BT:
+               commit
+               commit
+               branch develop
+               commit
+               commit
+               checkout main
+               commit
+               commit
+               merge develop
+               commit
+               commit
+        ```
+
+        ## Temporal Commits (default, `parallelCommits: false`)
+
+        ```mermaid
+        ---
+        config:
+          gitGraph:
+            parallelCommits: false
+        ---
+        gitGraph:
+          commit
+          branch develop
+          commit
+          commit
+          checkout main
+          commit
+          commit
+        ```
+
+        ## Parallel commits (`parallelCommits: true`)
+
+        ```mermaid
+        ---
+        config:
+          gitGraph:
+            parallelCommits: true
+        ---
+        gitGraph:
+          commit
+          branch develop
+          commit
+          commit
+          checkout main
+          commit
+          commit
+        ```
+
+        ## Base Theme
+
+        Mermaid's named themes (`base`, `forest`, `dark`, `neutral`, `default`) are read and kept; the graph is drawn
+        in the app's own palette, with any `themeVariables` written over it.
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'base'
+        ---
+              gitGraph
+                commit
+                branch hotfix
+                checkout hotfix
+                commit
+                branch develop
+                checkout develop
+                commit id:"ash" tag:"abc"
+                branch featureB
+                checkout featureB
+                commit type:HIGHLIGHT
+                checkout main
+                checkout hotfix
+                commit type:NORMAL
+                checkout develop
+                commit type:REVERSE
+                checkout featureB
+                commit
+                checkout main
+                merge hotfix
+                checkout featureB
+                commit
+                checkout develop
+                branch featureA
+                commit
+                checkout develop
+                merge hotfix
+                checkout featureA
+                commit
+                checkout featureB
+                commit
+                checkout develop
+                merge featureA
+                branch release
+                checkout release
+                commit
+                checkout main
+                commit
+                checkout release
+                merge main
+                checkout develop
+                merge release
+        ```
+
+        ## Customize using Theme Variables
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+        ```
+
+        ## Customizing branch colors
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+              'git0': '#ff0000'
+              'git1': '#00ff00'
+              'git2': '#0000ff'
+              'git3': '#ff00ff'
+              'git4': '#00ffff'
+              'git5': '#ffff00'
+              'git6': '#ff00ff'
+              'git7': '#00ffff'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Customizing branch label colors
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            'gitBranchLabel0': '#ffffff'
+            'gitBranchLabel1': '#ffffff'
+            'gitBranchLabel2': '#ffffff'
+            'gitBranchLabel3': '#ffffff'
+            'gitBranchLabel4': '#ffffff'
+            'gitBranchLabel5': '#ffffff'
+            'gitBranchLabel6': '#ffffff'
+            'gitBranchLabel7': '#ffffff'
+            'gitBranchLabel8': '#ffffff'
+            'gitBranchLabel9': '#ffffff'
+        ---
+          gitGraph
+            checkout main
+            branch branch1
+            branch branch2
+            branch branch3
+            branch branch4
+            branch branch5
+            branch branch6
+            branch branch7
+            branch branch8
+            branch branch9
+            checkout branch1
+            commit
+        ```
+
+        ## Customizing Commit colors
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            commitLabelColor: '#ff0000'
+            commitLabelBackground: '#00ff00'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Customizing Commit Label Font Size
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            commitLabelColor: '#ff0000'
+            commitLabelBackground: '#00ff00'
+            commitLabelFontSize: '16px'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Customizing Tag Label Font Size
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            commitLabelColor: '#ff0000'
+            commitLabelBackground: '#00ff00'
+            tagLabelFontSize: '16px'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Customizing Tag colors
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            tagLabelColor: '#ff0000'
+            tagLabelBackground: '#00ff00'
+            tagLabelBorder: '#0000ff'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Customizing Highlight commit colors
+
+        ```mermaid
+        ---
+        config:
+          logLevel: 'debug'
+          theme: 'default'
+          themeVariables:
+            'gitInv0': '#ff0000'
+        ---
+               gitGraph
+               commit
+               branch develop
+               commit tag:"v1.0.0"
+               commit
+               checkout main
+               commit type: HIGHLIGHT
+               commit
+               merge develop
+               commit
+               branch featureA
+               commit
+
+        ```
+
+        ## Nexaflow: tags, commit types and a cherry-pick together
 
         ```mermaid
         gitGraph
@@ -2269,7 +3037,10 @@ internal sealed class MarkdownSamples : ISampleSet
 
         A `gantt` chart schedules tasks on a date axis. Tasks carry an id, a start
         (a date or `after <id>`) and an end (a duration, a date, or `until <id>`);
-        tags `done`/`active`/`crit`/`milestone` style the bar.
+        tags `done`/`active`/`crit`/`milestone`/`vert` style the bar. The examples below
+        are the ones in Mermaid's own gantt documentation, in order, then one of Nexaflow's.
+
+        ## A first chart
 
         ```mermaid
         gantt
@@ -2283,20 +3054,239 @@ internal sealed class MarkdownSamples : ISampleSet
                 another task    :24d
         ```
 
-        With states and a milestone
+        ## Syntax
+
+        ```mermaid
+        gantt
+            dateFormat  YYYY-MM-DD
+            title       Adding GANTT diagram functionality to mermaid
+            excludes    weekends
+            %% (`excludes` accepts specific dates in YYYY-MM-DD format, days of the week ("sunday") or "weekends", but not the word "weekdays".)
+
+            section A section
+            Completed task            :done,    des1, 2014-01-06,2014-01-08
+            Active task               :active,  des2, 2014-01-09, 3d
+            Future task               :         des3, after des2, 5d
+            Future task2              :         des4, after des3, 5d
+
+            section Critical tasks
+            Completed task in the critical line :crit, done, 2014-01-06,24h
+            Implement parser and jison          :crit, done, after des1, 2d
+            Create tests for parser             :crit, active, 3d
+            Future task in critical line        :crit, 5d
+            Create tests for renderer           :2d
+            Add to mermaid                      :until isadded
+            Functionality added                 :milestone, isadded, 2014-01-25, 0d
+
+            section Documentation
+            Describe gantt syntax               :active, a1, after des1, 3d
+            Add gantt diagram to demo page      :after a1  , 20h
+            Add another diagram to demo page    :doc1, after a1  , 48h
+
+            section Last section
+            Describe gantt syntax               :after doc1, 3d
+            Add gantt diagram to demo page      :20h
+            Add another diagram to demo page    :48h
+        ```
+
+        ## Several ids after `after` and `until`
+
+        ```mermaid
+        gantt
+            apple :a, 2017-07-20, 1w
+            banana :crit, b, 2017-07-23, 1d
+            cherry :active, c, after b a, 1d
+            kiwi   :d, 2017-07-20, until b c
+        ```
+
+        ## Excludes
+
+        Mermaid's documentation shows these lines on their own, with no tasks for them to leave days out of, so here they are
+        given a task to show on.
+
+        ```mermaid
+        gantt
+            dateFormat DD-MM-YYYY
+            excludes weekends
+            %% week 7 is winter break
+            excludes 10-02-2025 11-02-2025 12-02-2025 13-02-2025 14-02-2025
+            %% workers holiday 1 maj
+            excludes 01-05-2025
+            Spring term :t1, 03-02-2025, 70d
+        ```
+
+        ## Weekend
+
+        ```mermaid
+        gantt
+            title A Gantt Diagram Excluding Fri - Sat weekends
+            dateFormat YYYY-MM-DD
+            excludes weekends
+            weekend friday
+            section Section
+                A task          :a1, 2024-01-01, 30d
+                Another task    :after a1, 20d
+        ```
+
+        ## Milestones
+
+        ```mermaid
+        gantt
+            dateFormat HH:mm
+            axisFormat %H:%M
+            Initial milestone : milestone, m1, 17:49, 2m
+            Task A : 10m
+            Task B : 5m
+            Final milestone : milestone, m2, 18:08, 4m
+        ```
+
+        ## Vertical markers
+
+        ```mermaid
+        gantt
+            dateFormat HH:mm
+            axisFormat %H:%M
+            Initial vert : vert, v1, 17:30, 2m
+            Task A : 3m
+            Task B : 8m
+            Final vert : vert, v2, 17:58, 4m
+        ```
+
+        ## Axis ticks
+
+        Mermaid's documentation shows these two lines with no tasks; here they mark a quarter week by week, from Monday.
+
+        ```mermaid
+        gantt
+          tickInterval 1week
+          weekday monday
+          dateFormat YYYY-MM-DD
+          Quarter :q1, 2024-01-01, 90d
+        ```
+
+        ## Compact mode
+
+        ```mermaid
+        ---
+        displayMode: compact
+        ---
+        gantt
+            title A Gantt Diagram
+            dateFormat  YYYY-MM-DD
+
+            section Section
+            A task           :a1, 2014-01-01, 30d
+            Another task     :a2, 2014-01-20, 25d
+            Another one      :a3, 2014-02-10, 20d
+        ```
+
+        ## Comments
+
+        ```mermaid
+        gantt
+            title A Gantt Diagram
+            %% This is a comment
+            dateFormat YYYY-MM-DD
+            section Section
+                A task          :a1, 2014-01-01, 30d
+                Another task    :after a1, 20d
+            section Another
+                Task in Another :2014-01-12, 12d
+                another task    :24d
+        ```
+
+        ## Interaction
+
+        ```mermaid
+        gantt
+          dateFormat  YYYY-MM-DD
+
+          section Clickable
+          Visit mermaidjs         :active, cl1, 2014-01-07, 3d
+          Print arguments         :cl2, after cl1, 3d
+          Print task              :cl3, after cl2, 3d
+
+          click cl1 href "https://mermaidjs.github.io/"
+          click cl2 call printArguments("test1", "test2", test3)
+          click cl3 call printTask()
+        ```
+
+        ## A bar chart, using a gantt chart
+
+        ```mermaid
+        gantt
+            title Git Issues - days since last update
+            dateFormat X
+            axisFormat %s
+            section Issue19062
+            71   : 0, 71
+            section Issue19401
+            36   : 0, 36
+            section Issue193
+            34   : 0, 34
+            section Issue7441
+            9    : 0, 9
+            section Issue1300
+            5    : 0, 5
+        ```
+
+        ## A timeline, with comments, CSS and config in the front matter
+
+        ```mermaid
+        ---
+            # Frontmatter config, YAML comments
+            title: Ignored if specified in chart
+            displayMode: compact     #gantt specific setting but works at this level too
+            config:
+        #        theme: forest
+        #        themeCSS: " #item36 { fill: CadetBlue } "
+                themeCSS: " // YAML supports multiline strings using a newline markers: \n
+                    #item36 { fill: CadetBlue }       \n
+
+                    // Custom marker workaround CSS from forum (below)    \n
+                    rect[id^=workaround] { height: calc(100% - 50px) ; transform: translate(9px, 25px); y: 0; width: 1.5px; stroke: none; fill: red; }   \n
+                    text[id^=workaround] { fill: red; y: 100%; font-size: 15px;}
+                "
+                gantt:
+                    useWidth: 400
+                    rightPadding: 0
+                    topAxis: true  #false
+                    numberSectionStyles: 2
+        ---
+        gantt
+            title Timeline - Gantt Sampler
+            dateFormat YYYY
+            axisFormat %y
+            %% this next line doesn't recognise 'decade' or 'year', but will silently ignore
+            tickInterval 1decade
+
+            section Issue19062
+            71   :            item71, 1900, 1930
+            section Issue19401
+            36   :            item36, 1913, 1935
+            section Issue1300
+            94   :            item94, 1910, 1915
+            5    :            item5,  1920, 1925
+            0    : milestone, item0,  1918, 1s
+            9    : vert,              1906, 1s   %% not yet official
+            64   : workaround,        1923, 1s   %% custom CSS object https://github.com/mermaid-js/mermaid/issues/3250
+        ```
+
+        ## Nexaflow: states, a milestone and a today marker of its own
 
         ```mermaid
         gantt
             title Project schedule
             dateFormat YYYY-MM-DD
             axisFormat %m/%d
+            todayMarker stroke-width:3px,stroke:#f0a000,stroke-dasharray:6 3
             section Design
                 Spec      :done,      des1, 2024-01-01, 10d
                 Mockups   :active,    des2, after des1, 8d
                 Review    :crit,      des3, after des2, 4d
             section Build
                 Backend   :           b1,   after des2, 20d
-                Frontend  :crit,       b2,   after des3, 18d
+                Frontend  :crit,      b2,   after des3, 18d
                 Launch    :milestone, m1,   after b1, 0d
         ```
         """;

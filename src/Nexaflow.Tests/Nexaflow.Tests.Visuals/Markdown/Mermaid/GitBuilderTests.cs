@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -80,6 +81,71 @@ public class GitBuilderTests : MermaidBuilderContract
         // Each commit follows one thing, less the first, which follows nothing; the merge follows two.
         Assert.AreEqual(5, follows.Count);
         Assert.AreEqual("merge develop", Written(History, follows[^2].Part));
+    });
+
+    [TestMethod]
+    public void EachLaneRunsFromItsBranchsLabel_WhichStandsRightAgainstWhereTheLaneStarts() => UiThread.Run(() =>
+    {
+        var laid = Build(History);
+        var labels = Pieces(laid, GitPiece.Branch).Select(label => label.Bounds).ToList();
+        var lanes = Pieces(laid, GitPiece.Lane).Select(lane => lane.Bounds).ToList();
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => commit.Bounds).ToList();
+
+        Assert.AreEqual(2, lanes.Count, "a lane each for main and develop");
+        Assert.AreEqual(labels[0].Right, labels[1].Right, 0.5, "the labels set right, against their lanes");
+        Assert.IsTrue(labels.All(label => label.Right < commits.Min(commit => commit.Left) - 8), "clear of the first commit");
+        Assert.IsTrue(lanes.All(lane => Math.Abs(lane.Left - labels[0].Right) < 2), "each lane from its label");
+        Assert.IsTrue(lanes.All(lane => lane.Right > commits.Max(commit => commit.Right)), "on past the last commit");
+    });
+
+    [TestMethod]
+    public void ABranchLeavesAlongItsLaneFromTheCommitItComesFrom_AndAMergeTurnsInAtTheMerge() => UiThread.Run(() =>
+    {
+        var laid = Build(History);
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Bounds)).ToList();
+        var follows = Pieces(laid, GitPiece.Follow);
+
+        // commit, commit, develop's commit, the merge, commit: develop leaves main at the second and comes back at the merge.
+        var leaving = follows.Single(follow => follow.Bounds.Height > 1 && follow.Bounds.Right < commits[2].X + 12);
+        var merging = follows.Single(follow => follow.Bounds.Height > 1 && follow.Bounds.Right > commits[2].X + 12);
+
+        Assert.AreEqual(commits[1].X, leaving.Bounds.Left, 2, "turning down at the commit it leaves");
+        Assert.AreEqual(commits[2].X, merging.Bounds.Left, 2, "running along develop's lane from its last commit");
+        Assert.AreEqual(commits[3].X, merging.Bounds.Right, 2, "and turning up at the merge");
+    });
+
+    [TestMethod]
+    public void ALineWithACommitInItsWayEitherWayTakesATrackOfItsOwnBetweenTheLanes() => UiThread.Run(() =>
+    {
+        // B is picked onto main past C on develop and D on main: whichever way the line turned, it would run through one.
+        const string source = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  commit id: \"C\"\n  checkout main\n  commit id: \"D\"\n  cherry-pick id: \"B\"";
+        var laid = Build(source);
+        var commits = Pieces(laid, GitPiece.Commit).Select(commit => Middle(commit.Marks.ToArray().OfType<GeometryMark>().First().Shape.Bounds)).ToList();
+        var picked = Pieces(laid, GitPiece.Follow).Single(follow => Written(source, follow.Part).StartsWith("cherry-pick", StringComparison.Ordinal) && follow.Bounds.Height > 1);
+        var line = picked.Marks.ToArray().OfType<GeometryMark>().First().Shape;
+        var pen = new Pen(Brushes.Black, 2);
+
+        Assert.IsFalse(line.StrokeContains(pen, commits[2]), "clear of C");
+        Assert.IsFalse(line.StrokeContains(pen, commits[3]), "clear of D");
+        Assert.IsTrue(line.StrokeContains(pen, new Point(commits[3].X, (commits[0].Y + commits[1].Y) / 2)), "along a track halfway between the lanes");
+    });
+
+    [TestMethod]
+    public void NothingACommitWritesIsCutOffAtTheEdges() => UiThread.Run(() =>
+    {
+        var laid = Build(Kept);
+
+        Assert.IsTrue(Pieces(laid, GitPiece.Tag).All(tag => tag.Bounds.Top >= 0 && tag.Bounds.Left >= 0), "the tag over the first lane is inside");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().All(piece => piece.Bounds.IsEmpty || piece.Bounds.Right <= laid.Size.Width + 0.5), "and nothing past the far edge");
+    });
+
+    [TestMethod]
+    public void AHighlightedCommitIsSetInTheLanesInverseColour() => UiThread.Run(() =>
+    {
+        var laid = Build("---\nconfig:\n  themeVariables:\n    'gitInv0': '#ff0000'\n---\ngitGraph\n  commit type: HIGHLIGHT");
+        var outer = Pieces(laid, GitPiece.Commit).Single().Marks.ToArray().OfType<GeometryMark>().First();
+
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), ((SolidColorBrush)outer.Fill!).Color, "gitInv0, its key quoted as Mermaid's documents write it");
     });
 
     [TestMethod]

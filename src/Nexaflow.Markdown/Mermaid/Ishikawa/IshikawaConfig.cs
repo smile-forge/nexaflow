@@ -1,7 +1,8 @@
 namespace Nexaflow.Markdown.Mermaid.Ishikawa;
 
 /// <summary>
-/// What an <c>ishikawa</c> block's front matter asks for: the room round the diagram under <c>config: ishikawa:</c>, the size
+/// What an <c>ishikawa</c> block's front matter asks for: the room round the diagram under <c>config: ishikawa:</c> and whether
+/// it is drawn as Nexaflow's single bones (<c>singleBone</c>), the size
 /// its words are written at (<c>config: fontSize</c>), and its colours under <c>themeVariables:</c> — <c>lineColor</c> for the
 /// bones and the outlines, <c>mainBkg</c> for the head and the causes' boxes, <c>textColor</c> for the words.
 ///
@@ -16,6 +17,12 @@ public sealed record IshikawaConfig
 
     /// <summary>Mermaid's word for letting the diagram shrink to its room — read and kept; a diagram here is drawn to its content.</summary>
     public bool UseMaxWidth { get; init; }
+
+    /// <summary>
+    /// Nexaflow's own <c>singleBone</c>: each of the event's causes on one short bone off the spine, named in a chip of its
+    /// colour, with everything under it listed beneath as an outline — rather than Mermaid's bones within bones.
+    /// </summary>
+    public bool SingleBone { get; init; }
 
     public double? FontSize { get; init; }
 
@@ -35,6 +42,7 @@ public sealed record IshikawaConfig
         {
             DiagramPadding = diagram.Number("diagramPadding") is { } padding ? Math.Max(0, padding) : null,
             UseMaxWidth = diagram.Flag("useMaxWidth") ?? false,
+            SingleBone = diagram.Flag("singleBone") ?? false,
             FontSize = config.Shared.Size("fontSize"),
             LineColour = theme.Value("lineColor"),
             Background = theme.Value("mainBkg"),

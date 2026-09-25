@@ -33,17 +33,18 @@ public sealed class MermaidConfig
 
         var root = new MermaidConfig();
         var open = new List<(int Indent, MermaidConfig Config)> { (-1, root) };
+        var lines = yaml.Split('\n');
 
-        foreach (var raw in yaml.Split('\n'))
+        for (var at = 0; at < lines.Length; at++)
         {
-            var line = raw.TrimEnd();
+            var line = lines[at].TrimEnd();
             var text = line.TrimStart();
             if (text.Length == 0 || text[0] == '#') continue;
 
             // A line starting with a dash is one of the list the key above it opened, however far it is indented under it.
             if (text[0] == '-')
             {
-                if (text[1..].Trim() is { Length: > 0 } item) open[^1].Config._items.Add(Bare(item));
+                if (Plain(text[1..].Trim()) is { Length: > 0 } item) open[^1].Config._items.Add(Bare(item));
                 continue;
             }
 
@@ -53,9 +54,13 @@ public sealed class MermaidConfig
             var indent = line.Length - text.Length;
             while (open.Count > 1 && open[^1].Indent >= indent) open.RemoveAt(open.Count - 1);
 
-            var key = text[..colon].Trim();
+            // A key may be quoted as YAML allows, and a value runs on over the lines after it until its quote closes.
+            var key = Bare(text[..colon].Trim());
             var value = text[(colon + 1)..].Trim();
+            while (value.Length > 0 && value[0] is '"' or '\'' && value.IndexOf(value[0], 1) < 0 && at + 1 < lines.Length)
+                value += " " + lines[++at].Trim();
 
+            value = Plain(value);
             if (value.Length == 0)
             {
                 var section = new MermaidConfig();
@@ -103,6 +108,14 @@ public sealed class MermaidConfig
         value.Length >= 2 && ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\''))
             ? value[1..^1]
             : value;
+
+    /// <summary>A value without the comment written after it: a <c>#</c> past a space, outside any quotes the value opens with.</summary>
+    private static string Plain(string value)
+    {
+        var from = value.Length > 0 && value[0] is '"' or '\'' && value.IndexOf(value[0], 1) is var close and > 0 ? close + 1 : 0;
+        var comment = value.IndexOf(" #", from, StringComparison.Ordinal);
+        return (comment < 0 ? value : value[..comment]).TrimEnd();
+    }
 
     /// <summary>What <c>config:</c> says for every diagram — <c>config: fontSize</c> — or nothing.</summary>
     public MermaidConfig Shared => Section("config") ?? None;

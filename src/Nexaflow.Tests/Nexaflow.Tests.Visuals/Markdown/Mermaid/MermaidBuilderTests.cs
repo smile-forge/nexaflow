@@ -57,18 +57,51 @@ public class MermaidBuilderTests
     });
 
     [TestMethod]
-    public void WhatCouldNotBeReadIsSaidBeneath_AndWhereItWasWritten() => UiThread.Run(() =>
+    public void WhatCouldNotBeReadIsShownAsWritten_MarkedWhereItIs_AndWhySaidBeneath() => UiThread.Run(() =>
     {
         const string source = "pie\n  %%{init: never closed\n  \"Dogs\" : 1";
         var laid = Box.Build(source);
 
+        Assert.IsTrue(laid.ShowsSource, "what could not be read cannot be put right in a drawing, so the block is shown as written");
         var trouble = laid.Trouble.Single();
-        Assert.AreEqual("%%{init: never closed", source.Substring(trouble.Start, trouble.Length));
+        Assert.AreEqual("%%{init: never closed", source.Substring(trouble.Start, trouble.Length), "marked where it is");
 
-        var reason = Pieces(laid, MermaidPiece.Trouble).Single();
-        Assert.IsTrue(reason.Bounds.Top >= Pieces(laid, Box.Kind).Single().Bounds.Bottom, "beneath what did draw");
-        Assert.IsTrue(laid.Size.Height >= reason.Bounds.Bottom - 0.001, "and inside the room the block takes");
+        var reason = Pieces(laid, SourceShown.Reason).Single();
+        Assert.IsTrue(reason.Bounds.Top > Pieces(laid, LayoutText.SourceKind).Single().Bounds.Bottom - 5, "and why, right beneath it");
+        Assert.IsTrue(laid.Size.Height >= reason.Bounds.Bottom - 0.001, "inside the room the block takes");
     });
+
+    [TestMethod]
+    public void SomethingWrongThatIsTypedIntoWhereItIsDrawnIsMarkedThere_WhileTheBlockIsWrittenIn() => UiThread.Run(() =>
+    {
+        const string source = "pie\n  %%{init: never closed\n  \"Dogs\" : 1";
+
+        var written = Typing.Build(source, isReadOnly: false);
+        Assert.IsFalse(written.ShowsSource, "drawn, since what is wrong is typed into where it is drawn");
+        Assert.AreEqual("%%{init: never closed", source.Substring(written.Trouble.Single().Start, written.Trouble.Single().Length), "and marked there");
+
+        Assert.IsTrue(Typing.Build(source, isReadOnly: true).ShowsSource, "where it cannot be written in, it is shown as written");
+    });
+
+    /// <summary>A diagram that draws every part it was told is wrong as words the reader types into.</summary>
+    private sealed class Typing(string source, bool isReadOnly)
+        : MermaidBuilder(MermaidBuilders.Read(source), EditState.For(source), StyleFormat.Dark, isReadOnly)
+    {
+        public static Laid Build(string source, bool isReadOnly) => new Typing(source, isReadOnly).Lay(700);
+
+        protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+        {
+            var top = 0.0;
+            foreach (var wrong in block.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null))
+            {
+                var words = Written(wrong, null, 12, Brushes.White);
+                words.Set(build, new Point(0, top), "Wrong");
+                top += words.Height;
+            }
+
+            return new Size(200, Math.Max(top, 1));
+        }
+    }
 
     [TestMethod]
     public void ADiagramThatThrowsIsShownAsWrittenWithTheReason() => UiThread.Run(() =>
@@ -101,7 +134,7 @@ public class MermaidBuilderTests
         var shown = Pieces(laid, LayoutText.SourceKind).Single();
         Assert.AreEqual(source, Text(source, shown.Part));
         Assert.IsFalse(Pieces(laid, MermaidPiece.Title).Any(), "its front matter is on the page already, title and all");
-        Assert.AreEqual(1, Pieces(laid, MermaidPiece.Trouble).Count());
+        Assert.AreEqual(1, Pieces(laid, SourceShown.Reason).Count(), "and why, under it");
     });
 
     [TestMethod]

@@ -103,16 +103,15 @@ public class QrBuilderTests
     });
 
     [TestMethod]
-    public void ABadBlock_StillDrawsACode_StruckThrough_WithTheReason() => UiThread.Run(() =>
+    public void ABadBlock_IsShownAsWritten_WithTheReason() => UiThread.Run(() =>
     {
         var laid = Build("type: barcode\ntext: x");
 
         StringAssert.Contains(laid.Trouble.Single().Message, "barcode");
-        Assert.AreEqual(3, MatrixLayouts.Of(laid, QrBuilder.Finder).Length, "a code-shaped absence, not a gap");
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, MatrixPiece.Strike).Length);
+        Assert.IsTrue(laid.ShowsSource, "a code is only read, so what will not read is put right in its source");
 
-        var reason = (TextMark)MatrixLayouts.Of(laid, MatrixPiece.Trouble).Single().Marks[0];
-        StringAssert.Contains(reason.Glyphs.Text, "barcode");
+        var reason = (TextMark)MatrixLayouts.Of(laid, SourceShown.Reason).Single().Marks[0];
+        StringAssert.Contains(reason.Glyphs.Text, "barcode", "with why, under it");
     });
 
     [TestMethod]

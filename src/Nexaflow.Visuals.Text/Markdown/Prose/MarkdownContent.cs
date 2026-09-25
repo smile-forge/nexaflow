@@ -131,7 +131,7 @@ public sealed class MarkdownContent(Func<EditState, double, bool, Laid> lay, Act
             : (state.Caret, state.Caret);
 
         foreach (var named in Named(landing))
-            for (var holder = named; holder is not null; holder = holder.Parent)
+            foreach (var holder in ContentNesting.Holders(named))
                 if (ContentNesting.Of(holder) is { } nesting && holder.Part(Roles.Body) is { } body
                     && ContentNesting.Own(body) is var (start, length) && start <= from && to <= start + length)
                     return new(nesting.Language.OnEdit, new ContentEdit(landing, start, length), holder);

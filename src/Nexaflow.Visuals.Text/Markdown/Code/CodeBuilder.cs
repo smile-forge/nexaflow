@@ -60,7 +60,7 @@ public sealed class CodeBuilder : ContentBuilder
     /// <inheritdoc/>
     protected override Laid? Build()
     {
-        if (Source.Length == 0) return null;
+        if (Reading.Root.Length == 0) return null;
 
         var into = new LayoutBuilder();
         var (x, y, wide) = (0.0, 0.0, 0.0);

@@ -241,6 +241,17 @@ public class FlowchartDiagramTests
     }
 
     [TestMethod]
+    public void MetadataNamingANodeNothingElseWritesMakesIt_AsMermaidsDoes()
+    {
+        var diagram = FlowchartDiagram.Read("flowchart RL\n    A@{ shape: cyl, label: \"The store\"}\n\tB@{ shape: circle }\n  subgraph S\n    C@{ shape: hex }\n  end");
+
+        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, diagram.Nodes.Select(node => node.Id).ToArray(), "each in the order written, tabs or spaces before it");
+        Assert.AreEqual(MermaidShape.Cylinder, diagram.Find("A")!.Shape);
+        Assert.AreEqual(MermaidShape.Circle, diagram.Find("B")!.Shape);
+        Assert.AreEqual(diagram.Groups.Single().Key, diagram.Find("C")!.Group, "in the subgraph it is written in");
+    }
+
+    [TestMethod]
     public void MetadataSaysHowALinkOfItsOwnIsCurved()
     {
         var links = FlowchartDiagram.Read("flowchart LR\n  A e1@--> B\n  B e2@--> C\n  e1@{ curve: linear }").Links;

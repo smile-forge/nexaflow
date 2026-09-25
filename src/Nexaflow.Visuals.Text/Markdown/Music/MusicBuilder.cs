@@ -55,18 +55,14 @@ internal abstract partial class MusicBuilder : ContentBuilder
     protected sealed override Laid? Build()
     {
         var tune = ReadTune();
+
+        // A tune is only ever read where it is drawn — nothing in a score is typed into — so anything wrong in it is put right
+        // in its source: shown as written, with each wrong part marked and why.
+        var troubled = tune.Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && part.Length > 0 && !part.Derived).ToList();
+        if (troubled.Count > 0) return AsSource([.. troubled.Select(part => (part, part.Trouble!))]);
+
         var (tree, size) = Engrave(tune, Room);
-
-        // Derived from the reading tree rather than collected separately, so trouble can't drift out of sync with it.
-        var trouble = tune.Reading.Root.SelfAndDescendants()
-            .Where(part => part.Trouble is not null && part.Length > 0)
-            .Select(part => new Diagnostic(part.Start, part.Length, DiagnosticSeverity.Warning, part.Trouble!)
-            {
-                Part = part,
-            })
-            .ToList();
-
-        return new Laid(tree, size, trouble);
+        return new Laid(tree, size, []);
     }
 
     /// <summary>Unengraveable source is set monospaced, so a reader can count bar lines in it.</summary>

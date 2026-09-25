@@ -74,7 +74,7 @@ public sealed partial class LatexBuilder : ContentBuilder
 
     protected override Laid? Build()
     {
-        if (Source.Length == 0) return null;
+        if (Reading.Root.Length == 0) return null;
 
         // The typesetter's own tables, not our reading — what a name means to it.
         var knowledge = WpfTeXFormulaParser.Instance;
@@ -89,18 +89,21 @@ public sealed partial class LatexBuilder : ContentBuilder
         // Also settles the tree onto the origin: negative coordinates would put the caret outside the control
         // that draws it.
         var placed = LayFormula(formula, Reading);
+        // Nothing set — a space on its own sets nothing — is nothing wrong: the characters stand for themselves.
         if (placed.Tree is not { } laid) return null;
-
 
         // Gathered after the fact rather than collected during read/lay, so a part being typed can pass
         // through without complaint.
-        var trouble = Reading.Root.SelfAndDescendants()
-            .Where(part => part.Node.Trouble is not null)
-            .Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
-            .Concat(placed.Undrawn.Select(part => TexSourcePart.Trouble(
-                part,
-                DiagnosticSeverity.Warning,
-                "This was read, and nothing here knows how to draw it.")))
+        var wrong = Reading.Root.SelfAndDescendants().Where(part => part.Node.Trouble is not null).ToList();
+        var undrawn = placed.Undrawn.ToList();
+
+        // A formula that is only being read cannot be put right where it is drawn, so anything written wrong in it is put
+        // right in its source: shown as written, each such part marked and why. Something read that nothing here can draw
+        // is not the writer's to put right, so it is said where it is and the rest still drawn.
+        if (IsReadOnly && wrong.Count > 0) return AsSource([.. wrong.Select(part => (part, part.Node.Trouble!))]);
+
+        var trouble = wrong.Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Error, part.Node.Trouble!))
+            .Concat(undrawn.Select(part => TexSourcePart.Trouble(part, DiagnosticSeverity.Warning, Undrawable)))
             .ToList();
 
         // An equation's \tag number, set against the block's right edge — see Numbered.
@@ -115,6 +118,9 @@ public sealed partial class LatexBuilder : ContentBuilder
 
         return made;
     }
+
+    /// <summary>What is said of something read that nothing here knows how to draw.</summary>
+    private const string Undrawable = "This was read, and nothing here knows how to draw it.";
 
     /// <summary>
     /// The formula and its <c>\tag</c> number as one block, number against the right edge on the formula's

@@ -81,4 +81,33 @@ public class KanbanBuilderTests : MermaidBuilderContract
         Assert.IsTrue(ticket.Bounds.Top >= card.SelfAndDescendants().Where(piece => piece.Kind == KanbanPiece.Title).Max(line => line.Bounds.Bottom) - 1, "under the title");
         Assert.AreEqual(2, Pieces(laid, KanbanPiece.Priority).Count, "High and Very Low");
     });
+
+    [TestMethod]
+    public void EveryLaneRunsAsFarDownAsTheLongest_ItsHeadingCountingItsCards() => UiThread.Run(() =>
+    {
+        var laid = Build("kanban\n  a[Short]\n    one[One]\n  b[Long]\n    two[Two]\n    three[Three]\n    four[Four]");
+        var columns = Pieces(laid, KanbanPiece.Column);
+        var counts = columns.Select(column => column.SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Words).Select(piece => piece.Words!.Glyphs.Text).Single()).ToArray();
+
+        Assert.AreEqual(columns[1].Bounds.Height, columns[0].Bounds.Height, 0.5, "the short lane as tall as the long one");
+        CollectionAssert.AreEqual(new[] { "1", "3" }, counts);
+    });
+
+    [TestMethod]
+    public void ACardsPriorityIsAChipBesideItsTicket_AndACardWithNoneIsStripedInItsColumnsColour() => UiThread.Run(() =>
+    {
+        var laid = Build(Board);
+        var card = Pieces(laid, KanbanPiece.Card)[2];
+        var ticket = Pieces(laid, KanbanPiece.Ticket).Single();
+        var priority = card.SelfAndDescendants().Single(piece => piece.Kind == MermaidPiece.Words);
+
+        Assert.AreEqual("High", priority.Words!.Glyphs.Text);
+        Assert.AreEqual(ticket.Bounds.Top, priority.Bounds.Top, 0.5, "on the ticket's row");
+        Assert.IsTrue(priority.Bounds.Left > ticket.Bounds.Right, "after it");
+
+        var plain = Pieces(laid, KanbanPiece.Card)[0].SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()
+            .Where(mark => mark.Stroke is null && mark.Fill is not null).ToList();
+        Assert.AreEqual(1, plain.Count, "a card with no priority still has its stripe");
+        Assert.IsTrue(plain[0].Shape.Bounds.Width < 5, "down its left edge");
+    });
 }

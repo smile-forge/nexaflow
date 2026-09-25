@@ -217,7 +217,7 @@ public sealed class FlowchartDiagram
         var taken = new List<(IReadOnlyList<string> Ids, string Class)>();
         var written = new List<(IReadOnlyList<string> Ids, MermaidStyle Style)>();
         var styled = new List<(IReadOnlyList<int> Links, bool Every, MermaidStyle Style)>();
-        var said = new List<ContentPart>();
+        var said = new List<(ContentPart Stated, string? Group)>();
 
         foreach (var line in block.Reading.Root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Line))
         {
@@ -269,13 +269,14 @@ public sealed class FlowchartDiagram
                     break;
 
                 case FlowchartKinds.Said:
-                    said.Add(stated);
+                    said.Add((stated, Keyed(inside)));
                     break;
             }
         }
 
-        // The metadata lines last: one may name a node or a link written below it, as Mermaid lets it.
-        foreach (var metadata in said) Says(metadata, known, named);
+        // The metadata lines last: one may name a node or a link written below it, as Mermaid lets it — and one naming
+        // neither makes the node it names, as Mermaid's does.
+        foreach (var (metadata, group) in said) Says(metadata, group, nodes, known, named);
 
         // An id that names a subgraph is that subgraph rather than a node of its own, whichever was written first: a link
         // between two of them joins the boxes, which is how Mermaid reads it.
@@ -434,11 +435,19 @@ public sealed class FlowchartDiagram
     }
 
     /// <summary>What an <c>id@{ … }</c> line says about the node or the link it names.</summary>
-    private static void Says(ContentPart stated, IReadOnlyDictionary<string, Made> known, IReadOnlyDictionary<string, Joined> named)
+    private static void Says(ContentPart stated, string? group, List<Made> nodes, Dictionary<string, Made> known, IReadOnlyDictionary<string, Joined> named)
     {
         if (Words(stated, FlowchartRoles.Id) is not { Length: > 0 } id) return;
 
         var properties = stated.Inner(MermaidKinds.Properties);
+
+        if (!known.ContainsKey(id) && !named.ContainsKey(id))
+        {
+            var name = stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == FlowchartRoles.Id);
+            var made = new Made(stated, id, nodes.Count) { Group = group, Said = name, SaidHole = name?.Hole() };
+            known[id] = made;
+            nodes.Add(made);
+        }
 
         if (known.TryGetValue(id, out var node))
         {

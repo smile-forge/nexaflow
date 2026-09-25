@@ -91,6 +91,25 @@ public class DiagramConnectorTests
     });
 
     [TestMethod]
+    public void AHeadIsDrawnAsBigAsItIsAskedToBe() => UiThread.Run(() =>
+    {
+        Rect Head(double heads)
+        {
+            var build = new LayoutBuilder();
+            build.Open("page");
+            DiagramConnector.Draw(build, "Edge", new TestPart(0, 3), [new Point(0, 50), new Point(100, 50)], new DiagramStroke(Brushes.Black), heads: heads);
+            build.Close();
+
+            return build.Seal().Root.SelfAndDescendants().Single(piece => piece.Kind == "Edge").Marks.ToArray().OfType<GeometryMark>().Last().Shape.Bounds;
+        }
+
+        var (full, half) = (Head(1), Head(0.5));
+
+        Assert.AreEqual(full.Width / 2, half.Width, 0.05, "half as long");
+        Assert.AreEqual(full.Height / 2, half.Height, 0.05, "and half as wide");
+    });
+
+    [TestMethod]
     public void ALineGoesIntoItsHeadTheWayItComesIn_WithNoHookBeforeIt() => UiThread.Run(() =>
     {
         // A curve made of its points, whose last short step turns off it — as the end of one brought in to the edge of a shape does.

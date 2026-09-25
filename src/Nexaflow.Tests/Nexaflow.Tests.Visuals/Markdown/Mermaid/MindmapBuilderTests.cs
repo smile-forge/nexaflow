@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
@@ -63,6 +64,35 @@ public class MindmapBuilderTests : MermaidBuilderContract
         Assert.IsTrue(Node(laid, Map, "Markdown").Bounds.Right <= root.Bounds.Left + 1, "the first branch left of the root");
         Assert.IsTrue(Node(laid, Map, "Files").Bounds.Left >= root.Bounds.Right - 1, "the second right of it");
         Assert.IsTrue(Node(laid, Map, "CommonMark").Bounds.Right <= Node(laid, Map, "Markdown").Bounds.Left + 1, "and a child further out on its parent's side");
+    });
+
+    [TestMethod]
+    public void ABranchSweepsFromItsParentsSideIntoTheMiddleOfItsChildsNearSide() => UiThread.Run(() =>
+    {
+        var laid = Build(Map);
+        var (parent, child) = (Node(laid, Map, "Markdown").Bounds, Node(laid, Map, "CommonMark").Bounds);
+        var branch = Pieces(laid, MindmapPiece.Branch).Single(one => Written(Map, one.Part).Trim() == "CommonMark").Bounds;
+
+        Assert.AreEqual(parent.Left, branch.Right, 2, "out of the parent's side facing the child");
+        Assert.AreEqual(child.Right, branch.Left, 2, "into the child's near side");
+        Assert.AreEqual(parent.Top + (parent.Height / 2), branch.Bottom, 2, "from the middle of the parent's side");
+        Assert.AreEqual(child.Top + (child.Height / 2), branch.Top, 2, "to the middle of the child's");
+    });
+
+    [TestMethod]
+    public void ANodeIsWashedAndEdgedInItsBranchsColour_ItsWordsInTheDiagramsInk() => UiThread.Run(() =>
+    {
+        var laid = Build(Map);
+        var node = Node(laid, Map, "CommonMark");
+        var shape = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Fill is not null);
+        var line = Pieces(laid, MindmapPiece.Branch).Single(one => Written(Map, one.Part).Trim() == "CommonMark")
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null);
+        var words = node.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<TextMark>().First();
+
+        Assert.AreEqual(((SolidColorBrush)line.Stroke!).Color, ((SolidColorBrush)shape.Stroke!).Color, "edged in its branch's colour");
+        Assert.AreEqual(((SolidColorBrush)shape.Stroke).Color, ((SolidColorBrush)shape.Fill!).Color, "washed in it");
+        Assert.IsTrue(shape.Fill.Opacity < 0.5, "and only washed, not filled solid");
+        Assert.AreSame(StyleFormat.Dark.Text, words.Foreground, "its words in the diagram's own ink");
     });
 
     [TestMethod]

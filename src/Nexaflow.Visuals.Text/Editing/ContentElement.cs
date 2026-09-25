@@ -108,8 +108,32 @@ public class ContentElement : FrameworkElement
 
     // ── What a kind of content gets to say ──────────────────────────────────
 
-    /// <summary>Lays the source out to fit the room given. Takes the whole state, not just the string, since a stretch shown as its own characters is set into the layout rather than painted over it.</summary>
-    private Laid Lay(EditState state, double room) => _content.Lay(state, room, IsReadOnly);
+    /// <summary>
+    /// Lays the source out to fit the room given. Takes the whole state, not just the string, since a stretch shown as its own
+    /// characters is set into the layout rather than painted over it.
+    ///
+    /// <para>
+    /// A builder that falls over is its runner's to catch, and shows the block as written with why. What falls over before any
+    /// builder has a tree to be given — the reading itself — is caught here: the text stands as the one unread part of a tree
+    /// of its own, and is shown as written with why, the same way.
+    /// </para>
+    /// </summary>
+    private Laid Lay(EditState state, double room)
+    {
+        try
+        {
+            return _content.Lay(state, room, IsReadOnly);
+        }
+        catch (Exception error)
+        {
+            var unread = ContentPart.Of(ContentNode.Shown(state.Source));
+            return SourceShown.Lay(unread, [(unread, $"This could not be read: {error.Message}")], Unread, Palette, room);
+        }
+    }
+
+    /// <summary>Raw characters for text nothing could read, in the palette's fixed-width face.</summary>
+    private FormattedText Unread(string text) =>
+        new(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Palette.Face(Palette.MonoFont), Palette.TextSize, Palette.Text, LayoutText.Density);
 
     /// <summary>The whole chain from source to picture; everything that differs by kind of content is behind it — see <see cref="IContent"/>.</summary>
     private readonly IContent _content;
@@ -1189,17 +1213,7 @@ public class ContentElement : FrameworkElement
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
         if (_state.HasSelection) dc.DrawGeometry(_wash, null, _laid.Root.Wash(_state.Selection, WashPad));
 
-        // A wave under whatever could not be read, drawn over the content rather than instead of it: the
-        // parts that did read are still worth looking at, and the reader needs to see which part is not.
-        foreach (var trouble in _laid.Trouble)
-        {
-            var runs = LayoutQuery.Clusters(_laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
-            if (runs.Count == 0) continue;
-
-            var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? Palette.Danger : Palette.Warning, 1.0);
-            wave.Freeze();
-            dc.DrawGeometry(null, wave, Squiggle.Under(runs));
-        }
+        Waves(dc, _laid);
 
         PaintOver(dc);
 
@@ -1212,6 +1226,23 @@ public class ContentElement : FrameworkElement
             : _laid.Places[_at].CaretRect();
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
+    }
+
+    /// <summary>
+    /// A wave under whatever could not be read, drawn over the content rather than instead of it: the parts that did read are
+    /// still worth looking at, and the reader needs to see which part is not.
+    /// </summary>
+    private void Waves(DrawingContext dc, Laid laid)
+    {
+        foreach (var trouble in laid.Trouble)
+        {
+            var runs = LayoutQuery.Clusters(laid.Root.RangeRects(trouble.Start, trouble.Length), 0);
+            if (runs.Count == 0) continue;
+
+            var wave = new Pen(trouble.Severity == DiagnosticSeverity.Error ? Palette.Danger : Palette.Warning, 1.0);
+            wave.Freeze();
+            dc.DrawGeometry(null, wave, Squiggle.Under(runs));
+        }
     }
 
     /// <summary>

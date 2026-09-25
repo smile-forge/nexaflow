@@ -165,12 +165,8 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
     /// </summary>
     public bool IsGuesswork(Piece piece) => Trouble.Any(trouble => trouble.Covers(piece));
 
-    /// <summary>
-    /// Whether this is the source shown as its own characters rather than the content read — see
-    /// <see cref="LayoutText.Shown"/>. True for source a builder could not make sense of, and for source
-    /// there is none of yet.
-    /// </summary>
-    public bool ShowsSource => Root.Kind == LayoutText.SourceKind;
+    /// <summary>Whether this is the source shown as it is written, rather than anything drawn from it.</summary>
+    public bool ShowsSource => Root.Kind is LayoutText.SourceKind or SourceShown.Block;
 
     /// <summary>
     /// The places still waiting to be written in, in reading order — an argument left empty that the builder

@@ -104,16 +104,14 @@ public abstract class ContentBuilder
 
         try
         {
-            return Build() ?? Shown([]);
+            return Build() ?? AsSource([]);
         }
         catch (Exception error)
         {
             // The message is the reader's, so it says what happened to their formula rather than which
-            // method threw. The stretch is the whole source, because a builder that fell over has no
+            // method threw. The part blamed is the whole tree, because a builder that fell over has no
             // opinion about which part of it was to blame.
-            return Shown([new Diagnostic(
-                At, Source.Length, DiagnosticSeverity.Error,
-                $"This could not be set: {error.Message}")]);
+            return AsSource([(Reading.Root, $"This could not be set: {error.Message}")]);
         }
     }
 
@@ -137,7 +135,14 @@ public abstract class ContentBuilder
     /// </summary>
     protected abstract FormattedText Characters(string text);
 
-    /// <summary>The source as itself, with whatever there is to say about why.</summary>
-    private Laid Shown(IReadOnlyList<Diagnostic> trouble) =>
-        LayoutText.Shown(Source, Characters(Source.Length == 0 ? " " : Source), trouble, At);
+    /// <summary>
+    /// The block as it is written, each part blamed standing over its own characters and why written beneath — what a builder
+    /// shows for what it cannot draw. It names parts of the tree it was given, never characters: turning the tree back into
+    /// what was written is <see cref="SourceShown"/>'s.
+    /// </summary>
+    protected Laid AsSource(IReadOnlyList<(ContentPart Part, string Reason)> blamed) =>
+        SourceShown.Lay(Reading.Root, blamed, Characters, Style, Room);
+
+    /// <summary>The whole block as it is written, and why none of it could be drawn.</summary>
+    protected Laid AsSource(string reason) => AsSource([(Reading.Root, reason)]);
 }

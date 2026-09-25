@@ -22,9 +22,6 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
     private const int FinderSize = 7;
     private const int TimingLine = 6;
 
-    /// <summary>What a stand-in symbol says. Anything short enough for the smallest version will do.</summary>
-    private const string Sample = "Nexaflow";
-
     internal QrBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
 
@@ -39,9 +36,6 @@ internal sealed class QrBuilder : MatrixBuilder<QrMatrix>
 
         return new Drawn(matrix!, block.Settings);
     }
-
-    protected override Drawn StandIn(MatrixSettings settings) =>
-        new(QrEncoder.Encode(Sample, QrErrorCorrection.Medium), settings);
 
     protected override IReadOnlyList<Region> Regions(QrMatrix symbol)
     {

@@ -24,8 +24,6 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
     /// <summary>The alternating top row and right column of a region.</summary>
     public const string Clock = "Clock";
 
-    private const string Sample = "Nexaflow";
-
     internal DataMatrixBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
 
@@ -40,11 +38,6 @@ internal sealed class DataMatrixBuilder : MatrixBuilder<DataMatrixSymbol>
 
         return new Drawn(symbol!, block.Settings);
     }
-
-    protected override Drawn StandIn(MatrixSettings settings) =>
-        DataMatrixEncoder.TryEncode(Sample, DataMatrixOptions.Default, out var symbol, out string? error)
-            ? new Drawn(symbol!, settings)
-            : throw new InvalidOperationException(error);
 
     protected override IReadOnlyList<Region> Regions(DataMatrixSymbol symbol)
     {

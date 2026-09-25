@@ -146,7 +146,10 @@ public sealed class ResolveGraph(string main) : IAstStage
             wrong[line] = $"'{from}' is no parent of {taken}.";
     }
 
-    /// <summary>What a commit keeps to itself: an id nothing else has, and a way of being kept that a git graph knows.</summary>
+    /// <summary>
+    /// Whether a commit's id and type are ones Mermaid takes. Mermaid lets a commit take an id already given — a later
+    /// reference to it meaning the newest — but refuses a merge one.
+    /// </summary>
     private static void Kept(ContentNode line, List<string> ids, Dictionary<ContentNode, string> wrong)
     {
         if (Option(line, "id") is { Length: > 0 } id)

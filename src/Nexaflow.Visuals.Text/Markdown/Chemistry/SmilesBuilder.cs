@@ -29,8 +29,6 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     private const double LabelSize = 14;
     private const double CaptionSize = 12.5;
-    private const double ReasonSize = 12;
-
     private const double StrokeShare = 0.062;
 
     private const double GapShare = 0.2;
@@ -46,9 +44,6 @@ internal sealed class SmilesBuilder : ContentBuilder
 
     /// <summary>The smallest a structure is drawn at to fit its room, before it is let overflow instead.</summary>
     private const double SmallestScale = 0.5;
-
-    /// <summary>The narrowest a reason is set to, so a small structure does not stack it a word to a line.</summary>
-    private const double ReasonRoom = 260;
     internal SmilesBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
 
@@ -66,17 +61,24 @@ internal sealed class SmilesBuilder : ContentBuilder
 
         if (entries.Count == 0) return null;
 
+        // A molecule is only ever read where it is drawn — nothing in a structure is typed into — so anything wrong in the block,
+        // and any entry that makes no molecule at all, is put right in its source: shown as written, each such part marked.
+        var troubled = Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && !part.Derived).ToList();
+        IReadOnlyList<(ContentPart Part, string Reason)> blamed =
+        [
+            .. troubled.Select(part => (part, part.Trouble!)),
+            .. entries.Where(entry => entry.Structure is null && !entry.Part.SelfAndDescendants().Any(troubled.Contains))
+                      .Select(entry => (entry.Part, "Nothing here is a molecule: no atom is written in it.")),
+        ];
+        if (blamed.Count > 0) return AsSource(blamed);
+
         // One piece holds the block, because a layout has one root and every entry is a piece inside it.
         var build = new LayoutBuilder();
         build.Open(MoleculePiece.Block, Reading.Root);
         var size = Flow(build, entries);
         build.Close();
-        var trouble = Reading.Root.SelfAndDescendants()
-            .Where(part => part.Trouble is not null && !part.Derived)
-            .Select(part => new Diagnostic(part.Start, Math.Max(part.Length, 1), DiagnosticSeverity.Error, part.Trouble!))
-            .ToList();
 
-        return new Laid(build.Seal(), size, trouble);
+        return new Laid(build.Seal(), size, []);
     }
 
     // ── Entries ─────────────────────────────────────────────────────────────
@@ -86,15 +88,12 @@ internal sealed class SmilesBuilder : ContentBuilder
     {
         public required ContentPart Part { get; init; }
         public Drawing? Structure { get; init; }
-        public ContentPart? StandIn { get; init; }
         public FormattedText? Caption { get; init; }
         public ContentPart? CaptionPart { get; init; }
-        public FormattedText? Reason { get; init; }
 
-        public Size Body => Structure?.Size ?? (StandIn is null ? new Size(0, 0) : new Size(StandInText!.Width, StandInText.Height));
-        public FormattedText? StandInText { get; init; }
+        public Size Body => Structure?.Size ?? new Size(0, 0);
 
-        public double Width => Math.Max(Body.Width, Math.Max(Caption?.Width ?? 0, Reason?.Width ?? 0));
+        public double Width => Math.Max(Body.Width, Caption?.Width ?? 0);
     }
 
     private Sketched Sketch(ContentPart entry)
@@ -102,42 +101,18 @@ internal sealed class SmilesBuilder : ContentBuilder
         var molecule = entry.Children.FirstOrDefault(child => child.Kind == SmilesKinds.Molecule);
         var label = entry.Children.FirstOrDefault(child => child.Kind == SmilesKinds.Label)?.Part(SmilesRoles.Label);
 
-        var troubles = entry.SelfAndDescendants()
-            .Select(part => part.Trouble)
-            .OfType<string>()
-            .Distinct()
-            .ToList();
-
-        var reasonRoom = ReasonRoom;
         Drawing? drawing = null;
-        FormattedText? standIn = null;
-
-        if (molecule is not null)
-        {
-            var read = Nexaflow.Markdown.Chemistry.Molecule.Read(molecule.Node);
-            if (read.Atoms.Count > 0)
-            {
-                drawing = new Drawing(this, molecule, read);
-                reasonRoom = Math.Max(ReasonRoom, drawing.Size.Width);
-            }
-        }
-
-        if (drawing is null)
-            standIn = Text((molecule ?? entry).Print(), SourceSize, SourceFont, Style.TextMuted);
+        if (molecule is not null && Nexaflow.Markdown.Chemistry.Molecule.Read(molecule.Node) is { Atoms.Count: > 0 } read)
+            drawing = new Drawing(this, molecule, read);
 
         return new Sketched
         {
             Part = entry,
             Structure = drawing,
-            StandIn = drawing is null ? molecule ?? entry : null,
-            StandInText = standIn,
             Caption = label is null ? null : Text(label.Text, CaptionSize, LabelFont, Style.TextMuted),
             CaptionPart = label,
-            Reason = troubles.Count == 0 ? null : Reason(string.Join(" ", troubles), reasonRoom),
         };
     }
-
-    private const double SourceSize = 13;
 
     /// <summary>Rows entries left to right, wrapping when the next won't fit; captions share the line beneath the tallest.</summary>
     private Size Flow(LayoutBuilder build, List<Sketched> entries)
@@ -185,13 +160,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                     structure.Lay(build);
                     build.Close();
                 }
-                else if (entry.StandInText is { } text)
-                {
-                    build.Open(MoleculePiece.StandIn, entry.StandIn, new Point(bodyLeft, bodyTop));
-                    build.Draw(new TextMark(text, default, Style.TextMuted));
-                    build.Draw(new RuleMark(new Rect(0, text.Height / 2 - 0.75, text.Width, 1.5), Style.Danger));
-                    build.Close();
-                }
+
 
                 var below = body + (entry.Caption is null ? 0 : 6);
 
@@ -203,14 +172,7 @@ internal sealed class SmilesBuilder : ContentBuilder
                     below += caption.Height;
                 }
 
-                if (entry.Reason is { } reason)
-                {
-                    below += 4;
-                    build.Open(MoleculePiece.Trouble, part: null, new Point(0, below));
-                    build.Draw(new TextMark(reason, default, Style.Danger));
-                    build.Close();
-                    below += reason.Height;
-                }
+
 
                 build.Close();
 
@@ -754,17 +716,8 @@ internal sealed class SmilesBuilder : ContentBuilder
             ink ?? Style.Text,
             Editing.LayoutText.Density);
 
-    private FormattedText Reason(string trouble, double room) =>
-        new(trouble,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(LabelFont),
-            ReasonSize,
-            Style.Danger,
-            Editing.LayoutText.Density)
-        {
-            MaxTextWidth = room,
-        };
+    /// <summary>How big the characters of a block shown as written are set.</summary>
+    private const double SourceSize = 13;
 
     /// <summary>How a block sets the source it could not lay out at all: as the lines it was written as.</summary>
     protected override FormattedText Characters(string text) =>

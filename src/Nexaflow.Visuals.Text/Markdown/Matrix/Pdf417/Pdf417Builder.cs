@@ -32,8 +32,6 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
     /// <summary>How many modules wide one codeword is — and the start pattern, and each row indicator.</summary>
     private const int Codeword = 17;
 
-    private const string Sample = "Nexaflow";
-
     internal Pdf417Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly)
         : base(reading, state, style, isReadOnly) { }
 
@@ -48,11 +46,6 @@ internal sealed class Pdf417Builder : MatrixBuilder<Pdf417Symbol>
 
         return new Drawn(symbol!, block.Settings, block.RowHeight);
     }
-
-    protected override Drawn StandIn(MatrixSettings settings) =>
-        Pdf417Encoder.TryEncode(Sample, Pdf417Options.Default, out var symbol, out string? error)
-            ? new Drawn(symbol!, settings, Pdf417Block.DefaultRowHeight)
-            : throw new InvalidOperationException(error);
 
     protected override IReadOnlyList<Region> Regions(Pdf417Symbol symbol)
     {

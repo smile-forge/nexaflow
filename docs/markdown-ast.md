@@ -180,6 +180,41 @@ it did is laid as it was*, under Markdown.
 A parser is not a stage. What a name is shorthand for, and where one token stops and the next begins, are
 facts about the text that no later stage can change.
 
+## What cannot be drawn
+
+**A builder never touches the source.** It works in tree parts and layout pieces, nothing else: it never reads
+`Source`, never prints the tree, never works out which characters a part came from. Structure it needs belongs in a
+stage. So the most a builder can say about something it cannot draw is *which part it was given* and *why* —
+`ContentBuilder.AsSource(parts, reason)`, or `Diagnostic.Of(part, reason)` for something wrong in what it did draw.
+
+**Showing a block as written is one helper's** ([`SourceShown`](../src/Nexaflow.Visuals.Text/Editing/SourceShown.cs)).
+Given the tree, the blamed parts and why, it prints the tree back to its characters, walks it as the print does to find
+where each blamed part's characters fall, puts a piece standing for the part over them, and writes each reason beneath
+in the error colour. The waves under the blamed parts are the host's, drawn from the diagnostics handed back. Inline and
+block content look the same. The same helper is what a builder that throws is shown as (`ContentBuilder.Lay`), and what
+the element shows when the reading falls over before any builder has a tree (`ContentElement`). A document shows a
+nested block that came back as its source through it too, as the whole of what the language is written in — fences
+and all — which is the part holding the language: `ContentNesting.Holders`, the same climb the edit routing makes.
+
+**Which way something goes, by why it cannot be drawn:**
+
+1. **The reading makes no sense** — what is written is not the language: it is shown as written, the error marked.
+2. **Something is missing** — not yet written: a placeholder where it goes, while the block is being written only.
+3. **A rule of the language is broken** — it read, but means something that cannot be:
+   - where the block is being written in and the part to put right is drawn as words the reader types into, it is
+     drawn, with a wave under that value in place;
+   - otherwise — the block is only read, or the part is not one typed into where it is drawn — it is shown as written,
+     the broken part marked.
+
+Mermaid carries this out for every diagram (`MermaidBuilder.Build`): a diagram that draws nothing asks to be shown as
+written (`AsWritten`, blaming the parts it could make nothing of — or, where it says nothing, every line after its
+header), and trouble in one that drew is kept in place only where each wrong part is drawn as typed words and the block
+is being written in. A formula keeps what is written wrong in place while it is being written, and is shown as written
+where it is only read; something it read but has no drawing for is its own shortcoming, not the writer's, so it stays a
+warning in place. A tune, a structure, a 2D code, a plot and a word cloud are only ever read where they are drawn —
+nothing in them is typed into there — so anything wrong in one shows it as written, marked. A document shows a nested
+block that came back as its source through the same helper, fences and all.
+
 ## Markdown
 
 **A document is a list of blocks, and each block is its own content.** `MarkdownParser` says only where each
@@ -371,8 +406,8 @@ symbol has nothing in it anybody edits, so there is nothing for a stage to do.
 Each builder reads the fields, encodes, and lays the symbol out as the parts it is made of: a QR code's
 finders and timing lines, an Aztec code's bullseye, mode message and reference grid, PDF417's start, row
 indicator, codeword and stop columns, Data Matrix's finder and clock on every region. What they share —
-the module geometry, the quiet zone, and the struck-through stand-in drawn when a block will not read or
-encode — is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+the module geometry, the quiet zone, and showing a block that will not read or encode as it is written —
+is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
 
 ## Mermaid
 
