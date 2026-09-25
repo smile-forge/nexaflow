@@ -35,7 +35,8 @@
                 Cursor="Hand"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1,0,0,0"
-                Click="OverflowBtn_Click">
+                Click="OverflowBtn_Click"
+                AutomationProperties.AutomationId="Chrome_RibbonOverflow">
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="root" Background="Transparent">

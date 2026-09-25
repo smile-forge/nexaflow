@@ -474,6 +474,7 @@ public partial class TabStrip : UserControl
             Style    = (Style)FindResource("RibbonOverflowEntry"),   // stretches full width, content left-aligned
             Padding  = new Thickness(8, 6, 8, 6)
         };
+        AutomationProperties.SetAutomationId(btn, $"TabOverflow_{tab.PageKind}");
         btn.Click += (_, _) =>
         {
             OverflowPopup.IsOpen = false;
