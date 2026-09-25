@@ -53,7 +53,10 @@ public class LayoutSnapshotTests
 
         foreach (var path in documents)
         {
-            var text = File.ReadAllText(path);
+            // What was laid when the snapshot was written, so a document edited since is still held to what it laid then.
+            var kept = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + ".source.md");
+            if (writing) File.Copy(path, kept, overwrite: true);
+            var text = File.ReadAllText(File.Exists(kept) ? kept : path);
 
             foreach (var readOnly in new[] { true, false })
             {
