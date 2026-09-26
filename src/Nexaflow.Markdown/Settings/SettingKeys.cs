@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Settings;
 
@@ -47,5 +48,27 @@ public static class SettingKeys
                 fields[Plain(node.Part(Roles.Name)?.Text)] = node.Part(value)?.Text ?? string.Empty;
 
         return fields;
+    }
+
+    /// <summary>
+    /// The tree with the setting that stopped it reading marked with why — its value, where one is written, and the last line setting
+    /// it, since that is the one read — or the whole of it where no one setting did.
+    /// </summary>
+    /// <param name="setting">The kind a setting's line is read into.</param>
+    /// <param name="value">The role its value carries.</param>
+    public static ContentNode Marked(ContentNode root, string setting, string value, string? key, string reason)
+    {
+        var plain = Plain(key);
+        var culprit = key is null
+            ? null
+            : root.SelfAndDescendants().LastOrDefault(node => node.Kind == setting && Plain(node.Part(Roles.Name)?.Text) == plain);
+
+        if (culprit is null) return root.Saying(reason);
+
+        return AstRewrite.Each(root, node => !ReferenceEquals(node, culprit)
+            ? node
+            : node.Children.Any(child => child.Role == value)
+                ? node.With([.. node.Children.Select(child => child.Role == value ? child.Saying(reason) : child)])
+                : node.Saying(reason));
     }
 }

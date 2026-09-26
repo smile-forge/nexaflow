@@ -39,21 +39,8 @@ public static class PlotReader
     /// The tree with the setting that stopped it reading marked with why — its value, where one is written, and the last line
     /// setting it, since that is the one read — or the whole of it where no one setting did.
     /// </summary>
-    public static ContentNode Marked(ContentNode root, string? key, string reason)
-    {
-        var plain = SettingKeys.Plain(key);
-        var culprit = key is null
-            ? null
-            : root.SelfAndDescendants().LastOrDefault(node => node.Kind == PlotKinds.Setting && SettingKeys.Plain(node.Part(Roles.Name)?.Text) == plain);
-
-        if (culprit is null) return root.Saying(reason);
-
-        return AstRewrite.Each(root, node => !ReferenceEquals(node, culprit)
-            ? node
-            : node.Children.Any(child => child.Role == PlotRoles.Value)
-                ? node.With([.. node.Children.Select(child => child.Role == PlotRoles.Value ? child.Saying(reason) : child)])
-                : node.Saying(reason));
-    }
+    public static ContentNode Marked(ContentNode root, string? key, string reason) =>
+        SettingKeys.Marked(root, PlotKinds.Setting, PlotRoles.Value, key, reason);
 
     private static bool TrySettings(IReadOnlyDictionary<string, string> fields, PlotFence fence,
                                     out PlotSettings? settings, out string? error, out string? key)

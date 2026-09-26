@@ -66,19 +66,19 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     protected override Laid? Build()
     {
-        if (!WordCloudReader.TryRead(Reading.Root, out var chart, out var error)) return Stopped(error!);
+        // A cloud is only read where it is drawn, so what its stages found wrong — a setting given something it cannot take, a line
+        // that is no word, a block with nothing in it — is put right in its source: shown as written, each part at fault marked and why.
+        var troubled = Reading.Root.SelfAndDescendants().Where(part => part.Trouble is not null && !part.Derived)
+                              .Select(part => (part, part.Trouble!)).ToList();
+        if (troubled.Count > 0 || Reading.Root.Node is not WordCloudBlockNode block) return AsSource(troubled);
 
-        _settings = chart!.Settings;
+        _settings = block.Settings;
 
-        var colours = new WordCloudRandom(_settings.Seed + 2);
-        if (!WordCloudInk.TryRead(_settings, Style, colours, out var ink, out error)) return Stopped(error!);
-        if (!WordCloudInk.TryBackground(_settings, out var background, out error)) return Stopped(error!);
+        var ink = WordCloudInk.Of(block.Colours, Style, new WordCloudRandom(_settings.Seed + 2));
+        var words = Reading.Root.SelfAndDescendants().Where(part => part.Node is WordCloudWordNode)
+                           .OrderBy(part => ((WordCloudWordNode)part.Node).Rank).ToList();
 
-        if (chart.Words.Count == 0)
-            return Stopped("An empty word cloud. It takes a `word: weight` line for each word, "
-                         + "and settings written the same way.");
-
-        return Lay(chart, ink!, background);
+        return Lay(words, ink, WordCloudInk.Background(block.Colours));
     }
 
     /// <summary>One word, measured and placed: what to draw, where, turned how far, and in what.</summary>
@@ -99,7 +99,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
         }
     }
 
-    private Laid Lay(WordCloudChart chart, WordCloudInk ink, Brush? background)
+    private Laid Lay(IReadOnlyList<ContentPart> words, WordCloudInk ink, Brush? background)
     {
         var (room, fall) = SettingRoom.Fit(_settings.Width, _settings.Height, Room,
                                                   WordCloudSettings.HeightShare);
@@ -130,24 +130,18 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
         var board = new WordCloudBoard(width, height, packing, new WordCloudRandom(_settings.Seed + 1), stencil);
 
-        // A cloud is only read where it is drawn, so a line it cannot make a word of is put right in its source: shown as
-        // written, each such line marked and why.
-        var unread = chart.Words.Where(word => word.Trouble is not null).Select(word => (word.Number ?? word.Word, word.Trouble!)).ToList();
-        if (unread.Count > 0) return AsSource(unread);
-
         var trouble = new List<Diagnostic>();
 
         var placed = new List<Placement>();
         var at = 0;
 
-        foreach (var word in chart.Drawable)
+        foreach (var word in words)
         {
             var turn = angles.Angle(_settings);
             var colour = ink.For(at++);
 
-            if (Place(board, word, chart.SizeOf(word.Weight), turn, colour) is { } set) placed.Add(set);
-            else trouble.Add(Say(word.Word, $"There was no room left in the cloud for {word.Text}.",
-                                 DiagnosticSeverity.Warning));
+            if (Place(board, word, ((WordCloudWordNode)word.Node).Size, turn, colour) is { } set) placed.Add(set);
+            else trouble.Add(Say(word, $"There was no room left in the cloud for {word.Text}.", DiagnosticSeverity.Warning));
         }
 
         // Sized to what was actually drawn, not the room offered — else a small cloud in a wide column would
@@ -173,7 +167,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
 
     /// <summary>Places a word, shrinking it step by step until it fits or hits MinSize (null if it never
     /// fits) — <c>wordcloud2.js</c>'s <c>shrinkToFit</c>.</summary>
-    private Placement? Place(WordCloudBoard board, WordCloudEntry word, double size, double turn, Brush ink)
+    private Placement? Place(WordCloudBoard board, ContentPart word, double size, double turn, Brush ink)
     {
         // Set, and outlined, once — at the size it is tried at first, and to the same width the layout sets it to, so the
         // outline is of the word as it is drawn. A word that has to shrink to fit is the same letters smaller, so each
@@ -192,7 +186,7 @@ internal sealed class WordCloudBuilder : ContentBuilder
                 var room = Math.Max(1, text.Width);
                 text.MaxTextWidth = room;
 
-                return new Placement(text, room, new Point(spot.X - mask.Left, spot.Y - mask.Top), turn, ink, word.Word);
+                return new Placement(text, room, new Point(spot.X - mask.Left, spot.Y - mask.Top), turn, ink, word);
             }
 
             if (!_settings.Fit) return null;

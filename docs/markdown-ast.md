@@ -371,10 +371,12 @@ has no characters, so a molecule's bonds name atoms by the order written. Where 
 (`DepictStructure`, through `StructureLayout` and `CageLayout`): it is a fact about the molecule, not the room, so the
 builder only scales it to its room and draws it.
 
-**Word clouds** — a parser and nothing between it and the builder: nothing about a cloud's line means anything its
-characters do not say. The layout tree is flat on purpose — every word placed absolutely, one run each — and the
-packing (`WordMask`, `WordCloudBoard`) is worked out beside the model; the builder brings only what a type engine knows,
-the outlines of the letters. A `mask:` picture is found by the host (`WithPictures`).
+**Word clouds** — the parser decides whether a line is a setting or a word, since the settings are the lines above the
+words; `ResolveCloud` says what the settings and colours come to (`WordCloudBlockNode`), marking a value a setting cannot
+take, and `ResolveWords` says each word's weight, the size that sets it at and when it is packed (`WordCloudWordNode`), on
+the word as written, marking a weight that will not read. A `mask:` picture is found by the host (`WithPictures`). The
+layout tree is flat on purpose — every word placed absolutely, one run each — and the packing (`WordMask`,
+`WordCloudBoard`) is the builder's to ask for, because it needs what only a type engine knows: the outlines of the letters.
 
 **Correlation plots** — `scatter`, `bubble`, `heatmap` and `density2d` differ in what is drawn, not in what is written.
 The parser decides only the shape of a line; the settings (`ResolveSettings`), which row names the columns

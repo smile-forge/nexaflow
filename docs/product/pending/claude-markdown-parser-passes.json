@@ -622,10 +622,78 @@
           "method": "LayPieces"
         }
       ]
+    },
+    "wordcloud-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/WordCloudParser.cs",
+          "class": "WordCloudParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/Stages/ResolveCloud.cs",
+          "class": "ResolveCloud"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/WordCloudSettings.cs",
+          "class": "WordCloudSettings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/Stages/ResolveWords.cs",
+          "class": "ResolveWords"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/WordCloudNodes.cs",
+          "class": "WordCloudBlockNode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/WordCloud/WordCloudParserTests.cs",
+            "class": "WordCloudParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/WordCloud/WordCloudStagesTests.cs",
+            "class": "WordCloudStagesTests"
+          }
+        ]
+      }
+    },
+    "wordcloud-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/WordCloud/WordCloudBuilder.cs",
+          "class": "WordCloudBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/WordCloud/WordCloudInk.cs",
+          "class": "WordCloudInk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/Stages/ResolveWords.cs",
+          "class": "ResolveWords",
+          "method": "Size"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/WordCloud/WordCloudNodes.cs",
+          "class": "WordCloudWordNode"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 36,
+  "changed_sets": 39,
   "touched_nodes": [
     "abc-ast-pipeline",
     "abc-decorations",
@@ -660,6 +728,8 @@
     "smiles-chemistry",
     "smiles-structure-layout",
     "sr-lyrics",
-    "symbol-tree"
+    "symbol-tree",
+    "wordcloud-block-syntax",
+    "wordcloud-render"
   ]
 }

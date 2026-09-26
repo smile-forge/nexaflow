@@ -1521,8 +1521,8 @@ on the shared syntax tree ([markdown-ast.md](markdown-ast.md#word-clouds)).
 | Piece | What it does |
 |---|---|
 | [`WordCloudParser`](../src/Nexaflow.Markdown/WordCloud/WordCloudParser.cs) | the block into a lossless tree, to the character: a line's key, its colon and its value, the quotes around a word held beside it rather than in it, comments and space as trivia. A line that is neither is held with the reason |
-| [`WordCloudReader`](../src/Nexaflow.Markdown/WordCloud/WordCloudReader.cs) | the tree into settings and words, heaviest first; the line between a fault that stops it being a cloud and a weight that will not read |
-| [`WordCloudChart`](../src/Nexaflow.Markdown/WordCloud/WordCloudChart.cs) | a weight into a size: the lightest word at `minSize`, the heaviest at `maxSize`, and the rest between them on a linear, root or log scale |
+| [`ResolveCloud`](../src/Nexaflow.Markdown/WordCloud/Stages/ResolveCloud.cs) | the stage saying what the settings and colours come to, on the block; a value a setting cannot take stops it being a cloud, marked where it is written |
+| [`ResolveWords`](../src/Nexaflow.Markdown/WordCloud/Stages/ResolveWords.cs) | the stage saying each word's weight, when it is packed (heaviest first) and its size — the lightest word at `minSize`, the heaviest at `maxSize`, the rest between them on a linear, root or log scale; a weight that will not read keeps its line, marked where it is wrong |
 | [`WordMask`](../src/Nexaflow.Markdown/WordCloud/WordMask.cs) | a word's letters filled onto a grid of cells, from the outlines the type engine hands over — the shape the fitting reads |
 | [`WordCloudShapes`](../src/Nexaflow.Markdown/WordCloud/WordCloudShape.cs) | how far the outline reaches at each angle: circle, cardioid, diamond, square, triangle, triangle-forward, pentagon, star |
 | [`WordCloudStencil`](../src/Nexaflow.Markdown/WordCloud/WordCloudStencil.cs) | the shape a cloud is packed *into* — letters, or a picture's silhouette — as a grid of cells saying where a word may go |

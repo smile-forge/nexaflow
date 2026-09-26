@@ -36,6 +36,7 @@ using Nexaflow.Visuals.Text.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
+using Nexaflow.Markdown.WordCloud.Stages;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -179,7 +180,7 @@ internal static class Shipped
     public static readonly ContentLanguage WordCloud = new(
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
-        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures)],
+        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures), new ResolveCloud(), new ResolveWords()],
         Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>
