@@ -345,9 +345,10 @@ the outlines of the letters. A `mask:` picture is found by the host (`WithPictur
 **Correlation plots** — `scatter`, `bubble`, `heatmap` and `density2d` differ in what is drawn, not in what is written.
 The parser decides only the shape of a line; the settings (`ResolveSettings`), which row names the columns
 (`ResolveShape`), each column (`ResolveColumns`), what a cell reads as (`ResolveValues`), which channel a column feeds
-(`ResolveAesthetics`) and, for `geom: corr`, the coefficients (`ResolveCorrelations`) are stages, because every one of
-them changes as the next line is typed. Binning, densities and fits are worked out beside the model and tested against
-R's published numbers.
+(`ResolveAesthetics`), for `geom: corr`, the coefficients (`ResolveCorrelations`) and what a `stats:` line reports
+(`ResolveStatistics`) are stages, because every one of them changes as the next line is typed; each is said in the
+block's own nodes (`PlotBlockNode`, `PlotRowNode`, `PlotCellNode`). Binning, densities and fits are the builder's to ask
+for, because they are worked out on the panel it lays out, and are tested against R's published numbers.
 
 ## The oracles
 

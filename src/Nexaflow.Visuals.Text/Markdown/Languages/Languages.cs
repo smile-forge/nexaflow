@@ -12,7 +12,6 @@ using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.Plot;
-using Nexaflow.Markdown.Plot.Stages;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Markdown.WordCloud;
 using Nexaflow.Markdown.Barcode;
@@ -170,7 +169,7 @@ internal static class Shipped
     public static ContentLanguage Plot(PlotFence fence) => new(
         Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
         Parser: static () => static source => ContentParse.Of(PlotParser.Parse(source)),
-        Stages: (_, _) => [new ResolveSettings(fence)],
+        Stages: (_, _) => PlotPipeline.Of(fence).Stages,
         Builder: static (reading, show) => new PlotBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A cloud of words sized by how often each is said.</summary>

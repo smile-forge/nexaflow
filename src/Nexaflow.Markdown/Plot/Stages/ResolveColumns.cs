@@ -4,12 +4,12 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Plot.Stages;
 
 /// <summary>
-/// Names the columns, and says under each cell which one it stands in.
+/// Names the columns, and says of each cell which one it stands in (<see cref="PlotCellNode"/>).
 ///
 /// <para>
 /// A cell knows nothing about its column from its own characters — the name is on a different line, and
-/// the position is a matter of counting the cells before it. So it is worked out here and hung
-/// underneath, which is what lets everything after this ask a cell what it is rather than work out where
+/// the position is a matter of counting the cells before it. So it is worked out here and said of the
+/// cell, which is what lets everything after this ask a cell what it is rather than work out where
 /// it is all over again.
 /// </para>
 /// <para>
@@ -27,15 +27,16 @@ public sealed class ResolveColumns : IAstStage
 
     public ContentNode Run(ContentNode tree)
     {
+        if (tree is not PlotBlockNode block) return tree;
+
         var rows = tree.Rows();
         if (rows.Count == 0) return tree;
 
-        var matrix = tree.Said(PlotRoles.Form) == ResolveShape.Matrix;
         var header = rows.FirstOrDefault(row => row.IsHeader());
         List<string> names = header is null ? [] : [.. header.Cells().Select(cell => cell.Says())];
 
         return AstRewrite.Each(tree, node =>
-            node.Kind == PlotKinds.Row ? Said(node, names, matrix) : node);
+            node.Kind == PlotKinds.Row ? Said(node, names, block.Matrix) : node);
     }
 
     private static ContentNode Said(ContentNode row, IReadOnlyList<string> names, bool matrix)
@@ -54,10 +55,7 @@ public sealed class ResolveColumns : IAstStage
 
             var which = at - shift;
 
-            return which < names.Count
-                ? cell.Telling((PlotKinds.Fact, PlotRoles.Index, PlotNumber.Written(which)),
-                               (PlotKinds.Fact, PlotRoles.Column, names[which]))
-                : cell.Telling((PlotKinds.Fact, PlotRoles.Index, PlotNumber.Written(which)));
+    return PlotCellNode.Of(cell).Placed(which, which < names.Count ? names[which] : null);
         });
     }
 }

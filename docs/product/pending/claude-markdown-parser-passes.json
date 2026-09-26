@@ -133,11 +133,91 @@
           "class": "DepictStructure"
         }
       ]
+    },
+    "correlation-plots-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs",
+          "class": "PlotBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.Reading.cs",
+          "class": "PlotBuilder"
+        }
+      ]
+    },
+    "correlation-plots-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveShape.cs",
+          "class": "ResolveShape"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveValues.cs",
+          "class": "ResolveValues"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveAesthetics.cs",
+          "class": "ResolveAesthetics"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotPipeline.cs",
+          "class": "PlotPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotParts.cs",
+          "class": "PlotParts"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotNumber.cs",
+          "class": "PlotNumber"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotNodes.cs",
+          "class": "PlotBlockNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveSettings.cs",
+          "class": "ResolveSettings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveCorrelations.cs",
+          "class": "ResolveCorrelations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveStatistics.cs",
+          "class": "ResolveStatistics"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 8,
   "touched_nodes": [
+    "correlation-plots-reading",
+    "correlation-plots-render",
     "fenced-code-blocks",
     "markdown-laid-again",
     "markdown-maths",

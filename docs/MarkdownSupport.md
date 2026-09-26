@@ -1869,7 +1869,6 @@ Four fences — **`scatter`**, **`bubble`**, **`heatmap`** and **`density2d`** �
 against a pair of axes. They share one grammar
 ([`PlotParser`](../src/Nexaflow.Markdown/Plot/PlotParser.cs) →
 [`PlotPipeline`](../src/Nexaflow.Markdown/Plot/PlotPipeline.cs) →
-[`PlotChart`](../src/Nexaflow.Markdown/Plot/PlotChart.cs) →
 [`PlotBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs)), because they differ in what
 is drawn rather than in what is written — the division ggplot2 makes. Registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs), one
@@ -1918,14 +1917,20 @@ share over it. One value is no division at all and is drawn as one plot. Like co
 not used up as a place, so it is still free to be x or y.
 
 **What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
-parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
-column is called and which one a cell stands in (`ResolveColumns`), what a cell reads as
-(`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), and the coefficient between
-each pair of numeric columns (`ResolveCorrelations`). None of it is in the characters of any one line,
-and every one of the answers changes as the next line is typed.
+parser, said in the block's own nodes ([`PlotNodes`](../src/Nexaflow.Markdown/Plot/PlotNodes.cs)): what the
+settings say (`ResolveSettings`), which row is the header and whether the table is long or a matrix
+(`ResolveShape`), what each column is called and which one a cell stands in (`ResolveColumns`), what a cell
+reads as (`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), the coefficient between
+each pair of numeric columns (`ResolveCorrelations`), and what a `stats:` line reports, over every row and
+over each facet's own (`ResolveStatistics`). None of it is in the characters of any one line, and every one
+of the answers changes as the next line is typed. The builder reads those nodes down the tree into the marks
+it draws, and asks what it lays out — how far a channel reaches, what its names are — of the marks of the
+panel it is drawing.
 
-**The statistics are neither the parser's nor the builder's** — WPF-free beside the model, so they are
-tested without a desktop and held against R's own numbers:
+**The statistics are neither the parser's nor the builder's to define** — WPF-free, so they are tested
+without a desktop and held against R's own numbers. The ones worked out from the numbers written are
+stages; binning, densities and fits are worked out on the panel, so the builder asks for them as it lays
+it out:
 [`PlotBins`](../src/Nexaflow.Markdown/Plot/PlotBins.cs) (rectangular and hexagonal binning, each point to
 its nearest bin), [`PlotDensity`](../src/Nexaflow.Markdown/Plot/PlotDensity.cs) (MASS's `kde2d` with
 Silverman's rule, and marching squares for the contours) and
