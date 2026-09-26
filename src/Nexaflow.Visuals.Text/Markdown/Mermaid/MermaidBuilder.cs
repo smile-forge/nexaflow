@@ -242,11 +242,8 @@ internal abstract class MermaidBuilder : ContentBuilder
         Card(build, size);
 
         build.Close();
-        return new Laid(build.Seal(), size, trouble) { Passing = Passing };
+        return new Laid(build.Seal(), size, trouble);
     }
-
-    /// <summary>Whether this diagram is drawn as of the moment it is laid, reading the clock as well as the block — see <see cref="Laid.Passing"/>.</summary>
-    protected virtual bool Passing => false;
 
     /// <summary>Whether a part of the tree is drawn as words the reader types into — itself, or something inside it.</summary>
     private static bool Typed(LayoutTree drawn, ContentPart part)

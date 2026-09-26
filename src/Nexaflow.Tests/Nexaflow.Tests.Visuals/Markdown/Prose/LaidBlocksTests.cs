@@ -168,15 +168,15 @@ public class LaidBlocksTests
         $"{trouble.Start}+{trouble.Length} {trouble.Message} {Span(trouble.Part)}";
 
     [TestMethod]
-    public void ADrawingOfTheMomentIsLaidAgainNotSetDownAsItWas()
+    public void ADrawingOfTheDayItIsReadOnIsKeptWhileItReadsAsItDid()
     {
-        // A Gantt chart draws a line at today, which the clock says rather than the block.
+        // A Gantt chart's today is part of what its block means, read with it — so a block that reads as it did is set down as it was.
         const string chart = "```mermaid\ngantt\n    dateFormat YYYY-MM-DD\n    Task :2024-01-01, 3d\n```\n";
         var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
 
         var before = Wholes(content.Lay(EditState.For(chart + "\nWords.\n"), Room, false));
         var after = Wholes(content.Lay(EditState.For(chart + "\nMore words.\n"), Room, false));
 
-        Assert.AreNotSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
+        Assert.AreSame(before[0].Painting?.Kept, after[0].Painting?.Kept);
     }
 }

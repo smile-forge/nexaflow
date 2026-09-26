@@ -139,7 +139,7 @@ JS/Mermaid.js, no browser).
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantStagesTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
 | `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
-| `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttChartTests`) + draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
+| `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttStagesTests`) + rows and draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitStagesTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + config (`MindmapConfigTests`) + nesting, shapes and draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + composites, dots, styles + config (`StateStagesTests`) + states, transitions, notes and draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
@@ -448,9 +448,11 @@ lines, which a line-by-line grammar does not see; and the `handDrawn` look.
 quote, a closing bracket or a comment typed into a title in brackets puts it in quotes, and a bracket typed into a bare title
 makes it a title in quotes; Enter on a column starts a card under it with its title still to write, and on a card another.
 **Gantt-chart sub-features** ([`GanttGrammar`](../src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs) →
-its stage [`ResolveSchedule`](../src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs) →
-[`GanttChart`](../src/Nexaflow.Markdown/Mermaid/Gantt/GanttChart.cs) →
-[`GanttBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Gantt/GanttBuilder.cs)).
+its stages [`ResolveSchedule`](../src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs) and
+[`ResolveTasks`](../src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveTasks.cs) →
+[`GanttBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Gantt/GanttBuilder.cs)). What a task's schedule means depends on
+the rest of the chart and on the day, so the stages say when each task runs and what the chart's settings mean, today being
+the day the block is read; the builder gives each task its row.
 Drawn on the **shared layout tree**, so what is drawn is selectable and every task's and section's name is the characters it
 was written as. Supported, as Mermaid documents it: `title`; `section`s; tasks as `name :tags, id, start, end`, the tags
 `active`, `done`, `crit`, `milestone` and `vert`, the id, start and end each left out as Mermaid allows; a start as a date or
@@ -469,8 +471,8 @@ bar sits on in the middle of the band; its section's name set right against the 
 widest name needs; the name in its bar where it fits and beside it where it does not; a milestone's diamond half way through
 its time; a marker's line down the chart with its name under it; dates along the foot.
 What is wrong is said on the piece it is wrong in — a start that is no date in the chart's format, an end that is neither a date
-nor a length, an id no task has, a first task with no start, a day `excludes` names that is none — and a task that cannot be
-worked out is not drawn.
+nor a length, an id no task has, a first task with no start, a day `excludes` names that is none — and a task whose schedule
+never comes to a start and an end is not drawn.
 **The front matter is applied** ([`GanttConfig`](../src/Nexaflow.Markdown/Mermaid/Gantt/GanttConfig.cs)): `displayMode:
 compact` at the top of the front matter or under `config: gantt:`; `config: gantt:` `titleTopMargin`, `barHeight`, `barGap`,
 `topPadding`, `leftPadding`, `rightPadding`, `gridLineStartPadding`, `fontSize`, `sectionFontSize`, `numberSectionStyles`,

@@ -17,7 +17,8 @@ namespace Nexaflow.Markdown.Mermaid.Gantt;
 /// </para>
 /// <para>
 /// Whether a date is one depends on the chart's <c>dateFormat</c>, and whether an id names a task on the rest of the chart, so
-/// both are the stage's (<see cref="ResolveSchedule"/>).
+/// both are the stage's (<see cref="ResolveSchedule"/>) — as is when each task runs, which means something only on its chart
+/// and on the day it is read (<see cref="ResolveTasks"/>).
 /// </para>
 /// </summary>
 public sealed class GanttGrammar : IMermaidGrammar
@@ -97,7 +98,7 @@ public sealed class GanttGrammar : IMermaidGrammar
     public string Naming(string name) => new([.. name.Select(character => Letter(character) ? character : '_')]);
 
     /// <inheritdoc/>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSchedule()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSchedule(), new ResolveTasks(GanttConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a name, a date or an id is still to write.</remarks>

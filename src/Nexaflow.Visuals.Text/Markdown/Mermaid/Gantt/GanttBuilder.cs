@@ -49,7 +49,7 @@ public static class GanttPiece
 /// room it has; its paddings, bar sizes and fonts are Mermaid's unless the front matter says otherwise.
 /// </para>
 /// </summary>
-internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
+internal sealed class GanttBuilder : MermaidBuilder
 {
     /// <summary>How wide a chart is drawn where nothing bounds its room.</summary>
     private const double Wide = 800;
@@ -81,21 +81,108 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
 
     internal GanttBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override GanttChart Of(MermaidBlock block) => GanttChart.Of(block);
-
-    /// <summary>A chart is drawn as of today: its line at today's date, and a task written with no start starting today.</summary>
-    protected override bool Passing => true;
+    /// <summary>The chart as its stages left it on the block.</summary>
+    private GanttBlockNode? Chart => Reading.Root.Node as GanttBlockNode;
 
     /// <summary>The front matter's <c>titleColor</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleColour;
+    protected override string? TitleColour => Chart?.Config.TitleColour;
 
-    protected override Size Draw(GanttChart chart, LayoutBuilder build)
+    /// <summary>A section, and the name it is written with — every section written with the same name the one section.</summary>
+    private sealed record Section(string Says, ContentPart? Name, ContentPart? Hole);
+
+    /// <summary>
+    /// A task drawn: the part of the reading it is, when its stages said it runs, its name, its section, its tags, and its row —
+    /// the order it is written in among the tasks taking one, or the row it shares in compact mode.
+    /// </summary>
+    private sealed record Task(ContentPart Part, GanttTaskNode Said, ContentPart? Name, ContentPart? Hole, Section? Section,
+                               bool Active, bool Done, bool Critical, bool Milestone, bool Vert, int Order)
     {
-        // A chart with no task worked out is the source.
-        if (chart.Tasks.Count == 0) return AsWritten(build);
+        public DateTime Start => Said.Start;
+        public DateTime End => Said.End;
+        public DateTime Shown => Said.Shown;
+        public bool Clickable => Said.Clickable;
+    }
+
+    /// <summary>
+    /// The tasks its stages gave a start and an end, in the order they are written, each under the section written last above
+    /// it — and the sections holding a task that takes a row, which are the only ones given a place.
+    /// </summary>
+    private static (List<Task> Tasks, List<Section> Sections) Read(ContentPart root, bool compact)
+    {
+        var sections = new List<Section>();
+        var named = new Dictionary<string, Section>(StringComparer.Ordinal);
+        var tasks = new List<Task>();
+        Section? section = null;
+        var order = 0;
+
+        foreach (var part in root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case { Kind: GanttKinds.Section }:
+                    var name = part.Children.FirstOrDefault(child => child.Kind == GanttKinds.Text);
+                    var says = name.Words()?.Text ?? string.Empty;
+                    if (!named.TryGetValue(says, out section))
+                    {
+                        section = new Section(says, name.Words(), name.Hole());
+                        named[says] = section;
+                        sections.Add(section);
+                    }
+
+                    break;
+
+                case GanttTaskNode said:
+                    var text = part.Children.FirstOrDefault(child => child.Kind == GanttKinds.Text);
+                    var tags = part.Children.FirstOrDefault(child => child.Kind == GanttKinds.Schedule)?.Children
+                                   .Where(child => child.Kind == GanttKinds.Tag).Select(child => child.Text).ToHashSet(StringComparer.Ordinal) ?? [];
+                    var vert = tags.Contains("vert");
+
+                    tasks.Add(new Task(part, said, text.Words() is { Length: > 0 } words ? words : null, text.Hole(), section,
+                                       tags.Contains("active"), tags.Contains("done"), tags.Contains("crit"), tags.Contains("milestone"), vert,
+                                       vert ? -1 : order++));
+                    break;
+            }
+        }
+
+        if (compact) tasks = Compacted(tasks);
+
+        // A section keeps its place only where a task in it takes a row.
+        var rowed = tasks.Where(task => !task.Vert && task.Section is not null).Select(task => task.Section!).ToHashSet();
+        return (tasks, [.. sections.Where(rowed.Contains)]);
+    }
+
+    /// <summary>Tasks sharing rows, as compact mode draws them: each section's tasks by start, each in the first row it fits.</summary>
+    private static List<Task> Compacted(List<Task> tasks)
+    {
+        var placed = tasks.ToDictionary(task => task, task => task.Order);
+        var offset = 0;
+
+        foreach (var group in tasks.Where(task => !task.Vert).GroupBy(task => task.Section))
+        {
+            var rows = new List<DateTime>();
+            foreach (var task in group.OrderBy(task => task.Start).ThenBy(task => task.Order))
+            {
+                var row = rows.FindIndex(ends => task.Start >= ends);
+                if (row < 0) { row = rows.Count; rows.Add(task.End); }
+                else rows[row] = task.End;
+                placed[task] = offset + row;
+            }
+
+            offset += Math.Max(1, rows.Count);
+        }
+
+        return [.. tasks.Select(task => task with { Order = placed[task] })];
+    }
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        // A chart with no task its stages gave a start and an end is the source.
+        if (Chart is not { } chart) return AsWritten(build);
 
         var c = chart.Config;
+        var (tasks, sections) = Read(Reading.Root, c.Compact);
+        if (tasks.Count == 0) return AsWritten(build);
+
         var bar = c.BarHeight ?? BarHeight;
         var gap = bar + (c.BarGap ?? BarGap);
         var top = c.TopPadding ?? 50;
@@ -105,25 +192,25 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var styles = c.NumberSectionStyles ?? 4;
 
         // Each section's name first: the room left of the dates is as wide as the widest needs, where nothing says how wide.
-        var names = chart.Sections.ToDictionary(section => section, section =>
+        var names = sections.ToDictionary(section => section, section =>
             Wrapped(section.Name, section.Hole, c.SectionFontSize ?? 11, Ink.Written(c.TitleColour) ?? Palette.Text, Widest));
         var left = c.LeftPadding ?? Math.Max(75, names.Values.Select(lines => lines.Max(line => line.Width) + Beside + Pad).DefaultIfEmpty(0).Max());
 
         var width = Math.Max(c.UseWidth ?? (double.IsInfinity(Space) ? Wide : Space), left + right + Narrowest);
         var span = width - left - right;
 
-        var rowed = chart.Tasks.Where(task => !task.Vert).ToList();
+        var rowed = tasks.Where(task => !task.Vert).ToList();
         var rows = rowed.Count == 0 ? 0 : rowed.Max(task => task.Order) + 1;
         var height = (2 * top) + (rows * gap);
 
-        var (first, last) = (chart.Tasks.Min(task => task.Start), chart.Tasks.Max(task => task.End));
+        var (first, last) = (tasks.Min(task => task.Start), tasks.Max(task => task.End));
         double X(DateTime date) => Math.Round(last > first ? DiagramTime.At(date, first, last) * span : span / 2);
 
         var text = Ink.Written(c.TextColour) ?? Palette.TextMuted;
         var words = new List<(DiagramWords Words, Point At, string Kind)>();
 
         // The rows each section takes, found in one pass over the rows rather than one for each section.
-        var taken = new Dictionary<GanttSection, (int From, int To)>();
+        var taken = new Dictionary<Section, (int From, int To)>();
         foreach (var task in rowed)
             if (task.Section is { } holding)
                 taken[holding] = taken.TryGetValue(holding, out var had)
@@ -131,7 +218,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
                     : (task.Order, task.Order + 1);
 
         // Each section's name set right against the dates, in the middle of its rows.
-        foreach (var section in chart.Sections)
+        foreach (var section in sections)
         {
             if (!taken.TryGetValue(section, out var their)) continue;
 
@@ -145,9 +232,9 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         }
 
         // Each task: its bar, diamond or marker, and its name in the bar where it fits, beside it where it does not.
-        var shapes = new List<(GanttTask Task, DiagramShape Shape, Rect Bounds, Brush Fill, DiagramStroke? Stroke, DiagramWords? Words)>();
+        var shapes = new List<(Task Task, DiagramShape Shape, Rect Bounds, Brush Fill, DiagramStroke? Stroke, DiagramWords? Words)>();
         var (marker, clickable, outside) = (Marker(c), Ink.Written(c.TaskTextClickable) ?? Palette.Accent, Ink.Written(c.TaskTextOutside) ?? Palette.Text);
-        foreach (var task in chart.Tasks.OrderBy(task => task.Vert).ThenBy(task => task.Start))
+        foreach (var task in tasks.OrderBy(task => task.Vert).ThenBy(task => task.Start))
         {
             var y = (task.Order * gap) + top;
             var (from, to) = (X(task.Start), X(task.Shown));
@@ -211,7 +298,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         var shift = reached.Shift;
 
         Excluded(build, chart, first, last, X, left, gridStart, height - top - gridStart, shift);
-        Rows(build, chart, rowed, (left, left + span, width - (right / 2)), bar, gap, top, styles, shift);
+        Rows(build, chart, sections, rowed, (left, left + span, width - (right / 2)), bar, gap, top, styles, shift);
         Grid(build, chart, ticks, span, left, foot, top, height, gridStart, shift);
 
         build.Open(GanttPiece.Words, part: null, stops: Stops.None);
@@ -223,13 +310,13 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
             DiagramShapes.Draw(build, GanttPiece.Task, task.Part, shape, Rect.Offset(bounds, shift), fill, stroke, name, GanttPiece.Label);
         build.Close();
 
-        Today(build, chart, first, last, X(DateTime.Now) + left, Math.Max(titleTop, reached.Reached.Top), Math.Min(height - titleTop, reached.Reached.Bottom), shift);
+        Today(build, chart, first, last, X(chart.Now) + left, Math.Max(titleTop, reached.Reached.Top), Math.Min(height - titleTop, reached.Reached.Bottom), shift);
 
         return reached.Size;
     }
 
     /// <summary>The dates the axis marks: every so often as <c>tickInterval</c> says, or else about <paramref name="count"/> on round boundaries.</summary>
-    private static IReadOnlyList<DateTime> Ticks(GanttChart chart, DateTime first, DateTime last, int count) =>
+    private static IReadOnlyList<DateTime> Ticks(GanttBlockNode chart, DateTime first, DateTime last, int count) =>
         chart.Tick is { } tick && DiagramTime.Every(first, last, tick.Every, tick.Unit, chart.Weekday) is { } marks
             ? marks
             : DiagramTime.Ticks(first, last, count);
@@ -238,7 +325,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     /// A task's fill, outline and the ink of a name set in it, by whether it is active, done or critical — worked out once for
     /// each of those a chart has rather than once for every task, since each is colours read from the front matter.
     /// </summary>
-    private (Brush Fill, DiagramStroke Stroke, Brush Text) Inks(GanttTask task, GanttConfig c)
+    private (Brush Fill, DiagramStroke Stroke, Brush Text) Inks(Task task, GanttConfig c)
     {
         var kind = (task.Active, task.Done, task.Critical);
         if (_inks.TryGetValue(kind, out var known)) return known;
@@ -261,15 +348,15 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
 
     private Brush Marker(GanttConfig c) => Ink.Written(c.VertLine) ?? Palette.Important;
 
-    private void Excluded(LayoutBuilder build, GanttChart chart, DateTime first, DateTime last, Func<DateTime, double> x, double left, double top, double tall, Vector shift)
+    private void Excluded(LayoutBuilder build, GanttBlockNode chart, DateTime first, DateTime last, Func<DateTime, double> x, double left, double top, double tall, Vector shift)
     {
-        if (chart.Excludes.Count == 0 && chart.Includes.Count == 0 || last > first.AddYears(5)) return;
+        if (!chart.Days.Any || last > first.AddYears(5)) return;
 
         var bands = new GeometryGroup();
         DateTime? from = null, to = null;
         for (var day = first; day <= last.AddDays(1); day = day.AddDays(1))
         {
-            if (day <= last && chart.Excluded(day))
+            if (day <= last && chart.Days.Excluded(day))
             {
                 from ??= day;
                 to = day;
@@ -293,7 +380,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     /// The band behind each row, tinted by its section, with the bar centred in it — and a faint line along the row from where
     /// the dates start to where they end, which its bars sit on.
     /// </summary>
-    private void Rows(LayoutBuilder build, GanttChart chart, IReadOnlyList<GanttTask> rowed, (double From, double To, double Wide) across,
+    private void Rows(LayoutBuilder build, GanttBlockNode chart, IReadOnlyList<Section> sections, IReadOnlyList<Task> rowed, (double From, double To, double Wide) across,
                       double bar, double gap, double top, int styles, Vector shift)
     {
         var c = chart.Config;
@@ -301,8 +388,8 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         build.Open(GanttPiece.Rows, part: null, stops: Stops.None);
 
         // Which of the section styles each section takes, and the three tints they come to — each worked out once.
-        var placed = new Dictionary<GanttSection, int>();
-        foreach (var section in chart.Sections) placed.TryAdd(section, placed.Count);
+        var placed = new Dictionary<Section, int>();
+        foreach (var section in sections) placed.TryAdd(section, placed.Count);
 
         var tints = new Brush[]
         {
@@ -334,7 +421,7 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
         build.Close();
     }
 
-    private void Grid(LayoutBuilder build, GanttChart chart, IReadOnlyList<DiagramTick> ticks, double span, double left, double foot, double top, double height, double gridStart, Vector shift)
+    private void Grid(LayoutBuilder build, GanttBlockNode chart, IReadOnlyList<DiagramTick> ticks, double span, double left, double foot, double top, double height, double gridStart, Vector shift)
     {
         // The dates run across, so their lines run down: from under the head of the chart to its foot, and again
         // over the top where a second axis is drawn up there.
@@ -361,10 +448,10 @@ internal sealed class GanttBuilder : MermaidBuilder<GanttChart>
     }
 
     /// <summary>The line at today, where today is on the chart and <c>todayMarker</c> does not turn it off — styled as it says.</summary>
-    private void Today(LayoutBuilder build, GanttChart chart, DateTime first, DateTime last, double x, double from, double to, Vector shift)
+    private void Today(LayoutBuilder build, GanttBlockNode chart, DateTime first, DateTime last, double x, double from, double to, Vector shift)
     {
-        var now = DateTime.Now;
-        var today = chart.Today;
+        var now = chart.Now;
+        var today = chart.Marker;
         if (today.Off || now < first || now > last) return;
 
         var ink = Ink.Written(today.Stroke) ?? Ink.Written(chart.Config.TodayLine) ?? Palette.Danger;

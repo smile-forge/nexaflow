@@ -129,12 +129,61 @@
           }
         ]
       }
+    },
+    "gantt-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs",
+          "class": "GanttGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs",
+          "class": "ResolveSchedule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveTasks.cs",
+          "class": "ResolveTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttConfig.cs",
+          "class": "GanttConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidTime.cs",
+          "class": "MermaidDate"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttGrammarTests.cs",
+            "class": "GanttGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttStagesTests.cs",
+            "class": "GanttStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTimeTests.cs",
+            "class": "MermaidTimeTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 6,
+  "changed_sets": 8,
   "touched_nodes": [
     "class-diagram",
+    "gantt-ast",
     "nomnoml",
     "venn-ast"
   ]
