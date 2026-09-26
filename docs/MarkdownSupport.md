@@ -1624,8 +1624,9 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
   written, and worked over by a pipeline of stages —
   [`AbcPipeline`](../src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs) and
   [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that say what each note
-  lasts and sounds, and in ABC what each field, mark, quoted run and syllable means, in the notation's own nodes
-  and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
+  lasts and sounds, what each field or command sets, what each mark and each run of words written against a note
+  is, and — ABC — which syllable is sung on which note or — LilyPond — how a chord's name is spelled, in the
+  notation's own nodes and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
 - **How it is drawn.** A builder per notation —
   [`AbcBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs),
   [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — walks that tree,
@@ -1642,8 +1643,9 @@ music through to find them (see *LilyPond coverage*). Everything after that — 
 curves, words, spacing and line breaks — is the one engraver's. What a string, a name, a chord's name and a syllable say
 is read off the parts the parser made of them ([`LilyPondText`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs)):
 a string is its quotes and a letter for each character, an escape being the one it writes, so a title is selected a
-letter at a time; a chord's name is its root, its quality and its bass; a syllable is its words and any duration after
-them. No builder takes one apart.
+letter at a time; a chord's name is its root, its quality and its bass, which a stage spells as a lead sheet does; a
+syllable is its words and any duration after them. No builder takes one apart, and none works out what a command's
+arguments set: that is said once, on the command, whatever it is played under.
 
 **Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
 beamed pair to select the pair, drag for a run — then:

@@ -281,12 +281,46 @@
           "type": "code",
           "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/AlignLyrics.cs",
           "class": "AlignLyrics"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/SpellChords.cs",
+          "class": "SpellChords"
+        }
+      ]
+    },
+    "ly-core": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondParser.cs",
+          "class": "LilyPondParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondTheory.cs",
+          "class": "LilyPondTheory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/ResolveCommands.cs",
+          "class": "ResolveCommands"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondNodes.cs",
+          "class": "LilyPondCommandNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/ResolveMarks.cs",
+          "class": "ResolveMarks"
         }
       ]
     }
   },
   "is_empty": false,
-  "changed_sets": 12,
+  "changed_sets": 13,
   "touched_nodes": [
     "abc-ast-pipeline",
     "abc-decorations",
@@ -294,6 +328,7 @@
     "correlation-plots-reading",
     "correlation-plots-render",
     "fenced-code-blocks",
+    "ly-core",
     "markdown-laid-again",
     "markdown-maths",
     "markdown-styling",

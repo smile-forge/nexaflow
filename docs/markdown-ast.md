@@ -326,8 +326,15 @@ one: `A`–`G` writes a note in the octave of the one before, Page Up and Down m
 halve the length, and `#` and `_` move a semitone **from what the note sounds**, so flattening a bare `F` in G major
 writes `=F`. Each stage says its answer in the tune's own nodes (`AbcFieldNode`, `AbcLineNode`, `AbcTupletNode`,
 `AbcEventNode`), and a mark or words written against a note in the ones every notation shares (`MusicMarkNode`,
-`MusicAnnotationNode`), so `AbcBuilder` only walks the tune. LilyPond is the same engraving, walked by a builder of its
-own: the two notations think about music differently, and share `MusicBuilder` for what a score is drawn with.
+`MusicAnnotationNode`), so `AbcBuilder` only walks the tune.
+
+**LilyPond** — the same engraving, walked by a builder of its own: the two notations think about music differently, and
+share `MusicBuilder` for what a score is drawn with. What is true of a note or a command wherever it is played is its
+stages' — how long it is written and lasts (`ResolveDurations`), what it sounds (`ResolvePitches`), what a command's
+arguments set (`ResolveCommands`), what a mark or a script's words are (`ResolveMarks`), how a chord's name is spelled
+(`SpellChords`) — said in `LilyPondEventNode`, `LilyPondCommandNode` and the shared mark and word nodes. Where the bars
+fall, how notes beam and which accidentals print depend on where a note is played, since a definition is played wherever
+it is used; so `LilyPondBuilder` walks the music through to find them.
 
 **2D codes** — `MatrixParser` reads a `qr`, `aztec`, `pdf417` or `datamatrix` body into lines of fields, one grammar for
 all four, and each builder encodes and lays the symbol out as the parts it is made of (finders, timing lines, a
