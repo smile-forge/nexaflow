@@ -82,11 +82,14 @@ internal static class Shipped
             Editing = new MermaidEditing(),
         };
 
-    /// <summary>UML class notation written shorter — <see href="https://www.nomnoml.com/"/> — read by Mermaid's kit as a class diagram.</summary>
+    /// <summary>
+    /// UML class notation written its own way — <see href="https://www.nomnoml.com/"/> — read by a parser of its own and drawn
+    /// as the class diagram it describes. Nothing in it is worked out over the whole block: every line says what it means.
+    /// </summary>
     public static readonly ContentLanguage Nomnoml = new(
         Reads: static word => "nomnoml".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => ContentParse.Of(MermaidParser.Parse(source, NomnomlDiagram.Grammar)),
-        Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, holes: false, NomnomlDiagram.Grammar), .. Hosted(show), WordPieces],
+        Parser: static () => static source => ContentParse.Of(NomnomlParser.Parse(source)),
+        Stages: static (_, _) => [],
         Builder: static (reading, show) => new NomnomlBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>What a host puts between reading a diagram and drawing it: what its words are bound against, and the pictures it names.</summary>

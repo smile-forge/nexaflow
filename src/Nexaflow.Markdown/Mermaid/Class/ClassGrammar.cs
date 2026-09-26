@@ -204,10 +204,11 @@ public sealed class ClassGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Which namespace each line is in (<see cref="ResolveNamespaces"/>), and whether what is styled is written at all
-    /// (<see cref="ResolveStyles"/>).
+    /// Each namespace gathered with what is written in it (<see cref="ResolveNamespaces"/>), what each member draws
+    /// (<see cref="ResolveMembers"/>), what styles each class and whether what is styled is written at all
+    /// (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are written.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveNamespaces(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveNamespaces(), new ResolveMembers(), new ResolveStyles(), new WithConfig<ClassConfig>(ClassConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a name's quotes, and where a member or what is written on a relation is still to come after its colon.</remarks>
@@ -504,14 +505,43 @@ public sealed class ClassGrammar : IMermaidGrammar
         return true;
     }
 
-    /// <summary>The operator a relation is drawn with, where one is written next.</summary>
+    /// <summary>
+    /// A relation's arrow, read as the three things it is built from — what it draws at the class on its left, its line, and what
+    /// it draws at the class on its right — each a piece of its own.
+    /// </summary>
     private static bool Operator(MermaidLine line)
     {
         foreach (var operation in Operators)
-            if (line.Token(operation, ClassRoles.Arrow))
-                return true;
+        {
+            if (!line.Sees(operation)) continue;
+
+            var (head, drawn, tail) = Parts(operation);
+
+            line.Open();
+            if (head.Length > 0) line.Token(head, ClassRoles.Head);
+            line.Token(drawn, ClassRoles.Line);
+            if (tail.Length > 0) line.Token(tail, ClassRoles.Tail);
+            line.Close(ClassKinds.Arrow, ClassRoles.Arrow);
+
+            return true;
+        }
 
         return false;
+    }
+
+    /// <summary>The end, the line and the other end an operator is built from.</summary>
+    private static (string Head, string Drawn, string Tail) Parts(string operation)
+    {
+        foreach (var drawn in Lines)
+            foreach (var head in Heads.Append(string.Empty))
+            {
+                if (!operation.StartsWith(head + drawn, StringComparison.Ordinal)) continue;
+
+                var tail = operation[(head.Length + drawn.Length)..];
+                if (tail.Length == 0 || Tails.Contains(tail, StringComparer.Ordinal)) return (head, drawn, tail);
+            }
+
+        return (string.Empty, operation, string.Empty);
     }
 
     /// <summary>What is written on a relation, after the colon opening it — whether anything is.</summary>

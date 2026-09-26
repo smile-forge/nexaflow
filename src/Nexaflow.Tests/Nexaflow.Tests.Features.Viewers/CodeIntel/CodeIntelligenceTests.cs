@@ -6,9 +6,11 @@ using Nexaflow.Features.Code.FileActions;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Text.FileActions;
 using Nexaflow.Syntax;
-using Nexaflow.Markdown.Mermaid.Class;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
 using NSubstitute;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -515,20 +517,18 @@ public class CodeIntelligenceTests
     /// drawn as the member alone and a press on it opens the declaration.
     /// </summary>
     [TestMethod]
-    public void AMembersLinkTokenIsPeeledFromWhatTheRowSays()
+    public void AMembersLinkTokenIsPeeledFromWhatTheRowSays() => UiThread.Run(() =>
     {
         const string src = "classDiagram\n  class Shape {\n    +draw() @@nx:line#42\n    -color\n  }\n";
-        var shape = ClassDiagram.Of(new Nexaflow.Visuals.Text.Markdown.ContentEngine().Read("mermaid", src).Root.Node).Find("Shape");
+        var drawn = new ContentEngine().Lay("mermaid", EditState.For(src), StyleFormat.Dark, 900, readOnly: true).Root.SelfAndDescendants().ToList();
 
-        Assert.IsNotNull(shape);
-        var method = shape!.Methods.Single();
-        Assert.AreEqual("+draw()", method.Says);
-        Assert.AreEqual("nx:line#42", method.Href);
+        var linked = drawn.Single(piece => piece.Kind == ClassPiece.Member);
+        Assert.AreEqual("+draw()", linked.SelfAndDescendants().Single(piece => piece.Words is not null).Words!.Glyphs.Text);
+        Assert.AreEqual("nx:line#42", linked.Acts?.Click?.Target);
 
-        var field = shape.Fields.Single();
-        Assert.AreEqual("-color", field.Says);
-        Assert.IsNull(field.Href);
-    }
+        Assert.IsTrue(drawn.Any(piece => piece.Words?.Glyphs.Text == "-color" && piece.Ancestors().All(over => over.Kind != ClassPiece.Member)),
+                      "and a member pointing nowhere is only its words");
+    });
 
     // ── Actions ─────────────────────────────────────────────────────────────
 

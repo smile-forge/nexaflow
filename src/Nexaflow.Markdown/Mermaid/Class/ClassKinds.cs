@@ -50,8 +50,8 @@ public static class ClassKinds
     /// <summary>A <c>click</c>, <c>callback</c> or <c>link</c> line: where pressing a class leads, and what it says while pointed at.</summary>
     public const string Click = "class-click";
 
-    /// <summary>What the stages hang under a line: which namespace it is in, and which one it opens.</summary>
-    public const string Fact = "class-fact";
+    /// <summary>A relation's arrow: what it draws at either end, and its line.</summary>
+    public const string Arrow = "class-arrow";
 
     /// <summary>One class where it is named: its id, its type parameters, and the class <c>:::</c> gives it.</summary>
     public const string Named = "class-named";
@@ -82,7 +82,16 @@ public static class ClassRoles
     public const string Class = "class-class-name";
 
     /// <summary>The operator drawn between two classes, its line and both its ends.</summary>
-    public const string Arrow = "class-arrow";
+    public const string Arrow = "class-arrow-drawn";
+
+    /// <summary>What an arrow draws at the class on its left: <c>&lt;|</c>, <c>*</c>, <c>o</c>, <c>&lt;</c> or <c>()</c>.</summary>
+    public const string Head = "class-head";
+
+    /// <summary>An arrow's line: <c>--</c> solid, <c>..</c> dotted.</summary>
+    public const string Line = "class-line";
+
+    /// <summary>What an arrow draws at the class on its right.</summary>
+    public const string Tail = "class-tail";
 
     /// <summary>How many of one class the other has, written in quotes at that end of the relation.</summary>
     public const string Count = "class-count";
@@ -104,12 +113,6 @@ public static class ClassRoles
 
     /// <summary>The function a <c>callback</c> or a <c>click … call</c> line names, which nothing here calls.</summary>
     public const string Call = "class-call";
-
-    /// <summary>The namespace a line is written in (<see cref="MermaidNesting"/>).</summary>
-    public const string Inside = "class-inside";
-
-    /// <summary>The namespace a <c>namespace … {</c> line opens.</summary>
-    public const string Opened = "class-opened";
 
     /// <summary>
     /// What a namespace is called. Its own role rather than an id's, because a namespace is not a class: one named the same

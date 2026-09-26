@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -227,4 +229,115 @@ public class ClassBuilderTests : MermaidBuilderContract
 
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
+
+    // ── What is read from the lines as written ──────────────────────────────
+
+    [TestMethod]
+    public void AClassIsDeclaredWhereItIsFirstWritten_AndGathersEverythingWrittenForIt() => UiThread.Run(() =>
+    {
+        var laid = Build("classDiagram\n  Animal <|-- Duck\n  Animal : +int age\n  Animal : +String name\n  Animal : +grow()\n  class Duck");
+
+        CollectionAssert.AreEquivalent(new[] { "Animal", "Duck" }, Boxes(laid).Keys.ToArray());
+        CollectionAssert.AreEqual(new[] { "Animal", "+int age", "+String name", "+grow()" },
+                                  Saying(Pieces(laid, ClassPiece.Class).Single(box => Saying(box)[0] == "Animal")).ToArray(),
+                                  "the fields above the method");
+    });
+
+    [TestMethod]
+    public void TypeParametersAreDrawnBetweenAngleBrackets() => UiThread.Run(() =>
+    {
+        var box = Pieces(Build("classDiagram\n  class Square~Shape~ {\n    List~int~ position\n  }"), ClassPiece.Class).Single();
+
+        CollectionAssert.AreEqual(new[] { "Square<Shape>", "List<int> position" }, Saying(box).ToArray());
+    });
+
+    [TestMethod]
+    public void AnAnnotationSaysWhatAClassIsWhereverItIsWritten() => UiThread.Run(() =>
+    {
+        foreach (var source in new[]
+                 {
+                     "classDiagram\n  class Shape <<interface>>",
+                     "classDiagram\n  class Shape\n  <<interface>> Shape",
+                     "classDiagram\n  class Shape {\n    <<interface>>\n    draw()\n  }",
+                 })
+            Assert.AreEqual("«interface»", Saying(Pieces(Build(source), ClassPiece.Class).Single())[0], source);
+    });
+
+    [TestMethod]
+    public void AClassDrawnWithALabelIsDrawnWithIt_AndOneNamedInBackticksMayBeCalledAnything() => UiThread.Run(() =>
+    {
+        Assert.AreEqual("Animal with a label", Saying(Pieces(Build("classDiagram\n  class Animal[\"Animal with a label\"]"), ClassPiece.Class).Single())[0]);
+
+        var laid = Build("classDiagram\n  class `Car Class!`\n  Animal --> `Car Class!`");
+        CollectionAssert.AreEquivalent(new[] { "Car Class!", "Animal" }, Boxes(laid).Keys.ToArray());
+        Assert.AreEqual(1, Pieces(laid, ClassPiece.Relation).Count);
+    });
+
+    [TestMethod]
+    public void AnInterfaceWrittenWithBracketsIsALollipopOnTheClass_NeitherAClassNorARelation() => UiThread.Run(() =>
+    {
+        var laid = Build("classDiagram\n  Class01 --() bar\n  foo ()-- Class01");
+        var box = Pieces(laid, ClassPiece.Class).Single().Bounds;
+        var lollipops = Pieces(laid, ClassPiece.Lollipop).ToDictionary(piece => Saying(piece).Single(), piece => piece.Bounds);
+
+        Assert.AreEqual(0, Pieces(laid, ClassPiece.Relation).Count);
+        Assert.IsTrue(lollipops["bar"].Top >= box.Top + (box.Height / 2), $"Class01 --() bar hangs below: {lollipops["bar"]} of {box}");
+        Assert.IsTrue(lollipops["foo"].Bottom <= box.Top + (box.Height / 2), $"foo ()-- Class01 sits above: {lollipops["foo"]} of {box}");
+    });
+
+    [TestMethod]
+    public void EachRelationDrawsWhatItsEndsSay_AndADottedLineWhereItsLineIsDotted() => UiThread.Run(() =>
+    {
+        IReadOnlyList<GeometryMark> Marks(string relation) =>
+            [.. Pieces(Build($"classDiagram\n  {relation}"), ClassPiece.Relation).Single()
+                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()];
+
+        string Outline(string relation) => string.Join("|", Marks(relation).Select(mark => $"{PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)} {mark.Fill}"));
+
+        var ends = new[] { "A <|-- B", "A *-- B", "A o-- B", "A --> B", "A -- B" }.Select(Outline).ToList();
+        Assert.AreEqual(5, ends.Distinct().Count(), "inheritance, composition, aggregation, association and a link each draw their own");
+        Assert.AreNotEqual(Outline("A <|-- B"), Outline("A <|--|> B"), "and one written both ways draws a head at either end");
+
+        Assert.IsNull(Marks("A --> B")[0].Dashes);
+        foreach (var dotted in new[] { "A ..> B", "A ..|> B", "A .. B" })
+            Assert.IsNotNull(Marks(dotted)[0].Dashes, dotted);
+    });
+
+    [TestMethod]
+    public void ARelationDrawsWhatIsWrittenOnIt_AndHowManyOfEachClassTheOtherHas() => UiThread.Run(() =>
+    {
+        var laid = Build("classDiagram\n  Customer \"1\" --> \"*\" Ticket : raises");
+
+        CollectionAssert.AreEquivalent(new[] { "1", "*" }, Pieces(laid, ClassPiece.Count).Select(piece => piece.Words!.Glyphs.Text).ToArray());
+        Assert.AreEqual("raises", Saying(Pieces(laid, ClassPiece.Label).Single()).Single());
+
+        var far = Build("classDiagram\n  A --> \"Far away\"");
+        CollectionAssert.AreEquivalent(new[] { "A", "Far away" }, Boxes(far).Keys.ToArray(), "quotes past the operator with no class after them are the class");
+        Assert.AreEqual(0, Pieces(far, ClassPiece.Count).Count);
+    });
+
+    [TestMethod]
+    public void ANamespaceWrittenWithDotsIsABoxForEachPartOfIt_SharedWhereTheirOuterNamesAre() => UiThread.Run(() =>
+    {
+        string[] Named(string source) => [.. Pieces(Build(source), ClassPiece.Space).Select(space => Saying(space).First())];
+
+        CollectionAssert.AreEqual(new[] { "A", "B", "C" }, Named("classDiagram\n  namespace A.B.C {\n    class One\n  }"));
+        CollectionAssert.AreEquivalent(new[] { "A", "B", "C" }, Named("classDiagram\n  namespace A.B {\n    class One\n  }\n  namespace A.C {\n    class Two\n  }"));
+        CollectionAssert.AreEqual(new[] { "A.B" },
+                                  Named("---\nconfig:\n  class:\n    hierarchicalNamespaces: false\n---\nclassDiagram\n  namespace A.B {\n    class One\n  }"),
+                                  "and one box for the whole name where the front matter asks for no nesting");
+    });
+
+    [TestMethod]
+    public void AClassIsBoxedIntoTheNamespaceItIsWrittenIn_InsideTheOneThatIsWrittenIn() => UiThread.Run(() =>
+    {
+        var laid = Build("classDiagram\n  namespace Outer {\n    namespace Inner {\n      class One\n    }\n    class Two\n  }\n  class Three");
+        var spaces = Pieces(laid, ClassPiece.Space).ToDictionary(space => Saying(space).First(), space => space.Bounds);
+        var boxes = Boxes(laid);
+
+        Assert.IsTrue(Holds(spaces["Outer"], spaces["Inner"]), "Inner inside Outer");
+        Assert.IsTrue(Holds(spaces["Inner"], boxes["One"]));
+        Assert.IsTrue(Holds(spaces["Outer"], boxes["Two"]) && !Holds(spaces["Inner"], boxes["Two"]));
+        Assert.IsFalse(Holds(spaces["Outer"], boxes["Three"]));
+    });
 }

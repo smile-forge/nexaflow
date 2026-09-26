@@ -10,46 +10,6 @@ using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Class;
 
-/// <summary>The pieces a class diagram's layout is made of — its layers, and what is in them.</summary>
-public static class ClassPiece
-{
-    /// <summary>The diagram itself: the classes, and the namespaces they are boxed into.</summary>
-    public const string Classes = "Classes";
-
-    /// <summary>One class, standing for everything written for it.</summary>
-    public const string Class = "Class";
-
-    /// <summary>A namespace: the box, and the classes it holds drawn inside its piece.</summary>
-    public const string Space = "Space";
-
-    /// <summary>A namespace's own box and its name, behind the classes it holds.</summary>
-    public const string Holding = "Holding";
-
-    /// <summary>One member of a class, which is a piece of its own where it leads somewhere.</summary>
-    public const string Member = "Member";
-
-    /// <summary>One interface a class offers, drawn as a circle on a stub off the top or the bottom of it.</summary>
-    public const string Lollipop = "Lollipop";
-
-    /// <summary>A note written beside a class.</summary>
-    public const string Note = "Note";
-
-    /// <summary>The dashed line holding a note to the class it is about.</summary>
-    public const string Tether = "Tether";
-
-    /// <summary>The relations, drawn over the diagram.</summary>
-    public const string Relations = "Relations";
-
-    /// <inheritdoc cref="Relations"/>
-    public const string Relation = "Relation";
-
-    /// <summary>What is written on a relation, over the middle of its line.</summary>
-    public const string Label = "Label";
-
-    /// <summary>How many of one class the other has, written at that end of the relation.</summary>
-    public const string Count = "Count";
-}
-
 /// <summary>
 /// Draws a <c>classDiagram</c> — or a <c>classDiagram-v2</c>, which Mermaid reads the same way. The classes are laid out in ranks
 /// by how far along the relations reach them (<see cref="DiagramLayers"/>), each rank ordered so as few lines cross as can be
@@ -62,7 +22,7 @@ public static class ClassPiece
 /// <strong>A namespace holds its classes in the layout.</strong> What is inside one is laid out in its own space and drawn inside
 /// the namespace's piece, so pressing a class means that class and pressing the room round it means the namespace.
 /// </summary>
-internal class ClassBuilder : MermaidBuilder<ClassDiagram>
+internal partial class ClassBuilder : MermaidBuilder
 {
     /// <summary>How big a class's name is drawn, its members, and what an annotation says it is.</summary>
     private const double TextSize = 12;
@@ -113,17 +73,15 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
     internal ClassBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override ClassDiagram Of(MermaidBlock block) => ClassDiagram.Of(block);
-
-    /// <inheritdoc/>
-    protected override DiagramChart? Chart(ClassDiagram diagram) =>
-        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]);
-
-    protected override Size Draw(ClassDiagram diagram, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        var diagram = Read(Reading.Root, Configured(ClassConfig.Default));
+
         // A diagram with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Nodes.Count == 0 && diagram.Spaces.Count == 0) return AsWritten(build);
+
+        // How much of it is drawn, worked out before anything is placed.
+        Fold(new DiagramChart([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]));
 
         var plan = Laid(diagram);
         var room = Reached(diagram, plan);
@@ -161,11 +119,11 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// Everything measured and placed: a cell for each class, each namespace and each note, a join for each relation, and the
     /// layered layout run over the lot of them.
     /// </summary>
-    private Plan Laid(ClassDiagram diagram)
+    private Plan Laid(Diagram diagram)
     {
         var plan = new Plan();
         var cells = new List<DiagramCell>();
-        var towards = Towards(diagram.Way);
+        var towards = diagram.Way;
 
         foreach (var space in Nested(diagram, null))
         {
@@ -249,7 +207,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>The namespaces, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
-    private static IEnumerable<ClassSpace> Nested(ClassDiagram diagram, string? inside)
+    private static IEnumerable<Namespace> Nested(Diagram diagram, string? inside)
     {
         foreach (var space in diagram.Within(inside))
         {
@@ -259,7 +217,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>Everything the diagram means to draw, gathered so the whole of it is brought inside the box the block takes.</summary>
-    private DiagramRoom Reached(ClassDiagram diagram, Plan plan) =>
+    private DiagramRoom Reached(Diagram diagram, Plan plan) =>
         DiagramRoom.Round(diagram.Config.Padding, plan.Size,
                           [.. plan.Nodes.Select(node => node.Cell), .. plan.Notes.Select(note => note.Cell),
                            .. plan.Spaces.Values.Select(box => box.Cell)],
@@ -275,7 +233,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// The rows keep Mermaid's own rhythm rather than the height the words turned out to be, so boxes line up with each other
     /// whatever is written in them. What is measured rather than guessed is the width: a box is as wide as its longest row.
     /// </remarks>
-    private Sized Measure(ClassNode node, ClassConfig config)
+    private Sized Measure(Node node, ClassConfig config)
     {
         var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
@@ -285,8 +243,8 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         title.AddRange(Called(node, ink, config));
 
-        var fields = node.Fields.Select(member => (Member: member, Words: Member(member, ink))).ToList();
-        var methods = node.Methods.Select(member => (Member: member, Words: Member(member, ink))).ToList();
+        var fields = node.Fields.Select(member => (Member: member, Words: Lettered(member, ink))).ToList();
+        var methods = node.Methods.Select(member => (Member: member, Words: Lettered(member, ink))).ToList();
         var offered = node.Lollipops.Select(lollipop => (Lollipop: lollipop, Words: Offered(lollipop))).ToList();
 
         var bands = new List<DiagramCompartment>
@@ -319,7 +277,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>What a class is called: its label or its id, with its type parameters after it in angle brackets.</summary>
-    private IReadOnlyList<DiagramWords> Called(ClassNode node, Brush ink, ClassConfig config)
+    private IReadOnlyList<DiagramWords> Called(Node node, Brush ink, ClassConfig config)
     {
         if (node.Generic is not { Length: > 0 } generic)
             return Wrapped(node.Said, node.SaidHole, TextSize, ink, config.Wrapping, FontWeights.SemiBold);
@@ -328,14 +286,14 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>What a lollipop's circle is labelled with, which nobody writes twice and so is pressed as where it was written.</summary>
-    private DiagramWords Offered(ClassLollipop lollipop) => Written(lollipop.Part, null, LabelSize, Palette.Text);
+    private DiagramWords Offered(Lollipop lollipop) => Written(lollipop.Part, null, LabelSize, Palette.Text);
 
     /// <summary>
     /// One member as it is drawn: the characters written, where that is what it says — a member whose type parameters are
     /// angled, whose classifier is taken off, which gives something back or which points somewhere is worked out, and so
     /// pressed rather than typed into. A member that leads somewhere is drawn in the colour a link is drawn in.
     /// </summary>
-    private DiagramWords Member(ClassMember member, Brush ink)
+    private DiagramWords Lettered(Member member, Brush ink)
     {
         var paint = member.Href is { Length: > 0 } ? Palette.Accent : ink;
         var slant = member.Abstract ? FontStyles.Italic : (FontStyle?)null;
@@ -346,17 +304,17 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>What is written on a relation, where anything is.</summary>
-    private IReadOnlyList<DiagramWords> Says(ClassRelation relation) =>
+    private IReadOnlyList<DiagramWords> Says(Relation relation) =>
         relation.Said is null && relation.SaidHole is null
             ? []
             : Wrapped(relation.Said, relation.SaidHole, LabelSize, Palette.Text, Widest);
 
     /// <summary>What a note says.</summary>
-    private IReadOnlyList<DiagramWords> Says(ClassNote note, ClassConfig config) =>
+    private IReadOnlyList<DiagramWords> Says(Note note, ClassConfig config) =>
         Wrapped(note.Said, note.SaidHole, LabelSize, Palette.Text, config.Wrapping);
 
     /// <summary>What is written at the top of a namespace.</summary>
-    private IReadOnlyList<DiagramWords> Naming(ClassSpace space, ClassConfig config) =>
+    private IReadOnlyList<DiagramWords> Naming(Namespace space, ClassConfig config) =>
         space.Said is not null
             ? Wrapped(space.Said, null, TextSize, Palette.Text, config.Wrapping)
             : [Worked(space.Name, space.Part, TextSize, Palette.Text)];
@@ -364,7 +322,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     // ── The relations ───────────────────────────────────────────────────────
 
     /// <summary>Where every relation runs once everything is placed, its ends brought in to the boxes it joins.</summary>
-    private List<Route> Routes(ClassDiagram diagram, Plan plan, DiagramRoom room)
+    private List<Route> Routes(Diagram diagram, Plan plan, DiagramRoom room)
     {
         var routes = new List<Route>();
 
@@ -428,7 +386,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
             // Square, corners and all: several relations reaching the same class run up to the same rail and into it by
             // the same stem, and a rounded corner is a corner that no longer meets the next one.
             DiagramConnector.Draw(build, ClassPiece.Relation, route.Relation.Part, route.Along, stroke,
-                                  Headed(route.Relation.Head), Headed(route.Relation.Tail));
+                                  route.Relation.Head, route.Relation.Tail);
         }
 
         foreach (var route in routes)
@@ -485,21 +443,10 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     private static Rect Counted(Point at, DiagramWords count) =>
         new(at.X - (count.Width / 2), at.Y - (count.Height / 2), count.Width, count.Height);
 
-    /// <summary>What an end of a relation draws.</summary>
-    private static DiagramHead Headed(ClassEnd end) => end switch
-    {
-        ClassEnd.Extension => DiagramHead.Triangle,
-        ClassEnd.Composition => DiagramHead.Diamond,
-        ClassEnd.Aggregation => DiagramHead.HollowDiamond,
-        ClassEnd.Association => DiagramHead.Open,
-        ClassEnd.Lollipop => DiagramHead.Circle,
-        _ => DiagramHead.None,
-    };
-
     // ── Drawing it ──────────────────────────────────────────────────────────
 
     /// <summary>A namespace: its box, its name at the top of it, and the classes it holds drawn inside its piece.</summary>
-    private void Held(LayoutBuilder build, ClassDiagram diagram, Plan plan, DiagramRoom room, ClassSpace space,
+    private void Held(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Namespace space,
                       IReadOnlyList<Geometry> over)
     {
         var box = plan.Spaces[space.Key];
@@ -530,7 +477,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     /// One class: its box, the rules dividing it, its name, its members in the band each belongs to, and the interfaces it
     /// offers on stubs off the top and the bottom of it.
     /// </summary>
-    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, ClassNode node, IReadOnlyList<Geometry> over)
+    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, Node node, IReadOnlyList<Geometry> over)
     {
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
 
@@ -610,7 +557,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>One member, set — as a piece of its own where it leads somewhere, so a press on it means the link.</summary>
-    private static void Membered(LayoutBuilder build, DiagramWords words, Point at, ClassMember member)
+    private static void Membered(LayoutBuilder build, DiagramWords words, Point at, Member member)
     {
         if (member.Href is { Length: > 0 } href)
         {
@@ -644,7 +591,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     private static IEnumerable<Pinned> Noting(Plan plan, string? space) =>
         plan.Notes.Where(note => string.Equals(note.Space, space, StringComparison.Ordinal));
 
-    private static IEnumerable<Sized> Inside(ClassDiagram diagram, Plan plan, string? space) =>
+    private static IEnumerable<Sized> Inside(Diagram diagram, Plan plan, string? space) =>
         diagram.Inside(space)
             .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
             .OfType<Sized>();
@@ -652,7 +599,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     // ── Colour ──────────────────────────────────────────────────────────────
 
     /// <summary>What a class is filled with: what its styling writes, and otherwise what every class is.</summary>
-    private Brush Fill(ClassNode node)
+    private Brush Fill(Node node)
     {
         var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
@@ -663,31 +610,23 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     private DiagramStroke Stroke(MermaidStyle style) =>
         new(Ink.Written(style.Stroke) ?? Ink.NodeEdge, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
 
-    private static DiagramWay Towards(ClassWay way) => way switch
-    {
-        ClassWay.Up => DiagramWay.Up,
-        ClassWay.Right => DiagramWay.Right,
-        ClassWay.Left => DiagramWay.Left,
-        _ => DiagramWay.Down,
-    };
-
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>A class measured: the words of each band, the box they are set in, and the cell the layout placed it in.</summary>
     private sealed class Sized(
-        ClassNode node,
-        IReadOnlyList<(ClassMember Member, DiagramWords Words)> fielded,
-        IReadOnlyList<(ClassMember Member, DiagramWords Words)> methoded,
-        IReadOnlyList<(ClassLollipop Lollipop, DiagramWords Words)> offered,
+        Node node,
+        IReadOnlyList<(Member Member, DiagramWords Words)> fielded,
+        IReadOnlyList<(Member Member, DiagramWords Words)> methoded,
+        IReadOnlyList<(Lollipop Lollipop, DiagramWords Words)> offered,
         DiagramBox laid)
     {
-        public ClassNode Node { get; } = node;
+        public Node Node { get; } = node;
 
-        public IReadOnlyList<(ClassMember Member, DiagramWords Words)> Fielded { get; } = fielded;
+        public IReadOnlyList<(Member Member, DiagramWords Words)> Fielded { get; } = fielded;
 
-        public IReadOnlyList<(ClassMember Member, DiagramWords Words)> Methoded { get; } = methoded;
+        public IReadOnlyList<(Member Member, DiagramWords Words)> Methoded { get; } = methoded;
 
-        public IReadOnlyList<(ClassLollipop Lollipop, DiagramWords Words)> Offered { get; } = offered;
+        public IReadOnlyList<(Lollipop Lollipop, DiagramWords Words)> Offered { get; } = offered;
 
         /// <summary>Its name and its members measured into a box of compartments (<see cref="DiagramBox"/>).</summary>
         public DiagramBox Laid { get; } = laid;
@@ -708,9 +647,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>A namespace measured.</summary>
-    private sealed class Box(ClassSpace space, IReadOnlyList<DiagramWords> words)
+    private sealed class Box(Namespace space, IReadOnlyList<DiagramWords> words)
     {
-        public ClassSpace Space { get; } = space;
+        public Namespace Space { get; } = space;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -718,9 +657,9 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>A note measured, held in the rank of the class it is about and drawn inside whatever holds that class.</summary>
-    private sealed class Pinned(ClassNote note, IReadOnlyList<DiagramWords> words, string? space)
+    private sealed class Pinned(Note note, IReadOnlyList<DiagramWords> words, string? space)
     {
-        public ClassNote Note { get; } = note;
+        public Note Note { get; } = note;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -734,7 +673,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
     }
 
     /// <summary>A relation worked out: where it runs, what is written on it, and the counts at either end.</summary>
-    private sealed record Route(ClassRelation Relation, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room)
+    private sealed record Route(Relation Relation, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room)
     {
         public DiagramWords? Near { get; init; }
 
@@ -752,7 +691,7 @@ internal class ClassBuilder : MermaidBuilder<ClassDiagram>
 
         public Dictionary<string, Box> Spaces { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<ClassRelation, DiagramJoin> Joins { get; } = [];
+        public Dictionary<Relation, DiagramJoin> Joins { get; } = [];
 
         /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
         public DiagramSpill Spill { get; set; } = DiagramSpill.None;
