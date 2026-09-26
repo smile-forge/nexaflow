@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.Xy;
 
@@ -55,6 +56,10 @@ public sealed class XyGrammar : IMermaidGrammar
             _ => line.Shown("An xychart line is a title, an axis or a series: x-axis [jan, feb], y-axis \"Revenue\" 0 --> 100, bar [20, 35]."),
         };
     }
+
+    /// <inheritdoc/>
+    /// <remarks>Only what the front matter asks for: the axes and series are the lines in the order they are written.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<XyConfig>(XyConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Under a series, another of its kind; anywhere else, a bar — each with its values still to write, the caret in its brackets.</remarks>

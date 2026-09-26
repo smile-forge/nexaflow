@@ -94,35 +94,45 @@ public class XyGrammarTests : MermaidGrammarContract
     [TestMethod]
     public void AnAxisIsItsTitleAndItsCategoriesOrItsRange()
     {
-        var chart = XyChart.Of(MermaidStaged.Read(Revenue));
+        var axes = Nodes(MermaidStaged.Read(Revenue), XyKinds.Axis);
+        var categories = axes[0].Inner(XyKinds.Categories)!.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Words).ToList();
 
-        Assert.AreEqual(12, chart.X!.Categories.Count);
-        Assert.AreEqual("jan", chart.X.Categories[0].Name.Text);
-        Assert.AreEqual("Revenue (in $)", chart.Y!.Title!.Text);
-        Assert.AreEqual(4000, chart.Y.Min);
-        Assert.AreEqual(11000, chart.Y.Max);
+        Assert.AreEqual(12, categories.Count);
+        Assert.AreEqual("jan", categories[0].Text);
+        Assert.AreEqual("Revenue (in $)", Title(axes[1]));
+        CollectionAssert.AreEqual(new double?[] { 4000, 11000 }, Range(axes[1]));
     }
 
     [TestMethod]
     public void AWordAheadOfTheArrowIsWhereTheRangeStarts_AndOneAheadOfThatIsTheTitle()
     {
-        var bare = XyChart.Of(MermaidStaged.Read("xychart\n  x-axis 1 --> 12")).X!;
-        var titled = XyChart.Of(MermaidStaged.Read("xychart\n  x-axis Month 1 --> 12")).X!;
+        var bare = Nodes(MermaidStaged.Read("xychart\n  x-axis 1 --> 12"), XyKinds.Axis).Single();
+        var titled = Nodes(MermaidStaged.Read("xychart\n  x-axis Month 1 --> 12"), XyKinds.Axis).Single();
 
-        Assert.IsNull(bare.Title);
-        Assert.AreEqual(1, bare.Min);
-        Assert.AreEqual("Month", titled.Title!.Text);
-        Assert.AreEqual(12, titled.Max);
+        Assert.IsNull(Title(bare));
+        CollectionAssert.AreEqual(new double?[] { 1, 12 }, Range(bare));
+        Assert.AreEqual("Month", Title(titled));
+        CollectionAssert.AreEqual(new double?[] { 1, 12 }, Range(titled));
     }
+
+    /// <summary>What an axis's or a series' title says, in quotes or a word — or null where it has none.</summary>
+    private static string? Title(ContentNode line) =>
+        line.Children.FirstOrDefault(child => child.Kind is MermaidKinds.Quoted or MermaidKinds.Name).Words()?.Text;
+
+    /// <summary>What the two ends of an axis's range come to.</summary>
+    private static double?[] Range(ContentNode axis) =>
+        [.. axis.Inner(XyKinds.Range)!.Children.Where(child => child.Kind == MermaidKinds.Amount).Select(end => end.Number())];
+
+    private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     [TestMethod]
     public void AValueOfALineMayCarryALabel_SignedOrStartingAtItsPoint()
     {
-        var points = XyChart.Of(MermaidStaged.Read("xychart\n  line [540 \"PaLM\", -.34, +1.3]")).Series.Single().Points;
+        var points = Nodes(MermaidStaged.Read("xychart\n  line [540 \"PaLM\", -.34, +1.3]"), XyKinds.Point);
 
-        CollectionAssert.AreEqual(new double?[] { 540, -0.34, 1.3 }, points.Select(point => point.Worth).ToArray());
-        Assert.AreEqual("PaLM", points[0].Label!.Text);
-        Assert.IsNull(points[1].Label);
+        CollectionAssert.AreEqual(new double?[] { 540, -0.34, 1.3 }, points.Select(point => point.Number()).ToArray());
+        Assert.AreEqual("PaLM", points[0].Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted).Words()?.Text);
+        Assert.IsNull(points[1].Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted));
     }
 
     [TestMethod]

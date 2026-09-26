@@ -123,4 +123,49 @@ public class IshikawaBuilderTests : MermaidBuilderContract
         Assert.AreEqual(narrow.Width + 60, wide.Width, 0.5);
         Assert.AreEqual(narrow.Height + 60, wide.Height, 0.5);
     });
+
+    /// <summary>Single bones, which chip the event's own causes and list everything under them.</summary>
+    private static (List<string> Chips, List<Piece> Listed, string Source) Chipped(string source)
+    {
+        var chipped = "---\nconfig:\n  ishikawa:\n    singleBone: true\n---\n" + source;
+        var laid = Build(chipped);
+
+        return ([.. Pieces(laid, IshikawaPiece.Cause).Select(chip => Written(chipped, chip.Part))], Pieces(laid, IshikawaPiece.Label), chipped);
+    }
+
+    [TestMethod]
+    public void CausesStartAtTheFirstCausesIndentation_HoweverTheEventIsIndented() => UiThread.Run(() =>
+    {
+        foreach (var source in new[]
+                 {
+                     "ishikawa-beta\n    Blurry Photo\n        Process\n            Out of focus\n        User\n",
+                     "ishikawa-beta\nProblem\nCause A\n  Subcause A1\nCause B\n",
+                     "ishikawa-beta\n    Problem\nCause A\n  Subcause A1\nCause B\n",
+                     "ishikawa-beta Problem\n  Cause A\n    Subcause A1\n  Cause B\n",
+                 })
+        {
+            var (chips, listed, _) = Chipped(source);
+
+            Assert.AreEqual(2, chips.Count, source);
+            Assert.AreEqual(1, listed.Count, source);
+        }
+    });
+
+    [TestMethod]
+    public void ALineIndentedLessThanTheFirstCauseIsACauseOfTheEvent() => UiThread.Run(() =>
+    {
+        var (chips, listed, source) = Chipped("ishikawa\n  Problem\n    Cause A\n      Sub\n  Cause B");
+
+        CollectionAssert.AreEqual(new[] { "Cause A", "Cause B" }, chips);
+        Assert.AreEqual("Sub", Written(source, listed.Single().Part));
+    });
+
+    [TestMethod]
+    public void AnEventWithNoCausesIsAHeadAndNothingElse() => UiThread.Run(() =>
+    {
+        var laid = Build("ishikawa-beta\n  Problem");
+
+        Assert.AreEqual(1, Pieces(laid, IshikawaPiece.Head).Count);
+        Assert.AreEqual(0, Pieces(laid, IshikawaPiece.Cause).Count);
+    });
 }

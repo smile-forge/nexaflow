@@ -41,7 +41,7 @@ public static class IshikawaPiece
 /// bones are is shared out by how many causes each side holds, and the causes under a bone are spaced evenly along it.
 /// </para>
 /// </summary>
-internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
+internal sealed class IshikawaBuilder : MermaidBuilder
 {
     private const double CauseSize = 13;
 
@@ -75,16 +75,62 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
     internal IshikawaBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override IshikawaChart Of(MermaidBlock block) => IshikawaChart.Of(block);
+    /// <summary>The event, or one cause of it: the line as written — what pressing it means — what it says, and the causes under it.</summary>
+    private sealed class Cause(ContentPart part, ContentPart says)
+    {
+        public ContentPart Part { get; } = part;
 
-    protected override Size Draw(IshikawaChart chart, LayoutBuilder build)
+        public ContentPart Says { get; } = says;
+
+        /// <summary>The causes written under it, in the order they are written.</summary>
+        public List<Cause> Causes { get; } = [];
+
+        /// <summary>How many causes are under it, however deep.</summary>
+        public int Descendants => Causes.Sum(cause => 1 + cause.Descendants);
+    }
+
+    /// <summary>
+    /// The event the diagram is about — the fish's head — with the causes of it as their indentation nests them, or null where
+    /// nothing is written.
+    ///
+    /// <para>
+    /// The nesting is Mermaid's. The first line is the event, however far it is indented. The first cause's indentation is
+    /// where causes start, so the event may be indented more or less than they are; each later line is under the nearest line
+    /// before it indented less, and a line indented less than the first cause is a cause of the event itself.
+    /// </para>
+    /// </summary>
+    private Cause? Read()
+    {
+        var lines = Reading.Root.SelfAndDescendants()
+            .Where(part => part.Kind == IshikawaKinds.Cause && part.Words() is { Length: > 0 })
+            .Select(part => (part.Indent(), part))
+            .ToList();
+
+        // The event's own indentation counts for nothing, since it may be written further in than its causes.
+        var nested = MermaidOutline.Nested(lines, floor: true);
+        var causes = new List<Cause>(nested.Count);
+        Cause? effect = null;
+
+        foreach (var (part, parent) in nested.Select(line => (line.Item, line.Parent)))
+        {
+            var cause = new Cause(part, part.Words()!);
+            causes.Add(cause);
+
+            if (parent is { } over) causes[over].Causes.Add(cause);
+            else effect ??= cause;
+        }
+
+        return effect;
+    }
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
         // A diagram with nothing written in it is the source.
-        if (chart.Effect is not { } effect) return AsWritten(build);
-        if (chart.Config.SingleBone) return SingleBoned(chart.Config, effect, build);
+        if (Read() is not { } effect) return AsWritten(build);
 
-        var config = chart.Config;
+        var config = Configured(IshikawaConfig.Default);
+        if (config.SingleBone) return SingleBoned(config, effect, build);
+
         var fish = new Fish(Ink.Written(config.LineColour) ?? Palette.TextMuted, Ink.Written(config.Background) ?? Palette.CodeBg,
                             Ink.Written(config.TextColour) ?? Palette.Text, config.FontSize ?? CauseSize, config.DiagramPadding ?? 0);
 
@@ -136,7 +182,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     /// each of the event's causes on one short bone off it, above and below in turn, named in a chip of its own colour; and
     /// everything under a cause listed beside a stem running out from its chip, each level further in and quieter than the last.
     /// </summary>
-    private Size SingleBoned(IshikawaConfig config, IshikawaCause effect, LayoutBuilder build)
+    private Size SingleBoned(IshikawaConfig config, Cause effect, LayoutBuilder build)
     {
         var size = config.FontSize ?? CauseSize;
         var line = Ink.Written(config.LineColour) ?? Palette.TextMuted;
@@ -258,7 +304,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     }
 
     /// <summary>Every cause under a cause, depth first, each wrapped — the first level in the diagram's ink, the rest quieter.</summary>
-    private void Listed(IReadOnlyList<IshikawaCause> causes, int depth, double size, Brush text, List<Row> rows)
+    private void Listed(IReadOnlyList<Cause> causes, int depth, double size, Brush text, List<Row> rows)
     {
         foreach (var cause in causes)
         {
@@ -272,9 +318,9 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     private static double Indented(int depth) => (2 * Bullet) + ((depth - 1) * Indent);
 
     /// <summary>One of the event's causes on its single bone: its chip, its outline, and where they went.</summary>
-    private sealed class Cluster(IshikawaCause cause, Brush ink, IReadOnlyList<DiagramWords> name, Size chip, IReadOnlyList<Row> rows, Size outline, double middle, int side)
+    private sealed class Cluster(Cause cause, Brush ink, IReadOnlyList<DiagramWords> name, Size chip, IReadOnlyList<Row> rows, Size outline, double middle, int side)
     {
-        public IshikawaCause Cause { get; } = cause;
+        public Cause Cause { get; } = cause;
         public Brush Ink { get; } = ink;
         public IReadOnlyList<DiagramWords> Name { get; } = name;
         public Size Chip { get; } = chip;
@@ -290,9 +336,9 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     }
 
     /// <summary>A cause in an outline: how deep, what it says, and where its words and its dot went.</summary>
-    private sealed class Row(IshikawaCause cause, int depth, IReadOnlyList<DiagramWords> lines, Size size)
+    private sealed class Row(Cause cause, int depth, IReadOnlyList<DiagramWords> lines, Size size)
     {
-        public IshikawaCause Cause { get; } = cause;
+        public Cause Cause { get; } = cause;
         public int Depth { get; } = depth;
         public IReadOnlyList<DiagramWords> Lines { get; } = lines;
         public Size Size { get; } = size;
@@ -341,7 +387,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     }
 
     /// <summary>A cause's bone off the spine, its box at the bone's end, and every cause under it along the bone.</summary>
-    private void Branch(Fish fish, IshikawaCause cause, Point start, int direction, double length)
+    private void Branch(Fish fish, Cause cause, Point start, int direction, double length)
     {
         var reach = length * (cause.Causes.Count > 0 ? 1 : 0.2);
         var slant = new Vector(-Math.Cos(Angle) * reach, Math.Sin(Angle) * reach * direction);
@@ -359,7 +405,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
 
         if (cause.Causes.Count == 0) return;
 
-        var entries = new List<(IshikawaCause Cause, int Depth, int Parent)>();
+        var entries = new List<(Cause Cause, int Depth, int Parent)>();
         var order = new List<int>();
         Flatten(cause.Causes, -1, 2, direction, entries, order);
 
@@ -407,8 +453,8 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     /// The causes under a bone in the order they are drawn, and the order they take its height in: a level bone's cause nearer the
     /// spine than its own causes, a slanting bone's further. Above the spine, each bone's causes go the other way round.
     /// </summary>
-    private static void Flatten(IReadOnlyList<IshikawaCause> causes, int parent, int depth, int direction,
-                                List<(IshikawaCause Cause, int Depth, int Parent)> entries, List<int> order)
+    private static void Flatten(IReadOnlyList<Cause> causes, int parent, int depth, int direction,
+                                List<(Cause Cause, int Depth, int Parent)> entries, List<int> order)
     {
         foreach (var cause in direction < 0 ? causes.Reverse() : causes)
         {
@@ -422,7 +468,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
     }
 
     /// <summary>How many causes every other one of the event's causes holds — from <paramref name="first"/> — in all, and at most.</summary>
-    private static (int Total, int Most) Side(IReadOnlyList<IshikawaCause> causes, int first)
+    private static (int Total, int Most) Side(IReadOnlyList<Cause> causes, int first)
     {
         var held = causes.Where((_, index) => index % 2 == first).Select(cause => cause.Descendants).ToList();
         return (held.Sum(), held.DefaultIfEmpty(0).Max());
@@ -479,7 +525,7 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         build.Close();
     }
 
-    private static void Bones(LayoutBuilder build, Fish fish, IshikawaCause effect, Vector shift)
+    private static void Bones(LayoutBuilder build, Fish fish, Cause effect, Vector shift)
     {
         build.Open(IshikawaPiece.Bones, part: null, stops: Stops.None);
 
@@ -514,12 +560,12 @@ internal sealed class IshikawaBuilder : MermaidBuilder<IshikawaChart>
         public Brush Text { get; } = text;
         public double Size { get; } = size;
 
-        public (IshikawaCause Effect, IReadOnlyList<DiagramWords> Lines, Size Words, double Wide, double Tall) Head { get; set; }
+        public (Cause Effect, IReadOnlyList<DiagramWords> Lines, Size Words, double Wide, double Tall) Head { get; set; }
         public (Point From, Point To) Spine { get; set; }
 
-        public List<(IshikawaCause Cause, IReadOnlyList<DiagramWords> Lines, Rect Box)> Boxes { get; } = [];
-        public List<(IshikawaCause Cause, IReadOnlyList<DiagramWords> Lines, Rect At)> Labels { get; } = [];
-        public List<(IshikawaCause Cause, Point Far, Point Near, double Thickness)> Bones { get; } = [];
+        public List<(Cause Cause, IReadOnlyList<DiagramWords> Lines, Rect Box)> Boxes { get; } = [];
+        public List<(Cause Cause, IReadOnlyList<DiagramWords> Lines, Rect At)> Labels { get; } = [];
+        public List<(Cause Cause, Point Far, Point Near, double Thickness)> Bones { get; } = [];
 
         /// <summary>What moves everything drawn inside the box the diagram takes, and how big that box is.</summary>
         public Vector Shift => _room.Shift;

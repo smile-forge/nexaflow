@@ -189,4 +189,63 @@ public class XyBuilderTests : MermaidBuilderContract
         Assert.IsTrue(washed.Height > washed.Width, $"three letters of turned words are washed up the page: {washed}");
         Assert.IsTrue(washed.Height < title.Bounds.Height && title.Bounds.IntersectsWith(washed), "three letters of the words, not all of them");
     });
+
+    private static List<Rect> Bars(string source) => [.. Pieces(Build(source), XyPiece.Bar).Select(bar => bar.Bounds)];
+
+    [TestMethod]
+    public void WhichWayItRunsIsTheHeaders_UnlessTheFrontMatterSays() => UiThread.Run(() =>
+    {
+        var upright = Bars("---\nconfig:\n  xyChart:\n    chartOrientation: vertical\n---\nxychart horizontal\n  x-axis [a, b]\n  bar [2, 8]");
+
+        Assert.AreEqual(upright[0].Bottom, upright[1].Bottom, 0.5, "standing on one foot, as a vertical chart's bars do");
+        Assert.IsTrue(upright[1].Height > upright[0].Height * 3, "and rising as far as their values");
+    });
+
+    [TestMethod]
+    public void WithNoRangeWrittenTheValuesAreTheirOwn_FromNoughtWhereThereAreBars() => UiThread.Run(() =>
+    {
+        var bars = Bars("xychart\n  x-axis [a, b]\n  bar [2, 8]");
+        Assert.AreEqual(bars[1].Height / 4, bars[0].Height, 1, "2 is a quarter as tall as 8, both from nought");
+
+        var signed = Bars("xychart\n  x-axis [a, b]\n  bar [-5, 3]");
+        Assert.IsTrue(signed[0].Top >= signed[1].Bottom - 0.5, "a value below nought hangs down from where the other stands");
+
+        double Apart(string source)
+        {
+            var dots = Pieces(Build(source), XyPiece.Dot).Select(dot => Middle(dot.Bounds).Y).ToList();
+            return dots[0] - dots[1];
+        }
+
+        Assert.IsTrue(Apart("xychart\n  x-axis [a, b]\n  line [2 \"a\", 8 \"b\"]") > Apart("xychart\n  x-axis [a, b]\n  y-axis 0 --> 8\n  line [2 \"a\", 8 \"b\"]"),
+                      "a line alone is drawn against its own values, not from nought");
+    });
+
+    [TestMethod]
+    public void WithNoCategoriesTheSlotsAreTheLongestSeries() => UiThread.Run(() =>
+    {
+        var laid = Build("xychart\n  x-axis 0 --> 10\n  bar [1, 2]\n  line [1 \"a\", 2, 3, 4]");
+        var dots = Pieces(laid, XyPiece.Dot).Select(dot => Middle(dot.Bounds).X).ToList();
+        var bars = Pieces(laid, XyPiece.Bar).Select(bar => Middle(bar.Bounds).X).ToList();
+
+        Assert.AreEqual(4, dots.Count);
+        Assert.AreEqual(dots[1], bars[1], 1, "the bar series' second value stands at the second of the four places");
+    });
+
+    [TestMethod]
+    public void AnAxisWrittenTwiceIsTheLastOneWritten() => UiThread.Run(() =>
+    {
+        const string source = "xychart\n  x-axis [a]\n  x-axis [b]\n  bar [1]";
+        var categories = Pieces(Build(source), XyPiece.Tick).Where(tick => tick.Words is { Maps: true }).Select(tick => Written(source, tick.Part));
+
+        CollectionAssert.AreEqual(new[] { "b" }, categories.ToArray());
+    });
+
+    [TestMethod]
+    public void ThePalettesColoursComeRoundAgainForTheSeriesPastIt() => UiThread.Run(() =>
+    {
+        var bars = Pieces(Build("---\nconfig:\n  themeVariables:\n    xyChart:\n      plotColorPalette: \"#ff0000, #00ff00\"\n---\nxychart\n  x-axis [a]\n  bar [1]\n  bar [2]\n  bar [3]"), XyPiece.Bar)
+            .Select(bar => bar.Marks.ToArray().OfType<GeometryMark>().Select(mark => mark.Fill).OfType<SolidColorBrush>().First().Color).ToList();
+
+        CollectionAssert.AreEqual(new[] { Color.FromRgb(0xFF, 0, 0), Color.FromRgb(0, 0xFF, 0), Color.FromRgb(0xFF, 0, 0) }, bars);
+    });
 }

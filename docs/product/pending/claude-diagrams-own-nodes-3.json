@@ -1,0 +1,178 @@
+{
+  "branch": "claude/diagrams-own-nodes-3",
+  "nodes": {
+    "ishikawa-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaGrammar.cs",
+          "class": "IshikawaGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaConfig.cs",
+          "class": "IshikawaConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaGrammarTests.cs",
+            "class": "IshikawaGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Ishikawa/IshikawaConfigTests.cs",
+            "class": "IshikawaConfigTests"
+          }
+        ]
+      }
+    },
+    "mindmap-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapGrammar.cs",
+          "class": "MindmapGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/ResolveRoot.cs",
+          "class": "ResolveRoot"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapConfig.cs",
+          "class": "MindmapConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidOutline.cs",
+          "class": "MermaidOutline",
+          "method": "Nested"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapGrammarTests.cs",
+            "class": "MindmapGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Mindmap/MindmapConfigTests.cs",
+            "class": "MindmapConfigTests"
+          }
+        ]
+      }
+    },
+    "xy-chart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs",
+          "class": "XyGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Xy/XyConfig.cs",
+          "class": "XyConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyGrammarTests.cs",
+            "class": "XyGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Xy/XyConfigTests.cs",
+            "class": "XyConfigTests"
+          }
+        ]
+      }
+    },
+    "gitgraph-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs",
+          "class": "GitGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitNodes.cs",
+          "class": "GitCommitNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/GitConfig.cs",
+          "class": "GitConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs",
+          "class": "ResolveGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidLine.cs",
+          "class": "MermaidLine",
+          "method": "Properties"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitGrammarTests.cs",
+            "class": "GitGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Git/GitStagesTests.cs",
+            "class": "GitStagesTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 8,
+  "touched_nodes": [
+    "gitgraph-ast",
+    "ishikawa-ast",
+    "mindmap-ast",
+    "xy-chart-ast"
+  ]
+}

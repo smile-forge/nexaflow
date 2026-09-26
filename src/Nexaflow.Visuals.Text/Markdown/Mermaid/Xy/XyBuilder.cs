@@ -63,7 +63,7 @@ public static class XyPiece
 /// for the same reason.
 /// </para>
 /// </summary>
-internal sealed class XyBuilder : MermaidBuilder<XyChart>
+internal sealed class XyBuilder : MermaidBuilder
 {
     /// <summary>How big the chart is drawn before anything asks for another size.</summary>
     private const double Wide = 560;
@@ -83,21 +83,169 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
     internal XyBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override XyChart Of(MermaidBlock block) => XyChart.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
+
+    /// <summary>What a series is drawn as.</summary>
+    private enum Drawn { Bar, Line }
+
+    /// <summary>One of an x-axis's categories: what it says as written, and the hole standing where it is still to write.</summary>
+    private sealed record Category(ContentPart Name, ContentPart? Hole);
+
+    /// <summary>One axis: the line it was written on — what pressing the axis means — its title, and its categories or its range.</summary>
+    /// <param name="Title">What its title says, without its quotes, or null where it has none.</param>
+    /// <param name="Categories">Its categories in the order written — none for an axis of numbers.</param>
+    /// <param name="Min">Where its range starts, as written, or null.</param>
+    /// <param name="Max">Where its range ends, as written, or null.</param>
+    private sealed record AxisLine(ContentPart Part, ContentPart? Title, ContentPart? TitleHole, IReadOnlyList<Category> Categories, double? Min, double? Max)
+    {
+        public bool Categorical => Categories.Count > 0;
+
+        /// <summary>Whether both ends of its range are written.</summary>
+        public bool Ranged => Min is not null && Max is not null;
+    }
+
+    /// <summary>One value of a series: the value and its label as written — what pressing its bar means — the number, what it comes to, and its label.</summary>
+    /// <param name="Value">The number as written — empty where it is still to come.</param>
+    /// <param name="Worth">What the number comes to, or null where it is none.</param>
+    /// <param name="Label">What its label says, without its quotes, or null where it has none.</param>
+    private sealed record Valued(ContentPart Part, ContentPart Value, double? Worth, ContentPart? Label, ContentPart? LabelHole);
+
+    /// <summary>One series: the line it was written on — what pressing its line means, and its legend row — what it is drawn as, its name, its values, and its colour.</summary>
+    /// <param name="Name">What its name says, without its quotes, or null where it has none — and then it has no legend row.</param>
+    /// <param name="Order">Where it comes among the series written, which is the colour it takes.</param>
+    /// <param name="Colour">The colour <c>plotColorPalette</c> writes for its place, or null to leave it to the theme.</param>
+    private sealed record Series(ContentPart Part, Drawn Kind, ContentPart? Name, ContentPart? NameHole, IReadOnlyList<Valued> Points, int Order, string? Colour);
+
+    /// <summary>
+    /// The chart as written: which way it runs, its two axes, and its series in the order they are written. Each series' values
+    /// stand over the categories in order — the first over the first — and an axis written twice is the last one written.
+    /// </summary>
+    private sealed class Chart(XyConfig config, XyOrientation orientation, AxisLine? x, AxisLine? y, IReadOnlyList<Series> series)
+    {
+        public XyConfig Config { get; } = config;
+
+        public XyOrientation Orientation { get; } = orientation;
+
+        /// <summary>The x-axis — the categories, or the numbers the values stand over — or null where none is written.</summary>
+        public AxisLine? X { get; } = x;
+
+        /// <summary>The y-axis — the numbers the values reach — or null where none is written.</summary>
+        public AxisLine? Y { get; } = y;
+
+        /// <summary>The series, in the order written: bars side by side in that order, and lines over the bars.</summary>
+        public IReadOnlyList<Series> Series { get; } = series;
+
+        /// <summary>How many places along the x-axis the values stand at: its categories, or else the most values any series has.</summary>
+        public int Slots => X is { Categorical: true } axis ? axis.Categories.Count : Series.Select(each => each.Points.Count).DefaultIfEmpty(0).Max();
+
+        /// <summary>
+        /// The numbers the values are drawn against: the y-axis's range where both its ends are written, and otherwise the values'
+        /// own — from nought where there are bars, and one wide at the least.
+        /// </summary>
+        public (double Min, double Max) Range
+        {
+            get
+            {
+                if (Y is { Ranged: true } axis && axis.Max > axis.Min) return (axis.Min!.Value, axis.Max!.Value);
+
+                var values = Series.SelectMany(each => each.Points).Select(point => point.Worth).OfType<double>().ToList();
+                if (values.Count == 0) return (0, 1);
+
+                var min = values.Min();
+                var max = values.Max();
+                if (Series.Any(each => each.Kind == Drawn.Bar)) (min, max) = (Math.Min(min, 0), Math.Max(max, 0));
+
+                return max > min ? (min, max) : (min, min + 1);
+            }
+        }
+    }
+
+    /// <summary>The chart as written, with what its front matter asks for — which way it runs where it says, over the header's word.</summary>
+    private Chart Read()
+    {
+        var config = Configured(XyConfig.Default);
+        var orientation = XyOrientation.Vertical;
+        AxisLine? x = null, y = null;
+        var series = new List<Series>();
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Kind)
+            {
+                case XyKinds.Orientation when part.Text.Equals(XyGrammar.Horizontal, StringComparison.OrdinalIgnoreCase):
+                    orientation = XyOrientation.Horizontal;
+                    break;
+
+                case XyKinds.Axis when Word(part) is { } word:
+                    if (word.Equals(XyGrammar.XAxis, StringComparison.OrdinalIgnoreCase)) x = Axised(part);
+                    else y = Axised(part);
+                    break;
+
+                case XyKinds.Series when Word(part) is { } word:
+                    var order = series.Count;
+                    series.Add(Plotted(part, word, order, config.Palette.Count > 0 ? config.Palette[order % config.Palette.Count] : null));
+                    break;
+            }
+        }
+
+        return new Chart(config, config.Orientation ?? orientation, x, y, series);
+    }
+
+    /// <summary>What an axis or series line starts with — <c>x-axis</c>, <c>bar</c> — as written.</summary>
+    private static string? Word(ContentPart part) => part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Key)?.Text;
+
+    /// <summary>A title or a name: in quotes, or a word.</summary>
+    private static ContentPart? Titled(ContentPart part) =>
+        part.Children.FirstOrDefault(child => child.Kind is MermaidKinds.Quoted or MermaidKinds.Name);
+
+    private static AxisLine Axised(ContentPart part)
+    {
+        var title = Titled(part);
+        var categories = part.Children.FirstOrDefault(child => child.Kind == XyKinds.Categories)?.Children
+                             .FirstOrDefault(child => child.Kind == MermaidKinds.Names)
+                             .Named()
+                             .Select(name => new Category(name.Words()!, name.Hole()))
+                             .ToList() ?? [];
+
+        var ends = part.Children.FirstOrDefault(child => child.Kind == XyKinds.Range)?.Children
+                       .Where(child => child.Kind == MermaidKinds.Amount)
+                       .ToList() ?? [];
+
+        return new AxisLine(part, title.Words(), title.Hole(), categories, ends.ElementAtOrDefault(0).Number(), ends.ElementAtOrDefault(1).Number());
+    }
+
+    private static Series Plotted(ContentPart part, string word, int order, string? colour)
+    {
+        var name = Titled(part);
+        var points = part.Children.FirstOrDefault(child => child.Kind == XyKinds.Values)?.Children
+                         .Where(child => child.Kind == XyKinds.Point)
+                         .Select(point =>
+                         {
+                             var label = point.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted);
+                             return new Valued(point, point.Inner(MermaidKinds.Number)!, point.Number(), label.Words(), label.Hole());
+                         })
+                         .ToList() ?? [];
+
+        var kind = word.Equals(XyGrammar.Line, StringComparison.OrdinalIgnoreCase) ? Drawn.Line : Drawn.Bar;
+        return new Series(part, kind, name.Words(), name.Hole(), points, order, colour);
+    }
+
+    // ── Laying it out ───────────────────────────────────────────────────────
 
     /// <summary>The front matter's <c>titleColor</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleColour;
+    protected override string? TitleColour => Configured(XyConfig.Default).TitleColour;
 
     /// <summary>The front matter's <c>titleFontSize</c>, where it writes one.</summary>
-    protected override double? TitleTextSize => Diagram?.Config.TitleFontSize;
+    protected override double? TitleTextSize => Configured(XyConfig.Default).TitleFontSize;
 
     /// <summary>No title where the front matter's <c>showTitle</c> is false.</summary>
     protected override (ContentPart? Part, string? Says, bool AsWritten) TitleOf(MermaidBlock block) =>
-        Diagram?.Config.ShowTitle == false ? (null, null, false) : base.TitleOf(block);
+        Configured(XyConfig.Default).ShowTitle is false ? (null, null, false) : base.TitleOf(block);
 
-    protected override Size Draw(XyChart chart, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        var chart = Read();
+
         // A chart of nothing is the source: no axis, no series, nothing to look at.
         if (chart.X is null && chart.Y is null && chart.Series.Count == 0) return AsWritten(build);
 
@@ -174,7 +322,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     /// Where the categories are drawn along their axis, and what is written at each: a category somebody wrote, a number on
     /// an axis of numbers, or nothing on an axis with neither.
     /// </summary>
-    private List<DiagramTick> Categories(XyChart chart, int slots)
+    private List<DiagramTick> Categories(Chart chart, int slots)
     {
         var config = chart.Config.XAxis;
         var size = config.LabelFontSize ?? LabelSize;
@@ -194,7 +342,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     }
 
     /// <summary>Ticks at worked-out numbers, pressed as the axis they are on.</summary>
-    private List<DiagramTick> Ticks(XyAxisConfig config, XyAxis? axis, IEnumerable<(double At, string Says)> numbers)
+    private List<DiagramTick> Ticks(XyAxisConfig config, AxisLine? axis, IEnumerable<(double At, string Says)> numbers)
     {
         var size = config.LabelFontSize ?? LabelSize;
         var ink = Ink.Written(config.LabelColour) ?? Palette.TextMuted;
@@ -206,10 +354,10 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     /// How far along the categories the <paramref name="at"/>th value stands: in the middle of its slot — or, over an axis of
     /// numbers, from the start of the range at the first to its end at the last, as Mermaid spreads them.
     /// </summary>
-    private static double Along(XyChart chart, int at, int slots) =>
+    private static double Along(Chart chart, int at, int slots) =>
         chart.X is { Categorical: false, Ranged: true } ? (slots > 1 ? (double)at / (slots - 1) : 0.5) : (at + 0.5) / slots;
 
-    private DiagramWords? AxisTitle(XyAxisConfig config, XyAxis? axis) =>
+    private DiagramWords? AxisTitle(XyAxisConfig config, AxisLine? axis) =>
         config.ShowTitle && axis is { Title: not null } or { TitleHole: not null }
             ? Written(axis.Title, axis.TitleHole, config.TitleFontSize ?? TitleSize, Ink.Written(config.TitleColour) ?? Palette.Text)
             : null;
@@ -231,10 +379,10 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
 
     // ── The series ──────────────────────────────────────────────────────────
 
-    private void Bars(LayoutBuilder build, XyChart chart, int slots, XyConfig config, Func<double, double, Point> on, double foot,
+    private void Bars(LayoutBuilder build, Chart chart, int slots, XyConfig config, Func<double, double, Point> on, double foot,
                       Func<double, double> reach, List<(DiagramWords, Point, string)> labels)
     {
-        var bars = chart.Series.Where(series => series.Kind == XySeriesKind.Bar).ToList();
+        var bars = chart.Series.Where(series => series.Kind == Drawn.Bar).ToList();
         var span = Filled / slots / Math.Max(1, bars.Count);
 
         build.Open(XyPiece.Bars, part: null, stops: Stops.None);
@@ -266,7 +414,7 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     }
 
     /// <summary>A bar's value, written just inside its end — or past it, where the front matter asks.</summary>
-    private (DiagramWords, Point, string) DataLabel(XyChart chart, XyPoint point, double worth, Rect bar, Brush fill, bool rising)
+    private (DiagramWords, Point, string) DataLabel(Chart chart, Valued point, double worth, Rect bar, Brush fill, bool rising)
     {
         var config = chart.Config;
         var outside = config.ShowDataLabelOutsideBar;
@@ -286,16 +434,16 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
         return (words, new Point(bar.Left + ((bar.Width - words.Width) / 2), y), XyPiece.Value);
     }
 
-    private void Lines(LayoutBuilder build, XyChart chart, int slots, Func<double, double, Point> on, Func<double, double> reach,
+    private void Lines(LayoutBuilder build, Chart chart, int slots, Func<double, double, Point> on, Func<double, double> reach,
                        List<(DiagramWords, Point, string)> labels)
     {
         build.Open(XyPiece.Lines, part: null, stops: Stops.None);
 
-        foreach (var series in chart.Series.Where(series => series.Kind == XySeriesKind.Line))
+        foreach (var series in chart.Series.Where(series => series.Kind == Drawn.Line))
         {
             var ink = Colour(series);
             var route = new List<Point>();
-            var dots = new List<(XyPoint Point, Point At)>();
+            var dots = new List<(Valued Point, Point At)>();
 
             for (var at = 0; at < series.Points.Count && at < slots; at++)
             {
@@ -338,12 +486,12 @@ internal sealed class XyBuilder : MermaidBuilder<XyChart>
     }
 
     /// <summary>What a series is drawn in: <c>plotColorPalette</c>'s colour for its place, or the theme's.</summary>
-    private Brush Colour(XySeries series) => Ink.Series(series.Order, series.Colour);
+    private Brush Colour(Series series) => Ink.Series(series.Order, series.Colour);
 
     // ── The legend ──────────────────────────────────────────────────────────
 
     /// <summary>A row for each series with a name — along a line under the chart — where the front matter shows a legend.</summary>
-    private DiagramLegend Legend(XyChart chart)
+    private DiagramLegend Legend(Chart chart)
     {
         var config = chart.Config;
         var size = config.LegendFontSize ?? LegendSize;

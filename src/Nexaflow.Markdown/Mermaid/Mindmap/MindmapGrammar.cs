@@ -11,9 +11,10 @@ namespace Nexaflow.Markdown.Mermaid.Mindmap;
 /// <para>
 /// The rules are Mermaid's. A node is read as every outline diagram's is (<see cref="MermaidOutline"/>): its id, its title in
 /// brackets, or both. Which brackets say which shape is the mindmap's own — <c>[…]</c> a square, <c>(…)</c> a rounded square,
-/// <c>((…))</c> a circle, <c>)…(</c> a cloud, <c>))…((</c> a bang, <c>{{…}}</c> a hexagon, and a bare id no border at all
-/// (<see cref="MindmapTree"/>). The first node is the root and every later one hangs off the nearest node before it indented
-/// less, which is the whole block's business rather than a line's (<see cref="ResolveRoot"/>).
+/// <c>((…))</c> a circle, <c>)…(</c> a cloud, <c>))…((</c> a bang, <c>{{…}}</c> a hexagon, and a bare id no border at all.
+/// The first node is the root and every later one hangs off the nearest node before it indented less — the order and
+/// indentation the lines are written in — and a node indented no further than the root, hanging off nothing, is worked out
+/// over the whole block (<see cref="ResolveRoot"/>).
 /// </para>
 /// </summary>
 public sealed class MindmapGrammar : IMermaidGrammar
@@ -58,8 +59,9 @@ public sealed class MindmapGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Whether every node hangs off the root, by its indentation over the whole block (<see cref="ResolveRoot"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveRoot()];
+    /// <remarks>Whether every node hangs off the root, by its indentation over the whole block (<see cref="ResolveRoot"/>), and what the front matter asks for.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+        [new ResolveRoot(), new WithConfig<MindmapConfig>(MindmapConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a title is still to write, between its quotes.</remarks>

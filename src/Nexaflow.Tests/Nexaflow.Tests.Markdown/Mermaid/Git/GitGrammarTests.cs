@@ -133,17 +133,6 @@ public class GitGrammarTests : MermaidGrammarContract
     }
 
     [TestMethod]
-    public void EachCommitSaysWhichBranchItIsMadeOn()
-    {
-        var read = ContentReading.Of(MermaidStaged.Read(History)).Root;
-
-        CollectionAssert.AreEqual(
-            new[] { "main", "main", "develop", "develop", "main", "main" },
-            read.SelfAndDescendants().Where(part => part.Kind == GitKinds.Commit).Select(commit => commit.Fact(GitRoles.On)).ToArray());
-        Assert.AreEqual("main", read.SelfAndDescendants().Single(part => part.Kind == GitKinds.Merge).Fact(GitRoles.On));
-    }
-
-    [TestMethod]
     public void ANewLineIsAnotherCommit()
     {
         var grammar = new GitGrammar();

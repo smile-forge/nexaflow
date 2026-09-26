@@ -116,4 +116,31 @@ public class MindmapBuilderTests : MermaidBuilderContract
 
         Assert.AreEqual("CommonMark", Written(Map, laid.Root.PieceAt(middle).Part).Trim(), "pressing the branch means the node it reaches");
     });
+
+    /// <summary>What a branch is drawn in, by the node it reaches.</summary>
+    private static Color Stroke(Laid laid, string source, string reaches) =>
+        ((SolidColorBrush)Pieces(laid, MindmapPiece.Branch).Single(one => Written(source, one.Part).Trim() == reaches)
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().First(mark => mark.Stroke is not null).Stroke!).Color;
+
+    [TestMethod]
+    public void UnclearIndentationHangsANodeOffTheNearestNodeIndentedLess() => UiThread.Run(() =>
+    {
+        const string source = "mindmap\n    Root\n        A\n            B\n          C";
+        var laid = Build(source);
+        var parent = Node(laid, source, "A").Bounds;
+        var branch = Pieces(laid, MindmapPiece.Branch).Single(one => Written(source, one.Part).Trim() == "C").Bounds;
+
+        Assert.AreEqual(parent.Left, branch.Right, 2, "C is neither B's child nor its sibling by indentation, so it is A's child, as Mermaid reads it");
+    });
+
+    [TestMethod]
+    public void EachBranchOffTheRootIsItsOwn_AndEveryNodeUnderItTakesIt() => UiThread.Run(() =>
+    {
+        const string source = "mindmap\nr\n a\n b\n  c\n d\n  e\n   f\n g";
+        var laid = Build(source);
+
+        Assert.AreEqual(4, new[] { "a", "b", "d", "g" }.Select(child => Stroke(laid, source, child)).Distinct().Count(), "every child of the root a colour of its own");
+        Assert.AreEqual(Stroke(laid, source, "b"), Stroke(laid, source, "c"));
+        Assert.IsTrue(new[] { "e", "f" }.All(under => Stroke(laid, source, under) == Stroke(laid, source, "d")), "and everything under it that colour");
+    });
 }
