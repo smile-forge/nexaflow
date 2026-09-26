@@ -105,11 +105,11 @@ public static class AbcParser
             var comment = CommentAt(value);
             if (comment < 0)
             {
-                if (value.Length > 0) pieces.Add(Value(value, kind));
+                if (value.Length > 0) pieces.Add(Value(value, kind, letter));
             }
             else
             {
-                if (comment > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Text, value[..comment], AbcRoles.Value));
+                if (comment > 0) pieces.Add(Value(value[..comment], kind, letter));
                 pieces.Add(ContentNode.Leaf(Kinds.Comment, value[comment..], Roles.Trivia));
             }
         }
@@ -135,13 +135,148 @@ public static class AbcParser
     }
 
     /// <summary>
-    /// A field's value. One leaf for every field but a lyric, which is split into the syllables it is
-    /// made of so each has characters of its own to be selected and edited by.
+    /// A field's value, split as far as its letter says it is made of anything. A <c>w:</c> line is its syllables; a
+    /// <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> is its words — a key, figures, <c>key=value</c> settings — and every other
+    /// field is prose, held as the one run of words it is.
     /// </summary>
-    private static ContentNode Value(string value, string kind) =>
-        kind == AbcKinds.LyricLine
-            ? ContentNode.Branch(AbcKinds.Text, Sung(value), AbcRoles.Value)
-            : ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value);
+    private static ContentNode Value(string value, string kind, char letter) =>
+        kind == AbcKinds.LyricLine ? ContentNode.Branch(AbcKinds.Text, Sung(value), AbcRoles.Value)
+        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(AbcKinds.Text, Words(value, letter), AbcRoles.Value)
+        : ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value);
+
+    /// <summary>
+    /// The words of a <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> value and the space between them. A word runs to the next
+    /// space outside double quotes, so <c>name="Tenor Solo"</c> is one word.
+    /// </summary>
+    private static List<ContentNode> Words(string value, char letter)
+    {
+        var pieces = new List<ContentNode>();
+        var at = 0;
+        var first = true;
+
+        while (at < value.Length)
+        {
+            var from = at;
+
+            if (char.IsWhiteSpace(value[at]))
+            {
+                while (at < value.Length && char.IsWhiteSpace(value[at])) at++;
+                pieces.Add(ContentNode.Leaf(Kinds.Space, value[from..at], Roles.Trivia));
+                continue;
+            }
+
+            var quoted = false;
+            while (at < value.Length && (quoted || !char.IsWhiteSpace(value[at])))
+            {
+                if (value[at] == '"') quoted = !quoted;
+                at++;
+            }
+
+            pieces.Add(Word(value[from..at], letter, first));
+            first = false;
+        }
+
+        return pieces;
+    }
+
+    /// <summary>
+    /// One word of a field's value: the key a <c>K:</c> opens with, a <c>key=value</c> setting, the figures of a meter or a unit
+    /// length, or a word standing for itself.
+    ///
+    /// <para>
+    /// A key is a capital letter from A to G, which is what tells it from a clef named on its own — <c>K:bass</c> — and from a
+    /// setting, whose name is written in lower case; so it is looked for first, and <c>K:AMix=g</c> is A Mixolydian with an
+    /// explicit natural glued to it rather than a setting called <c>AMix</c>.
+    /// </para>
+    /// </summary>
+    private static ContentNode Word(string word, char letter, bool first)
+    {
+        if (letter == 'K' && first && word[0] is >= 'A' and <= 'G') return Key(word);
+
+        var equals = word.IndexOf('=');
+        if (equals > 0 && word[..equals].IndexOf('"') < 0) return Setting(word, equals);
+
+        if (letter is 'M' or 'L' && (char.IsAsciiDigit(word[0]) || word[0] == '(')) return ContentNode.Branch(AbcKinds.Figures, Figures(word));
+
+        return ContentNode.Leaf(AbcKinds.Word, word);
+    }
+
+    /// <summary><c>clef=bass</c>, <c>name="Soprano"</c>: its name, the equals sign, and what it is set to.</summary>
+    private static ContentNode Setting(string word, int equals)
+    {
+        List<ContentNode> pieces =
+        [
+            ContentNode.Leaf(AbcKinds.Word, word[..equals], Roles.Name),
+            ContentNode.Leaf(Kinds.Token, "=", Roles.Separator),
+        ];
+
+        var set = word[(equals + 1)..];
+
+        if (set.Length > 0 && set[0] == '"')
+        {
+            // A quoted value is its quotes and what is between them; a quote nobody closed runs to the end of the word.
+            var close = set.IndexOf('"', 1);
+            var inner = close < 0 ? set[1..] : set[1..close];
+
+            List<ContentNode> quoted = [ContentNode.Leaf(Kinds.Token, "\"", Roles.Open)];
+            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(AbcKinds.Text, inner, Roles.Body));
+            if (close >= 0) quoted.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+            if (close >= 0 && close + 1 < set.Length) quoted.Add(ContentNode.Leaf(Kinds.Token, set[(close + 1)..]));
+
+            pieces.Add(ContentNode.Branch(AbcKinds.Text, quoted, AbcRoles.Value));
+        }
+        else if (set.Length > 0)
+        {
+            pieces.Add(ContentNode.Leaf(AbcKinds.Word, set, AbcRoles.Value));
+        }
+
+        return ContentNode.Branch(AbcKinds.Setting, pieces);
+    }
+
+    /// <summary>
+    /// The key a <c>K:</c> opens with — <c>Bbm</c>, <c>F#mix</c>, <c>G</c> — as its tonic, the sharps or flats written on it, and
+    /// the letters of its mode written straight after.
+    /// </summary>
+    private static ContentNode Key(string word)
+    {
+        List<ContentNode> pieces = [ContentNode.Leaf(AbcKinds.Tonic, word[..1], Roles.Name)];
+
+        var at = 1;
+        while (at < word.Length && word[at] is '#' or 'b') at++;
+        if (at > 1) pieces.Add(ContentNode.Leaf(Kinds.Token, word[1..at], AbcRoles.Accidental));
+
+        var mode = at;
+        while (at < word.Length && char.IsLetter(word[at])) at++;
+        if (at > mode) pieces.Add(ContentNode.Leaf(AbcKinds.Mode, word[mode..at], AbcRoles.Mode));
+
+        if (at < word.Length) pieces.Add(ContentNode.Leaf(Kinds.Token, word[at..]));
+
+        return ContentNode.Branch(AbcKinds.Key, pieces);
+    }
+
+    /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c> — as its numbers and the marks between them.</summary>
+    private static List<ContentNode> Figures(string word)
+    {
+        var pieces = new List<ContentNode>();
+        var at = 0;
+
+        while (at < word.Length)
+        {
+            var from = at;
+
+            if (char.IsAsciiDigit(word[at]))
+            {
+                while (at < word.Length && char.IsAsciiDigit(word[at])) at++;
+                pieces.Add(ContentNode.Leaf(AbcKinds.Number, word[from..at]));
+                continue;
+            }
+
+            at++;
+            pieces.Add(ContentNode.Leaf(Kinds.Token, word[from..at]));
+        }
+
+        return pieces;
+    }
 
     /// <summary>
     /// A verse cut into syllables and the marks between them, in order and losing nothing — printing the
@@ -413,7 +548,7 @@ public static class AbcParser
                 ContentNode.Leaf(Kinds.Token, s[(i + 1)..(i + 3)], Roles.Name),
             };
 
-            if (close > i + 3) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[(i + 3)..close], AbcRoles.Value));
+            if (close > i + 3) pieces.Add(Value(s[(i + 3)..close], AbcKinds.InlineField, s[i + 1]));
             pieces.Add(ContentNode.Leaf(Kinds.Token, s[close..(close + 1)], Roles.Close));
 
             i = close + 1;

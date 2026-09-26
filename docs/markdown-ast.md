@@ -308,7 +308,7 @@ diagram's grammar and builder are built from the kit. How a diagram is added and
 
 | Stage | What it works out |
 |---|---|
-| `ResolveFields` | what each field's value says for its letter: a key and clef, a meter and its sign, a unit length, a voice |
+| `ResolveFields` | what the words of each field's value say for its letter: a key and clef, a meter and its sign, a unit length, a voice |
 | `ResolveContext` | the key, meter, unit note length and voice in force on each line |
 | `GroupTuplets` | a `(3` marker and the events it covers |
 | `GroupBeams` | the events written together with no space between them |
@@ -318,6 +318,13 @@ diagram's grammar and builder are built from the kit. How a diagram is added and
 | `ResolveMarks` | the mark each decoration names, however it is spelled, and whether a quoted run is a chord or placed text |
 | `CheckDrawable` | what is written correctly and still cannot be drawn: a decoration naming no mark |
 | `ShowAsWritten` | the stretch under the caret, shown as typed |
+
+**A field's value is its words.** The parser splits a `K:`, `M:`, `L:` or `V:` value into a key (its tonic, the sharps or
+flats on it, the mode written straight after), figures (the numbers of a meter or a unit length and the marks between
+them), `key=value` settings — a quoted one whole, spaces and all — and words standing for themselves; every other field
+is held whole as the prose it is. A key is a capital `A`–`G`, so `K:bass` names a clef and leaves the key alone, and a
+mode is its own word, so what follows it — `K:Dm clef=bass` — is not part of it. `ResolveFields` reads what the words
+are and takes no characters apart.
 
 A length needs the unit note length; a tuplet's default needs the meter; a tuplet beams as one group; a beam never
 crosses a bar line; an accidental lasts a bar. A measure never crosses a source line, because a line ending is a

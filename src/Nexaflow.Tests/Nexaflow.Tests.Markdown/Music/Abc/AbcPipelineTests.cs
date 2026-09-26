@@ -250,6 +250,39 @@ public class AbcPipelineTests
     }
 
     [TestMethod]
+    public void AKeysModeIsItsOwnWordAndNothingAfterIt()
+    {
+        // What follows the mode — a clef, an octave — is not part of it: D minor with a bass clef is still D minor.
+        foreach (var (line, fifths) in new[] { ("K:Dm clef=bass", -1), ("K:Gm octave=-1", -2), ("K:Am treble", 0), ("K:C Lydian clef=bass", 1), ("K:AMix=g", 2) })
+        {
+            var key = AbcPipeline.Of().Run(AbcParser.Parse($"X:1\n{line}\nA|\n")).SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'K');
+            Assert.AreEqual(fifths, key.Fifths, line);
+        }
+    }
+
+    [TestMethod]
+    public void AFieldThatOnlyNamesAClefLeavesTheKeyAlone()
+    {
+        foreach (var line in new[] { "[K:clef=bass]", "[K:bass]", "[K:alto4]" })
+        {
+            var tune = AbcPipeline.Of().Run(AbcParser.Parse($"X:1\nK:F\nB {line} B|\n"));
+            var inline = tune.SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'K' && field.Kind == AbcKinds.InlineField);
+
+            Assert.IsNull(inline.Fifths, line);
+            Assert.IsNotNull(inline.Clef, line);
+            CollectionAssert.AreEqual(new[] { -1, -1 }, Notes(tune).Select(n => Event(n).Pitch!.Value.Alter).ToArray(), $"{line}: B stays flat in F");
+        }
+    }
+
+    [TestMethod]
+    public void AMeterIsTheFigureWrittenWithAStroke()
+    {
+        var meter = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:4 3/4\nK:C\nA|\n")).SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'M');
+
+        Assert.AreEqual((3, 4), meter.Meter);
+    }
+
+    [TestMethod]
     public void EverySpellingOfAMarkIsTheOneMark()
     {
         var marks = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nTA !trill!B .c !staccato!d|\n"))

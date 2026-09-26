@@ -119,6 +119,29 @@ public static class AbcKinds
     /// <summary>Plain text: a field's value, a syllable, whatever is inside quotes.</summary>
     public const string Text = "text";
 
+    // ── The words of a K:, M:, L: or V: value ───────────────────────────────
+
+    /// <summary>A word of a field's value standing for itself: <c>bass</c>, <c>Lydian</c>, <c>C|</c>, <c>none</c>, a voice's name.</summary>
+    public const string Word = "word";
+
+    /// <summary>A <c>key=value</c> setting in a field's value — <c>clef=bass</c>, <c>name="Soprano"</c>: its name, the equals sign and what it is set to.</summary>
+    public const string Setting = "setting";
+
+    /// <summary>The key a <c>K:</c> opens with: its tonic, the sharps or flats written on it, and the letters of its mode written straight after.</summary>
+    public const string Key = "key";
+
+    /// <summary>The letter a key is named after.</summary>
+    public const string Tonic = "tonic";
+
+    /// <summary>A mode written straight after a key's tonic: the <c>m</c> of <c>Dm</c>, the <c>mix</c> of <c>Amix</c>.</summary>
+    public const string Mode = "mode";
+
+    /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c>: its numbers and the marks between them.</summary>
+    public const string Figures = "figures";
+
+    /// <summary>One number of a meter's or a unit length's figures.</summary>
+    public const string Number = "number";
+
     // ── Kinds a pipeline stage makes ────────────────────────────────────────
     //
     // None of these is written down. Each re-nests pieces that were, which is why they can exist at all
@@ -145,6 +168,9 @@ public static class AbcRoles
 
     /// <summary>The <c>^</c>, <c>_</c> or <c>=</c> in front of a note.</summary>
     public const string Accidental = "accidental";
+
+    /// <summary>A key's mode, written straight after its tonic.</summary>
+    public const string Mode = "mode";
 
     /// <summary>The <c>,</c> and <c>'</c> marks after it.</summary>
     public const string Octave = "octave";
