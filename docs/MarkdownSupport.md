@@ -144,7 +144,7 @@ JS/Mermaid.js, no browser).
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + config (`MindmapConfigTests`) + nesting, shapes and draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + states, transitions, notes + config (`StateDiagramTests`) + draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
 | `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + classes, members, relations + config (`ClassDiagramTests`) + draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
-| `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + requirements, fields, relations + config (`RequirementDiagramTests`) + draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
+| `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + styles + config (`RequirementStagesTests`) + requirements, fields, relations and draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanStagesTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + config (`XyConfigTests`) + axes, series and draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + spokes, curves, options + config (`RadarStagesTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
@@ -152,7 +152,7 @@ JS/Mermaid.js, no browser).
 | `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + config (`SankeyConfigTests`) + nodes, flows and draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (shared layout tree; attributes in columns, crow's feet, subgraphs, written in place) | ✅ grammar (`ErGrammarTests`) + entities, attributes, relationships + config (`ErDiagramTests`) + draw (`ErBuilderTests`) + writing (`ErEditingTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
-| `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + groups, edges, places + config (`ArchitectureDiagramTests`) + draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
+| `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + config (`ArchitectureConfigTests`) + groups, edges, places and draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (shared layout tree; lane bands, written in place) | ✅ grammar (`SwimlaneGrammarTests`) + draw (`SwimlaneBuilderTests`) + writing (`SwimlaneEditingTests`) + lanes (`DiagramLanesTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + config (`CynefinConfigTests`) + domains, movements and draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + config (`TimelineConfigTests`) + sections, events and draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
@@ -293,7 +293,7 @@ and `theme`, `look`, `layout`, `htmlLabels`, `arrowMarkerAbsolute`, `defaultRend
 name a renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
 **Requirement-diagram sub-features** ([`RequirementGrammar`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementGrammar.cs),
-[`RequirementDiagram`](../src/Nexaflow.Markdown/Mermaid/Requirement/RequirementDiagram.cs),
+its stage [`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Requirement/Stages/ResolveStyles.cs),
 [`RequirementBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Requirement/RequirementBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: every kind of requirement SysML names — `requirement`, `functionalRequirement`, `interfaceRequirement`,
@@ -667,7 +667,7 @@ in it, and pressing where a union's circles overlap chooses the union. **Limitat
 theme, so Mermaid's `redux-color` theme, `neo` look and hand-drawn look are not.
 
 **Architecture sub-features** ([`ArchitectureGrammar`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureGrammar.cs) →
-[`ArchitectureDiagram`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureDiagram.cs) →
+its stage [`ResolveArchitecture`](../src/Nexaflow.Markdown/Mermaid/Architecture/Stages/ResolveArchitecture.cs) →
 [`ArchitectureBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureBuilder.cs)).
 **The sides an edge leaves by are what say where things sit**: `db:R -- L:server` puts the server to the right of the
 database, and walking the edges out from each service in turn lays the whole diagram on a grid — which is where Mermaid
