@@ -162,10 +162,11 @@ public sealed class ErGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Which subgraph each line is in (<see cref="ResolveGroups"/>), which ends of a relationship name a subgraph rather than an
-    /// entity (<see cref="ResolveJoins"/>), and whether what is styled is written at all (<see cref="ResolveStyles"/>).
+    /// Each subgraph gathered with what is written in it (<see cref="ResolveGroups"/>), which ends of a relationship name a subgraph
+    /// rather than an entity (<see cref="ResolveJoins"/>), what styles each entity and whether what is styled is written at all
+    /// (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are written.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGroups(), new ResolveJoins(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGroups(), new ResolveJoins(), new ResolveStyles(), new WithConfig<ErConfig>(ErConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a name's quotes, and where what is written on a relationship is still to come after its colon.</remarks>

@@ -272,4 +272,72 @@ public class StateBuilderTests : MermaidBuilderContract
 
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
+
+    // ── What is read from the lines as written ──────────────────────────────
+
+    /// <summary>The dots drawn, which are the states with nothing written on them.</summary>
+    private static List<Piece> Dots(Laid laid) => [.. Pieces(laid, StatePiece.State).Where(piece => !Said(piece).Any())];
+
+    [TestMethod]
+    public void AStateIsWrittenWhereItIsFirstNamed_AndSaidAgainAfter() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEquivalent(new[] { "The first", "The second" },
+                                       Nodes("stateDiagram-v2\n  one --> two\n  one : The first\n  two : The second").Keys.ToArray(),
+                                       "a state written twice is the one state, said again");
+    });
+
+    [TestMethod]
+    public void WhatIsWrittenOnAStateComesBeforeItsNameOrAfterIt() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEquivalent(new[] { "Standing still", "Moving along" },
+                                       Nodes("stateDiagram-v2\n  state \"Standing still\" as one\n  two : Moving along").Keys.ToArray());
+    });
+
+    [TestMethod]
+    public void EveryEdgeInOneScopeIsTheSameDot() => UiThread.Run(() =>
+    {
+        Assert.AreEqual(2, Dots(Build("stateDiagram-v2\n  [*] --> one\n  one --> two\n  two --> [*]\n  one --> [*]")).Count,
+                        "four written, and one to start at and one to stop at drawn");
+    });
+
+    [TestMethod]
+    public void ACompositeStateIsItsBox_WithDotsOfItsOwn() => UiThread.Run(() =>
+    {
+        const string source = "stateDiagram-v2\n  [*] --> A\n  state A {\n    [*] --> one\n    one --> [*]\n  }";
+        var laid = Build(source);
+
+        Assert.AreEqual(3, Dots(laid).Count, "the diagram's start, and the composite state's own start and stop");
+        CollectionAssert.AreEqual(new[] { "one" }, Pieces(laid, StatePiece.State).SelectMany(Said).Select(said => said.Words!.Glyphs.Text).ToArray(),
+                                  "and nothing is drawn for A but its box");
+
+        var box = Pieces(laid, StatePiece.Group).Single().Bounds;
+        var line = Pieces(laid, StatePiece.Step).First().Bounds;
+        Assert.IsTrue(line.Bottom >= box.Top - 1 && line.Top <= box.Top + 1, $"the transition to it runs to the edge of the box: {line} against {box}");
+    });
+
+    [TestMethod]
+    public void AStateBelongsToTheCompositeStateItIsFirstWrittenIn() => UiThread.Run(() =>
+    {
+        const string source = "stateDiagram-v2\n  outside\n  state A {\n    inner\n    state B {\n      deeper\n    }\n  }\n  inner --> outside";
+        var laid = Build(source);
+        var nodes = Nodes(laid);
+        var groups = Pieces(laid, StatePiece.Group).ToDictionary(group => Written(source, group.Part).Split(' ')[1], group => group.Bounds);
+
+        Assert.IsTrue(Holds(groups["B"], nodes["deeper"]), "deeper in B");
+        Assert.IsTrue(Holds(groups["A"], nodes["inner"]) && !Holds(groups["B"], nodes["inner"]), "inner in A alone, though named again outside it");
+        Assert.IsFalse(Holds(groups["A"], nodes["outside"]), "and outside in neither");
+        Assert.IsTrue(Holds(groups["A"], groups["B"]), "a composite state inside the one it is written in");
+    });
+
+    [TestMethod]
+    public void AStateIsDrawnAsWhatItsAnglesSay() => UiThread.Run(() =>
+    {
+        const string source = "stateDiagram-v2\n  state f <<fork>>\n  state j <<join>>\n  state c <<choice>>\n  state p [[fork]]";
+        var drawn = Pieces(Build(source), StatePiece.State).ToDictionary(piece => Written(source, piece.Part), piece => piece.Bounds);
+
+        foreach (var bar in new[] { "f", "j", "p" })
+            Assert.IsTrue(drawn[bar].Width > drawn[bar].Height * 3, $"{bar} is a bar: {drawn[bar]} — Mermaid reads the brackets too");
+
+        Assert.IsTrue(drawn["c"].Width < drawn["c"].Height * 3, $"and a choice is not: {drawn["c"]}");
+    });
 }

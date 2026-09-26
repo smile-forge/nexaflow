@@ -35,9 +35,6 @@ public static class BlockKinds
 
     /// <summary>A <c>style</c> line: the blocks it names, and the style they take.</summary>
     public const string Style = "block-style";
-
-    /// <summary>What a stage worked out about a line: the composite it is inside, and the one it opens.</summary>
-    public const string Fact = "block-fact";
 }
 
 /// <summary>What a piece of a <c>block-beta</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -63,10 +60,4 @@ public static class BlockRoles
 
     /// <summary>The class a <c>classDef</c> declares, or that a <c>class</c> line applies.</summary>
     public const string Class = "block-class-name";
-
-    /// <summary>Hung under a line: the composite it is inside, or nothing where it is in none.</summary>
-    public const string Inside = "block-inside";
-
-    /// <summary>Hung under a line that opens a composite: the composite it opens.</summary>
-    public const string Opened = "block-opened";
 }

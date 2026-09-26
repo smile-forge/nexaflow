@@ -112,10 +112,11 @@ public sealed class BlockGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// What each line is inside (<see cref="ResolveBlocks"/>), whether a link has blocks to join (<see cref="ResolveLinks"/>),
-    /// and whether what is styled is written at all (<see cref="ResolveStyles"/>).
+    /// Each composite gathered with what is written in it (<see cref="ResolveBlocks"/>), whether a link has blocks to join
+    /// (<see cref="ResolveLinks"/>), what styles each block and whether what is styled is written at all (<see cref="ResolveStyles"/>),
+    /// and what the front matter asks for. Everything else is the lines in the order they are written.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveBlocks(), new ResolveLinks(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveBlocks(), new ResolveLinks(), new ResolveStyles(), new WithConfig<BlockConfig>(BlockConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a label's quotes, and where a width or a column count is still to be written.</remarks>
