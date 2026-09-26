@@ -9,9 +9,8 @@ what is shown while somebody is writing — so the builder is handed the answers
 `switch` from a node to what is drawn for it, emitting pieces of the layout tree each standing for the part of the source
 it was drawn from — which is what makes a diagram selectable, pressable and written in where it is drawn.
 
-Pie is written this way and has no model type. The other diagrams still read their tree back into one inside the builder
-(`<Type>Diagram.Of`), and are being taken apart the same way: what a model works out moves into stages, and what it
-draws stays in the builder.
+No diagram has a model type. What the lines mean together is its stages' to say, in the tree; what is drawn for them is its
+builder's, reading the tree in the order it is written.
 
 Every diagram is drawn this way, and each is built from **the Mermaid kit**: the pieces every diagram shares, decided
 once. Pie, Venn and radar are the
@@ -24,29 +23,30 @@ lines list items with values and whose options share a line, xychart one with ax
 |---|---|---|
 | `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what it writes across several lines rather than one (`Stretches`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
-| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where a diagram still has a model, hung underneath as facts; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
+| `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where it is only a word, hung underneath as a fact, as a message's `autonumber` number is; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
-| `…/<Type>/<Type>Diagram.cs` (or `Chart`) | Only where a diagram still has a model: the tree read back into what it describes. A diagram without one has its stages write what they work out into its own nodes (`…/<Type>/<Type>Nodes.cs`, internal, as `PieNodes`, `RadarNodes` and `GitNodes`) — and one with nothing to work out has none | `VennDiagram` |
-| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `Configured` (`MermaidBuilder<TDiagram>` where a diagram still has a model); a `<Type>Piece` class names its pieces | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
+| `…/<Type>/<Type>Nodes.cs` | What the stages say lines mean where it is more than a word, as the diagram's own nodes — internal, and printing as what was written. A diagram with nothing of the kind to say has none | `PieNodes`, `RadarNodes`, `GanttNodes` |
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `Configured`; a `<Type>Piece` class names its pieces | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
 | `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
 
 **A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
 macro set, one shape throughout, which Mermaid has borrowed a slice of. So the language is read once, apart from any one
-diagram: `C4Grammar` says only what a line *is*, and `C4Macro`, `C4Elements`, `C4Said` and `C4Counter` say what a macro
-says, what its name makes it, what the whole block is switched to show, and how the numbering counts. A diagram of C4's
-is then only the mapping onto a picture — `C4Structure` onto a graph, `C4Sequence` onto a timeline — and the two cannot
-disagree about what `ContainerDb(…, $tags="x")` means, because neither of them decides it.
+diagram: `C4Grammar` says only what a line *is*, and one stage, `ResolveMacros`, says what each macro means — its card, its
+ends and its number, its box, what each argument is to what is drawn — with `C4Macro`, `C4Elements`, `C4Said` and
+`C4Counter` saying what a macro says, what its name makes it, what the whole block is switched to show, and how the
+numbering counts. A diagram of C4's is then only the drawing of a picture — `C4Builder` a graph, `C4SequenceBuilder` a
+timeline — and the two cannot disagree about what `ContainerDb(…, $tags="x")` means, because neither of them decides it.
 
 **A type written in another language may still be the same diagram.** A C4 sequence is a sequence diagram said in
-C4-PlantUML's words, so `C4SequenceGrammar` claims the macros and hands every other line to `SequenceGrammar`,
-`C4Sequence` reads those macros onto the very same `SequenceDiagram` — through `SequenceDiagram.Read`, which gives the
-other language first refusal on each line and reads the rest itself — and `C4SequenceBuilder` derives from
-`SequenceBuilder` saying only where its model comes from. One picture, one builder, two ways of writing it.
+C4-PlantUML's words, so `C4SequenceGrammar` claims the macros and hands every other line to `SequenceGrammar`, its stages
+are a sequence diagram's with C4's added, and `C4SequenceBuilder` derives from `SequenceBuilder` with a reader of its own
+that takes the macro lines onto the very same timeline — giving them first refusal on each line, and leaving the rest to the
+sequence diagram's reader. One picture, one builder, two ways of writing it.
 
-**A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
+**A type Mermaid reads as another shares its grammar and its builder.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
 the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
 `SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes
-themselves ask for is its own (`SwimlaneConfig`). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
+themselves ask for is its own (`SwimlaneConfig`, which the stages hang on a swimlane's block with the chart's own inside it). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
 and a builder's over what it draws.
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
@@ -81,10 +81,10 @@ diagram's own code sits in a folder of its own under each.
 | try one reading and go back | `Save`, `Restore`, `Since`; `Undo` to go back and say why, which is what a reading that did not work out returns |
 | end a line: the semicolon and the space one may end with, and what is wrong where anything else is written there | `MermaidLine.Closed` |
 | read the tree the builder draws from | `Reading.Root` — the engine parsed it and ran its stages before the builder was made |
-| read the tree back in a stage or model | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
+| read the tree back in a stage or a builder | `MermaidParts`: `Stated`, `Indented`, `Fact`, `Inner`, `Hole`, `Words`, `Named`, `SaidNames`, `Number` |
 | hang what the front matter asks for on the block, for a diagram with nothing else to say of it | `WithConfig<TConfig>` in `Stages`, and `Configured(default)` in the builder |
 | say where a line that goes into the group opened above it has none above it — a timeline's events before any period, a Cynefin diagram's items before any domain | `MermaidGrouping.Unopened`; which group each other line is in is the order the builder reads them in |
-| say what each line is inside where groups nest and close with a word of their own — a block diagram's composites | `MermaidNesting.Nest`, which gathers each group with the lines written in it into a `MermaidKinds.Group`, so the builder reads what is inside what by walking down the tree; a name that names a group rather than anything drawn in one — an ER relationship joining a subgraph, a transition reaching a composite state — says which as a `GroupReferenceNode`, the groups counted in the order they are opened. A diagram still with a model: `MermaidNesting.Inside`, hung as facts naming the group a line is in and the one it opens; several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame |
+| say what each line is inside where groups nest and close with a word of their own — a block diagram's composites, a flowchart's subgraphs, a C4 diagram's boundaries | `MermaidNesting.Nest`, which gathers each group with the lines written in it into a `MermaidKinds.Group`, so the builder reads what is inside what by walking down the tree — several opening kinds where one word closes them all, as a sequence diagram's `box` and its frames both end with `end`, and several closing kinds where a block is written in two languages at once, as a C4 sequence's `}` closes a boundary where its `end` closes a frame; a name that names a group rather than anything drawn in one — an ER relationship or a flowchart link joining a subgraph, a transition reaching a composite state — says which as a `GroupReferenceNode`, the groups counted in the order they are opened |
 | tell a colour written where a line may start with one from the start of what follows it — `box Aqua Group` | `MermaidColour.At`, which reads a name CSS knows, a `#` and its digits, or a colour written as its parts |
 | read a node as an id and a label in the brackets that say its shape | `MermaidOutline.Node` with `MermaidShapes.Brackets` — `spaced: false` where a diagram writes several nodes to a line, `ends` where a rule of the diagram's own says where the id stops — then `MermaidShapes.Of` for the shape that was written, or `MermaidShapes.Named` for one `@{ shape: … }` names |
 | read a link between two nodes, and what its characters draw | `MermaidLinks.At` — whether one is written there at all, and whether it is the whole of one or the opening of a labelled one — then `MermaidLinks.Of` for its heads, its line and how many ranks it reaches |

@@ -52,14 +52,14 @@ public enum C4Way { Down, Right }
 /// pass for a structural diagram and a C4 sequence, since a switch means the same thing in both.
 /// </para>
 /// </summary>
-public sealed class C4Said
+internal sealed class C4Said
 {
     /// <summary>What every switch and every style in a block comes to.</summary>
-    public static C4Said Read(MermaidBlock block)
+    public static C4Said Read(ContentNode tree)
     {
         var said = new C4Said();
 
-        foreach (var macro in Macros(block))
+        foreach (var macro in Macros(tree))
         {
             switch (macro.Name.ToLowerInvariant())
             {
@@ -104,15 +104,15 @@ public sealed class C4Said
             }
         }
 
-        if (said.Legended) said.Keyed(block);
+        if (said.Legended) said.Keyed(tree);
 
         return said;
     }
 
     /// <summary>Every macro called in a block, in the order they were written.</summary>
-    public static IEnumerable<C4Macro> Macros(MermaidBlock block)
+    public static IEnumerable<C4Macro> Macros(ContentNode tree)
     {
-        foreach (var line in block.Reading.Root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Line))
+        foreach (var line in tree.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line))
             if (line.Stated() is { Kind: C4Kinds.Macro } stated)
                 yield return C4Macro.Of(stated);
     }
@@ -194,11 +194,11 @@ public sealed class C4Said
     }
 
     /// <summary>One row of the key for each kind of element written, and one for each tag that named its own.</summary>
-    private void Keyed(MermaidBlock block)
+    private void Keyed(ContentNode tree)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var macro in Macros(block))
+        foreach (var macro in Macros(tree))
         {
             if (!C4Grammar.Elemental(macro.Name)) continue;
 

@@ -270,8 +270,9 @@ the block it was typed in. `RereadingTests` holds such a reading to the same doc
 reading had — the same characters and everything worked out about them, so a paragraph whose link was defined again
 elsewhere is not the same. What the builder laid for such a block (`LaidBlocks`, by where the block comes among the
 document's parts) is set down again, only what its pieces stand for moved along by the amount the edit moved everything
-after it. A block shown as written is never kept, and a drawing of the moment — a Gantt chart's line at today — says so
-(`Laid.Passing`) and is laid again. `LaidBlocksTests` holds every sample, typed into and taken back, to the same source
+after it. A block shown as written is never kept. What a block means on the day it is read — a Gantt chart's today — is
+part of its reading, so it is laid again when it is read again. `LaidBlocksTests` holds every sample, typed into and
+taken back, to the same source
 laid from nothing.
 
 **The builder sets the size of what it holds.** A formula on a line of its own is drawn half as big again as the words

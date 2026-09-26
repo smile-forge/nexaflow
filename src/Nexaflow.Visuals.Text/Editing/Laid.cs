@@ -176,10 +176,4 @@ public sealed record Laid(LayoutTree Tree, Size Size, IReadOnlyList<Diagnostic> 
         _holes ??= [.. Root.SelfAndDescendants().Where(piece => piece.Part is { Length: 0 }).OrderBy(piece => piece.Sits().Start)];
 
     private IReadOnlyList<Piece>? _holes;
-
-    /// <summary>
-    /// Whether this is a drawing of the moment it was laid — it read the clock as well as its source, as a Gantt chart's line at
-    /// today does — so what is kept of the content it stands in is laid again rather than set down again as it was.
-    /// </summary>
-    public bool Passing { get; init; }
 }

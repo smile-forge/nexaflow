@@ -125,9 +125,10 @@ public sealed class VennGrammar : IMermaidGrammar
     /// A set or a union is gathered with the items indented under it into one region (<see cref="GroupRegions"/>), so the tree
     /// holds what the diagram is made of rather than only the lines it was written on. Which region each part stands for — the
     /// sets a union overlaps, the region an item written on its own sits in, what a style styles — is a fact about the lines
-    /// above it rather than its own, so it is worked out and hung underneath (<see cref="ResolveRegions"/>).
+    /// above it rather than its own, so it is worked out and hung underneath (<see cref="ResolveRegions"/>), and so is what each is
+    /// styled with (<see cref="ResolveStyles"/>).
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new GroupRegions(), new ResolveRegions()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new GroupRegions(), new ResolveRegions(), new ResolveStyles(), new WithConfig<VennConfig>(VennConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>

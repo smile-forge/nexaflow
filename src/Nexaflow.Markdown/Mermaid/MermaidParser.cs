@@ -34,18 +34,15 @@ public static class MermaidParser
     public const string AccessibleDescription = "accDescr";
 
     /// <summary>
-    /// Reads a block into its lines, every character kept.
+    /// Reads a block into its lines, every character kept. The first line that says anything names the diagram, and its
+    /// grammar reads every line after it.
     /// </summary>
-    /// <param name="grammar">
-    /// What reads the lines, where the block's language names its diagram rather than its first line does. Named, there is
-    /// no header to find and every line is a statement; left out, the first line that says anything names the diagram.
-    /// </param>
-    public static ContentNode Parse(string? source, IMermaidGrammar? grammar = null)
+    public static ContentNode Parse(string? source)
     {
         source ??= string.Empty;
         var lines = new List<ContentNode>();
         var at = 0;
-        var reading = new Reading { Headed = grammar is not null, Grammar = grammar };
+        var reading = new Reading();
 
         if (Fences(source) is (var open, var close))
         {

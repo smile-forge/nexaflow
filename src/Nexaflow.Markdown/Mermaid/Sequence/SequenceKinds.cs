@@ -49,7 +49,7 @@ public static class SequenceKinds
     /// <summary>One participant where it is named: its name, the label drawn instead of it, and what kind of thing it is.</summary>
     public const string Named = "sequence-named";
 
-    /// <summary>What the stages hang under a line: the frame it is in, the one it opens, and the number a message takes.</summary>
+    /// <summary>What the stages hang under a line: the number a message takes.</summary>
     public const string Fact = "sequence-fact";
 }
 
@@ -106,11 +106,6 @@ public static class SequenceRoles
     /// <summary>Whether a participant is created or destroyed by a message, rather than standing from the top.</summary>
     public const string Lifetime = "sequence-lifetime";
 
-    /// <summary>The box or frame a line is written in (<see cref="MermaidNesting"/>).</summary>
-    public const string Inside = "sequence-inside";
-
-    /// <summary>The box or frame a line opens.</summary>
-    public const string Opened = "sequence-opened";
 
     /// <summary>The number <c>autonumber</c> gives a message (<see cref="Stages.ResolveNumbers"/>).</summary>
     public const string Number = "sequence-number";

@@ -16,27 +16,27 @@ internal static class SequenceGlyphs
     public const double Size = 32;
 
     /// <summary>Whether this kind is a figure with its name under it, rather than a box with its name in it — an actor alone.</summary>
-    public static bool Figured(SequenceKind kind) => kind is SequenceKind.Actor;
+    public static bool Figured(SequenceBuilder.Kind kind) => kind is SequenceBuilder.Kind.Actor;
 
     /// <summary>
     /// Whether this kind is a box with a mark of what it is set before its name — UML's boundary, control and entity, and the
     /// database, collections and queue. Mermaid draws these as the mark alone, or as a shape the name is squeezed into; a box
     /// holding both says what it is as plainly, lines up with every other participant, and always has room for its name.
     /// </summary>
-    public static bool Iconed(SequenceKind kind) =>
-        kind is SequenceKind.Boundary or SequenceKind.Control or SequenceKind.Entity
-            or SequenceKind.Database or SequenceKind.Collections or SequenceKind.Queue;
+    public static bool Iconed(SequenceBuilder.Kind kind) =>
+        kind is SequenceBuilder.Kind.Boundary or SequenceBuilder.Kind.Control or SequenceBuilder.Kind.Entity
+            or SequenceBuilder.Kind.Database or SequenceBuilder.Kind.Collections or SequenceBuilder.Kind.Queue;
 
     /// <summary>How big the mark set before a name is drawn.</summary>
     public const double Icon = 16;
 
     /// <summary>The mark saying what kind of participant this is, drawn in <paramref name="bounds"/> before its name.</summary>
-    public static Geometry Mark(SequenceKind kind, Rect bounds) => kind switch
+    public static Geometry Mark(SequenceBuilder.Kind kind, Rect bounds) => kind switch
     {
-        SequenceKind.Database => DiagramShapes.Outline(DiagramShape.Cylinder,
+        SequenceBuilder.Kind.Database => DiagramShapes.Outline(DiagramShape.Cylinder,
                                                        new Rect(bounds.X + (bounds.Width * 0.1), bounds.Y, bounds.Width * 0.8, bounds.Height)),
-        SequenceKind.Collections => Collected(bounds),
-        SequenceKind.Queue => DiagramCard.Queued(new Rect(bounds.X, bounds.Y + (bounds.Height * 0.2), bounds.Width, bounds.Height * 0.6)),
+        SequenceBuilder.Kind.Collections => Collected(bounds),
+        SequenceBuilder.Kind.Queue => DiagramCard.Queued(new Rect(bounds.X, bounds.Y + (bounds.Height * 0.2), bounds.Width, bounds.Height * 0.6)),
         _ => Figure(kind, bounds),
     };
 
@@ -44,25 +44,15 @@ internal static class SequenceGlyphs
     public static Geometry Shape(Rect bounds) => Frozen(new RectangleGeometry(bounds, Corner, Corner));
 
     /// <summary>The figure a kind is drawn as: an actor's above its name, and the others' as the mark before it.</summary>
-    public static Geometry Figure(SequenceKind kind, Rect bounds) => kind switch
+    public static Geometry Figure(SequenceBuilder.Kind kind, Rect bounds) => kind switch
     {
-        SequenceKind.Boundary => Bounded(bounds),
-        SequenceKind.Control => Controlled(bounds),
-        SequenceKind.Entity => Held(bounds),
+        SequenceBuilder.Kind.Boundary => Bounded(bounds),
+        SequenceBuilder.Kind.Control => Controlled(bounds),
+        SequenceBuilder.Kind.Entity => Held(bounds),
         _ => Standing(bounds),
     };
 
-    /// <summary>
-    /// The card a participant is drawn as, where a diagram draws one rather than a plain box — which is <see cref="DiagramCard"/>'s,
-    /// since a structural C4 diagram draws the very same card as a box of its graph.
-    /// </summary>
-    public static DiagramCardShape Carded(SequenceCardShape shape) => shape switch
-    {
-        SequenceCardShape.Database => DiagramCardShape.Database,
-        SequenceCardShape.Queue => DiagramCardShape.Queue,
-        SequenceCardShape.Person => DiagramCardShape.Person,
-        _ => DiagramCardShape.Box,
-    };
+
 
     /// <summary>How round the corner of a plain participant is.</summary>
     private const double Corner = 4;

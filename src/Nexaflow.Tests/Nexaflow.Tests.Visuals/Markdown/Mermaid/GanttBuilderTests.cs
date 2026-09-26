@@ -125,4 +125,22 @@ public class GanttBuilderTests : MermaidBuilderContract
         Assert.AreEqual(1, Pieces(laid, GanttPiece.Excluded).Count);
         Assert.IsTrue(freeze.Bounds.Height > freeze.Bounds.Width * 10);
     });
+
+    [TestMethod]
+    public void CompactModeSharesARowBetweenTasksThatDoNotOverlap() => UiThread.Run(() =>
+    {
+        const string source = "---\ndisplayMode: compact\n---\ngantt\n    section Section\n    A task :a1, 2014-01-01, 30d\n    Another task :a2, 2014-01-20, 25d\n    Another one :a3, 2014-02-10, 20d";
+        var tops = Pieces(Build(source), GanttPiece.Task).ToDictionary(task => Task(source, task), task => task.Bounds.Top);
+
+        Assert.AreEqual(tops["A task"], tops["Another one"], 0.5, "the third starts after the first ends");
+        Assert.IsTrue(tops["Another task"] > tops["A task"], "the second overlaps the first");
+    });
+
+    [TestMethod]
+    public void SectionsWrittenTwiceAreOne_AndASectionWithNoRowHasNoName() => UiThread.Run(() =>
+    {
+        const string source = "gantt\n  section Build\n  A :2014-01-01, 3d\n  section Marks\n  Freeze :vert, 2014-01-02, 1d\n  section Build\n  B :2014-01-04, 3d";
+
+        CollectionAssert.AreEqual(new[] { "Build" }, Pieces(Build(source), GanttPiece.SectionName).Select(name => Written(source, name.Part)).ToArray());
+    });
 }

@@ -339,4 +339,144 @@ public class FlowchartBuilderTests : MermaidBuilderContract
         Assert.AreEqual(0, unknown.Root.SelfAndDescendants().Count(piece => piece.Kind == MermaidPiece.Glyph));
         Assert.IsTrue(unknown.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == "?"), "as Mermaid draws an icon it has no pack for");
     });
+
+    [TestMethod]
+    public void TheChartRunsTheWayItsHeaderSays() => UiThread.Run(() =>
+    {
+        var right = Nodes("flowchart LR\n  a --> b");
+        var up = Nodes("flowchart BT\n  a --> b");
+        var left = Nodes("flowchart RL\n  a --> b");
+        var down = Nodes("flowchart\n  a --> b");
+
+        Assert.IsTrue(right["b"].Left > right["a"].Right, "LR");
+        Assert.IsTrue(up["b"].Bottom < up["a"].Top, "BT");
+        Assert.IsTrue(left["b"].Right < left["a"].Left, "RL");
+        Assert.IsTrue(down["b"].Top > down["a"].Bottom, "down, where the header says nothing");
+    });
+
+    [TestMethod]
+    public void ANodeWrittenAgainIsTheSameNode_DrawnWithWhatItSaysLast() => UiThread.Run(() =>
+    {
+        var laid = Build("flowchart LR\n  a --> b\n  a[\"Said later\"]\n  b((\"Round later\"))");
+        var nodes = Nodes(laid);
+
+        Assert.AreEqual(2, Pieces(laid, FlowchartPiece.Node).Count, "a node written twice is one node");
+        CollectionAssert.AreEquivalent(new[] { "Said later", "Round later" }, nodes.Keys.ToArray());
+        Assert.AreEqual(nodes["Round later"].Width, nodes["Round later"].Height, 1, "and drawn the shape it was written in last");
+    });
+
+    [TestMethod]
+    public void ANodeSaysItsIdWhereNothingElseIsWrittenOnIt() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEquivalent(new[] { "alpha", "The end" }, Nodes("flowchart LR\n  alpha --> beta[\"The end\"]").Keys.ToArray());
+    });
+
+    [TestMethod]
+    public void ANodeIsDrawnInTheFirstSubgraphItIsWrittenIn_WhereverItWasWrittenFirst() => UiThread.Run(() =>
+    {
+        // Mermaid's own example: c1 and a2 are linked before any subgraph is opened, and each is drawn in the one it is written in next.
+        const string source = "flowchart TB\n  c1 --> a2\n  subgraph one\n    a1 --> a2\n  end\n  subgraph two\n    b1 --> b2\n  end\n"
+                              + "  subgraph three\n    c1 --> c2\n  end\n  subgraph four\n    a2\n  end";
+        var held = Pieces(Build(source), FlowchartPiece.Node).ToDictionary(node => Said(node).First().Words!.Glyphs.Text, HeldIn);
+
+        Assert.AreEqual("one", held["a2"], "a2 is in the first subgraph it is written in");
+        Assert.AreEqual("three", held["c1"], "and so is c1, though it was written outside them all first");
+        Assert.AreEqual("one", held["a1"]);
+        Assert.AreEqual("two", held["b1"]);
+    });
+
+    [TestMethod]
+    public void ASubgraphIsTitledByItsLabelWhereItHasOne_AndNestsInTheOneItIsWrittenIn() => UiThread.Run(() =>
+    {
+        const string source = "flowchart TB\n  subgraph ide1 [The title]\n    subgraph two\n      a\n    end\n  end";
+        var laid = Build(source);
+        var a = Pieces(laid, FlowchartPiece.Node).Single();
+
+        Assert.AreEqual("two", HeldIn(a));
+        Assert.AreEqual("The title", HeldIn(a.Ancestors().First(over => over.Kind == FlowchartPiece.Group)), "two sits inside the subgraph titled");
+    });
+
+    [TestMethod]
+    public void WhatIsWrittenOnALinkIsDrawn_HoweverItIsWritten() => UiThread.Run(() =>
+    {
+        var laid = Build("flowchart LR\n  a -->|bars| b\n  b -- bare --> c\n  c -- \"quoted\" --> d\n  d -. dotted .-> e\n  e == thick ==> f");
+
+        CollectionAssert.AreEquivalent(new[] { "bars", "bare", "quoted", "dotted", "thick" },
+                                       Pieces(laid, FlowchartPiece.Label).SelectMany(Said).Select(said => said.Words!.Glyphs.Text).ToArray());
+    });
+
+    [TestMethod]
+    public void ALinkStyleColoursTheLinksItNumbers() => UiThread.Run(() =>
+    {
+        var links = Pieces(Build("flowchart LR\n  a --> b\n  b --> c\n  c --> d\n  linkStyle 0,2 stroke:#f00"), FlowchartPiece.Link);
+        var red = Colors.Red;
+
+        CollectionAssert.AreEqual(new[] { true, false, true }, links.Select(link => Stroked(link) == red).ToArray());
+    });
+
+    [TestMethod]
+    public void ANodeIsFilledAsItsClassesAndStylesAddUpTo() => UiThread.Run(() =>
+    {
+        const string source = "flowchart LR\n  a --> b\n  c:::hot\n  classDef default fill:#eeeeee\n  classDef hot fill:#ff0000\n  class a hot";
+        var nodes = Pieces(Build(source), FlowchartPiece.Node).ToDictionary(node => Written(source, node.Part), Filled);
+
+        Assert.AreEqual(Colors.Red, nodes["a"], "the class it is given over the default");
+        Assert.AreEqual(Color.FromRgb(0xee, 0xee, 0xee), nodes["b"], "a node given nothing takes the default");
+        Assert.AreEqual(Colors.Red, nodes["c:::hot"], "a class given where the node is written counts too");
+    });
+
+    [TestMethod]
+    public void AClickLineSaysWhereANodeLeadsAndWhatItSaysWhilePointedAt() => UiThread.Run(() =>
+    {
+        const string source = "flowchart LR\n  a --> b\n  click a \"https://example.com\" \"Go there\"";
+        var a = Pieces(Build(source), FlowchartPiece.Node).Single(node => Written(source, node.Part) == "a");
+
+        Assert.AreEqual(LayoutVerbs.Navigate, a.Acts?.Click?.Verb);
+        Assert.AreEqual("https://example.com", a.Acts?.Click?.Target);
+        Assert.AreEqual("Go there", a.Acts?.Click?.Tip);
+    });
+
+    [TestMethod]
+    public void MetadataDrawsANodeInTheShapeAndWithTheWordsItSays_WrittenAboveItOrBelow() => UiThread.Run(() =>
+    {
+        const string said = "flowchart TD\n  a@{ shape: circle }\n  a --> b";
+        const string written = "flowchart TD\n  a((a)) --> b";
+        var below = Nodes("flowchart TD\n  a\n  a@{ shape: cyl, label: \"The store\" }");
+
+        Assert.AreEqual(Outlined(Pieces(Build(written), FlowchartPiece.Node).First()), Outlined(Pieces(Build(said), FlowchartPiece.Node).First()),
+                        "a circle, said above the node, as one written in its brackets");
+        Assert.IsTrue(below.ContainsKey("The store"), "and the words the metadata says, its quotes left off");
+    });
+
+    [TestMethod]
+    public void MetadataNamingNothingWrittenMakesANode_InTheSubgraphItIsWrittenIn() => UiThread.Run(() =>
+    {
+        const string source = "flowchart RL\n    A@{ shape: cyl, label: \"The store\"}\n\tB@{ shape: circle }\n  subgraph S\n    C@{ shape: hex }\n  end";
+        var held = Pieces(Build(source), FlowchartPiece.Node).ToDictionary(node => Said(node).First().Words!.Glyphs.Text, HeldIn);
+
+        CollectionAssert.AreEquivalent(new[] { "The store", "B", "C" }, held.Keys.ToArray(), "tabs or spaces before it");
+        Assert.AreEqual("S", held["C"]);
+        Assert.IsNull(held["B"]);
+    });
+
+    [TestMethod]
+    public void ALinkToASubgraphJoinsItsBox_AndMakesNoNodeOfIt() => UiThread.Run(() =>
+    {
+        const string source = "flowchart TB\n  subgraph one\n    a\n  end\n  subgraph two\n    b\n  end\n  one --> two\n  two@{ shape: circle }";
+        var laid = Build(source);
+
+        CollectionAssert.AreEquivalent(new[] { "a", "b" }, Nodes(laid).Keys.ToArray());
+        Assert.AreEqual(1, Pieces(laid, FlowchartPiece.Link).Count);
+    });
+
+    /// <summary>What is written on the subgraph a piece is drawn in, or null where it is drawn in none.</summary>
+    private static string? HeldIn(Piece piece) =>
+        piece.Ancestors().FirstOrDefault(over => over.Kind == FlowchartPiece.Group) is { } group
+            ? group.SelfAndDescendants().Where(part => part.Kind == FlowchartPiece.Holding).SelectMany(Said).Select(said => said.Words!.Glyphs.Text).FirstOrDefault()
+            : null;
+
+    /// <summary>The colour a link's line is drawn in.</summary>
+    private static Color? Stroked(Piece link) =>
+        link.SelfAndDescendants().SelectMany(part => part.Marks.ToArray()).OfType<GeometryMark>()
+            .Select(mark => (mark.Stroke as SolidColorBrush)?.Color).FirstOrDefault(colour => colour is not null);
 }

@@ -14,7 +14,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
 /// </para>
 ///
 /// <para>
-/// Which band a card takes is the model's — <c>C4Elements.Banded</c> — so a C4 sequence's lifeline heads and a structural
+/// Which band a card takes is the stages' to say — <c>C4Elements.Banded</c> — so a C4 sequence's lifeline heads and a structural
 /// diagram's boxes grade alike, and neither of the two builders holds a colour of its own.
 /// </para>
 /// </summary>

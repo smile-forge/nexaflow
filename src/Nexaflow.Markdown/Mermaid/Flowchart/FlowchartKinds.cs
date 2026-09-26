@@ -45,8 +45,6 @@ public static class FlowchartKinds
     /// <summary>An <c>id@{ … }</c> line, which says more about the node or the link it names than its brackets can.</summary>
     public const string Said = "flowchart-said";
 
-    /// <summary>What the stages hang under a line: which subgraph it is in, and which one it opens.</summary>
-    public const string Fact = "flowchart-fact";
 }
 
 /// <summary>What a piece of a flowchart's line is to the piece holding it.</summary>
@@ -88,9 +86,4 @@ public static class FlowchartRoles
     /// <summary>The curve a <c>linkStyle</c> line interpolates its links along.</summary>
     public const string Curve = "flowchart-curve";
 
-    /// <summary>The subgraph a line is written in (<see cref="MermaidNesting"/>).</summary>
-    public const string Inside = "flowchart-inside";
-
-    /// <summary>The subgraph a <c>subgraph</c> line opens.</summary>
-    public const string Opened = "flowchart-opened";
 }

@@ -1,13 +1,23 @@
 namespace Nexaflow.Markdown.Nomnoml;
 
-/// <summary>What a nomnoml line is made of. A nomnoml block is drawn as a class diagram, so what these
-/// stand for is read into <see cref="Mermaid.Class.ClassDiagram"/> — see <see cref="NomnomlDiagram"/>.</summary>
+/// <summary>What a nomnoml block is made of, as <see cref="NomnomlParser"/> reads it.</summary>
 public static class NomnomlKinds
 {
+    /// <summary>The whole block: its lines, and the groups gathered with the lines written in them.</summary>
+    public const string Diagram = "nomnoml-diagram";
+
+    /// <summary>One line: the space before what it says, what it says, and the characters that end it.</summary>
+    public const string Line = "nomnoml-line";
+
+    /// <summary>A run of words: a name, a member, a count, what an association says, a directive's name or value.</summary>
+    public const string Words = "nomnoml-words";
+
+    /// <summary>How two nodes are joined: an end, a line and another end, each written or not.</summary>
+    public const string Operator = "nomnoml-operator";
     /// <summary>One node in brackets, with whatever it holds: its classifier, its name, its compartments.</summary>
     public const string Node = "nomnoml-node";
 
-    /// <summary>A node opened on one line and closed on another, with the nodes written between them inside it.</summary>
+    /// <summary>A node opened on one line and closed on another: the line opening it, the lines between, and the line closing it.</summary>
     public const string Group = "nomnoml-group";
 
     /// <summary>What a node says it is, written in angle brackets before its name.</summary>
@@ -40,6 +50,15 @@ public static class NomnomlRoles
 
     /// <summary>How two nodes are joined, which is what the line between them is drawn as.</summary>
     public const string Operator = "nomnoml-operator";
+
+    /// <summary>What an operator draws at the node on its left: <c>&lt;:</c>, <c>+</c>, <c>o</c>, <c>&lt;</c>, a ball or a socket.</summary>
+    public const string Head = "nomnoml-head";
+
+    /// <summary>The line an operator draws: a single dash solid, anything else dashed.</summary>
+    public const string Drawn = "nomnoml-drawn";
+
+    /// <summary>What an operator draws at the node on its right.</summary>
+    public const string Tail = "nomnoml-tail";
 
     /// <summary>What is written between a node and the operator after it — how many of it there are.</summary>
     public const string Near = "nomnoml-near";

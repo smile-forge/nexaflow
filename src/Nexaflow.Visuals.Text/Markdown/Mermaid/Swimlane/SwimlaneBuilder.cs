@@ -13,8 +13,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
 ///
 /// <para>
 /// A swimlane is read as a flowchart and drawn by the flowchart's own builder, which is how Mermaid reads and draws it: the grammar,
-/// the model, the shapes, the links and the styling are all a flowchart's, and only the way it is laid out differs. What the lanes
-/// themselves ask for is <see cref="SwimlaneConfig"/>; everything else the front matter says is the flowchart's own.
+/// the stages, the shapes, the links and the styling are all a flowchart's, and only the way it is laid out differs. What the lanes
+/// themselves ask for is <see cref="SwimlaneConfig"/>, which its stages hang on the block with the flowchart's own inside it.
 /// </para>
 /// </summary>
 internal sealed class SwimlaneBuilder : FlowchartBuilder
@@ -22,10 +22,11 @@ internal sealed class SwimlaneBuilder : FlowchartBuilder
     internal SwimlaneBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
-    protected override (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram)
-    {
-        var lanes = SwimlaneConfig.Read(diagram.Block.Config);
+    protected override (bool Sideways, bool Ordered)? Laning => (Lanes.Sideways, Lanes.Ordered);
 
-        return (lanes.Sideways, lanes.Ordered);
-    }
+    /// <inheritdoc/>
+    protected override FlowchartConfig Charted => Lanes.Chart;
+
+    /// <summary>What the front matter asks for, lanes and chart, as its stages hung it on the block.</summary>
+    private SwimlaneConfig Lanes => Configured(SwimlaneConfig.Default);
 }

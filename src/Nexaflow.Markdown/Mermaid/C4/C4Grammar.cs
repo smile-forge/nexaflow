@@ -20,8 +20,8 @@ namespace Nexaflow.Markdown.Mermaid.C4;
 /// <para>
 /// <strong>This says only what a line is.</strong> A macro, a boundary opening one, the line closing one, a line a pasted
 /// diagram brought with it — and which of the arguments name an element, which is what lets a rename carry. What a macro
-/// <em>means</em> is the model's: <see cref="C4Structure"/> for a diagram laid out as a graph, <see cref="C4Sequence"/> for
-/// one laid out as a timeline.
+/// <em>means</em> is its stages' to say (<see cref="Stages.ResolveMacros"/>), the same for a diagram laid out as a graph and one
+/// laid out as a timeline.
 /// </para>
 ///
 /// <para>
@@ -152,8 +152,17 @@ public class C4Grammar : IMermaidGrammar
     public string Naming(string name) => new([.. name.Where(Bare)]);
 
     /// <inheritdoc/>
-    /// <remarks>Which boundary each line is written inside, which is a fact about the whole block rather than about a line.</remarks>
-    public virtual IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveBoundaries()];
+    /// <remarks>
+    /// Which boundary each line is written inside, and what each macro means — both facts about the whole block rather than
+    /// about a line — and what the front matter asks for. A <c>C4Dynamic</c> numbers its relationships without being asked,
+    /// which is the only thing the keyword itself decides.
+    /// </remarks>
+    public virtual IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+    [
+        new ResolveBoundaries(),
+        new ResolveMacros(string.Equals(block.Keyword?.Text, "C4Dynamic", StringComparison.OrdinalIgnoreCase)),
+        new WithConfig<C4Metrics>(C4Config.Laid(block.Config)),
+    ];
 
     /// <inheritdoc/>
     /// <remarks>Between an argument's quotes, and wherever a line of the other language has one.</remarks>

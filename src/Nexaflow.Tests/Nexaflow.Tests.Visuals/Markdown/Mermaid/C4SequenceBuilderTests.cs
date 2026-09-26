@@ -141,4 +141,69 @@ public class C4SequenceBuilderTests : MermaidBuilderContract
 
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1;
+
+    [TestMethod]
+    public void ABoundaryClosedByABraceGroupsTheSameWay() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Sequence\nBoundary(b, \"The bank\") {\n  System(s, \"Core\")\n}\nPerson(a, \"A\")\nRel(a, s, \"x\")");
+        var box = Pieces(laid, SequencePiece.Box).Single().Bounds;
+        var heads = Pieces(laid, SequencePiece.Lifeline)
+            .Select(piece => piece.SelfAndDescendants().First(part => part.Kind == SequencePiece.Head).Bounds)
+            .OrderBy(bounds => bounds.Left).ToList();
+
+        Assert.IsTrue(Holds(box, heads[0]), "the one written inside it is inside the box");
+        Assert.IsFalse(Holds(box, heads[1]), "and the one written after the brace is not");
+    });
+
+    [TestMethod]
+    public void ADescriptionIsDrawnOnACardOnlyWhereItIsAskedFor() => UiThread.Run(() =>
+    {
+        bool Described(string source) =>
+            Pieces(Lay(source), SequencePiece.Head).SelectMany(Said).Any(words => words.Words!.Glyphs.Text == "Somebody");
+
+        Assert.IsFalse(Described("C4Sequence\nPerson(p, \"P\", \"Somebody\")\nRel(p, p, \"x\")"));
+        Assert.IsTrue(Described("C4Sequence\nSHOW_ELEMENT_DESCRIPTIONS()\nPerson(p, \"P\", \"Somebody\")\nRel(p, p, \"x\")"));
+    });
+
+    [TestMethod]
+    public void ASequenceDiagramsOwnLinesAreDrawnAmongTheMacros() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Sequence\nPerson(a, \"A\")\nSystem(b, \"B\")\nalt it works\nRel(a, b, \"x\")\nelse it does not\n"
+                       + "Rel(a, b, \"y\")\nend\nNote over a,b: they met\nactivate b\nRel(a, b, \"z\")\ndeactivate b");
+
+        Assert.AreEqual(1, Pieces(laid, SequencePiece.Frame).Count);
+        Assert.AreEqual(1, Pieces(laid, SequencePiece.Divider).Count);
+        Assert.AreEqual(1, Pieces(laid, SequencePiece.Note).Count);
+        Assert.AreEqual(1, Pieces(laid, SequencePiece.Bar).Count);
+        Assert.AreEqual(3, Pieces(laid, SequencePiece.Message).Count);
+
+        var frame = Pieces(laid, SequencePiece.Frame).Single().Bounds;
+        var messages = Pieces(laid, SequencePiece.Message).OrderBy(message => message.Bounds.Top).ToList();
+        Assert.IsTrue(Holds(frame, messages[0].Bounds) && Holds(frame, messages[1].Bounds), "the frame holds the macros written inside it");
+        Assert.IsFalse(frame.IntersectsWith(messages[2].Bounds), "and not the one written after it");
+    });
+
+    [TestMethod]
+    public void AParticipantWrittenAsASequenceDiagramsOwnStandsBesideTheCards() => UiThread.Run(() =>
+    {
+        var heads = Pieces(Lay("C4Sequence\nPerson(a, \"A\")\nparticipant plain\nRel(a, plain, \"Uses\")"), SequencePiece.Lifeline)
+            .Select(piece => piece.SelfAndDescendants().First(part => part.Kind == SequencePiece.Head))
+            .OrderBy(head => head.Bounds.Left).ToList();
+
+        Assert.AreEqual(2, heads.Count);
+        Assert.IsTrue(Said(heads[0]).Any(words => words.Words!.Glyphs.Text == "[Person]"), "a C4 element is a card");
+        CollectionAssert.AreEqual(new[] { "plain" }, Said(heads[1]).Select(words => words.Words!.Glyphs.Text).ToArray(),
+                                  "and a participant written as a sequence diagram's own is a name in a box");
+    });
+
+    [TestMethod]
+    public void TheLinesAPastedDiagramBringsDrawNothing() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Sequence\n@startuml\n!include C4_Sequence.puml\n' a note\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel_Back(a, b, \"Answers\")\n@enduml");
+        var lifelines = Pieces(laid, SequencePiece.Lifeline).OrderBy(piece => piece.Bounds.Left).ToList();
+
+        Assert.AreEqual(2, lifelines.Count, "nothing but the two written");
+        Assert.IsTrue(Said(lifelines[0]).Any(words => words.Words!.Glyphs.Text == "A"), "A stands first, where it was written");
+        Assert.AreEqual(1, Pieces(laid, SequencePiece.Message).Count);
+    });
 }

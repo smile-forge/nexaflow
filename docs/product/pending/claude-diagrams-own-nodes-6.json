@@ -1,0 +1,448 @@
+{
+  "branch": "claude/diagrams-own-nodes-6",
+  "nodes": {
+    "class-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs",
+          "class": "ClassGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs",
+          "class": "ResolveMembers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
+          "class": "ClassConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassGrammarTests.cs",
+            "class": "ClassGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassStagesTests.cs",
+            "class": "ClassStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassBuilderTests.cs",
+            "class": "ClassBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassEditingTests.cs",
+            "class": "ClassEditingTests"
+          }
+        ]
+      }
+    },
+    "venn-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs",
+          "class": "VennGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs",
+          "class": "GroupRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs",
+          "class": "ResolveRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennConfig.cs",
+          "class": "VennConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennGrammarTests.cs",
+            "class": "VennGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennStagesTests.cs",
+            "class": "VennStagesTests"
+          }
+        ]
+      }
+    },
+    "nomnoml": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlParser.cs",
+          "class": "NomnomlParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nomnoml/NomnomlParserTests.cs",
+            "class": "NomnomlParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Nomnoml/NomnomlBuilderTests.cs",
+            "class": "NomnomlBuilderTests"
+          }
+        ]
+      }
+    },
+    "gantt-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttGrammar.cs",
+          "class": "GanttGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveSchedule.cs",
+          "class": "ResolveSchedule"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/Stages/ResolveTasks.cs",
+          "class": "ResolveTasks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Gantt/GanttConfig.cs",
+          "class": "GanttConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidTime.cs",
+          "class": "MermaidDate"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttGrammarTests.cs",
+            "class": "GanttGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Gantt/GanttStagesTests.cs",
+            "class": "GanttStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTimeTests.cs",
+            "class": "MermaidTimeTests"
+          }
+        ]
+      }
+    },
+    "flowchart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs",
+          "class": "FlowchartGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs",
+          "class": "ResolveLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs",
+          "class": "FlowchartConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs",
+          "class": "ResolveShapes"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartGrammarTests.cs",
+            "class": "FlowchartGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartStagesTests.cs",
+            "class": "FlowchartStagesTests"
+          }
+        ]
+      }
+    },
+    "sequence-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs",
+          "class": "SequenceGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs",
+          "class": "ResolveFrames"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs",
+          "class": "SequenceConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceGrammarTests.cs",
+            "class": "SequenceGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Sequence/SequenceStagesTests.cs",
+            "class": "SequenceStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceBuilderTests.cs",
+            "class": "SequenceBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceEditingTests.cs",
+            "class": "SequenceEditingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/SequenceReadingTests.cs",
+            "class": "SequenceReadingTests"
+          }
+        ]
+      }
+    },
+    "c4-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs",
+          "class": "C4Builder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Piece.cs",
+          "class": "C4Piece"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4BuilderTests.cs",
+            "class": "C4BuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-sequence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveFootBoxes.cs",
+          "class": "ResolveFootBoxes"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs",
+          "class": "C4SequenceBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4SequenceBuilderTests.cs",
+            "class": "C4SequenceBuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-elements": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4BuilderTests.cs",
+            "class": "C4BuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-boundaries": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4BuilderTests.cs",
+            "class": "C4BuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-relationships": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4BuilderTests.cs",
+            "class": "C4BuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-styling": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/C4/C4StagesTests.cs",
+            "class": "C4StagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/C4SequenceBuilderTests.cs",
+            "class": "C4SequenceBuilderTests"
+          }
+        ]
+      }
+    },
+    "c4-macro-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs",
+          "class": "C4Grammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4SequenceGrammar.cs",
+          "class": "C4SequenceGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Macro.cs",
+          "class": "C4Macro"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveBoundaries.cs",
+          "class": "ResolveBoundaries"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Config.cs",
+          "class": "C4Config"
+        },
+        {
+          "type": "url",
+          "target": "https://github.com/plantuml-stdlib/C4-PlantUML"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs",
+          "class": "ResolveMacros"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 21,
+  "touched_nodes": [
+    "c4-boundaries",
+    "c4-diagram",
+    "c4-elements",
+    "c4-macro-syntax",
+    "c4-relationships",
+    "c4-sequence",
+    "c4-styling",
+    "class-diagram",
+    "flowchart-ast",
+    "gantt-ast",
+    "nomnoml",
+    "sequence-diagram",
+    "venn-ast"
+  ]
+}

@@ -24,8 +24,6 @@ public static class C4Kinds
     /// <summary>A line a diagram pasted from PlantUML brings with it — <c>@startuml</c>, <c>!include</c> — read and drawn as nothing.</summary>
     public const string Aside = "c4-aside";
 
-    /// <summary>What a line is told about the whole block it is in: which boundary it is written inside, and which it opens.</summary>
-    public const string Fact = "c4-fact";
 }
 
 /// <summary>What a piece of a C4 line is to the piece holding it.</summary>
@@ -46,9 +44,4 @@ public static class C4Roles
     /// <summary>A line read and drawn as nothing.</summary>
     public const string Aside = "c4-aside-text";
 
-    /// <summary>The boundary a line is written inside, named by where that boundary was opened.</summary>
-    public const string Inside = "c4-inside";
-
-    /// <summary>And the boundary a line opens.</summary>
-    public const string Opened = "c4-opened";
 }

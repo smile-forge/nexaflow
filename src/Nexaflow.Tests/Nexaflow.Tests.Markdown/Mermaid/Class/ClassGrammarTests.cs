@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Markdown.Mermaid.Class;
@@ -181,4 +182,21 @@ public class ClassGrammarTests : MermaidGrammarContract
         ("a class no classDef declares", "classDiagram\n  class A\n  cssClass \"A\" missing"),
         ("nothing anybody means to write", "classDiagram\n  ??? !!!"),
     ];
+
+    [TestMethod]
+    public void AnArrowIsReadAsTheEndItDrawsEitherSideAndTheLineBetween()
+    {
+        (string?, string?, string?) Arrow(string relation)
+        {
+            var arrow = MermaidStaged.Read($"classDiagram\n  {relation}").SelfAndDescendants().Single(node => node.Kind == ClassKinds.Arrow);
+            string? Piece(string role) => arrow.Children.FirstOrDefault(piece => piece.Role == role)?.Text;
+
+            return (Piece(ClassRoles.Head), Piece(ClassRoles.Line), Piece(ClassRoles.Tail));
+        }
+
+        Assert.AreEqual(("<|", "--", "|>"), Arrow("Animal <|--|> Zebra"));
+        Assert.AreEqual(((string?)null, "..", ">"), Arrow("A ..> B"));
+        Assert.AreEqual(("*", "--", (string?)null), Arrow("A *-- B"));
+        Assert.AreEqual(((string?)null, "--", "()"), Arrow("A --() bar"));
+    }
 }

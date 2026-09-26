@@ -242,11 +242,8 @@ internal abstract class MermaidBuilder : ContentBuilder
         Card(build, size);
 
         build.Close();
-        return new Laid(build.Seal(), size, trouble) { Passing = Passing };
+        return new Laid(build.Seal(), size, trouble);
     }
-
-    /// <summary>Whether this diagram is drawn as of the moment it is laid, reading the clock as well as the block — see <see cref="Laid.Passing"/>.</summary>
-    protected virtual bool Passing => false;
 
     /// <summary>Whether a part of the tree is drawn as words the reader types into — itself, or something inside it.</summary>
     private static bool Typed(LayoutTree drawn, ContentPart part)
@@ -560,37 +557,4 @@ internal abstract class MermaidBuilder : ContentBuilder
             SourceSize,
             Palette.Text,
             LayoutText.Density);
-}
-
-/// <summary>The shape every diagram's builder has: the block read into the diagram it describes once
-/// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
-/// title, trouble text, card, folding — is <see cref="MermaidBuilder"/>'s.</summary>
-/// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
-    : MermaidBuilder(reading, state, style, isReadOnly, nesting)
-    where TDiagram : class
-{
-    /// <summary>The diagram as it was read — null until it has been.</summary>
-    protected TDiagram? Diagram { get; private set; }
-
-    /// <summary>Reads the block into the diagram it describes: <c>PieChart.Of</c>, <c>VennDiagram.Of</c>.</summary>
-    protected abstract TDiagram Of(MermaidBlock block);
-
-    /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
-    /// took. May throw — shown as written, with the reason, on failure.</summary>
-    protected abstract Size Draw(TDiagram diagram, LayoutBuilder build);
-
-    /// <summary>
-    /// This diagram as a graph, for folding: its node ids, and the links between them. Null for a diagram that is not
-    /// graph-shaped, which is never folded at all.
-    /// </summary>
-    protected virtual DiagramChart? Chart(TDiagram diagram) => null;
-
-    protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
-    {
-        Diagram = Of(block);
-        if (Chart(Diagram) is { } chart) Fold(chart);
-
-        return Draw(Diagram, build);
-    }
 }

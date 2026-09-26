@@ -25,7 +25,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.C4;
 /// a person looks the same and grades the same whichever of the two a reader wrote.
 /// </para>
 /// </summary>
-internal sealed class C4Builder : MermaidBuilder<C4Structure>
+internal sealed partial class C4Builder : MermaidBuilder
 {
     /// <summary>How big a card's name, the line saying what it is, and the sentence under that are set.</summary>
     private const double TextSize = 12;
@@ -72,17 +72,14 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     internal C4Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) => this.ink = C4Grading.Of(style);
 
     /// <inheritdoc/>
-    protected override C4Structure Of(MermaidBlock block) => C4Structure.Of(block);
-
-    /// <inheritdoc/>
-    protected override DiagramChart? Chart(C4Structure diagram) =>
-        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]);
-
-    /// <inheritdoc/>
-    protected override Size Draw(C4Structure diagram, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        var diagram = Diagram.Of(Reading.Root, Configured(C4Config.Laid(null)));
+
         // A diagram with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Empty) return AsWritten(build);
+
+        Fold(new DiagramChart([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]));
 
         diagram = Fitted(diagram);
 
@@ -117,7 +114,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// diagram that cannot be drawn small enough is better drawn too wide than illegibly.
     /// </para>
     /// </summary>
-    private C4Structure Fitted(C4Structure diagram)
+    private Diagram Fitted(Diagram diagram)
     {
         if (double.IsInfinity(Space)) return diagram;
 
@@ -149,7 +146,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// Everything measured and placed: a cell for each card and each boundary, a join for each relationship, and the layered
     /// layout run over the lot of them.
     /// </summary>
-    private Plan Laid(C4Structure diagram)
+    private Plan Laid(Diagram diagram)
     {
         var plan = new Plan();
         var cells = new List<DiagramCell>();
@@ -208,7 +205,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
             };
         }
 
-        var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
+        var way = diagram.Way;
 
         plan.Spill = Spilled(id => plan.Named.TryGetValue(id, out var sized) ? sized.Cell : null);
         cells.AddRange(plan.Spill.Cells);
@@ -220,7 +217,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>The boundaries, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
-    private static IEnumerable<C4Bound> Nested(C4Structure diagram, string? inside)
+    private static IEnumerable<Boundary> Nested(Diagram diagram, string? inside)
     {
         foreach (var box in diagram.Within(inside))
         {
@@ -230,7 +227,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>Everything the diagram means to draw, gathered so the whole of it is brought inside the box the block takes.</summary>
-    private DiagramRoom Reached(C4Structure diagram, Plan plan)
+    private DiagramRoom Reached(Diagram diagram, Plan plan)
     {
         var room = DiagramRoom.Round(diagram.Config.Padding, plan.Size,
                                      [.. plan.Nodes.Select(node => node.Cell), .. plan.Boxes.Values.Select(box => box.Cell)],
@@ -250,7 +247,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// A card measured: its name, the line saying what it is, the sentence under that, and how much room the whole of it
     /// takes once its outline has had what it needs.
     /// </summary>
-    private Sized Measure(C4Node node, C4Metrics config)
+    private Sized Measure(Element node, C4Metrics config)
     {
         var (fill, stroke, ink) = this.ink.Card(node.Tone, node.Fill, node.Border, node.Ink);
         var shape = Carded(node.Shape);
@@ -278,7 +275,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>What is written at the top of a boundary: its name, and under it the line saying what it is.</summary>
-    private IReadOnlyList<DiagramWords> Naming(C4Bound box, C4Metrics config)
+    private IReadOnlyList<DiagramWords> Naming(Boundary box, C4Metrics config)
     {
         var ink = Ink.Written(box.Ink) ?? Palette.Text;
         var rows = new List<DiagramWords>();
@@ -291,7 +288,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>What is written on a relationship: its number where the diagram counts, what it says, and what it is done with.</summary>
-    private IReadOnlyList<DiagramWords> Says(C4Link link)
+    private IReadOnlyList<DiagramWords> Says(Relation link)
     {
         var ink = Ink.Written(link.SaidInk) ?? Palette.Text;
         var rows = new List<DiagramWords>();
@@ -308,10 +305,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     // ── The relationships ───────────────────────────────────────────────────
 
     /// <summary>Where every relationship runs once everything is placed, its ends brought in to the cards it joins.</summary>
-    private List<Route> Routes(C4Structure diagram, Plan plan, DiagramRoom room)
+    private List<Route> Routes(Diagram diagram, Plan plan, DiagramRoom room)
     {
         var routes = new List<Route>();
-        var way = diagram.Way == C4Way.Right ? DiagramWay.Right : DiagramWay.Down;
+        var way = diagram.Way;
         var down = way is DiagramWay.Down or DiagramWay.Up;
 
         // Several lines between the same two things are a couple, and what is written on one of them is held clear of the
@@ -352,7 +349,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// The boundary a relationship is drawn inside: the innermost one holding both of its ends, or none where it runs
     /// between boundaries. What it is drawn inside is what a press on it is inside, and what holds it is sized to hold it.
     /// </summary>
-    private static string? Grouped(C4Structure diagram, C4Link link)
+    private static string? Grouped(Diagram diagram, Relation link)
     {
         var from = Within(diagram, link.From);
         var to = Within(diagram, link.To);
@@ -372,7 +369,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// answers.
     /// </para>
     /// </summary>
-    private static Rect Written(Plan plan, DiagramRoom room, C4Link link, string? group, IReadOnlyList<Point> along,
+    private static Rect Written(Plan plan, DiagramRoom room, Relation link, string? group, IReadOnlyList<Point> along,
                                 Rect taken, DiagramWay way)
     {
         if (taken.IsEmpty) return taken;
@@ -405,7 +402,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>Which of the two ways round a couple runs a line takes, so the two of them are counted off separately.</summary>
-    private static bool Forward(C4Link link) => string.CompareOrdinal(link.From, link.To) <= 0;
+    private static bool Forward(Relation link) => string.CompareOrdinal(link.From, link.To) <= 0;
 
 
 
@@ -430,7 +427,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>A share along a couple, turned round for the line of it that runs the other way.</summary>
-    private static double Shared(C4Link link, double share) =>
+    private static double Shared(Relation link, double share) =>
         string.CompareOrdinal(link.From, link.To) <= 0 ? share : 1 - share;
 
     /// <summary>
@@ -450,7 +447,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// The two things the group holding a relationship sees it run between: an end inside a boundary of that group is that
     /// boundary, since from outside it that is what the line reaches.
     /// </summary>
-    private static (DiagramCell From, DiagramCell To)? Between(Plan plan, C4Link link, string? group)
+    private static (DiagramCell From, DiagramCell To)? Between(Plan plan, Relation link, string? group)
     {
         var holder = group is not null && plan.Boxes.TryGetValue(group, out var box) ? box.Cell : null;
 
@@ -564,14 +561,14 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         sideways ? route.Along[^1].X : route.Along[^1].Y;
 
     /// <summary>The two ends a relationship runs between, whichever way round it runs — two lines between the same pair.</summary>
-    private static (string, string) Pairing(C4Link link) =>
+    private static (string, string) Pairing(Relation link) =>
         string.CompareOrdinal(link.From, link.To) <= 0 ? (link.From, link.To) : (link.To, link.From);
 
     private static Rect Shifted(Rect room, bool sideways, double by) =>
         sideways ? Rect.Offset(room, by, 0) : Rect.Offset(room, 0, by);
 
     /// <summary>The boundaries an element is written inside, outermost first.</summary>
-    private static List<string> Within(C4Structure diagram, string id)
+    private static List<string> Within(Diagram diagram, string id)
     {
         var chain = new List<string>();
 
@@ -615,7 +612,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     // ── Drawing it ──────────────────────────────────────────────────────────
 
     /// <summary>A boundary: its box, its name at the top of it, and everything it holds drawn inside its piece.</summary>
-    private void Held(LayoutBuilder build, C4Structure diagram, Plan plan, DiagramRoom room, C4Bound box,
+    private void Held(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Boundary box,
                       IReadOnlyList<Geometry> over, IReadOnlyList<Route> routes)
     {
         var held = plan.Boxes[box.Key];
@@ -682,7 +679,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>One element: its card, and what is written in it.</summary>
-    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, C4Node node, IReadOnlyList<Geometry> over)
+    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, Element node, IReadOnlyList<Geometry> over)
     {
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
 
@@ -715,7 +712,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
         Chipped(build, node.Id, bounds, node.Part);
     }
 
-    private static IEnumerable<Sized> Inside(C4Structure diagram, Plan plan, string? box) =>
+    private static IEnumerable<Sized> Inside(Diagram diagram, Plan plan, string? box) =>
         diagram.Inside(box)
             .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
             .OfType<Sized>();
@@ -725,7 +722,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     /// put under the drawing rather than drawn into the drawing, so the two are set about the same middle whichever of them
     /// turns out to be the wider.
     /// </summary>
-    private void Keyed(C4Structure diagram)
+    private void Keyed(Diagram diagram)
     {
         if (diagram.Legend.Count == 0) return;
 
@@ -762,10 +759,10 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>A card measured: the words of each row, the outline they are set in, and the cell the layout placed it in.</summary>
-    private sealed class Sized(C4Node node, IReadOnlyList<(DiagramWords Words, string Kind)> rows, DiagramCardShape shape,
+    private sealed class Sized(Element node, IReadOnlyList<(DiagramWords Words, string Kind)> rows, DiagramCardShape shape,
                                Brush fill, Brush stroke)
     {
-        public C4Node Node { get; } = node;
+        public Element Node { get; } = node;
 
         public IReadOnlyList<(DiagramWords Words, string Kind)> Rows { get; } = rows;
 
@@ -781,9 +778,9 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>A boundary measured: what is written at the top of it, and the cell the layout placed it in.</summary>
-    private sealed class Bound(C4Bound box, IReadOnlyList<DiagramWords> words)
+    private sealed class Bound(Boundary box, IReadOnlyList<DiagramWords> words)
     {
-        public C4Bound Box { get; } = box;
+        public Boundary Box { get; } = box;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -791,7 +788,7 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
     }
 
     /// <summary>Where a relationship runs, what is written on it, and the room those words take.</summary>
-    private sealed record Route(C4Link Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said)
+    private sealed record Route(Relation Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said)
     {
         /// <summary>Where what is written on it goes, which is settled once every route is known (<see cref="Spread"/>).</summary>
         public Rect Room { get; set; }
@@ -809,13 +806,13 @@ internal sealed class C4Builder : MermaidBuilder<C4Structure>
 
         public Dictionary<string, Bound> Boxes { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<C4Link, DiagramJoin> Joins { get; } = [];
+        public Dictionary<Relation, DiagramJoin> Joins { get; } = [];
 
         /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
         public DiagramSpill Spill { get; set; } = DiagramSpill.None;
 
         /// <summary>What is written on each relationship, measured before anything is placed — the ranks are held apart for it.</summary>
-        public Dictionary<C4Link, IReadOnlyList<DiagramWords>> Said { get; } = [];
+        public Dictionary<Relation, IReadOnlyList<DiagramWords>> Said { get; } = [];
 
         /// <summary>How far apart the ranks were held, which is the gap each relationship's words are set in.</summary>
         public double Along { get; set; }

@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Mermaid.C4.Stages;
 using Nexaflow.Markdown.Mermaid.Sequence;
 using Nexaflow.Markdown.Mermaid.Sequence.Stages;
 using Nexaflow.Markdown.Pipeline;
@@ -23,11 +24,13 @@ public sealed class C4SequenceGrammar : C4Grammar
     /// <inheritdoc/>
     /// <remarks>
     /// The same stages a sequence diagram runs, with a boundary counted among the things that open a box and its <c>}</c>
-    /// among the things that close one.
+    /// among the things that close one; then what each macro means, and what the front matter asks for, foot boxes and all.
     /// </remarks>
     public override IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
     [
-        new ResolveFrames([C4Kinds.Boundary], [C4Kinds.Macro, C4Kinds.Aside], [C4Kinds.Ends]),
+        new ResolveFrames([C4Kinds.Boundary], [C4Kinds.Ends]),
         new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered),
+        new ResolveMacros(numbered: false),
+        new ResolveFootBoxes(C4Config.Read(block.Config)),
     ];
 }
