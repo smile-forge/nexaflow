@@ -4,14 +4,14 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Plot.Stages;
 
 /// <summary>
-/// Says under each cell which channel it feeds — ggplot2's <c>aes()</c>, worked out rather than written
-/// twice.
+/// Says of each cell which channels it feeds (<see cref="PlotCellNode"/>) — ggplot2's <c>aes()</c>, worked out rather than
+/// written twice.
 ///
 /// <para>
 /// A setting names a column or it does not, and that is the whole of the rule: <c>size: pop</c> maps the
 /// pop column to size, and <c>size: 4</c> sets the size of every mark. Which of the two a value is
 /// cannot be known from the characters — <c>4</c> is a perfectly good column name — so it is settled
-/// here, where the columns are known, and only a mapping leaves a fact behind. A constant is nobody's
+/// here, where the columns are known, and only a mapping is said of a cell. A constant is nobody's
 /// business but the builder's.
 /// </para>
 /// <para>
@@ -24,23 +24,23 @@ namespace Nexaflow.Markdown.Plot.Stages;
 /// <para>
 /// A matrix means something else by its columns: across it is x, down it is y, and the cell itself is
 /// the value. So every cell of one feeds fill, and the x and y are the name above it and the name
-/// beside it, which the shape stage has already hung there.
+/// beside it, which the shape stage has already said.
 /// </para>
 /// </summary>
-public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
+public sealed class ResolveAesthetics : IAstStage
 {
     public string Name => "plot:aesthetics";
 
     public ContentNode Run(ContentNode tree)
     {
-        if (tree.Rows().Count == 0) return tree;
+        if (tree is not PlotBlockNode block || tree.Rows().Count == 0) return tree;
 
-        if (tree.Said(PlotRoles.Form) == ResolveShape.Matrix)
+        if (block.Matrix)
             return AstRewrite.Each(tree, node => node.Kind == PlotKinds.Row && !node.IsHeader()
                 ? node.WithCells((cell, at) => at == 0 ? cell : Feeding(cell, [PlotAesthetic.Fill]))
                 : node);
 
-        var mapped = this.Mapped(tree);
+        var mapped = Mapped(tree, block.Settings);
 
         return AstRewrite.Each(tree, node => node.Kind == PlotKinds.Row && !node.IsHeader()
             ? node.WithCells((cell, at) =>
@@ -49,10 +49,7 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
     }
 
     private static ContentNode Feeding(ContentNode cell, IReadOnlyList<PlotAesthetic> channels) =>
-        cell.Telling([.. channels.Select(channel => (PlotKinds.Fact, PlotRoles.Aesthetic, Written(channel)))]);
-
-    /// <summary>A channel as a fact carries it, which is how it is written.</summary>
-    public static string Written(PlotAesthetic channel) => channel.ToString().ToLowerInvariant();
+        PlotCellNode.Of(cell).Feeding(channels);
 
     // ── Which column feeds what ─────────────────────────────────────────────
 
@@ -71,7 +68,7 @@ public sealed class ResolveAesthetics(PlotSettings settings) : IAstStage
     /// with three of them spoken for and nothing at all to put up the page.
     /// </para>
     /// </summary>
-    private IReadOnlyDictionary<int, List<PlotAesthetic>> Mapped(ContentNode tree)
+    private static IReadOnlyDictionary<int, List<PlotAesthetic>> Mapped(ContentNode tree, PlotSettings settings)
     {
         var columns = Columns(tree);
         var mapped = new Dictionary<int, List<PlotAesthetic>>();

@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Gantt;
+using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -143,4 +146,33 @@ public class GanttBuilderTests : MermaidBuilderContract
 
         CollectionAssert.AreEqual(new[] { "Build" }, Pieces(Build(source), GanttPiece.SectionName).Select(name => Written(source, name.Part)).ToArray());
     });
+
+    [TestMethod]
+    public void TheLineAtTodayStandsAtTheMomentTheBlockWasRead_WhereTheChartReachesIt() => UiThread.Run(() =>
+    {
+        const string source = "gantt\n  dateFormat YYYY-MM-DD\n  A :a1, 2024-01-01, 10d";
+        var inside = ReadAt(source, new DateTime(2024, 1, 6));
+        var bar = Pieces(inside, GanttPiece.Task).Single();
+        var today = Pieces(inside, GanttPiece.Today).Single();
+
+        Assert.AreEqual(bar.Bounds.Left + bar.Bounds.Width / 2, today.Bounds.Left + today.Bounds.Width / 2, 1, "five days into ten is halfway along");
+        Assert.IsTrue(today.Bounds.Height > bar.Bounds.Height, "and it runs down the chart");
+
+        Assert.AreEqual(0, Pieces(ReadAt(source, new DateTime(2025, 1, 1)), GanttPiece.Today).Count, "a day the chart does not reach has no line");
+        Assert.AreEqual(0, Pieces(ReadAt(source.Replace("dateFormat YYYY-MM-DD", "dateFormat YYYY-MM-DD\n  todayMarker off"), new DateTime(2024, 1, 6)),
+                                  GanttPiece.Today).Count, "nor does a chart that turns it off");
+    });
+
+    /// <summary>
+    /// <paramref name="source"/> read by its stages and laid as though read at <paramref name="now"/>: the stages say when a chart was
+    /// read in its own node, so saying it again there is all a test needs to fix the clock.
+    /// </summary>
+    private static Laid ReadAt(string source, DateTime now)
+    {
+        var read = AstRewrite.Each(Laying.Read("mermaid", source).Root.Node, node => node is GanttBlockNode chart
+            ? new GanttBlockNode(chart, chart.Config, chart.Days, now, chart.AxisFormat, chart.Tick, chart.Marker, chart.Weekday, chart.TopAxis)
+            : node);
+
+        return new GanttBuilder(ContentReading.Of(read), EditState.For(source), StyleFormat.Dark, true, Laying.NestingNothing).Lay(700);
+    }
 }

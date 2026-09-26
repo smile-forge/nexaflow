@@ -260,4 +260,31 @@ internal abstract partial class MusicBuilder : ContentBuilder
 
         return best;
     }
+
+    // ── Marks ───────────────────────────────────────────────────────────────
+
+    /// <summary>A mark onto an event: hugging its head where it is an articulation, stacked clear of the staff where it is not.</summary>
+    protected static void Marking(Event ev, MusicMark mark)
+    {
+        if (mark.HugsHead()) ev.HeadMarks.Add(Glyph(mark));
+        else ev.StaffMarks.Add(Glyph(mark));
+    }
+
+    /// <summary>The glyph a mark is drawn with.</summary>
+    protected static int Glyph(MusicMark mark) => mark switch
+    {
+        MusicMark.Staccato => Smufl.ArticStaccatoAbove,
+        MusicMark.Tenuto => Smufl.ArticTenutoAbove,
+        MusicMark.Accent => Smufl.ArticAccentAbove,
+        MusicMark.Marcato => Smufl.ArticMarcatoAbove,
+        MusicMark.Fermata => Smufl.FermataAbove,
+        MusicMark.Trill => Smufl.OrnamentTrill,
+        MusicMark.Turn => Smufl.OrnamentTurn,
+        MusicMark.Mordent => Smufl.OrnamentMordent,
+        MusicMark.LowerMordent => Smufl.OrnamentLowerMordent,
+        MusicMark.UpBow => Smufl.StringsUpBow,
+        MusicMark.DownBow => Smufl.StringsDownBow,
+        MusicMark.Segno => Smufl.Segno,
+        _ => Smufl.Coda,
+    };
 }

@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
+using Nexaflow.Markdown.Matrix.DataMatrix;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 

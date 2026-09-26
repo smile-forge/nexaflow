@@ -150,7 +150,7 @@ internal static class MarkdownEditorHarness
     private static (int Start, int Length) Blocked(MarkdownSurface editor, int index)
     {
         var source = editor.Shown.Markdown;
-        var blocks = MarkdownBlocks.Split(source);
+        var blocks = Nexaflow.Visuals.Text.Markdown.MarkdownBlocks.Split(source);
         var from = 0;
 
         for (var at = 0; at < blocks.Count; at++)

@@ -9,9 +9,9 @@ namespace Nexaflow.Markdown.Chemistry;
 ///
 /// <para>
 /// Each needs the answer of the one before it. Nothing can count an atom's hydrogens until its ring closures are
-/// bonds, because a ring closure is a bond like any other to the atom it closes on; and nothing can decide where a
+/// bonds, because a ring closure is a bond like any other to the atom it closes on; nothing can decide where a
 /// ring's double bonds go until every atom's hydrogens are known, because an aromatic atom that carries one has no
-/// bond left to give.
+/// bond left to give; and nothing can say where an atom goes until its bonds are known for what they are drawn as.
 /// </para>
 /// </summary>
 public static class SmilesPipeline
@@ -21,5 +21,6 @@ public static class SmilesPipeline
         new(
             new ConnectAtoms(),    // which atom each ring closure reaches
             new CountHydrogens(),  // the hydrogens nobody wrote, and atoms with more bonds than they can make
-            new Kekulize());       // where each aromatic ring's double bonds go
+            new Kekulize(),        // where each aromatic ring's double bonds go
+            new DepictStructure()); // where each atom goes on the page
 }

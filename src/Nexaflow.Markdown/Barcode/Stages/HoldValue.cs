@@ -22,7 +22,7 @@ public sealed class HoldValue : IAstStage
     public string Name => "barcode:hold-value";
 
     public ContentNode Run(ContentNode tree) => AstRewrite.Each(tree, node =>
-        SpellValue.Values(node) && !node.Children.Any(child => child.Role == MatrixRoles.Value)
+        BarcodeParser.Values(node) && !node.Children.Any(child => child.Role == MatrixRoles.Value)
             ? node.With([.. node.Children, ContentNode.Branch(MatrixKinds.Value, [ContentNode.Leaf(Kinds.Hole, string.Empty, Roles.Element, Says)], MatrixRoles.Value)])
             : node);
 }

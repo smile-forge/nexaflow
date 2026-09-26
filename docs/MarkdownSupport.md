@@ -13,7 +13,7 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
   starts from `Reading(new())` rather than writing the list again.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
-  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`WithBlocks`, each
+  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
   is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
   language's parser read each one, then runs the stages (`WithImages`, `WithLinks`). Markdig's own HTML renderer is
@@ -1142,10 +1142,10 @@ nothing would render a plausible-looking code that is not the one the author ask
 | Piece | Does |
 |---|---|
 | [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | lines → a lossless tree of fields, shared by every 2D code; a line that is not a field is held with the reason |
-| [`QrBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBlockReader.cs) | the tree → a `QrBlock` (payload + settings), or a message saying which line is wrong |
-| [`QrPayload`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrPayload.cs) | `type:` + fields → the one string that gets encoded, in the convention its scanners expect |
-| [`QrEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrEncoder.cs) | string → a `QrMatrix`. WPF-free, so a symbol can be asserted on without a UI thread |
-| [`QrBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Qr/QrBuilder.cs) | reads, encodes and lays the symbol out: its three finders, its timing lines and its modules, on a quiet-zone ground |
+| [`QrBlockReader`](../src/Nexaflow.Markdown/Matrix/Qr/QrBlockReader.cs) | the tree → a `QrBlock` (payload + settings), or the line that is wrong and why |
+| [`QrPayload`](../src/Nexaflow.Markdown/Matrix/Qr/QrPayload.cs) | `type:` + fields → the one string that gets encoded, in the convention its scanners expect |
+| [`QrEncoder`](../src/Nexaflow.Markdown/Matrix/Qr/QrEncoder.cs) | string → a `QrMatrix`. WPF-free, so a symbol can be asserted on without a UI thread |
+| [`EncodeQr`](../src/Nexaflow.Markdown/Matrix/Qr/Stages/EncodeQr.cs) | the stage: reads and encodes the block and names the parts the symbol is made of — its three finders and its timing lines — for [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) to lay out on a quiet-zone ground |
 
 **The encoder is ours** (ISO/IEC 18004 model 2), not a package: versions 1–40, all four error-correction
 levels, numeric / alphanumeric / byte modes with the narrowest one chosen for the payload, Reed–Solomon
@@ -1198,7 +1198,7 @@ The body is a flat `key: value` list, and **unrecognised keys are refused rather
 same reasoning as `qr`.
 
 **Twenty-three formats, all encoded here**, in
-[`Markdown/Barcode/Encoders`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/Encoders):
+[`Barcode/Encoders`](../src/Nexaflow.Markdown/Barcode/Encoders):
 
 | Encoder | Formats |
 |---|---|
@@ -1208,14 +1208,16 @@ same reasoning as `qr`.
 | `PublicationEncoder` | `ISBN`, `ISSN`, `ISMN` — each works out the thirteen digits its number stands for and hands them to `EanEncoder`, plus an optional add-on set apart by a 12-module gap |
 
 Every symbology reduces to the same thing — a row of equal-width modules, each ink or paper — so
-[`BarcodePattern`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePattern.cs) carries all of them
+[`BarcodePattern`](../src/Nexaflow.Markdown/Barcode/BarcodePattern.cs) carries all of them
 and the renderer never learns what an EAN is.
 
-**Reading it does not encode.** The body is read as every code block's is — `MatrixParser`, a field a line — and
-[`BarcodeParser`](../src/Nexaflow.Markdown/Barcode/BarcodeParser.cs) then spells the value out a character at a time
-([`SpellValue`](../src/Nexaflow.Markdown/Barcode/Stages/SpellValue.cs)).
-[`BarcodeBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBlockReader.cs) reads that tree into a
-`BarcodeBlock`, and that split is the whole design:
+**Reading it and encoding it are a stage's.** The body is parsed as every code block's is — `MatrixParser`, a field a
+line — with the value spelled out a character at a time
+([`BarcodeParser`](../src/Nexaflow.Markdown/Barcode/BarcodeParser.cs)).
+[`EncodeBarcode`](../src/Nexaflow.Markdown/Barcode/Stages/EncodeBarcode.cs) reads that tree
+([`BarcodeBlockReader`](../src/Nexaflow.Markdown/Barcode/BarcodeBlockReader.cs)), encodes the value, and says in the
+block's own nodes what is drawn: how (`BarcodeBlockNode`), the bars (`BarcodeBarsNode`) and every run printed with them
+(`BarcodeRunNode`). The line between reading and encoding is the whole design:
 
 - A fault in **reading** it (a line that is not a field, an unknown key, no such format, a width that isn't a number)
   means the block cannot be understood, and it is shown as written with the piece at fault marked and the reason under
@@ -1231,7 +1233,7 @@ and the renderer never learns what an EAN is.
     line marked.
 
 **Human-readable layout is a property of the format, not of the encoding**, so it is worked out in one
-place — [`BarcodeTextLayout`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeTextLayout.cs) —
+place — [`BarcodeTextLayout`](../src/Nexaflow.Markdown/Barcode/BarcodeTextLayout.cs) —
 from the symbology and the encoded text, rather than threaded back through each encoder. It returns
 the text broken into `BarcodeTextRun`s (each with the modules it sits over and whether it goes below,
 outside, or above the bars), the guard runs that drop past the digits, and a caption. Everything
@@ -1244,23 +1246,20 @@ when every module is right, which is exactly what the reference images caught.
 it, selects and types there as it does anywhere else, and a key means what it means to the characters — a barcode
 registers no edit hook of its own.
 It contributes a **layout tree** ([`BarcodeBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs)),
-built from a parse tree of the symbol's text
-([`BarcodePart`](../src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodePart.cs)) — so the shared queries
-answer where the caret can stand and what a press landed on, exactly as they do for a formula.
+built from what the stage hung under the block ([`BarcodeNodes`](../src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs)) — so
+the shared queries answer where the caret can stand and what a press landed on, exactly as they do for a formula.
 
 **Only the characters somebody typed carry a part.** These formats do not print what they are given:
 Codabar brackets the value in a start and a stop mark, an EAN-13 works out a thirteenth digit, a UPC-E
 fills in both ends, an ISBN takes the hyphens out. Each printed run is cut against the window where the
-value appears verbatim, so it becomes `EncodedText`, then a `Character` per typed character, then
-`EncodedText` again. A layout node gets a part only where the piece is a `Character`; the guard patterns
-and the bars get none at all. A piece with no part is drawn and is not selectable — which is why the
-caret is never offered inside a check digit, and why an ISBN takes it in the caption (the number as it
-was written) and not under the bars.
+value appears verbatim, so it becomes worked-out text, then a printed character per typed character, then
+worked-out text again. Each printed character that is a character of the value stands for that character as written
+(`BarcodePrintedNode`), and a layout piece gets a part only there — the value's own piece; the guard patterns and the
+bars get none at all. A piece with no part is drawn and is not selectable — which is why the caret is never offered
+inside a check digit, and why an ISBN takes it in the caption (the number as it was written) and not under the bars.
 
-The encoder counts what it prints along the value, because the value is all it is told. The value in the block's tree is
-one piece per character, so the builder gives each printed `Character` the piece it counts to (`BarcodeBlock.Characters`),
-and a caret in the caption stands between the characters of the document it is written in without the builder working out
-where any of them are.
+The value in the block's tree is one piece per character, so a caret in the caption stands between the characters of the
+document it is written in without the builder working out where any of them are.
 
 **Settings**: `width` (0.5–20, default 2 — the width of one *bar*, not of the symbol), `height`
 (4–1000, default 100), `displayValue` (default true), `fontSize` (4–200, default 20), `textAlign`
@@ -1290,22 +1289,24 @@ symbol code, while ours decode correctly against the digits printed on those sam
 QR was the first matrix symbology and everything about its block that was not the QR encoder turned out
 to be the same for the next three: a rectangular grid of modules drawn as merged runs on a quiet-zone
 ground, a flat `key: value` body, `cellSize` / `margin` / `dark` / `light`, and Reed–Solomon parity over
-some Galois field. Those live in [`Markdown/Matrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix), and
-the parser in [`Nexaflow.Markdown/Matrix`](../src/Nexaflow.Markdown/Matrix).
+some Galois field. Those live in [`Nexaflow.Markdown/Matrix`](../src/Nexaflow.Markdown/Matrix), with the
+one builder in [`Markdown/Matrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix).
 
 They render the way formulas and scores do — [docs/markdown-ast.md](markdown-ast.md). `MatrixParser`
-reads the fence into a tree, and the tree goes straight to that code's builder: there is nothing in a
-symbol to edit, so no pipeline stage sits between them. Each code is its own builder, because each reads
-its own fields, encodes its own way and is made of its own parts; what they share is `MatrixBuilder`. The
-layout is hosted read-only in the shared `ContentElement`, which the caret arrows over like a word.
+reads the fence into a tree, and the code's own stage (`EncodeQr`, `EncodeAztec`, `EncodeDataMatrix`,
+`EncodePdf417`) reads its fields, encodes them and names the parts the symbol is made of, because each
+code reads its own fields, encodes its own way and is made of its own parts. What it leaves is only what a
+picture needs (`MatrixSymbolNode`), so one builder, `MatrixBuilder`, lays out all four. The layout is hosted
+read-only in the shared `ContentElement`, which the caret arrows over like a word.
 
 | Piece | Does |
 |---|---|
-| [`IModuleMatrix`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/IModuleMatrix.cs) | any finished symbol: `Width`, `Height`, and whether a module is dark. Rectangular, because Data Matrix is |
+| [`IModuleMatrix`](../src/Nexaflow.Markdown/Matrix/IModuleMatrix.cs) | any finished symbol: `Width`, `Height`, and whether a module is dark. Rectangular, because Data Matrix is |
 | [`MatrixParser`](../src/Nexaflow.Markdown/Matrix/MatrixParser.cs) | any 2D block's body → a tree: a line per line, a field its key, colon and value. `Print(Parse(s)) == s` for anything |
-| [`MatrixSettings`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the fields the parser found; a symbology's reader takes the fields these hand back and adds its own keys |
-| [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) | what the four builders share: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode is only ever read, so it is shown as it is written, with the reason beneath. Takes a row-height multiplier for stacked symbologies |
-| [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
+| [`MatrixSettings`](../src/Nexaflow.Markdown/Matrix/MatrixSettings.cs) + [`MatrixBlockReader`](../src/Nexaflow.Markdown/Matrix/MatrixBlockReader.cs) | the drawing settings every 2D block takes, and the fields the parser found; a symbology's reader takes the fields these hand back and adds its own keys, and its stage marks the part at fault where the block will not read |
+| [`MatrixSymbolNode`](../src/Nexaflow.Markdown/Matrix/MatrixNodes.cs) | what a code's stage leaves for drawing: its modules, which of the parts the code is made of each belongs to, the settings and a row-height multiplier for stacked symbologies |
+| [`MatrixBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs) | the one builder: the symbol laid as a layout tree of the parts it is made of, each part's module runs merged into one geometry, aliased edges so no seam reads as a light line, and the quiet-zone ground. A block that will not read or encode is only ever read, so it is shown as it is written, with the part at fault marked and the reason beneath |
+| [`GaloisField` + `ReedSolomon`](../src/Nexaflow.Markdown/Matrix/ReedSolomon.cs) | parity over a field chosen per symbology — `0x11D` for QR, `0x12D` for Data Matrix, the prime field 929 for PDF417, and one of `0x13`/`0x43`/`0x12D`/`0x409`/`0x1069` for Aztec by symbol size — with the generator's first root a parameter, because the standards disagree about it and getting it wrong is silent |
 
 The QR code is re-pointed at all of it; its suite is what proves the shared codec. `QrColor` folded into
 `HexColor`. The palette's `QrDark` / `QrLight` pair is what every 2D symbol draws in — a theme retuning
@@ -1320,14 +1321,14 @@ A **`datamatrix`** fence generates an ECC 200 symbol. Registered as an
 beside `qr` for the same reason.
 
 **The encoder is ours** (ISO/IEC 16022), in
-[`DataMatrixEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixEncoder.cs):
+[`DataMatrixEncoder`](../src/Nexaflow.Markdown/Matrix/DataMatrix/DataMatrixEncoder.cs):
 the thirty-row size table; ASCII encodation with digit pairs and the upper shift; C40 with all three
 shift sets and every end-of-data rule the standard defines; ECI 26 for text outside ASCII; FNC1 and
 Macro 05/06; the 253-state pad; interleaved Reed–Solomon under `0x12D` from the first root; and Annex
 F's placement walk with its four corner cases. Both encodations are tried and the shorter wins — a
 reader decodes either, so choosing is a matter of size only.
 
-**Payloads** ([`DataMatrixPayload`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/DataMatrix/DataMatrixPayload.cs))
+**Payloads** ([`DataMatrixPayload`](../src/Nexaflow.Markdown/Matrix/DataMatrix/DataMatrixPayload.cs))
 are the `qr` vocabulary plus four that are message formats rather than text conventions:
 
 | `type:` | Wire form |
@@ -1361,7 +1362,7 @@ A **`pdf417`** fence generates a PDF417 symbol (ISO/IEC 15438), registered as an
 beside `qr` and `datamatrix`. It is the first stacked symbology here, and the first user of
 `MatrixBuilder`'s row-height multiplier.
 
-**The encoder is ours** ([`Pdf417Encoder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Encoder.cs)):
+**The encoder is ours** ([`Pdf417Encoder`](../src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417Encoder.cs)):
 text compaction with all four sub-modes and their latches and shifts, numeric compaction in 44-digit
 groups through `BigInteger`, byte compaction five-to-six, the symbol-length descriptor, Reed–Solomon
 over GF(929), the row indicators, and the layout.
@@ -1407,7 +1408,7 @@ grid through the larger sizes). `format:` picks one; left alone the encoder take
 message fits, because at any given side length a compact symbol carries more.
 
 **The high-level encoder is a shortest path, not a scan**
-([`AztecHighLevelEncoder`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs)).
+([`AztecHighLevelEncoder`](../src/Nexaflow.Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs)).
 Every character can be reached several ways — latch into the set it lives in, shift into it for one
 character, or drop a run into a byte shift — and which is cheapest depends on what follows. So it is a
 dynamic program over (position, character set in force). A greedy encoder fails this invisibly: the
@@ -1422,7 +1423,7 @@ bit, so no codeword can be all ones or all zeros — a run that wide would read 
 than as data. `StuffingLeavesNoUniformCodeword` runs 800 run-heavy bit streams through all four widths.
 
 **The geometry was derived from reference images, and is verified against them**
-([`AztecLayout`](../src/Nexaflow.Visuals.Text/Markdown/Matrix/Aztec/AztecLayout.cs)). This matters more
+([`AztecLayout`](../src/Nexaflow.Markdown/Matrix/Aztec/AztecLayout.cs)). This matters more
 here than for the other symbologies: an encoder and a decoder that share a placement walk agree with
 each other whether or not the walk is right, so a round trip proves nothing about the layout. The
 orientation marks (three dark modules then two, one and none, clockwise from the top left), the
@@ -1467,10 +1468,10 @@ fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smi
 | Piece | What it does |
 |---|---|
 | [`SmilesParser`](../src/Nexaflow.Markdown/Chemistry/SmilesParser.cs) | the block and each molecule into a lossless tree, to the character: bracket atoms (isotope, symbol, chirality, hydrogens, charge, class), organic-subset and aromatic atoms, the seven bond symbols, branches, ring closures (`1`, `%12`) and dots. What will not read is held with the reason |
-| [`SmilesPipeline`](../src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs) | three stages: `ConnectAtoms` pairs ring closures; `CountHydrogens` fills unbracketed atoms up to their valence and flags atoms with too many bonds; `Kekulize` gives aromatic rings alternating double bonds by maximum matching |
+| [`SmilesPipeline`](../src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs) | four stages: `ConnectAtoms` says what each atom is and which are bonded, pairing ring closures; `CountHydrogens` fills unbracketed atoms up to their valence and flags atoms with too many bonds; `Kekulize` gives aromatic rings alternating double bonds by maximum matching; `DepictStructure` says where every atom goes |
 | [`Elements`](../src/Nexaflow.Markdown/Chemistry/Elements.cs) | the periodic table, RDKit's valence lists, and a charge moving an atom along its row (N⁺ bonds like carbon) |
-| [`Molecule`](../src/Nexaflow.Markdown/Chemistry/Molecule.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | the graph read off the stages' answers; ring bonds, and the smallest set of smallest rings |
-| [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
+| [`SmilesNodes`](../src/Nexaflow.Markdown/Chemistry/SmilesNodes.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | what the stages say, in the molecule's own nodes: each atom (`AtomNode`), each written bond and ring closure, and the molecule as the graph they make with where its atoms go (`MoleculeNode`); ring bonds, and the smallest set of smallest rings |
+| [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates, which `DepictStructure` hangs on each molecule: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
 | [`CageLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs) | a cage drawn as the solid it is: built in 3D from its bonds and angles (classical scaling, then stress majorization), seen from whichever of four hundred directions `Readability` scores clearest — its substituents included — and kept only where that reads better than the flat drawing |
 | [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `StyleFormat.Elements`, wedges, captions, and entries flowing to the column |
 
@@ -1520,8 +1521,8 @@ on the shared syntax tree ([markdown-ast.md](markdown-ast.md#word-clouds)).
 | Piece | What it does |
 |---|---|
 | [`WordCloudParser`](../src/Nexaflow.Markdown/WordCloud/WordCloudParser.cs) | the block into a lossless tree, to the character: a line's key, its colon and its value, the quotes around a word held beside it rather than in it, comments and space as trivia. A line that is neither is held with the reason |
-| [`WordCloudReader`](../src/Nexaflow.Markdown/WordCloud/WordCloudReader.cs) | the tree into settings and words, heaviest first; the line between a fault that stops it being a cloud and a weight that will not read |
-| [`WordCloudChart`](../src/Nexaflow.Markdown/WordCloud/WordCloudChart.cs) | a weight into a size: the lightest word at `minSize`, the heaviest at `maxSize`, and the rest between them on a linear, root or log scale |
+| [`ResolveCloud`](../src/Nexaflow.Markdown/WordCloud/Stages/ResolveCloud.cs) | the stage saying what the settings and colours come to, on the block; a value a setting cannot take stops it being a cloud, marked where it is written |
+| [`ResolveWords`](../src/Nexaflow.Markdown/WordCloud/Stages/ResolveWords.cs) | the stage saying each word's weight, when it is packed (heaviest first) and its size — the lightest word at `minSize`, the heaviest at `maxSize`, the rest between them on a linear, root or log scale; a weight that will not read keeps its line, marked where it is wrong |
 | [`WordMask`](../src/Nexaflow.Markdown/WordCloud/WordMask.cs) | a word's letters filled onto a grid of cells, from the outlines the type engine hands over — the shape the fitting reads |
 | [`WordCloudShapes`](../src/Nexaflow.Markdown/WordCloud/WordCloudShape.cs) | how far the outline reaches at each angle: circle, cardioid, diamond, square, triangle, triangle-forward, pentagon, star |
 | [`WordCloudStencil`](../src/Nexaflow.Markdown/WordCloud/WordCloudStencil.cs) | the shape a cloud is packed *into* — letters, or a picture's silhouette — as a grid of cells saying where a word may go |
@@ -1623,12 +1624,14 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
   written, and worked over by a pipeline of stages —
   [`AbcPipeline`](../src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs) and
-  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that hang what each note
-  lasts and sounds underneath it.
+  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that say what each note
+  lasts and sounds, what each field or command sets, what each mark and each run of words written against a note
+  is, and — ABC — which syllable is sung on which note or — LilyPond — how a chord's name is spelled, in the
+  notation's own nodes and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
 - **How it is drawn.** A builder per notation —
   [`AbcBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs),
-  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — reads that tree
-  into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
+  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — walks that tree,
+  each its own way, into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
   the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
@@ -1641,8 +1644,9 @@ music through to find them (see *LilyPond coverage*). Everything after that — 
 curves, words, spacing and line breaks — is the one engraver's. What a string, a name, a chord's name and a syllable say
 is read off the parts the parser made of them ([`LilyPondText`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs)):
 a string is its quotes and a letter for each character, an escape being the one it writes, so a title is selected a
-letter at a time; a chord's name is its root, its quality and its bass; a syllable is its words and any duration after
-them. No builder takes one apart.
+letter at a time; a chord's name is its root, its quality and its bass, which a stage spells as a lead sheet does; a
+syllable is its words and any duration after them. No builder takes one apart, and none works out what a command's
+arguments set: that is said once, on the command, whatever it is played under.
 
 **Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
 beamed pair to select the pair, drag for a run — then:
@@ -1869,7 +1873,6 @@ Four fences — **`scatter`**, **`bubble`**, **`heatmap`** and **`density2d`** �
 against a pair of axes. They share one grammar
 ([`PlotParser`](../src/Nexaflow.Markdown/Plot/PlotParser.cs) →
 [`PlotPipeline`](../src/Nexaflow.Markdown/Plot/PlotPipeline.cs) →
-[`PlotChart`](../src/Nexaflow.Markdown/Plot/PlotChart.cs) →
 [`PlotBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs)), because they differ in what
 is drawn rather than in what is written — the division ggplot2 makes. Registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs), one
@@ -1918,14 +1921,20 @@ share over it. One value is no division at all and is drawn as one plot. Like co
 not used up as a place, so it is still free to be x or y.
 
 **What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
-parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
-column is called and which one a cell stands in (`ResolveColumns`), what a cell reads as
-(`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), and the coefficient between
-each pair of numeric columns (`ResolveCorrelations`). None of it is in the characters of any one line,
-and every one of the answers changes as the next line is typed.
+parser, said in the block's own nodes ([`PlotNodes`](../src/Nexaflow.Markdown/Plot/PlotNodes.cs)): what the
+settings say (`ResolveSettings`), which row is the header and whether the table is long or a matrix
+(`ResolveShape`), what each column is called and which one a cell stands in (`ResolveColumns`), what a cell
+reads as (`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), the coefficient between
+each pair of numeric columns (`ResolveCorrelations`), and what a `stats:` line reports, over every row and
+over each facet's own (`ResolveStatistics`). None of it is in the characters of any one line, and every one
+of the answers changes as the next line is typed. The builder reads those nodes down the tree into the marks
+it draws, and asks what it lays out — how far a channel reaches, what its names are — of the marks of the
+panel it is drawing.
 
-**The statistics are neither the parser's nor the builder's** — WPF-free beside the model, so they are
-tested without a desktop and held against R's own numbers:
+**The statistics are neither the parser's nor the builder's to define** — WPF-free, so they are tested
+without a desktop and held against R's own numbers. The ones worked out from the numbers written are
+stages; binning, densities and fits are worked out on the panel, so the builder asks for them as it lays
+it out:
 [`PlotBins`](../src/Nexaflow.Markdown/Plot/PlotBins.cs) (rectangular and hexagonal binning, each point to
 its nearest bin), [`PlotDensity`](../src/Nexaflow.Markdown/Plot/PlotDensity.cs) (MASS's `kde2d` with
 Silverman's rule, and marching squares for the contours) and
@@ -1986,7 +1995,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Qr/QrBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Qr/QrBuilderTests.cs) | A `qr` fence drawn by its language with nowhere in it to write, ink covering each dark module once, `cellSize`/`margin` measurement, palette vs. block colours, the finders and timing lines, and every failure — nonsense included — shown as written with its reason. (UI category.) |
 | [`Markdown/Barcode/BarcodeEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeEncoderTests.cs) | Every one of the twenty-three formats down to the module: published symbol tables, computed and verified check digits, Code 128 subset switching, and each value a format refuses. |
 | [`Markdown/Barcode/BarcodeReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeReferenceImageTests.cs) | Reads externally generated PNGs back to modules and compares. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; inconclusive without it. |
-| [`Markdown/Barcode/BarcodeBlockParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeBlockParserTests.cs) | The `barcode` block body: every setting and its bounds, the value offset, and each structural diagnostic — separately from a value the format cannot carry, which is not one. |
+| [`Barcode/BarcodeReadingTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodeReadingTests.cs) | The `barcode` block as its stage reads it: every setting and its bounds, which line is the value and where it stands, and each structural fault marked on the piece at fault — separately from a value the format cannot carry, which is not one while the block is written in. |
+| [`Barcode/BarcodePrintingTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodePrintingTests.cs) | What is printed with the bars and which of it was typed: Codabar's marks, an EAN-13's check digit, a UPC-E's filled-in ends, an ISBN's caption and add-on, and no character of the value printed as two things. |
 | [`Markdown/Barcode/BarcodeLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Barcode/BarcodeLayoutTests.cs) | The laid symbol: a stop between every typed character and none inside a worked-out digit, the caption of a publication, a refused letter still editable, and the bars standing for nothing. (UI category.) |
 | [`Editing/ContentFromABuilderAloneTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentFromABuilderAloneTests.cs) | A tune and a barcode take a caret and are typed into — a barcode's typing landing in its value, where it sits in the fence. (UI category.) |
 | [`Markdown/Matrix/DataMatrixEncoderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/DataMatrixEncoderTests.cs) | The Data Matrix encoder: the standard's worked example as a golden vector, placement invariants over all thirty sizes, both encodations and every C40 ending, ECI, GS1, Macro 06, multi-block interleaving, shapes and forced sizes. |
@@ -1999,8 +2009,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Matrix/AztecBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs) | The `aztec` block's fields and its layout: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, the bullseye, mode message and reference grid, a bad block still drawing a code, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/AztecReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs) | Decodes Aztec symbols made by other generators **and** asserts our encoder reproduces them module for module. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is the only check that can catch a self-consistent but unreadable layout. |
 | [`Chemistry/SmilesParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesParserTests.cs) | The `smiles` tree: every construct and every prefix of it reads back, the parser only copies, a molecule to the character, bracket atoms as their parts, and what will not read held with its reason. |
-| [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
-| [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
+| [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages, through the molecule's nodes: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
+| [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout the stages hang on a molecule: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
 | [`Chemistry/SmilesCorpusTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs) | 5,481 real molecules against RDKit: round trip, refusals, hydrogens, and overlaps. Opt-in via `NEXAFLOW_SMILES_CORPUS` (default `D:\Datasets\smiles`, made by the `make_reference.py` beside it). |
 | [`Markdown/Chemistry/SmilesBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs) | The `smiles` drawing: dispatch, atoms and written bonds carrying their parts, captions, wrapping, element colours, a cage's rear bond broken where it passes behind, and trouble — on the offending atom, or an entry with no atom — shown as written with its reason. (UI category.) |
 

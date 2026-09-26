@@ -1,4 +1,5 @@
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Markdown.Barcode;
 using Nexaflow.Visuals.Text.Markdown.Barcode;
 using System.IO;
 using System.Windows.Media;

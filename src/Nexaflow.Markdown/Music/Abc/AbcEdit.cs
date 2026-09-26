@@ -7,7 +7,7 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// Changing a tune by changing its tree.
 ///
 /// <para>
-/// Every gesture here rewrites <em>one leaf of one note</em>, and that is not a coincidence — it is what
+/// Every gesture here rewrites <em>one part of one note</em>, and that is not a coincidence — it is what
 /// ABC's own shape gives us. An accidental is a prefix, a length is a suffix, and an octave is the
 /// letter's case plus a run of marks after it, so sharpening a note replaces its accidental leaf and
 /// touches nothing else. A tune somebody lined up by hand still reads that way afterwards, which a string
@@ -89,7 +89,7 @@ public static class AbcEdit
         var step = Pitch.Letters.IndexOf(char.ToUpperInvariant(letter));
         if (step < 0) return letter.ToString();
 
-        return Spell(step, octave) + (previous?.Part(AbcRoles.Length)?.Text ?? "");
+        return Spell(step, octave) + (previous?.Part(AbcRoles.Length)?.Print() ?? "");
     }
 
     // ── Working out what each gesture writes ────────────────────────────────
@@ -106,16 +106,16 @@ public static class AbcEdit
 
         // What it sounds now, which is the written accidental where there is one and the key's where
         // there is not — a distinction only the stage that read the whole line can make.
-        var sounds = ResolveNotes.PitchOf(note)?.Alter ?? 0;
+        var sounds = (note as AbcEventNode)?.Pitch?.Alter ?? 0;
         var wanted = Math.Clamp(sounds + by, -2, 2);
 
         var mark = wanted switch { 2 => "^^", 1 => "^", -1 => "_", -2 => "__", _ => "=" };
-        return With(note, AbcRoles.Accidental, AbcKinds.Accidental, mark);
+        return With(note, AbcRoles.Accidental, ContentNode.Leaf(AbcKinds.Accidental, mark, AbcRoles.Accidental));
     }
 
     private static ContentNode? Stretched(ContentNode note, int steps)
     {
-        var factor = AbcTheory.Factor(note.Part(AbcRoles.Length)?.Text);
+        var factor = AbcTheory.Factor(note.Part(AbcRoles.Length));
 
         for (var i = 0; i < Math.Abs(steps); i++)
             factor = steps > 0
@@ -125,7 +125,7 @@ public static class AbcEdit
         // Past a breve on one side and a 64th on the other there is nothing left to write.
         if (factor.Numerator > 64 || factor.Denominator > 64) return null;
 
-        return With(note, AbcRoles.Length, AbcKinds.Length, Suffix(factor));
+        return With(note, AbcRoles.Length, AbcParser.Length(Suffix(factor)));
     }
 
     /// <summary>How ABC writes a length multiplier: <c>2</c>, <c>/2</c>, <c>3/2</c>, and nothing for one.</summary>
@@ -148,8 +148,10 @@ public static class AbcEdit
         var letter = spelled[..1];
         var marks = spelled[1..];
 
-        var rebuilt = With(note, AbcRoles.Letter, AbcKinds.Letter, letter);
-        return rebuilt is null ? null : With(rebuilt, AbcRoles.Octave, AbcKinds.Octave, marks);
+        var rebuilt = With(note, AbcRoles.Letter, ContentNode.Leaf(AbcKinds.Letter, letter, AbcRoles.Letter));
+        return rebuilt is null
+            ? null
+            : With(rebuilt, AbcRoles.Octave, marks.Length > 0 ? ContentNode.Leaf(AbcKinds.Octave, marks, AbcRoles.Octave) : null);
     }
 
     /// <summary>The letter and marks for a step in an octave — <c>C,,</c>, <c>C</c>, <c>c</c>, <c>c''</c>.</summary>
@@ -266,14 +268,14 @@ public static class AbcEdit
     }
 
     /// <summary>
-    /// The note with one of its leaves set to <paramref name="text"/> — added where it had none, replaced
-    /// where it had one, removed where the text is empty.
+    /// The note with the part playing <paramref name="role"/> set to <paramref name="piece"/> — added where it had
+    /// none, replaced where it had one, removed where there is no piece.
     /// <para>
-    /// Where a new leaf goes is fixed by the notation rather than chosen: an accidental is written in
+    /// Where a new part goes is fixed by the notation rather than chosen: an accidental is written in
     /// front of the letter and everything else after it, which is the whole of the ordering rule.
     /// </para>
     /// </summary>
-    private static ContentNode? With(ContentNode note, string role, string kind, string text)
+    private static ContentNode? With(ContentNode note, string role, ContentNode? piece)
     {
         var rebuilt = new List<ContentNode>(note.Children.Count + 1);
         var replaced = false;
@@ -283,17 +285,17 @@ public static class AbcEdit
             if (child.Role != role) { rebuilt.Add(child); continue; }
 
             replaced = true;
-            if (text.Length > 0) rebuilt.Add(ContentNode.Leaf(kind, text, role));
+            if (piece is not null) rebuilt.Add(piece);
         }
 
-        if (!replaced && text.Length > 0)
+        if (!replaced && piece is not null)
         {
             var at = role == AbcRoles.Accidental
                 ? 0
                 : rebuilt.FindLastIndex(child => child.Role is AbcRoles.Accidental or AbcRoles.Letter
                                                               or AbcRoles.Octave) + 1;
 
-            rebuilt.Insert(Math.Clamp(at, 0, rebuilt.Count), ContentNode.Leaf(kind, text, role));
+            rebuilt.Insert(Math.Clamp(at, 0, rebuilt.Count), piece);
         }
 
         return note.With(rebuilt);

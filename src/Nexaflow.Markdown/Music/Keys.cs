@@ -61,4 +61,16 @@ public static class Keys
             _ => 0,
         };
     }
+
+    /// <summary>
+    /// Whether a word names a mode — in full or by its first three letters, in any case, or as the <c>m</c> that is the
+    /// commonest way of writing minor.
+    /// </summary>
+    public static bool IsMode(string word)
+    {
+        var name = new string([.. word.Where(char.IsLetter)]).ToLowerInvariant();
+
+        return name == "m"
+               || (name.Length >= 3 && name[..3] is "maj" or "ion" or "min" or "aeo" or "dor" or "phr" or "lyd" or "mix" or "loc");
+    }
 }

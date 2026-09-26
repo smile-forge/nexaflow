@@ -4,7 +4,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
-using Nexaflow.Markdown.Music.LilyPond.Stages;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -184,14 +184,14 @@ internal sealed partial class LilyPondBuilder
         switch (part.Kind)
         {
             case LilyPondKinds.ChordName:
-                into.Add((now, Spelled(part), part));
-                return now + ResolveDurations.SoundsOf(part.Node);
+                into.Add((now, (part.Node as LilyPondEventNode)?.Chord ?? "", part));
+                return now + Lasting(part);
 
             case LilyPondKinds.Rest:
-                return now + ResolveDurations.SoundsOf(part.Node);
+                return now + Lasting(part);
 
             case LilyPondKinds.Command when CommandName(part) == @"\skip":
-                return now + ResolveDurations.SoundsOf(part.Node);
+                return now + Lasting(part);
 
             case LilyPondKinds.Command when Reference(part) is { } called
                                            && _definitions.TryGetValue(called, out var definition) && active.Add(called):
@@ -206,31 +206,8 @@ internal sealed partial class LilyPondBuilder
         return now;
     }
 
-    /// <summary>
-    /// A chord's name spelled the way a lead sheet spells it. LilyPond's modifiers are mostly that already —
-    /// <c>:m7</c> reads "m7" — and only the two that are LilyPond's own spelling are rewritten.
-    /// </summary>
-    private static string Spelled(ContentPart name)
-    {
-        var (step, alter) = LilyPondTheory.Name(name.Part(LilyPondRoles.NoteName)?.Text ?? "") ?? (0, 0);
-        var spelled = $"{Pitch.Letters[step]}{Accidental(alter)}";
-
-        spelled += LilyPondText.Quality(name);
-
-        if (LilyPondTheory.Name(name.Part(LilyPondRoles.Bass)?.Text ?? "") is { } low)
-            spelled += $"/{Pitch.Letters[low.Step]}{Accidental(low.Alter)}";
-
-        return spelled;
-    }
-
-    private static string Accidental(int alter) => alter switch
-    {
-        2 => "##",
-        1 => "#",
-        -1 => "b",
-        -2 => "bb",
-        _ => "",
-    };
+    /// <summary>How long something in a chord line lasts, as the stages said.</summary>
+    private static Duration Lasting(ContentPart part) => (part.Node as LilyPondEventNode)?.Lasts ?? Duration.Zero;
 
     // ── The header ──────────────────────────────────────────────────────────
 

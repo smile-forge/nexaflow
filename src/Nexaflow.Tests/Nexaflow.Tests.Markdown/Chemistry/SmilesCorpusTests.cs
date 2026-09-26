@@ -83,7 +83,7 @@ public class SmilesCorpusTests
         var failures = new List<string>();
         foreach (var row in rows.Where(row => row.Read))
         {
-            var molecule = Molecule.Read(SmilesPipeline.Of().Run(SmilesParser.Molecule(row.Smiles)));
+            var molecule = (MoleculeNode)SmilesPipeline.Of().Run(SmilesParser.Molecule(row.Smiles));
             var ours = string.Join(",", molecule.Atoms.Select(atom => atom.TotalHydrogens));
             if (ours != row.Hydrogens) failures.Add($"line {row.Line}: ours {ours}, RDKit {row.Hydrogens}");
         }
@@ -105,8 +105,8 @@ public class SmilesCorpusTests
 
         foreach (var row in rows.Where(row => row.Read))
         {
-            var molecule = Molecule.Read(SmilesPipeline.Of().Run(SmilesParser.Molecule(row.Smiles)));
-            var structure = StructureLayout.Of(molecule);
+            var molecule = (MoleculeNode)SmilesPipeline.Of().Run(SmilesParser.Molecule(row.Smiles));
+            var structure = molecule.Structure!;
             var at = structure.At;
 
             if (at.Any(p => !double.IsFinite(p.X) || !double.IsFinite(p.Y))) { failures.Add($"line {row.Line}: not a number"); continue; }

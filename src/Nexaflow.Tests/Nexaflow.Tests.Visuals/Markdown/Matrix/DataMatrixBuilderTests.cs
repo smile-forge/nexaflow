@@ -4,7 +4,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
+using Nexaflow.Markdown.Matrix.DataMatrix;
+using Nexaflow.Markdown.Matrix.DataMatrix.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
@@ -60,8 +61,8 @@ public class DataMatrixBuilderTests
         // finder's bounds are the whole symbol, as the clock's are.
         var laid = Build("type: text\ntext: hello\ncellSize: 1\nmargin: 0");
 
-        var finder = MatrixLayouts.Of(laid, DataMatrixBuilder.Finder).Single();
-        var clock = MatrixLayouts.Of(laid, DataMatrixBuilder.Clock).Single();
+        var finder = MatrixLayouts.Of(laid, EncodeDataMatrix.Finder).Single();
+        var clock = MatrixLayouts.Of(laid, EncodeDataMatrix.Clock).Single();
 
         Assert.AreEqual(laid.Size.Width, finder.Bounds.Width, 0.001);
         Assert.AreEqual(laid.Size.Height, finder.Bounds.Height, 0.001);
@@ -116,7 +117,7 @@ public class DataMatrixBuilderTests
 
     private static DataMatrixBlock Read(string source)
     {
-        Assert.IsTrue(DataMatrixBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(DataMatrixBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

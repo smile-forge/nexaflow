@@ -17,7 +17,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Plot;
 /// <see cref="DiagramAxis"/>, <see cref="DiagramInk"/>, <see cref="DiagramLegend"/>) for marks, axes, colour
 /// and the key. Every mark carries the source part it was drawn from, so it stays editable.
 /// </summary>
-internal sealed class PlotBuilder : ContentBuilder
+internal sealed partial class PlotBuilder : ContentBuilder
 {
     /// <summary>The face the source is shown in when the block cannot be read as a plot at all.</summary>
     private static readonly FontFamily SourceFont = new("Cascadia Code, Consolas, monospace");
@@ -49,12 +49,12 @@ internal sealed class PlotBuilder : ContentBuilder
     {
         // A setting that will not read leaves nothing to work the picture out from: the block is shown as written, the setting
         // at fault marked with why.
-        if (PlotPipeline.Settings(Reading.Root.Node) is not { } settings)
+        if (Reading.Root.Node is not PlotBlockNode block)
             return AsSource([.. Reading.Root.SelfAndDescendants()
                                   .Where(part => part.Trouble is not null && !part.Derived)
                                   .Select(part => (part, part.Trouble!))]);
 
-        var chart = PlotChart.Of(Reading.Root, settings);
+        var chart = Drawing.Of(Reading.Root, block);
 
         if (chart.Marks.Count == 0)
             return Stopped("An empty plot. It takes a row of values for each point — two columns for where "
@@ -73,11 +73,11 @@ internal sealed class PlotBuilder : ContentBuilder
     /// <summary>Where a channel's values land along one axis, from 0 at the start to 1 at the end.</summary>
     /// <param name="Of">Where a bare name lands, for marks worked out rather than written.</param>
     private sealed record Placing(PlotAesthetic Channel, IReadOnlyList<DiagramTick> Ticks,
-                                  Func<PlotValue?, double?> At, double Slot, Func<string, double?>? Of = null);
+                                  Func<Value?, double?> At, double Slot, Func<string, double?>? Of = null);
 
     /// <summary>Lays a channel along its axis: numbered for continuous values, one slot per name for discrete
     /// ones (ggplot2's continuous/discrete split).</summary>
-    private Placing Along(PlotChart chart, PlotAesthetic channel, PlotScale scale,
+    private Placing Along(Drawing chart, PlotAesthetic channel, PlotScale scale,
                           (double Min, double Max)? limits, IReadOnlyList<double>? breaks, bool slots,
                           (double Min, double Max)? widened = null)
     {
@@ -122,7 +122,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 }
 
     /// <summary>The plain span a channel's numbers make, before anything drawn over them widens it.</summary>
-    private static DiagramSpan Spanned(PlotChart chart, PlotAesthetic channel, PlotScale scale,
+    private static DiagramSpan Spanned(Drawing chart, PlotAesthetic channel, PlotScale scale,
                                        (double Min, double Max)? limits)
     {
         var reach = limits ?? chart.Reach(channel) ?? (Min: 0.0, Max: 1.0);
@@ -151,7 +151,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     };
 
     /// <summary>Glyph for a point: shape-column mapping, else the block-named shape, else a circle.</summary>
-    private DiagramGlyph Glyph(PlotChart chart, PlotMark mark, IReadOnlyDictionary<string, int> shapes)
+    private DiagramGlyph Glyph(Drawing chart, Mark mark, IReadOnlyDictionary<string, int> shapes)
     {
         if (shapes.Count == 0) return DiagramGlyphs.Named(chart.Settings.Shape) ?? DiagramGlyph.Circle;
 
@@ -162,7 +162,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Mark radius, scaled by area not radius — matches ggplot2's size scale, since ink read is
     /// what matters, not radius.</summary>
-    private static double Radius(PlotChart chart, PlotMark mark)
+    private static double Radius(Drawing chart, Mark mark)
     {
         if (!chart.Counts(PlotAesthetic.Size)
             || chart.Reach(PlotAesthetic.Size) is not { } reach
@@ -178,7 +178,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     }
 
     /// <summary>Mark alpha: mapped from the alpha channel if fed by a column, else the plain default.</summary>
-    private static double Clearness(PlotChart chart, PlotMark mark, bool over)
+    private static double Clearness(Drawing chart, Mark mark, bool over)
     {
         var it = chart.Settings;
 
@@ -196,7 +196,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Jitter offset for overlapping marks, seeded from the row's source position (not the clock)
     /// so the same block always renders identically.</summary>
-    private (double Across, double Up) Shake(PlotChart chart, PlotMark mark, Rect plot,
+    private (double Across, double Up) Shake(Drawing chart, Mark mark, Rect plot,
                                                     Placing across, Placing up)
     {
         if (chart.Settings.Jitter <= 0) return (0, 0);
@@ -223,7 +223,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Picks the colour channel (fill if mapped, else colour) and whether it runs along a ramp or
     /// by group.</summary>
-    private Painting Paint(PlotChart chart, List<Diagnostic> trouble)
+    private Painting Paint(Drawing chart, List<Diagnostic> trouble)
     {
         var it = chart.Settings;
 
@@ -303,7 +303,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     }
 
     /// <summary>What a mark is drawn in.</summary>
-    private Brush Fill(PlotChart chart, PlotMark mark, Painting paint)
+    private Brush Fill(Drawing chart, Mark mark, Painting paint)
     {
         if (paint.Span is { } span)
             return mark[paint.Channel]?.Number is { } number && span.At(number) is { } share
@@ -317,7 +317,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Draws rows as counts in bins. A bin has no source part — like a gridline, nobody typed it —
     /// its colour is the count.</summary>
-    private DiagramSpan? Binned(PlotChart chart, LayoutBuilder build, Rect plot,
+    private DiagramSpan? Binned(Drawing chart, LayoutBuilder build, Rect plot,
                                 Placing across, Placing up, IReadOnlyList<Color> stops,
                                 List<Diagnostic> trouble)
     {
@@ -374,7 +374,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Draws a kernel density estimate as filled or line contours. Like a bin, a contour has no
     /// source part.</summary>
-    private DiagramSpan? Clouded(PlotChart chart, LayoutBuilder build, Rect plot,
+    private DiagramSpan? Clouded(Drawing chart, LayoutBuilder build, Rect plot,
                                  Placing across, Placing up, IReadOnlyList<Color> stops,
                                  List<Diagnostic> trouble)
     {
@@ -478,7 +478,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Draws a mark per row. Returns labels rather than drawing them, so all labels land in one
     /// layer above every mark — avoids a label being covered by the next tile.</summary>
-    private List<(DiagramWords Words, Point At)> Drawn(PlotChart chart, LayoutBuilder build, Rect plot,
+    private List<(DiagramWords Words, Point At)> Drawn(Drawing chart, LayoutBuilder build, Rect plot,
                                                        Placing across, Placing up, Painting paint,
                                                        IReadOnlyDictionary<string, int> shapes, bool tiles,
                                                        List<Diagnostic> trouble, bool over = false)
@@ -544,7 +544,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>A tile per column pair, coloured by their correlation coefficient. No source part — the
     /// coefficient isn't a written cell — but the axis names are.</summary>
-    private List<(DiagramWords Words, Point At)> Correlated(PlotChart chart, LayoutBuilder build, Rect plot,
+    private List<(DiagramWords Words, Point At)> Correlated(Drawing chart, LayoutBuilder build, Rect plot,
                                                             Placing across, Placing up, Painting paint)
     {
         var labels = new List<(DiagramWords Words, Point At)>();
@@ -585,7 +585,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Fits lines through the points. Fitted in panel space so it follows a log axis directly;
     /// statistics are computed from the raw values since screen-down and number-down disagree.</summary>
-    private IReadOnlyList<Fitting> Fits(PlotChart chart, Rect plot, Placing across, Placing up, Painting paint)
+    private IReadOnlyList<Fitting> Fits(Drawing chart, Rect plot, Placing across, Placing up, Painting paint)
     {
         var it = chart.Settings;
         if (it.Fit == PlotFit.None) return [];
@@ -627,7 +627,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     /// them fully — a band is part of the answer, not decoration cropped to the panel (ggplot2 does the
     /// same). Skipped when the block set explicit limits. Computed in the axis's own transform since the
     /// panel isn't laid out yet.</summary>
-    private (double Min, double Max)? Banding(PlotChart chart, PlotAesthetic acrossChannel,
+    private (double Min, double Max)? Banding(Drawing chart, PlotAesthetic acrossChannel,
                                               PlotAesthetic upChannel, DiagramSpan across, DiagramSpan up)
     {
         var it = chart.Settings;
@@ -662,19 +662,17 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return (up.Value(least.Value), up.Value(most.Value));
     }
 
-    /// <summary>Computes and writes the correlation statistics from the raw values (not panel coordinates).</summary>
-    private void Reported(PlotChart chart, LayoutBuilder build, Rect plot)
+    /// <summary>
+    /// Writes what the stages worked out the <c>stats:</c> line reports — over every row, or over the rows of the facet's
+    /// <paramref name="level"/> where the plot is divided into panels.
+    /// </summary>
+    private void Reported(Drawing chart, LayoutBuilder build, Rect plot, string? level)
     {
         var it = chart.Settings;
         if (it.Stats is not { Count: > 0 }) return;
 
-        var values = new List<(double X, double Y)>();
-
-        foreach (var mark in chart.Marks)
-            if (mark[PlotAesthetic.X]?.Number is { } x && mark[PlotAesthetic.Y]?.Number is { } y)
-                values.Add((x, y));
-
-        if (PlotFits.Of(it.Method, values) is { } said) this.Reported(build, plot, it, said);
+        var said = level is null ? chart.Block.Statistic : chart.Block.Statistics.GetValueOrDefault(level);
+        if (said is not null) this.Reported(build, plot, it, said);
     }
 
     /// <summary>Draws the fit's confidence band under the marks (so it doesn't grey out the points it's
@@ -713,7 +711,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
     /// <summary>Groups row indices by fit group — indices not points, so callers can look up other per-row
     /// data like colour — preserving first-seen order.</summary>
-    private static IReadOnlyList<IReadOnlyList<int>> Split(PlotChart chart, int count)
+    private static IReadOnlyList<IReadOnlyList<int>> Split(Drawing chart, int count)
     {
         var named = chart.Marks.Where(mark => mark[PlotAesthetic.X] is not null).ToList();
 
@@ -816,7 +814,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     /// <paramref name="how"/> stays plot-wide across facets so panels read consistently against each
     /// other.</summary>
     private (List<(DiagramWords Words, Point At)> Labels, DiagramSpan? Counts) Inside(
-        PlotChart chart, LayoutBuilder build, Rect panel, Panelling how, List<Diagnostic> trouble)
+        Drawing chart, LayoutBuilder build, Rect panel, Panelling how, List<Diagnostic> trouble, string? level)
     {
         var it = chart.Settings;
         var labels = new List<(DiagramWords Words, Point At)>();
@@ -860,7 +858,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         // Over the marks and under the axes: worked out from them, and never over the numbers.
         this.Traced(build, fits, panel);
 
-        if (!how.Bins && !how.Cloud && !how.Corr) this.Reported(chart, build, panel);
+        if (!how.Bins && !how.Cloud && !how.Corr) this.Reported(chart, build, panel, level);
 
         return (labels, counts);
     }
@@ -892,7 +890,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
         return cells;
     }
 
-    private Laid Lay(PlotChart chart)
+    private Laid Lay(Drawing chart)
     {
         var it = chart.Settings;
 
@@ -990,7 +988,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
 
         if (!faceted)
         {
-            var (said, counts) = this.Inside(chart, build, plot, how, trouble);
+            var (said, counts) = this.Inside(chart, build, plot, how, trouble, level: null);
 
             labels.AddRange(said);
             if (counts is not null) key = this.Counting(counts, paint.Stops);
@@ -1016,7 +1014,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
                     Marks = [.. chart.Marks.Where(mark => mark[PlotAesthetic.Facet]?.Text == level)],
                 };
 
-                var (said, _) = this.Inside(only, build, panel, how, trouble);
+                var (said, _) = this.Inside(only, build, panel, how, trouble, level);
                 labels.AddRange(said);
 
                 // Axis numbers only on the outside (first column, bottom row) — elsewhere they'd sit between panels.
@@ -1117,7 +1115,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     }
 
     /// <summary>What explains the colours, or nothing where they explain themselves.</summary>
-    private Chart Key(PlotChart chart, Painting paint)
+    private Chart Key(Drawing chart, Painting paint)
     {
         if (chart.Settings.Legend == PlotLegend.None) return new Chart(null, null);
 
@@ -1146,7 +1144,7 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     }
 
     /// <summary>What the key is called, where the block calls it anything.</summary>
-    private DiagramWords? Heading(PlotChart chart) =>
+    private DiagramWords? Heading(Drawing chart) =>
         chart.Settings.LegendTitle is { } said
             ? this.Worked(said, null, LabelSize, _palette.Heading)
             : null;
@@ -1178,13 +1176,13 @@ private Placing Slotted(PlotAesthetic channel, IReadOnlyList<string> names)
     }
 
     /// <summary>Where a group was first named, which is what its row in the key stands for.</summary>
-    private ContentPart? Named(PlotChart chart, PlotAesthetic channel, string group) =>
+    private ContentPart? Named(Drawing chart, PlotAesthetic channel, string group) =>
         chart.Marks.Select(mark => mark[channel])
                    .FirstOrDefault(value => value is not null && value.Text == group)
                   ?.Cell;
 
     /// <summary>What an axis is called: what the block says, else the name of the column feeding it.</summary>
-    private DiagramWords? AxisTitle(PlotChart chart, PlotAesthetic channel, string? written) =>
+    private DiagramWords? AxisTitle(Drawing chart, PlotAesthetic channel, string? written) =>
         chart.Titled(channel, written) is { Length: > 0 } says
             ? this.Worked(says, null, LabelSize, _palette.TextMuted)
             : null;

@@ -8,7 +8,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Matrix;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
+using Nexaflow.Markdown.Matrix.Aztec;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 
@@ -41,7 +41,7 @@ public class AztecFigureWriter
                          ("styled",      "type: text\ntext: An Aztec Code\ncellSize: 6\ndark: #1D4ED8\nlight: #EFF6FF"),
                      ])
             {
-                Assert.IsTrue(AztecBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out _, out var wrong), wrong.Reason);
+                Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out var wrong), wrong.Reason);
 
                 var column = new StackPanel
                 {

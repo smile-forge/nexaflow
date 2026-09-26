@@ -4,7 +4,7 @@ namespace Nexaflow.Markdown.Chemistry;
 
 /// <summary>
 /// The shapes a SMILES stage is: find each molecule, and change what it says about some of its atoms or ring
-/// closures, picked out by the number a <see cref="Molecule"/> gives them.
+/// closures, picked out by the order they are written in — the number a <see cref="MoleculeNode"/>'s bonds name atoms by.
 ///
 /// <para>
 /// Every one returns the node it was given where nothing under it moved, so an untouched molecule is shared rather

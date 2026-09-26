@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
+using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
 
 namespace Nexaflow.Visuals.Text.Markdown.WordCloud;
@@ -30,57 +31,14 @@ internal sealed class WordCloudInk
         _dark = dark;
     }
 
-    /// <summary>
-    /// What the settings ask for, or false with the reason — a colour written that is not one is a fault in
-    /// the block rather than in a word, so it stops the whole thing being a cloud.
-    /// </summary>
-    public static bool TryRead(WordCloudSettings settings, StyleFormat palette, WordCloudRandom random,
-                               out WordCloudInk? ink, out string? error)
+    /// <summary>What the stages said the words are drawn in, as the brushes they are drawn with.</summary>
+    public static WordCloudInk Of(WordCloudColours colours, StyleFormat palette, WordCloudRandom random) => colours.Colouring switch
     {
-        ink = null;
-        error = null;
-
-        var asked = settings.Colour.Trim();
-
-        if (asked.Equals(WordCloudSettings.Themed, StringComparison.OrdinalIgnoreCase))
-        {
-            ink = new WordCloudInk(palette.Series, null, dark: false);
-            return true;
-        }
-
-        if (asked.Equals(WordCloudSettings.RandomDark, StringComparison.OrdinalIgnoreCase)
-            || asked.Equals(WordCloudSettings.RandomLight, StringComparison.OrdinalIgnoreCase))
-        {
-            ink = new WordCloudInk(null, random,
-                                   dark: asked.Equals(WordCloudSettings.RandomDark, StringComparison.OrdinalIgnoreCase));
-            return true;
-        }
-
-        var written = asked.Split([',', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-        var colours = new List<Brush>();
-
-        foreach (var one in written)
-        {
-            if (!HexColor.TryParse(one, out var colour))
-            {
-                error = $"`color: {one}` is not a colour. Use {WordCloudSettings.Themed}, "
-                      + $"{WordCloudSettings.RandomDark}, {WordCloudSettings.RandomLight}, "
-                      + "or #RGB / #RRGGBB / #AARRGGBB colours to take in turn.";
-                return false;
-            }
-
-            colours.Add(Frozen(Color.FromArgb(colour.A, colour.R, colour.G, colour.B)));
-        }
-
-        if (colours.Count == 0)
-        {
-            error = "A `color:` line with no colour on it.";
-            return false;
-        }
-
-        ink = new WordCloudInk(colours, null, dark: false);
-        return true;
-    }
+        WordCloudColouring.Themed => new WordCloudInk(palette.Series, null, dark: false),
+        WordCloudColouring.RandomDark => new WordCloudInk(null, random, dark: true),
+        WordCloudColouring.RandomLight => new WordCloudInk(null, random, dark: false),
+        _ => new WordCloudInk([.. colours.Written.Select(colour => Frozen(Color.FromArgb(colour.A, colour.R, colour.G, colour.B)))], null, dark: false),
+    };
 
     /// <summary>What the word at <paramref name="at"/> is drawn in. Asked once per word, in the order they are placed.</summary>
     public Brush For(int at)
@@ -97,22 +55,8 @@ internal sealed class WordCloudInk
     }
 
     /// <summary>The ground the picture is drawn on, or null for the page it sits on.</summary>
-    public static bool TryBackground(WordCloudSettings settings, out Brush? background, out string? error)
-    {
-        background = null;
-        error = null;
-
-        if (settings.Background is not { Length: > 0 } written) return true;
-
-        if (!HexColor.TryParse(written, out var colour))
-        {
-            error = $"`background: {written}` is not a hex colour. Use #RGB, #RRGGBB or #AARRGGBB.";
-            return false;
-        }
-
-        background = Frozen(Color.FromArgb(colour.A, colour.R, colour.G, colour.B));
-        return true;
-    }
+    public static Brush? Background(WordCloudColours colours) =>
+        colours.Background is { } colour ? Frozen(Color.FromArgb(colour.A, colour.R, colour.G, colour.B)) : null;
 
     private static Color FromHsl(double hue, double saturation, double lightness)
     {

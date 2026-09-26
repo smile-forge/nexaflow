@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
+using Nexaflow.Markdown.Matrix.Pdf417;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 

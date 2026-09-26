@@ -6,8 +6,8 @@ namespace Nexaflow.Markdown.Chemistry;
 /// <remarks>
 /// About syntax, not chemistry: an <see cref="Atom"/> is an element symbol with whatever was written round it,
 /// whether or not it turns out to carry hydrogens, close a ring or share a double bond. Those are worked out by the
-/// stages in <see cref="SmilesPipeline"/> and hung underneath it, because they are facts about its neighbours as
-/// much as about the letter.
+/// stages in <see cref="SmilesPipeline"/>, which make the atom their own <see cref="AtomNode"/>, because they are facts
+/// about its neighbours as much as about the letter.
 /// </remarks>
 public static class SmilesKinds
 {
@@ -67,9 +67,6 @@ public static class SmilesKinds
 
     /// <summary>A <c>.</c> — what separates two molecules written in one string.</summary>
     public const string Dot = "smiles-dot";
-
-    /// <summary>A worked-out fact about an atom or a ring closure.</summary>
-    public const string Fact = "smiles-fact";
 }
 
 /// <summary>What a piece of a <c>smiles</c> block is <em>to</em> the piece holding it.</summary>
@@ -102,15 +99,4 @@ public static class SmilesRoles
     public const string Branch = "branch";
 
     public const string RingNumber = "ring-number";
-
-    // ── Facts the stages hang underneath ────────────────────────────────────
-
-    /// <summary>Under a ring closure: the index of the atom at its other end.</summary>
-    public const string Partner = "partner";
-
-    /// <summary>Under an atom from the organic subset: how many hydrogens it carries without their being written.</summary>
-    public const string ImplicitHydrogens = "implicit-hydrogens";
-
-    /// <summary>Under an aromatic atom: the index of the atom it shares a double bond with, once the ring is drawn alternating.</summary>
-    public const string DoubleTo = "double-to";
 }

@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
+using Nexaflow.Markdown.Music;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 

@@ -4,7 +4,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
+using Nexaflow.Markdown.Matrix.Pdf417;
+using Nexaflow.Markdown.Matrix.Pdf417.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using System.Windows;
 using Nexaflow.Markdown.Ast;
@@ -60,13 +61,13 @@ public class Pdf417BuilderTests
     [TestMethod]
     public void RefusesSettingsOutsideTheStandard()
     {
-        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\ncolumns: 40")), out _, out var wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumns: 40"), out _, out var wrong));
         StringAssert.Contains(wrong.Reason, "30");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\nrowHeight: 99")), out _, out wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\nrowHeight: 99"), out _, out wrong));
         StringAssert.Contains(wrong.Reason, "rowHeight");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse("type: text\ntext: x\ncolumnz: 4")), out _, out wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumnz: 4"), out _, out wrong));
         StringAssert.Contains(wrong.Reason, "columnz");
     }
 
@@ -91,20 +92,20 @@ public class Pdf417BuilderTests
         // start pattern first and three columns of data before the right indicator.
         var full = Build("type: text\ntext: columns\ncolumns: 3\ncellSize: 1\nmargin: 0\nrowHeight: 2");
 
-        Assert.AreEqual(0, Left(full, Pdf417Builder.Start));
-        Assert.AreEqual(17, Left(full, Pdf417Builder.LeftRowIndicator));
-        Assert.AreEqual(34, Left(full, Pdf417Builder.Codewords));
-        Assert.AreEqual(34 + 17 * 3, Left(full, Pdf417Builder.RightRowIndicator));
-        Assert.AreEqual(34 + 17 * 4, Left(full, Pdf417Builder.Stop));
-        Assert.AreEqual(full.Size.Width, MatrixLayouts.Of(full, Pdf417Builder.Stop).Single().Bounds.Right, 0.001,
+        Assert.AreEqual(0, Left(full, EncodePdf417.Start));
+        Assert.AreEqual(17, Left(full, EncodePdf417.LeftRowIndicator));
+        Assert.AreEqual(34, Left(full, EncodePdf417.Codewords));
+        Assert.AreEqual(34 + 17 * 3, Left(full, EncodePdf417.RightRowIndicator));
+        Assert.AreEqual(34 + 17 * 4, Left(full, EncodePdf417.Stop));
+        Assert.AreEqual(full.Size.Width, MatrixLayouts.Of(full, EncodePdf417.Stop).Single().Bounds.Right, 0.001,
                         "and the stop pattern closes on a bar");
 
         // A truncated symbol gives up its right indicator, and its stop is a single bar.
         var truncated = Build("type: text\ntext: columns\ncolumns: 3\ntruncated: true\ncellSize: 1\nmargin: 0");
 
-        Assert.AreEqual(0, MatrixLayouts.Of(truncated, Pdf417Builder.RightRowIndicator).Length);
-        Assert.AreEqual(34 + 17 * 3, Left(truncated, Pdf417Builder.Stop));
-        Assert.AreEqual(1, MatrixLayouts.Of(truncated, Pdf417Builder.Stop).Single().Bounds.Width, 0.001);
+        Assert.AreEqual(0, MatrixLayouts.Of(truncated, EncodePdf417.RightRowIndicator).Length);
+        Assert.AreEqual(34 + 17 * 3, Left(truncated, EncodePdf417.Stop));
+        Assert.AreEqual(1, MatrixLayouts.Of(truncated, EncodePdf417.Stop).Single().Bounds.Width, 0.001);
 
         static double Left(Laid laid, string kind) => MatrixLayouts.Of(laid, kind).Single().Bounds.X;
     });
@@ -140,7 +141,7 @@ public class Pdf417BuilderTests
 
     private static Pdf417Block Read(string source)
     {
-        Assert.IsTrue(Pdf417BlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(Pdf417BlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

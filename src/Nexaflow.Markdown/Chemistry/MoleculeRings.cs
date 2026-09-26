@@ -16,10 +16,10 @@ namespace Nexaflow.Markdown.Chemistry;
 /// they use, are the set.
 /// </para>
 /// </summary>
-public static class MoleculeRings
+internal static class MoleculeRings
 {
     /// <summary>For each bond, whether it is in a ring.</summary>
-    public static bool[] RingBonds(Molecule molecule)
+    public static bool[] RingBonds(MoleculeNode molecule)
     {
         var atoms = molecule.Atoms.Count;
         var bonds = molecule.Bonds.Count;
@@ -80,7 +80,7 @@ public static class MoleculeRings
     }
 
     /// <summary>The smallest set of smallest rings, each as its atoms in order round it.</summary>
-    public static IReadOnlyList<int[]> Smallest(Molecule molecule)
+    public static IReadOnlyList<int[]> Smallest(MoleculeNode molecule)
     {
         var ring = RingBonds(molecule);
         var rings = new List<int[]>();
@@ -92,7 +92,7 @@ public static class MoleculeRings
     }
 
     /// <summary>The atoms joined to one another by ring bonds, a set per connected piece of them.</summary>
-    private static List<List<int>> Systems(Molecule molecule, bool[] ring)
+    private static List<List<int>> Systems(MoleculeNode molecule, bool[] ring)
     {
         var atoms = molecule.Atoms.Count;
         var seen = new bool[atoms];
@@ -128,7 +128,7 @@ public static class MoleculeRings
         return systems;
     }
 
-    private static IEnumerable<int[]> Smallest(Molecule molecule, bool[] ring, List<int> system)
+    private static IEnumerable<int[]> Smallest(MoleculeNode molecule, bool[] ring, List<int> system)
     {
         var local = new Dictionary<int, int>();
         for (var i = 0; i < system.Count; i++) local[system[i]] = i;

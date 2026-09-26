@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;

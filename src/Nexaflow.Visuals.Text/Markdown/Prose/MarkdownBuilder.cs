@@ -248,7 +248,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
     /// <summary>
     /// What a block held as written holds: its body's characters, less the line break closing them, which is a piece of its own
-    /// (<see cref="Nexaflow.Markdown.Prose.Stages.WithClosingLines"/>) — or null for a block with nothing in it.
+    /// (<see cref="Nexaflow.Markdown.Prose.MarkdownClosingLines"/>) — or null for a block with nothing in it.
     /// </summary>
     private static ContentPart? Held(ContentPart part) =>
         part.Part(Roles.Body) is not { } body ? null

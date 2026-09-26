@@ -5,7 +5,7 @@ using Nexaflow.Markdown.Settings;
 namespace Nexaflow.Markdown.Plot.Stages;
 
 /// <summary>
-/// Correlates every numeric column with every other, and hangs the answers under the block.
+/// Correlates every numeric column with every other, and hangs the answers on the block (<see cref="PlotBlockNode"/>).
 ///
 /// <para>
 /// A correlation matrix is the one plot whose marks nobody wrote: the block holds a table of
@@ -14,13 +14,13 @@ namespace Nexaflow.Markdown.Plot.Stages;
 /// asked for it.
 /// </para>
 /// </summary>
-public sealed class ResolveCorrelations(PlotSettings settings) : IAstStage
+public sealed class ResolveCorrelations : IAstStage
 {
     public string Name => "plot:correlations";
 
     public ContentNode Run(ContentNode tree)
     {
-        if (settings.Geom != PlotGeom.Corr) return tree;
+        if (tree is not PlotBlockNode { Settings.Geom: PlotGeom.Corr } block) return tree;
 
         var rows = tree.Rows().Where(row => !row.IsHeader()).ToList();
         if (rows.Count == 0) return tree;
@@ -31,7 +31,7 @@ public sealed class ResolveCorrelations(PlotSettings settings) : IAstStage
         for (var at = 0; at < rows.Count; at++)
             foreach (var cell in rows[at].Cells())
             {
-                if (cell.Said(PlotRoles.Column) is not { } name) continue;
+                if (cell is not PlotCellNode { Column: { } name } said) continue;
 
                 if (!read.TryGetValue(name, out var down))
                 {
@@ -40,7 +40,7 @@ public sealed class ResolveCorrelations(PlotSettings settings) : IAstStage
                     order.Add(name);
                 }
 
-                down[at] = SettingValues.Read(cell.Said(PlotRoles.Number));
+                down[at] = said.Number;
             }
 
         // A column is correlated where more of its cells read as numbers than do not, which is the rule
@@ -50,23 +50,19 @@ public sealed class ResolveCorrelations(PlotSettings settings) : IAstStage
 
         if (numeric.Count < 2) return tree;
 
-        var facts = new List<ContentNode>();
+        var pairs = new List<(string Across, string Down, double R)>();
 
         foreach (var down in numeric)
             foreach (var across in numeric)
             {
                 var points = Paired(read[across], read[down]);
 
-                if (PlotFits.Of(settings.Method, points) is not { } correlation) continue;
+                if (PlotFits.Of(block.Settings.Method, points) is not { } correlation) continue;
 
-                facts.Add(ContentNode.Branch(PlotKinds.Pair,
-                    [ContentNode.Leaf(PlotKinds.Fact, across, PlotRoles.Column),
-                     ContentNode.Leaf(PlotKinds.Fact, down, PlotRoles.Names),
-                     ContentNode.Leaf(PlotKinds.Fact, PlotNumber.Written(correlation.R), PlotRoles.Number)],
-                    Roles.Derived));
+                pairs.Add((across, down, correlation.R));
             }
 
-        return facts.Count == 0 ? tree : tree.With([.. tree.Children, .. facts]);
+        return pairs.Count == 0 ? tree : block.Correlated(pairs);
     }
 
     /// <summary>The rows where both columns read as a number — a row missing either says nothing about the pair.</summary>

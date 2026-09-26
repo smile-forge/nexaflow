@@ -31,7 +31,7 @@ public sealed class CountHydrogens : IAstStage
 
     private static ContentNode Count(ContentNode node)
     {
-        var molecule = Molecule.Read(node);
+        if (node is not MoleculeNode molecule) return node;
         var said = new Dictionary<int, (int Hydrogens, string? Trouble)>();
 
         foreach (var atom in molecule.Atoms)
@@ -68,9 +68,7 @@ public sealed class CountHydrogens : IAstStage
         {
             if (!said.TryGetValue(index, out var fact)) return atom;
 
-            var told = fact.Hydrogens > 0
-                ? atom.Saying(SmilesKinds.Fact, SmilesRoles.ImplicitHydrogens, fact.Hydrogens.ToString())
-                : atom;
+            var told = fact.Hydrogens > 0 && atom is AtomNode read ? read.Carrying(fact.Hydrogens) : atom;
 
             return SmilesRewrite.Troubled(told, fact.Trouble);
         });
@@ -82,7 +80,7 @@ public sealed class CountHydrogens : IAstStage
     /// the short way, which every reader accepts and chemists write constantly; a neutral nitrogen with four single
     /// bonds is not, and still reads as the missing charge it nearly always is.
     /// </summary>
-    private static IReadOnlyList<int>? Oxidised(Molecule molecule, MoleculeAtom atom)
+    private static IReadOnlyList<int>? Oxidised(MoleculeNode molecule, AtomNode atom)
     {
         if (atom.Charge != 0 || atom.Number is not (7 or 17 or 35 or 53)) return null;
 
@@ -95,7 +93,7 @@ public sealed class CountHydrogens : IAstStage
     }
 
     /// <summary>Why an atom cannot have the bonds it was written with, and the charge that would let it.</summary>
-    private static string TooMany(MoleculeAtom atom, int bonds)
+    private static string TooMany(AtomNode atom, int bonds)
     {
         var name = Elements.Name(atom.Number);
         var element = char.ToUpperInvariant(name[0]) + name[1..];
@@ -121,7 +119,7 @@ public sealed class CountHydrogens : IAstStage
         _ => $" with a charge of −{-charge}",
     };
 
-    private static string Hydrogens(MoleculeAtom atom) => atom.Hydrogens switch
+    private static string Hydrogens(AtomNode atom) => atom.Hydrogens switch
     {
         null or 0 => "",
         1 => "H",

@@ -47,12 +47,12 @@ public sealed record Structure(IReadOnlyList<Vec> At, IReadOnlyList<(Wedge Kind,
 /// which way a wedge points depends on where everything ended up.
 /// </para>
 /// </summary>
-public static class StructureLayout
+internal static class StructureLayout
 {
     /// <summary>Clear space between two molecules written in one string, in bond lengths.</summary>
     private const double Apart = 1.5;
 
-    public static Structure Of(Molecule molecule)
+    public static Structure Of(MoleculeNode molecule)
     {
         var rings = MoleculeRings.Smallest(molecule);
         var at = new Vec[molecule.Atoms.Count];
@@ -80,7 +80,7 @@ public static class StructureLayout
     }
 
     /// <summary>The atoms bonded to one another, a list per molecule written — in the order they were written.</summary>
-    private static List<List<int>> Components(Molecule molecule)
+    private static List<List<int>> Components(MoleculeNode molecule)
     {
         var seen = new bool[molecule.Atoms.Count];
         var components = new List<List<int>>();
@@ -143,7 +143,7 @@ public static class StructureLayout
     /// away from the reader.
     /// </para>
     /// </summary>
-    private static void Straighten(Molecule molecule, List<int> component, Vec[] at, double?[] depth)
+    private static void Straighten(MoleculeNode molecule, List<int> component, Vec[] at, double?[] depth)
     {
         if (component.Count < 2) return;
 

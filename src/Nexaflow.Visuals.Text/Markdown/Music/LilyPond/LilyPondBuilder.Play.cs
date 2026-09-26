@@ -4,10 +4,9 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
-using Nexaflow.Markdown.Music.LilyPond.Stages;
+
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using AnnotationPlacement = Nexaflow.Visuals.Text.Markdown.Music.Model.AnnotationPlacement;
-using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -82,7 +81,7 @@ internal sealed partial class LilyPondBuilder
                 return;
 
             case LilyPondKinds.Articulation:
-                if (playing.Last is { } marked && Shorthand(part.Text) is { } mark) Mark(marked.Event, mark);
+                if (playing.Last is { } marked && part.Node is MusicMarkNode shorthand) Marking(marked.Event, shorthand.Mark);
                 return;
 
             case LilyPondKinds.Script:
@@ -154,8 +153,7 @@ internal sealed partial class LilyPondBuilder
 
             if (child.Kind == LilyPondKinds.Command && CommandName(child) is @"\new" or @"\context")
             {
-                var (kind, _, _) = Head(child);
-                if (Kindly(kind) == Ctx.Staff && Body(child) is { } voice)
+                if ((child.Node as LilyPondCommandNode)?.Context == LilyPondContext.Staff && Body(child) is { } voice)
                 {
                     Named(child, playing.Stave);
                     strands.Add(voice);
@@ -188,9 +186,9 @@ internal sealed partial class LilyPondBuilder
     /// <summary>What a <c>\new Voice = "x" \with { … }</c> inside a staff says about that staff.</summary>
     private static void Named(ContentPart context, Stave stave)
     {
-        var (_, id, label) = Head(context);
-        if (id is not null) stave.Ids.Add(id);
-        stave.Name ??= label;
+        var said = context.Node as LilyPondCommandNode;
+        if (said?.Id is { } id) stave.Ids.Add(id);
+        stave.Name ??= said?.Instrument;
     }
 
     // ── Events ──────────────────────────────────────────────────────────────
@@ -199,8 +197,9 @@ internal sealed partial class LilyPondBuilder
     private void Sound(ContentPart part, Playing playing)
     {
         var (pitches, forced) = Pitches(part);
-        var written = ResolveDurations.WrittenOf(part.Node);
-        var lasts = ResolveDurations.SoundsOf(part.Node);
+        var read = part.Node as LilyPondEventNode;
+        var written = read?.WrittenAs ?? Duration.Zero;
+        var lasts = read?.Lasts ?? Duration.Zero;
         var (value, dots) = Value(written.Quarters);
 
         if (playing.Grace)
@@ -261,23 +260,24 @@ internal sealed partial class LilyPondBuilder
         switch (part.Kind)
         {
             case LilyPondKinds.Note:
-                if (ResolvePitches.PitchOf(part.Node) is { } pitch)
-                    found.Add((pitch, part.Part(LilyPondRoles.Force) is not null));
+                if (Played(part) is [var pitch]) found.Add((pitch, part.Part(LilyPondRoles.Force) is not null));
                 break;
 
             case LilyPondKinds.Chord:
                 foreach (var member in part.Children)
-                    if (member.Kind == LilyPondKinds.Note && ResolvePitches.PitchOf(member.Node) is { } sounded)
+                    if (member.Kind == LilyPondKinds.Note && Played(member) is [var sounded])
                         found.Add((sounded, member.Part(LilyPondRoles.Force) is not null));
                 break;
 
             case LilyPondKinds.ChordRepeat:
-                found.AddRange(ResolvePitches.PitchesOf(part.Node).Select(p => (p, false)));
+                found.AddRange(Played(part).Select(p => (p, false)));
                 break;
         }
 
         found.Sort((a, b) => a.Pitch.DiatonicIndex.CompareTo(b.Pitch.DiatonicIndex));
         return ([.. found.Select(f => f.Pitch)], [.. found.Select(f => f.Forced)]);
+
+        static IReadOnlyList<Pitch> Played(ContentPart part) => (part.Node as LilyPondEventNode)?.Pitches ?? [];
     }
 
     /// <summary>A beam asked for by hand closes: what it holds is one group, whatever the meter would have said.</summary>
@@ -297,70 +297,19 @@ internal sealed partial class LilyPondBuilder
         }
     }
 
-    /// <summary>Something put on the note before it in a direction: text above or below, or a named mark.</summary>
+    /// <summary>Something put on the note before it in a direction: words above or below it, or a mark.</summary>
     private static void Script(ContentPart script, Playing playing)
     {
         if (playing.Last is not { } on) return;
 
-        var direction = script.Part(Roles.Name)?.Text;
-        var target = script.Children.LastOrDefault(c => c.Role != Roles.Name);
-
-        switch (target?.Kind)
+        if (script.Node is MusicAnnotationNode said)
         {
-            case LilyPondKinds.Quoted:
-                Annotate(on.Event, LilyPondText.Said(target) ?? "", direction);
-                return;
-
-            case LilyPondKinds.Command when CommandName(target) is @"\markup" or @"\markuplist":
-                if (FirstProse(target) is { } text) Annotate(on.Event, text.Text, direction);
-                return;
-
-            case LilyPondKinds.Command:
-                if (Mark(CommandName(target)) is { } mark) Mark(on.Event, mark);
-                return;
+            on.Event.Annotations.Add((said.Said, said.Placement ?? AnnotationPlacement.Above));
+            return;
         }
+
+        if (script.Children.LastOrDefault(c => c.Role != Roles.Name)?.Node is MusicMarkNode mark) Marking(on.Event, mark.Mark);
     }
-
-    private static void Annotate(Event ev, string text, string? direction)
-    {
-        if (text.Length > 0) ev.Annotations.Add((text, direction == "_" ? AnnotationPlacement.Below : AnnotationPlacement.Above));
-    }
-
-    private static void Mark(Event ev, (int Glyph, bool Head) mark)
-    {
-        if (mark.Head) ev.HeadMarks.Add(mark.Glyph);
-        else ev.StaffMarks.Add(mark.Glyph);
-    }
-
-    /// <summary>The marks LilyPond spells as punctuation after a <c>-</c>, <c>^</c> or <c>_</c>.</summary>
-    private static (int Glyph, bool Head)? Shorthand(string written) => written.Length != 2 ? null : written[1] switch
-    {
-        '.' or '!' => (Smufl.ArticStaccatoAbove, true),
-        '>' => (Smufl.ArticAccentAbove, true),
-        '-' or '_' => (Smufl.ArticTenutoAbove, true),
-        '^' => (Smufl.ArticMarcatoAbove, true),
-        '+' => (Smufl.OrnamentMordent, false),
-        _ => null,
-    };
-
-    /// <summary>The marks LilyPond names, and whether each hugs the head or stands clear of the staff.</summary>
-    private static (int Glyph, bool Head)? Mark(string command) => command switch
-    {
-        @"\staccato" or @"\staccatissimo" => (Smufl.ArticStaccatoAbove, true),
-        @"\tenuto" or @"\portato" => (Smufl.ArticTenutoAbove, true),
-        @"\accent" => (Smufl.ArticAccentAbove, true),
-        @"\marcato" => (Smufl.ArticMarcatoAbove, true),
-        @"\fermata" or @"\shortfermata" or @"\longfermata" or @"\verylongfermata" => (Smufl.FermataAbove, false),
-        @"\trill" => (Smufl.OrnamentTrill, false),
-        @"\turn" or @"\reverseturn" => (Smufl.OrnamentTurn, false),
-        @"\prall" or @"\prallprall" or @"\upprall" or @"\downprall" => (Smufl.OrnamentMordent, false),
-        @"\mordent" or @"\lineprall" => (Smufl.OrnamentLowerMordent, false),
-        @"\upbow" => (Smufl.StringsUpBow, false),
-        @"\downbow" => (Smufl.StringsDownBow, false),
-        @"\segno" => (Smufl.Segno, false),
-        @"\coda" or @"\varcoda" => (Smufl.Coda, false),
-        _ => null,
-    };
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -368,6 +317,7 @@ internal sealed partial class LilyPondBuilder
     {
         var stream = playing.Stave.Stream;
         var name = CommandName(command);
+        var said = command.Node as LilyPondCommandNode;
 
         switch (name)
         {
@@ -377,15 +327,15 @@ internal sealed partial class LilyPondBuilder
                 return;
 
             case @"\clef":
-                stream.Add(new Clefed(ClefOf(Argument(command))));
+                stream.Add(new Clefed(said?.Clef ?? ClefKind.Treble));
                 return;
 
             case @"\key":
-                if (KeyOf(command) is { } fifths) stream.Add(new Keyed(fifths));
+                if (said?.Fifths is { } fifths) stream.Add(new Keyed(fifths));
                 return;
 
             case @"\time":
-                if (TimeOf(command) is { } time) stream.Add(new Metered(time.Beats, time.Unit));
+                if (said?.Meter is { } time) stream.Add(new Metered(time.Beats, time.Unit));
                 return;
 
             case @"\numericTimeSignature" or @"\defaultTimeSignature":
@@ -393,12 +343,11 @@ internal sealed partial class LilyPondBuilder
                 return;
 
             case @"\partial":
-                if (LilyPondTheory.Length(Argument(command)) is { } pickup)
-                    stream.Add(new Pickup(pickup.Written * pickup.Scale));
+                if (said?.Pickup is { } pickup) stream.Add(new Pickup(pickup));
                 return;
 
             case @"\bar":
-                stream.Add(new Lined(Drawn(Argument(command)), command));
+                stream.Add(new Lined(said?.Bar ?? "|", command));
                 return;
 
             case @"\break":
@@ -450,15 +399,15 @@ internal sealed partial class LilyPondBuilder
                 return;
 
             case @"\set":
-                if (Property(command, "instrumentName") is { } label) playing.Stave.Name ??= label;
+                if (said?.Instrument is { } label) playing.Stave.Name ??= label;
                 return;
 
             case @"\with":
-                playing.Stave.Name ??= Setting(command, "instrumentName");
+                playing.Stave.Name ??= said?.Instrument;
                 return;
 
             case @"\omit" or @"\hide":
-                if (Argument(command).EndsWith("TimeSignature", StringComparison.Ordinal)) stream.Add(new Hidden());
+                if (said?.HidesMeter == true) stream.Add(new Hidden());
                 return;
 
             case @"\skip":
@@ -466,9 +415,9 @@ internal sealed partial class LilyPondBuilder
                 return;
         }
 
-        if (Mark(name) is { } mark)
+        if (command.Node is MusicMarkNode marked)
         {
-            if (playing.Last is { } marked) Mark(marked.Event, mark);
+            if (playing.Last is { } last) Marking(last.Event, marked.Mark);
             return;
         }
 
@@ -486,9 +435,9 @@ internal sealed partial class LilyPondBuilder
     /// </summary>
     private void Repeat(ContentPart command, ContentPart? alternative, Playing playing, HashSet<string> active)
     {
-        var args = command.Children.Where(c => c.Role == LilyPondRoles.Argument).Select(c => c.Text).ToList();
-        var kind = args.Count > 0 ? args[0] : "volta";
-        var times = args.Count > 1 && int.TryParse(args[1], out var count) ? count : 2;
+        var said = command.Node as LilyPondCommandNode;
+        var kind = said?.Repeat ?? "volta";
+        var times = said?.Times ?? 2;
 
         if (Body(command) is not { } body) return;
 
@@ -539,7 +488,7 @@ internal sealed partial class LilyPondBuilder
         {
             var music = Numbered(endings[n]) ? Body(endings[n]) ?? endings[n] : endings[n];
 
-            stream.Add(new Bracketed(Numbered(endings[n]) ? Argument(endings[n]) : $"{n + 1}", music));
+            stream.Add(new Bracketed(Numbered(endings[n]) ? (endings[n].Node as LilyPondCommandNode)?.Label ?? "" : $"{n + 1}", music));
             Play(music, playing, active);
             if (n < endings.Count - 1)
                 stream.Add(new Lined(":|]", music.Part(Roles.Close) ?? (ISourcePart)music));
@@ -555,13 +504,7 @@ internal sealed partial class LilyPondBuilder
     /// <summary><c>\tuplet 3/2 { … }</c>: the music inside, marked as one tuplet with its number over it.</summary>
     private void Tuplet(ContentPart command, Playing playing, HashSet<string> active)
     {
-        var fraction = command.Children
-            .Where(c => c.Role == LilyPondRoles.Argument)
-            .Select(c => LilyPondTheory.Fraction(c.Text))
-            .FirstOrDefault(f => f is not null);
-
-        // \tuplet 3/2 is three in the time of two; \times 2/3 says the same the other way round.
-        var number = fraction is { } f ? (CommandName(command) == @"\tuplet" ? f.Numerator : f.Denominator) : 3;
+        var number = (command.Node as LilyPondCommandNode)?.TupletNumber ?? 3;
 
         var (tuplet, printed) = (playing.Tuplet, playing.TupletNumber);
         (playing.Tuplet, playing.TupletNumber) = (command, number);
@@ -586,8 +529,9 @@ internal sealed partial class LilyPondBuilder
     /// <summary><c>\skip 4</c>: time that passes with nothing printed in it.</summary>
     private static void Skip(ContentPart command, Playing playing)
     {
-        var lasts = ResolveDurations.SoundsOf(command.Node);
-        var (value, dots) = Value(ResolveDurations.WrittenOf(command.Node).Quarters);
+        var read = command.Node as LilyPondEventNode;
+        var lasts = read?.Lasts ?? Duration.Zero;
+        var (value, dots) = Value((read?.WrittenAs ?? Duration.Zero).Quarters);
 
         var ev = new Event
         {
@@ -603,55 +547,4 @@ internal sealed partial class LilyPondBuilder
     }
 
     // ── Small readers ───────────────────────────────────────────────────────
-
-    /// <summary>A clef's name, as the engraver draws it. An octave mark — <c>treble_8</c> — is not drawn.</summary>
-    private static ClefKind ClefOf(string name)
-    {
-        var clef = name.Trim().ToLowerInvariant();
-
-        if (clef.Contains("bass") || clef.StartsWith('f') || clef.Contains("baritone")) return ClefKind.Bass;
-        if (clef.Contains("tenor")) return ClefKind.Tenor;
-        if (clef.Contains("alto") || clef == "c" || clef.StartsWith("c_") || clef.Contains("soprano")) return ClefKind.Alto;
-        return ClefKind.Treble;
-    }
-
-    /// <summary>Where a <c>\key</c> sits round the circle of fifths: its tonic and its mode.</summary>
-    private static int? KeyOf(ContentPart command)
-    {
-        var tonic = command.Children.FirstOrDefault(c => c.Role == LilyPondRoles.Argument && c.Kind == LilyPondKinds.Note);
-        var mode = command.Children.FirstOrDefault(c => c.Role == LilyPondRoles.Argument && c.Kind == LilyPondKinds.Command);
-
-        if (tonic?.Part(LilyPondRoles.NoteName)?.Text is not { } name || LilyPondTheory.Name(name) is not { } key)
-            return null;
-
-        return Keys.Fifths(key.Step, key.Alter, mode is null ? "major" : CommandName(mode).TrimStart('\\'));
-    }
-
-    /// <summary>A <c>\time</c>'s fraction.</summary>
-    private static (int Beats, int Unit)? TimeOf(ContentPart command) =>
-        command.Children
-            .Where(c => c.Role == LilyPondRoles.Argument)
-            .Select(c => LilyPondTheory.Fraction(c.Text))
-            .FirstOrDefault(f => f is not null) is { } fraction
-            ? (fraction.Numerator, fraction.Denominator)
-            : null;
-
-    /// <summary>
-    /// A <c>\bar</c>'s string in the spelling the engraver draws — ABC's, where each mark is a stroke: <c>|</c>
-    /// thin, <c>[</c> and <c>]</c> thick, <c>:</c> the dots of a repeat. LilyPond's <c>.</c> is the thick stroke.
-    /// </summary>
-    private static string Drawn(string bar) => bar switch
-    {
-        "||" => "||",
-        "|." or "|.|" => "|]",
-        ".|" => "[|",
-        ".|:" or "[|:" => "[|:",
-        "|:" => "|:",
-        ":|." or ":|]" => ":|]",
-        ":|" => ":|",
-        ":|.|:" or ":|][|:" => ":|]|:",
-        ":..:" or ":|.:" or ":.|.:" => ":||:",
-        "" => "",
-        _ => "|",
-    };
 }

@@ -3,6 +3,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
+using Nexaflow.Markdown.WordCloud.Stages;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Markdown.Settings;
@@ -75,19 +76,17 @@ public class SettingKeysTests
             var written = CloudSays(key);
             if (written is null) continue;
 
-            if (!WordCloudReader.TryRead(ContentPart.Of(WordCloudParser.Parse("WPF: 40\nXAML: 25")),
-                                         out var bare, out _))
+            if (new ResolveCloud().Run(WordCloudParser.Parse("WPF: 40\nXAML: 25")) is not WordCloudBlockNode bare)
                 continue;
 
-            if (!WordCloudReader.TryRead(
-                    ContentPart.Of(WordCloudParser.Parse($"{key}: {written}\nWPF: 40\nXAML: 25")),
-                    out var set, out var error))
+            var read = new ResolveCloud().Run(WordCloudParser.Parse($"{key}: {written}\nWPF: 40\nXAML: 25"));
+            if (read is not WordCloudBlockNode set)
             {
-                inert.Add($"{key}: {written} — could not be read ({error})");
+                inert.Add($"{key}: {written} — could not be read ({read.SelfAndDescendants().Select(node => node.Trouble).OfType<string>().FirstOrDefault()})");
                 continue;
             }
 
-            if (Equals(bare!.Settings, set!.Settings))
+            if (Equals(bare.Settings, set.Settings))
                 inert.Add($"{key}: {written} — read, and changed nothing");
         }
 

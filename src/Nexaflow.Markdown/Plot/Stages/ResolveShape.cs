@@ -26,38 +26,29 @@ namespace Nexaflow.Markdown.Plot.Stages;
 /// — the shape says it.
 /// </para>
 /// </summary>
-public sealed class ResolveShape(PlotSettings settings) : IAstStage
+public sealed class ResolveShape : IAstStage
 {
     public string Name => "plot:shape";
 
     public ContentNode Run(ContentNode tree)
     {
+        if (tree is not PlotBlockNode block) return tree;
+
         var rows = tree.Rows();
         if (rows.Count == 0) return tree;
 
-        var header = Heads(rows, settings.Header);
+        var header = Heads(rows, block.Settings.Header);
         var matrix = header && LooksLikeMatrix(rows);
 
         var at = 0;
+        var shaped = AstRewrite.Each(tree, node => node.Kind == PlotKinds.Row ? Said(node, at++, header, matrix) : node);
 
-        return AstRewrite.Each(tree, node => node.Kind switch
-        {
-            PlotKinds.Row => Said(node, at++, header, matrix),
-            PlotKinds.Block => node.Saying(PlotKinds.Fact, PlotRoles.Form, matrix ? Matrix : Long),
-            _ => node,
-        });
+        return ((PlotBlockNode)shaped).Shaped(matrix);
     }
-
-    /// <summary>The table read down its side as well as across it.</summary>
-    public const string Matrix = "matrix";
-
-    /// <summary>The table read as one point per row, which is what a table usually is.</summary>
-    public const string Long = "long";
 
     private static ContentNode Said(ContentNode row, int at, bool header, bool matrix)
     {
-        if (header && at == 0)
-            return row.Saying(PlotKinds.Fact, PlotRoles.Header, PlotNumber.Written(row.Cells().Count));
+        if (header && at == 0) return new PlotRowNode(row, header: true, names: null);
 
         if (!matrix) return row;
 
@@ -66,10 +57,8 @@ public sealed class ResolveShape(PlotSettings settings) : IAstStage
         // the other to know.
         var names = row.Cells() is [var first, ..] ? first.Says() : string.Empty;
 
-        return row.WithCells((cell, which) => which == 0
-                                 ? cell.Telling((PlotKinds.Fact, PlotRoles.Names, names))
-                                 : cell)
-                  .Saying(PlotKinds.Fact, PlotRoles.Names, names);
+        return new PlotRowNode(row.WithCells((cell, which) => which == 0 ? PlotCellNode.Of(cell).Naming(names) : cell),
+                               header: false, names);
     }
 
     /// <summary>

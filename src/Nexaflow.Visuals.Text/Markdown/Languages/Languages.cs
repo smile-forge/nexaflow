@@ -12,19 +12,21 @@ using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 using Nexaflow.Markdown.Plot;
-using Nexaflow.Markdown.Plot.Stages;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Markdown.WordCloud;
 using Nexaflow.Markdown.Barcode;
+using Nexaflow.Markdown.Barcode.Stages;
+using Nexaflow.Markdown.Matrix.Aztec.Stages;
+using Nexaflow.Markdown.Matrix.DataMatrix.Stages;
+using Nexaflow.Markdown.Matrix.Pdf417.Stages;
+using Nexaflow.Markdown.Matrix.Qr.Stages;
 
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Barcode;
 using Nexaflow.Visuals.Text.Markdown.Chemistry;
 using Nexaflow.Visuals.Text.Markdown.Code;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
-using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
+using Nexaflow.Visuals.Text.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Abc;
@@ -32,9 +34,9 @@ using Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 using Nexaflow.Visuals.Text.Markdown.Nomnoml;
 using Nexaflow.Visuals.Text.Markdown.Plot;
 using Nexaflow.Visuals.Text.Markdown.Prose;
-using Nexaflow.Visuals.Text.Markdown.Qr;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
+using Nexaflow.Markdown.WordCloud.Stages;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -102,32 +104,33 @@ internal static class Shipped
     /// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
     public static readonly ContentLanguage Qr = Symbol(
         static word => "qr".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        static (reading, show) => new QrBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        new EncodeQr());
 
     /// <summary>An Aztec symbol.</summary>
     public static readonly ContentLanguage Aztec = Symbol(
         static word => word?.Trim().ToLowerInvariant() is "aztec" or "aztec-code",
-        static (reading, show) => new AztecBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        new EncodeAztec());
 
     /// <summary>A Data Matrix symbol.</summary>
     public static readonly ContentLanguage DataMatrix = Symbol(
         static word => word?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix",
-        static (reading, show) => new DataMatrixBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        new EncodeDataMatrix());
 
     /// <summary>A PDF417 symbol.</summary>
     public static readonly ContentLanguage Pdf417 = Symbol(
         static word => "pdf417".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
-        static (reading, show) => new Pdf417Builder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        new EncodePdf417());
 
-    /// <summary>A two-dimensional code: a <c>key: value</c> field a line, drawn by the builder its fence names.</summary>
-    private static ContentLanguage Symbol(Func<string?, bool> reads, Func<ContentReading, ContentShowing, ContentBuilder> builder) =>
-        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), static (_, _) => [], builder);
+    /// <summary>A 2D code: read as fields, encoded by its own stage, and drawn as the symbol that comes to.</summary>
+    private static ContentLanguage Symbol(Func<string?, bool> reads, IAstStage encode) =>
+        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), (_, _) => [encode],
+            static (reading, show) => new MatrixBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
     public static readonly ContentLanguage Barcode = new(
         Reads: static word => "barcode".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(BarcodeParser.Parse(source)),
-        Stages: static (_, show) => BarcodeParser.Stages(holes: show.Writing),
+        Stages: static (_, show) => show.Writing ? [new HoldValue(), new EncodeBarcode(writing: true)] : [new EncodeBarcode(writing: false)],
         Builder: static (reading, show) => new BarcodeBuilder(reading, EditState.For(reading.Source), show.Style, !show.Writing, show.Nesting));
 
     /// <summary>A chemical structure written as SMILES.</summary>
@@ -152,7 +155,7 @@ internal static class Shipped
     public static readonly ContentLanguage Abc = new(
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
         Parser: static () => static source => ContentParse.Of(AbcParser.Parse(source)),
-        Stages: static (tree, show) => AbcPipeline.Of(AbcBuilder.Draws, Editing(show.Own(tree.Width))).Stages,
+        Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: static (reading, show) => new AbcBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A tune written in LilyPond.</summary>
@@ -170,14 +173,14 @@ internal static class Shipped
     public static ContentLanguage Plot(PlotFence fence) => new(
         Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
         Parser: static () => static source => ContentParse.Of(PlotParser.Parse(source)),
-        Stages: (_, _) => [new ResolveSettings(fence)],
+        Stages: (_, _) => PlotPipeline.Of(fence).Stages,
         Builder: static (reading, show) => new PlotBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A cloud of words sized by how often each is said.</summary>
     public static readonly ContentLanguage WordCloud = new(
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
-        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures)],
+        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures), new ResolveCloud(), new ResolveWords()],
         Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>

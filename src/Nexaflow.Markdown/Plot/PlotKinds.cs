@@ -8,8 +8,9 @@ namespace Nexaflow.Markdown.Plot;
 /// <para>
 /// Deliberately only the shapes. Which line is the header, which column a cell stands in, which
 /// aesthetic that column feeds and whether a cell reads as a number are all facts about the block as a
-/// whole rather than about the characters of one line, so none of them is a kind — they are hung
-/// underneath by the pipeline, where they can be worked out from everything that was written.
+/// whole rather than about the characters of one line, so none of them is a kind — the stages say them in
+/// the block's own nodes (<see cref="PlotCellNode"/> and its peers), where they can be worked out from
+/// everything that was written.
 /// </para>
 /// </summary>
 public static class PlotKinds
@@ -22,9 +23,6 @@ public static class PlotKinds
 
     /// <summary>A <c>key: value</c> line, which is a setting only while the settings are still open.</summary>
     public const string Setting = "plot-setting";
-
-    /// <summary>The settings a block was read with, hung on it once they read (<see cref="PlotPipeline.Read"/>).</summary>
-    public const string Settings = "plot-settings";
 
     /// <summary>The key of a setting.</summary>
     public const string Key = "plot-key";
@@ -47,12 +45,6 @@ public static class PlotKinds
 
     /// <summary>One value of a row, with the quotes around it where it was written in any.</summary>
     public const string Cell = "plot-cell";
-
-    /// <summary>What a pipeline stage worked out, hung underneath the piece it is about.</summary>
-    public const string Fact = "plot-fact";
-
-    /// <summary>One worked-out correlation: the two columns it is between, and the coefficient.</summary>
-    public const string Pair = "plot-pair";
 }
 
 /// <summary>
@@ -68,33 +60,4 @@ public static class PlotRoles
 {
     /// <summary>What a setting is set to.</summary>
     public const string Value = "value";
-
-    /// <summary>What the settings a block was read with are to it.</summary>
-    public const string Settings = "settings";
-
-    // ── What the stages work out ────────────────────────────────────────────
-    //
-    // None of these is in the characters of one line, which is exactly why none of them is decided by
-    // the parser: each is a fact about the table as a whole, hung under the piece it is about.
-
-    /// <summary>On the block: whether the table is a long list of points or a matrix.</summary>
-    public const string Form = "form";
-
-    /// <summary>On a row: it names the columns rather than holding a point.</summary>
-    public const string Header = "header";
-
-    /// <summary>On a row of a matrix, and on the cell that carries it: the value every cell of the row shares down the side.</summary>
-    public const string Names = "names";
-
-    /// <summary>On a cell: what its column is called.</summary>
-    public const string Column = "column";
-
-    /// <summary>On a cell: which column it stands in, counted from nought.</summary>
-    public const string Index = "index";
-
-    /// <summary>On a cell: the number it reads as, written out plainly — or absent, which is what makes it a category.</summary>
-    public const string Number = "number";
-
-    /// <summary>On a cell: the channel its column feeds.</summary>
-    public const string Aesthetic = "aesthetic";
 }

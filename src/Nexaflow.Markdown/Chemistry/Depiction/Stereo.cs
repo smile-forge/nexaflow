@@ -20,7 +20,7 @@ namespace Nexaflow.Markdown.Chemistry.Depiction;
 /// </summary>
 internal static class Stereo
 {
-    public static IReadOnlyList<(Wedge Kind, int Narrow)> Wedges(Molecule molecule, IReadOnlyList<Vec> at, IReadOnlyList<int[]> rings)
+    public static IReadOnlyList<(Wedge Kind, int Narrow)> Wedges(MoleculeNode molecule, IReadOnlyList<Vec> at, IReadOnlyList<int[]> rings)
     {
         var wedges = new (Wedge, int)[molecule.Bonds.Count];
         var ring = MoleculeRings.RingBonds(molecule);
@@ -65,7 +65,7 @@ internal static class Stereo
     /// The neighbours of a stereocentre in the order its handedness is read against, -1 standing for the hydrogen
     /// in its brackets — or, where there are only three, for the lone pair or hydrogen nobody wrote, in the same place.
     /// </summary>
-    private static List<int> Order(Molecule molecule, MoleculeAtom atom)
+    private static List<int> Order(MoleculeNode molecule, AtomNode atom)
     {
         var order = molecule.NeighboursAsWritten(atom.Index).ToList();
         var implied = atom.Hydrogens is 1 || (order.Count == 3 && atom.Hydrogens is null or 0);

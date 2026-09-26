@@ -31,7 +31,7 @@ public sealed class Kekulize : IAstStage
 
     private static ContentNode Alternate(ContentNode node)
     {
-        var molecule = Molecule.Read(node);
+        if (node is not MoleculeNode molecule) return node;
         var atoms = molecule.Atoms;
         if (!atoms.Any(atom => atom.Aromatic)) return node;
 
@@ -87,9 +87,7 @@ public sealed class Kekulize : IAstStage
         {
             if (!said.TryGetValue(index, out var fact)) return atom;
 
-            var told = fact.Partner >= 0
-                ? atom.Saying(SmilesKinds.Fact, SmilesRoles.DoubleTo, fact.Partner.ToString())
-                : atom;
+            var told = fact.Partner >= 0 && atom is AtomNode read ? read.Sharing(fact.Partner) : atom;
 
             return SmilesRewrite.Troubled(told, fact.Trouble);
         });
@@ -100,7 +98,7 @@ public sealed class Kekulize : IAstStage
     /// five-membered ring's nitrogen written <c>n</c> that carries a hydrogen nobody wrote. Which atom of an odd ring the
     /// matching leaves over is its own business, so the hint is offered wherever such a nitrogen is.
     /// </summary>
-    private static string Unmatched(Molecule molecule)
+    private static string Unmatched(MoleculeNode molecule)
     {
         const string said = "This ring cannot be drawn with alternating double bonds.";
 

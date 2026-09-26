@@ -153,5 +153,6 @@ public class SmilesPipelineTests
         CollectionAssert.AreEqual(new[] { 4, 1, 2 }, ring.NeighboursAsWritten(0).ToArray());
     }
 
-    private static Molecule Read(string smiles) => Molecule.Read(SmilesPipeline.Of().Run(SmilesParser.Molecule(smiles)));
+    /// <summary>A molecule as the stages leave it.</summary>
+    private static MoleculeNode Read(string smiles) => (MoleculeNode)SmilesPipeline.Of().Run(SmilesParser.Molecule(smiles));
 }
