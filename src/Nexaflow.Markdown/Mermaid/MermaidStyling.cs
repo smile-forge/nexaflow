@@ -152,8 +152,10 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// </summary>
     /// <param name="drawn">The kinds of what writes the things the diagram draws, each named in this styling's id role.</param>
     /// <param name="inline">The classes something is given where it is written — <c>A:::blue</c> — as each id and class.</param>
+    /// <param name="idOf">What something is styled by where it is not the name written — a state diagram's <c>[*]</c>, which is the
+    /// dot its scope starts or stops at — or null for the name.</param>
     public ContentNode Style(ContentNode tree, IReadOnlyList<string> drawn, string classDef, string classKind, string styleKind,
-                             Func<ContentNode, IEnumerable<(string Id, string Class)>>? inline = null)
+                             Func<ContentNode, IEnumerable<(string Id, string Class)>>? inline = null, Func<ContentNode, string?>? idOf = null)
     {
         var classes = new Dictionary<string, MermaidStyle>(StringComparer.Ordinal);
         var taken = new List<(IReadOnlyList<string> Ids, string Class)>();
@@ -180,7 +182,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
             else if (drawn.Contains(node.Kind))
             {
                 foreach (var name in Said(node, idRole))
-                    if (Text(name) is { Length: > 0 } id) first.TryAdd(id, name);
+                    if ((idOf?.Invoke(node) ?? Text(name)) is { Length: > 0 } key) first.TryAdd(key, name);
             }
 
             if (inline is not null)
