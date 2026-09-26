@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Nexaflow.Core.Models;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Icons;
 

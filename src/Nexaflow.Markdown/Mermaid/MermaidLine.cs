@@ -430,6 +430,9 @@ public sealed class MermaidLine
         return (end < 0 ? Rest : Written[At..end]).TrimEnd();
     }
 
+    /// <summary>The key whose setting names an icon (<see cref="MermaidKinds.Icon"/>).</summary>
+    public const string IconKey = "icon";
+
     /// <summary>
     /// Properties — a style's <c>fill:#ff6b6b, stroke-width:4px</c>, a card's <c>assigned: knsv, priority: 'High'</c> — as
     /// <see cref="MermaidKinds.Properties"/>, one <see cref="MermaidKinds.Property"/> each, a comma between each. A value runs to the
@@ -464,7 +467,11 @@ public sealed class MermaidLine
 
             var end = spaced ? ValueWord(Written, At) : ValueEnd(Written, At, ends);
             var value = Written[At..end].TrimEnd();
+            // What an icon key is set to names an icon, whichever diagram writes it.
+            var icon = name.Equals(IconKey, StringComparison.OrdinalIgnoreCase);
+            if (icon) Open();
             Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
+            if (icon) Close(MermaidKinds.Icon, MermaidRoles.Value);
             Space();
             Close(MermaidKinds.Property);
 

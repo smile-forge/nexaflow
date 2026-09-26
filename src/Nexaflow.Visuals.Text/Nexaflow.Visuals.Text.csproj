@@ -43,6 +43,7 @@
     <ProjectReference Include="..\Nexaflow.Markdown\Nexaflow.Markdown.csproj" />
     <ProjectReference Include="..\Nexaflow.Syntax\Nexaflow.Syntax.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
+    <ProjectReference Include="..\Nexaflow.Visuals.Icons\Nexaflow.Visuals.Icons.csproj" />
 
     </ItemGroup>
 

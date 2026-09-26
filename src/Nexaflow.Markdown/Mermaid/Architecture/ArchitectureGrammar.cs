@@ -123,7 +123,13 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
         if (drawn)
         {
             line.Space();
-            if (line.Sees("(") && !line.Label("(", ")", ArchitectureRoles.Icon)) return line.Shown(shape);
+            if (line.Sees("("))
+            {
+                line.Open();
+                var named = line.Label("(", ")", ArchitectureRoles.Icon);
+                line.Close(MermaidKinds.Icon);
+                if (!named) return line.Shown(shape);
+            }
 
             line.Space();
             if (line.Sees("[") && !line.Label("[", "]", ArchitectureRoles.Title)) return line.Shown(shape);

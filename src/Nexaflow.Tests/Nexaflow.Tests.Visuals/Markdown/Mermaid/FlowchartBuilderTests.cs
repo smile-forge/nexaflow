@@ -328,4 +328,15 @@ public class FlowchartBuilderTests : MermaidBuilderContract
 
         return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
     }
+
+    [TestMethod]
+    public void AnIconIsTheGlyphItNames_AndAQuestionMarkWhereTheAppDrawsNone() => UiThread.Run(() =>
+    {
+        var named = Build("flowchart LR\n  A@{ icon: \"fa:user\", form: \"square\", label: \"User\" }");
+        var unknown = Build("flowchart LR\n  A@{ icon: \"logos:aws-lambda\", form: \"square\", label: \"Lambda\" }");
+
+        Assert.AreEqual(1, named.Root.SelfAndDescendants().Count(piece => piece.Kind == MermaidPiece.Glyph), "the person the icon names");
+        Assert.AreEqual(0, unknown.Root.SelfAndDescendants().Count(piece => piece.Kind == MermaidPiece.Glyph));
+        Assert.IsTrue(unknown.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == "?"), "as Mermaid draws an icon it has no pack for");
+    });
 }

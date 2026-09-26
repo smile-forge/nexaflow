@@ -9,6 +9,7 @@ using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common.Ribbon;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Icons;
 

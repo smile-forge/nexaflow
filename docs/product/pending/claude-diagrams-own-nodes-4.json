@@ -1,0 +1,132 @@
+{
+  "branch": "claude/diagrams-own-nodes-4",
+  "nodes": {
+    "icons-catalog": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/IconCatalog.cs",
+          "class": "IconCatalog"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/IconRef.cs",
+          "class": "IconRef"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Icons/EmojiIcons.cs",
+          "class": "EmojiIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Icons/FluentGlyphs.cs",
+          "class": "FluentGlyphs"
+        }
+      ]
+    },
+    "architecture": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "status": "should",
+          "target": "https://mermaid.ai/open-source/syntax/architecture.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureBuilder.cs",
+          "class": "ArchitectureBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs",
+          "class": "MermaidIcons"
+        }
+      ]
+    },
+    "mermaid-block-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidBlock.cs",
+          "class": "MermaidBlock"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithConfig.cs",
+          "class": "WithConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/ConfiguredNode.cs",
+          "class": "ConfiguredNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/WithIcons.cs",
+          "class": "WithIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs",
+          "class": "MermaidIcons"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/RenderedIconNode.cs",
+          "class": "RenderedIconNode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidParserTests.cs",
+            "class": "MermaidParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidBlockTests.cs",
+            "class": "MermaidBlockTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidTextTests.cs",
+            "class": "MermaidTextTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/WithConfigTests.cs",
+            "class": "WithConfigTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/WithIconsTests.cs",
+            "class": "WithIconsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 4,
+  "touched_nodes": [
+    "architecture",
+    "icons-catalog",
+    "mermaid-block-ast"
+  ]
+}

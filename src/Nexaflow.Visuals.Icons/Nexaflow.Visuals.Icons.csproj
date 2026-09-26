@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
     <ProjectReference Include="..\Nexaflow.Visuals.Common\Nexaflow.Visuals.Common.csproj" />
   </ItemGroup>
 
@@ -22,11 +23,12 @@
          icon once in both regular and filled, at one design size. Bundled as an asset, not a submodule — it is a
          font, not ProjectReference'd source (docs/externals.md). Copied beside the assembly, like Bravura, so it
          loads from disk headless and in-app alike (a pack URI needs a running Application); flows transitively into
-         the host app's output. The name map is the font's own; IconCatalog reads the names from it, so updating the
-         font is swapping these two files. License: IconFonts\FluentSystemIcons-LICENSE. -->
+         the host app's output. The name map is the font's own and is Nexaflow.Icons' (FluentGlyphs), which is where
+         anything WPF-free asks which glyph a name draws; updating the font is swapping the font here and the map there.
+         License: IconFonts\FluentSystemIcons-LICENSE. -->
     <None Include="Assets\Fonts\FluentSystemIcons-Resizable.ttf" Link="IconFonts\FluentSystemIcons-Resizable.ttf" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\Fonts\LICENSE" Link="IconFonts\FluentSystemIcons-LICENSE" CopyToOutputDirectory="PreserveNewest" />
-    <EmbeddedResource Include="Assets\Fonts\FluentSystemIcons-Resizable.json" LogicalName="Nexaflow.Visuals.Icons.FluentSystemIcons-Resizable.json" />
+
   </ItemGroup>
 
 </Project>

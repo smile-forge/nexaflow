@@ -4,6 +4,7 @@ using System.Windows.Media;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.ViewModels;
+using Nexaflow.Icons;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Theming;

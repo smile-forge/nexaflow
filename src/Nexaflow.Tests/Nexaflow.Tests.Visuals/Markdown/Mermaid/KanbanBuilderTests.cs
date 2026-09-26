@@ -112,4 +112,18 @@ public class KanbanBuilderTests : MermaidBuilderContract
         Assert.AreEqual(1, plain.Count, "a card with no priority still has its stripe");
         Assert.IsTrue(plain[0].Shape.Bounds.Width < 5, "down its left edge");
     });
+
+    [TestMethod]
+    public void ACardsIconGoesBeforeItsTitle_WhereverItIsNamed() => UiThread.Run(() =>
+    {
+        foreach (var source in new[] { "kanban\n  Todo\n    task[Write it]\n    ::icon(fa:fa-user)", "kanban\n  Todo\n    task[Write it]@{ icon: 'mdi:account' }" })
+        {
+            var laid = Laying.Lay("mermaid", source, 900);
+            var icon = Pieces(laid, MermaidPiece.Glyph).Single();
+            var card = Pieces(laid, KanbanPiece.Card).Single();
+
+            Assert.IsTrue(card.Bounds.Contains(icon.Bounds), source);
+            Assert.IsTrue(Pieces(laid, KanbanPiece.Title).Where(title => card.Bounds.Contains(title.Bounds)).All(title => title.Bounds.Left >= icon.Bounds.Right), source);
+        }
+    });
 }

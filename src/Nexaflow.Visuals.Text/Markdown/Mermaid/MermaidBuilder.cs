@@ -8,6 +8,7 @@ using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 
 
@@ -36,6 +37,9 @@ public static class MermaidPiece
 
     /// <summary>Words set inside a shape — see <see cref="DiagramShapes.Draw"/>.</summary>
     public const string Words = "Words";
+
+    /// <summary>An icon something names, drawn in the glyph it is.</summary>
+    public const string Glyph = "Glyph";
 
     /// <summary>What a shape draws — its outline, filled — which is what a press inside it lands on. See <see cref="DiagramShapes.Draw"/>.</summary>
     public const string Shape = "Shape";
@@ -452,6 +456,24 @@ internal abstract class MermaidBuilder : ContentBuilder
     protected DiagramWords Worked(string says, ContentPart? part, double size, Brush ink, FontWeight? weight = null,
                                   FontStyle? slant = null) =>
         new(Text(says, size, ink, weight, slant), part, null, Text("x", size, ink), ink, maps: false, writes: false);
+
+    /// <summary>
+    /// The icon something names, set in the font its glyph is in and standing for what names it — or null where it names no
+    /// icon the app draws (<see cref="WithIcons"/>), and what is drawn instead is the diagram's to say. What is asked about may
+    /// be the icon's own words, or what holds it: a line naming an icon, or metadata setting one.
+    /// </summary>
+    protected DiagramWords? Iconed(ContentPart? part, double size, Brush ink)
+    {
+        var named = part;
+        while (named is not null && named.Node is not RenderedIconNode) named = named.Parent;
+        named ??= part?.SelfAndDescendants().FirstOrDefault(each => each.Node is RenderedIconNode);
+        if (named?.Node is not RenderedIconNode icon) return null;
+
+        var face = icon.Family is null ? Style.Face(BodyFont, null, null) : new Typeface(IconCatalog.FluentFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var glyph = new FormattedText(icon.Glyph, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, face, size, ink, LayoutText.Density);
+
+        return new DiagramWords(glyph, named, null, Text("x", size, ink), ink, maps: false, writes: false);
+    }
 
     /// <summary>
     /// The content written inside <paramref name="part"/>, laid out to fit <paramref name="room"/> — or null

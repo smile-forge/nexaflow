@@ -1,16 +1,16 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Nexaflow.Visuals.Icons;
+namespace Nexaflow.Icons;
 
 /// <summary>Where an icon's glyph comes from: the emoji the system font draws, or one face of Microsoft's Fluent UI
-/// System Icons, bundled with this assembly.</summary>
+/// System Icons (<see cref="FluentGlyphs"/>).</summary>
 public enum IconSet { Emoji, FluentRegular, FluentFilled }
 
 /// <summary>
 /// An icon, by the set that draws it and its stable name in that set: the emoji itself, or a Fluent icon's base name
 /// (<c>arrow_clockwise</c>). The Fluent font's code points move between upstream releases, so a name is what is kept
-/// and <see cref="IconCatalog"/> turns it into a glyph each time.
+/// and <see cref="FluentGlyphs"/> turns it into a glyph each time.
 /// <para>
 /// It is saved as its <see cref="ToString"/>: an emoji bare, a Fluent icon as <c>fluent:name</c> or
 /// <c>fluent-filled:name</c>. A bare string is therefore always an emoji, which is what every icon saved before the

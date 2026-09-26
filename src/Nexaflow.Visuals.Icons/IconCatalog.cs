@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows.Media;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Visuals.Icons;
 
@@ -9,7 +10,8 @@ public sealed record IconEntry(IconRef Icon, string Name, string Keywords, strin
 
 /// <summary>
 /// Every icon there is to pick: the curated emoji and both faces of the bundled Fluent UI System Icons font (MIT —
-/// <c>Assets/Fonts/LICENSE</c>). The Fluent names come from the font's own name map, so a font update is a file swap.
+/// <c>Assets/Fonts/LICENSE</c>). The Fluent names come from the font's own name map (<see cref="FluentGlyphs"/>), so a
+/// font update is a file swap.
 /// <para>
 /// Drawing and picking cost differently, and drawing is what every window does: <see cref="GlyphFor"/> needs only the
 /// name → glyph lookup, streamed out of the map the first time a Fluent icon is drawn (never, for an all-emoji
@@ -18,14 +20,10 @@ public sealed record IconEntry(IconRef Icon, string Name, string Keywords, strin
 /// </summary>
 public static class IconCatalog
 {
-    private const string FluentMapResource = "Nexaflow.Visuals.Icons.FluentSystemIcons-Resizable.json";
-    private const string FluentPrefix = "ic_fluent_";
-
     /// <summary>Drawn in place of a Fluent icon the bundled font no longer names.</summary>
     public const string MissingGlyph = "▢";
 
     private static readonly Lazy<FontFamily> Font = new(LoadFluentFont);
-    private static readonly Lazy<IReadOnlyDictionary<IconRef, string>> Glyphs = new(LoadGlyphs);
     private static readonly Lazy<FluentEntries> Entries = new(BuildEntries);
 
     /// <summary>The bundled Fluent font, read from the <c>IconFonts</c> folder beside this assembly. Both faces share
@@ -42,11 +40,11 @@ public static class IconCatalog
     {
         if (icon.IsEmpty) return string.Empty;
         if (!icon.IsFluent) return icon.Value;
-        return Glyphs.Value.TryGetValue(icon, out var glyph) ? glyph : MissingGlyph;
+        return FluentGlyphs.Of(icon) ?? MissingGlyph;
     }
 
     public static bool Contains(IconRef icon)
-        => !icon.IsEmpty && (!icon.IsFluent || Glyphs.Value.ContainsKey(icon));
+        => !icon.IsEmpty && (!icon.IsFluent || FluentGlyphs.All.ContainsKey(icon));
 
     /// <summary>Every icon in <paramref name="set"/>, or in all sets when null: emoji first, then regular, then filled.</summary>
     public static IReadOnlyList<IconEntry> All(IconSet? set = null) => set switch
@@ -108,63 +106,7 @@ public static class IconCatalog
         // Base URI must be the folder (trailing slash); "./#Family" selects the family by name — as Smufl loads Bravura.
         var dir = Path.Combine(Path.GetDirectoryName(typeof(IconCatalog).Assembly.Location) ?? AppContext.BaseDirectory,
             "IconFonts") + Path.DirectorySeparatorChar;
-        return new FontFamily(new Uri(dir), "./#FluentSystemIcons-Resizable");
-    }
-
-    /// <summary>
-    /// Streams the map (<c>"ic_fluent_arrow_clockwise_20_filled": 57345</c>, one per line) into name → glyph, keeping
-    /// the first size of each icon. No document is built and nothing else is kept.
-    /// </summary>
-    private static IReadOnlyDictionary<IconRef, string> LoadGlyphs()
-    {
-        byte[] json;
-        using (var stream = typeof(IconCatalog).Assembly.GetManifestResourceStream(FluentMapResource)
-                   ?? throw new InvalidOperationException($"The Fluent icon map '{FluentMapResource}' is not embedded."))
-        using (var buffer = new MemoryStream((int)stream.Length))
-        {
-            stream.CopyTo(buffer);
-            json = buffer.GetBuffer()[..(int)buffer.Length];
-        }
-
-        var glyphs = new Dictionary<IconRef, string>(6000);
-        var reader = new Utf8JsonReader(json, new JsonReaderOptions { AllowTrailingCommas = true });
-        string? key = null;
-        while (reader.Read())
-        {
-            if (reader.TokenType == JsonTokenType.PropertyName)
-            {
-                key = reader.GetString();
-                continue;
-            }
-            if (reader.TokenType != JsonTokenType.Number || key is null || !TryParseName(key, out var icon)) continue;
-            glyphs.TryAdd(icon, char.ConvertFromUtf32(reader.GetInt32()));
-        }
-        return glyphs;
-    }
-
-    /// <summary><c>ic_fluent_arrow_clockwise_20_filled</c> → the filled <c>arrow_clockwise</c>.</summary>
-    internal static bool TryParseName(string key, out IconRef icon)
-    {
-        icon = default;
-        if (!key.StartsWith(FluentPrefix, StringComparison.Ordinal)) return false;
-
-        var face = key.LastIndexOf('_');
-        if (face <= FluentPrefix.Length) return false;
-        var filled = key.AsSpan(face + 1) switch
-        {
-            "filled"  => true,
-            "regular" => false,
-            _         => (bool?)null,
-        };
-        if (filled is null) return false;
-
-        var size = key.LastIndexOf('_', face - 1);
-        if (size <= FluentPrefix.Length || face - size < 2) return false;
-        foreach (var c in key.AsSpan(size + 1, face - size - 1))
-            if (!char.IsAsciiDigit(c)) return false;
-
-        icon = IconRef.Fluent(key[FluentPrefix.Length..size], filled.Value);
-        return true;
+        return new FontFamily(new Uri(dir), "./#" + FluentGlyphs.Family);
     }
 
     private sealed record FluentEntries(
@@ -176,7 +118,7 @@ public static class IconCatalog
     {
         var regular = new List<IconEntry>();
         var filled  = new List<IconEntry>();
-        foreach (var (icon, glyph) in Glyphs.Value)
+        foreach (var (icon, glyph) in FluentGlyphs.All)
             (icon.Set == IconSet.FluentFilled ? filled : regular)
                 .Add(new IconEntry(icon, icon.Value.Replace('_', ' '), string.Empty, glyph));
 

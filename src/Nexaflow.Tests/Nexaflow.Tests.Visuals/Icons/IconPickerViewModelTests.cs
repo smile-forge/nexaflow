@@ -1,4 +1,5 @@
 using System.Linq;
+using Nexaflow.Icons;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Icons;
 

@@ -4,6 +4,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Nexaflow.Core.Models;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Icons;
 
 namespace Nexaflow.Core.Controls;

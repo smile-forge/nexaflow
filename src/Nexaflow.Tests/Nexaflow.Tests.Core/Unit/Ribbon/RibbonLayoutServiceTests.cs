@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
+using Nexaflow.Icons;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Icons;
