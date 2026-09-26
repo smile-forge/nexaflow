@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -167,4 +168,54 @@ public class RequirementBuilderTests : MermaidBuilderContract
     private static bool Dashed(Piece piece) =>
         piece.SelfAndDescendants().SelectMany(inner => inner.Marks.ToArray()).OfType<GeometryMark>()
             .Any(mark => mark.Dashes is not null);
+
+    [TestMethod]
+    public void AnElementSaysWhatItIsOverItsName_AndEachFieldIsMermaidsWordForIt() => UiThread.Run(() =>
+    {
+        var box = Pieces(Lay("requirementDiagram\n  element E {\n    type: \"test suite\"\n    docRef: reqs/e\n  }"), RequirementPiece.Box).Single();
+        var said = Said(box).Select(words => words.Words!.Glyphs.Text).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "«Element»", "E", "Type:", "test suite", "Doc Ref:", "reqs/e" }, said, "a value in quotes says what is between them");
+    });
+
+    [TestMethod]
+    public void ARelationWrittenTheOtherWayRoundStillLeavesTheOneWrittenFirst() => UiThread.Run(() =>
+    {
+        const string source = "requirementDiagram\n  b <- satisfies - a";
+        var boxes = Boxes(source, Lay(source));
+
+        Assert.IsTrue(boxes["b"].Top > boxes["a"].Bottom, $"a leaves, so b is the rank beyond it: {boxes["a"]} then {boxes["b"]}");
+    });
+
+    [TestMethod]
+    public void ANameWrittenTwiceIsOneBox_WithTheFieldsItsBlockWrites() => UiThread.Run(() =>
+    {
+        var laid = Lay("requirementDiagram\n  a - traces -> b\n  requirement a {\n    id: 1\n  }");
+
+        Assert.AreEqual(2, Pieces(laid, RequirementPiece.Box).Count);
+        Assert.AreEqual(1, Pieces(laid, RequirementPiece.Fact).Count);
+    });
+
+    [TestMethod]
+    public void ANameWithNothingInItYetIsABoxOfItsOwn_SoWritingItIsWatched() => UiThread.Run(() =>
+        Assert.AreEqual(2, Pieces(Lay("requirementDiagram\n  \"\" - satisfies -> \"\"", writing: true), RequirementPiece.Box).Count,
+                        "the two ends of a relation nobody has named yet are two boxes"));
+
+    [TestMethod]
+    public void UpThePageIsWhatADirectionLineSays() => UiThread.Run(() =>
+    {
+        const string source = "requirementDiagram\n  direction BT\n  a - satisfies -> b";
+        var boxes = Boxes(source, Lay(source));
+
+        Assert.IsTrue(boxes["b"].Bottom < boxes["a"].Top, $"b is above a: {boxes["a"]} then {boxes["b"]}");
+    });
+
+    [TestMethod]
+    public void ABoxIsFilledWithWhatStylesIt() => UiThread.Run(() =>
+    {
+        var box = Pieces(Lay("requirementDiagram\n  A:::blue\n  classDef blue fill:#0000ff"), RequirementPiece.Box).Single();
+        var fills = box.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().Select(mark => mark.Fill).OfType<SolidColorBrush>();
+
+        Assert.IsTrue(fills.Any(fill => fill.Color == Color.FromRgb(0, 0, 0xFF)), "filled as its class says");
+    });
 }

@@ -7,7 +7,7 @@ namespace Nexaflow.Markdown.Mermaid.Architecture;
 /// <para>
 /// Mermaid lays an architecture diagram out by running a force-directed solver over the sides its edges name, so it also
 /// takes <c>randomize</c>, <c>seed</c>, <c>numIter</c> and <c>edgeElasticity</c> to steer and to settle that solver. Here
-/// the sides are followed exactly as they are written (<see cref="ArchitectureDiagram.Places"/>), so the drawing is the
+/// the sides are followed exactly as they are written (<c>ArchitectureBuilder</c>), so the drawing is the
 /// same every time and there is nothing for those to ask.
 /// </para>
 /// </summary>

@@ -204,4 +204,44 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
         Assert.AreEqual("feeds", Written(source, Said(said).Single().Part));
         Assert.AreEqual((edge.Left + edge.Right) / 2, (said.Bounds.Left + said.Bounds.Right) / 2, 1);
     });
+
+    /// <summary>Where each service is drawn, by its id.</summary>
+    private static Dictionary<string, Rect> Services(string source) =>
+        Pieces(Build(source), ArchitecturePiece.Service).ToDictionary(piece => Written(source, piece.Part).Split(' ', '(', '[')[1], piece => piece.Bounds);
+
+    [TestMethod]
+    public void AnEdgeBendingRoundACornerMovesBothWays() => UiThread.Run(() =>
+    {
+        var at = Services("architecture-beta\n  service a\n  service b\n  a:R -- T:b");
+
+        Assert.IsTrue(at["b"].Left > at["a"].Right, "a leaves by its right, so b is to the right of it");
+        Assert.IsTrue(at["b"].Top > at["a"].Bottom, "and arrives at b's top, so b is under it");
+    });
+
+    [TestMethod]
+    public void WhatIsReachedByNoEdgeIsAPieceOfItsOwn_LaidBesideTheRest() => UiThread.Run(() =>
+    {
+        var at = Services("architecture-beta\n  service a\n  service b\n  service c");
+
+        Assert.AreEqual(1, at.Values.Select(box => box.Top).Distinct().Count(), "they share a row");
+        Assert.AreEqual(3, at.Values.Select(box => box.Left).Distinct().Count(), "and each has a column of its own");
+    });
+
+    [TestMethod]
+    public void AnAlignLinePullsItsMembersOntoTheRowOfTheFirstOfThem() => UiThread.Run(() =>
+    {
+        var at = Services("architecture-beta\n  service a\n  service b\n  service c\n  a:R -- L:b\n  b:B -- T:c\n  align row a c");
+
+        Assert.AreEqual(at["a"].Top, at["c"].Top, 0.5, "c would be under b, and the align line puts it on a's row");
+    });
+
+    [TestMethod]
+    public void AnEdgeDrawsAHeadAtAnEndItsArrowPointsTo() => UiThread.Run(() =>
+    {
+        int Marks(string edge) => Pieces(Build($"architecture-beta\n  service a\n  service b\n  {edge}"), ArchitecturePiece.Edge).Single()
+            .SelfAndDescendants().Sum(piece => piece.Marks.ToArray().Length);
+
+        Assert.IsTrue(Marks("a:R --> L:b") > Marks("a:R -- L:b"), "a head where it arrives");
+        Assert.IsTrue(Marks("a:R <-- L:b") > Marks("a:R -- L:b"), "and one where it leaves");
+    });
 }

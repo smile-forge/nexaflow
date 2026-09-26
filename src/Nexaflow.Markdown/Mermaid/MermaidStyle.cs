@@ -59,7 +59,10 @@ public sealed record MermaidStyle
     };
 
     /// <summary>The same style with every property a style's <see cref="MermaidKinds.Properties"/> set, in order — those with nothing wrong with them.</summary>
-    public MermaidStyle With(ContentPart? properties)
+    public MermaidStyle With(ContentPart? properties) => With(properties?.Node);
+
+    /// <summary>This style with what some properties set laid over it, where what they set reads.</summary>
+    public MermaidStyle With(ContentNode? properties)
     {
         var style = this;
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
@@ -44,7 +45,7 @@ public static class RequirementPiece
 /// <strong>What holds between two of them is written on the line</strong>, in guillemets as SysML writes it; <c>contains</c> is
 /// the whole and its parts, drawn as a crosshair at the end that holds rather than as an arrow at the end held.
 /// </summary>
-internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
+internal sealed class RequirementBuilder : MermaidBuilder
 {
     /// <summary>How big what kind of thing it is is drawn, against the name under it.</summary>
     private const double KindSize = 10.5;
@@ -70,17 +71,320 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     internal RequirementBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override RequirementDiagram Of(MermaidBlock block) => RequirementDiagram.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
 
-    /// <inheritdoc/>
-    protected override DiagramChart? Chart(RequirementDiagram diagram) =>
-        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]);
-
-    protected override Size Draw(RequirementDiagram diagram, LayoutBuilder build)
+    /// <summary>Which way a requirement diagram is laid out: where a relation written left to right points.</summary>
+    private enum Way
     {
+        /// <summary><c>TB</c> and <c>TD</c>.</summary>
+        Down,
+
+        /// <summary><c>BT</c>.</summary>
+        Up,
+
+        /// <summary><c>LR</c>.</summary>
+        Right,
+
+        /// <summary><c>RL</c>.</summary>
+        Left,
+    }
+
+    /// <summary>One field written inside a requirement or an element, read.</summary>
+    /// <param name="Part">The field as it was written, which is what a press on the row means.</param>
+    /// <param name="Key">Which field it is, as Mermaid names it.</param>
+    /// <param name="Says">What it is set to.</param>
+    private sealed record Fact(ContentPart Part, string Key, string Says, int Order)
+    {
+        /// <summary>What it is set to as it was written, which is what a caret goes into.</summary>
+        public ContentPart? Said { get; init; }
+
+        /// <summary>The hole standing where that goes while nothing is written there.</summary>
+        public ContentPart? Hole { get; init; }
+
+        /// <summary>What is drawn in front of it, which is Mermaid's own word for the field rather than the key written.</summary>
+        public string Label => Key.ToLowerInvariant() switch
+        {
+            RequirementGrammar.IdKey => "Id",
+            RequirementGrammar.TextKey => "Text",
+            RequirementGrammar.RiskKey => "Risk",
+            RequirementGrammar.MethodKey => "Verification",
+            RequirementGrammar.TypeKey => "Type",
+            RequirementGrammar.RefKey => "Doc Ref",
+            _ => Key,
+        };
+    }
+
+    /// <summary>One requirement or element, read: where it was written, what it is called, and the fields inside it.</summary>
+    /// <param name="Part">The name as it was written, which is what a press on it means.</param>
+    /// <param name="Id">What it is called, which is what a relation and a styling line name it by.</param>
+    /// <param name="Said">The words drawn for its name, which are the characters written.</param>
+    private sealed record Node(ContentPart Part, string Id, ContentPart? Said, int Order)
+    {
+        /// <summary>
+        /// The word its block opened with, drawn in guillemets over its name — none at all for one only a relation names, which is
+        /// drawn as the box it stands for with nothing said about it.
+        /// </summary>
+        public ContentPart? Kind { get; init; }
+
+        /// <summary>Its fields, in the order they are written.</summary>
+        public IReadOnlyList<Fact> Facts { get; init; } = [];
+
+        public MermaidStyle Style { get; init; } = MermaidStyle.None;
+
+        /// <summary>The hole standing where its name goes.</summary>
+        public ContentPart? SaidHole { get; init; }
+
+        /// <summary>The whole of it as it was written, from the line opening it through the <c>}</c> closing its fields.</summary>
+        public ISourcePart Whole { get; init; } = default(SourceSpan);
+
+        /// <summary>What kind of thing it is, as it is drawn: <c>functionalRequirement</c> reads «Functional Requirement».</summary>
+        public string? Says => Kind is { Length: > 0 } kind ? Spaced(kind.Text) : null;
+
+        /// <summary>A word written as Mermaid draws it: capitalised, and broken where it runs two words together.</summary>
+        public static string Spaced(string word)
+        {
+            if (word.Length == 0) return word;
+
+            var built = new StringBuilder(word.Length + 2).Append(char.ToUpperInvariant(word[0]));
+
+            foreach (var character in word[1..])
+            {
+                if (char.IsUpper(character)) built.Append(' ');
+                built.Append(character);
+            }
+
+            return built.ToString();
+        }
+    }
+
+    /// <summary>One relation, read: what it joins, and what holds between them.</summary>
+    /// <param name="Part">The relation as it was written, which is what a press on its line means.</param>
+    /// <param name="From">The one it leaves, which is the one written first however it was written round.</param>
+    /// <param name="Says">What holds between them: <c>satisfies</c>, <c>derives</c>.</param>
+    private sealed record Relation(ContentPart Part, string From, string To, string Says, int Order)
+    {
+        /// <summary>What holds between them as it was written, which is what a press on the words on the line means.</summary>
+        public ContentPart? Said { get; init; }
+
+        /// <summary>
+        /// Whether the one it leaves holds the other, which SysML draws as a crosshair at that end of a solid line rather than as an
+        /// arrow at the other.
+        /// </summary>
+        public bool Holds => string.Equals(Says, RequirementGrammar.Holding, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A <c>requirementDiagram</c> block, read: the requirements written in it, the elements that meet them, and what holds between
+    /// them. Its title is the block's (<see cref="MermaidBlock.Title"/>).
+    ///
+    /// A name written twice is one thing: a relation names what a block above it wrote, and a relation naming what no block writes
+    /// makes the box for it — which is what lets a diagram be nothing but relations.
+    /// </summary>
+    private sealed class Diagram
+    {
+        /// <summary>What a name with nothing written in it yet is known by, which is where it was written.</summary>
+        private const string Unwritten = "\0";
+
+        private Diagram(RequirementConfig config, Way way, IReadOnlyList<Node> nodes, IReadOnlyList<Relation> relations)
+        {
+            Config = config;
+            Way = way;
+            Nodes = nodes;
+            Relations = relations;
+        }
+
+        /// <summary>What the front matter asks for.</summary>
+        public RequirementConfig Config { get; }
+
+        /// <summary>Which way it is laid out.</summary>
+        public Way Way { get; }
+
+        /// <summary>The requirements and the elements, in the order they are first written.</summary>
+        public IReadOnlyList<Node> Nodes { get; }
+
+        /// <summary>What holds between them, in the order written.</summary>
+        public IReadOnlyList<Relation> Relations { get; }
+
+        public Node? Find(string id) => Nodes.FirstOrDefault(node => string.Equals(node.Id, id, StringComparison.Ordinal));
+
+        /// <summary>Which way a <c>direction</c> line lays it out, or null for a way nobody writes.</summary>
+        public static Way? Wayward(string? said) => said?.ToUpperInvariant() switch
+        {
+            "TB" or "TD" => Way.Down,
+            "BT" => Way.Up,
+            "LR" => Way.Right,
+            "RL" => Way.Left,
+            _ => null,
+        };
+
+        /// <summary>
+        /// The diagram as written: every line read in the order it is written, what its stages said of it — what styles each
+        /// box, on the name first writing it — taken as it comes.
+        /// </summary>
+        public static Diagram Of(ContentPart root, RequirementConfig config)
+        {
+            var nodes = new List<Made>();
+            var known = new Dictionary<string, Made>(StringComparer.Ordinal);
+            var relations = new List<Relation>();
+            var way = Way.Down;
+
+            foreach (var line in root.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Line))
+            {
+                if (line.Stated() is not { } stated) continue;
+
+                switch (stated.Kind)
+                {
+                    case RequirementKinds.Block:
+                        Bodied(stated, nodes, known);
+                        break;
+
+                    case RequirementKinds.Relation:
+                        Related(stated, nodes, known, relations);
+                        break;
+
+                    case RequirementKinds.Naming:
+                        Gathered(stated.Inner(RequirementKinds.Named), nodes, known);
+                        break;
+
+                    case RequirementKinds.Direction:
+                        way = Wayward(Setting(stated, RequirementRoles.Towards)) ?? way;
+                        break;
+                }
+            }
+
+            return new Diagram(config, way, [.. nodes.Select(Frozen)], relations);
+        }
+
+        // ── What each line says ─────────────────────────────────────────────────
+
+        /// <summary>A block: what it opens, and every field written between its braces.</summary>
+        private static void Bodied(ContentPart stated, List<Made> nodes, Dictionary<string, Made> known)
+        {
+            if (stated.Inner(RequirementKinds.Opens) is not { } opens) return;
+            if (Gathered(opens.Inner(RequirementKinds.Named), nodes, known) is not { } made) return;
+
+            made.Kind ??= Piece(opens, MermaidKinds.Key, RequirementRoles.Kind);
+            made.Whole = new SourceSpan(stated.Start, stated.End - stated.Start);
+
+            foreach (var part in stated.SelfAndDescendants())
+            {
+                if (part.Kind != RequirementKinds.Field) continue;
+                if (Piece(part, MermaidKinds.Key, RequirementRoles.Key) is not { Length: > 0 } key) continue;
+
+                var value = part.Inner(RequirementKinds.Value);
+                var said = Valued(value);
+
+                made.Facts.Add(new Fact(part, key.Text, said?.Text ?? string.Empty, made.Facts.Count)
+                {
+                    Said = said is { Length: > 0 } ? said : null,
+                    Hole = value.Hole(),
+                });
+            }
+        }
+
+        /// <summary>A relation: the two it joins — made where no block writes them — and what holds between them.</summary>
+        private static void Related(ContentPart stated, List<Made> nodes, Dictionary<string, Made> known,
+                                    List<Relation> relations)
+        {
+            var named = stated.SelfAndDescendants().Where(part => part.Kind == RequirementKinds.Named).ToList();
+            if (named.Count < 2) return;
+
+            if (Gathered(named[0], nodes, known) is not { } one || Gathered(named[1], nodes, known) is not { } two) return;
+
+            var said = Piece(stated, MermaidKinds.Setting, RequirementRoles.Says);
+            var back = stated.SelfAndDescendants()
+                             .Any(part => part.Role == RequirementRoles.Arrow && part.Text == RequirementGrammar.Backward);
+
+            relations.Add(new Relation(stated, back ? two.Id : one.Id, back ? one.Id : two.Id,
+                                                  said?.Text ?? string.Empty, relations.Count)
+            {
+                Said = said is { Length: > 0 } ? said : null,
+            });
+        }
+
+        /// <summary>
+        /// The one a name names: the one already made where it names it again, and otherwise a new one. A name with nothing written
+        /// in it yet is a box of its own, known by where it is written, so writing it is watched as it is typed.
+        /// </summary>
+        private static Made? Gathered(ContentPart? named, List<Made> nodes, Dictionary<string, Made> known)
+        {
+            if (named is not { } holder) return null;
+
+            if (holder.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name) is not { } name) return null;
+
+            var words = name.Words();
+            var hole = name.Hole();
+
+            if (words is not { Length: > 0 } && hole is null) return null;
+
+            var id = words is { Length: > 0 } written ? written.Text : Unwritten + name.Start;
+
+            if (!known.TryGetValue(id, out var made))
+            {
+                made = new Made(name, id, nodes.Count) { Said = words, SaidHole = hole };
+
+                nodes.Add(made);
+                known[id] = made;
+            }
+
+            return made;
+        }
+
+        private static Node Frozen(Made made) =>
+            new(made.Part, made.Id, made.Said, made.Order)
+            {
+                Kind = made.Kind,
+                Facts = made.Facts,
+                Style = StyleOf(made.Part),
+                SaidHole = made.SaidHole,
+                Whole = made.Whole ?? new SourceSpan(made.Part.Start, made.Part.End - made.Part.Start),
+            };
+
+        // ── What the pieces say ─────────────────────────────────────────────────
+
+        /// <summary>What a field is set to: its words, or the one of a few words a risk and a verification method may be.</summary>
+        private static ContentPart? Valued(ContentPart? value) =>
+            value?.SelfAndDescendants().FirstOrDefault(inner => inner.Role == RequirementRoles.Value
+                                                                && inner.Kind is MermaidKinds.Words or MermaidKinds.Setting);
+
+        private static ContentPart? Piece(ContentPart part, string kind, string role) =>
+            part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == kind && inner.Role == role);
+
+        private static string? Setting(ContentPart stated, string role) =>
+            Piece(stated, MermaidKinds.Setting, role)?.Text;
+
+        /// <summary>One of them while the block is being read, before what every line says about it is known.</summary>
+        private sealed class Made(ContentPart part, string id, int order)
+        {
+            public ContentPart Part { get; } = part;
+
+            public string Id { get; } = id;
+
+            public int Order { get; } = order;
+
+            public ContentPart? Said { get; set; }
+
+            public ContentPart? SaidHole { get; set; }
+
+            public ContentPart? Kind { get; set; }
+
+            public List<Fact> Facts { get; } = [];
+
+            public ISourcePart? Whole { get; set; }
+        }
+    }
+
+    // ── Drawing it ──────────────────────────────────────────────────────────
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var diagram = Diagram.Of(Reading.Root, Configured(RequirementConfig.Default));
+
         // A diagram with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Nodes.Count == 0) return AsWritten(build);
+
+        // How much of it is drawn, worked out before anything is placed.
+        Fold(new DiagramChart([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Relations.Select(relation => (relation.From, relation.To))]));
 
         var plan = Laid(diagram);
         var room = Reached(diagram, plan);
@@ -101,7 +405,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     // ── Laying it out ───────────────────────────────────────────────────────
 
-    private Plan Laid(RequirementDiagram diagram)
+    private Plan Laid(Diagram diagram)
     {
         var plan = new Plan();
         var cells = new List<DiagramCell>();
@@ -135,12 +439,12 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
         return plan;
     }
 
-    private DiagramRoom Reached(RequirementDiagram diagram, Plan plan) =>
+    private DiagramRoom Reached(Diagram diagram, Plan plan) =>
         DiagramRoom.Round(diagram.Config.Air, plan.Size, plan.Nodes.Select(node => node.Cell),
                           plan.Joins.Select(join => (join.Value, Says(join.Key))));
 
     /// <summary>One box measured: what kind of thing it is over its name, then a row for each field.</summary>
-    private Sized Measure(RequirementNode node, RequirementConfig config)
+    private Sized Measure(Node node, RequirementConfig config)
     {
         var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
@@ -172,7 +476,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     // ── The relations ───────────────────────────────────────────────────────
 
     /// <summary>Where every relation runs once everything is placed, its ends brought in to the boxes it joins.</summary>
-    private List<Route> Routes(RequirementDiagram diagram, Plan plan, DiagramRoom room)
+    private List<Route> Routes(Diagram diagram, Plan plan, DiagramRoom room)
     {
         var routes = new List<Route>();
 
@@ -190,7 +494,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     }
 
     /// <summary>What holds between two of them, in guillemets as SysML writes it.</summary>
-    private IReadOnlyList<DiagramWords> Says(RequirementRelation relation) =>
+    private IReadOnlyList<DiagramWords> Says(Relation relation) =>
         relation.Said is { Length: > 0 } said
             ? [Worked(Opens + said.Text + Shuts, said, LabelSize, Palette.TextMuted)]
             : [];
@@ -267,7 +571,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     // ── Colour ──────────────────────────────────────────────────────────────
 
     /// <summary>What a box is filled with: what its styling writes, and otherwise what every box is.</summary>
-    private Brush Fill(RequirementNode node)
+    private Brush Fill(Node node)
     {
         var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
@@ -278,11 +582,11 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     private DiagramStroke Stroke(MermaidStyle style) =>
         new(Ink.Written(style.Stroke) ?? Ink.NodeEdge, style.StrokeWidth ?? Thick, DiagramInk.Dashes(style.Dashes));
 
-    private static DiagramWay Towards(RequirementWay way) => way switch
+    private static DiagramWay Towards(Way way) => way switch
     {
-        RequirementWay.Up => DiagramWay.Up,
-        RequirementWay.Right => DiagramWay.Right,
-        RequirementWay.Left => DiagramWay.Left,
+        Way.Up => DiagramWay.Up,
+        Way.Right => DiagramWay.Right,
+        Way.Left => DiagramWay.Left,
         _ => DiagramWay.Down,
     };
 
@@ -290,13 +594,13 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
     /// <summary>One box measured: the words of each of its fields, the box they are set in, and the cell the layout placed it in.</summary>
     private sealed class Sized(
-        RequirementNode node,
-        IReadOnlyList<(RequirementFact Fact, DiagramWords Label, DiagramWords Said)> facts,
+        Node node,
+        IReadOnlyList<(Fact Fact, DiagramWords Label, DiagramWords Said)> facts,
         DiagramBox laid)
     {
-        public RequirementNode Node { get; } = node;
+        public Node Node { get; } = node;
 
-        public IReadOnlyList<(RequirementFact Fact, DiagramWords Label, DiagramWords Said)> Facts { get; } = facts;
+        public IReadOnlyList<(Fact Fact, DiagramWords Label, DiagramWords Said)> Facts { get; } = facts;
 
         /// <summary>Its name and its fields measured into a box of compartments (<see cref="DiagramBox"/>).</summary>
         public DiagramBox Laid { get; } = laid;
@@ -307,7 +611,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
     }
 
     /// <summary>A relation worked out: where it runs, and what is written on it.</summary>
-    private sealed record Route(RequirementRelation Relation, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
+    private sealed record Route(Relation Relation, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
 
     /// <summary>Everything the diagram was measured and laid out into.</summary>
     private sealed class Plan
@@ -316,7 +620,7 @@ internal sealed class RequirementBuilder : MermaidBuilder<RequirementDiagram>
 
         public Dictionary<string, Sized> Named { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<RequirementRelation, DiagramJoin> Joins { get; } = [];
+        public Dictionary<Relation, DiagramJoin> Joins { get; } = [];
 
         /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
         public DiagramSpill Spill { get; set; } = DiagramSpill.None;

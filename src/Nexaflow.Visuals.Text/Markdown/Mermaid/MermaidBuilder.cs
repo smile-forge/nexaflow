@@ -475,6 +475,9 @@ internal abstract class MermaidBuilder : ContentBuilder
         return new DiagramWords(glyph, named, null, Text("x", size, ink), ink, maps: false, writes: false);
     }
 
+    /// <summary>What the thing a name first writes is drawn with (<see cref="MermaidStyling.Style"/>) — nothing of its own, where no styling says.</summary>
+    protected static MermaidStyle StyleOf(ContentPart? name) => (name?.Node as StyledNode)?.Style ?? MermaidStyle.None;
+
     /// <summary>
     /// The content written inside <paramref name="part"/>, laid out to fit <paramref name="room"/> — or null
     /// where nothing is written inside it, or it is being shown as the characters it was typed as.
@@ -492,46 +495,24 @@ internal abstract class MermaidBuilder : ContentBuilder
         return Nested(part, room);
     }
 
-    /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
-    protected override FormattedText Characters(string text) =>
-        new(text,
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            Style.Face(SourceFont),
-            SourceSize,
-            Palette.Text,
-            LayoutText.Density);
-}
+    // ── Folding a graph-shaped diagram ──────────────────────────────────────
 
-/// <summary>The shape every diagram's builder has: the block read into the diagram it describes once
-/// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
-/// title, trouble text, card — is <see cref="MermaidBuilder"/>'s.</summary>
-/// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
-internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
-    : MermaidBuilder(reading, state, style, isReadOnly, nesting)
-    where TDiagram : class
-{
-    /// <summary>The diagram as it was read — null until it has been.</summary>
-    protected TDiagram? Diagram { get; private set; }
+    /// <summary>What the front matter asked to be folded away (<see cref="WithFolds"/>).</summary>
+    protected NexaflowConfig Folds => folds ??= WithFolds.Of(Reading.Root.Node);
 
-    /// <summary>Reads the block into the diagram it describes: <c>PieChart.Of</c>, <c>VennDiagram.Of</c>.</summary>
-    protected abstract TDiagram Of(MermaidBlock block);
+    private NexaflowConfig? folds;
 
-    /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
-    /// took. May throw — shown as written, with the reason, on failure.</summary>
-    protected abstract Size Draw(TDiagram diagram, LayoutBuilder build);
+    /// <summary>How much of the diagram is drawn — everything, until <see cref="Fold"/> works it out.</summary>
+    protected DiagramExpansion Folding => folding;
+
+    private DiagramExpansion folding = DiagramExpansion.None;
 
     /// <summary>
-    /// This diagram as a graph, for folding: its node ids, and the links between them. Null for a diagram that is not
-    /// graph-shaped, which is never folded at all.
+    /// Works out how much of a graph-shaped diagram is drawn, from its nodes and the links between them — before anything is
+    /// placed, so a node that is not drawn is never given a cell, rather than taken out afterwards, which would leave a hole
+    /// where it stood and a line running to nothing.
     /// </summary>
-    protected virtual DiagramChart? Chart(TDiagram diagram) => null;
-
-    /// <summary>What the front matter asked to be folded away, read once before the diagram is drawn.</summary>
-    protected NexaflowConfig Folds { get; private set; } = NexaflowConfig.None;
-
-    /// <summary>How much of the diagram is drawn, worked out once before it is.</summary>
-    protected DiagramExpansion Folding { get; private set; } = DiagramExpansion.None;
+    protected void Fold(DiagramChart chart) => folding = DiagramExpansion.Of(Folds, chart, Style.Expansion?.Expansion);
 
     /// <summary>Whether a node is drawn at all. Everything is, unless something asked otherwise.</summary>
     protected bool Draws(string id) => Folding.Draws(id);
@@ -570,16 +551,45 @@ internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditSta
     /// <summary>How big it says it.</summary>
     private const double SpillSize = 11;
 
+    /// <summary>How a diagram sets the source it could not lay out at all: as the lines it was written as.</summary>
+    protected override FormattedText Characters(string text) =>
+        new(text,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            Style.Face(SourceFont),
+            SourceSize,
+            Palette.Text,
+            LayoutText.Density);
+}
+
+/// <summary>The shape every diagram's builder has: the block read into the diagram it describes once
+/// (<see cref="Of"/>), then drawn (<see cref="Draw(TDiagram, LayoutBuilder)"/>). Everything else —
+/// title, trouble text, card, folding — is <see cref="MermaidBuilder"/>'s.</summary>
+/// <typeparam name="TDiagram">The diagram as its model reads it, every part it was written in kept.</typeparam>
+internal abstract class MermaidBuilder<TDiagram>(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+    : MermaidBuilder(reading, state, style, isReadOnly, nesting)
+    where TDiagram : class
+{
+    /// <summary>The diagram as it was read — null until it has been.</summary>
+    protected TDiagram? Diagram { get; private set; }
+
+    /// <summary>Reads the block into the diagram it describes: <c>PieChart.Of</c>, <c>VennDiagram.Of</c>.</summary>
+    protected abstract TDiagram Of(MermaidBlock block);
+
+    /// <summary>Draws the diagram into <paramref name="build"/> at the origin and hands back the room it
+    /// took. May throw — shown as written, with the reason, on failure.</summary>
+    protected abstract Size Draw(TDiagram diagram, LayoutBuilder build);
+
+    /// <summary>
+    /// This diagram as a graph, for folding: its node ids, and the links between them. Null for a diagram that is not
+    /// graph-shaped, which is never folded at all.
+    /// </summary>
+    protected virtual DiagramChart? Chart(TDiagram diagram) => null;
+
     protected sealed override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
         Diagram = Of(block);
-        Folds = WithFolds.Of(block.Reading.Root.Node);
-
-        // Worked out before anything is placed, so a node that is not drawn is never given a cell — rather than taken
-        // out afterwards, which would leave a hole where it stood and a line running to nothing.
-        Folding = Chart(Diagram) is { } chart
-            ? DiagramExpansion.Of(Folds, chart, Style.Expansion?.Expansion)
-            : DiagramExpansion.None;
+        if (Chart(Diagram) is { } chart) Fold(chart);
 
         return Draw(Diagram, build);
     }
