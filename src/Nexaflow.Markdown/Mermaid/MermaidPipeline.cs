@@ -13,13 +13,12 @@ public static class MermaidPipeline
     /// </summary>
     /// <param name="tree">The block as <see cref="MermaidParser.Parse"/> read it, whose header names the diagram.</param>
     /// <param name="holes">Whether somebody is writing in the block.</param>
-    /// <param name="grammar">What read the block, where its language names its diagram rather than its first line — see <see cref="MermaidParser.Parse"/>.</param>
-    public static IReadOnlyList<IAstStage> Of(ContentNode tree, bool holes, IMermaidGrammar? grammar = null)
+    public static IReadOnlyList<IAstStage> Of(ContentNode tree, bool holes)
     {
         var block = MermaidBlock.Of(tree);
         var stages = new List<IAstStage>();
 
-        if ((grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is { } reading)
+        if (MermaidDiagrams.Grammar(block.Diagram) is { } reading)
         {
             stages.AddRange(reading.Stages(block, holes));
             stages.Add(new WithIcons());

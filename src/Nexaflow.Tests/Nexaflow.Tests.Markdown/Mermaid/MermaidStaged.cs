@@ -11,10 +11,9 @@ namespace Nexaflow.Tests.Markdown.Mermaid;
 internal static class MermaidStaged
 {
     /// <param name="holes">Whether somebody is writing in the block.</param>
-    /// <param name="grammar">What reads the block, where its language names its diagram rather than its first line.</param>
-    public static ContentNode Read(string? source, bool holes = false, IMermaidGrammar? grammar = null)
+    public static ContentNode Read(string? source, bool holes = false)
     {
-        var tree = MermaidParser.Parse(source, grammar);
-        return new AstPipeline(MermaidPipeline.Of(tree, holes, grammar)).Run(tree);
+        var tree = MermaidParser.Parse(source);
+        return new AstPipeline(MermaidPipeline.Of(tree, holes)).Run(tree);
     }
 }

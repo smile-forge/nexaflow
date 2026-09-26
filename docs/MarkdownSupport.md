@@ -143,7 +143,7 @@ JS/Mermaid.js, no browser).
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitStagesTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + config (`MindmapConfigTests`) + nesting, shapes and draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + composites, dots, styles + config (`StateStagesTests`) + states, transitions, notes and draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
-| `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + classes, members, relations + config (`ClassDiagramTests`) + draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
+| `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + namespaces, members, styles + config (`ClassStagesTests`) + classes, relations and draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
 | `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + styles + config (`RequirementStagesTests`) + requirements, fields, relations and draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanStagesTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
 | `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + config (`XyConfigTests`) + axes, series and draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
@@ -151,7 +151,7 @@ JS/Mermaid.js, no browser).
 | `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + config (`IshikawaConfigTests`) + nesting and draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + config (`SankeyConfigTests`) + nodes, flows and draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (shared layout tree; attributes in columns, crow's feet, subgraphs, written in place) | ✅ grammar (`ErGrammarTests`) + subgraphs, joins, styles + config (`ErStagesTests`) + entities, attributes, relationships and draw (`ErBuilderTests`) + writing (`ErEditingTests`) + sample render. See sub-features below. |
-| `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
+| `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennStagesTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
 | `architecture-beta` | ✅ (shared layout tree; laid out by the sides its edges leave by, written in place) | ✅ grammar (`ArchitectureGrammarTests`) + config (`ArchitectureConfigTests`) + groups, edges, places and draw (`ArchitectureBuilderTests`) + writing (`ArchitectureEditingTests`) + sample render. See sub-features below. |
 | `swimlane-beta` | ✅ (shared layout tree; lane bands, written in place) | ✅ grammar (`SwimlaneGrammarTests`) + draw (`SwimlaneBuilderTests`) + writing (`SwimlaneEditingTests`) + lanes (`DiagramLanesTests`) + sample render. See sub-features below. |
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + config (`CynefinConfigTests`) + domains, movements and draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
@@ -255,7 +255,7 @@ and changes nothing, the diagram being drawn at the size it comes to; a `#` comm
 renderer, a drawing style, a layout engine, or sizes for a drawing made of SVG text.
 
 **Class-diagram sub-features** ([`ClassGrammar`](../src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs),
-[`ClassDiagram`](../src/Nexaflow.Markdown/Mermaid/Class/ClassDiagram.cs),
+its stages [`ResolveNamespaces`](../src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveNamespaces.cs) and [`ResolveMembers`](../src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs),
 [`ClassBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: `classDiagram` and `classDiagram-v2`; a class declared `class A`, `class A { … }` or `class A{}`, given a
@@ -634,8 +634,7 @@ Mermaid renders markdown in them; a `#` comment is not read, only `%%`; and `use
 renderer, a drawing style and a layout engine.
 
 **Venn sub-features** ([`VennGrammar`](../src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs) →
-its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs) and [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) →
-[`VennDiagram`](../src/Nexaflow.Markdown/Mermaid/Venn/VennDiagram.cs) →
+its stages [`GroupRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs), [`ResolveRegions`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs) and [`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveStyles.cs) →
 [`VennBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Venn/VennBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each label is the characters it was written as.
 Supported, as Mermaid documents it: `venn-beta`; a `title`, quoted or not; `set id["Label"]:size`, a name bare or in
@@ -1066,17 +1065,18 @@ that needs a `MermaidStretch` on each graph-family grammar, the mechanism that a
 
 ## nomnoml — sub-support
 
-[nomnoml](https://www.nomnoml.com/) is UML class notation written shorter, so what a `nomnoml` block says **is** a
-class diagram: the same classes with the same compartments, the same relations between them, the same boxes round the
-ones written together. It is read into [`ClassDiagram`](../src/Nexaflow.Markdown/Mermaid/Class/ClassDiagram.cs) and
-drawn by [`ClassBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs), so a fix to how a class
-diagram is laid out is a fix to both. What is nomnoml's alone is how it is written
-([`NomnomlGrammar`](../src/Nexaflow.Markdown/Nomnoml/NomnomlGrammar.cs) →
-[`NomnomlDiagram`](../src/Nexaflow.Markdown/Nomnoml/NomnomlDiagram.cs) →
-[`NomnomlBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs)).
+[nomnoml](https://www.nomnoml.com/) is UML class notation written its own way, and a language of its own here: it is
+read by a parser of its own ([`NomnomlParser`](../src/Nexaflow.Markdown/Nomnoml/NomnomlParser.cs)), which gathers a
+group written across lines with the lines inside it and reads each association's operator as the end, the line and the
+other end it is built from. What a `nomnoml` block says **is** a class diagram — the same classes with the same
+compartments, the same relations between them, the same boxes round the ones written together — so
+[`NomnomlBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs) walks its tree into what the class
+diagram's drawing ([`ClassBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs)) is made from,
+and a fix to how a class diagram is laid out is a fix to both. A node's compartments are its bands as written: the first
+past its name above the rule, and every one after it below.
 
-Nothing inside the block names its type — the fence's language does — so the grammar is handed to
-`MermaidParser.Parse` rather than found from a first line, and every line of the block is a statement.
+Nothing inside the block names its type — the fence's language does — so every line of the block is a statement, and a
+group opened on one line and closed on another holds the lines between, groups inside it among them.
 
 **What is read**
 
@@ -1999,7 +1999,7 @@ requirement, kanban, xychart, radar, ishikawa, sankey, er, venn, architecture, s
 **Where coverage is thin:**
 
 
-- **`nomnoml`** is read and drawn by its own tests (`NomnomlGrammarTests`, `NomnomlBuilderTests`) and has a sample
+- **`nomnoml`** is read and drawn by its own tests (`NomnomlParserTests`, `NomnomlBuilderTests`) and has a sample
   fixture, but none of the classifier shapes beyond a class box are drawn — see [nomnoml](#nomnoml--sub-support).
 - The base CommonMark renderer, the enabled extensions, and the Mermaid parser family are
   all well covered.

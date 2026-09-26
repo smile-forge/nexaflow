@@ -64,7 +64,7 @@ public static class VennPiece
 /// The words are a layer above both.
 /// </para>
 /// </summary>
-internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
+internal sealed class VennBuilder : MermaidBuilder
 {
     /// <summary>How wide the drawing is before anything asks for another width.</summary>
     private const double Wide = 460;
@@ -88,14 +88,218 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
 
     internal VennBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override VennDiagram Of(MermaidBlock block) => VennDiagram.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
+
+    /// <summary>One item written inside a set or a union: a <c>text</c> line.</summary>
+    /// <param name="Id">What it is called.</param>
+    /// <param name="Part">The line it was written on, which is what a press on it means.</param>
+    /// <param name="Name">Its name as written, without its quotes.</param>
+    private sealed record Item(string Id, ContentPart Part, ContentPart Name)
+    {
+        public ContentPart? NameHole { get; init; }
+
+        /// <summary>What its label says, without its brackets or quotes, or null where it has none.</summary>
+        public ContentPart? Label { get; init; }
+
+        public ContentPart? LabelHole { get; init; }
+
+        public MermaidStyle Style { get; init; } = MermaidStyle.None;
+    }
+
+    /// <summary>A region: a set, or the overlap a union names.</summary>
+    /// <param name="key">What the stages say it is known by.</param>
+    /// <param name="part">The region that first wrote it — its line, and the items indented under it — which is what a press on it means.</param>
+    private abstract class Region(string key, ContentPart part, double weight)
+    {
+        public string Key { get; } = key;
+
+        public ContentPart Part { get; } = part;
+
+        /// <summary>What its label says, or null where none is written. The last one written wins.</summary>
+        public ContentPart? Label { get; set; }
+
+        public ContentPart? LabelHole { get; set; }
+
+        /// <summary>How much of the drawing it takes: the size written, or Mermaid's where none is or it is no size.</summary>
+        public double Weight { get; set; } = weight;
+
+        public MermaidStyle Style { get; } = StyleOf(part);
+
+        /// <summary>The items written in it, in order.</summary>
+        public List<Item> Items { get; } = [];
+    }
+
+    /// <summary>One set: a circle.</summary>
+    /// <param name="Order">Where it comes among the sets, which is which colour of the palette it takes.</param>
+    private sealed class Set(string id, ContentPart part, ContentPart name, int order) : Region(id, part, Unsized)
+    {
+        /// <summary>What a set is worth where no size is written — Mermaid's.</summary>
+        public const double Unsized = 10;
+
+        public string Id => Key;
+
+        public ContentPart Name { get; } = name;
+
+        public ContentPart? NameHole { get; init; }
+
+        public int Order { get; } = order;
+
+        /// <summary>The colour the front matter writes for its place in the order, or null to leave it to the theme.</summary>
+        public string? Colour { get; init; }
+    }
+
+    /// <summary>A union: where two sets or more overlap.</summary>
+    /// <param name="sets">The names of the sets it is the overlap of, sorted.</param>
+    private sealed class Union(string key, ContentPart part, IReadOnlyList<string> sets)
+        : Region(key, part, Set.Unsized / Math.Max(1, sets.Count * sets.Count))
+    {
+        public IReadOnlyList<string> Sets { get; } = sets;
+    }
+
+    /// <summary>
+    /// The sets in the order they were first written, the unions where they overlap and the items written in each, read down
+    /// the tree. A set written twice is one set, its later label and size winning; a union naming a set not written above it,
+    /// or fewer than two, is no overlap and is not drawn — the reason already on its line.
+    /// </summary>
+    private sealed class Diagram
+    {
+        private Diagram(VennConfig config) => Config = config;
+
+        public VennConfig Config { get; }
+
+        public List<Set> Sets { get; } = [];
+
+        public List<Union> Unions { get; } = [];
+
+        public static Diagram Of(ContentPart root, VennConfig config)
+        {
+            var diagram = new Diagram(config);
+            var loose = new List<ContentPart>();
+
+            foreach (var part in root.Children)
+            {
+                if (part.Kind == VennKinds.Region)
+                {
+                    var region = part.Children[0].Stated() switch
+                    {
+                        { Kind: VennKinds.Set } set => diagram.Declared(part, set),
+                        { Kind: VennKinds.Union } union => diagram.Overlapped(part, union),
+                        _ => null,
+                    };
+
+                    foreach (var line in part.Children.Skip(1))
+                        if (region is not null && line.Stated() is { Kind: VennKinds.Text } item && Itemed(item) is { } read)
+                            region.Items.Add(read);
+
+                    continue;
+                }
+
+                // An item on its own may name a region written after it, so it is put there once every region is known.
+                if (part.Stated() is { Kind: VennKinds.Text } written) loose.Add(written);
+            }
+
+            foreach (var item in loose)
+            {
+                if (item.Fact(VennRoles.Key) is not { } key || Itemed(item) is not { } read) continue;
+
+                Region? region = diagram.Sets.FirstOrDefault(set => set.Key == key);
+                region ??= diagram.Unions.FirstOrDefault(union => union.Key == key);
+                region?.Items.Add(read);
+            }
+
+            return diagram;
+        }
+
+        /// <summary>
+        /// How much two sets overlap: the size of the union written for the pair of them — or, where they are only two of the
+        /// sets a larger union overlaps, a quarter of the smaller, which is what gives that union a region to sit in, as
+        /// Mermaid does — and nought where nothing says they overlap at all.
+        /// </summary>
+        public double Overlap(Set one, Set other)
+        {
+            if (Unions.FirstOrDefault(union => union.Sets.Count == 2 && union.Sets.Contains(one.Id) && union.Sets.Contains(other.Id)) is { } written)
+                return written.Weight;
+
+            return Unions.Any(union => union.Sets.Contains(one.Id) && union.Sets.Contains(other.Id))
+                ? Math.Min(one.Weight, other.Weight) / 4
+                : 0;
+        }
+
+        private Region? Declared(ContentPart region, ContentPart line)
+        {
+            if (Id(line) is not { } name) return null;
+
+            var id = region.Fact(VennRoles.Key) ?? string.Empty;
+            var set = Sets.FirstOrDefault(set => set.Id == id);
+            if (set is null)
+            {
+                Sets.Add(set = new Set(id, region, name, Sets.Count)
+                {
+                    NameHole = name.Parent.Hole(),
+                    Colour = Config.Swatches.GetValueOrDefault((Sets.Count % VennConfig.PaletteSize) + 1),
+                });
+            }
+
+            Written(set, line);
+            return set;
+        }
+
+        private Region? Overlapped(ContentPart region, ContentPart line)
+        {
+            var key = region.Fact(VennRoles.Key) ?? string.Empty;
+            var names = key.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+            // Only sets written above it: that is what a union is the overlap of.
+            if (names.Length < 2 || names.Any(name => Sets.All(set => set.Id != name))) return null;
+
+            var union = Unions.FirstOrDefault(union => union.Key == key);
+            if (union is null) Unions.Add(union = new Union(key, region, names));
+
+            Written(union, line);
+            return union;
+        }
+
+        /// <summary>A set's or a union's label and size, where the line writes them: a later line's win.</summary>
+        private static void Written(Region region, ContentPart line)
+        {
+            if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label) is { } label)
+            {
+                region.Label = label.Words();
+                region.LabelHole = label.Hole();
+            }
+
+            if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Amount).Inner(MermaidKinds.Number)?.Number() is { } size)
+                region.Weight = size;
+        }
+
+        /// <summary>An item, from its <c>text</c> line — or null for one with no name to go by.</summary>
+        private static Item? Itemed(ContentPart line)
+        {
+            if (Id(line) is not { } name) return null;
+
+            var label = line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label);
+            return new Item(name.Text, line, name)
+            {
+                NameHole = name.Parent.Hole(),
+                Label = label.Words(),
+                LabelHole = label.Hole(),
+                Style = StyleOf(line),
+            };
+        }
+
+        /// <summary>The name a line writes directly on it — a set's, or an item's past the region it names — without its quotes.</summary>
+        private static ContentPart? Id(ContentPart line) =>
+            line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Words();
+    }
+
+    // ── Drawing it ──────────────────────────────────────────────────────────
 
     /// <summary>The front matter's <c>vennTitleTextColor</c>, where it writes one.</summary>
-    protected override string? TitleColour => Diagram?.Config.TitleTextColour;
+    protected override string? TitleColour => Configured(VennConfig.Default).TitleTextColour;
 
-    protected override Size Draw(VennDiagram diagram, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        var diagram = Diagram.Of(Reading.Root, Configured(VennConfig.Default));
         // A diagram of no sets is the source: there is nothing to look at, and what the reader wants is their own lines
         // back with whatever is wrong with them said underneath.
         if (diagram.Sets.Count == 0) return AsWritten(build);
@@ -159,7 +363,7 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
             circle.Radius * scale))];
     }
 
-    private static int Order(IReadOnlyList<VennSet> sets, string id)
+    private static int Order(IReadOnlyList<Set> sets, string id)
     {
         for (var at = 0; at < sets.Count; at++)
             if (sets[at].Id == id) return at;
@@ -169,7 +373,7 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
 
     // ── The circles ─────────────────────────────────────────────────────────
 
-    private void Circles(LayoutBuilder build, IReadOnlyList<VennSet> sets, IReadOnlyList<VennLayout.Circle> circles,
+    private void Circles(LayoutBuilder build, IReadOnlyList<Set> sets, IReadOnlyList<VennLayout.Circle> circles,
                          IReadOnlyList<Lens> overlaps, Vector shift)
     {
         build.Open(VennPiece.Circles, part: null, stops: Stops.None);
@@ -199,15 +403,15 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
     }
 
     /// <summary>What a set is drawn in: its style's fill, the front matter's colour for its place, or the theme's next series colour.</summary>
-    private Brush Fill(VennSet set) => Ink.Written(set.Style.Fill) ?? Ink.Series(set.Order, set.Colour);
+    private Brush Fill(Set set) => Ink.Written(set.Style.Fill) ?? Ink.Series(set.Order, set.Colour);
 
     // ── The overlaps ────────────────────────────────────────────────────────
 
     /// <summary>A union's overlap: the lens its circles make, and the part of it no other circle covers.</summary>
-    private sealed record Lens(VennUnion Union, IReadOnlySet<int> Members, Geometry Whole, Geometry Own);
+    private sealed record Lens(Union Union, IReadOnlySet<int> Members, Geometry Whole, Geometry Own);
 
     /// <summary>Where a union's circles meet — or null where they do not.</summary>
-    private static Lens? Lensed(VennUnion union, IReadOnlyList<VennSet> sets, IReadOnlyList<VennLayout.Circle> circles, Vector shift)
+    private static Lens? Lensed(Union union, IReadOnlyList<Set> sets, IReadOnlyList<VennLayout.Circle> circles, Vector shift)
     {
         var members = union.Sets.Select(id => Order(sets, id)).ToHashSet();
 
@@ -254,12 +458,12 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
     // ── What is written on them ─────────────────────────────────────────────
 
     /// <summary>One item, measured.</summary>
-    private sealed record Entry(VennItem Item, DiagramWords Says);
+    private sealed record Entry(Item Item, DiagramWords Says);
 
     /// <summary>A region's words, measured and placed: its label on top, and its items in a grid under it.</summary>
     /// <param name="Room">How far the point they are centred on is from the region's nearest edge, or nought where the region has no room.</param>
     /// <param name="Columns">How many columns the items are set in.</param>
-    private sealed record Words(VennRegion Region, DiagramWords? Label, IReadOnlyList<Entry> Items, Point Centre, double Room, int Columns = 1)
+    private sealed record Words(Region Region, DiagramWords? Label, IReadOnlyList<Entry> Items, Point Centre, double Room, int Columns = 1)
     {
         public int Rows => Items.Count == 0 ? 0 : (int)Math.Ceiling(Items.Count / (double)Columns);
 
@@ -275,20 +479,20 @@ internal sealed class VennBuilder : MermaidBuilder<VennDiagram>
         public Rect Bounds => new(Centre.X - (Width / 2), Centre.Y - (Height / 2), Width, Height);
     }
 
-    private Words Measured(VennRegion region, IReadOnlyList<VennLayout.Circle> circles, IReadOnlyCollection<int> members)
+    private Words Measured(Region region, IReadOnlyList<VennLayout.Circle> circles, IReadOnlyCollection<int> members)
     {
         var (centre, room) = VennLayout.Inside(circles, members)
                              ?? (new Point(members.Average(at => circles[at].Centre.X), members.Average(at => circles[at].Centre.Y)), 0);
 
-        var ink = Ink.Written(region.Style.Colour) ?? Ink.Written(Diagram!.Config.SetTextColour) ?? Palette.Text;
-        var size = region is VennSet ? SetSize : UnionSize;
+        var ink = Ink.Written(region.Style.Colour) ?? Ink.Written(Configured(VennConfig.Default).SetTextColour) ?? Palette.Text;
+        var size = region is Set ? SetSize : UnionSize;
 
         // Its label; a set with none, its name; a union with none, the names of the sets it overlaps, which nobody wrote there.
         var label = region switch
         {
             { LabelHole: not null } or { Label.Length: > 0 } => Written(region.Label, region.LabelHole, size, ink, FontWeights.SemiBold),
-            VennSet set when set.NameHole is not null || set.Name.Length > 0 => Written(set.Name, set.NameHole, size, ink, FontWeights.SemiBold),
-            VennUnion union => Worked(string.Join(" ∩ ", union.Sets), null, size, ink, FontWeights.SemiBold),
+            Set set when set.NameHole is not null || set.Name.Length > 0 => Written(set.Name, set.NameHole, size, ink, FontWeights.SemiBold),
+            Union union => Worked(string.Join(" ∩ ", union.Sets), null, size, ink, FontWeights.SemiBold),
             _ => null,
         };
 

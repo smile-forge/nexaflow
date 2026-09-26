@@ -32,29 +32,21 @@ public abstract class MermaidGrammarContract
     /// <summary>The blocks Mermaid's own documentation shows for the diagram, which read with nothing wrong with them.</summary>
     protected abstract IEnumerable<string> DocumentedBlocks { get; }
 
-    /// <summary>
-    /// The grammar a block is read by, where its fence's language names it rather than its first line — a nomnoml block,
-    /// say. Null for a Mermaid diagram, whose header names its own.
-    /// </summary>
-    protected virtual IMermaidGrammar? Named => null;
-
     /// <summary>The grammar under test.</summary>
-    protected IMermaidGrammar Grammar => Named ?? MermaidDiagrams.Grammar(Diagram)
+    protected IMermaidGrammar Grammar => MermaidDiagrams.Grammar(Diagram)
                                          ?? throw new AssertFailedException($"{Diagram} has no grammar: MermaidDiagrams.Grammar names none.");
 
     /// <summary>A block parsed as this grammar reads it.</summary>
-    private ContentNode Parsed(string source) => MermaidParser.Parse(source, Named);
+    private ContentNode Parsed(string source) => MermaidParser.Parse(source);
 
     /// <summary>A block parsed and run through its stages, as this grammar reads it.</summary>
-    private ContentNode Reading(string source, bool holes = false) => MermaidStaged.Read(source, holes, Named);
+    private ContentNode Reading(string source, bool holes = false) => MermaidStaged.Read(source, holes);
 
     [TestMethod]
     public void EveryBlockIsTheDiagramItsHeaderNames()
     {
         Assert.IsTrue(DocumentedBlocks.Any(), "a grammar is checked against at least one block its documentation shows");
 
-        // A block read by the language its fence names has no header to name anything, so there is nothing here to hold.
-        if (Named is not null) return;
 
         foreach (var source in DocumentedBlocks)
             Assert.AreEqual(Diagram, MermaidBlock.Read(source).Diagram, source);
@@ -131,7 +123,7 @@ public abstract class MermaidGrammarContract
     {
         foreach (var (what, source) in All)
         {
-            if (Named is null && MermaidBlock.Read(source).Diagram != Diagram) continue;
+            if (MermaidBlock.Read(source).Diagram != Diagram) continue;
 
             var reading = Parsed(source);
             var said = reading.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Line).Select(line => line.Stated()).Prepend(null);

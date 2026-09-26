@@ -1,0 +1,141 @@
+{
+  "branch": "claude/diagrams-own-nodes-6",
+  "nodes": {
+    "class-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs",
+          "class": "ClassGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs",
+          "class": "ResolveMembers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
+          "class": "ClassConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassGrammarTests.cs",
+            "class": "ClassGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Class/ClassStagesTests.cs",
+            "class": "ClassStagesTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassBuilderTests.cs",
+            "class": "ClassBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/ClassEditingTests.cs",
+            "class": "ClassEditingTests"
+          }
+        ]
+      }
+    },
+    "venn-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennGrammar.cs",
+          "class": "VennGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/GroupRegions.cs",
+          "class": "GroupRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveRegions.cs",
+          "class": "ResolveRegions"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/Stages/ResolveStyles.cs",
+          "class": "ResolveStyles"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Venn/VennConfig.cs",
+          "class": "VennConfig"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennGrammarTests.cs",
+            "class": "VennGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Venn/VennStagesTests.cs",
+            "class": "VennStagesTests"
+          }
+        ]
+      }
+    },
+    "nomnoml": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Nomnoml/NomnomlParser.cs",
+          "class": "NomnomlParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Nomnoml/NomnomlBuilder.cs",
+          "class": "NomnomlBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Nomnoml/NomnomlParserTests.cs",
+            "class": "NomnomlParserTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Nomnoml/NomnomlBuilderTests.cs",
+            "class": "NomnomlBuilderTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 6,
+  "touched_nodes": [
+    "class-diagram",
+    "nomnoml",
+    "venn-ast"
+  ]
+}

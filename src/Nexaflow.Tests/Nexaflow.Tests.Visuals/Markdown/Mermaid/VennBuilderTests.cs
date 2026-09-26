@@ -245,4 +245,88 @@ public class VennBuilderTests : MermaidBuilderContract
         Assert.AreEqual(0, content.Diagnostics.Count);
         Assert.IsFalse(content.IsReadOnly, "its labels are written in");
     });
+
+    // ── What is read from the lines as written ──────────────────────────────
+
+    /// <summary>Where the words drawn for each label and item are, by what they say.</summary>
+    private static Dictionary<string, Point> Said(Laid laid) =>
+        laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null)
+            .GroupBy(piece => piece.Words!.Glyphs.Text)
+            .ToDictionary(same => same.Key, same => same.First().Bounds is var box ? new Point(box.X + (box.Width / 2), box.Y + (box.Height / 2)) : default);
+
+    private static bool Inside(Point at, (Point Centre, double Radius) circle) => (at - circle.Centre).Length < circle.Radius;
+
+    [TestMethod]
+    public void TheDocumentedFeaturesDrawAsTheyAreWritten() => UiThread.Run(() =>
+    {
+        var laid = Build(Features);
+        var said = Said(laid);
+
+        Assert.AreEqual(3, Pieces(laid, VennPiece.Circle).Count());
+        foreach (var words in new[] { "Desirable", "Feasible", "Viable", "Buildable", "Sustainable", "Marketable", "Ship it" })
+            Assert.IsTrue(said.ContainsKey(words), words);
+    });
+
+    [TestMethod]
+    public void AnItemSitsInTheRegionItIsWrittenUnder_OrTheOneItNames() => UiThread.Run(() =>
+    {
+        var laid = Build("venn-beta\nset A\nset B\nunion B,A\ntext A,B AB1[\"OpenAPI\"]\ntext A A1");
+        var circles = Pieces(laid, VennPiece.Circle).Select(Round).ToList();
+        var said = Said(laid);
+
+        Assert.IsTrue(Inside(said["OpenAPI"], circles[0]) && Inside(said["OpenAPI"], circles[1]), "named in another order, the same overlap");
+        Assert.IsTrue(Inside(said["A1"], circles[0]) && !Inside(said["A1"], circles[1]), "and A1 in A alone");
+    });
+
+    [TestMethod]
+    public void ASetWrittenTwiceIsOneCircle_ItsLaterLabelAndSizeWinning() => UiThread.Run(() =>
+    {
+        var laid = Build("venn-beta\n  set A\n    text A1\n  set A[\"Alpha\"]:5\n    text A2\n  set B:5");
+        var circles = Pieces(laid, VennPiece.Circle).Select(Round).ToList();
+        var said = Said(laid);
+
+        Assert.AreEqual(2, circles.Count);
+        Assert.AreEqual(circles[0].Radius, circles[1].Radius, 0.01, "five, as the later line says, as big as B");
+        Assert.IsTrue(said.ContainsKey("Alpha") && Inside(said["A1"], circles[0]) && Inside(said["A2"], circles[0]), "labelled Alpha, holding both items");
+    });
+
+    [TestMethod]
+    public void EachSetTakesTheColourWrittenForItsPlace_AndThePaletteStartsAgainAfterEight() => UiThread.Run(() =>
+    {
+        var sets = string.Join('\n', Enumerable.Range(1, 9).Select(at => $"  set S{at}"));
+        var circles = Pieces(Build($"---\nconfig:\n  themeVariables:\n    venn1: \"#ff0000\"\n    venn3: green\n---\nvenn-beta\n{sets}"), VennPiece.Circle)
+            .Select(circle => ((SolidColorBrush)Fill(circle)!).Color).ToList();
+
+        Assert.AreEqual(Color.FromRgb(0xFF, 0, 0), circles[0]);
+        Assert.AreEqual(Colors.Green, circles[2]);
+        Assert.AreNotEqual(circles[0], circles[1], "nothing written for the second, which is the theme's");
+        Assert.AreEqual(circles[0], circles[8], "the ninth takes the first colour again");
+    });
+
+    [TestMethod]
+    public void SetsAUnionOfMoreOverlapsOverlapEachOther() => UiThread.Run(() =>
+    {
+        var circles = Pieces(Build("venn-beta\n  set A:20\n  set B:12\n  set C\n  union A,B,C"), VennPiece.Circle).Select(Round).ToList();
+
+        Assert.IsTrue((circles[0].Centre - circles[1].Centre).Length < circles[0].Radius + circles[1].Radius,
+                      "A and B are only two of the sets a larger union overlaps, which still overlaps them");
+    });
+
+    [TestMethod]
+    public void AUnionOfASetNotWrittenAboveItIsNoOverlap() => UiThread.Run(() =>
+    {
+        Assert.AreEqual(0, Pieces(Laying.Lay("mermaid", "venn-beta\n  set A\n  union A,B\n  set B", 700, writing: true), VennPiece.Overlap).Count());
+    });
+
+    [TestMethod]
+    public void WhereANameOrALabelIsStillToBeWrittenAHoleStandsInIt() => UiThread.Run(() =>
+    {
+        const string source = "venn-beta\n  set A[\"\"]\n    text \"\"";
+
+        bool Holds(Laid laid, int at) => laid.Root.SelfAndDescendants().Any(piece => piece.Part?.Start == at && piece.Part.Length == 0);
+        var writing = Laying.Lay("mermaid", source, 700, writing: true);
+
+        Assert.IsTrue(Holds(writing, source.IndexOf("[\"", StringComparison.Ordinal) + 2), "between the label's quotes");
+        Assert.IsTrue(Holds(writing, source.LastIndexOf('"')), "and the item's name's");
+    });
 }
