@@ -482,11 +482,11 @@ public sealed class FlowchartDiagram
     private static FlowchartPicture? Pictured(ContentPart? properties)
     {
         var named = Set(properties, "img") ?? Set(properties, "icon");
-        if (named?.Parent is not { } written) return null;
+        if ((named?.Parent is { Kind: MermaidKinds.Icon } icon ? icon.Parent : named?.Parent) is not { } written) return null;
 
-        var icon = string.Equals(written.Part(Roles.Name)?.Text, "icon", StringComparison.OrdinalIgnoreCase) ? Bared(named) : null;
+        var iconed = string.Equals(written.Part(Roles.Name)?.Text, "icon", StringComparison.OrdinalIgnoreCase) ? Bared(named) : null;
 
-        return new FlowchartPicture(written, icon, Bared(Set(properties, "form")) is { Length: > 0 } form ? form.ToLowerInvariant() : null,
+        return new FlowchartPicture(written, iconed, Bared(Set(properties, "form")) is { Length: > 0 } form ? form.ToLowerInvariant() : null,
                                     string.Equals(Bared(Set(properties, "pos")), "t", StringComparison.OrdinalIgnoreCase),
                                     Measured(Set(properties, "w")), Measured(Set(properties, "h")),
                                     string.Equals(Bared(Set(properties, "constraint")), "on", StringComparison.OrdinalIgnoreCase));
@@ -496,12 +496,12 @@ public sealed class FlowchartDiagram
         static double? Measured(ContentPart? value) => MermaidNumber.Read(Bared(value)) is { } size && size > 0 ? size : null;
     }
 
-    /// <summary>What a property of some metadata is set to, or null where the metadata does not set it.</summary>
+    /// <summary>What a property of some metadata is set to, or null where the metadata does not set it — an icon's name as written, inside what says it names one.</summary>
     private static ContentPart? Set(ContentPart? properties, string name) =>
         properties?.Children
             .Where(property => property.Kind == MermaidKinds.Property
                                && string.Equals(property.Part(Roles.Name)?.Text, name, StringComparison.OrdinalIgnoreCase))
-            .Select(property => property.Part(MermaidRoles.Value))
+            .Select(property => property.Part(MermaidRoles.Value) is { Kind: MermaidKinds.Icon } icon ? icon.Part(MermaidRoles.Value) : property.Part(MermaidRoles.Value))
             .FirstOrDefault(value => value is { Length: > 0 });
 
     /// <summary>The links a <c>linkStyle</c> line numbers.</summary>

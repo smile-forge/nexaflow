@@ -154,12 +154,15 @@ public class ArchitectureBuilderTests : MermaidBuilderContract
     });
 
     [TestMethod]
-    public void AnIconIsAPictureWhereMermaidHasOne_AndWhatItIsCalledWhereItDoesNot() => UiThread.Run(() =>
+    public void AnIconIsTheGlyphItNames_AndWhatItIsCalledWhereTheAppDrawsNone() => UiThread.Run(() =>
     {
-        foreach (var icon in ArchitectureIcons.Drawn)
+        foreach (var icon in new[] { "cloud", "database", "disk", "internet", "server", "fa:user", "fluent:rocket" })
         {
             var laid = Build($"architecture-beta\n  service a({icon})[A]");
-            Assert.AreEqual(0, Said(Pieces(laid, ArchitecturePiece.Icon).Single()).Count(), $"{icon} is drawn rather than written out");
+            var drawn = Pieces(laid, ArchitecturePiece.Icon).Single().SelfAndDescendants().Where(piece => piece.Kind == MermaidPiece.Glyph).ToList();
+
+            Assert.AreEqual(1, drawn.Count, $"{icon} is drawn as the icon it names");
+            Assert.AreEqual($"({icon})", Written($"architecture-beta\n  service a({icon})[A]", drawn[0].Part), "and stands for what names it");
         }
 
         var lambda = Build("architecture-beta\n  service a(logos:aws-lambda)[A]");

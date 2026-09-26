@@ -8,8 +8,8 @@ namespace Nexaflow.Markdown.Mermaid;
 public static class MermaidPipeline
 {
     /// <summary>
-    /// The diagram's own stages, then a hole wherever something is still to be written where somebody is writing, then what
-    /// the block's folds say.
+    /// The diagram's own stages, then which icon everything naming one is, then a hole wherever something is still to be
+    /// written where somebody is writing, then what the block's folds say.
     /// </summary>
     /// <param name="tree">The block as <see cref="MermaidParser.Parse"/> read it, whose header names the diagram.</param>
     /// <param name="holes">Whether somebody is writing in the block.</param>
@@ -22,6 +22,7 @@ public static class MermaidPipeline
         if ((grammar ?? MermaidDiagrams.Grammar(block.Diagram)) is { } reading)
         {
             stages.AddRange(reading.Stages(block, holes));
+            stages.Add(new WithIcons());
             if (holes) stages.Add(new WithHoles(reading.Holds));
         }
 

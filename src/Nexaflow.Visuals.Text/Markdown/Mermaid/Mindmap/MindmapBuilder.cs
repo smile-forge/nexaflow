@@ -45,6 +45,9 @@ internal sealed class MindmapBuilder : MermaidBuilder
     private const double MaxNodeWidth = 200;
     private const double Padding = 10;
 
+    /// <summary>How much bigger a node's icon is drawn than its title.</summary>
+    private const double IconScale = 1.8;
+
     /// <summary>How thick a branch is drawn at the root, how much thinner each level further out is, and the thinnest it gets.</summary>
     private const double Thickest = 4;
     private const double Thinner = 1;
@@ -79,6 +82,9 @@ internal sealed class MindmapBuilder : MermaidBuilder
         public int Depth { get; } = depth;
 
         public int Branch { get; } = branch;
+
+        /// <summary>The <c>::icon(…)</c> line under it, where one names its icon.</summary>
+        public ContentPart? Icon { get; set; }
 
         /// <summary>The nodes hanging off it, in the order they are written.</summary>
         public List<Node> Children { get; } = [];
@@ -117,6 +123,18 @@ internal sealed class MindmapBuilder : MermaidBuilder
                                      under.Depth == 0 ? under.Children.Count % Branches : under.Branch);
                 under.Children.Add(nodes[at]!);
             }
+        }
+
+        // An icon line names the icon of the node above it.
+        var made = new Dictionary<ContentPart, Node>();
+        for (var at = 0; at < nested.Count; at++)
+            if (nodes[at] is { } node) made[nested[at].Item] = node;
+
+        Node? above = null;
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            if (part.Kind == MindmapKinds.Node) above = made.GetValueOrDefault(part);
+            else if (part.Kind == MindmapKinds.Icon && above is not null) above.Icon = part;
         }
 
         return nodes.FirstOrDefault();
@@ -160,7 +178,10 @@ internal sealed class MindmapBuilder : MermaidBuilder
             var shape = Shaped(node.Shape);
             var pad = Room(node.Shape, padding);
             var paint = Paint(config, node);
-            var lines = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
+            var title = Wrapped(node.Title, node.Hole, TextSize, paint.Words, Math.Max(20, widest - (pad * 2)));
+
+            // The icon it names goes over its title, as Mermaid draws one.
+            IReadOnlyList<DiagramWords> lines = Iconed(node.Icon, TextSize * IconScale, paint.Words) is { } icon ? [icon, .. title] : title;
             var words = new Size(lines.Max(line => line.Width), lines.Sum(line => line.Height));
 
             said[node] = (lines, DiagramShapes.Around(shape, words, pad), shape, paint);
@@ -199,7 +220,11 @@ internal sealed class MindmapBuilder : MermaidBuilder
         {
             var (lines, _, shape, paint) = said[node];
             var bounds = room.At(placed[node]);
-            var words = DiagramWords.Placed(lines, DiagramShapes.Inside(shape, bounds), MindmapPiece.Title);
+            IReadOnlyList<(DiagramWords Words, Point At, string Kind)> words =
+            [
+                .. DiagramWords.Placed(lines, DiagramShapes.Inside(shape, bounds), MindmapPiece.Title)
+                    .Select(line => line with { Kind = line.Words.Part is ContentPart { Node: RenderedIconNode } ? MermaidPiece.Glyph : line.Kind }),
+            ];
 
             DiagramShapes.Draw(build, MindmapPiece.Node, node.Part, shape, bounds, paint.Fill, paint.Edge, words);
         }

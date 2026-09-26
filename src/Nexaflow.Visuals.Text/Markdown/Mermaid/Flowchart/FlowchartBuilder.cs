@@ -618,7 +618,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
         build.Open(MermaidPiece.Shape, node.Part, stops: Stops.None);
 
-        if (pictured.Icon is { } icon)
+        if (pictured.Icon is not null)
         {
             // Stood in its form where it is given one — a square, a circle, a rounded square — and on nothing where it is not.
             if (pictured.Form is { } form)
@@ -628,9 +628,8 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
             var inner = new Rect(frame.X + (frame.Width * 0.2), frame.Y + (frame.Height * 0.2), frame.Width * 0.6, frame.Height * 0.6);
             var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
-            // The icons this draws, drawn; any other a question mark, which is what Mermaid draws for an icon it has no pack for.
-            if (Architecture.ArchitectureIcons.Picture(icon, inner) is { } drawn) build.Draw(new GeometryMark(drawn, null, ink, 1.5));
-            else asked = Worked("?", null, inner.Height * 0.8, ink);
+            // The icon it names; any other a question mark, which is what Mermaid draws for an icon it has no pack for.
+            asked = Iconed(pictured.Written, inner.Height, ink) ?? Worked("?", null, inner.Height * 0.8, ink);
         }
         else if (Stages.WithDiagramPictures.Of(pictured.Written) is { } picture) build.Draw(new PictureMark(picture, frame));
         else build.Draw(new GeometryMark(new RectangleGeometry(frame), null, stroke?.Ink ?? Palette.TextMuted, 1) { Dashes = new DoubleCollection([4, 3]) });
@@ -640,7 +639,8 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         build.Occupies(stands);
         build.Close();
 
-        asked?.Set(build, new Point(frame.X + ((frame.Width - asked.Width) / 2), frame.Y + ((frame.Height - asked.Height) / 2)), MermaidPiece.Words);
+        asked?.Set(build, new Point(frame.X + ((frame.Width - asked.Width) / 2), frame.Y + ((frame.Height - asked.Height) / 2)),
+                   asked.Part is null ? MermaidPiece.Words : MermaidPiece.Glyph);
 
         foreach (var (words, at, kind) in DiagramWords.Placed(sized.Words, room, MermaidPiece.Words)) words.Set(build, at, kind);
 

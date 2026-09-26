@@ -73,7 +73,11 @@ public static class MermaidOutline
     public static ContentNode Decoration(MermaidLine line, string mark, string? close, string role, string kind)
     {
         line.Token(mark, Roles.Open);
+        // An icon's name is an icon, which is the stage's to say which (MermaidKinds.Icon).
+        var icon = mark == IconMark;
+        if (icon) line.Open();
         line.Words(role, until: close);
+        if (icon) line.Close(MermaidKinds.Icon);
         line.Space();
         if (close is not null) line.Token(close, Roles.Close);
 

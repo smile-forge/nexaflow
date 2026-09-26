@@ -80,6 +80,12 @@ public static class MermaidKinds
     /// <summary>A label in its brackets, with the quotes inside them where it has any.</summary>
     public const string Label = "mermaid-label";
 
+    /// <summary>
+    /// What names an icon, however the diagram writes one — <c>::icon(fa fa-book)</c>, a service's <c>(database)</c>, an
+    /// <c>icon:</c> in a node's metadata — around what was written. Which icon it is, is the stage's (<see cref="WithIcons"/>).
+    /// </summary>
+    public const string Icon = "mermaid-icon";
+
     /// <summary>Text in quotes, quotes included.</summary>
     public const string Quoted = "mermaid-quoted";
 

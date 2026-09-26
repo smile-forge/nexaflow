@@ -34,6 +34,11 @@
     <PackageReference Include="Markdig" Version="1.3.2" />
   </ItemGroup>
 
+  <!-- Which glyph an icon a diagram names is drawn with — the Fluent font's names, read without the font. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nexaflow.Icons\Nexaflow.Icons.csproj" />
+  </ItemGroup>
+
   <!--
     A diagram's own nodes are what its stages tell its builder, and nobody else: once a tree is laid out, only its source
     references are read. So they are internal, seen by the builders and by the tests of the stages writing them.

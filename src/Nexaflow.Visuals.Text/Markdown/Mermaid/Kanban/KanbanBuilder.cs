@@ -72,19 +72,20 @@ internal sealed class KanbanBuilder : MermaidBuilder
     /// <summary>How tall a lane is with no cards in it, at least.</summary>
     private const double Least = 50;
 
+    /// <summary>How much bigger a card's icon is drawn than its title.</summary>
+    private const double IconScale = 1.3;
+
     internal KanbanBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <summary>A column: the part of the reading it is, what its stage said of it, and the cards in its lane.</summary>
     private readonly record struct Column(ContentPart Part, KanbanColumnNode Said, List<Item> Cards);
 
-    /// <summary>A card: the part of the reading it is, and what its stage said of it.</summary>
-    private readonly record struct Item(ContentPart Part, KanbanCardNode Said);
+    /// <summary>A card: the part of the reading it is, what its stage said of it, and the icon line under it where one is.</summary>
+    private readonly record struct Item(ContentPart Part, KanbanCardNode Said, ContentPart? Icon = null);
 
     protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
-
-
-        // Each card goes in the lane of the column written above it.
+        // Each card goes in the lane of the column written above it, and an icon line names the icon of the card above it.
         var columns = new List<Column>();
         foreach (var part in Reading.Root.SelfAndDescendants())
         {
@@ -96,6 +97,10 @@ internal sealed class KanbanBuilder : MermaidBuilder
 
                 case KanbanCardNode { Trouble: null } written when columns.Count > 0:
                     columns[^1].Cards.Add(new Item(part, written));
+                    break;
+
+                case { Kind: KanbanKinds.Icon } when columns.Count > 0 && columns[^1].Cards.Count > 0:
+                    columns[^1].Cards[^1] = columns[^1].Cards[^1] with { Icon = part };
                     break;
             }
         }
@@ -131,11 +136,15 @@ internal sealed class KanbanBuilder : MermaidBuilder
             {
                 var inner = card - Stripe - (2 * Padding);
                 var said = item.Said;
-                var lines = Titled(Title(item.Part), HoleOf(item.Part), said.Label, item.Part, CardSize, text, inner, null);
-                var titleHeight = lines.Sum(line => line.Height);
+                // The icon it names — on the line under it, or in its metadata — goes before its title.
+                var icon = Iconed(item.Icon ?? item.Part, CardSize * IconScale, text);
+                var before = icon is null ? 0 : icon.Width + ChipGap;
+                var lines = Titled(Title(item.Part), HoleOf(item.Part), said.Label, item.Part, CardSize, text, inner - before, null);
+                var titleHeight = Math.Max(lines.Sum(line => line.Height), icon?.Height ?? 0);
                 var bounds = new Rect(left + Margin, y, card, 0);
                 var words = new List<(DiagramWords, Point, string)>();
-                words.AddRange(DiagramWords.Placed(lines, new Rect(bounds.Left + Stripe + Padding, y + CardPad, inner, titleHeight), KanbanPiece.Title, TextAlignment.Left));
+                if (icon is not null) words.Add((icon, new Point(bounds.Left + Stripe + Padding, y + CardPad), MermaidPiece.Glyph));
+                words.AddRange(DiagramWords.Placed(lines, new Rect(bounds.Left + Stripe + Padding + before, y + CardPad, inner - before, titleHeight), KanbanPiece.Title, TextAlignment.Left));
 
                 // Under the title, a chip each for its ticket, its priority and who it is assigned to, running on to another row
                 // where they do not all fit.

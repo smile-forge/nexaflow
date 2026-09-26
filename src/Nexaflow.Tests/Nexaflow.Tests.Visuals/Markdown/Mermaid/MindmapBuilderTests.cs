@@ -143,4 +143,17 @@ public class MindmapBuilderTests : MermaidBuilderContract
         Assert.AreEqual(Stroke(laid, source, "b"), Stroke(laid, source, "c"));
         Assert.IsTrue(new[] { "e", "f" }.All(under => Stroke(laid, source, under) == Stroke(laid, source, "d")), "and everything under it that colour");
     });
+
+    [TestMethod]
+    public void ANodesIconIsDrawnOverItsTitle_StandingForTheLineNamingIt() => UiThread.Run(() =>
+    {
+        const string source = "mindmap\n  root((r))\n    Reading\n    ::icon(fa fa-book)";
+        var laid = Build(source);
+        var icon = Pieces(laid, MermaidPiece.Glyph).Single();
+        var title = Pieces(laid, MindmapPiece.Title).Single(piece => Written(source, piece.Part) == "Reading");
+
+        Assert.AreEqual("fa fa-book", Written(source, icon.Part));
+        Assert.IsTrue(icon.Bounds.Bottom <= title.Bounds.Top + 0.5, "over the title of the node above the line");
+        Assert.IsTrue(Node(laid, source, "Reading").Bounds.Contains(icon.Bounds), "and inside that node");
+    });
 }

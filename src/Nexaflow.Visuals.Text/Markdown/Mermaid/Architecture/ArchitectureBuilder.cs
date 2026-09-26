@@ -351,29 +351,22 @@ internal sealed class ArchitectureBuilder : MermaidBuilder<ArchitectureDiagram>
         build.Close();
     }
 
-    /// <summary>The picture drawn over a service — or what its icon is called, where it is one nobody here draws.</summary>
+    /// <summary>The icon drawn over a service — or what its icon is called, where it is one the app does not draw.</summary>
     private void Pictured(LayoutBuilder build, ArchitectureService service, Rect room)
     {
-    // One colour for every service, because nothing written says one differs from another; a group takes a colour of its own
+        // One colour for every service, because nothing written says one differs from another; a group takes a colour of its own
         // because groups nest, and one opening inside another has to be told from it.
         var ink = Palette.Accent;
 
         build.Open(ArchitecturePiece.Icon, service.Part, stops: Stops.None);
+        build.Draw(new GeometryMark(DiagramShapes.Outline(DiagramShape.Rounded, room), DiagramInk.Faded(ink, Wash * 2), ink, 1.3));
 
-        if (ArchitectureIcons.Picture(service.Icon?.Text, room) is { } picture)
+        if (Iconed(service.Icon, room.Height * 0.6, ink) is { } icon)
+            icon.Set(build, new Point(room.X + ((room.Width - icon.Width) / 2), room.Y + ((room.Height - icon.Height) / 2)), MermaidPiece.Glyph);
+        else if (service.Icon is { Length: > 0 } named)
         {
-            build.Draw(new GeometryMark(picture, DiagramInk.Faded(ink, Wash * 2), ink, 1.3));
-        }
-        else
-        {
-            var box = DiagramShapes.Outline(DiagramShape.Rounded, room);
-            build.Draw(new GeometryMark(box, DiagramInk.Faded(ink, Wash * 2), ink, 1.3));
-
-            if (service.Icon is { Length: > 0 } icon)
-            {
-                var said = Written(icon, hole: null, TextSize - 2, ink);
-                said.Set(build, new Point(room.X + ((room.Width - said.Width) / 2), room.Y + ((room.Height - said.Height) / 2)), MermaidPiece.Words);
-            }
+            var said = Written(named, hole: null, TextSize - 2, ink);
+            said.Set(build, new Point(room.X + ((room.Width - said.Width) / 2), room.Y + ((room.Height - said.Height) / 2)), MermaidPiece.Words);
         }
 
         build.Occupies(DiagramShapes.Outline(DiagramShape.Rectangle, room));

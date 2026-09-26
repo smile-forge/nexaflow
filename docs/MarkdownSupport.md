@@ -190,9 +190,10 @@ applied** ([`FlowchartConfig`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Flowch
 anything else curves them), and the shared `markdownAutoWrap`. **Divergences from Mermaid:** a label is written on one line, where
 Mermaid lets a markdown string run across several — `<br/>` breaks a line here; `htmlLabels`, `defaultRenderer` and `useMaxWidth`
 have nothing to ask for, since labels are drawn by the layout tree, there is one layout, and the chart is drawn at the size its
-nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as one of the icons this draws —
-cloud, database, disk, internet, server, whatever pack names it — and as a question mark otherwise, which is what Mermaid
-draws for an icon it has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
+nodes come to; there is no icon pack to fetch, so an `icon:` node is drawn in its `form:` as the Fluent UI icon drawing the
+same thing ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — `fa:user` a person, `mdi:account` too, the
+app's own `fluent:name` as itself — and as a question mark where the app draws none, which is what Mermaid draws for an icon it
+has no pack for, and `fa:fa-…` in a label is drawn as the characters written; an `img:` node is the
 picture the host finds by that name, found as a document's `![](…)` is (`WithDiagramPictures`), at the `w:`/`h:` it asks for
 and in its own shape under `constraint: on`, and a dashed box of that size where nothing is found; a markdown string (`` ["`**bold**`"] ``) is drawn as the characters written
 rather than styled; `interpolate` on a `linkStyle` is read, `linear` against anything else being all that changes how a line is
@@ -399,7 +400,8 @@ diagram's is ([`MermaidOutline`](../src/Nexaflow.Markdown/Mermaid/MermaidOutline
 `[…]` a square, `(…)` a pill, `((…))` a circle, `)…(` a cloud, `))…((` a bang, `{{…}}` a hexagon, and a bare id a softly
 rounded box; the first node is the root and every later node hangs off the nearest node before it indented
 less, so unclear indentation — deeper than an uncle, shallower than a sibling — still nests as Mermaid nests it, and a second
-root is said to be wrong; `<br>` breaks a title's line; `::icon(…)` and `:::class` lines (read); and `%%` comments.
+root is said to be wrong; `<br>` breaks a title's line; an `::icon(…)` line, drawn over the title of the node above it as the
+Fluent UI icon it names ([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)); `:::class` lines (read); and `%%` comments.
 **Drawn as a tidy tree** ([`DiagramTree`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramTree.cs)): the root in the
 middle, its children taking turns either side of it, each node beside its parent with its subtree given the room it needs;
 every node washed and edged in its branch's colour, and each branch sweeping in that colour from its parent's side into the
@@ -427,7 +429,8 @@ diagram's is ([`MermaidOutline`](../src/Nexaflow.Markdown/Mermaid/MermaidOutline
 bare or in quotes, and `<br>` breaking a line of it; the first node's indentation is a
 column's, and a node indented further is a card in the column above it (one indented less than the first is said to be
 wrong); a node's `@{ … }` metadata — `ticket`, `assigned`, `priority` (`Very High`, `High`, `Medium`, `Low`, `Very Low`),
-`label`, `icon`, `shape` — values bare or quoted, a comma inside quotes kept; `::icon(…)` and `:::class` lines (read); and
+`label`, `icon`, `shape` — values bare or quoted, a comma inside quotes kept; an `icon`, in the metadata or on an `::icon(…)`
+line under the card, drawn before its title as the Fluent UI icon it names; `:::class` lines (read); and
 `%%` comments. Drawn as a board: columns side by side as lanes, each `sectionWidth` wide and all as tall as the longest,
 washed in the column's colour under a deeper heading holding its title and how many cards it has; each card a raised box in
 its lane, its title wrapped at its top, a chip each for its ticket, its priority and its assignee under the title, and a
@@ -673,9 +676,10 @@ diagram is drawn the same way every time. Supported: `group id(icon)[Title]` nes
 `service id(icon)[Title] in group`, the icon being words of its own in quotes where it is; `junction`, drawn as the dot
 its edges meet at; edges `id{group}?:SIDE {<}?--{>}? SIDE:id{group}?` with a head at either end or both, the `{group}`
 that reaches the group a service is in, and `-[reads]-` to say what an edge is; `align row` and `align column`; a `title`
-and the accessibility lines. The five icons Mermaid ships — `cloud`, `database`, `disk`, `internet`, `server` — are drawn
-as pictures ([`ArchitectureIcons`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureIcons.cs)), and
-an icon from a pack is written out as what it is called, which says as much as a picture nobody has. **Everything drawn
+and the accessibility lines. An icon is drawn as the Fluent UI icon drawing the same thing
+([`MermaidIcons`](../src/Nexaflow.Markdown/Mermaid/MermaidIcons.cs)) — the five Mermaid ships, `cloud`, `database`, `disk`,
+`internet` and `server`, and a pack's where the app has one, `fa:user` a person — and one the app draws none of is written out
+as what it is called, which says as much as a picture nobody has. **Everything drawn
 stands for what was written** — a group holds its services in the layout, so pressing a service means that service and
 pressing the room round it means the group; what is written under a service is the characters written, or of its id where
 nothing else is, typed into where it is drawn. Enter starts another service with its id to write, and what a bare id
