@@ -1,0 +1,339 @@
+{
+  "branch": "claude/markdown-parser-passes",
+  "nodes": {
+    "markdown-laid-again": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/WithUnchanged.cs",
+          "class": "WithUnchanged"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/LaidBlocks.cs",
+          "class": "Laying",
+          "method": "At"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Whole"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LayoutKept.cs",
+          "class": "LayoutKept"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownBlocks.cs",
+          "class": "MarkdownBlocks",
+          "method": "Read"
+        }
+      ]
+    },
+    "markdown-styling": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Calls"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Numbered"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownGroups.cs",
+          "class": "MarkdownGroups"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.cs",
+          "class": "MarkdownBuilder",
+          "method": "Figured"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Escaped"
+        }
+      ]
+    },
+    "fenced-code-blocks": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownClosingLines.cs",
+          "class": "MarkdownClosingLines"
+        }
+      ]
+    },
+    "markdown-maths": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Prose/MarkdownBuilderTests.cs",
+            "class": "MarkdownBuilderTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Prose/MarkdownBlocksTests.cs",
+            "class": "MarkdownBlocksTests"
+          }
+        ]
+      }
+    },
+    "smiles-chemistry": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs",
+          "class": "SmilesPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesNodes.cs",
+          "class": "MoleculeNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Elements.cs",
+          "class": "Elements"
+        }
+      ]
+    },
+    "smiles-structure-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs",
+          "class": "StructureLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs",
+          "class": "MoleculeRings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs",
+          "class": "CageLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Stages/DepictStructure.cs",
+          "class": "DepictStructure"
+        }
+      ]
+    },
+    "correlation-plots-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs",
+          "class": "PlotBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.Reading.cs",
+          "class": "PlotBuilder"
+        }
+      ]
+    },
+    "correlation-plots-reading": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveShape.cs",
+          "class": "ResolveShape"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveColumns.cs",
+          "class": "ResolveColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveValues.cs",
+          "class": "ResolveValues"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveAesthetics.cs",
+          "class": "ResolveAesthetics"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotPipeline.cs",
+          "class": "PlotPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotParts.cs",
+          "class": "PlotParts"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotNumber.cs",
+          "class": "PlotNumber"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/PlotNodes.cs",
+          "class": "PlotBlockNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveSettings.cs",
+          "class": "ResolveSettings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveCorrelations.cs",
+          "class": "ResolveCorrelations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Plot/Stages/ResolveStatistics.cs",
+          "class": "ResolveStatistics"
+        }
+      ]
+    },
+    "abc-ast-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/AstPipeline.cs",
+          "class": "AstPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs",
+          "class": "AbcPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcNodes.cs",
+          "class": "AbcEventNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/ResolveFields.cs",
+          "class": "ResolveFields"
+        }
+      ]
+    },
+    "abc-decorations": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcParser.cs",
+          "class": "AbcParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/ResolveMarks.cs",
+          "class": "ResolveMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/MusicNodes.cs",
+          "class": "MusicMarkNode"
+        }
+      ]
+    },
+    "abc-multivoice": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcParser.cs",
+          "class": "AbcParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcNodes.cs",
+          "class": "AbcFieldNode"
+        }
+      ]
+    },
+    "sr-lyrics": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.Draw.cs",
+          "class": "MusicBuilder",
+          "method": "Annotations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/AlignLyrics.cs",
+          "class": "AlignLyrics"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/SpellChords.cs",
+          "class": "SpellChords"
+        }
+      ]
+    },
+    "ly-core": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondParser.cs",
+          "class": "LilyPondParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondTheory.cs",
+          "class": "LilyPondTheory"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/ResolveCommands.cs",
+          "class": "ResolveCommands"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/LilyPondNodes.cs",
+          "class": "LilyPondCommandNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/LilyPond/Stages/ResolveMarks.cs",
+          "class": "ResolveMarks"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 13,
+  "touched_nodes": [
+    "abc-ast-pipeline",
+    "abc-decorations",
+    "abc-multivoice",
+    "correlation-plots-reading",
+    "correlation-plots-render",
+    "fenced-code-blocks",
+    "ly-core",
+    "markdown-laid-again",
+    "markdown-maths",
+    "markdown-styling",
+    "smiles-chemistry",
+    "smiles-structure-layout",
+    "sr-lyrics"
+  ]
+}

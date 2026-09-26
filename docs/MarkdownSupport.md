@@ -13,7 +13,7 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
   starts from `Reading(new())` rather than writing the list again.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
-  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`WithBlocks`, each
+  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
   is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
   language's parser read each one, then runs the stages (`WithImages`, `WithLinks`). Markdig's own HTML renderer is
@@ -1467,10 +1467,10 @@ fourth language on the shared syntax tree ([markdown-ast.md](markdown-ast.md#smi
 | Piece | What it does |
 |---|---|
 | [`SmilesParser`](../src/Nexaflow.Markdown/Chemistry/SmilesParser.cs) | the block and each molecule into a lossless tree, to the character: bracket atoms (isotope, symbol, chirality, hydrogens, charge, class), organic-subset and aromatic atoms, the seven bond symbols, branches, ring closures (`1`, `%12`) and dots. What will not read is held with the reason |
-| [`SmilesPipeline`](../src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs) | three stages: `ConnectAtoms` pairs ring closures; `CountHydrogens` fills unbracketed atoms up to their valence and flags atoms with too many bonds; `Kekulize` gives aromatic rings alternating double bonds by maximum matching |
+| [`SmilesPipeline`](../src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs) | four stages: `ConnectAtoms` says what each atom is and which are bonded, pairing ring closures; `CountHydrogens` fills unbracketed atoms up to their valence and flags atoms with too many bonds; `Kekulize` gives aromatic rings alternating double bonds by maximum matching; `DepictStructure` says where every atom goes |
 | [`Elements`](../src/Nexaflow.Markdown/Chemistry/Elements.cs) | the periodic table, RDKit's valence lists, and a charge moving an atom along its row (N⁺ bonds like carbon) |
-| [`Molecule`](../src/Nexaflow.Markdown/Chemistry/Molecule.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | the graph read off the stages' answers; ring bonds, and the smallest set of smallest rings |
-| [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
+| [`SmilesNodes`](../src/Nexaflow.Markdown/Chemistry/SmilesNodes.cs) + [`MoleculeRings`](../src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs) | what the stages say, in the molecule's own nodes: each atom (`AtomNode`), each written bond and ring closure, and the molecule as the graph they make with where its atoms go (`MoleculeNode`); ring bonds, and the smallest set of smallest rings |
+| [`StructureLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs) | 2D coordinates, which `DepictStructure` hangs on each molecule: ring systems as polygons edge on edge, chains grown as zig-zags with `/` `\` honoured, overlaps untangled across single bonds, the result straightened, and a wedge per `@`/`@@` centre |
 | [`CageLayout`](../src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs) | a cage drawn as the solid it is: built in 3D from its bonds and angles (classical scaling, then stress majorization), seen from whichever of four hundred directions `Readability` scores clearest — its substituents included — and kept only where that reads better than the flat drawing |
 | [`SmilesBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Chemistry/SmilesBuilder.cs) | the drawing: carbon as a corner, other elements as symbols with their hydrogens away from the bonds, charges and mass numbers, ring double bonds inside the ring, bonds coloured half and half by `StyleFormat.Elements`, wedges, captions, and entries flowing to the column |
 
@@ -1623,12 +1623,14 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
   written, and worked over by a pipeline of stages —
   [`AbcPipeline`](../src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs) and
-  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that hang what each note
-  lasts and sounds underneath it.
+  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that say what each note
+  lasts and sounds, what each field or command sets, what each mark and each run of words written against a note
+  is, and — ABC — which syllable is sung on which note or — LilyPond — how a chord's name is spelled, in the
+  notation's own nodes and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
 - **How it is drawn.** A builder per notation —
   [`AbcBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs),
-  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — reads that tree
-  into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
+  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — walks that tree,
+  each its own way, into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
   the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle
@@ -1641,8 +1643,9 @@ music through to find them (see *LilyPond coverage*). Everything after that — 
 curves, words, spacing and line breaks — is the one engraver's. What a string, a name, a chord's name and a syllable say
 is read off the parts the parser made of them ([`LilyPondText`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondText.cs)):
 a string is its quotes and a letter for each character, an escape being the one it writes, so a title is selected a
-letter at a time; a chord's name is its root, its quality and its bass; a syllable is its words and any duration after
-them. No builder takes one apart.
+letter at a time; a chord's name is its root, its quality and its bass, which a stage spells as a lead sheet does; a
+syllable is its words and any duration after them. No builder takes one apart, and none works out what a command's
+arguments set: that is said once, on the command, whatever it is played under.
 
 **Editing it.** A ```abc block is written on in place. Click a note head to select the note, click a
 beamed pair to select the pair, drag for a run — then:
@@ -1869,7 +1872,6 @@ Four fences — **`scatter`**, **`bubble`**, **`heatmap`** and **`density2d`** �
 against a pair of axes. They share one grammar
 ([`PlotParser`](../src/Nexaflow.Markdown/Plot/PlotParser.cs) →
 [`PlotPipeline`](../src/Nexaflow.Markdown/Plot/PlotPipeline.cs) →
-[`PlotChart`](../src/Nexaflow.Markdown/Plot/PlotChart.cs) →
 [`PlotBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Plot/PlotBuilder.cs)), because they differ in what
 is drawn rather than in what is written — the division ggplot2 makes. Registered as an
 [`IDiagramHandler`](../src/Nexaflow.Visuals.Text/Markdown/Handlers/PlotDiagramHandler.cs), one
@@ -1918,14 +1920,20 @@ share over it. One value is no division at all and is drawn as one plot. Like co
 not used up as a place, so it is still free to be x or y.
 
 **What the pipeline works out** ([`Stages/`](../src/Nexaflow.Markdown/Plot/Stages/)) rather than the
-parser: which row is the header and whether the table is long or a matrix (`ResolveShape`), what each
-column is called and which one a cell stands in (`ResolveColumns`), what a cell reads as
-(`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), and the coefficient between
-each pair of numeric columns (`ResolveCorrelations`). None of it is in the characters of any one line,
-and every one of the answers changes as the next line is typed.
+parser, said in the block's own nodes ([`PlotNodes`](../src/Nexaflow.Markdown/Plot/PlotNodes.cs)): what the
+settings say (`ResolveSettings`), which row is the header and whether the table is long or a matrix
+(`ResolveShape`), what each column is called and which one a cell stands in (`ResolveColumns`), what a cell
+reads as (`ResolveValues`), which channels each column feeds (`ResolveAesthetics`), the coefficient between
+each pair of numeric columns (`ResolveCorrelations`), and what a `stats:` line reports, over every row and
+over each facet's own (`ResolveStatistics`). None of it is in the characters of any one line, and every one
+of the answers changes as the next line is typed. The builder reads those nodes down the tree into the marks
+it draws, and asks what it lays out — how far a channel reaches, what its names are — of the marks of the
+panel it is drawing.
 
-**The statistics are neither the parser's nor the builder's** — WPF-free beside the model, so they are
-tested without a desktop and held against R's own numbers:
+**The statistics are neither the parser's nor the builder's to define** — WPF-free, so they are tested
+without a desktop and held against R's own numbers. The ones worked out from the numbers written are
+stages; binning, densities and fits are worked out on the panel, so the builder asks for them as it lays
+it out:
 [`PlotBins`](../src/Nexaflow.Markdown/Plot/PlotBins.cs) (rectangular and hexagonal binning, each point to
 its nearest bin), [`PlotDensity`](../src/Nexaflow.Markdown/Plot/PlotDensity.cs) (MASS's `kde2d` with
 Silverman's rule, and marching squares for the contours) and
@@ -1999,8 +2007,8 @@ Tests live in `Nexaflow.Tests.Visuals`, beside the `Nexaflow.Visuals.*` code the
 | [`Markdown/Matrix/AztecBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecBuilderTests.cs) | The `aztec` block's fields and its layout: dispatch, `format` / `layers` / `ecc` / `eci`, the GS1 wire form, the bullseye, mode message and reference grid, a bad block still drawing a code, and the picture read back. (UI category.) |
 | [`Markdown/Matrix/AztecReferenceImageTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Matrix/AztecReferenceImageTests.cs) | Decodes Aztec symbols made by other generators **and** asserts our encoder reproduces them module for module. Opt-in via `NEXAFLOW_BARCODE_IMAGES`; this is the only check that can catch a self-consistent but unreadable layout. |
 | [`Chemistry/SmilesParserTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesParserTests.cs) | The `smiles` tree: every construct and every prefix of it reads back, the parser only copies, a molecule to the character, bracket atoms as their parts, and what will not read held with its reason. |
-| [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
-| [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
+| [`Chemistry/SmilesPipelineTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesPipelineTests.cs) | The stages, through the molecule's nodes: the source left alone, hydrogens as RDKit counts them, ring closures as bonds, Kekulé structures (and biphenyl's link left single), and each impossibility said where it was written. |
+| [`Chemistry/StructureLayoutTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/StructureLayoutTests.cs) | The 2D layout the stages hang on a molecule: unit bonds, no overlaps, zig-zag chains, regular rings, straight triple bonds, cis and trans as written, mirror-image wedges, cages drawn as solids (and bicycles that read flat left flat), and determinism. |
 | [`Chemistry/SmilesCorpusTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Chemistry/SmilesCorpusTests.cs) | 5,481 real molecules against RDKit: round trip, refusals, hydrogens, and overlaps. Opt-in via `NEXAFLOW_SMILES_CORPUS` (default `D:\Datasets\smiles`, made by the `make_reference.py` beside it). |
 | [`Markdown/Chemistry/SmilesBuilderTests.cs`](../src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Chemistry/SmilesBuilderTests.cs) | The `smiles` drawing: dispatch, atoms and written bonds carrying their parts, captions, wrapping, element colours, a cage's rear bond broken where it passes behind, and trouble — on the offending atom, or an entry with no atom — shown as written with its reason. (UI category.) |
 

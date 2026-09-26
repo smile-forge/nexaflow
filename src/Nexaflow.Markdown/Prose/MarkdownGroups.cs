@@ -1,69 +1,55 @@
-using System.Collections.Generic;
-
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Pipeline;
 
-namespace Nexaflow.Markdown.Prose.Stages;
+namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// Gathers what a reading hands back side by side into the things it makes together — in one walk of the tree, each node
-/// asked by its kind whether what it holds is one of them.
+/// What a piece's parts make together, gathered as the piece is read (<see cref="MarkdownBlocks"/>) — each piece asked by its
+/// kind whether what it holds is one of them.
 ///
 /// <para>
 /// A reader cuts the text and says what each piece is, and stops there: what pieces mean together is in none of them.
 /// A definition list is read back as a flat run — a term, its paragraphs, the next term — when what it is, is pairs. An
-/// alert opens with a <c>[!</c>, a name and a <c>]</c>, which together are the marker saying which kind of alert it is.
+/// alert opens with a <c>[!</c>, a name and a <c>]</c>, which together are the marker saying which kind of alert it is. A
+/// paragraph of nothing but a formula between double dollars is the display formula it is.
 /// </para>
 /// <para>
 /// <strong>The tree says what the document is; the builder draws what the tree says.</strong> Without this a builder
 /// would work out the pairs from where a block sits among its siblings, and the kind of an alert from its characters —
-/// inferring structure, once per drawing, from the order things happen to be in.
-/// </para>
-/// <para>
-/// One stage rather than one per construct, because each grouping is a question asked of one node's children and the
-/// walk is what asking costs, so every grouping markdown knows is asked on the same walk. A stage only re-nests what is
-/// already side by side, so the characters coming out are the ones that went in.
+/// inferring structure, once per drawing, from the order things happen to be in. Only what is already side by side is
+/// re-nested, so the characters coming out are the ones that went in.
 /// </para>
 /// </summary>
-public sealed class WithGroups : IAstStage
+internal static class MarkdownGroups
 {
-    public string Name => "markdown:groups";
-
-    public ContentNode Run(ContentNode tree) => AstRewrite.Regrouping(tree, Grouped);
-
-    /// <summary>What a node's children make together, where they make anything; null where they stay as they are.</summary>
-    private static IReadOnlyList<ContentNode>? Grouped(ContentNode node, IReadOnlyList<ContentNode> children)
+    /// <summary>
+    /// This piece with what its parts make together gathered, where they make anything. What was hung on the piece itself is
+    /// not among the parts regrouped: it explains the piece, so sweeping it into a group made of the piece's contents would
+    /// move an answer somewhere it is not true.
+    /// </summary>
+    public static ContentNode Grouped(ContentNode node)
     {
-        var displayed = Displays(children);
-        var seen = displayed ?? children;
+        if (Displayed(node) is { } maths) return maths;
+        if (node.IsLeaf) return node;
+
+        var facts = 0;
+        for (var at = 0; at < node.Children.Count; at++)
+            if (node.Children[at].Role == Roles.Derived) facts++;
+
+        var contents = facts == 0 ? node.Children : [.. node.Children.Where(child => child.Role != Roles.Derived)];
 
         var grouped = node switch
         {
-            { Kind: MarkdownKinds.Alert } => Marked(seen),
-            { Role: Roles.Body } when Defines(seen) => Paired(seen),
+            { Kind: MarkdownKinds.Alert } => Marked(contents),
+            { Role: Roles.Body } when Defines(contents) => Paired(contents),
             _ => null,
         };
 
-        return grouped ?? displayed;
+        if (grouped is null) return node;
+
+        return node.With(facts == 0 ? grouped : [.. grouped, .. node.Children.Where(child => child.Role == Roles.Derived)]);
     }
 
     // ── Display formulas ────────────────────────────────────────────────────
-
-    /// <summary>Blocks with every paragraph that is nothing but a formula between double dollars made the display formula it is; null where there is none.</summary>
-    private static List<ContentNode>? Displays(IReadOnlyList<ContentNode> children)
-    {
-        List<ContentNode>? displayed = null;
-
-        for (var at = 0; at < children.Count; at++)
-        {
-            if (Displayed(children[at]) is not { } maths) continue;
-
-            displayed ??= [.. children];
-            displayed[at] = maths;
-        }
-
-        return displayed;
-    }
 
     /// <summary>
     /// A paragraph holding one formula written between double dollars and nothing else, as the display formula it is —

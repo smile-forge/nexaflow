@@ -166,7 +166,7 @@ public class LilyPondPipelineTests
     public void ARepeatedChordSoundsTheChordItRepeats()
     {
         var q = Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse("{ <c e g>4 q }"))).Single(n => n.Kind == LilyPondKinds.ChordRepeat);
-        CollectionAssert.AreEqual(new[] { "C3", "E3", "G3" }, ResolvePitches.PitchesOf(q).Select(Named).ToArray());
+        CollectionAssert.AreEqual(new[] { "C3", "E3", "G3" }, Event(q).Pitches.Select(Named).ToArray());
     }
 
     [TestMethod]
@@ -196,7 +196,7 @@ public class LilyPondPipelineTests
         var given = Written(tree).Where(n => n.Kind == LilyPondKinds.Note && n.Role == LilyPondRoles.Argument).ToList();
 
         Assert.AreEqual(4, given.Count, "c', g, c and d are handed to commands");
-        Assert.IsTrue(given.All(n => ResolvePitches.PitchOf(n) is null), "and none of them is played");
+        Assert.IsTrue(given.All(n => n is not LilyPondEventNode { Pitches.Count: > 0 }), "and none of them is played");
         CollectionAssert.AreEqual(new[] { "C4", "F#3" }, Sounds(@"\relative c' { \key g \major c4 } \transpose c d { e4 }"));
     }
 
@@ -219,15 +219,68 @@ public class LilyPondPipelineTests
             n.Kind is LilyPondKinds.Note or LilyPondKinds.Rest or LilyPondKinds.Chord or LilyPondKinds.ChordRepeat
             && n.Role is not (LilyPondRoles.Argument or LilyPondRoles.Note))];
 
-    private static double[] Lasts(string ly) => [.. Events(ly).Select(e => ResolveDurations.SoundsOf(e).Quarters)];
+    // ── What commands, marks and chord names are said to be ────────────────
 
-    private static double[] Writes(string ly) => [.. Events(ly).Select(e => ResolveDurations.WrittenOf(e).Quarters)];
+    [TestMethod]
+    public void ACommandSaysWhatItsArgumentsSet()
+    {
+        var commands = Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(
+                @"{ \clef bass \key d \major \time 3/4 \partial 4 \bar ""|."" \tuplet 3/2 { c8 d e } }")))
+            .OfType<LilyPondCommandNode>().ToList();
+
+        Assert.AreEqual(ClefKind.Bass, commands.Single(c => c.Clef is not null).Clef);
+        Assert.AreEqual(2, commands.Single(c => c.Fifths is not null).Fifths);
+        Assert.AreEqual((3, 4), commands.Single(c => c.Meter is not null).Meter);
+        Assert.AreEqual(1.0, commands.Single(c => c.Pickup is not null).Pickup!.Value.Quarters, 1e-9);
+        Assert.AreEqual("|]", commands.Single(c => c.Bar is not null).Bar, "LilyPond's closing bar in the spelling the engraver draws");
+        Assert.AreEqual(3, commands.Single(c => c.TupletNumber is not null).TupletNumber);
+    }
+
+    [TestMethod]
+    public void ANewContextSaysWhatItMakesAndWhatItIsCalled()
+    {
+        var made = Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(
+                @"\new Staff = ""upper"" \with { instrumentName = ""Violin"" } { c4 }")))
+            .OfType<LilyPondCommandNode>().Single(c => c.Context is not null);
+
+        Assert.AreEqual(LilyPondContext.Staff, made.Context);
+        Assert.AreEqual("upper", made.Id);
+        Assert.AreEqual("Violin", made.Instrument);
+    }
+
+    [TestMethod]
+    public void EverySpellingOfAMarkIsTheOneMark_AndAScriptsWordsArePlaced()
+    {
+        var tree = LilyPondPipeline.Of().Run(LilyPondParser.Parse(@"{ c4-. d\staccato e^\fermata f^""dolce"" g_\markup { ""soft"" } }"));
+
+        CollectionAssert.AreEqual(new[] { MusicMark.Staccato, MusicMark.Staccato, MusicMark.Fermata },
+                                  Written(tree).OfType<MusicMarkNode>().Select(mark => mark.Mark).ToArray());
+
+        CollectionAssert.AreEqual(new (string, AnnotationPlacement?)[] { ("dolce", AnnotationPlacement.Above), ("soft", AnnotationPlacement.Below) },
+                                  Written(tree).OfType<MusicAnnotationNode>().Select(words => (words.Said, words.Placement)).ToArray());
+    }
+
+    [TestMethod]
+    public void AChordsNameIsSpelledAsALeadSheetSpellsIt()
+    {
+        var names = Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(@"\chordmode { a1:m7/g bes:maj }")))
+            .OfType<LilyPondEventNode>().Select(name => name.Chord).OfType<string>().ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Am7/G", "Bbmaj7" }, names);
+    }
+
+    private static double[] Lasts(string ly) => [.. Events(ly).Select(e => Event(e).Lasts.Quarters)];
+
+    private static double[] Writes(string ly) => [.. Events(ly).Select(e => Event(e).WrittenAs.Quarters)];
+
+    /// <summary>An event as the stages leave it.</summary>
+    private static LilyPondEventNode Event(ContentNode node) => (LilyPondEventNode)node;
 
     /// <summary>What every played note sounds, chord members included, in the order written.</summary>
     private static string[] Sounds(string ly) =>
         [.. Written(LilyPondPipeline.Of().Run(LilyPondParser.Parse(ly)))
             .Where(n => n.Kind == LilyPondKinds.Note && n.Role != LilyPondRoles.Argument)
-            .Select(n => ResolvePitches.PitchOf(n) is { } p ? Named(p) : "?")];
+            .Select(n => n is LilyPondEventNode { Pitches: [var p] } ? Named(p) : "?")];
 
     private static string Named(Pitch p) =>
         $"{Pitch.Letters[p.Step]}{p.Alter switch { 1 => "#", 2 => "##", -1 => "b", -2 => "bb", _ => "" }}{p.Octave}";

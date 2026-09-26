@@ -11,7 +11,7 @@ namespace Nexaflow.Markdown.Chemistry.Depiction;
 /// is better than doing nothing.
 /// </para>
 /// </summary>
-internal sealed class Untangler(Molecule molecule, List<int> component, Vec[] at, double?[] depth)
+internal sealed class Untangler(MoleculeNode molecule, List<int> component, Vec[] at, double?[] depth)
 {
     /// <summary>Two atoms closer than this, in bond lengths, are on top of each other.</summary>
     private const double TooClose = 0.5;

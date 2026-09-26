@@ -7,7 +7,7 @@ using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 
@@ -258,70 +258,42 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
     /// </summary>
     private void Context(ContentPart command, Playing? inside, HashSet<string> active)
     {
-        var (kind, id, label) = Head(command);
+        var said = command.Node as LilyPondCommandNode;
         var body = Body(command);
 
-        switch (Kindly(kind))
+        switch (said?.Context ?? LilyPondContext.Other)
         {
-            case Ctx.Staff when inside is not null:
-                if (id is not null) inside.Stave.Ids.Add(id);
-                inside.Stave.Name ??= label;
+            case LilyPondContext.Staff when inside is not null:
+                if (said?.Id is { } voice) inside.Stave.Ids.Add(voice);
+                inside.Stave.Name ??= said?.Instrument;
                 if (body is not null) Play(body, inside, active);
                 return;
 
-            case Ctx.Staff:
+            case LilyPondContext.Staff:
                 var stave = NewStave();
-                stave.Name = label;
-                if (id is not null) stave.Ids.Add(id);
+                stave.Name = said?.Instrument;
+                if (said?.Id is { } id) stave.Ids.Add(id);
                 if (body is not null) Play(body, stave, active);
                 return;
 
-            case Ctx.Group when inside is null && body is not null:
+            case LilyPondContext.Group when inside is null && body is not null:
                 Structure(body, active);
                 return;
 
-            case Ctx.Lyrics when body is not null:
+            case LilyPondContext.Lyrics when body is not null:
                 _lyrics.Add(Lyrics(body, inside?.Stave ?? Latest()));
                 return;
 
-            case Ctx.Chords when body is not null:
+            case LilyPondContext.Chords when body is not null:
                 _chords.Add(new Changes(body, inside?.Stave ?? Latest(), _piece));
                 return;
         }
     }
 
-    private enum Ctx { Staff, Group, Lyrics, Chords, Other }
-
-    private static Ctx Kindly(string context) => context switch
-    {
-        "Staff" or "RhythmicStaff" or "DrumStaff" or "TabStaff" or "Voice" or "NullVoice" or "VaticanaStaff"
-            or "MensuralStaff" or "CueVoice" => Ctx.Staff,
-        "StaffGroup" or "ChoirStaff" or "PianoStaff" or "GrandStaff" or "Score" or "ChoirStaffGroup" => Ctx.Group,
-        "Lyrics" => Ctx.Lyrics,
-        "ChordNames" => Ctx.Chords,
-        _ => Ctx.Other,
-    };
-
-    /// <summary>A <c>\new</c>'s context, the name it is given, and the instrument name its <c>\with</c> sets.</summary>
-    private static (string Kind, string? Id, string? Label) Head(ContentPart command)
-    {
-        var args = command.Children.Where(c => c.Role == LilyPondRoles.Argument).ToList();
-        var kind = args.Count > 0 ? LilyPondText.Said(args[0]) ?? "" : "";
-
-        var assigned = command.Children.Any(c => c.Role == LilyPondRoles.Assign);
-        var id = assigned && args.Count > 1 ? LilyPondText.Said(args[1]) : null;
-
-        var label = args.Where(a => a.Kind == LilyPondKinds.Command && CommandName(a) == @"\with")
-                        .Select(with => Setting(with, "instrumentName"))
-                        .FirstOrDefault(name => name is not null);
-
-        return (kind, id, label);
-    }
-
     /// <summary>Words, and the voice a <c>\lyricsto</c> names for them.</summary>
     private Words Lyrics(ContentPart body, Stave? near) =>
         body.Kind == LilyPondKinds.Command && CommandName(body) == @"\lyricsto"
-            ? new Words(Body(body) ?? body, LilyPondText.Said(body.Part(LilyPondRoles.Argument)) ?? "", near, _piece)
+            ? new Words(Body(body) ?? body, (body.Node as LilyPondCommandNode)?.Id ?? "", near, _piece)
             : new Words(body, null, near, _piece);
 
     private Stave NewStave()
@@ -385,38 +357,9 @@ internal sealed partial class LilyPondBuilder : MusicBuilder
     private static IEnumerable<ContentPart> Bodies(ContentPart command) =>
         command.Children.Where(c => c.Role == Roles.Body);
 
-    /// <summary>What a command's first argument says — a word, or a quoted string — or nothing.</summary>
-    private static string Argument(ContentPart command) =>
-        LilyPondText.Said(command.Children.FirstOrDefault(c => c.Role == LilyPondRoles.Argument)) ?? "";
-
     /// <summary>The name a command uses, where it is a variable's — <c>\melody</c>, <c>\"voice1"</c>.</summary>
     private static string? Reference(ContentPart command) => LilyPondText.Called(command);
 
     /// <summary>The name a definition defines.</summary>
     private static string? NameOf(ContentPart assignment) => LilyPondText.Said(assignment.Part(Roles.Name));
-
-    /// <summary>
-    /// What a setting inside a block is set to — <c>instrumentName = "Soprano"</c> inside a <c>\with</c> — or
-    /// null where it is not set.
-    /// </summary>
-    private static string? Setting(ContentPart block, string property)
-    {
-        foreach (var inner in Written(block))
-        {
-            if (inner.Kind != LilyPondKinds.Assignment) continue;
-            if (NameOf(inner) is not { } name || !name.EndsWith(property, StringComparison.Ordinal)) continue;
-            if (inner.Part(LilyPondRoles.Value) is { } value && Prose(value) is { } prose) return prose.Text;
-        }
-
-        return null;
-    }
-
-    /// <summary>What <c>\set Staff.instrumentName = "Flute"</c> sets a property to.</summary>
-    private static string? Property(ContentPart set, string property)
-    {
-        var args = set.Children.Where(c => c.Role == LilyPondRoles.Argument).ToList();
-        if (args.Count < 2 || !args[0].Text.EndsWith(property, StringComparison.Ordinal)) return null;
-
-        return Prose(args[1])?.Text;
-    }
 }

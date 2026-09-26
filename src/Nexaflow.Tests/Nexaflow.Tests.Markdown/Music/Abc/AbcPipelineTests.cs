@@ -125,15 +125,49 @@ public class AbcPipelineTests
     }
 
     [TestMethod]
-    public void ABarThatRunsOnToTheNextLineSaysSo()
+    public void ABarThatRunsOnToTheNextLineHasNoLineClosingIt()
     {
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nABc|def\nghi|\n"));
 
         var bars = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure).ToList();
 
         Assert.AreEqual(3, bars.Count);
-        Assert.IsFalse(GroupBars.Continues(bars[0]), "closed by a bar line");
-        Assert.IsTrue(GroupBars.Continues(bars[1]), "the line ended first");
+        Assert.IsNotNull(bars[0].Part(Roles.Close), "closed by a bar line");
+        Assert.IsNull(bars[1].Part(Roles.Close), "the line ended first");
+    }
+
+    [TestMethod]
+    public void AClosingLineWithRepeatDotsEitherSideIsARepeatLine()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n|: AB :| cd |: ef :: gA | Bc || de :|]\n"));
+
+        var closing = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure)
+            .Select(bar => (AbcBarlineNode)bar.Part(Roles.Close)!).ToList();
+
+        CollectionAssert.AreEqual(new[] { ":|", "|:", "::", "|", "||", ":|]" }, closing.Select(line => line.Print()).ToArray());
+        CollectionAssert.AreEqual(new[] { true, true, true, false, false, true }, closing.Select(line => line.Repeats).ToArray(),
+                                  "an ending written before a |: ends there, as one before a :| does");
+    }
+
+    [TestMethod]
+    public void ARestSaysWhichRestItIs()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nM:4/4\nK:C\nz x2 A| Z2|\n"));
+
+        var rests = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Rest).Cast<AbcEventNode>().ToList();
+
+        CollectionAssert.AreEqual(new AbcRestKind?[] { AbcRestKind.Seen, AbcRestKind.Unseen, AbcRestKind.Bars },
+                                  rests.Select(rest => rest.Rest).ToArray());
+        Assert.AreEqual(8.0, rests[2].Lasts.Quarters, 1e-9, "Z2 is two whole bars");
+        Assert.IsNull(Event(Notes(tune).Single()).Rest, "a note is not a rest");
+    }
+
+    [TestMethod]
+    public void ASyllableSingsItsJoinAsASpaceAndKeepsItsEscapedHyphen()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nAB|\nw:a~b c\\-d\n"));
+
+        CollectionAssert.AreEqual(new[] { "a b", "c-d" }, Notes(tune).Select(n => Event(n).Sung.Single().Text).ToList());
     }
 
     [TestMethod]
@@ -141,7 +175,7 @@ public class AbcPipelineTests
     {
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:D\nFGA|\n"));
 
-        var alters = Notes(tune).Select(n => ResolveNotes.PitchOf(n)!.Value.Alter).ToList();
+        var alters = Notes(tune).Select(n => Event(n).Pitch!.Value.Alter).ToList();
 
         CollectionAssert.AreEqual(new[] { 1, 0, 0 }, alters, "F is sharp in D major; G and A are not");
     }
@@ -151,7 +185,7 @@ public class AbcPipelineTests
     {
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n^FGF|FGF|\n"));
 
-        var alters = Notes(tune).Select(n => ResolveNotes.PitchOf(n)!.Value.Alter).ToList();
+        var alters = Notes(tune).Select(n => Event(n).Pitch!.Value.Alter).ToList();
 
         CollectionAssert.AreEqual(new[] { 1, 0, 1, 0, 0, 0 }, alters,
             "the written sharp holds to the bar line and stops there");
@@ -161,12 +195,12 @@ public class AbcPipelineTests
     public void TheUnitNoteLengthIsWhatALengthSuffixMultiplies()
     {
         var eighths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA A2 A4|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
+            .Select(n => Event(n).Lasts.Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.5, 1.0, 2.0 }, eighths);
 
         var quarters = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nA A2 A4|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
+            .Select(n => Event(n).Lasts.Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 1.0, 2.0, 4.0 }, quarters, "the same tune, written in quarters");
     }
@@ -177,17 +211,17 @@ public class AbcPipelineTests
         // ABC's own rule: a sixteenth under three quarters to the bar, an eighth above it. Which is why a
         // tune in 2/4 that names no L: is written in sixteenths and one in 4/4 in eighths.
         Assert.AreEqual(0.5, Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:4/4\nK:C\nA|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).Single(), "4/4 is one eighth");
+            .Select(n => Event(n).Lasts.Quarters).Single(), "4/4 is one eighth");
 
         Assert.AreEqual(0.25, Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:2/4\nK:C\nA|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).Single(), "2/4 is one sixteenth");
+            .Select(n => Event(n).Lasts.Quarters).Single(), "2/4 is one sixteenth");
     }
 
     [TestMethod]
     public void ATripletTakesTheTimeOfTwo()
     {
         var lengths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\n(3ABc|\n")))
-            .Select(n => ResolveNotes.LengthOf(n)).ToList();
+            .Select(n => Event(n).Lasts).ToList();
 
         Assert.AreEqual(3, lengths.Count);
         foreach (var length in lengths) Assert.AreEqual(new Duration(1, 3).Quarters, length.Quarters, 1e-9);
@@ -200,12 +234,12 @@ public class AbcPipelineTests
     public void ABrokenRhythmMovesTimeFromOneNoteToTheOther()
     {
         var lengths = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA>B|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
+            .Select(n => Event(n).Lasts.Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.75, 0.25 }, lengths, "dotted, then halved");
 
         var back = Notes(AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/8\nK:C\nA<B|\n")))
-            .Select(n => ResolveNotes.LengthOf(n).Quarters).ToList();
+            .Select(n => Event(n).Lasts.Quarters).ToList();
 
         CollectionAssert.AreEqual(new[] { 0.25, 0.75 }, back, "and the other way round");
     }
@@ -215,7 +249,7 @@ public class AbcPipelineTests
     {
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nABcd|\nw:one two- three four\n"));
 
-        var sung = Notes(tune).Select(n => AlignLyrics.Of(n).Select(l => l.Text).FirstOrDefault()).ToList();
+        var sung = Notes(tune).Select(n => Event(n).Sung.Select(l => l.Text).FirstOrDefault()).ToList();
 
         CollectionAssert.AreEqual(new[] { "one", "two", "three", "four" }, sung);
     }
@@ -226,9 +260,117 @@ public class AbcPipelineTests
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nAB|\nw:one two\nw:un deux\n"));
 
         var first = Notes(tune).First();
-        var verses = AlignLyrics.Of(first).OrderBy(l => l.Verse).Select(l => l.Text).ToList();
+        var verses = Event(first).Sung.OrderBy(l => l.Verse).Select(l => l.Text).ToList();
 
         CollectionAssert.AreEqual(new[] { "one", "un" }, verses);
+    }
+
+    // ── What fields, marks and words are said to be ─────────────────────────
+
+    [TestMethod]
+    public void AFieldSaysWhatItsValueMeansForItsLetter()
+    {
+        var fields = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:C|\nL:1/16\nV:1 clef=bass name=\"Tenor\"\nK:F bass\nA|\n"))
+            .SelfAndDescendants().OfType<AbcFieldNode>().ToDictionary(field => field.Letter);
+
+        Assert.AreEqual(MeterSign.Cut, fields['M'].Sign);
+        Assert.AreEqual((2, 2), fields['M'].Meter);
+        Assert.AreEqual(0.25, fields['L'].Unit!.Value.Quarters, 1e-9, "a sixteenth is a quarter of a quarter note");
+        Assert.AreEqual("1", fields['V'].Voice);
+        Assert.AreEqual("Tenor", fields['V'].VoiceName);
+        Assert.AreEqual(ClefKind.Bass, fields['V'].Clef);
+        Assert.AreEqual(-1, fields['K'].Fifths);
+        Assert.AreEqual(ClefKind.Bass, fields['K'].Clef, "a bare clef name counts on K:");
+    }
+
+    [TestMethod]
+    public void AKeysModeIsItsOwnWordAndNothingAfterIt()
+    {
+        // What follows the mode — a clef, an octave — is not part of it: D minor with a bass clef is still D minor.
+        foreach (var (line, fifths) in new[] { ("K:Dm clef=bass", -1), ("K:Gm octave=-1", -2), ("K:Am treble", 0), ("K:C Lydian clef=bass", 1), ("K:AMix=g", 2) })
+        {
+            var key = AbcPipeline.Of().Run(AbcParser.Parse($"X:1\n{line}\nA|\n")).SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'K');
+            Assert.AreEqual(fifths, key.Fifths, line);
+        }
+    }
+
+    [TestMethod]
+    public void AFieldThatOnlyNamesAClefLeavesTheKeyAlone()
+    {
+        foreach (var line in new[] { "[K:clef=bass]", "[K:bass]", "[K:alto4]" })
+        {
+            var tune = AbcPipeline.Of().Run(AbcParser.Parse($"X:1\nK:F\nB {line} B|\n"));
+            var inline = tune.SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'K' && field.Kind == AbcKinds.InlineField);
+
+            Assert.IsNull(inline.Fifths, line);
+            Assert.IsNotNull(inline.Clef, line);
+            CollectionAssert.AreEqual(new[] { -1, -1 }, Notes(tune).Select(n => Event(n).Pitch!.Value.Alter).ToArray(), $"{line}: B stays flat in F");
+        }
+    }
+
+    [TestMethod]
+    public void AMeterIsTheFigureWrittenWithAStroke()
+    {
+        var meter = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nM:4 3/4\nK:C\nA|\n")).SelfAndDescendants().OfType<AbcFieldNode>().Single(field => field.Letter == 'M');
+
+        Assert.AreEqual((3, 4), meter.Meter);
+    }
+
+    [TestMethod]
+    public void EverySpellingOfAMarkIsTheOneMark()
+    {
+        var marks = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nTA !trill!B .c !staccato!d|\n"))
+            .SelfAndDescendants().OfType<MusicMarkNode>().Select(node => node.Mark).ToList();
+
+        CollectionAssert.AreEqual(new[] { MusicMark.Trill, MusicMark.Trill, MusicMark.Staccato, MusicMark.Staccato }, marks);
+    }
+
+    [TestMethod]
+    public void AQuotedRunIsAChordUnlessItSaysWhereItGoes()
+    {
+        var said = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n\"Am\"A \"^fine\"B \"_soft\"c|\n"))
+            .SelfAndDescendants().OfType<MusicAnnotationNode>().Select(node => (node.Said, node.Placement)).ToList();
+
+        CollectionAssert.AreEqual(new (string, AnnotationPlacement?)[]
+        {
+            ("Am", null),
+            ("fine", AnnotationPlacement.Above),
+            ("soft", AnnotationPlacement.Below),
+        }, said);
+    }
+
+    [TestMethod]
+    public void ADecorationNamingNoMarkIsSaidToHaveNothingToDraw()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n!wibble!A !trill!B|\n"));
+
+        var troubled = tune.SelfAndDescendants().Where(node => node.Trouble is not null).Select(node => node.Print()).ToList();
+
+        CollectionAssert.AreEqual(new[] { "!wibble!" }, troubled);
+    }
+
+    [TestMethod]
+    public void ASyllableSaysWhichWordsLineItWasWrittenOn()
+    {
+        // A line carried on with a backslash is one row of music with words under each of its source lines; each syllable
+        // points at the line it was written on, not at whichever verse of the row it falls in.
+        const string abc = "X:1\nL:1/4\nK:C\nAB|\\\nw:one two\ncd|\nw:three four\n";
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse(abc));
+
+        var lines = tune.Children;
+        foreach (var sung in Notes(tune).SelectMany(n => Event(n).Sung))
+        {
+            var words = lines[sung.Line].Part(AbcRoles.Value)!.Children[sung.At];
+            Assert.AreEqual(sung.Text, words.Print(), "the syllable is the characters it points at");
+        }
+    }
+
+    [TestMethod]
+    public void AHyphenWrittenAsAWordIsSungAsOne()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nABc|\nw:vi \\- dit\n"));
+
+        CollectionAssert.AreEqual(new[] { "vi", "-", "dit" }, Notes(tune).Select(n => Event(n).Sung.Single().Text).ToList());
     }
 
     /// <summary>Every note in the tune, in written order, chord members left out.</summary>
@@ -236,4 +378,7 @@ public class AbcPipelineTests
         tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Note
                                              && n.Role != AbcRoles.Note
                                              && n.Part(AbcRoles.Letter) is not null);
+
+    /// <summary>A note as the stages leave it.</summary>
+    private static AbcEventNode Event(ContentNode note) => (AbcEventNode)note;
 }

@@ -14,7 +14,7 @@ namespace Nexaflow.Markdown.Music.Abc.Stages;
 /// </para>
 /// <para>
 /// <strong>A measure never crosses a source line.</strong> A bar that runs on to the next line comes back
-/// as two measures, the first saying it is unfinished. That is not a compromise: a line ending in ABC is
+/// as two measures, the first with no line closing it. That is not a compromise: a line ending in ABC is
 /// a suggested system break, so the two halves are drawn on different systems anyway, and a node that
 /// spanned the break would have to hold the line ending in the middle of itself and would still draw as
 /// two. The builder joins them for the purpose of counting time; the reader selects the half in front of
@@ -98,7 +98,8 @@ public sealed class GroupBars : IAstStage
 
     /// <summary>
     /// One measure: the line that opened it, what is in it, and the line that closed it — each in the
-    /// place it was written, which is what keeps the tune printing as it was typed.
+    /// place it was written, which is what keeps the tune printing as it was typed. A measure with no line
+    /// after it runs on to whatever comes next.
     /// </summary>
     private static ContentNode Measure(ContentNode? opened, IReadOnlyList<ContentNode> inside, ContentNode? closed)
     {
@@ -106,18 +107,21 @@ public sealed class GroupBars : IAstStage
 
         if (opened is not null) pieces.Add(opened.As(Roles.Open));
         pieces.AddRange(inside);
-        if (closed is not null) pieces.Add(closed.As(Roles.Close));
+        if (closed is not null) pieces.Add(Closing(closed));
 
-        var measure = ContentNode.Branch(AbcKinds.Measure, pieces);
-
-        // A measure with no line after it runs on to whatever comes next. Said out loud, because the
-        // builder has to know whether to count the bar as short or as continued, and the absence of a
-        // child is a thing every reader would otherwise have to re-derive.
-        return closed is null ? measure.Saying(AbcKinds.Text, AbcRoles.Continues, "yes") : measure;
+        return ContentNode.Branch(AbcKinds.Measure, pieces);
     }
 
-    // ── Reading the answer back ─────────────────────────────────────────────
+    // ── The line that closes it ─────────────────────────────────────────────
 
-    /// <summary>Whether this measure runs on past the end of its line.</summary>
-    public static bool Continues(ContentNode measure) => measure.Said(AbcRoles.Continues) is not null;
+    /// <summary>
+    /// The line closing a measure, saying whether it is a repeat line: whether it carries the dots on either
+    /// side, as <c>:|</c>, <c>|:</c>, <c>::</c> and <c>:|]</c> do. An ending written before a <c>|:</c> ends
+    /// there as surely as one written before a <c>:|</c>.
+    /// </summary>
+    private static ContentNode Closing(ContentNode line)
+    {
+        var spelled = line.IsLeaf ? line.Text : line.Part(Roles.Name)?.Text ?? "";
+        return new AbcBarlineNode(line.As(Roles.Close), spelled.Contains(':'));
+    }
 }

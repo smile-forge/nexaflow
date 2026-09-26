@@ -43,6 +43,23 @@ public class RereadingTests
     }
 
     [TestMethod]
+    public void ABlockFinishedAsItWasReadIsKeptFinished()
+    {
+        // What a block's parts make together, and the line break closing what it holds as written, are settled as the block is
+        // read — so what is kept of it is the block as it was handed out, and none of it is worked out again.
+        const string document = "Words.\n\n```csharp\nvar x = 1;\n```\n\n> [!NOTE]\n> Worth knowing.\n\nTerm\n:   what it means\n\n$$ x $$\n";
+        var parse = MarkdownParser.Parsing();
+
+        var before = Blocks(parse(document).Tree);
+        var after = Blocks(parse(document.Replace("Words", "More words")).Tree);
+
+        Assert.AreEqual(5, after.Length);
+        Assert.AreNotSame(before[0], after[0], "the paragraph typed in");
+
+        for (var at = 1; at < after.Length; at++) Assert.AreSame(before[at], after[at], after[at].Kind);
+    }
+
+    [TestMethod]
     public void ADefinitionWrittenAgainReadsEveryBlockAgain()
     {
         // Every block's words are read beside what the document defines, so a change there is a change to every block.

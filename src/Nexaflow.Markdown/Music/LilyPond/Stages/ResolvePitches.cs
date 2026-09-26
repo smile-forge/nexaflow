@@ -4,7 +4,7 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Music.LilyPond.Stages;
 
 /// <summary>
-/// Works out what every note sounds, and hangs it on the note.
+/// Says what every note sounds, and every pitch of the chord a <c>q</c> repeats (<see cref="LilyPondEventNode"/>).
 ///
 /// <para>
 /// A LilyPond note's octave depends on how it was entered. Written plainly, <c>c</c> is the C below middle C and
@@ -61,9 +61,7 @@ public sealed class ResolvePitches : IAstStage
                 return Chorded(node, scope, carried);
 
             case LilyPondKinds.ChordRepeat when IsPlayed(node):
-                return carried.Chord.Count == 0
-                    ? node
-                    : node.Saying([.. carried.Chord.Select(p => (LilyPondKinds.Note, LilyPondRoles.Pitch, p.ToString()))]);
+                return carried.Chord.Count == 0 ? node : LilyPondEventNode.Of(node).Pitched(carried.Chord);
 
             case LilyPondKinds.Command:
                 return Entered(node, scope, carried);
@@ -223,24 +221,7 @@ public sealed class ResolvePitches : IAstStage
         scope.Steps == 0 && scope.Semitones == 0 ? pitch : pitch.Transposed(scope.Steps, scope.Semitones);
 
     private static ContentNode Told(ContentNode note, Pitch pitch, Scope scope) =>
-        note.Saying(LilyPondKinds.Note, LilyPondRoles.Pitch, Moved(pitch, scope).ToString());
+        LilyPondEventNode.Of(note).Pitched([Moved(pitch, scope)]);
 
     // ── Reading the answers back ────────────────────────────────────────────
-
-    /// <summary>What this note sounds, or null where it was never a note played.</summary>
-    public static Pitch? PitchOf(ContentNode note) =>
-        note.Said(LilyPondRoles.Pitch) is { } text ? Pitch.Parse(text) : null;
-
-    /// <summary>What a repeated chord sounds: every pitch of the chord it repeats.</summary>
-    public static IEnumerable<Pitch> PitchesOf(ContentNode node)
-    {
-        foreach (var derived in node.Children)
-        {
-            if (derived.Role != Roles.Derived) continue;
-
-            foreach (var fact in derived.Children)
-                if (fact.Role == LilyPondRoles.Pitch)
-                    yield return Pitch.Parse(fact.Text);
-        }
-    }
 }

@@ -12,7 +12,7 @@ namespace Nexaflow.Markdown.Prose;
 /// <para>
 /// A block's words are read on their own, so a definition three paragraphs up is not in front of the reader when a
 /// sentence is read. The reading of the whole document is the one that sees every definition, so it writes them down
-/// here, and each block's words are read with them beside it (<see cref="Stages.WithBlocks"/>). They are the lines as
+/// here, and each block's words are read with them beside it (<see cref="MarkdownBlocks"/>). They are the lines as
 /// written — the reader of a block is told them the way it would have found them — and nothing of them is copied into
 /// a block: they sit beside what is read, never in it.
 /// </para>

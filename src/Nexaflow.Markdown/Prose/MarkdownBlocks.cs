@@ -1,31 +1,32 @@
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Pipeline;
 
-namespace Nexaflow.Markdown.Prose.Stages;
+namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// Reads each block's body with the parser its kind names.
+/// The pass of the parse that reads each block's body with the reader its kind names, and finishes every piece it reads.
 ///
 /// <para>
-/// The document parser splits and names and stops, which leaves every block holding one stretch of verbatim
-/// source: its own. This is where that source is read — a paragraph's and a heading's into the constructs
-/// they were spelled with, a table's into rows and cells, a list's into items, a quote's into the blocks
-/// written inside it. Each reader goes one level and hands back blocks whose bodies are verbatim again, and
-/// this keeps walking, so nesting costs nobody anything to write.
+/// The document's split names each block and stops, which leaves every block holding one stretch of verbatim source: its
+/// own. This is where that source is read — a paragraph's and a heading's into the constructs they were spelled with, a
+/// table's into rows and cells, a list's into items, a quote's into the blocks written inside it. Each reader goes one level
+/// and hands back blocks whose bodies are verbatim again, and this keeps walking, so nesting costs nobody anything to write.
+/// Every reader checks that what it hands back prints as what it was given, so a kind with no reader yet — a fence, indented
+/// code, front matter — is still the one verbatim leaf it was, which is the fallback every builder already knows how to draw.
 /// </para>
 /// <para>
-/// <strong>A stage rather than part of the parse, which is what keeps the builder from ever parsing.</strong>
-/// A stage may replace a piece as long as the characters coming out are the ones that went in, and every
-/// reader here checks that it did before handing anything back. So the builder is handed a tree that is
-/// already read all the way down, and a block kind with no reader yet — a fence, indented code, front matter
-/// — is still the one verbatim leaf it was, which is the fallback every builder already knows how to draw.
+/// <strong>Each piece is finished as it is read:</strong> what its parts make together (<see cref="MarkdownGroups"/>) and the
+/// line break closing a block held as written (<see cref="MarkdownClosingLines"/>) are settled on the same walk, from the
+/// bottom up. So a block is whole when this hands it back, and what is kept of it for the next reading is the block as the
+/// parse hands it out.
+/// </para>
+/// <para>
+/// <strong>One per document, read again and again as it is written.</strong> A keystroke changes one block, and reading is a
+/// function of what a block says and what the document defines — nothing else goes in. So a block written the same beside
+/// the same definitions is handed back as it was read last time, and only the one typed in is read again. Kept for the blocks
+/// of one reading at a time: what the reading before that held is let go.
 /// </para>
 /// </summary>
-/// <param name="remembering">
-/// Whether this reads one document time after time, and so keeps what it read of each of its blocks — see
-/// <see cref="MarkdownParser.Rereading"/>.
-/// </param>
-public sealed class WithBlocks(bool remembering = false) : IAstStage
+internal sealed class MarkdownBlocks
 {
     /// <summary>What each block of the last reading came to, by the characters its body was written as.</summary>
     private Dictionary<string, List<(ContentNode Written, ContentNode Read)>> _before = [];
@@ -33,36 +34,21 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
     /// <summary>What the definitions of the document said the last time, which every block's words were read beside.</summary>
     private string? _besides;
 
-    public string Name => "markdown:blocks";
-
-    public ContentNode Run(ContentNode tree)
+    /// <summary>The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.</summary>
+    public ContentNode Read(ContentNode document)
     {
-        var besides = MarkdownDefinitions.Of(tree)?.Text;
+        var besides = MarkdownDefinitions.Of(document)?.Text;
 
-        return remembering ? Reread(tree, besides) : Read(tree, besides);
-    }
-
-    /// <summary>
-    /// The document's blocks read, each one that is written exactly as it was last time handed back as it was read then.
-    ///
-    /// <para>
-    /// A keystroke changes one block, and reading is a function of what a block says and what the document defines —
-    /// nothing else goes in. So a block written the same beside the same definitions reads the same, and only the one typed
-    /// in is read again. Kept for the blocks of one reading at a time: what the reading before that held is let go.
-    /// </para>
-    /// </summary>
-    private ContentNode Reread(ContentNode tree, string? besides)
-    {
         if (besides != _besides) _before = [];
         _besides = besides;
 
         var now = new Dictionary<string, List<(ContentNode Written, ContentNode Read)>>(_before.Count);
-        var seen = new ContentNode[tree.Children.Count];
+        var seen = new ContentNode[document.Children.Count];
         var moved = false;
 
         for (var at = 0; at < seen.Length; at++)
         {
-            var block = tree.Children[at];
+            var block = document.Children[at];
 
             if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim } body)
             {
@@ -80,7 +66,7 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
         }
 
         _before = now;
-        return moved ? tree.With(seen) : tree;
+        return moved ? document.With(seen) : document;
     }
 
     /// <summary>What a block written as this one is was read as last time — each handed out once.</summary>
@@ -149,7 +135,7 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
         _ => null,
     };
 
-    /// <summary>Whether a stage said this piece holds blocks rather than words.</summary>
+    /// <summary>Whether the reader that took this piece in said it holds blocks rather than words.</summary>
     private static bool Holds(ContentNode node)
     {
         foreach (var child in node.Children)
@@ -159,14 +145,7 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
         return false;
     }
 
-    /// <summary>
-    /// This piece with its body read, and everything under it the same.
-    ///
-    /// <para>
-    /// A body that is already a tree is left alone rather than read again, which is what makes running this
-    /// twice the same as running it once.
-    /// </para>
-    /// </summary>
+    /// <summary>This piece with its body read, everything under it the same, and then finished.</summary>
     private static ContentNode Read(ContentNode node, string? besides)
     {
         if (node.IsLeaf) return node;
@@ -175,16 +154,23 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
             && reader(body.Text) is { } read && !Circles(node, body, read))
             node = node.With([.. node.Children.Select(child => ReferenceEquals(child, body) ? read : child)]);
 
-        var seen = new ContentNode[node.Children.Count];
-        var moved = false;
+        ContentNode[]? seen = null;
 
-        for (var at = 0; at < seen.Length; at++)
+        for (var at = 0; at < node.Children.Count; at++)
         {
-            seen[at] = Read(node.Children[at], besides);
-            moved |= !ReferenceEquals(seen[at], node.Children[at]);
+            var child = node.Children[at];
+            var now = Read(child, besides);
+
+            if (seen is null && !ReferenceEquals(now, child))
+            {
+                seen = new ContentNode[node.Children.Count];
+                for (var before = 0; before < at; before++) seen[before] = node.Children[before];
+            }
+
+            if (seen is not null) seen[at] = now;
         }
 
-        return moved ? node.With(seen) : node;
+        return MarkdownClosingLines.Closed(MarkdownGroups.Grouped(seen is null ? node : node.With(seen)));
     }
 
     /// <summary>
@@ -214,6 +200,6 @@ public sealed class WithBlocks(bool remembering = false) : IAstStage
             only = child;
         }
 
-        return only is not null && only.Kind == node.Kind && only.Print() == body.Text;
+        return only is not null && only.Kind == node.Kind && only.Prints(body.Text);
     }
 }

@@ -4,7 +4,7 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Music.LilyPond.Stages;
 
 /// <summary>
-/// Works out how long every event lasts, and hangs it on the event.
+/// Says how long every event is written and how long it lasts (<see cref="LilyPondEventNode"/>).
 ///
 /// <para>
 /// A LilyPond duration is written only when it changes: <c>c4 d e f8 g</c> is three quarters and two eighths.
@@ -17,7 +17,7 @@ namespace Nexaflow.Markdown.Music.LilyPond.Stages;
 /// not: it says how long one event lasts, not how the next is written.
 /// </para>
 /// <para>
-/// Two facts go on each event. What it is <em>written</em> as, which decides its head and its flags; and how
+/// Two things are said of each event. What it is <em>written</em> as, which decides its head and its flags; and how
 /// long it <em>sounds</em>, after its multiplier and any tuplet it is inside, which decides where the bars fall.
 /// A triplet eighth is drawn as an eighth and lasts a third of a quarter.
 /// </para>
@@ -146,17 +146,7 @@ public sealed class ResolveDurations : IAstStage
     }
 
     private static ContentNode Told(ContentNode node, Duration written, Duration sounds) =>
-        node.Saying(
-            (LilyPondKinds.Duration, LilyPondRoles.Written, written.ToString()),
-            (LilyPondKinds.Duration, LilyPondRoles.Sounds, sounds.ToString()));
+        LilyPondEventNode.Of(node).Timed(written, sounds);
 
     // ── Reading the answers back ────────────────────────────────────────────
-
-    /// <summary>How long this event lasts, in quarter notes, or nothing where it was never timed.</summary>
-    public static Duration SoundsOf(ContentNode node) =>
-        node.Said(LilyPondRoles.Sounds) is { } text ? Duration.Parse(text) : Duration.Zero;
-
-    /// <summary>The value this event is written as, which is not always how long it lasts.</summary>
-    public static Duration WrittenOf(ContentNode node) =>
-        node.Said(LilyPondRoles.Written) is { } text ? Duration.Parse(text) : SoundsOf(node);
 }

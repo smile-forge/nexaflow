@@ -45,7 +45,7 @@ public class PlotCorrelationsTests
     }
 
     private static IReadOnlyList<(string Across, string Down, double R)> Read(string source) =>
-        [.. new Nexaflow.Markdown.Plot.Stages.ResolveSettings(PlotFence.Heatmap).Run(PlotParser.Parse(source)).Pairs()];
+        (PlotPipeline.Of(PlotFence.Heatmap).Run(PlotParser.Parse(source)) as PlotBlockNode)?.Correlations ?? [];
 
     private static double Between(IReadOnlyList<(string Across, string Down, double R)> pairs,
                                   string across, string down) =>

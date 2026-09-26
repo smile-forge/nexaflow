@@ -241,6 +241,36 @@ public class ContentNode
         for (var at = 0; at < this.Children.Count; at++) this.Children[at].PrintTo(text);
     }
 
+    /// <summary>
+    /// Whether this tree prints as <paramref name="text"/> — what comparing <see cref="Print"/> with it says, found without
+    /// printing it, so asking of a whole document costs no copy of it.
+    /// </summary>
+    public bool Prints(string text)
+    {
+        var at = 0;
+
+        return this.Matches(text, ref at) && at == text.Length;
+    }
+
+    /// <summary>Whether what this piece prints stands in <paramref name="text"/> at <paramref name="at"/>, which it moves past it.</summary>
+    private bool Matches(string text, ref int at)
+    {
+        if (this.IsDerived) return true;
+
+        if (this.IsLeaf)
+        {
+            if (!text.AsSpan(at).StartsWith(this.Text, StringComparison.Ordinal)) return false;
+
+            at += this.Text.Length;
+            return true;
+        }
+
+        for (var child = 0; child < this.Children.Count; child++)
+            if (!this.Children[child].Matches(text, ref at)) return false;
+
+        return true;
+    }
+
     // ── Finding out where they landed ───────────────────────────────────────
 
     /// <summary>

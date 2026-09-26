@@ -243,12 +243,13 @@ what its language says (`Editing.Corner`, `Editing.Offers`): code no picture of 
 
 ## Markdown
 
-**A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in passes: where each
-block starts and which it is (Markdig decides the boundaries and nothing else); what each holds, by the reader for its
-kind (`WithBlocks` — `MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body); what
-pieces side by side make together (`WithGroups` — a definition list's pairs, an alert's marker, the display formula a
-paragraph of nothing but `$$ … $$` is); the line ending closing a block's last line (`WithClosingLines`); and which
-language every fence and formula is written in. A kind nothing reads is shown exactly as typed. A reader also records
+**A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in two passes: where each
+block starts and which it is, and which language every fence and formula is written in (Markdig decides the boundaries
+and nothing else); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
+(`MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body), with every piece finished
+as it is read: what pieces side by side make together (`MarkdownGroups` — a definition list's pairs, an alert's marker,
+the display formula a paragraph of nothing but `$$ … $$` is) and the line ending closing a block's last line
+(`MarkdownClosingLines`). A kind nothing reads is shown exactly as typed. A reader also records
 what the characters do not say — a column's alignment, the squares a cell covers, which alphabet a list counts in — as
 derived parts.
 
@@ -263,8 +264,9 @@ language implied, and `$x$` is that shape small, framed by words instead of by l
 | `ShowBlocksAsWritten` | the block somebody is changing the markup of, as the characters it is written with |
 
 **A block written as it was is read as it was.** The engine keeps a parse per document (`MarkdownParser.Parsing`) that
-hands back what it read of every block written exactly as last time beside the same definitions, so a keystroke reads
-the block it was typed in. `RereadingTests` holds such a reading to the same document read from nothing.
+hands back every block written exactly as last time beside the same definitions as the very block it handed out then,
+finished, so a keystroke reads and walks only the block it was typed in. `RereadingTests` holds such a reading to the
+same document read from nothing.
 
 **A block that reads as it did is laid as it was.** `WithUnchanged` says which of this reading's blocks are one the last
 reading had — the same characters and everything worked out about them, so a paragraph whose link was defined again
@@ -306,21 +308,48 @@ diagram's grammar and builder are built from the kit. How a diagram is added and
 
 | Stage | What it works out |
 |---|---|
+| `ResolveFields` | what the words of each field's value say for its letter: a key and clef, a meter and its sign, a unit length, a voice |
 | `ResolveContext` | the key, meter, unit note length and voice in force on each line |
 | `GroupTuplets` | a `(3` marker and the events it covers |
 | `GroupBeams` | the events written together with no space between them |
-| `GroupBars` | what is between two bar lines |
-| `ResolveNotes` | what each note sounds and how long each event lasts |
-| `AlignLyrics` | which syllable is sung on which note |
-| `CheckDrawable` | what is written correctly and still cannot be drawn |
+| `GroupBars` | what is between two bar lines, and whether the line closing it is a repeat line |
+| `ResolveNotes` | what each note sounds, how long each event lasts, and which rest a rest is |
+| `AlignLyrics` | which syllable is sung on which note, and where it was written |
+| `ResolveMarks` | the mark each decoration names, however it is spelled, and whether a quoted run is a chord or placed text |
+| `CheckDrawable` | what is written correctly and still cannot be drawn: a decoration naming no mark |
 | `ShowAsWritten` | the stretch under the caret, shown as typed |
+
+**What is written is split as far as it goes**, so no stage takes characters apart:
+
+- a `K:`, `M:`, `L:` or `V:` value into its words — a key (its tonic, the sharps or flats on it, the mode written straight
+  after), figures (numbers and the marks between them), `key=value` settings (a quoted one whole, spaces and all) and
+  words standing for themselves; every other field is held whole as the prose it is;
+- a length suffix into its numbers and its slashes;
+- a tuplet marker into its numbers, each in the role its place gives it, so `(3::2` has no `q` rather than an empty one;
+- a `!…!` decoration into its bangs and its name — a one-character shorthand has nothing inside it and stays one leaf;
+- a quoted run into its quotes, the character that places it, and its words;
+- a syllable holding a `~` or a `\-` into its words, the join and the escape.
+
+A key is a capital `A`–`G`, so `K:bass` names a clef and leaves the key alone, and a mode is its own word, so what
+follows it — `K:Dm clef=bass` — is not part of it. What is left for a stage to read off characters is a mark written
+once or repeated — `^^`, `,,`, `>>`, a rest's letter — where what it means is which mark and how many.
 
 A length needs the unit note length; a tuplet's default needs the meter; a tuplet beams as one group; a beam never
 crosses a bar line; an accidental lasts a bar. A measure never crosses a source line, because a line ending is a
-suggested system break. **A note is four leaves** — accidental, letter, octave marks, length — so each gesture rewrites
+suggested system break. **A note is four parts** — accidental, letter, octave marks, length — so each gesture rewrites
 one: `A`–`G` writes a note in the octave of the one before, Page Up and Down move the octave, `+` and `-` double and
 halve the length, and `#` and `_` move a semitone **from what the note sounds**, so flattening a bare `F` in G major
-writes `=F`. LilyPond is the same engraving read from another notation.
+writes `=F`. Each stage says its answer in the tune's own nodes (`AbcFieldNode`, `AbcLineNode`, `AbcTupletNode`,
+`AbcBarlineNode`, `AbcEventNode`), and a mark or words written against a note in the ones every notation shares (`MusicMarkNode`,
+`MusicAnnotationNode`), so `AbcBuilder` only walks the tune.
+
+**LilyPond** — the same engraving, walked by a builder of its own: the two notations think about music differently, and
+share `MusicBuilder` for what a score is drawn with. What is true of a note or a command wherever it is played is its
+stages' — how long it is written and lasts (`ResolveDurations`), what it sounds (`ResolvePitches`), what a command's
+arguments set (`ResolveCommands`), what a mark or a script's words are (`ResolveMarks`), how a chord's name is spelled
+(`SpellChords`) — said in `LilyPondEventNode`, `LilyPondCommandNode` and the shared mark and word nodes. Where the bars
+fall, how notes beam and which accidentals print depend on where a note is played, since a definition is played wherever
+it is used; so `LilyPondBuilder` walks the music through to find them.
 
 **2D codes** — `MatrixParser` reads a `qr`, `aztec`, `pdf417` or `datamatrix` body into lines of fields, one grammar for
 all four, and each builder encodes and lays the symbol out as the parts it is made of (finders, timing lines, a
@@ -329,9 +358,11 @@ bullseye, row indicators). What they share is `MatrixBuilder`. No piece carries 
 **Barcodes** — the same grammar, the value spelled out a piece per character by the parser, because each character
 printed stands for one written; while the block is written in, `HoldValue` gives a value not yet written a hole.
 
-**SMILES** — `ConnectAtoms`, `CountHydrogens`, `Kekulize`, each needing the one before. A bond between two atoms written
-side by side has no characters, so facts name atoms by the order written. Where the atoms go is worked out beside the
-model (`StructureLayout`, `CageLayout`), not by the builder.
+**SMILES** — `ConnectAtoms`, `CountHydrogens`, `Kekulize`, `DepictStructure`, each needing the one before, and each saying
+what it works out in the molecule's own nodes (`MoleculeNode`, `AtomNode`). A bond between two atoms written side by side
+has no characters, so a molecule's bonds name atoms by the order written. Where the atoms go is a stage's answer too
+(`DepictStructure`, through `StructureLayout` and `CageLayout`): it is a fact about the molecule, not the room, so the
+builder only scales it to its room and draws it.
 
 **Word clouds** — a parser and nothing between it and the builder: nothing about a cloud's line means anything its
 characters do not say. The layout tree is flat on purpose — every word placed absolutely, one run each — and the
@@ -341,9 +372,10 @@ the outlines of the letters. A `mask:` picture is found by the host (`WithPictur
 **Correlation plots** — `scatter`, `bubble`, `heatmap` and `density2d` differ in what is drawn, not in what is written.
 The parser decides only the shape of a line; the settings (`ResolveSettings`), which row names the columns
 (`ResolveShape`), each column (`ResolveColumns`), what a cell reads as (`ResolveValues`), which channel a column feeds
-(`ResolveAesthetics`) and, for `geom: corr`, the coefficients (`ResolveCorrelations`) are stages, because every one of
-them changes as the next line is typed. Binning, densities and fits are worked out beside the model and tested against
-R's published numbers.
+(`ResolveAesthetics`), for `geom: corr`, the coefficients (`ResolveCorrelations`) and what a `stats:` line reports
+(`ResolveStatistics`) are stages, because every one of them changes as the next line is typed; each is said in the
+block's own nodes (`PlotBlockNode`, `PlotRowNode`, `PlotCellNode`). Binning, densities and fits are the builder's to ask
+for, because they are worked out on the panel it lays out, and are tested against R's published numbers.
 
 ## The oracles
 

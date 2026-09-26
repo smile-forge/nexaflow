@@ -6,8 +6,9 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// <remarks>
 /// Deliberately about syntax, not meaning: a <see cref="Note"/> is a letter with marks around it, whether
 /// it turns out to be a middle C or the top of a run. What it <em>means</em> — its pitch, its duration,
-/// whether an accidental prints — is worked out by a pipeline stage and hung underneath it as a derived
-/// part, because those are facts about the key and the bar as much as about the letter.
+/// whether an accidental prints — is worked out by a pipeline stage and said in the tune's own nodes
+/// (<see cref="AbcEventNode"/> and its kin), because those are facts about the key and the bar as much as
+/// about the letter. What is written is split as far as it goes, so no stage takes characters apart.
 /// </remarks>
 public static class AbcKinds
 {
@@ -74,9 +75,10 @@ public static class AbcKinds
 
     // ── The parts a note is made of ─────────────────────────────────────────
     //
-    // Leaves of their own rather than characters of one, because each is what an edit rewrites: sharpening
+    // Parts of their own rather than characters of one, because each is what an edit rewrites: sharpening
     // a note replaces its accidental, moving it an octave replaces its marks and its letter's case, and
-    // lengthening it replaces its length. One leaf each means an edit touches one leaf.
+    // lengthening it replaces its length — its numbers and its slashes. One part each means an edit touches
+    // one part.
 
     public const string Accidental = "accidental";
     public const string Letter = "letter";
@@ -89,7 +91,7 @@ public static class AbcKinds
     /// <summary>A repeat bracket's label, written straight after a bar line: <c>1</c>, <c>1,2</c>, <c>1-3</c>.</summary>
     public const string Volta = "volta";
 
-    /// <summary>A tuplet marker: <c>(3</c>, <c>(3:2</c>, <c>(3:2:3</c>.</summary>
+    /// <summary>A tuplet marker — <c>(3</c>, <c>(3:2</c>, <c>(3:2:3</c> — as its bracket, and each number in the role its place gives it.</summary>
     public const string Tuplet = "tuplet";
 
     public const string SlurOpen = "slur-open";
@@ -101,10 +103,10 @@ public static class AbcKinds
     /// <summary>A broken-rhythm marker: <c>&gt;</c>, <c>&lt;</c>, and their runs.</summary>
     public const string Broken = "broken";
 
-    /// <summary>An ornament or bowing: <c>.</c> <c>~</c> <c>H</c> <c>T</c> <c>u</c> <c>v</c>, or <c>!trill!</c>.</summary>
+    /// <summary>An ornament or bowing: a one-character shorthand — <c>.</c> <c>~</c> <c>H</c> <c>T</c> <c>u</c> <c>v</c> — or a name between bangs, <c>!trill!</c>, held as its bangs and its name.</summary>
     public const string Decoration = "decoration";
 
-    /// <summary>A double-quoted run: a chord symbol, or a placed text annotation.</summary>
+    /// <summary>A double-quoted run — a chord symbol, or placed text — as its quotes, the character that places it where one does, and its words.</summary>
     public const string Annotation = "annotation";
 
     /// <summary>A typesetting spacer — <c>y</c> — which takes room and no time.</summary>
@@ -119,6 +121,29 @@ public static class AbcKinds
     /// <summary>Plain text: a field's value, a syllable, whatever is inside quotes.</summary>
     public const string Text = "text";
 
+    // ── The words of a K:, M:, L: or V: value ───────────────────────────────
+
+    /// <summary>A word of a field's value standing for itself: <c>bass</c>, <c>Lydian</c>, <c>C|</c>, <c>none</c>, a voice's name.</summary>
+    public const string Word = "word";
+
+    /// <summary>A <c>key=value</c> setting in a field's value — <c>clef=bass</c>, <c>name="Soprano"</c>: its name, the equals sign and what it is set to.</summary>
+    public const string Setting = "setting";
+
+    /// <summary>The key a <c>K:</c> opens with: its tonic, the sharps or flats written on it, and the letters of its mode written straight after.</summary>
+    public const string Key = "key";
+
+    /// <summary>The letter a key is named after.</summary>
+    public const string Tonic = "tonic";
+
+    /// <summary>A mode written straight after a key's tonic: the <c>m</c> of <c>Dm</c>, the <c>mix</c> of <c>Amix</c>.</summary>
+    public const string Mode = "mode";
+
+    /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c>: its numbers and the marks between them.</summary>
+    public const string Figures = "figures";
+
+    /// <summary>One number of a meter's or a unit length's figures.</summary>
+    public const string Number = "number";
+
     // ── Kinds a pipeline stage makes ────────────────────────────────────────
     //
     // None of these is written down. Each re-nests pieces that were, which is why they can exist at all
@@ -129,9 +154,6 @@ public static class AbcKinds
 
     /// <summary>A bar: the events between two bar lines, with the lines that close it.</summary>
     public const string Measure = "measure";
-
-    /// <summary>One voice's music, gathered out of the lines that carry it.</summary>
-    public const string Voice = "voice";
 
     /// <summary>The events a tuplet marker covers.</summary>
     public const string TupletGroup = "tuplet-group";
@@ -146,10 +168,13 @@ public static class AbcRoles
     /// <summary>The <c>^</c>, <c>_</c> or <c>=</c> in front of a note.</summary>
     public const string Accidental = "accidental";
 
+    /// <summary>A key's mode, written straight after its tonic.</summary>
+    public const string Mode = "mode";
+
     /// <summary>The <c>,</c> and <c>'</c> marks after it.</summary>
     public const string Octave = "octave";
 
-    /// <summary>The length multiplier after it: <c>2</c>, <c>/2</c>, <c>3/2</c>, <c>/</c>.</summary>
+    /// <summary>The length multiplier after it — <c>2</c>, <c>/2</c>, <c>3/2</c>, <c>/</c> — as its numbers and its slashes.</summary>
     public const string Length = "length";
 
     /// <summary>What an information field was set to.</summary>
@@ -161,32 +186,21 @@ public static class AbcRoles
     /// <summary>One thing that occupies time: a note, a rest, a chord.</summary>
     public const string Event = "event";
 
-    /// <summary>A bar line, at either end of a measure.</summary>
-    public const string Barline = "barline";
+    /// <summary>How many notes a tuplet marker puts together: the <c>p</c> of <c>(p:q:r</c>.</summary>
+    public const string Tupled = "tupled";
 
-    /// <summary>Whether a measure runs on past the end of the line it is written on.</summary>
-    public const string Continues = "continues";
+    /// <summary>In the time of how many: the <c>q</c> of <c>(p:q:r</c>.</summary>
+    public const string InTimeOf = "in-time-of";
 
-    // ── Roles a stage hangs underneath a piece ──────────────────────────────
-    //
-    // All of these are Roles.Derived as far as the tree is concerned; these names say which fact is being
-    // recorded, so a builder can ask for the one it wants.
+    /// <summary>Over how many of the events after it: the <c>r</c> of <c>(p:q:r</c>.</summary>
+    public const string Covers = "covers";
 
-    /// <summary>What a note actually sounds: step, alteration and octave, after the key and the bar.</summary>
-    public const string Pitch = "pitch";
+    /// <summary>The character a quoted run opens with to say where its words go: <c>^</c>, <c>_</c>, <c>&lt;</c>, <c>&gt;</c> or <c>@</c>.</summary>
+    public const string Placement = "placement";
 
-    /// <summary>How long an event lasts, after the unit note length and any broken rhythm.</summary>
-    public const string Duration = "duration";
+    /// <summary>The <c>~</c> that joins two words into one syllable.</summary>
+    public const string Joined = "joined";
 
-    /// <summary>What value an event is written as, before any tuplet compressed it.</summary>
-    public const string Written = "written";
-
-    /// <summary>Which accidental actually prints, which is not the same as which was written.</summary>
-    public const string Printed = "printed";
-
-    /// <summary>A syllable to sit under this event.</summary>
-    public const string Lyric = "lyric";
-
-    /// <summary>The key, meter or unit length in force here.</summary>
-    public const string Context = "context";
+    /// <summary>The backslash that keeps the hyphen after it inside a syllable.</summary>
+    public const string Escape = "escape";
 }
