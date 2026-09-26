@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;

@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 

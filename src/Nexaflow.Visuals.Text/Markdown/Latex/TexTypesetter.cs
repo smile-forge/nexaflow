@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers.Matrices;
+using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
@@ -43,13 +42,10 @@ internal static class TexTypesetter
         System.ArgumentNullException.ThrowIfNull(root);
 
         // The last one written — a second \tag in one equation is an error to LaTeX.
-        if (root.SelfAndDescendants().LastOrDefault(IsTag) is not { } tag
-            || tag.Part(TexRole.Argument) is not { } written)
+        if (root.SelfAndDescendants().LastOrDefault(IsTag) is not { } tag || Meant(tag) is not TexTag { Number: { } number } said)
             return null;
 
-        var number = Value(written) ?? "";
-        var starred = tag.Part(Roles.Name)?.Text == @"\tag*";
-        return LettersItem(starred ? number : $"({number})", TexUtilities.TextStyleName, spaced: true, tag).Make(environment, null);
+        return LettersItem(said.Starred ? number : $"({number})", TexUtilities.TextStyleName, spaced: true, tag).Make(environment, null);
     }
 
     // ── Setting ─────────────────────────────────────────────────────────────
@@ -58,11 +54,11 @@ internal static class TexTypesetter
     /// A formula's reading set in the environment it is displayed in — measured, and ready to lay. Always something,
     /// even where nothing in the reading draws (a lone <c>\label</c>), so the formula still has a place for a caret.
     /// </summary>
-    internal static Set Formula(ContentPart root, TexEnvironment environment, TexFormulaParser knowledge)
+    internal static Set Formula(ContentPart root, TexEnvironment environment)
     {
         System.ArgumentNullException.ThrowIfNull(root);
 
-        return (Sequence(root.Parts, root, null, knowledge) ?? Sequenced([], root)).Make(environment, null);
+        return (Sequence(root.Parts, root, null) ?? Sequenced([], root)).Make(environment, null);
     }
 
     /// <summary>
@@ -109,16 +105,16 @@ internal static class TexTypesetter
     private readonly record struct Previous(TexAtomType Right, bool IsKern);
 
     /// <summary>Several things in a row, or the one thing when there is only one — as <see cref="Run"/>.</summary>
-    private static Item? Sequence(IEnumerable<ContentPart> parts, ContentPart whole, string? style, TexFormulaParser knowledge)
+    private static Item? Sequence(IEnumerable<ContentPart> parts, ContentPart whole, string? style)
     {
-        var built = Pieces(parts, style, knowledge);
+        var built = Pieces(parts, style);
         if (built is null || built.Count == 0) return null;
 
         return built.Count == 1 ? built[0] : Sequenced(built, whole);
     }
 
     /// <summary>A run of pieces, as <see cref="Built"/>: a switch takes the rest of its group, and a piece nothing can draw is its characters.</summary>
-    private static List<Item>? Pieces(IEnumerable<ContentPart> parts, string? style, TexFormulaParser knowledge)
+    private static List<Item>? Pieces(IEnumerable<ContentPart> parts, string? style)
     {
         var built = new List<Item>();
         var run = parts.ToList();
@@ -127,7 +123,7 @@ internal static class TexTypesetter
         {
             if (Switch(run[at]) is { } switched)
             {
-                if (Pieces(run.Skip(at + 1), switched.TextStyle ?? style, knowledge) is not { } after)
+                if (Pieces(run.Skip(at + 1), switched.Face ?? style) is not { } after)
                     return null;
 
                 var scope = after.Count switch
@@ -137,7 +133,7 @@ internal static class TexTypesetter
                     _ => Sequenced(after, run[at]),
                 };
 
-                built.Add(switched.Style is { } size ? Styled(scope, size, run[at]) : scope);
+                built.Add(switched.Size is { } size ? Styled(scope, size, run[at]) : scope);
                 break;
             }
 
@@ -145,7 +141,7 @@ internal static class TexTypesetter
             // there is nothing to colour, and it is shown as it was written.
             if (Recoloured(run[at]) is { } ink && run.Skip(at + 1).Any(after => !Discarded(after) && after.Kind != Kinds.Space))
             {
-                if (Pieces(run.Skip(at + 1), style, knowledge) is not { } painted) return null;
+                if (Pieces(run.Skip(at + 1), style) is not { } painted) return null;
 
                 built.Add(Painted(painted.Count switch
                 {
@@ -159,34 +155,40 @@ internal static class TexTypesetter
             if (IsTag(run[at])) continue;
             if (Discarded(run[at])) continue;
 
-            built.Add(Piece(run[at], style, knowledge) ?? UnreadItem(run[at], style));
+            built.Add(Piece(run[at], style) ?? UnreadItem(run[at], style));
         }
 
         return built;
     }
 
     /// <summary>One piece of a run — a construct set here, or one still built as an atom.</summary>
-    private static Item? Piece(ContentPart part, string? style, TexFormulaParser knowledge) =>
+    private static Item? Piece(ContentPart part, string? style) =>
         part.Kind switch
         {
-            Kinds.Sequence => Sequence(part.Parts, part, style, knowledge),
+            Kinds.Sequence => Sequence(part.Parts, part, style),
             TexKinds.Group when !part.Parts.Any() => NullItem(),
-            TexKinds.Group when Written(part) => Grouped(part, style, knowledge),
-            TexKinds.Group => Sequence(part.Parts, part, style, knowledge),
-            TexKinds.Script => Scripted(part, style, knowledge),
-            TexKinds.Command => Commanded(part, style, knowledge),
-            TexKinds.Fence => Fenced(part, style, knowledge),
-            TexKinds.Environment => Environmented(part, style, knowledge),
+            TexKinds.Group when Written(part) => Grouped(part, style),
+            TexKinds.Group => Sequence(part.Parts, part, style),
+            TexKinds.Script => Scripted(part, style),
+            TexKinds.Command => Commanded(part, style),
+            TexKinds.Fence => Fenced(part, style),
+            TexKinds.Environment => Environmented(part, style),
             Kinds.Char => CharacterItem(part, style),
             Kinds.Verbatim => LettersItem(part.Text, style, spaced: true, part),
             Kinds.Hole => HoleItem(part),
+
+            // A row and a cell are only ever set by the grid holding them. Anything else made of parts is something a stage
+            // gathered — an operator over what it operates on — which says nothing about how it is set: what it holds, in a
+            // row, spaced by their classes as if it were not there.
+            TexKinds.Row or TexKinds.Cell => null,
+            _ when part.Children.Count > 0 => Sequence(part.Parts, part, style),
             _ => null,
         };
 
     /// <summary>A braced group: an ordinary atom whatever it holds, because braces change a class.</summary>
-    private static Item? Grouped(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Grouped(ContentPart part, string? style)
     {
-        if (Sequence(part.Parts, part, style, knowledge) is not { } inner) return null;
+        if (Sequence(part.Parts, part, style) is not { } inner) return null;
 
         return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
         {
@@ -224,42 +226,18 @@ internal static class TexTypesetter
             PassesThrough = true,
         };
 
-    /// <summary>
-    /// The ink a colour command names — any colour name a browser knows, or a hex value where the model it is written in
-    /// says <c>HTML</c> — or null where it names none, which leaves the command shown as it was written.
-    /// </summary>
-    private static IBrush? Colour(ContentPart command)
+    /// <summary>A colour the reading named (<see cref="TexColour"/>), as the ink it is drawn in.</summary>
+    private static IBrush Brush(HexColor colour)
     {
-        if (command.Part(TexRole.Argument) is not { } named) return null;
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(colour.A, colour.R, colour.G, colour.B));
+        brush.Freeze();
 
-        // A model other than HTML says the name is numbers in that model, which this does not read — so the command is
-        // shown as written rather than guessed at.
-        if (Value(named)?.Trim() is not { } name) return null;
-        if (command.Part(TexRole.Option) is { } model)
-        {
-            if (Value(model)?.Trim().Equals("HTML", System.StringComparison.OrdinalIgnoreCase) is not true) return null;
-
-            name = "#" + name;
-        }
-
-        try
-        {
-            if (System.Windows.Media.ColorConverter.ConvertFromString(name) is not System.Windows.Media.Color colour) return null;
-
-            var brush = new System.Windows.Media.SolidColorBrush(colour);
-            brush.Freeze();
-
-            return WpfBrush.FromBrush(brush);
-        }
-        catch (System.FormatException)
-        {
-            return null;
-        }
+        return WpfBrush.FromBrush(brush);
     }
 
     /// <summary>The ink a <c>\color</c> switch sets everything after it in, where that is what the part is.</summary>
     private static IBrush? Recoloured(ContentPart part) =>
-        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text == @"\color" ? Colour(part) : null;
+        Meant(part) is TexColour { Switch: true } colour ? Brush(colour.Colour) : null;
 
     /// <summary>Pieces standing in a row, as one piece: its class is its first piece's on the left and its last piece's on the right.</summary>
     private static Item Sequenced(List<Item> items, ContentPart? whole) =>
@@ -312,13 +290,18 @@ internal static class TexTypesetter
     /// <summary>One character of the reading, as <see cref="Character"/>: a symbol by the table, a letter, or a tie.</summary>
     private static Item? CharacterItem(ContentPart part, string? style)
     {
-        if (part.Text.Length != 1) return null;
+        if (part.Text is not [var character]) return null;
 
-        var character = part.Text[0];
-        if (character == '\'') return null;
-        if (character == '~') return SpaceItem(null, 0);
+        return part.Node switch
+        {
+            TexCharNode { Character: TexCharacter.Tie } => SpaceItem(null, 0),
+            TexCharNode { Character: TexCharacter.Prime } => null,
 
-        return GlyphItem(TexFormulaParser.GlyphOf(character, style) with { Origin = part });
+            // In a face whose argument is words, a symbol is the letter it is.
+            TexCharNode { Symbol: { } symbol } when style != TexUtilities.TextStyleName => GlyphItem(Glyph.Of(symbol) with { Origin = part }),
+
+            _ => GlyphItem(Glyph.Letter(character, style) with { Origin = part }),
+        };
     }
 
     /// <summary>A stretch set as the characters it is written with, as <see cref="Letters"/>, standing for <paramref name="origin"/>.</summary>
@@ -360,53 +343,40 @@ internal static class TexTypesetter
             Elements = null,
         };
 
-    /// <summary>A command nothing anywhere knows, set as what was typed and reported, as <see cref="Words"/>.</summary>
-    private static Item? WordsItem(ContentPart part, string? style, TexFormulaParser knowledge)
+    /// <summary>
+    /// A command nothing anywhere knows, set as what was typed and reported, as <see cref="Words"/>. <c>\hline</c> and
+    /// <c>\limits</c> are read off what they stand in rather than drawn, so anywhere else they are letters like one.
+    /// </summary>
+    private static Item? WordsItem(ContentPart part, string? style)
     {
-        if (part.Part(Roles.Name) is not { Text: { } name } named || knowledge.Knows(name[1..])) return null;
+        if (Meant(part) is not (null or TexRule or TexLimits) || part.Part(Roles.Name) is not { } named) return null;
 
         var letters = WrittenItem(Leaves(part), style, spaced: true, part);
 
         return named.Trouble is null ? Undrawn(letters, Whole(part)) : letters;
     }
 
-    /// <summary>A symbol standing on its own, as <see cref="Symbol"/> — a big operator whatever its limits, or a primitive the tables draw.</summary>
-    private static Item? SymbolItem(string name, ContentPart part)
+    /// <summary>A symbol by name, as <see cref="Symbol"/> — a big operator whatever its limits.</summary>
+    private static Item SymbolItem(TexNamedSymbol named, ContentPart part)
     {
-        if (Glyph.Symbol(name) is not { } glyph) return PrimitiveItem(name, part);
-
-        glyph = glyph with { Origin = part };
+        var glyph = Glyph.Of(named.Symbol) with { Origin = part };
 
         return glyph.Type == TexAtomType.BigOperator
-            ? Operator(GlyphItem(glyph), null, null, TexFormulaParser.SetsLimitsBeside(name) ? false : null, part)
+            ? Operator(GlyphItem(glyph), null, null, named.LimitsBeside ? false : null, part)
             : GlyphItem(glyph);
     }
 
-    /// <summary>What a name draws that LaTeX has no spelling for.</summary>
-    private static Item? PrimitiveItem(string name, ContentPart? part)
-    {
-        if (StandardCommands.StrutOf(name) is { } mu) return SpaceItem(TexUnit.Mu, mu);
-
-        return name switch
+    /// <summary>A radical sign with nothing under it, lifted so it sits about the axis — <c>\surd</c>.</summary>
+    private static Item Surd(ContentPart part) =>
+        Made(TexAtomType.Ordinary, part, environment =>
         {
-            // A radical sign with nothing under it, lifted so it sits about the axis.
-            "surd" => Made(TexAtomType.Ordinary, part, environment =>
+            var sign = Glyph.Symbol("surdsign")!.Set(environment);
+            sign = sign with
             {
-                var sign = Glyph.Symbol("surdsign")!.Set(environment);
-                sign = sign with
-                {
-                    Shift = -((sign.Height + sign.Depth) / 2) - environment.MathFont.GetAxisHeight(environment.Style),
-                };
-                return Horizontal([sign], null, null);
-            }),
-
-            // A dot or a tilde set over an equals sign at a fixed height, and a relation either side.
-            "doteq" => Pile("equals", "ldotp", 2, part),
-            "cong" => Pile("equals", "sim", 1, part),
-
-            _ => null,
-        };
-    }
+                Shift = -((sign.Height + sign.Depth) / 2) - environment.MathFont.GetAxisHeight(environment.Style),
+            };
+            return Horizontal([sign], null, null);
+        });
 
     private static Item Pile(string under, string over, double mu, ContentPart? part) =>
         Typed(UnderOver(GlyphItem(Glyph.Symbol(under)!), GlyphItem(Glyph.Symbol(over)!), TexUnit.Mu, mu,
@@ -486,22 +456,9 @@ internal static class TexTypesetter
                             width * Conversion(unit, environment),
                             shift * Conversion(unit, environment)) with { Part = part });
 
-    /// <summary>The delimiter a <c>\left</c> or <c>\right</c> was written with, as <see cref="Delimiter"/>, naming the whole of it.</summary>
-    private static Glyph? DelimiterGlyph(ContentPart fence)
-    {
-        if (fence.Part(TexRole.Argument) is not { } written) return null;
-
-        // A bracket written as itself, or as a command naming one: `(`, `\langle`, `\|`.
-        if ((written.Children.Count == 0 ? written.Text : written.Part(Roles.Name)?.Text) is not { } text) return null;
-        var symbol = text switch
-        {
-            @"\|" => Glyph.Delimiter("Vert"),
-            { Length: 1 } => Glyph.Delimiter(text[0]),
-            _ => Glyph.Delimiter(text.TrimStart('\\')),
-        };
-
-        return symbol is null ? null : symbol with { Origin = fence };
-    }
+    /// <summary>The delimiter one side of a fence was written with (<see cref="TexDelimiter"/>), naming that side.</summary>
+    private static Glyph? DelimiterGlyph(ContentPart side) =>
+        Meant(side) is TexDelimiter { Symbol: { } symbol } ? Glyph.Of(symbol) with { Origin = side } : null;
 
     /// <summary>Classes that make a binary operator after them an ordinary atom.</summary>
     private static readonly HashSet<TexAtomType> OperandsNot =
@@ -714,34 +671,34 @@ internal static class TexTypesetter
     /// A script, as <see cref="Script"/>: something written onto a base — or onto nothing, drawn where it was written
     /// on a box of no width — or a brace wearing its label.
     /// </summary>
-    private static Item? Scripted(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Scripted(ContentPart part, string? style)
     {
         if (part.Part(TexRole.Base) is null)
-            return ScriptedOn(part, NullItem(), style, knowledge);
+            return ScriptedOn(part, NullItem(), style);
 
-        if (Braced(part, style, knowledge) is { } braced) return braced;
+        if (Braced(part, style) is { } braced) return braced;
 
-        return PartPiece(part, TexRole.Base, style, knowledge) is { } on
-            ? ScriptedOn(part, on, style, knowledge)
+        return PartPiece(part, TexRole.Base, style) is { } on
+            ? ScriptedOn(part, on, style)
             : null;
     }
 
     /// <summary>The one part with this role, as a piece — or null when it is absent or not buildable.</summary>
-    private static Item? PartPiece(ContentPart whole, string role, string? style, TexFormulaParser knowledge)
+    private static Item? PartPiece(ContentPart whole, string role, string? style)
     {
         foreach (var part in whole.Children)
-            if (part.Role == role) return Piece(part, style, knowledge);
+            if (part.Role == role) return Piece(part, style);
 
         return null;
     }
 
-    /// <summary>Everything written onto a base, once the base itself is built — as <see cref="Scripted(ContentPart, Atom, string?, TexFormulaParser)"/>.</summary>
-    private static Item? ScriptedOn(ContentPart part, Item on, string? style, TexFormulaParser knowledge)
+    /// <summary>Everything written onto a base, once the base itself is built — as <see cref="Scripted(ContentPart, Atom, string?)"/>.</summary>
+    private static Item? ScriptedOn(ContentPart part, Item on, string? style)
     {
         // A prefix: an empty box wearing the scripts, followed by the base.
         if (Order(part, Roles.Name) is var name and >= 0 && Order(part, TexRole.Base) > name)
         {
-            var carried = ScriptsOn(part, NullItem(), style, knowledge);
+            var carried = ScriptsOn(part, NullItem(), style);
             if (carried is null) return null;
 
             return Sequenced([carried, on], part);
@@ -756,23 +713,15 @@ internal static class TexTypesetter
             on = Scripts(on, null, Sequenced(primes, part), part);
         }
 
-        var superscript = PartPiece(part, TexRole.Superscript, style, knowledge);
-        var subscript = PartPiece(part, TexRole.Subscript, style, knowledge);
+        var superscript = PartPiece(part, TexRole.Superscript, style);
+        var subscript = PartPiece(part, TexRole.Subscript, style);
 
         if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
         if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
 
         if (superscript is null && subscript is null) return marks.Count > 0 ? on : null;
 
-        var asked = part.Part(TexRole.Base)?.Children
-            .FirstOrDefault(child => child.Kind == TexKinds.Command
-                                     && child.Part(Roles.Name)?.Text is @"\limits" or @"\nolimits")
-            ?.Part(Roles.Name)?.Text switch
-        {
-            @"\limits" => true,
-            @"\nolimits" => false,
-            _ => (bool?)null,
-        };
+        var asked = part.Part(TexRole.Base)?.Children.Select(Meant).OfType<TexLimits>().FirstOrDefault()?.Vertical;
 
         // Scripts on a big operator are its limits (over/under or beside it, by style and by \limits/\nolimits), and
         // so are scripts on anything typed as one.
@@ -786,11 +735,11 @@ internal static class TexTypesetter
         return Scripts(on, subscript, superscript, part);
     }
 
-    /// <summary>This node's scripts set on whatever is handed in, as <see cref="Scripts(ContentPart, Atom, string?, TexFormulaParser)"/> — used for a prefix.</summary>
-    private static Item? ScriptsOn(ContentPart part, Item on, string? style, TexFormulaParser knowledge)
+    /// <summary>This node's scripts set on whatever is handed in, as <see cref="Scripts(ContentPart, Atom, string?)"/> — used for a prefix.</summary>
+    private static Item? ScriptsOn(ContentPart part, Item on, string? style)
     {
-        var superscript = PartPiece(part, TexRole.Superscript, style, knowledge);
-        var subscript = PartPiece(part, TexRole.Subscript, style, knowledge);
+        var superscript = PartPiece(part, TexRole.Superscript, style);
+        var subscript = PartPiece(part, TexRole.Subscript, style);
 
         if (part.Part(TexRole.Superscript) is not null && superscript is null) return null;
         if (part.Part(TexRole.Subscript) is not null && subscript is null) return null;
@@ -1156,41 +1105,42 @@ internal static class TexTypesetter
         return Vertical(stack, height, body.Depth, measuredShifts: [0, 0, body.Shift]);
     }
 
-    /// <summary>A command, set as <see cref="Command"/> reads it — in the same order, so the same reading wins.</summary>
-    private static Item? Commanded(ContentPart part, string? style, TexFormulaParser knowledge)
+    /// <summary>
+    /// A command, set as what it means (<see cref="TexCommandNode"/>). A construct is set from its parts; where what it was
+    /// written as stands for something else, that is set in its place; and a symbol, a strut or a composite standing on its own is
+    /// its glyph.
+    /// </summary>
+    private static Item? Commanded(ContentPart part, string? style)
     {
-        if (part.Part(Roles.Name)?.Text is not { } name) return null;
+        var meaning = Meant(part);
 
-        switch (name)
+        switch (meaning)
         {
-            case @"\frac":
+            case TexFraction:
             {
-                if (PartPiece(part, TexRole.Numerator, style, knowledge) is not { } numerator) return null;
-                if (PartPiece(part, TexRole.Denominator, style, knowledge) is not { } denominator) return null;
+                if (PartPiece(part, TexRole.Numerator, style) is not { } numerator) return null;
+                if (PartPiece(part, TexRole.Denominator, style) is not { } denominator) return null;
 
                 return new Item(TexAtomType.Inner, TexAtomType.Inner, null, (environment, _) =>
                     Fraction(numerator, denominator, environment) with { Part = part });
             }
 
-            case @"\sqrt":
+            case TexRoot:
             {
-                if (PartPiece(part, TexRole.Radicand, style, knowledge) is not { } radicand) return null;
+                if (PartPiece(part, TexRole.Radicand, style) is not { } radicand) return null;
 
                 var asked = part.Part(TexRole.Degree);
-                var degree = asked is null ? null : PartPiece(part, TexRole.Degree, style, knowledge);
+                var degree = asked is null ? null : PartPiece(part, TexRole.Degree, style);
                 if (asked is not null && degree is null) return null;
 
                 return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
                     Root(radicand, degree, environment) with { Part = part });
             }
 
-            case @"\substack":
-            case @"\matrix":
-            case @"\pmatrix":
-            case @"\cases":
-                return Stacked(part, style, knowledge);
+            case TexStack stack:
+                return Stacked(part, stack.Arrangement, style);
 
-            case @"\hdotsfor":
+            case TexRowOfDots:
             {
                 if (part.Node.HeldAs(Roles.Derived) is not TexDots dots) return null;
 
@@ -1202,17 +1152,16 @@ internal static class TexTypesetter
                 };
             }
 
-            case @"\textcolor":
+            case TexColour { Switch: false } colour:
             {
-                if (Colour(part) is not { } ink) return null;
-                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+                if (PartPiece(part, TexRole.Base, style) is not { } inner) return null;
 
-                return Painted(inner, ink, part);
+                return Painted(inner, Brush(colour.Colour), part);
             }
 
-            case @"\overline":
+            case TexOverline:
             {
-                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+                if (PartPiece(part, TexRole.Base, style) is not { } inner) return null;
 
                 return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
                 {
@@ -1227,9 +1176,9 @@ internal static class TexTypesetter
                 });
             }
 
-            case @"\underline":
+            case TexUnderline:
             {
-                if (PartPiece(part, TexRole.Base, style, knowledge) is not { } inner) return null;
+                if (PartPiece(part, TexRole.Base, style) is not { } inner) return null;
 
                 return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
                 {
@@ -1242,169 +1191,158 @@ internal static class TexTypesetter
                 });
             }
 
-            case @"\not":
+            case TexNegation:
             {
                 if (part.Part(TexRole.Base) is null) return null;
                 if (DeclineUnsettled && part.Parent is { Kind: TexKinds.Script } && part.Role == TexRole.Base) return null;
-                if (SymbolItem("not", part) is not { } slash) return null;
 
                 // The slash, then everything written after the name in the order it was written: one sign.
-                var sign = new List<Item> { slash };
+                var sign = new List<Item> { GlyphItem(Glyph.Symbol("not")! with { Origin = part }) };
                 foreach (var written in part.Children)
                 {
                     if (written.Role is not (Roles.Element or TexRole.Base)) continue;
 
-                    if (Piece(written, style, knowledge) is { } built) sign.Add(Retagged(built, part));
+                    if (Piece(written, style) is { } built) sign.Add(Retagged(built, part));
                     else if (written.Role == TexRole.Base) return null;
                 }
 
                 return Sequenced(sign, part);
             }
 
-            case @"\mspace":
-            case @"\hspace":
-            case @"\hspace*":
-            case @"\kern":
-            case @"\mkern":
-            {
-                if (part.Part(TexRole.Argument) is not { } amount) return null;
+            // A word space stands for nothing but itself, and says nothing written after it.
+            case TexSpace { Unit: null } when part.Parts.Any():
+                return null;
 
-                return Value(amount) is { } said && StandardCommands.LengthOf(name, said) is { } length ? SpaceItem(length.Unit, length.Value) : null;
+            case TexSpace space:
+                return SpaceItem(space.Unit, space.Amount);
+
+            // One bracket at a chosen size, standing on its own.
+            case TexSizedDelimiter sized:
+                return SizedDelimiter(Glyph.Of(sized.Delimiter) with { Origin = part }, sized.MinHeight, sized.Class, part);
+
+            // Something set above or below something else — \stackrel, \overset, \underset.
+            case TexAnnotation annotation:
+            {
+                var above = part.Part(TexRole.Over) is not null ? TexRole.Over
+                          : part.Part(TexRole.Under) is not null ? TexRole.Under
+                          : null;
+
+                if (above is null
+                    || PartPiece(part, above, style) is not { } marked
+                    || PartPiece(part, TexRole.Base, style) is not { } on)
+                    return null;
+
+                var set = UnderOver(on, marked, TexUnit.Mu, TexAnnotation.Space, smaller: true, annotation.Over, part);
+                return annotation.AsRelation ? Typed(set, TexAtomType.Relation, part) : set;
             }
 
-            case @"\ ":
-            case @"\nbsp":
-                return part.Parts.Any() ? null : SpaceItem(null, 0);
-        }
-
-        // A sized delimiter: one bracket at a chosen size, standing on its own.
-        if (DelimiterGlyph(part) is { } sized && StandardCommands.SizedDelimiterOf(name[1..]) is { } big)
-            return SizedDelimiter(sized, big.MinHeight, big.Type, part);
-
-        // Something set above or below something else — \stackrel, \overset, \underset.
-        if (part.Part(TexRole.Over) is not null || part.Part(TexRole.Under) is not null)
-        {
-            var above = part.Part(TexRole.Over) is not null ? TexRole.Over : TexRole.Under;
-
-            if (PartPiece(part, above, style, knowledge) is { } annotation
-                && PartPiece(part, TexRole.Base, style, knowledge) is { } on
-                && StandardCommands.Dictionary.TryGetValue(name[1..], out var entry)
-                && entry is StandardCommands.StackedAnnotationCommand stacked)
-            {
-                var set = UnderOver(on, annotation, TexUnit.Mu, StandardCommands.StackedAnnotationCommand.AnnotationSpace,
-                                    smaller: true, stacked.Over, part);
-                return stacked.AsRelation ? Typed(set, TexAtomType.Relation, part) : set;
-            }
-        }
-
-        // A style: carried down the build rather than built.
-        if (TexFormulaParser.TextStyleOf(name[1..]) is { } restyled)
-        {
-            if (TexFormulaParser.IsRawTextStyle(name[1..]))
+            // Words set as the characters between the braces, each one the piece of the reading it is.
+            case TexFace { Words: true } words:
             {
                 if (part.Part(TexRole.Base) is not { } worded) return null;
 
-                var face = name[1..] == "mbox" ? TexUtilities.TextStyleName : restyled;
-                // Words set as the characters between the braces, each one the piece of the reading it is.
                 return WrittenItem(Leaves(worded).Where(leaf => leaf.Parent != worded || leaf.Role is not (Roles.Open or Roles.Close)),
-                                   face, spaced: false, part);
+                                   words.Face, spaced: false, part);
             }
 
-            if (part.Part(TexRole.Base) is not { } styled) return null;
-            if (Piece(styled, restyled, knowledge) is not { } inner) return null;
-
-            return Retagged(inner, part);
-        }
-
-        // Every accent at once.
-        if (part.Part(TexRole.Base) is { } accented && Glyph.Symbol(name.TrimStart('\\')) is { Type: TexAtomType.Accent } accent)
-        {
-            if (Piece(accented, style, knowledge) is not { } inner) return null;
-
-            return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
-                Accented(inner, accent, environment) with { Part = part })
+            // A face: carried down the build rather than built.
+            case TexFace face:
             {
-                Nucleus = inner.Nucleus,
-            };
-        }
+                if (part.Part(TexRole.Base) is not { } styled) return null;
+                if (Piece(styled, face.Face) is not { } inner) return null;
 
-        // Any other command the table makes from arguments already built.
-        if (StandardCommands.Dictionary.TryGetValue(name[1..], out var command) && Assembles(command))
-        {
-            var arguments = new List<Item>();
-
-            foreach (var argument in part.Parts)
-            {
-                if (Piece(argument, style, knowledge) is not { } built) return null;
-
-                arguments.Add(built);
+                return Retagged(inner, part);
             }
 
-            return Assembled(command, arguments, part);
+            case TexNamedSymbol { Symbol.Class: TexAtomType.Accent } accent when part.Part(TexRole.Base) is { } accented:
+            {
+                if (Piece(accented, style) is not { } inner) return null;
+
+                return new Item(TexAtomType.Ordinary, TexAtomType.Ordinary, null, (environment, _) =>
+                    Accented(inner, Glyph.Of(accent.Symbol), environment) with { Part = part })
+                {
+                    Nucleus = inner.Nucleus,
+                };
+            }
+
+            // Any other construct, made from its arguments once each is built.
+            case { } assembled when Assembles(assembled):
+            {
+                var arguments = new List<Item>();
+
+                foreach (var argument in part.Parts)
+                {
+                    if (Piece(argument, style) is not { } built) return null;
+
+                    arguments.Add(built);
+                }
+
+                return Assembled(assembled, arguments, part);
+            }
         }
 
         // Shorthand: what the reader said it stands for is hanging underneath.
-        if (PartPiece(part, Roles.Derived, style, knowledge) is { } shorthand) return Retagged(shorthand, part);
+        if (PartPiece(part, Roles.Derived, style) is { } shorthand) return Retagged(shorthand, part);
 
-        // A symbol standing on its own, if it is one.
-        if (!part.Parts.Any() && SymbolItem(name[1..], part) is { } symbol) return symbol;
+        // A symbol standing on its own, or something drawn in place of one that LaTeX has no spelling for.
+        if (!part.Parts.Any())
+        {
+            switch (meaning)
+            {
+                case TexNamedSymbol named: return SymbolItem(named, part);
+                case TexSurd: return Surd(part);
+                case TexPile pile: return Pile(pile.Under, pile.Over, pile.Gap, part);
+            }
+        }
 
-        return WordsItem(part, style, knowledge);
+        return WordsItem(part, style);
     }
 
-    /// <summary>Whether a table entry is one <see cref="Assembled"/> sets from its arguments.</summary>
-    private static bool Assembles(object? command) =>
-        command is StandardCommands.OverArrowCommand or StandardCommands.DotsCommand or StandardCommands.FracStyleCommand
-            or StandardCommands.CfracCommand or StandardCommands.SlashFractionCommand or StandardCommands.ParenModCommand
-            or StandardCommands.GenFracCommand or StandardCommands.PhantomCommand or StandardCommands.SmashCommand
-            or StandardCommands.BoxedCommand or StandardCommands.ExtensibleArrowCommand or StandardCommands.BraceCommand
-            or StandardCommands.BoldSymbolCommand or StandardCommands.OperatorNameCommand or StandardCommands.BinomCommand
-            or StandardCommands.BraketCommand or StandardCommands.CancelCommand or StandardCommands.AtomTypeCommand
-            or StandardCommands.UnderscoreCommand or StandardCommands.TransparentCommand;
+    /// <summary>Whether a meaning is a construct <see cref="Assembled"/> sets from its arguments.</summary>
+    private static bool Assembles(TexMeaning meaning) =>
+        meaning is TexOverArrow or TexStackedDots or TexStyledFraction or TexContinuedFraction or TexSlashFraction or TexModulus
+            or TexGeneralFraction or TexPhantom or TexSmash or TexBoxed or TexExtensibleArrow or TexBrace or TexBoldSymbol
+            or TexOperatorName or TexBinomial or TexBraket or TexCancel or TexRetyped or TexUnderscore or TexTransparent;
 
-    /// <summary>
-    /// What a command in the table makes of arguments already built — as each entry's <c>Assemble</c> does with atoms.
-    /// Null where these arguments do not suit it.
-    /// </summary>
-    private static Item? Assembled(object? command, IReadOnlyList<Item> arguments, ContentPart origin)
+    /// <summary>What a construct makes of arguments already built. Null where these arguments do not suit it.</summary>
+    private static Item? Assembled(TexMeaning meaning, IReadOnlyList<Item> arguments, ContentPart origin)
     {
-        switch (command)
+        switch (meaning)
         {
-            case StandardCommands.OverArrowCommand arrow when arguments.Count == 1:
+            case TexOverArrow arrow when arguments.Count == 1:
             {
                 var inner = arguments[0];
                 return Made(TexAtomType.Ordinary, origin, environment => OverArrow(inner, arrow.Decoration, arrow.Over, environment));
             }
 
-            case StandardCommands.DotsCommand dots when arguments.Count == 0:
-                return Made(TexAtomType.Ordinary, origin, environment => Dots(dots.Shape, environment));
+            case TexStackedDots dots when arguments.Count == 0:
+                return Made(TexAtomType.Ordinary, origin, environment => Dots(dots.Diagonal, environment));
 
-            case StandardCommands.FracStyleCommand forced when arguments.Count == 2:
+            case TexStyledFraction forced when arguments.Count == 2:
             {
                 var (numerator, denominator) = (arguments[0], arguments[1]);
                 return Made(TexAtomType.Inner, origin, environment =>
                     Fraction(numerator, denominator, environment, forced: forced.Style));
             }
 
-            case StandardCommands.CfracCommand when arguments.Count is 2 or 3:
+            case TexContinuedFraction continued when arguments.Count is 2 or 3:
             {
                 var half = arguments.Count == 3 ? 1 : 0;
                 var (numerator, denominator) = (arguments[half], arguments[half + 1]);
-                var leaning = StandardCommands.CfracCommand.Leaning(origin);
                 return Made(TexAtomType.Inner, origin, environment =>
-                    Fraction(numerator, denominator, environment, forced: TexStyle.Display, keep: true, numeratorAlignment: leaning));
+                    Fraction(numerator, denominator, environment, forced: TexStyle.Display, keep: true, numeratorAlignment: continued.Leaning));
             }
 
-            case StandardCommands.SlashFractionCommand when arguments.Count == 2:
+            case TexSlashFraction when arguments.Count == 2:
             {
                 var (numerator, denominator) = (arguments[0], arguments[1]);
                 return Made(TexAtomType.Ordinary, origin, environment => SlashFraction(numerator, denominator, environment));
             }
 
-            case StandardCommands.ParenModCommand mod when arguments.Count == 1:
+            case TexModulus mod when arguments.Count == 1:
                 return Mod(arguments[0], mod.WithMod, mod.Fenced, origin);
 
-            case StandardCommands.GenFracCommand when arguments.Count == 6:
+            case TexGeneralFraction when arguments.Count == 6:
             {
                 // Written as `{}` where there is to be none: an argument that is not a delimiter is a side left open.
                 var left = arguments[0].Glyph is { SymbolName: not null } l ? l : null;
@@ -1415,34 +1353,34 @@ internal static class TexTypesetter
                 return left is null && right is null ? fraction : Fenced(fraction, left, right, origin);
             }
 
-            case StandardCommands.PhantomCommand phantom when arguments.Count == 1:
-                return Phantom(arguments[0], phantom.UseWidth, phantom.UseHeight, phantom.UseHeight);
+            case TexPhantom phantom when arguments.Count == 1:
+                return Phantom(arguments[0], phantom.Width, phantom.Height, phantom.Height);
 
-            case StandardCommands.SmashCommand smash when arguments.Count == 1:
+            case TexSmash smash when arguments.Count == 1:
             {
                 var inner = arguments[0];
-                return smash.LapAlignment is { } alignment
+                return smash.Lap is { } alignment
                     ? new Item(inner.Left, inner.Right, null, (environment, _) => Lap(inner, alignment, environment) with { Part = origin })
                     : new Item(inner.Left, inner.Right, null, (environment, _) => Smashed(inner, environment) with { Part = origin });
             }
 
-            case StandardCommands.BoxedCommand when arguments.Count == 1:
+            case TexBoxed when arguments.Count == 1:
             {
                 var inner = arguments[0];
                 return Made(TexAtomType.Ordinary, origin, environment => Boxed(inner, environment));
             }
 
-            case StandardCommands.ExtensibleArrowCommand arrow when arguments.Count is 1 or 2:
+            case TexExtensibleArrow arrow when arguments.Count is 1 or 2:
             {
                 var over = arguments[^1];
                 var under = arguments.Count == 2 ? arguments[0] : null;
                 return Made(TexAtomType.Relation, origin, environment => ExtensibleArrow(over, under, arrow.Decoration, environment));
             }
 
-            case StandardCommands.BraceCommand brace:
-                return arguments.Count == 1 ? Brace(arguments[0], null, brace.IsOver, origin) : null;
+            case TexBrace brace:
+                return arguments.Count == 1 ? Brace(arguments[0], null, brace, origin) : null;
 
-            case StandardCommands.BoldSymbolCommand when arguments.Count == 1:
+            case TexBoldSymbol when arguments.Count == 1:
             {
                 var inner = arguments[0];
                 return new Item(inner.Left, inner.Right, null, (environment, _) =>
@@ -1455,10 +1393,10 @@ internal static class TexTypesetter
                 };
             }
 
-            case StandardCommands.OperatorNameCommand name when arguments.Count == 1:
+            case TexOperatorName name when arguments.Count == 1:
                 return Operator(arguments[0], null, null, name.Starred ? null : false, origin);
 
-            case StandardCommands.BinomCommand binom when arguments.Count == 2:
+            case TexBinomial binom when arguments.Count == 2:
             {
                 var (numerator, denominator) = (arguments[0], arguments[1]);
                 var fraction = Made(TexAtomType.Inner, origin, environment =>
@@ -1470,13 +1408,13 @@ internal static class TexTypesetter
                               origin);
             }
 
-            case StandardCommands.BraketCommand braket when arguments.Count == 1:
+            case TexBraket braket when arguments.Count == 1:
                 return Fenced(arguments[0],
                               Glyph.Named(braket.Open, TexAtomType.Opening, true) with { Origin = origin },
                               Glyph.Named(braket.Close, TexAtomType.Closing, true) with { Origin = origin },
                               origin);
 
-            case StandardCommands.CancelCommand cancel when arguments.Count == 1:
+            case TexCancel cancel when arguments.Count == 1:
             {
                 var inner = arguments[0];
                 return Made(TexAtomType.Ordinary, origin, environment =>
@@ -1487,13 +1425,13 @@ internal static class TexTypesetter
                 });
             }
 
-            case StandardCommands.AtomTypeCommand typed when arguments.Count == 1:
-                return Typed(arguments[0], typed.Type, origin);
+            case TexRetyped retyped when arguments.Count == 1:
+                return Typed(arguments[0], retyped.Class, origin);
 
-            case StandardCommands.UnderscoreCommand when arguments.Count == 0:
+            case TexUnderscore when arguments.Count == 0:
                 return RuleItem(TexUnit.Ex, width: 0.7, thickness: 0.1, shift: 0.3, origin);
 
-            case StandardCommands.TransparentCommand when arguments.Count == 1:
+            case TexTransparent when arguments.Count == 1:
                 return arguments[0];
 
             default:
@@ -1592,7 +1530,7 @@ internal static class TexTypesetter
     }
 
     /// <summary>Three dots stacked, or run down the diagonal, centred on the axis — <c>\vdots</c> and <c>\ddots</c>.</summary>
-    private static Set Dots(StandardCommands.DotsCommand.DotsShape shape, TexEnvironment environment)
+    private static Set Dots(bool diagonal, TexEnvironment environment)
     {
         var font = environment.MathFont;
         var style = environment.Style;
@@ -1602,7 +1540,7 @@ internal static class TexTypesetter
         var first = Dot();
         var quad = font.GetQuad(first.LastFontId, style);
         var gap = 0.18 * quad;
-        var step = shape == StandardCommands.DotsCommand.DotsShape.Diagonal ? first.Height + first.Depth + gap : 0.0;
+        var step = diagonal ? first.Height + first.Depth + gap : 0.0;
 
         var column = new List<Set>();
         for (var i = 0; i < 3; i++)
@@ -1755,6 +1693,9 @@ internal static class TexTypesetter
         return Horizontal([top, Strut(kern, 0, 0), slash, Strut(kern, 0, 0), bottom], null, null);
     }
 
+    /// <summary>A quad and a thick space, in mu: the room amsmath keeps before a modulus and after its word.</summary>
+    private const double Quad = 18, ThickSpace = 5;
+
     /// <summary><c>\pmod</c>, <c>\pod</c> and <c>\mod</c>: the word, the argument, the brackets where there are any, and the gap before.</summary>
     private static Item Mod(Item argument, bool withMod, bool fenced, ContentPart origin)
     {
@@ -1762,7 +1703,7 @@ internal static class TexTypesetter
         if (withMod)
         {
             foreach (var letter in "mod") inside.Add(GlyphItem(Glyph.Letter(letter, "mathrm")));
-            if (PrimitiveItem("thickspace", null) is { } thin) inside.Add(thin);
+            inside.Add(SpaceItem(TexUnit.Mu, ThickSpace));
         }
         inside.Add(argument);
 
@@ -1771,7 +1712,7 @@ internal static class TexTypesetter
         if (!fenced)
         {
             var bare = new List<Item>();
-            if (PrimitiveItem("quad", null) is { } lead) bare.Add(lead);
+            bare.Add(SpaceItem(TexUnit.Mu, Quad));
             bare.Add(word);
             return Sequenced(bare, origin);
         }
@@ -1782,7 +1723,7 @@ internal static class TexTypesetter
                               origin);
 
         var whole = new List<Item>();
-        if (PrimitiveItem("quad", null) is { } gap) whole.Add(gap);
+        whole.Add(SpaceItem(TexUnit.Mu, Quad));
         whole.Add(brackets);
         return Sequenced(whole, origin);
     }
@@ -1916,38 +1857,39 @@ internal static class TexTypesetter
         });
 
     /// <summary>A brace over or under a piece, with its label beyond it where one was written — <c>\overbrace{a+b}^{n}</c>.</summary>
-    private static Item Brace(Item on, Item? label, bool over, ContentPart origin) =>
+    private static Item Brace(Item on, Item? label, TexBrace brace, ContentPart origin) =>
         Made(TexAtomType.Ordinary, origin, environment =>
         {
-            var symbol = Glyph.Symbol(
-                TexFormulaParser.DelimiterNames[(int)TexDelimiter.Brace][(int)(over ? TexDelimeterType.Over : TexDelimeterType.Under)]);
+            var over = brace.Over;
+            var symbol = Glyph.Symbol(brace.Symbol);
 
             var body = on.Make(environment, null);
-            var brace = Delimiter(symbol!.SymbolName!, body.Width, environment);
+            var drawn = Delimiter(symbol!.SymbolName!, body.Width, environment);
             var script = label?.Make(over ? environment.GetSuperscriptStyle() : environment.GetSubscriptStyle(), null);
 
-            var width = System.Math.Max(body.Width, brace.Height + brace.Depth);
+            var width = System.Math.Max(body.Width, drawn.Height + drawn.Depth);
             if (script is not null) width = System.Math.Max(width, script.Width);
 
             if (System.Math.Abs(width - body.Width) > TexUtilities.FloatPrecision)
                 body = Centred(body, width);
 
             // Drawn turned, so its height and depth are what reach across.
-            var length = brace.Height + brace.Depth;
+            var length = drawn.Height + drawn.Depth;
             if (System.Math.Abs(width - length) > TexUtilities.FloatPrecision)
             {
                 var rest = width - length;
                 var half = Strut(0, rest / 2, 0);
-                brace = Vertical([half, brace, half], height: brace.Height + rest / 2, depth: brace.Depth + rest / 2,
-                                 measuredShifts: [brace.Shift, brace.Shift, brace.Shift]);
+                drawn = Vertical([half, drawn, half], height: drawn.Height + rest / 2, depth: drawn.Depth + rest / 2,
+                                 measuredShifts: [drawn.Shift, drawn.Shift, drawn.Shift]);
             }
 
             if (script is not null && System.Math.Abs(width - script.Width) > TexUtilities.FloatPrecision)
                 script = Centred(script, width);
 
-            var kern = StandardCommands.BraceCommand.LabelKern * Conversion(TexUnit.Ex, environment);
+            // Half an ex between the brace and its label.
+            var kern = 0.5 * Conversion(TexUnit.Ex, environment);
 
-            return OverUnderSet(body, brace, script, kern, over);
+            return OverUnderSet(body, drawn, script, kern, over);
         });
 
     /// <summary>A piece with a turned delimiter and a script over or under it.</summary>
@@ -1987,10 +1929,9 @@ internal static class TexTypesetter
     };
 
     /// <summary>This script read as a brace and its label, as <see cref="Labelled"/>, or null where it is not one.</summary>
-    private static Item? Braced(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Braced(ContentPart part, string? style)
     {
-        if (part.Part(TexRole.Base) is not { Kind: TexKinds.Command } braced) return null;
-        if (braced.Part(Roles.Name)?.Text is not { } name) return null;
+        if (part.Part(TexRole.Base) is not { Kind: TexKinds.Command } braced || Meant(braced) is not TexBrace brace) return null;
 
         var over = part.Part(TexRole.Superscript) is not null;
         var side = over ? TexRole.Superscript : TexRole.Subscript;
@@ -1998,46 +1939,40 @@ internal static class TexTypesetter
         if (part.Part(over ? TexRole.Subscript : TexRole.Superscript) is not null) return null;
         if (part.Part(TexRole.Mark) is not null) return null;
 
-        if (PartPiece(braced, TexRole.Base, style, knowledge) is not { } on) return null;
-        if (PartPiece(part, side, style, knowledge) is not { } label) return null;
+        if (PartPiece(braced, TexRole.Base, style) is not { } on) return null;
+        if (PartPiece(part, side, style) is not { } label) return null;
 
-        return StandardCommands.Dictionary.TryGetValue(name[1..], out var entry)
-               && entry is StandardCommands.BraceCommand brace && brace.IsOver == over
-            ? Brace(on, label, over, part)
-            : null;
+        return brace.Over == over ? Brace(on, label, brace, part) : null;
     }
 
     /// <summary>A block between <c>\begin</c> and <c>\end</c>, as <see cref="Environment"/>: a grid, an array, or a display environment that is its contents.</summary>
-    private static Item? Environmented(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Environmented(ContentPart part, string? style)
     {
-        if (part.Part(TexRole.Begin) is not { } begin) return null;
-        if (part.Part(TexRole.End) is null) return null;
+        if (part.Part(TexRole.Begin) is null || part.Part(TexRole.End) is null) return null;
+        if (part.Node is not TexGridNode { Arrangement: var arrangement }) return null;
 
-        if (!StandardCommands.Environments.TryGetValue(TexParser.NameOf(begin), out var arrangement))
-            return null;
-
-        if (arrangement is StandardCommands.TransparentEnvironment)
+        if (arrangement is TexContents)
         {
             var body = part.Parts.Where(child => child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option));
-            return Pieces(body, style, knowledge) is { Count: > 0 } built ? Sequenced(built, part) : null;
+            return Pieces(body, style) is { Count: > 0 } built ? Sequenced(built, part) : null;
         }
 
         foreach (var child in part.Parts)
             if (child.Role is not (TexRole.Begin or TexRole.End or TexRole.Option or TexRole.Argument or Roles.Row))
                 return null;
 
-        if (Grid(part, style, knowledge) is not { } cells) return null;
+        if (Grid(part, style) is not { } cells) return null;
 
         return arrangement switch
         {
-            MatrixCommandParser matrix => Arranged(matrix, cells, part),
-            ArrayCommandParser => Arrayed(part, cells),
+            TexMatrixArrangement matrix => Arranged(matrix, cells, part),
+            TexArrayArrangement array => Arrayed(part, array, cells),
             _ => null,
         };
     }
 
     /// <summary>The grid, row by row and squared off, as <see cref="Cells"/>.</summary>
-    private static List<List<Item>>? Grid(ContentPart environment, string? style, TexFormulaParser knowledge)
+    private static List<List<Item>>? Grid(ContentPart environment, string? style)
     {
         var rows = new List<List<Item>>();
 
@@ -2055,7 +1990,7 @@ internal static class TexTypesetter
             {
                 if (cell.Role != Roles.Cell) continue;
 
-                var built = Pieces(cell.Parts.Where(piece => !IsRule(piece)), style, knowledge);
+                var built = Pieces(cell.Parts.Where(piece => !IsRule(piece)), style);
                 if (built is null) return null;
 
                 var item = built.Count switch
@@ -2085,14 +2020,14 @@ internal static class TexTypesetter
         return rows;
     }
 
-    /// <summary>A grid arranged as its environment arranges one — padded, aligned, bracketed and sized — as <see cref="MatrixCommandParser.Assemble"/>.</summary>
-    private static Item Arranged(MatrixCommandParser arrangement, List<List<Item>> cells, ContentPart origin)
+    /// <summary>A grid arranged as its environment arranges one — padded, aligned, bracketed and sized.</summary>
+    private static Item Arranged(TexMatrixArrangement arrangement, List<List<Item>> cells, ContentPart origin)
     {
         var grid = Made(TexAtomType.Ordinary, origin, environment => Matrix(
-            cells, environment, arrangement.CellAlignment, arrangement.VerticalPadding, arrangement.HorizontalPadding,
-            suppressOuterPadding: arrangement.CellAlignment != MatrixCellAlignment.Aligned,
-            rowStrutHeight: arrangement.RowStrut ? MatrixCommandParser.DefaultRowStrutHeight : 0,
-            rowStrutDepth: arrangement.RowStrut ? MatrixCommandParser.DefaultRowStrutDepth : 0));
+            cells, environment, arrangement.Alignment, arrangement.VerticalPadding, arrangement.HorizontalPadding,
+            suppressOuterPadding: arrangement.Alignment != MatrixCellAlignment.Aligned,
+            rowStrutHeight: arrangement.RowStrut ? TexMatrixArrangement.RowStrutHeight : 0,
+            rowStrutDepth: arrangement.RowStrut ? TexMatrixArrangement.RowStrutDepth : 0));
 
         Glyph? Delimiter(string? name) =>
             name == null
@@ -2101,51 +2036,32 @@ internal static class TexTypesetter
                     ? symbol
                     : throw new TexParseException($"The delimiter {name} could not be found");
 
-        var left = Delimiter(arrangement.LeftDelimiter);
-        var right = Delimiter(arrangement.RightDelimiter);
+        var left = Delimiter(arrangement.Left);
+        var right = Delimiter(arrangement.Right);
 
         var item = left is null && right is null ? grid : Fenced(grid, left, right, origin);
 
         return arrangement.Style is { } style ? Styled(item, style, origin) : item;
     }
 
-    /// <summary><c>\begin{array}</c>, its preamble read as text, as <see cref="Array"/>.</summary>
-    private static Item? Arrayed(ContentPart part, List<List<Item>> cells)
+    /// <summary><c>\begin{array}</c>, its columns as its preamble says, as <see cref="Array"/>.</summary>
+    private static Item? Arrayed(ContentPart part, TexArrayArrangement array, List<List<Item>> cells)
     {
-        if (part.Part(TexRole.Option) is not { } option) return null;
-
-        if (option.Kind != TexKinds.Group || Value(option) is not { } written) return null;
         var columns = cells.Count == 0 ? 0 : cells.Max(row => row.Count);
         if (columns == 0) return null;
 
-        ArrayColumnSpec spec;
-        if (!written.Any(c => c is 'l' or 'c' or 'r'))
-        {
-            spec = ArrayColumnSpec.Centred(columns);
-        }
-        else
-        {
-            try
-            {
-                spec = ArrayColumnSpec.Parse(written);
-            }
-            catch (TexParseException)
-            {
-                return null;
-            }
-        }
-
+        var spec = array.Columns ?? TexColumns.Centred(columns);
         var rules = Ruled(part);
 
         return Made(TexAtomType.Ordinary, part, environment => Matrix(
             cells, environment, MatrixCellAlignment.Center,
             verticalPadding: 0,
-            horizontalPadding: MatrixCommandParser.DefaultColumnGap,
+            horizontalPadding: TexMatrixArrangement.ColumnGap,
             suppressOuterPadding: true,
             columnSpec: spec,
             horizontalRules: rules,
-            rowStrutHeight: MatrixCommandParser.DefaultRowStrutHeight,
-            rowStrutDepth: MatrixCommandParser.DefaultRowStrutDepth));
+            rowStrutHeight: TexMatrixArrangement.RowStrutHeight,
+            rowStrutDepth: TexMatrixArrangement.RowStrutDepth));
     }
 
     /// <summary>
@@ -2153,12 +2069,10 @@ internal static class TexTypesetter
     /// <c>\matrix{…}</c>, <c>\pmatrix{…}</c> and <c>\cases{…}</c>: the braces hold the rows, and the command is how they
     /// are arranged, the same arrangement the environment of that name has.
     /// </summary>
-    private static Item? Stacked(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Stacked(ContentPart part, TexMatrixArrangement arrangement, string? style)
     {
-        if (part.Part(Roles.Name)?.Text is not { } name) return null;
-        if (!StandardCommands.Dictionary.TryGetValue(name[1..], out var entry) || entry is not MatrixCommandParser arrangement) return null;
         if (part.Part(TexRole.Base) is not { } lines) return null;
-        if (Grid(lines, style, knowledge) is not { } rows) return null;
+        if (Grid(lines, style) is not { } rows) return null;
 
         return Arranged(arrangement, rows, part);
     }
@@ -2170,7 +2084,7 @@ internal static class TexTypesetter
     private static Set Matrix(
         List<List<Item>> rows, TexEnvironment environment, MatrixCellAlignment alignment,
         double verticalPadding, double horizontalPadding, bool suppressOuterPadding = false,
-        ArrayColumnSpec? columnSpec = null, IReadOnlyCollection<int>? horizontalRules = null,
+        TexColumns? columnSpec = null, IReadOnlyCollection<int>? horizontalRules = null,
         double rowStrutHeight = 0, double rowStrutDepth = 0)
     {
         const double lineSkip = 0.1;
@@ -2313,10 +2227,10 @@ internal static class TexTypesetter
     }
 
     /// <summary>Something between delimiters that grow to hold it, as <see cref="Fence"/>.</summary>
-    private static Item? Fenced(ContentPart part, string? style, TexFormulaParser knowledge)
+    private static Item? Fenced(ContentPart part, string? style)
     {
         if (part.Part(Roles.Body) is not { } body) return null;
-        if (Piece(body, style, knowledge) is not { } inside) return null;
+        if (Piece(body, style) is not { } inside) return null;
 
         if (part.Part(Roles.Open) is not { } open) return null;
         if (part.Part(Roles.Close) is not { } close) return null;
@@ -2360,12 +2274,10 @@ internal static class TexTypesetter
     // ── One part ────────────────────────────────────────────────────────────
 
     /// <summary>Whether this is an equation's number — <c>\tag</c>, or <c>\tag*</c> without its parentheses.</summary>
-    private static bool IsTag(ContentPart part) =>
-        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text is @"\tag" or @"\tag*";
+    private static bool IsTag(ContentPart part) => Meant(part) is TexTag;
 
     /// <summary>Whether this piece is an <c>\hline</c> — a rule across the table, not a cell's contents.</summary>
-    private static bool IsRule(ContentPart part) =>
-        part.Kind == TexKinds.Command && part.Part(Roles.Name)?.Text == @"\hline";
+    private static bool IsRule(ContentPart part) => Meant(part) is TexRule;
 
     /// <summary>
     /// The row boundaries carrying a rule, numbered from 0 above the first row. <c>\hline</c> is written inside the
@@ -2402,67 +2314,15 @@ internal static class TexTypesetter
         group.Role == Roles.Element
         || (group.Role == TexRole.Base && group.Parent?.Kind == TexKinds.Script);
 
-    /// <summary>What this part switches, when it is a switch standing in a run rather than a command with an argument. Read from the same table the parser uses, so the two can't disagree on which a name is.</summary>
-    private static (string? TextStyle, TexStyle? Style)? Switch(ContentPart part)
-    {
-        if (part.Kind != TexKinds.Command || part.Parts.Any()) return null;
-        if (part.Part(Roles.Name)?.Text is not { } name) return null;
-
-        return StandardCommands.IsSwitch(name[1..], out var textStyle, out var style)
-            ? (textStyle, style)
-            : null;
-    }
-
-    /// <summary>
-    /// The commands this sets itself, rather than by asking the symbol tables for a glyph. What can be drawn is
-    /// something the <em>reading</em> has to know (it marks whatever cannot be, before anything is built), and this
-    /// list is the single source of truth for that — the reading once asked a since-deleted parser's own table
-    /// instead, which had never heard of <c>\ </c>, so a written space came out underlined in red. The
-    /// <c>BuilderSetsWhatItSaysItSets</c> test holds this to the switch below, so a case added without a name here
-    /// fails rather than quietly reddening.
-    /// </summary>
-    internal static readonly IReadOnlySet<string> Handles = new HashSet<string>(System.StringComparer.Ordinal)
-    {
-        @"\frac", @"\sqrt", @"\substack", @"\matrix", @"\pmatrix", @"\cases", @"\textcolor", @"\hdotsfor", @"\overline", @"\underline", @"\not",
-        @"\mspace", @"\hspace", @"\hspace*", @"\kern", @"\mkern", @"\ ", @"\nbsp",
-    };
-
-    /// <summary>
-    /// The commands this takes as structure rather than drawing: they say something about what is around them and
-    /// make no mark of their own — separate from <see cref="Handles"/> because they're a different claim. A name in
-    /// Handles turns into an atom via the switch below; one here is read off the tree and consumed (<c>\hline</c>
-    /// becomes a grid rule, <c>\limits</c> becomes how an operator wears its scripts). Both must answer yes to
-    /// <see cref="Draws"/> or the reading marks them undrawable.
-    /// </summary>
-    internal static readonly IReadOnlySet<string> Absorbs = new HashSet<string>(System.StringComparer.Ordinal)
-    {
-        @"\hline", @"\limits", @"\nolimits",
-    };
-
-    /// <summary>
-    /// Whether anything here can set this command, given its name as written, backslash and all. What the reading
-    /// asks before showing something as its own characters — either set here by name, or something the tables have
-    /// a glyph, expansion or face for.
-    /// </summary>
-    public static bool Draws(string written, TexFormulaParser knowledge) =>
-        Handles.Contains(written)
-        || Absorbs.Contains(written)
-        || (written.Length > 1 && PrimitiveItem(written[1..], null) is not null)
-        || knowledge.Draws(written);
+    /// <summary>What this part switches, when it is a switch standing in a run rather than a command with an argument.</summary>
+    private static TexSwitch? Switch(ContentPart part) => part.Parts.Any() ? null : Meant(part) as TexSwitch;
 
     // ── Bookkeeping ─────────────────────────────────────────────────────────
 
-    private static bool Discarded(ContentPart part) =>
-        part.Kind == TexKinds.Command
-        && part.Part(Roles.Name)?.Text is { } name
-        && StandardCommands.IsDiscarded(name[1..]);
+    private static bool Discarded(ContentPart part) => Meant(part) is TexDiscarded;
 
-    /// <summary>
-    /// What an argument holding a value says (<see cref="ReadValues"/>) — or, for one written without braces, the one piece it
-    /// is. Null where it holds no value.
-    /// </summary>
-    private static string? Value(ContentPart argument) =>
-        argument.Node.Said(TexRole.Value) ?? (argument.Children.Count == 0 ? argument.Text : null);
+    /// <summary>What a command means, as the reading says (<see cref="TexCommandNode"/>) — null for anything else, and for a command LaTeX does not have.</summary>
+    private static TexMeaning? Meant(ContentPart part) => (part.Node as TexCommandNode)?.Meaning;
 
     /// <summary>
     /// A stretch set as the characters it is written with, as <see cref="Letters"/> — each one standing for the piece of the

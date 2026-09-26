@@ -53,13 +53,13 @@
            had stopped protecting anything: the builder built its atoms, reached its boxes and captured its
            drawing, and a box could not lay itself into the layout tree across it.
 
-           The data is TeX's knowledge of how to set maths, not of what maths means, which is why it lives
-           beside the builder and not in Nexaflow.Maths. Its manifest names are pinned to what the readers
-           ask for, and the faces are WPF resources under Tex\Fonts\, the path the font provider asks for. -->
+           The data is TeX's knowledge of how to set maths — the metrics of every glyph and the glue between
+           classes — not of what maths means, which is Nexaflow.Markdown's (TexVocabulary). Its manifest names
+           are pinned to what the readers ask for, and the faces are WPF resources under Tex\Fonts\, the path the
+           font provider asks for. -->
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\DefaultTexFont.xml" LogicalName="XamlMath.Data.DefaultTexFont.xml" />
       <EmbeddedResource Include="Markdown\Latex\Tex\Data\GlueSettings.xml" LogicalName="XamlMath.Data.GlueSettings.xml" />
-      <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexFormulaSettings.xml" LogicalName="XamlMath.Data.TexFormulaSettings.xml" />
-      <EmbeddedResource Include="Markdown\Latex\Tex\Data\TexSymbols.xml" LogicalName="XamlMath.Data.TexSymbols.xml" />
+
       <Resource Include="Markdown\Latex\Tex\Fonts\*.ttf" />
       <None Include="Markdown\Latex\Tex\Fonts\LICENSES.md" />
     </ItemGroup>

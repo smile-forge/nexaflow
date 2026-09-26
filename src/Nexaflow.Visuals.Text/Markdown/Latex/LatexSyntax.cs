@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Markdown.Ast;
 
@@ -39,9 +39,8 @@ public static class LatexSyntax
             //
             // The same reading the renderer works from, and now literally so: one call, one tree, and
             // the complaints are what the pieces of it say about themselves rather than a second list
-            // kept alongside. What can be drawn is asked of the builder, as the renderer asks it — the
-            // tables only know what the typesetter's own parser read, so `a\ b` and every `\,` were
-            // called unfinished here while drawing without a word, and the solver lost their chips.
+            // kept alongside. What can be drawn is what the reading's own stages say each name means, which
+            // is what the renderer sets from — so `a\ b` and every `\,` read here exactly as they draw.
             var reading = new ContentEngine().Read("latex", latex, writing: true);
 
             return reading.Root.SelfAndDescendants()

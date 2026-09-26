@@ -7,7 +7,7 @@ using System.Threading;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex;

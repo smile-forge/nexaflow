@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 

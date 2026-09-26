@@ -144,7 +144,7 @@ internal static class Shipped
     public static readonly ContentLanguage Latex = new(
         Reads: static word => word?.Trim().ToLowerInvariant() is "latex" or "math" or "tex",
         Parser: static () => static source => ContentParse.Of(TexParser.Parse(source)),
-        Stages: static (tree, show) => TexPipeline.Of(LatexBuilder.Draws, Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
+        Stages: static (tree, show) => TexPipeline.Of(Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
         Builder: static (reading, show) =>
                 new LatexBuilder(reading, new EditState(reading.Source, 0, null, show.Own(reading.Source.Length)), show.Style, !show.Writing, show.Nesting))
         {

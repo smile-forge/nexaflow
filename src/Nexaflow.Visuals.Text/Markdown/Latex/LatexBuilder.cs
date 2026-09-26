@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using System.Collections.Generic;
@@ -37,24 +37,19 @@ public sealed partial class LatexBuilder : ContentBuilder
     /// <summary>The width of the display block, for a formula carrying a number — see <see cref="Numbered"/>.</summary>
     private double _block => double.IsInfinity(base.Room) ? 0 : base.Room;
 
-    /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
-    internal static bool Draws(string name) =>
-        TexTypesetter.Draws(name, WpfTeXFormulaParser.Instance);
-
 
     protected override Laid? Build()
     {
         if (Reading.Root.Length == 0) return null;
 
-        // The typesetter's own tables, not our reading — what a name means to it.
-        var knowledge = WpfTeXFormulaParser.Instance;
+
 
         var environment = WpfTeXEnvironment.Create(
             style: _inline ? TexStyle.Text : TexStyle.Display,
             scale: _scale,
             systemTextFontName: _systemFont);
 
-        var formula = TexTypesetter.Formula(Reading.Root, environment, knowledge);
+        var formula = TexTypesetter.Formula(Reading.Root, environment);
 
         // Also settles the tree onto the origin: negative coordinates would put the caret outside the control
         // that draws it.

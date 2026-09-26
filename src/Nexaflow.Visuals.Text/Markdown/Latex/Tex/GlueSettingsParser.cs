@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Xml.Linq;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Data;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
 

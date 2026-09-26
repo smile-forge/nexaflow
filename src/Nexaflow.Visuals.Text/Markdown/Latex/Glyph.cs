@@ -1,7 +1,9 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Fonts;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Utils;
+using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
@@ -17,10 +19,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 internal sealed record Glyph
 {
     /// <summary>The name a fence is given for a side written open — <c>\left.</c> — which draws nothing.</summary>
-    internal const string EmptyDelimiterName = "_emptyDelimiter";
-
-    /// <summary>Every symbol the tables name, as the glyph it is.</summary>
-    private static readonly System.Collections.Generic.IReadOnlyDictionary<string, Glyph> Symbols = new TexSymbolParser().GetSymbols();
+    internal const string EmptyDelimiterName = TexVocabulary.EmptyDelimiter;
 
     public char Character { get; init; }
 
@@ -46,18 +45,13 @@ internal sealed record Glyph
         new() { Character = character, TextStyle = textStyle };
 
     /// <summary>The symbol the tables call this, or null where they call nothing that.</summary>
-    public static Glyph? Symbol(string name) => Symbols.TryGetValue(name, out var symbol) ? symbol : null;
+    public static Glyph? Symbol(string name) => TexVocabulary.Symbol(name) is { } symbol ? Of(symbol) : null;
+
+    /// <summary>A symbol the reading named, as the glyph it is set as.</summary>
+    public static Glyph Of(TexSymbol symbol) => new() { SymbolName = symbol.Name, Type = symbol.Class, IsDelimiter = symbol.IsDelimiter };
 
     /// <summary>The delimiter this name stands for, or null where it names none or what it names cannot grow.</summary>
-    public static Glyph? Delimiter(string? name) =>
-        name is not null && Symbol(name) is { IsDelimiter: true } symbol ? symbol : null;
-
-    /// <summary>
-    /// The delimiter a character stands for, or null. <c>.</c> is how a fence is written with one end left open —
-    /// <c>\left. \right)</c> — so no delimiter is the right answer rather than a failure.
-    /// </summary>
-    public static Glyph? Delimiter(char character) =>
-        character == '.' ? null : Delimiter(TexFormulaParser.DelimiterMapping(character));
+    public static Glyph? Delimiter(string? name) => TexVocabulary.Delimiter(name) is { } symbol ? Of(symbol) : null;
 
     /// <summary>A symbol given its class outright — a bracket a command draws, whatever the table calls it.</summary>
     public static Glyph Named(string name, TexAtomType type, bool isDelimiter) =>

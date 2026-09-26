@@ -8,17 +8,13 @@ namespace Nexaflow.Markdown.Latex.Stages;
 /// what is written and not finished: a brace opened and never closed, a command short of an argument.
 ///
 /// <para>
-/// Asked of whatever is going to set the formula, because what can be drawn is a fact about a typesetter
-/// and this is a reader. Marking a piece leaves it the piece it was: an unclosed brace is still a brace
-/// and a command short an argument is still that command. What is added is something to say about it,
-/// which is what puts a line under it and a reason in the tooltip.
+/// A command is drawable when its meaning has been said (<see cref="ResolveCommands"/>), so this runs after that and
+/// asks the tree rather than any typesetter. Marking a piece leaves it the piece it was: an unclosed brace is still a
+/// brace and a command short an argument is still that command. What is added is something to say about it, which is
+/// what puts a line under it and a reason in the tooltip.
 /// </para>
 /// </summary>
-/// <param name="draws">
-/// Whether whatever is going to set this tree knows how to draw a command, given its name as written,
-/// backslash and all.
-/// </param>
-public sealed class CheckDrawable(Func<string, bool> draws) : IAstStage
+public sealed class CheckDrawable : IAstStage
 {
     public string Name => "latex:drawable";
 
@@ -42,7 +38,7 @@ public sealed class CheckDrawable(Func<string, bool> draws) : IAstStage
             ? node.Part(Roles.Name)
             : null;
 
-        var unreadable = name is not null && !draws(name.Text);
+        var unreadable = name is not null && node is not TexCommandNode;
 
         // A brace the writer opened and has not closed. The parser reads the group as running to the end
         // of what there is, which is the right reading — it prints back exactly and it still draws — but
