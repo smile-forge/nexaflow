@@ -29,7 +29,7 @@ public sealed class CheckDrawable : IAstStage
         AbcKinds.Note when node.Part(AbcRoles.Letter) is null && node.Width > 0 =>
             node.Saying("this alters nothing — there is no note after it"),
 
-        AbcKinds.Decoration when node is not MusicMarkNode && Named(node.Text) is { } name =>
+        AbcKinds.Decoration when node is not MusicMarkNode && node.Part(Roles.Name)?.Text is { } name =>
             node.Saying($"there is no {name} to draw"),
 
         AbcKinds.Overlay =>
@@ -37,8 +37,4 @@ public sealed class CheckDrawable : IAstStage
 
         _ => node,
     };
-
-    /// <summary>The name inside a <c>!…!</c> decoration, or null for the one-character shorthands.</summary>
-    private static string? Named(string text) =>
-        text.Length > 2 && text[0] == '!' && text[^1] == '!' ? text[1..^1] : null;
 }

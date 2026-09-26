@@ -28,7 +28,7 @@ public sealed class ResolveNotes : IAstStage
     public string Name => "abc:notes";
 
     /// <summary>What one event was worked out to be.</summary>
-    private record struct Fact(Pitch? Pitch, int? Printed, Duration Length, Duration Written);
+    private record struct Fact(Pitch? Pitch, int? Printed, Duration Length, Duration Written, AbcRestKind? Rest = null);
 
     public ContentNode Run(ContentNode tree)
     {
@@ -136,9 +136,12 @@ public sealed class ResolveNotes : IAstStage
                 }
 
                 case AbcKinds.Rest:
-                    facts.Add(new Fact(null, null, Rests(child, context, scale), Rests(child, context, One)));
+                {
+                    var kind = Which(child);
+                    facts.Add(new Fact(null, null, Rests(child, kind, context, scale), Rests(child, kind, context, One), kind));
                     Break(facts, ref broken);
                     continue;
+                }
 
                 default:
                     if (child.Children.Count > 0) Walk(child, ref context, scale, sounding, facts);
@@ -223,19 +226,26 @@ public sealed class ResolveNotes : IAstStage
     private static readonly Duration One = new(1, 1);
 
     private static Duration Lasts(ContentNode node, AbcContext context, Duration scale) =>
-        context.Unit * AbcTheory.Factor(node.Part(AbcRoles.Length)?.Text) * scale;
+        context.Unit * AbcTheory.Factor(node.Part(AbcRoles.Length)) * scale;
 
     /// <summary>
     /// How long a rest lasts. <c>Z</c> is a whole bar however long the bar is, and its multiplier counts
     /// bars rather than unit lengths — which is the one place ABC measures something in bars.
     /// </summary>
-    private static Duration Rests(ContentNode rest, AbcContext context, Duration scale)
+    private static Duration Rests(ContentNode rest, AbcRestKind kind, AbcContext context, Duration scale)
     {
-        var letter = rest.Part(Roles.Name)?.Text ?? "";
-        var factor = AbcTheory.Factor(rest.Part(AbcRoles.Length)?.Text);
+        var factor = AbcTheory.Factor(rest.Part(AbcRoles.Length));
 
-        return letter == "Z" ? context.Bar * factor : context.Unit * factor * scale;
+        return kind == AbcRestKind.Bars ? context.Bar * factor : context.Unit * factor * scale;
     }
+
+    /// <summary>Which rest its letter says it is: <c>z</c> is seen, <c>x</c> only takes time, and <c>Z</c> is whole bars.</summary>
+    private static AbcRestKind Which(ContentNode rest) => rest.Part(Roles.Name)?.Text switch
+    {
+        "x" => AbcRestKind.Unseen,
+        "Z" => AbcRestKind.Bars,
+        _ => AbcRestKind.Seen,
+    };
 
     /// <summary>What is in force for the notes after an inline field.</summary>
     private static AbcContext Inline(AbcFieldNode field, AbcContext context) =>
@@ -291,5 +301,5 @@ public sealed class ResolveNotes : IAstStage
     }
 
     private static ContentNode Timed(ContentNode node, Fact fact) =>
-        new AbcEventNode(node, null, null, fact.Length, fact.Written);
+        new AbcEventNode(node, null, null, fact.Length, fact.Written, fact.Rest);
 }

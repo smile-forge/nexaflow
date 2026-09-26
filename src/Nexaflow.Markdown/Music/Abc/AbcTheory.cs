@@ -1,3 +1,5 @@
+using Nexaflow.Markdown.Ast;
+
 namespace Nexaflow.Markdown.Music.Abc;
 
 /// <summary>
@@ -31,19 +33,23 @@ public static class AbcTheory
     /// What a written length suffix multiplies the unit note length by. <c>2</c> doubles, <c>/2</c>
     /// halves, <c>3/2</c> is a dotted one, a bare <c>/</c> halves once per slash. No suffix is 1.
     /// </summary>
-    public static Duration Factor(string? suffix)
+    public static Duration Factor(ContentNode? length)
     {
-        if (string.IsNullOrEmpty(suffix)) return new Duration(1, 1);
+        if (length is null) return new Duration(1, 1);
 
-        var at = 0;
-        var numerator = Digits(suffix, ref at);
-
+        long numerator = 0, denominator = 0;
         var slashes = 0;
-        while (at < suffix.Length && suffix[at] == '/') { slashes++; at++; }
+
+        foreach (var piece in length.Children)
+        {
+            if (piece.Kind != AbcKinds.Number) { slashes++; continue; }
+            if (!long.TryParse(piece.Text, out var number)) continue;
+
+            if (slashes == 0) numerator = number;
+            else denominator = number;
+        }
 
         if (slashes == 0) return Duration.Of(numerator > 0 ? numerator : 1, 1);
-
-        var denominator = Digits(suffix, ref at);
         if (denominator > 0) return Duration.Of(numerator > 0 ? numerator : 1, denominator);
 
         // Bare slashes halve once each: "A/" is a half, "A//" a quarter.
@@ -57,12 +63,4 @@ public static class AbcTheory
     /// </summary>
     public static Duration UnitFor(int beats, int unit) =>
         unit != 0 && (double)beats / unit < 0.75 ? new Duration(1, 4) : new Duration(1, 2);
-
-    private static long Digits(string text, ref int at)
-    {
-        long value = 0;
-        var any = false;
-        while (at < text.Length && char.IsAsciiDigit(text[at])) { value = (value * 10) + (text[at] - '0'); any = true; at++; }
-        return any ? value : 0;
-    }
 }

@@ -107,7 +107,7 @@ internal sealed class AbcBuilder : MusicBuilder
 
                 bar.Opened = Line(opened);
                 bar.Closed = Line(closed);
-                bar.EndsRepeat = closed is not null && Spelled(closed).Contains(':');
+                bar.EndsRepeat = closed?.Node is AbcBarlineNode { Repeats: true };
                 if (bar.Events.Count > 0 || closed is not null) row.Bars.Add(bar);
             }
 
@@ -314,7 +314,6 @@ internal sealed class AbcBuilder : MusicBuilder
 
     private Event Rest(ContentPart rest, ContentPart? beam)
     {
-        var letter = rest.Part(Roles.Name)?.Node.Text ?? "z";
         var read = rest.Node as AbcEventNode;
         var (value, dots) = Value(Written(read).Quarters);
 
@@ -322,8 +321,8 @@ internal sealed class AbcBuilder : MusicBuilder
         {
             Part = rest,
             IsRest = true,
-            Invisible = letter == "x",
-            WholeBar = letter == "Z",
+            Invisible = read?.Rest == AbcRestKind.Unseen,
+            WholeBar = read?.Rest == AbcRestKind.Bars,
             BaseValue = value,
             Dots = dots,
             Quarters = (read?.Lasts ?? Duration.Zero).Quarters,

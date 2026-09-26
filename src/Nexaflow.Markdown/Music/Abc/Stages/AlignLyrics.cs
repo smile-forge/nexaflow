@@ -105,10 +105,8 @@ public sealed class AlignLyrics : IAstStage
 
             if (piece.Kind == AbcKinds.Syllable)
             {
-                // `~` is ABC's way of writing a space inside one syllable — two words sung on one note.
                 var hyphen = at + 1 < children.Count && children[at + 1].Text.StartsWith('-');
-                pieces.Add(new Syllable(piece.Text.Replace("~", " ").Replace("\\-", "-"),
-                                        hyphen, false, false, false, at));
+                pieces.Add(new Syllable(Sings(piece), hyphen, false, false, false, at));
                 continue;
             }
 
@@ -124,6 +122,20 @@ public sealed class AlignLyrics : IAstStage
 
         return pieces;
     }
+
+    /// <summary>
+    /// What a syllable sings: its words, with a <c>~</c> — ABC's way of writing two words sung on one note — sung as the
+    /// space it stands for, and the backslash that kept a hyphen in the word left out.
+    /// </summary>
+    private static string Sings(ContentNode syllable) =>
+        syllable.IsLeaf
+            ? syllable.Text
+            : string.Concat(syllable.Children.Select(piece => piece.Role switch
+            {
+                AbcRoles.Joined => " ",
+                AbcRoles.Escape => "",
+                _ => piece.Text,
+            }));
 
     // ── Putting them under the notes ────────────────────────────────────────
 

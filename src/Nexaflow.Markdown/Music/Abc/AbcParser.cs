@@ -254,7 +254,10 @@ public static class AbcParser
         return ContentNode.Branch(AbcKinds.Key, pieces);
     }
 
-    /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c> — as its numbers and the marks between them.</summary>
+    /// <summary>
+    /// Figures as their numbers and the marks between them, each mark on its own: a meter's or a unit length's —
+    /// <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c> — and a note's length suffix.
+    /// </summary>
     private static List<ContentNode> Figures(string word)
     {
         var pieces = new List<ContentNode>();
@@ -284,36 +287,61 @@ public static class AbcParser
     ///
     /// <para>
     /// The marks are ABC's own: a space or a hyphen ends a syllable (and the hyphen is drawn), <c>_</c>
-    /// holds the last one over another note, <c>*</c> skips a note and <c>|</c> jumps to the next bar. A
-    /// backslash escapes a hyphen that is part of a word, so it stays inside the syllable.
+    /// holds the last one over another note, <c>*</c> skips a note and <c>|</c> jumps to the next bar. Inside a
+    /// syllable, a <c>~</c> joins two words sung on one note and a backslash keeps the hyphen after it in the
+    /// word; each is a piece of its own between the syllable's words, so what the syllable sings is read off
+    /// its pieces rather than out of its characters. A syllable with neither is the one leaf of its words.
     /// </para>
     /// </summary>
     private static List<ContentNode> Sung(string value)
     {
         var pieces = new List<ContentNode>();
-        var word = new System.Text.StringBuilder();
+        var syllable = new List<ContentNode>();
+        var run = 0;
+        var at = 0;
+
+        // The words written since `run`, as a piece of the syllable being read.
+        void Take(int to)
+        {
+            if (to > run) syllable.Add(ContentNode.Leaf(AbcKinds.Text, value[run..to]));
+            run = to;
+        }
 
         void Flush()
         {
-            if (word.Length == 0) return;
-            pieces.Add(ContentNode.Leaf(AbcKinds.Syllable, word.ToString()));
-            word.Clear();
+            Take(at);
+            if (syllable.Count == 0) return;
+
+            pieces.Add(syllable is [{ Kind: AbcKinds.Text } words]
+                ? ContentNode.Leaf(AbcKinds.Syllable, words.Text)
+                : ContentNode.Branch(AbcKinds.Syllable, [.. syllable]));
+            syllable.Clear();
         }
 
-        for (var at = 0; at < value.Length; at++)
+        while (at < value.Length)
         {
             var c = value[at];
 
             if (c == '\\' && at + 1 < value.Length && value[at + 1] == '-')
             {
-                word.Append(value, at, 2);
-                at++;
+                Take(at);
+                syllable.Add(ContentNode.Leaf(Kinds.Token, "\\", AbcRoles.Escape));
+                run = at + 1;
+                at += 2;
+                continue;
+            }
+
+            if (c == '~')
+            {
+                Take(at);
+                syllable.Add(ContentNode.Leaf(Kinds.Token, "~", AbcRoles.Joined));
+                run = ++at;
                 continue;
             }
 
             if (c is not ('-' or ' ' or '\t' or '_' or '*' or '|'))
             {
-                word.Append(c);
+                at++;
                 continue;
             }
 
@@ -322,10 +350,11 @@ public static class AbcParser
             // A run of blanks is one gap; a run of marks is not one mark. `__` is a syllable held over two
             // notes and `**` skips two, so collapsing them would sing the rest of the verse a note early.
             var from = at;
-            if (c is ' ' or '	')
-                while (at + 1 < value.Length && value[at + 1] is ' ' or '	') at++;
+            if (c is ' ' or '\t')
+                while (at + 1 < value.Length && value[at + 1] is ' ' or '\t') at++;
 
             pieces.Add(ContentNode.Leaf(AbcKinds.LyricMark, value[from..(at + 1)], Roles.Separator));
+            run = ++at;
         }
 
         Flush();
@@ -516,9 +545,8 @@ public static class AbcParser
     }
 
     /// <summary>
-    /// An ABC length suffix, read as the characters it is: digits, then slashes, then digits. What it
-    /// multiplies the unit note length by is a later stage's answer, because the unit note length is not
-    /// written here.
+    /// An ABC length suffix: digits, then slashes, then digits. What it multiplies the unit note length by is a
+    /// later stage's answer, because the unit note length is not written here.
     /// </summary>
     private static void AddLength(string s, ref int i, List<ContentNode> pieces)
     {
@@ -527,8 +555,15 @@ public static class AbcParser
         while (i < s.Length && s[i] == '/') i++;
         while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
 
-        if (i > start) pieces.Add(ContentNode.Leaf(AbcKinds.Length, s[start..i], AbcRoles.Length));
+        if (Length(s[start..i]) is { } length) pieces.Add(length);
     }
+
+    /// <summary>
+    /// A length suffix as its numbers and its slashes, each slash on its own — <c>3/2</c>, <c>/</c>, <c>//</c> — or null for
+    /// none. Internal because a length gesture writes one too.
+    /// </summary>
+    internal static ContentNode? Length(string suffix) =>
+        suffix.Length == 0 ? null : ContentNode.Branch(AbcKinds.Length, Figures(suffix), AbcRoles.Length);
 
     /// <summary>
     /// What a <c>[</c> opens once it is not a bar line: an inline field, or a chord.
@@ -623,24 +658,35 @@ public static class AbcParser
         return ContentNode.Branch(AbcKinds.Grace, pieces);
     }
 
-    /// <summary>A <c>(</c> is a tuplet marker when digits follow it, and a slur otherwise.</summary>
+    /// <summary>
+    /// A <c>(</c> is a tuplet marker when digits follow it, and a slur otherwise. A marker is its bracket and its
+    /// numbers, each in the role its place gives it — <c>(p:q:r</c> — with the colons between them; a number left
+    /// out, as in <c>(3::2</c>, is simply not there.
+    /// </summary>
     private static ContentNode OpenParen(string s, ref int i)
     {
         if (i + 1 >= s.Length || !char.IsAsciiDigit(s[i + 1])) return One(s, ref i, AbcKinds.SlurOpen);
 
-        var start = i;
-        i++;
-        while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
+        var pieces = new List<ContentNode>(6)
+        {
+            ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Open),
+            ContentNode.Leaf(AbcKinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
+        };
 
-        for (var colons = 0; colons < 2; colons++)
+        foreach (var role in AfterTheColons)
         {
             if (i >= s.Length || s[i] != ':') break;
-            i++;
-            while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
+            pieces.Add(ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Separator));
+
+            var digits = Run(s, ref i, char.IsAsciiDigit);
+            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Number, digits, role));
         }
 
-        return ContentNode.Leaf(AbcKinds.Tuplet, s[start..i]);
+        return ContentNode.Branch(AbcKinds.Tuplet, pieces);
     }
+
+    /// <summary>What the numbers after a tuplet's first and second colon are.</summary>
+    private static readonly string[] AfterTheColons = [AbcRoles.InTimeOf, AbcRoles.Covers];
 
     /// <summary>A <c>y</c> and its length: room on the page, and no time.</summary>
     private static ContentNode Spacer(string s, ref int i)
@@ -654,26 +700,54 @@ public static class AbcParser
         return ContentNode.Branch(AbcKinds.Spacer, pieces);
     }
 
-    /// <summary>A double-quoted run: a chord symbol, or a text annotation placed by its first character.</summary>
+    /// <summary>
+    /// A double-quoted run — a chord symbol, or text placed by its first character — as its quotes, that
+    /// character where it is one of the five that place, and the words.
+    /// </summary>
     private static ContentNode Quoted(string s, ref int i)
     {
         var close = s.IndexOf('"', i + 1);
         if (close < 0) return Held(s, ref i, "this quotation is never closed");
 
-        var text = s[i..(close + 1)];
+        var pieces = new List<ContentNode>(4) { ContentNode.Leaf(Kinds.Token, "\"", Roles.Open) };
+
+        var inner = i + 1;
+        if (inner < close && s[inner] is '^' or '_' or '<' or '>' or '@')
+        {
+            pieces.Add(ContentNode.Leaf(Kinds.Token, s[inner..(inner + 1)], AbcRoles.Placement));
+            inner++;
+        }
+
+        if (close > inner) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[inner..close], Roles.Body));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+
         i = close + 1;
-        return ContentNode.Leaf(AbcKinds.Annotation, text);
+        return ContentNode.Branch(AbcKinds.Annotation, pieces);
     }
 
-    /// <summary>A named decoration: <c>!trill!</c>, <c>!fermata!</c>.</summary>
+    /// <summary>
+    /// A named decoration — <c>!trill!</c>, <c>!fermata!</c> — as its bangs, the name between them, and any space
+    /// either side of the name.
+    /// </summary>
     private static ContentNode Bang(string s, ref int i)
     {
         var close = s.IndexOf('!', i + 1);
         if (close < 0) return Held(s, ref i, "this ! is never closed");
 
-        var text = s[i..(close + 1)];
+        var pieces = new List<ContentNode>(5) { ContentNode.Leaf(Kinds.Token, "!", Roles.Open) };
+
+        var from = i + 1;
+        var to = close;
+        while (from < to && char.IsWhiteSpace(s[from])) from++;
+        while (to > from && char.IsWhiteSpace(s[to - 1])) to--;
+
+        if (from > i + 1) pieces.Add(ContentNode.Leaf(Kinds.Space, s[(i + 1)..from], Roles.Trivia));
+        if (to > from) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[from..to], Roles.Name));
+        if (close > to) pieces.Add(ContentNode.Leaf(Kinds.Space, s[to..close], Roles.Trivia));
+        pieces.Add(ContentNode.Leaf(Kinds.Token, "!", Roles.Close));
+
         i = close + 1;
-        return ContentNode.Leaf(AbcKinds.Decoration, text);
+        return ContentNode.Branch(AbcKinds.Decoration, pieces);
     }
 
     // ── Bar lines ───────────────────────────────────────────────────────────

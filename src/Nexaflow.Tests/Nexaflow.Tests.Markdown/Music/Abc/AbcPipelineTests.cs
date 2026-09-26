@@ -125,15 +125,49 @@ public class AbcPipelineTests
     }
 
     [TestMethod]
-    public void ABarThatRunsOnToTheNextLineSaysSo()
+    public void ABarThatRunsOnToTheNextLineHasNoLineClosingIt()
     {
         var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\nABc|def\nghi|\n"));
 
         var bars = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure).ToList();
 
         Assert.AreEqual(3, bars.Count);
-        Assert.IsFalse(GroupBars.Continues(bars[0]), "closed by a bar line");
-        Assert.IsTrue(GroupBars.Continues(bars[1]), "the line ended first");
+        Assert.IsNotNull(bars[0].Part(Roles.Close), "closed by a bar line");
+        Assert.IsNull(bars[1].Part(Roles.Close), "the line ended first");
+    }
+
+    [TestMethod]
+    public void AClosingLineWithRepeatDotsEitherSideIsARepeatLine()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nK:C\n|: AB :| cd |: ef :: gA | Bc || de :|]\n"));
+
+        var closing = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Measure)
+            .Select(bar => (AbcBarlineNode)bar.Part(Roles.Close)!).ToList();
+
+        CollectionAssert.AreEqual(new[] { ":|", "|:", "::", "|", "||", ":|]" }, closing.Select(line => line.Print()).ToArray());
+        CollectionAssert.AreEqual(new[] { true, true, true, false, false, true }, closing.Select(line => line.Repeats).ToArray(),
+                                  "an ending written before a |: ends there, as one before a :| does");
+    }
+
+    [TestMethod]
+    public void ARestSaysWhichRestItIs()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nM:4/4\nK:C\nz x2 A| Z2|\n"));
+
+        var rests = tune.SelfAndDescendants().Where(n => n.Kind == AbcKinds.Rest).Cast<AbcEventNode>().ToList();
+
+        CollectionAssert.AreEqual(new AbcRestKind?[] { AbcRestKind.Seen, AbcRestKind.Unseen, AbcRestKind.Bars },
+                                  rests.Select(rest => rest.Rest).ToArray());
+        Assert.AreEqual(8.0, rests[2].Lasts.Quarters, 1e-9, "Z2 is two whole bars");
+        Assert.IsNull(Event(Notes(tune).Single()).Rest, "a note is not a rest");
+    }
+
+    [TestMethod]
+    public void ASyllableSingsItsJoinAsASpaceAndKeepsItsEscapedHyphen()
+    {
+        var tune = AbcPipeline.Of().Run(AbcParser.Parse("X:1\nL:1/4\nK:C\nAB|\nw:a~b c\\-d\n"));
+
+        CollectionAssert.AreEqual(new[] { "a b", "c-d" }, Notes(tune).Select(n => Event(n).Sung.Single().Text).ToList());
     }
 
     [TestMethod]

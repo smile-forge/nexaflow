@@ -92,20 +92,21 @@ internal sealed class AbcTupletNode : ContentNode
 internal readonly record struct AbcSung(int Verse, int Line, int At, string Text, bool Hyphen, bool Melisma);
 
 /// <summary>
-/// A note, a chord or a rest as its stages leave it: what a note sounds and which accidental is written in front of it
-/// (<see cref="Stages.ResolveNotes"/>), how long the event lasts and what value it is written as, and the syllables sung on it
-/// (<see cref="Stages.AlignLyrics"/>). It prints as the event written.
+/// A note, a chord or a rest as its stages leave it: what a note sounds and which accidental is written in front of it, which rest
+/// a rest is (<see cref="Stages.ResolveNotes"/>), how long the event lasts and what value it is written as, and the syllables sung
+/// on it (<see cref="Stages.AlignLyrics"/>). It prints as the event written.
 /// </summary>
 internal sealed class AbcEventNode : ContentNode
 {
     internal AbcEventNode(ContentNode written, Pitch? pitch, int? printed, Duration lasts, Duration writtenAs,
-                          IReadOnlyList<AbcSung>? sung = null)
+                          AbcRestKind? rest = null, IReadOnlyList<AbcSung>? sung = null)
         : base(written)
     {
         this.Pitch = pitch;
         this.Printed = printed;
         this.Lasts = lasts;
         this.WrittenAs = writtenAs;
+        this.Rest = rest;
         this.Sung = sung ?? [];
     }
 
@@ -124,17 +125,45 @@ internal sealed class AbcEventNode : ContentNode
     /// </summary>
     public Duration WrittenAs { get; }
 
+    /// <summary>Which rest it is — null for a note and a chord.</summary>
+    public AbcRestKind? Rest { get; }
+
     /// <summary>The syllables sung on it, a verse at a time.</summary>
     public IReadOnlyList<AbcSung> Sung { get; }
 
     /// <summary>The same event, with one more syllable sung on it.</summary>
     internal AbcEventNode Singing(AbcSung sung) =>
-        new(this, this.Pitch, this.Printed, this.Lasts, this.WrittenAs, [.. this.Sung, sung]);
+        new(this, this.Pitch, this.Printed, this.Lasts, this.WrittenAs, this.Rest, [.. this.Sung, sung]);
 
     /// <summary>What the stages have said of an event so far — nothing, where they have said nothing yet.</summary>
     internal static AbcEventNode Of(ContentNode node) =>
         node as AbcEventNode ?? new AbcEventNode(node, null, null, Duration.Zero, Duration.Zero);
 
     protected override ContentNode Reshaped(ContentNode shape) =>
-        new AbcEventNode(shape, this.Pitch, this.Printed, this.Lasts, this.WrittenAs, this.Sung);
+        new AbcEventNode(shape, this.Pitch, this.Printed, this.Lasts, this.WrittenAs, this.Rest, this.Sung);
+}
+
+/// <summary>Which rest a rest is: one that is seen (<c>z</c>), one that only takes time (<c>x</c>), or whole bars of it (<c>Z</c>).</summary>
+internal enum AbcRestKind
+{
+    Seen,
+    Unseen,
+    Bars,
+}
+
+/// <summary>
+/// A bar line closing a measure, as its stage leaves it (<see cref="Stages.GroupBars"/>): whether it is a repeat line. It prints as
+/// the line written.
+/// </summary>
+internal sealed class AbcBarlineNode : ContentNode
+{
+    internal AbcBarlineNode(ContentNode written, bool repeats) : base(written) => this.Repeats = repeats;
+
+    /// <summary>
+    /// Whether it is a repeat line — dots on either side of it, <c>:|</c>, <c>|:</c>, <c>::</c> — which is where a section of the
+    /// tune ends, and with it any ending written before it.
+    /// </summary>
+    public bool Repeats { get; }
+
+    protected override ContentNode Reshaped(ContentNode shape) => new AbcBarlineNode(shape, this.Repeats);
 }

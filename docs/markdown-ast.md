@@ -312,27 +312,35 @@ diagram's grammar and builder are built from the kit. How a diagram is added and
 | `ResolveContext` | the key, meter, unit note length and voice in force on each line |
 | `GroupTuplets` | a `(3` marker and the events it covers |
 | `GroupBeams` | the events written together with no space between them |
-| `GroupBars` | what is between two bar lines |
-| `ResolveNotes` | what each note sounds and how long each event lasts |
+| `GroupBars` | what is between two bar lines, and whether the line closing it is a repeat line |
+| `ResolveNotes` | what each note sounds, how long each event lasts, and which rest a rest is |
 | `AlignLyrics` | which syllable is sung on which note, and where it was written |
 | `ResolveMarks` | the mark each decoration names, however it is spelled, and whether a quoted run is a chord or placed text |
 | `CheckDrawable` | what is written correctly and still cannot be drawn: a decoration naming no mark |
 | `ShowAsWritten` | the stretch under the caret, shown as typed |
 
-**A field's value is its words.** The parser splits a `K:`, `M:`, `L:` or `V:` value into a key (its tonic, the sharps or
-flats on it, the mode written straight after), figures (the numbers of a meter or a unit length and the marks between
-them), `key=value` settings — a quoted one whole, spaces and all — and words standing for themselves; every other field
-is held whole as the prose it is. A key is a capital `A`–`G`, so `K:bass` names a clef and leaves the key alone, and a
-mode is its own word, so what follows it — `K:Dm clef=bass` — is not part of it. `ResolveFields` reads what the words
-are and takes no characters apart.
+**What is written is split as far as it goes**, so no stage takes characters apart:
+
+- a `K:`, `M:`, `L:` or `V:` value into its words — a key (its tonic, the sharps or flats on it, the mode written straight
+  after), figures (numbers and the marks between them), `key=value` settings (a quoted one whole, spaces and all) and
+  words standing for themselves; every other field is held whole as the prose it is;
+- a length suffix into its numbers and its slashes;
+- a tuplet marker into its numbers, each in the role its place gives it, so `(3::2` has no `q` rather than an empty one;
+- a `!…!` decoration into its bangs and its name — a one-character shorthand has nothing inside it and stays one leaf;
+- a quoted run into its quotes, the character that places it, and its words;
+- a syllable holding a `~` or a `\-` into its words, the join and the escape.
+
+A key is a capital `A`–`G`, so `K:bass` names a clef and leaves the key alone, and a mode is its own word, so what
+follows it — `K:Dm clef=bass` — is not part of it. What is left for a stage to read off characters is a mark written
+once or repeated — `^^`, `,,`, `>>`, a rest's letter — where what it means is which mark and how many.
 
 A length needs the unit note length; a tuplet's default needs the meter; a tuplet beams as one group; a beam never
 crosses a bar line; an accidental lasts a bar. A measure never crosses a source line, because a line ending is a
-suggested system break. **A note is four leaves** — accidental, letter, octave marks, length — so each gesture rewrites
+suggested system break. **A note is four parts** — accidental, letter, octave marks, length — so each gesture rewrites
 one: `A`–`G` writes a note in the octave of the one before, Page Up and Down move the octave, `+` and `-` double and
 halve the length, and `#` and `_` move a semitone **from what the note sounds**, so flattening a bare `F` in G major
 writes `=F`. Each stage says its answer in the tune's own nodes (`AbcFieldNode`, `AbcLineNode`, `AbcTupletNode`,
-`AbcEventNode`), and a mark or words written against a note in the ones every notation shares (`MusicMarkNode`,
+`AbcBarlineNode`, `AbcEventNode`), and a mark or words written against a note in the ones every notation shares (`MusicMarkNode`,
 `MusicAnnotationNode`), so `AbcBuilder` only walks the tune.
 
 **LilyPond** — the same engraving, walked by a builder of its own: the two notations think about music differently, and

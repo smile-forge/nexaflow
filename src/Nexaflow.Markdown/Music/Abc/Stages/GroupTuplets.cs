@@ -46,7 +46,7 @@ public sealed class GroupTuplets : IAstStage
                 continue;
             }
 
-            var (notes, time, count) = Read(children[at].Text, context);
+            var (notes, time, count) = Read(children[at], context);
 
             // How far forward the marker reaches: the r events after it, and whatever is written among
             // them. A marker that runs off the end of the line covers what there is, which is what
@@ -85,25 +85,13 @@ public sealed class GroupTuplets : IAstStage
     /// takes whichever the meter suggests.
     /// </para>
     /// </summary>
-    private static (int Notes, int Time, int Count) Read(string marker, AbcContext context)
+    private static (int Notes, int Time, int Count) Read(ContentNode marker, AbcContext context)
     {
-        var at = 1;                              // past the '('
-        var notes = (int)Number(marker, ref at);
+        var notes = Number(marker.Part(AbcRoles.Tupled));
         if (notes <= 0) return (0, 0, 0);
 
-        var time = 0;
-        var count = 0;
-
-        if (at < marker.Length && marker[at] == ':')
-        {
-            at++;
-            time = (int)Number(marker, ref at);
-            if (at < marker.Length && marker[at] == ':')
-            {
-                at++;
-                count = (int)Number(marker, ref at);
-            }
-        }
+        var time = Number(marker.Part(AbcRoles.InTimeOf));
+        var count = Number(marker.Part(AbcRoles.Covers));
 
         var compound = context.BeatUnit == 8 && context.Beats % 3 == 0;
         if (time <= 0) time = notes switch { 2 => 3, 3 => 2, 4 => 3, 6 => 2, 8 => 3, _ => compound ? 3 : 2 };
@@ -112,12 +100,5 @@ public sealed class GroupTuplets : IAstStage
         return (notes, time, count);
     }
 
-    private static long Number(string text, ref int at)
-    {
-        long value = 0;
-        while (at < text.Length && char.IsAsciiDigit(text[at])) { value = (value * 10) + (text[at] - '0'); at++; }
-        return value;
-    }
-
-    // ── Reading the answer back ─────────────────────────────────────────────
+    private static int Number(ContentNode? written) => int.TryParse(written?.Text, out var number) ? number : 0;
 }
