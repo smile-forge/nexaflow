@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.Ishikawa;
 
@@ -8,7 +9,8 @@ namespace Nexaflow.Markdown.Mermaid.Ishikawa;
 ///
 /// <para>
 /// The rules are Mermaid's. The first line is the event — the problem the diagram is about — and every line after it a cause,
-/// under the nearest line before it that is indented less (<see cref="IshikawaChart"/>). The event may follow the keyword on
+/// under the nearest line before it that is indented less — which is the order and indentation the lines are written in, so
+/// nothing is worked out over the block but what the front matter asks for. The event may follow the keyword on
 /// the header line. Nothing on a line is anything but text: a <c>%%</c> starting a line is a comment, and one later on it is
 /// part of what it says.
 /// </para>
@@ -21,6 +23,10 @@ public sealed class IshikawaGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     public ContentNode? Statement(string text) => Cause(text);
+
+    /// <inheritdoc/>
+    /// <remarks>Only what the front matter asks for.</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<IshikawaConfig>(IshikawaConfig.Read(block.Config))];
 
     /// <summary>A line, as what it says.</summary>
     private static ContentNode Cause(string text)
