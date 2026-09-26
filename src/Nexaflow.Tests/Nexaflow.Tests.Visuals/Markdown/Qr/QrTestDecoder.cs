@@ -1,4 +1,4 @@
-using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Markdown.Matrix.Qr;
 using System.IO;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;

@@ -352,11 +352,18 @@ fall, how notes beam and which accidentals print depend on where a note is playe
 it is used; so `LilyPondBuilder` walks the music through to find them.
 
 **2D codes** — `MatrixParser` reads a `qr`, `aztec`, `pdf417` or `datamatrix` body into lines of fields, one grammar for
-all four, and each builder encodes and lays the symbol out as the parts it is made of (finders, timing lines, a
-bullseye, row indicators). What they share is `MatrixBuilder`. No piece carries a part, because nothing drawn was typed.
+all four. Each code's own stage (`EncodeQr`, `EncodeAztec`, `EncodeDataMatrix`, `EncodePdf417`) reads its fields, encodes
+them and names the parts the symbol is made of (finders, timing lines, a bullseye, row indicators), leaving on the block
+only what a picture needs (`MatrixSymbolNode`) — or the part at fault saying why. So one builder, `MatrixBuilder`, lays
+out all four. No piece carries a part, because nothing drawn was typed.
 
 **Barcodes** — the same grammar, the value spelled out a piece per character by the parser, because each character
 printed stands for one written; while the block is written in, `HoldValue` gives a value not yet written a hole.
+`EncodeBarcode` reads the block, encodes the value and hangs what is drawn under it (`BarcodeBlockNode`): the bars
+(`BarcodeBarsNode`) and each run printed with them (`BarcodeRunNode`), where every printed character that is a character
+of the value stands for that character as written (`BarcodePrintedNode`) and what the format worked out stands for
+nothing. Only those characters give the builder a part to put on what it lays, so the caret stops only where what is
+printed was typed.
 
 **SMILES** — `ConnectAtoms`, `CountHydrogens`, `Kekulize`, `DepictStructure`, each needing the one before, and each saying
 what it works out in the molecule's own nodes (`MoleculeNode`, `AtomNode`). A bond between two atoms written side by side

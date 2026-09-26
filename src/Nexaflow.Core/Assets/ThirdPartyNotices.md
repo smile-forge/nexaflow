@@ -67,7 +67,7 @@ and it cannot be derived: every legal character is 17 modules of four bars and f
 six wide, but that admits 1,484 characters in cluster 0 where the standard uses 929, and the ones it
 picks are in no order that can be computed. The table — 3 clusters × 929 patterns — was taken from Uzi
 Granot's PDF417 Barcode Encoder, which is licensed under CPOL 1.02, and is held as
-`src/Nexaflow.Visuals.Text/Markdown/Matrix/Pdf417/Pdf417Codewords.cs`. Nothing else was taken: the
+`src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417Codewords.cs`. Nothing else was taken: the
 compaction, the Reed–Solomon parity, the row indicators and the layout are Nexaflow's own, written
 against ISO/IEC 15438.
 

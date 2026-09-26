@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
+using Nexaflow.Markdown.Settings;
 using Nexaflow.Markdown.WordCloud;
 
 namespace Nexaflow.Visuals.Text.Markdown.WordCloud;

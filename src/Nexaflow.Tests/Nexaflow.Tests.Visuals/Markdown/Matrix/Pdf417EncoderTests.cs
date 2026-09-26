@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417;
+using Nexaflow.Markdown.Matrix.Pdf417;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 

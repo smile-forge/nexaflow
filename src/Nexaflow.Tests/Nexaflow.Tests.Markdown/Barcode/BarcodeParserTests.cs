@@ -55,5 +55,5 @@ public class BarcodeParserTests
 
     /// <summary>A block as it is worked over for somebody writing in it.</summary>
     private static ContentNode Written(string source) =>
-        new Nexaflow.Markdown.Pipeline.AstPipeline(BarcodeParser.Stages(holes: true)).Run(BarcodeParser.Parse(source));
+        new Nexaflow.Markdown.Barcode.Stages.HoldValue().Run(BarcodeParser.Parse(source));
 }

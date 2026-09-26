@@ -5,7 +5,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.Aztec;
+using Nexaflow.Markdown.Matrix.Aztec;
+using Nexaflow.Markdown.Matrix.Aztec.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Ast;
 
@@ -105,12 +106,12 @@ public class AztecBuilderTests
 
         // Nine modules across, sitting in the middle of the symbol; and no reference grid, which only a full-range
         // symbol carries.
-        var finder = MatrixLayouts.Of(laid, AztecBuilder.Finder).Single();
+        var finder = MatrixLayouts.Of(laid, EncodeAztec.Finder).Single();
         Assert.AreEqual(9, finder.Bounds.Width);
         Assert.AreEqual(laid.Size.Width / 2, finder.Bounds.X + finder.Bounds.Width / 2);
 
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, AztecBuilder.ModeMessage).Length);
-        Assert.AreEqual(0, MatrixLayouts.Of(laid, AztecBuilder.ReferenceGrid).Length);
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, EncodeAztec.ModeMessage).Length);
+        Assert.AreEqual(0, MatrixLayouts.Of(laid, EncodeAztec.ReferenceGrid).Length);
     });
 
     [TestMethod]
@@ -118,8 +119,8 @@ public class AztecBuilderTests
     {
         var laid = Build("type: text\ntext: hello\nformat: full\ncellSize: 1\nmargin: 0");
 
-        Assert.AreEqual(13, MatrixLayouts.Of(laid, AztecBuilder.Finder).Single().Bounds.Width);
-        Assert.AreEqual(1, MatrixLayouts.Of(laid, AztecBuilder.ReferenceGrid).Length);
+        Assert.AreEqual(13, MatrixLayouts.Of(laid, EncodeAztec.Finder).Single().Bounds.Width);
+        Assert.AreEqual(1, MatrixLayouts.Of(laid, EncodeAztec.ReferenceGrid).Length);
     });
 
     /// <summary>The picture reads back, off the pixels, as the symbol the encoder built.</summary>
@@ -157,13 +158,13 @@ public class AztecBuilderTests
 
     private static AztecBlock Read(string source)
     {
-        Assert.IsTrue(AztecBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 
     private static void AssertRefused(string source, string expected)
     {
-        Assert.IsFalse(AztecBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out _, out var wrong), $"'{source}' was accepted");
+        Assert.IsFalse(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out var wrong), $"'{source}' was accepted");
         StringAssert.Contains(wrong.Reason, expected, $"'{source}' said: {wrong.Reason}");
     }
 }

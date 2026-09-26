@@ -210,7 +210,7 @@ part by less than it spans, and it is where the last narrowing of an
 answer to suit an editor now lives — a braced argument named by its contents, a cell by its ink,
 because handing over the honest span instead re-braces an argument that is already braced. Being on
 this side of the boundary is the point: the reading stays true and the editor is told what it needs.
-`BarcodePart` implements it directly, and gets attached only to the characters somebody typed.
+A barcode hands over the value's own `ContentPart` for each printed character somebody typed, and nothing for the rest.
 
 **Where a piece sits is a question, not a field.** `LayoutNode.Sits()` answers it from the parts: a
 piece drawn from one is that part's stretch; a piece drawn from none is a *point*, at the start of

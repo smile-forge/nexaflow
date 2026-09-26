@@ -1,5 +1,5 @@
 using Nexaflow.Tests.Fixtures;
-using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Markdown.Matrix.Qr;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Qr;
 

@@ -7,7 +7,8 @@ using Nexaflow.Tests.Visuals.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Qr;
+using Nexaflow.Markdown.Matrix.Qr;
+using Nexaflow.Markdown.Matrix.Qr.Stages;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Ast;
 
@@ -95,11 +96,11 @@ public class QrBuilderTests
         var laid = Build($"{Source}\ncellSize: 1\nmargin: 0");
         int size = Encoded(Source).Size;
 
-        var corners = MatrixLayouts.Of(laid, QrBuilder.Finder).Select(finder => finder.Bounds.TopLeft).ToHashSet();
+        var corners = MatrixLayouts.Of(laid, EncodeQr.Finder).Select(finder => finder.Bounds.TopLeft).ToHashSet();
         CollectionAssert.AreEquivalent(new[] { new Point(0, 0), new Point(size - 7, 0), new Point(0, size - 7) },
                                        corners.ToArray());
 
-        Assert.AreEqual(2, MatrixLayouts.Of(laid, QrBuilder.Timing).Length);
+        Assert.AreEqual(2, MatrixLayouts.Of(laid, EncodeQr.Timing).Length);
         Assert.AreEqual(1, MatrixLayouts.Of(laid, MatrixPiece.Modules).Length, "and everything else is its modules");
     });
 
@@ -154,7 +155,7 @@ public class QrBuilderTests
 
     private static QrMatrix Encoded(string source)
     {
-        Assert.IsTrue(QrBlockReader.TryRead(ContentPart.Of(MatrixParser.Parse(source)), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
         return QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
     }
 }

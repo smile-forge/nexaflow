@@ -4,6 +4,7 @@ using System.Windows;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Barcode;
 using Nexaflow.Visuals.Text.Markdown.Barcode;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Barcode;
@@ -32,8 +33,8 @@ public class BarcodeLayoutTests
     /// <summary>Where the value begins in the block — what every place in it is counted from.</summary>
     private static int ValueAt(string source, string value) => source.IndexOf(value, StringComparison.Ordinal);
 
-    private static Piece[] Of(Piece root, BarcodeKind kind) =>
-        [.. root.SelfAndDescendants().Where(n => n.Kind == kind.ToString())];
+    private static Piece[] Of(Piece root, string kind) =>
+        [.. root.SelfAndDescendants().Where(n => n.Kind == kind)];
 
     private static Point Middle(Piece node) =>
         new(node.Bounds.X + node.Bounds.Width / 2, node.Bounds.Y + node.Bounds.Height / 2);
@@ -121,7 +122,7 @@ public class BarcodeLayoutTests
     {
         var root = Root("format: EAN13\nvalue: 590123412345");
 
-        foreach (var node in Of(root, BarcodeKind.EncodedText))
+        foreach (var node in Of(root, BarcodePiece.EncodedText))
             Assert.AreEqual(0, node.Sits().Length,
                 "it stands for the whole value in the parse tree, and for no offsets here");
     });
@@ -134,7 +135,7 @@ public class BarcodeLayoutTests
         const string source = "format: CODE128\nvalue: HELLO123";
         var root = Root(source);
 
-        var third = Of(root, BarcodeKind.Character)[2];
+        var third = Of(root, BarcodePiece.Character)[2];
         var found = root.PieceAt(Middle(third));
 
         Assert.AreEqual(ValueAt(source, "HELLO123") + 2, found!.Sits().Start);
@@ -165,12 +166,12 @@ public class BarcodeLayoutTests
         const string value = "978-1-56581-231-4";
         var root = Root("format: ISBN\nvalue: " + value);
 
-        var caption = root.SelfAndDescendants().Single(n => n.Kind == nameof(BarcodeKind.Caption));
+        var caption = root.SelfAndDescendants().Single(n => n.Kind == BarcodePiece.Caption);
 
-        Assert.AreEqual(value.Length, Of(root, BarcodeKind.Character).Length,
+        Assert.AreEqual(value.Length, Of(root, BarcodePiece.Character).Length,
             "one stop per character of the value, all of them in the caption");
 
-        foreach (var character in Of(root, BarcodeKind.Character))
+        foreach (var character in Of(root, BarcodePiece.Character))
             Assert.IsTrue(caption.Bounds.Contains(Middle(character)),
                 "and none of them under the bars");
     });
@@ -183,7 +184,7 @@ public class BarcodeLayoutTests
         // take away the only place it could be put right.
         var root = Root("format: ISBN\nvalue: 978-1-56581-231-");
 
-        Assert.AreNotEqual(0, Of(root, BarcodeKind.Character).Length,
+        Assert.AreNotEqual(0, Of(root, BarcodePiece.Character).Length,
             "the caption is still the value, so the caret still has somewhere to be");
     });
 

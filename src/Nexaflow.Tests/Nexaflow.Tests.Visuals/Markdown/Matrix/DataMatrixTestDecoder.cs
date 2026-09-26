@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Markdown.Matrix;
-using Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix;
+using Nexaflow.Markdown.Matrix.DataMatrix;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Matrix;
 

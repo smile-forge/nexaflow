@@ -46,6 +46,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Nexaflow.Visuals.Text" />
     <InternalsVisibleTo Include="Nexaflow.Tests.Markdown" />
+    <!-- And the codes' encoders: their layouts, codeword tables and fields, which the tests that draw a symbol and read it
+         back assert on. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
   </ItemGroup>
 
 </Project>

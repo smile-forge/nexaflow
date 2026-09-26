@@ -317,23 +317,349 @@
           "class": "ResolveMarks"
         }
       ]
+    },
+    "qr-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Qr/QrBlockReader.cs",
+          "class": "QrBlockReader"
+        }
+      ]
+    },
+    "qr-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Qr/QrEncoder.cs",
+          "class": "QrEncoder"
+        }
+      ]
+    },
+    "qr-payloads": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Qr/QrPayload.cs",
+          "class": "QrPayload"
+        }
+      ]
+    },
+    "aztec-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/AztecBlockReader.cs",
+          "class": "AztecBlockReader"
+        }
+      ]
+    },
+    "aztec-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/AztecEncoder.cs",
+          "class": "AztecEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/AztecHighLevelEncoder.cs",
+          "class": "AztecHighLevelEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/AztecCharacterSets.cs",
+          "class": "AztecCharacterSets"
+        }
+      ]
+    },
+    "aztec-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/AztecLayout.cs",
+          "class": "AztecLayout"
+        }
+      ]
+    },
+    "datamatrix-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/DataMatrix/DataMatrixBlockReader.cs",
+          "class": "DataMatrixBlockReader"
+        }
+      ]
+    },
+    "datamatrix-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/DataMatrix/DataMatrixEncoder.cs",
+          "class": "DataMatrixEncoder"
+        }
+      ]
+    },
+    "datamatrix-payloads": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/DataMatrix/DataMatrixPayload.cs",
+          "class": "DataMatrixPayload"
+        }
+      ]
+    },
+    "pdf417-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417BlockReader.cs",
+          "class": "Pdf417BlockReader"
+        }
+      ]
+    },
+    "pdf417-encoder": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417Encoder.cs",
+          "class": "Pdf417Encoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Pdf417/Pdf417Codewords.cs",
+          "class": "Pdf417Codewords"
+        }
+      ]
+    },
+    "matrix-renderer": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs",
+          "class": "MatrixBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixBlockReader.cs",
+          "class": "MatrixBlockReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/ReedSolomon.cs",
+          "class": "ReedSolomon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/IModuleMatrix.cs",
+          "class": "IModuleMatrix"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/MatrixNodes.cs",
+          "class": "MatrixSymbolNode"
+        }
+      ]
+    },
+    "barcode-symbologies": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeEncoder.cs",
+          "class": "BarcodeEncoder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Encoders/PublicationEncoder.cs",
+          "class": "PublicationEncoder"
+        }
+      ]
+    },
+    "barcode-block-syntax": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeParser.cs",
+          "class": "BarcodeParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeBlockReader.cs",
+          "class": "BarcodeBlockReader"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Stages/EncodeBarcode.cs",
+          "class": "EncodeBarcode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodeReadingTests.cs",
+            "class": "BarcodeReadingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodeParserTests.cs",
+            "class": "BarcodeParserTests"
+          }
+        ]
+      }
+    },
+    "barcode-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeTextLayout.cs",
+          "class": "BarcodeTextLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Stages/EncodeBarcode.cs",
+          "class": "EncodeBarcode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs",
+          "class": "BarcodeBarsNode"
+        }
+      ]
+    },
+    "symbol-tree": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs",
+          "class": "BarcodeRunNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeTextLayout.cs",
+          "class": "BarcodeTextLayout",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/BarcodeNodes.cs",
+          "class": "BarcodePrintedNode"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Barcode/BarcodePrintingTests.cs",
+            "class": "BarcodePrintingTests"
+          }
+        ]
+      }
+    },
+    "qr-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Qr/Stages/EncodeQr.cs",
+          "class": "EncodeQr"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Matrix/MatrixBuilder.cs",
+          "class": "MatrixBuilder"
+        }
+      ]
+    },
+    "aztec-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Aztec/Stages/EncodeAztec.cs",
+          "class": "EncodeAztec"
+        }
+      ]
+    },
+    "datamatrix-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/DataMatrix/Stages/EncodeDataMatrix.cs",
+          "class": "EncodeDataMatrix"
+        }
+      ]
+    },
+    "pdf417-render": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Matrix/Pdf417/Stages/EncodePdf417.cs",
+          "class": "EncodePdf417"
+        }
+      ]
+    },
+    "barcode-editing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Keys.cs",
+          "class": "MarkdownSurface",
+          "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Barcode/Stages/HoldValue.cs",
+          "class": "HoldValue"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Barcode/BarcodeBuilder.cs",
+          "class": "BarcodeBuilder",
+          "method": "LayPieces"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 13,
+  "changed_sets": 36,
   "touched_nodes": [
     "abc-ast-pipeline",
     "abc-decorations",
     "abc-multivoice",
+    "aztec-block-syntax",
+    "aztec-encoder",
+    "aztec-layout",
+    "aztec-render",
+    "barcode-block-syntax",
+    "barcode-editing",
+    "barcode-render",
+    "barcode-symbologies",
     "correlation-plots-reading",
     "correlation-plots-render",
+    "datamatrix-block-syntax",
+    "datamatrix-encoder",
+    "datamatrix-payloads",
+    "datamatrix-render",
     "fenced-code-blocks",
     "ly-core",
     "markdown-laid-again",
     "markdown-maths",
     "markdown-styling",
+    "matrix-renderer",
+    "pdf417-block-syntax",
+    "pdf417-encoder",
+    "pdf417-render",
+    "qr-block-syntax",
+    "qr-encoder",
+    "qr-payloads",
+    "qr-render",
     "smiles-chemistry",
     "smiles-structure-layout",
-    "sr-lyrics"
+    "sr-lyrics",
+    "symbol-tree"
   ]
 }
