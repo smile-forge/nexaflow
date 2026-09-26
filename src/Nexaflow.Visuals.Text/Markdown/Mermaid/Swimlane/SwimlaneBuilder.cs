@@ -22,10 +22,11 @@ internal sealed class SwimlaneBuilder : FlowchartBuilder
     internal SwimlaneBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
     /// <inheritdoc/>
-    protected override (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram)
-    {
-        var lanes = SwimlaneConfig.Read(diagram.Block.Config);
+    protected override (bool Sideways, bool Ordered)? Laning => (Lanes.Sideways, Lanes.Ordered);
 
-        return (lanes.Sideways, lanes.Ordered);
-    }
+    /// <inheritdoc/>
+    protected override FlowchartConfig Charted => Lanes.Chart;
+
+    /// <summary>What the front matter asks for, lanes and chart, as its stages hung it on the block.</summary>
+    private SwimlaneConfig Lanes => Configured(SwimlaneConfig.Default);
 }

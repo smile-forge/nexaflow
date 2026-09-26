@@ -43,10 +43,10 @@ C4-PlantUML's words, so `C4SequenceGrammar` claims the macros and hands every ot
 other language first refusal on each line and reads the rest itself — and `C4SequenceBuilder` derives from
 `SequenceBuilder` saying only where its model comes from. One picture, one builder, two ways of writing it.
 
-**A type Mermaid reads as another shares its grammar and its model.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
+**A type Mermaid reads as another shares its grammar and its builder.** A swimlane is a flowchart laid out in lanes, and Mermaid reads
 the two with one parser and draws them with one renderer; so `MermaidDiagrams.Grammar` names `FlowchartGrammar` for both,
 `SwimlaneBuilder` derives from `FlowchartBuilder` and says only that its outermost subgraphs are lanes, and only what the lanes
-themselves ask for is its own (`SwimlaneConfig`). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
+themselves ask for is its own (`SwimlaneConfig`, which the stages hang on a swimlane's block with the chart's own inside it). Its tests are its own either way — the grammar contract over `swimlane-beta` blocks,
 and a builder's over what it draws.
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front

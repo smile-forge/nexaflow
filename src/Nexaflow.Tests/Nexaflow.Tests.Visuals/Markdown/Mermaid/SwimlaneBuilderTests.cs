@@ -331,4 +331,13 @@ public class SwimlaneBuilderTests : MermaidBuilderContract
 
         return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
     }
+
+    [TestMethod]
+    public void TheLanesAreTheSubgraphsWrittenOutsideThemAll_EachCalledAllItsName() => UiThread.Run(() =>
+    {
+        const string source = "swimlane-beta TB\n  subgraph Sales team\n    one\n  end\n  subgraph Ops\n    subgraph Inner\n      two\n    end\n  end";
+
+        CollectionAssert.AreEquivalent(new[] { "Sales team", "Ops" }, Lanes(Build(source), source).Keys.ToArray(),
+                                       "a subgraph inside a lane is no lane of its own");
+    });
 }

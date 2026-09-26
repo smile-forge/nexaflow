@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid.Flowchart.Stages;
+using Nexaflow.Markdown.Mermaid.Swimlane;
 using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Markdown.Mermaid.Flowchart;
@@ -204,10 +205,16 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Which subgraph each line is in (<see cref="ResolveSubgraphs"/>), whether a link has nodes to join
-    /// (<see cref="ResolveLinks"/>), and whether what is styled is written at all (<see cref="ResolveStyles"/>).
+    /// Which subgraph each line is in (<see cref="ResolveSubgraphs"/>), which nodes name a subgraph (<see cref="ResolveJoins"/>),
+    /// what each link joins and is styled with (<see cref="ResolveLinks"/>), what each <c>id@{ … }</c> line means
+    /// (<see cref="ResolveMetadata"/>), what styles each node and subgraph (<see cref="ResolveStyles"/>), whether a shape named is
+    /// one (<see cref="ResolveShapes"/>), and what the front matter asks for — a swimlane's lanes as well as the chart.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSubgraphs(), new ResolveLinks(), new ResolveStyles(), new ResolveShapes()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
+        [new ResolveSubgraphs(), new ResolveJoins(), new ResolveLinks(), new ResolveMetadata(), new ResolveStyles(), new ResolveShapes(),
+         block.Diagram == MermaidDiagram.Swimlane
+             ? new WithConfig<SwimlaneConfig>(SwimlaneConfig.Read(block.Config))
+             : new WithConfig<FlowchartConfig>(FlowchartConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a label's quotes or brackets, and where a link's number is still to be written.</remarks>

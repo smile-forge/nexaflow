@@ -177,12 +177,51 @@
           }
         ]
       }
+    },
+    "flowchart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs",
+          "class": "FlowchartGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs",
+          "class": "ResolveLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs",
+          "class": "FlowchartConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs",
+          "class": "ResolveShapes"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartGrammarTests.cs",
+            "class": "FlowchartGrammarTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/Flowchart/FlowchartStagesTests.cs",
+            "class": "FlowchartStagesTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 10,
   "touched_nodes": [
     "class-diagram",
+    "flowchart-ast",
     "gantt-ast",
     "nomnoml",
     "venn-ast"

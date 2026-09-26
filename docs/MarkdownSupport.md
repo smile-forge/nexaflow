@@ -135,7 +135,7 @@ JS/Mermaid.js, no browser).
 
 | Sub-type | Status | Tests |
 |---|---|---|
-| `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + nodes, links, subgraphs, styling + config (`FlowchartDiagramTests`) + draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
+| `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + subgraphs, links, metadata, styling + config (`FlowchartStagesTests`) + nodes and draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantStagesTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
 | `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
@@ -162,8 +162,16 @@ JS/Mermaid.js, no browser).
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + composites, styles + config (`BlockStagesTests`) + grid, links and draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
-[`FlowchartDiagram`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartDiagram.cs) →
-[`FlowchartBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartBuilder.cs)).
+its stages [`ResolveSubgraphs`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveSubgraphs.cs),
+[`ResolveJoins`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveJoins.cs),
+[`ResolveLinks`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs),
+[`ResolveMetadata`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveMetadata.cs),
+[`ResolveStyles`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveStyles.cs) and
+[`ResolveShapes`](../src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs) →
+[`FlowchartBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartBuilder.cs)). The stages gather each
+subgraph with the lines written in it and say what the whole block means where no line says it alone — what each link joins
+and how a `linkStyle` numbering it styles it, which names are a subgraph's, what each `id@{ … }` line is about and says, and
+what styles each node and subgraph; the builder reads the rest down the tree in the order it is written.
 Nodes joined by links, laid out in ranks by how far along the links reach them
 ([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) — Sugiyama's: ranks, then an order that keeps
 as few lines crossing as can be managed, then each node set across its rank beside the ones it joins). A node is an id with a
@@ -694,12 +702,11 @@ reads three of the four side pairings one way and the fourth the other, so an ed
 puts that end above rather than below, where here all four read the same way; and `randomize`, `seed`, `numIter` and
 `edgeElasticity` steer a solver this does not run.
 
-**Swimlane sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
-[`FlowchartDiagram`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartDiagram.cs) →
+**Swimlane sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) and its stages →
 [`SwimlaneBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Swimlane/SwimlaneBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
-**A swimlane is a flowchart**, read by the flowchart's own grammar into the flowchart's own model — which is how Mermaid
-reads and draws it too, one parser and one renderer differing only in the layout — so everything in the flowchart section
+**A swimlane is a flowchart**, read by the flowchart's own grammar and stages and drawn by the flowchart's own builder — which
+is how Mermaid reads and draws it too, one parser and one renderer differing only in the layout — so everything in the flowchart section
 above holds here: every node shape, every link, `&`, chains, nested subgraphs, `classDef` / `class` / `:::` / `style` /
 `linkStyle`, `click`, `id@{ … }` metadata, `accTitle` / `accDescr`, and the `config: flowchart:` keys.
 What differs is **the lanes**. A `subgraph` written outside them all is a lane rather than a box: a band running the whole

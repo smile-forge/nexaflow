@@ -37,7 +37,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 /// for the whole <c>subgraph … end</c> it was written as, so that selecting it selects the lane.
 /// </para>
 /// </summary>
-internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
+internal partial class FlowchartBuilder : MermaidBuilder
 {
     /// <summary>How big what is written on a node is, and on a link.</summary>
     private const double TextSize = 13;
@@ -61,21 +61,21 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// another goes across rather than on, and whether the lanes are set across in an order worked out rather than the order they were
     /// written in. Null for a flowchart, whose outermost subgraphs are boxes round what they hold — see <c>SwimlaneBuilder</c>.
     /// </summary>
-    protected virtual (bool Sideways, bool Ordered)? Laning(FlowchartDiagram diagram) => null;
+    protected virtual (bool Sideways, bool Ordered)? Laning => null;
 
-    /// <inheritdoc/>
-    protected override FlowchartDiagram Of(MermaidBlock block) => FlowchartDiagram.Of(block);
+    /// <summary>What the front matter asks of the chart, as its stages hung it on the block.</summary>
+    protected virtual FlowchartConfig Charted => Configured(FlowchartConfig.Default);
 
-    /// <inheritdoc/>
-    protected override DiagramChart? Chart(FlowchartDiagram diagram) =>
-        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]);
-
-    protected override Size Draw(FlowchartDiagram diagram, LayoutBuilder build)
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
     {
+        var diagram = Diagram.Of(Reading.Root, block.Header, Charted);
+
         // A flowchart with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Nodes.Count == 0 && diagram.Groups.Count == 0) return AsWritten(build);
 
-        var plan = Laid(diagram);
+        Fold(new DiagramChart([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Links.Select(link => (link.From, link.To))]));
+
+        var plan = Laid(diagram, Laning);
         var room = Reached(diagram, plan);
 
         // The links are worked out before anything is drawn, because whatever is under one does not stand where it runs.
@@ -99,12 +99,11 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// Everything measured and placed: a band for each lane, a cell for each node and each subgraph that is a box, a join for each link,
     /// and the layered layout run over the lot of them.
     /// </summary>
-    private Plan Laid(FlowchartDiagram diagram)
+    private Plan Laid(Diagram diagram, (bool Sideways, bool Ordered)? laning)
     {
         var plan = new Plan();
         var cells = new List<DiagramCell>();
-        var laning = Laning(diagram);
-        var towards = Towards(diagram.Way);
+        var towards = diagram.Way;
 
         // The lanes first, in the order their bands are set across the chart, so everything in one knows the band it keeps to.
         if (laning is { } how)
@@ -131,7 +130,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
                 {
                     Inside = Holding(plan, group.Parent),
                     Lane = Banded(plan, diagram, group.Parent),
-                    Way = group.Way is { } way ? Towards(way) : null,
+                    Way = group.Way,
                     Pad = Boxed,
                     Heading = said.Height > 0 ? said.Height + diagram.Config.TitleMargin + (Boxed / 2) : 0,
                 },
@@ -153,7 +152,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
 
             // A marker drawn without words is the size it always is rather than the least a node takes, and a fork lies across the way
             // the chart runs, standing on end where it runs across the page.
-            if (shape == DiagramShape.Fork && diagram.Way is FlowchartWay.Right or FlowchartWay.Left) around = new Size(around.Height, around.Width);
+            if (shape == DiagramShape.Fork && diagram.Way is DiagramWay.Right or DiagramWay.Left) around = new Size(around.Height, around.Width);
             var least = node.Picture is null && DiagramShapes.Worded(shape) ? new Size(Math.Max(around.Width, Least), Math.Max(around.Height, Short)) : around;
 
             var sized = new Sized(node, words, shape)
@@ -197,7 +196,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>What is written at the top of a subgraph, or up the near side of a lane's band.</summary>
-    private IReadOnlyList<DiagramWords> Naming(FlowchartDiagram diagram, FlowchartGroup group) =>
+    private IReadOnlyList<DiagramWords> Naming(Diagram diagram, Group group) =>
         Wrapped(group.Said, group.SaidHole, TextSize, Ink.Written(group.Style.Colour) ?? Palette.Text, diagram.Config.Wrapping);
 
     /// <summary>The cell something is laid out inside: the box holding it, and none where a lane holds it or nothing does.</summary>
@@ -205,14 +204,14 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         group is not null && plan.Groups.TryGetValue(group, out var box) ? box.Cell : null;
 
     /// <summary>The lane something written in a subgraph keeps to, where the outermost subgraph holding it is one.</summary>
-    private static int Banded(Plan plan, FlowchartDiagram diagram, string? group) =>
+    private static int Banded(Plan plan, Diagram diagram, string? group) =>
         diagram.Lane(group) is { } lane && plan.Laned(lane.Key) is { } held ? held.Number : 0;
 
     /// <summary>
     /// The lanes, in the order their bands are set across the chart: the order they are written, or an order worked out to keep the
     /// handoffs between them short where the front matter asks for one.
     /// </summary>
-    private static IReadOnlyList<FlowchartGroup> Laned(FlowchartDiagram diagram, bool ordered)
+    private static IReadOnlyList<Group> Laned(Diagram diagram, bool ordered)
     {
         var lanes = diagram.Lanes.ToList();
         if (!ordered || lanes.Count < 3) return lanes;
@@ -242,7 +241,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>How many links are handed from each lane to each other one, whichever way round they were written.</summary>
-    private static Dictionary<(string From, string To), int> Handoffs(FlowchartDiagram diagram)
+    private static Dictionary<(string From, string To), int> Handoffs(Diagram diagram)
     {
         var handoffs = new Dictionary<(string From, string To), int>();
 
@@ -271,7 +270,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>The cell a link's end names: a node, or a subgraph where the id names one of those instead.</summary>
-    private static DiagramCell? Ended(Plan plan, FlowchartDiagram diagram, string id)
+    private static DiagramCell? Ended(Plan plan, Diagram diagram, string id)
     {
         if (plan.Named.TryGetValue(id, out var node)) return node.Cell;
 
@@ -289,7 +288,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// it aside. Both halves are flat or neither is.
     /// </para>
     /// </summary>
-    private static bool Aside(Plan plan, FlowchartDiagram diagram, FlowchartLink link) =>
+    private static bool Aside(Plan plan, Diagram diagram, Link link) =>
         Detour(plan, diagram, link)
         || diagram.Links.Any(other => string.Equals(other.From, link.To, StringComparison.Ordinal)
                                       && string.Equals(other.To, link.From, StringComparison.Ordinal)
@@ -310,7 +309,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// comes back, or only one leaves at all, there is nothing to choose between them and they all go below as before.
     /// </para>
     /// </summary>
-    private static bool Detour(Plan plan, FlowchartDiagram diagram, FlowchartLink link)
+    private static bool Detour(Plan plan, Diagram diagram, Link link)
     {
         if (plan.Named.TryGetValue(link.From, out var node) && node.Shape is not DiagramShape.Diamond) return false;
 
@@ -323,7 +322,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>Whether what a way out leads to leads round to where it came from.</summary>
-    private static bool Returns(FlowchartDiagram diagram, FlowchartLink link)
+    private static bool Returns(Diagram diagram, Link link)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal) { link.From };
         var going = new Queue<string>([link.To]);
@@ -342,7 +341,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>The subgraphs, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
-    private static IEnumerable<FlowchartGroup> Nested(FlowchartDiagram diagram, string? inside)
+    private static IEnumerable<Group> Nested(Diagram diagram, string? inside)
     {
         foreach (var group in diagram.Within(inside))
         {
@@ -355,7 +354,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// Everything the chart means to draw, gathered so the whole of it — a link looping out beside a node included — is brought inside
     /// the box the block takes.
     /// </summary>
-    private DiagramRoom Reached(FlowchartDiagram diagram, Plan plan)
+    private DiagramRoom Reached(Diagram diagram, Plan plan)
     {
         var room = DiagramRoom.Round(diagram.Config.Padding, plan.Size,
                                      [.. plan.Nodes.Select(node => node.Cell), .. plan.Groups.Values.Select(box => box.Cell)],
@@ -368,7 +367,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>What is written on a node: its label, or the words an <c>id@{ label: … }</c> line worked out for it.</summary>
-    private IReadOnlyList<DiagramWords> Said(FlowchartNode node, double widest)
+    private IReadOnlyList<DiagramWords> Said(Node node, double widest)
     {
         var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
@@ -378,7 +377,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>What is written on a link, where anything is.</summary>
-    private IReadOnlyList<DiagramWords> Says(FlowchartLink link) =>
+    private IReadOnlyList<DiagramWords> Says(Link link) =>
         link.Said is null && link.SaidHole is null
             ? []
             : Wrapped(link.Said, link.SaidHole, LabelSize, Ink.Written(link.Written.Colour) ?? Palette.Text, Widest);
@@ -392,7 +391,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// Where every link runs, once everything is placed: the layout's own route, its ends brought in to the edges of the shapes it
     /// joins, and the room what is written on it takes over the middle of the line.
     /// </summary>
-    private List<Route> Routes(FlowchartDiagram diagram, Plan plan, DiagramRoom room)
+    private List<Route> Routes(Diagram diagram, Plan plan, DiagramRoom room)
     {
         var routes = new List<Route>();
 
@@ -455,7 +454,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <summary>
     /// A subgraph: its box — or its band, where it is a lane — what is written on it, and the nodes it holds drawn inside its piece.
     /// </summary>
-    private void Held(LayoutBuilder build, FlowchartDiagram diagram, Plan plan, DiagramRoom room, FlowchartGroup group,
+    private void Held(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Group group,
                       IReadOnlyList<Geometry> over)
     {
         var lane = plan.Laned(group.Key);
@@ -491,9 +490,9 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// <c>subgraph … end</c> the lane was written as, so pressing anywhere in it that nothing else stands means the lane, and
     /// everything drawn in it stands for a stretch of what the lane itself stands for.
     /// </summary>
-    private void Banded(LayoutBuilder build, FlowchartDiagram diagram, Lane lane, Rect bounds, Rect strip, Geometry covered)
+    private void Banded(LayoutBuilder build, Diagram diagram, Lane lane, Rect bounds, Rect strip, Geometry covered)
     {
-        var turned = diagram.Way is FlowchartWay.Right or FlowchartWay.Left;
+        var turned = diagram.Way is DiagramWay.Right or DiagramWay.Left;
         var stroke = Stroke(Ink, lane.Group.Style, Ink.GroupEdge);
 
         DiagramShapes.Draw(build, FlowchartPiece.Lane, lane.Group.Whole, DiagramShape.Rectangle, bounds, null, stroke, [],
@@ -528,7 +527,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>One node: its shape, and what is written on it inside that shape.</summary>
-    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, FlowchartNode node, IReadOnlyList<Geometry> over)
+    private void Drawn(LayoutBuilder build, Plan plan, DiagramRoom room, Node node, IReadOnlyList<Geometry> over)
     {
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
 
@@ -562,7 +561,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     private const double Broadest = 160;
 
     /// <summary>How much room a node drawn as a picture takes: the picture, and its label above or below it.</summary>
-    private static Size Pictured(FlowchartPicture pictured, Size said)
+    private static Size Pictured(Picture pictured, Size said)
     {
         var box = Framing(pictured);
         return new Size(Math.Max(box.Width, said.Width), box.Height + (said.Height > 0 ? Caption + said.Height : 0));
@@ -573,7 +572,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// or, asked for one side, the other to match; its own size where nothing is said, no wider than <see cref="Broadest"/>. An
     /// icon is square, as tall as it is asked to be.
     /// </summary>
-    private static Size Framing(FlowchartPicture pictured)
+    private static Size Framing(Picture pictured)
     {
         if (pictured.Icon is not null)
         {
@@ -600,7 +599,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// A node drawn as its picture or its icon, with its label above or below — standing in the picture, and meaning the node
     /// wherever it is pressed.
     /// </summary>
-    private void Framed(LayoutBuilder build, Sized sized, Rect bounds, FlowchartPicture pictured)
+    private void Framed(LayoutBuilder build, Sized sized, Rect bounds, Picture pictured)
     {
         var node = sized.Node;
         var box = Framing(pictured);
@@ -652,7 +651,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     /// listening — an ordinary flowchart has no host following its selection, and an intent nobody reads is a table
     /// entry for nothing.
     /// </summary>
-    private LayoutActions? Answers(FlowchartNode node)
+    private LayoutActions? Answers(Node node)
     {
         LayoutIntent? click = node.Href is { Length: > 0 } href ? new LayoutIntent(LayoutVerbs.Navigate, href, node.Tip) : null;
         LayoutIntent? select = !Folds.IsEmpty && node.Id.Length > 0 ? new LayoutIntent(LayoutVerbs.Select, node.Id, node.Tip) : null;
@@ -660,7 +659,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         return click is null && select is null ? null : new LayoutActions { Click = click, Select = select };
     }
 
-    private static IEnumerable<Sized> Inside(FlowchartDiagram diagram, Plan plan, string? group) =>
+    private static IEnumerable<Sized> Inside(Diagram diagram, Plan plan, string? group) =>
         diagram.Inside(group)
             .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
             .OfType<Sized>();
@@ -668,11 +667,11 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     // ── Colour and shape ────────────────────────────────────────────────────
 
     /// <summary>What a node is drawn as: the shape its brackets or its metadata say, and a box where nothing says one.</summary>
-    private static DiagramShape Shaped(FlowchartNode node) =>
+    private static DiagramShape Shaped(Node node) =>
         node.Shape is MermaidShape.None or MermaidShape.Text ? DiagramShape.Rectangle : DiagramShapes.For(node.Shape);
 
     /// <summary>What a node is filled with: what its styling writes, and otherwise what every node is.</summary>
-    private Brush Fill(FlowchartNode node)
+    private Brush Fill(Node node)
     {
         var fill = Ink.Written(node.Style.Fill) ?? Ink.Node;
 
@@ -680,7 +679,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>What a subgraph's box is filled with: what its styling writes, and otherwise what every subgraph is.</summary>
-    private Brush Fill(FlowchartGroup group)
+    private Brush Fill(Group group)
     {
         var fill = Ink.Written(group.Style.Fill) ?? Ink.Group;
 
@@ -691,20 +690,14 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     private static DiagramStroke Stroke(DiagramInk ink, MermaidStyle style, Brush usual) =>
         new(ink.Written(style.Stroke) ?? usual, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
 
-    private static DiagramWay Towards(FlowchartWay way) => way switch
-    {
-        FlowchartWay.Up => DiagramWay.Up,
-        FlowchartWay.Right => DiagramWay.Right,
-        FlowchartWay.Left => DiagramWay.Left,
-        _ => DiagramWay.Down,
-    };
+
 
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>A node measured: what is written on it, the shape it is drawn as, and the cell the layout placed it in.</summary>
-    private sealed class Sized(FlowchartNode node, IReadOnlyList<DiagramWords> words, DiagramShape shape)
+    private sealed class Sized(Node node, IReadOnlyList<DiagramWords> words, DiagramShape shape)
     {
-        public FlowchartNode Node { get; } = node;
+        public Node Node { get; } = node;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -714,9 +707,9 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>A subgraph measured: what is written at the top of it, and the cell the layout placed it in.</summary>
-    private sealed class Box(FlowchartGroup group, IReadOnlyList<DiagramWords> words)
+    private sealed class Box(Group group, IReadOnlyList<DiagramWords> words)
     {
-        public FlowchartGroup Group { get; } = group;
+        public Group Group { get; } = group;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -724,9 +717,9 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>A lane measured: what is written on it, where it comes among the lanes, and the band the layout gave it.</summary>
-    private sealed class Lane(FlowchartGroup group, IReadOnlyList<DiagramWords> words, int number, DiagramLane band)
+    private sealed class Lane(Group group, IReadOnlyList<DiagramWords> words, int number, DiagramLane band)
     {
-        public FlowchartGroup Group { get; } = group;
+        public Group Group { get; } = group;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -737,7 +730,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
     }
 
     /// <summary>A link worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
-    private sealed record Route(FlowchartLink Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
+    private sealed record Route(Link Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
 
     /// <summary>Everything the chart was measured and laid out into.</summary>
     private sealed class Plan
@@ -751,7 +744,7 @@ internal class FlowchartBuilder : MermaidBuilder<FlowchartDiagram>
         /// <summary>The lanes, in the order their bands are set across the chart.</summary>
         public List<Lane> Lanes { get; } = [];
 
-        public Dictionary<FlowchartLink, DiagramJoin> Joins { get; } = [];
+        public Dictionary<Link, DiagramJoin> Joins { get; } = [];
 
         /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
         public DiagramSpill Spill { get; set; } = DiagramSpill.None;
