@@ -3134,6 +3134,7 @@ internal sealed class MarkdownSamples : ISampleSet
         gantt
             dateFormat HH:mm
             axisFormat %H:%M
+            todayMarker off
             Initial milestone : milestone, m1, 17:49, 2m
             Task A : 10m
             Task B : 5m
@@ -3146,6 +3147,7 @@ internal sealed class MarkdownSamples : ISampleSet
         gantt
             dateFormat HH:mm
             axisFormat %H:%M
+            todayMarker off
             Initial vert : vert, v1, 17:30, 2m
             Task A : 3m
             Task B : 8m

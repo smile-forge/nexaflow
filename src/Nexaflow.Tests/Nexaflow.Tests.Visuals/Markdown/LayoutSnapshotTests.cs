@@ -106,18 +106,12 @@ public class LayoutSnapshotTests
 
         foreach (var piece in laid.Root.SelfAndDescendants())
         {
-            text.Append(' ', piece.Depth * 2).Append(piece.Kind);
-
-            // The line at today is drawn from the clock, which moves between the snapshot and the run.
-            if (piece.Kind != Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttPiece.Today)
-                text.Append(' ').Append(Rect(piece.Bounds));
+            text.Append(' ', piece.Depth * 2).Append(piece.Kind).Append(' ').Append(Rect(piece.Bounds));
 
             if (piece.Part is { } part) text.Append(" @").Append(part.Start).Append('+').Append(part.Length).Append(' ').Append(part.GetType().Name);
             if (piece.Words is { } words) text.Append(" words ").Append(words.Length);
             if (piece.Turned is { } turned && !turned.Value.IsIdentity) text.Append(" turned ").Append(turned.Value.ToString(CultureInfo.InvariantCulture));
             text.Append('\n');
-
-            if (piece.Kind == Nexaflow.Visuals.Text.Markdown.Mermaid.Gantt.GanttPiece.Today) continue;
 
             foreach (var mark in piece.Marks)
                 text.Append(' ', piece.Depth * 2 + 2).Append(Mark(mark)).Append('\n');
