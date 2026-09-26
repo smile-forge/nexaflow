@@ -16,23 +16,24 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// close, and an accidental lasts a bar so the notes cannot be resolved until the bars exist.
 /// </para>
 /// <para>
-/// The last two are a surface being written on asking for what a reader needs and a page being read does
-/// not: a stretch shown exactly as typed while somebody is mid-keystroke, and a line under what nothing
-/// can draw. Both are generic — one is shared with every other language, and the other only needs to be
-/// told what the engraver knows.
+/// Before all of it, what each field says, since every one of them asks; after it, what each decoration and quoted run
+/// means, and then a line under what nothing can draw. Last, a stretch shown exactly as typed while somebody is
+/// mid-keystroke, which a surface being written on asks for and a page being read does not.
 /// </para>
 /// </summary>
 public static class AbcPipeline
 {
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
-    public static AstPipeline Of(Func<string, bool>? draws = null, (int Start, int Length)? editing = null) =>
+    public static AstPipeline Of((int Start, int Length)? editing = null) =>
         new AstPipeline(
+            new ResolveFields(),       // what each field says
             new ResolveContext(),      // what key, meter, unit length and voice are in force
             new GroupTuplets(),        // a marker and the events it covers
             new GroupBeams(),          // what was written together
             new GroupBars(),           // what is between two bar lines
             new ResolveNotes(),        // what each note sounds and how long each event lasts
             new AlignLyrics(),         // which word is sung on which note
-            new CheckDrawable(draws))  // what is written correctly and still cannot be drawn
+            new ResolveMarks(),        // what each decoration and quoted run is
+            new CheckDrawable())       // what is written correctly and still cannot be drawn
             .Then(ShowAsWritten.Of(editing));
 }

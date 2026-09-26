@@ -7,7 +7,7 @@ using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 

@@ -106,7 +106,7 @@ public static class AbcEdit
 
         // What it sounds now, which is the written accidental where there is one and the key's where
         // there is not — a distinction only the stage that read the whole line can make.
-        var sounds = ResolveNotes.PitchOf(note)?.Alter ?? 0;
+        var sounds = (note as AbcEventNode)?.Pitch?.Alter ?? 0;
         var wanted = Math.Clamp(sounds + by, -2, 2);
 
         var mark = wanted switch { 2 => "^^", 1 => "^", -1 => "_", -2 => "__", _ => "=" };

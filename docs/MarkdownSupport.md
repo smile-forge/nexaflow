@@ -1623,12 +1623,13 @@ ABC and LilyPond are two ways of writing the same thing, and one engraver draws 
 - **How it is read.** Each notation is read into its own syntax tree, which prints back exactly what was
   written, and worked over by a pipeline of stages —
   [`AbcPipeline`](../src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs) and
-  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that hang what each note
-  lasts and sounds underneath it.
+  [`LilyPondPipeline`](../src/Nexaflow.Markdown/Music/LilyPond/LilyPondPipeline.cs) — that say what each note
+  lasts and sounds, and in ABC what each field, mark, quoted run and syllable means, in the notation's own nodes
+  and the ones every notation shares ([`MusicNodes`](../src/Nexaflow.Markdown/Music/MusicNodes.cs)).
 - **How it is drawn.** A builder per notation —
   [`AbcBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/Abc/AbcBuilder.cs),
-  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — reads that tree
-  into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
+  [`LilyPondBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/LilyPond/LilyPondBuilder.cs) — walks that tree,
+  each its own way, into rows of bars, and both are a [`MusicBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.cs),
   the one engraver, which lays the rows onto the layout tree the formulas and barcodes already use. Every
   piece of the picture says which characters it was drawn from, which is what makes a note something a
   reader can click, select and edit in place. Given a page, the music takes 80% of its width and sits in the middle

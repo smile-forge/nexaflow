@@ -308,13 +308,15 @@ diagram's grammar and builder are built from the kit. How a diagram is added and
 
 | Stage | What it works out |
 |---|---|
+| `ResolveFields` | what each field's value says for its letter: a key and clef, a meter and its sign, a unit length, a voice |
 | `ResolveContext` | the key, meter, unit note length and voice in force on each line |
 | `GroupTuplets` | a `(3` marker and the events it covers |
 | `GroupBeams` | the events written together with no space between them |
 | `GroupBars` | what is between two bar lines |
 | `ResolveNotes` | what each note sounds and how long each event lasts |
-| `AlignLyrics` | which syllable is sung on which note |
-| `CheckDrawable` | what is written correctly and still cannot be drawn |
+| `AlignLyrics` | which syllable is sung on which note, and where it was written |
+| `ResolveMarks` | the mark each decoration names, however it is spelled, and whether a quoted run is a chord or placed text |
+| `CheckDrawable` | what is written correctly and still cannot be drawn: a decoration naming no mark |
 | `ShowAsWritten` | the stretch under the caret, shown as typed |
 
 A length needs the unit note length; a tuplet's default needs the meter; a tuplet beams as one group; a beam never
@@ -322,7 +324,10 @@ crosses a bar line; an accidental lasts a bar. A measure never crosses a source 
 suggested system break. **A note is four leaves** — accidental, letter, octave marks, length — so each gesture rewrites
 one: `A`–`G` writes a note in the octave of the one before, Page Up and Down move the octave, `+` and `-` double and
 halve the length, and `#` and `_` move a semitone **from what the note sounds**, so flattening a bare `F` in G major
-writes `=F`. LilyPond is the same engraving read from another notation.
+writes `=F`. Each stage says its answer in the tune's own nodes (`AbcFieldNode`, `AbcLineNode`, `AbcTupletNode`,
+`AbcEventNode`), and a mark or words written against a note in the ones every notation shares (`MusicMarkNode`,
+`MusicAnnotationNode`), so `AbcBuilder` only walks the tune. LilyPond is the same engraving, walked by a builder of its
+own: the two notations think about music differently, and share `MusicBuilder` for what a score is drawn with.
 
 **2D codes** — `MatrixParser` reads a `qr`, `aztec`, `pdf417` or `datamatrix` body into lines of fields, one grammar for
 all four, and each builder encodes and lays the symbol out as the parts it is made of (finders, timing lines, a

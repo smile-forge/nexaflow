@@ -211,11 +211,86 @@
           "class": "ResolveStatistics"
         }
       ]
+    },
+    "abc-ast-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Pipeline/AstPipeline.cs",
+          "class": "AstPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcPipeline.cs",
+          "class": "AbcPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcNodes.cs",
+          "class": "AbcEventNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/ResolveFields.cs",
+          "class": "ResolveFields"
+        }
+      ]
+    },
+    "abc-decorations": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcParser.cs",
+          "class": "AbcParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/ResolveMarks.cs",
+          "class": "ResolveMarks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/MusicNodes.cs",
+          "class": "MusicMarkNode"
+        }
+      ]
+    },
+    "abc-multivoice": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcParser.cs",
+          "class": "AbcParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/AbcNodes.cs",
+          "class": "AbcFieldNode"
+        }
+      ]
+    },
+    "sr-lyrics": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Music/MusicBuilder.Draw.cs",
+          "class": "MusicBuilder",
+          "method": "Annotations"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Music/Abc/Stages/AlignLyrics.cs",
+          "class": "AlignLyrics"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 8,
+  "changed_sets": 12,
   "touched_nodes": [
+    "abc-ast-pipeline",
+    "abc-decorations",
+    "abc-multivoice",
     "correlation-plots-reading",
     "correlation-plots-render",
     "fenced-code-blocks",
@@ -223,6 +298,7 @@
     "markdown-maths",
     "markdown-styling",
     "smiles-chemistry",
-    "smiles-structure-layout"
+    "smiles-structure-layout",
+    "sr-lyrics"
   ]
 }

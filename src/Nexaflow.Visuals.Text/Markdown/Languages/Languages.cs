@@ -151,7 +151,7 @@ internal static class Shipped
     public static readonly ContentLanguage Abc = new(
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
         Parser: static () => static source => ContentParse.Of(AbcParser.Parse(source)),
-        Stages: static (tree, show) => AbcPipeline.Of(AbcBuilder.Draws, Editing(show.Own(tree.Width))).Stages,
+        Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: static (reading, show) => new AbcBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>A tune written in LilyPond.</summary>

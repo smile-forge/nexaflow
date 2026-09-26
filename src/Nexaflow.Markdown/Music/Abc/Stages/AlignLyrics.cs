@@ -4,7 +4,7 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Markdown.Music.Abc.Stages;
 
 /// <summary>
-/// Hangs each syllable of a <c>w:</c> line under the note it is sung on.
+/// Says of each note which syllable of each <c>w:</c> line is sung on it (<see cref="AbcEventNode"/>).
 ///
 /// <para>
 /// A lyric line is written after the music it belongs to and lines up with it by counting: a space or a
@@ -46,7 +46,7 @@ public sealed class AlignLyrics : IAstStage
                 {
                     // Printed rather than read off the node: a lyric's value is the syllables it was split
                     // into, so its characters are its children's rather than its own.
-                    var sung = Sing(lines[music], Syllables(lines[at].Part(AbcRoles.Value)), verse++);
+                    var sung = Sing(lines[music], Syllables(lines[at].Part(AbcRoles.Value)), verse++, at);
                     if (ReferenceEquals(sung, lines[music])) continue;
 
                     lines[music] = sung;
@@ -128,20 +128,20 @@ public sealed class AlignLyrics : IAstStage
     // ── Putting them under the notes ────────────────────────────────────────
 
     /// <summary>
-    /// The music line with one verse's syllables hung under its notes. Rests take no syllable — nobody
-    /// sings a silence — and a bar jump skips whatever is left of the bar it is in.
+    /// The music line with one verse's syllables sung on its notes — the <c>w:</c> line at <paramref name="written"/> among the
+    /// tune's lines. Rests take no syllable — nobody sings a silence — and a bar jump skips whatever is left of the bar it is in.
     /// </summary>
-    private static ContentNode Sing(ContentNode line, List<Syllable> syllables, int verse)
+    private static ContentNode Sing(ContentNode line, List<Syllable> syllables, int verse, int written)
     {
         if (syllables.Count == 0) return line;
 
         var at = 0;
         var skipping = false;
-        return Under(line, syllables, ref at, ref skipping, verse);
+        return Under(line, syllables, ref at, ref skipping, verse, written);
     }
 
     private static ContentNode Under(ContentNode node, List<Syllable> syllables, ref int at, ref bool skipping,
-                                     int verse)
+                                     int verse, int written)
     {
         if (node.Kind is AbcKinds.Note or AbcKinds.Chord)
         {
@@ -153,12 +153,11 @@ public sealed class AlignLyrics : IAstStage
             if (syllable.Skip) return node;
             if (syllable.NextBar) { skipping = true; return node; }
 
-            // The verse, which piece of it, and what it says. The index is what lets whatever draws this
+            // The verse, where it was written and what it says. Where it was written is what lets whatever draws this
             // find the characters again in the `w:` line, which is somewhere else entirely in this tree.
-            return node.Saying(
-                AbcKinds.Text,
-                AbcRoles.Lyric,
-                $"{verse}:{syllable.At}:{(syllable.Melisma ? "_" : syllable.Text)}{(syllable.Hyphen ? "-" : "")}");
+            return AbcEventNode.Of(node).Singing(new AbcSung(verse, written, syllable.At,
+                                                             syllable.Melisma ? "" : syllable.Text,
+                                                             syllable.Hyphen, syllable.Melisma));
         }
 
         if (node.Kind == AbcKinds.Measure)
@@ -176,7 +175,7 @@ public sealed class AlignLyrics : IAstStage
 
         foreach (var child in node.Children)
         {
-            var seen = Under(child, syllables, ref at, ref skipping, verse);
+            var seen = Under(child, syllables, ref at, ref skipping, verse, written);
             moved |= !ReferenceEquals(seen, child);
             rebuilt.Add(seen);
         }
@@ -185,29 +184,4 @@ public sealed class AlignLyrics : IAstStage
     }
 
     // ── Reading the answers back ────────────────────────────────────────────
-
-    /// <summary>The syllables sung on this event, one per verse, in verse order.</summary>
-    public static IEnumerable<(int Verse, int At, string Text, bool Hyphen, bool Melisma)> Of(ContentNode node)
-    {
-        foreach (var derived in node.Children)
-        {
-            if (derived.Role != Roles.Derived) continue;
-
-            foreach (var fact in derived.Children)
-            {
-                if (fact.Role != AbcRoles.Lyric) continue;
-
-                // verse : which piece of it : what it says
-                var parts = fact.Text.Split(':', 3);
-                if (parts.Length < 3 || !int.TryParse(parts[0], out var verse)
-                    || !int.TryParse(parts[1], out var at)) continue;
-
-                var text = parts[2];
-                var hyphen = text.EndsWith('-');
-                if (hyphen) text = text[..^1];
-
-                yield return (verse, at, text == "_" ? "" : text, hyphen, text == "_");
-            }
-        }
-    }
 }

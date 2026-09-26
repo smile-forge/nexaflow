@@ -6,8 +6,7 @@ using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Markdown.Music.LilyPond.Stages;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using AnnotationPlacement = Nexaflow.Visuals.Text.Markdown.Music.Model.AnnotationPlacement;
-using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
+
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
 

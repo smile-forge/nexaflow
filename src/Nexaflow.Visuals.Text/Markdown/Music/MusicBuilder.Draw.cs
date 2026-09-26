@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 using static Nexaflow.Visuals.Text.Markdown.Music.Rendering.ScoreMetrics;
+using Nexaflow.Markdown.Music;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music;
 

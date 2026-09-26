@@ -14,8 +14,8 @@ namespace Nexaflow.Markdown.Music.Abc.Stages;
 /// </para>
 /// <para>
 /// Runs before the beams, because a tuplet beams as one group and a group that is not there yet cannot be
-/// beamed as one. What the numbers mean is worked out here too, and hung on the group: how many notes, in
-/// the time of how many. The defaults for <c>q</c> follow the ABC standard, where the odd-numbered
+/// beamed as one. What the numbers mean is worked out here too, and said of the group (<see cref="AbcTupletNode"/>): how many
+/// notes, in the time of how many. The defaults for <c>q</c> follow the ABC standard, where the odd-numbered
 /// tuplets mean one thing in a simple meter and another in a compound one — which is why this needs the
 /// meter, and so runs after the context.
 /// </para>
@@ -29,7 +29,7 @@ public sealed class GroupTuplets : IAstStage
 
     public ContentNode Run(ContentNode tree) =>
         AstRewrite.Regrouping(tree, (node, children) =>
-            node.Kind == AbcKinds.Line ? Grouped(children, ResolveContext.Of(node)) : null);
+            node.Kind == AbcKinds.Line ? Grouped(children, (node as AbcLineNode)?.Context ?? AbcContext.Default) : null);
 
     private static IReadOnlyList<ContentNode>? Grouped(IReadOnlyList<ContentNode> children, AbcContext context)
     {
@@ -67,11 +67,7 @@ public sealed class GroupTuplets : IAstStage
                 continue;
             }
 
-            rebuilt.Add(ContentNode
-                .Branch(AbcKinds.TupletGroup, [.. children.Skip(at).Take(end - at)])
-                .Saying(
-                    (AbcKinds.Text, AbcRoles.Value, $"{notes}"),
-                    (AbcKinds.Text, AbcRoles.Duration, $"{time}")));
+            rebuilt.Add(new AbcTupletNode(ContentNode.Branch(AbcKinds.TupletGroup, [.. children.Skip(at).Take(end - at)]), notes, time));
 
             at = end;
             moved = true;
@@ -124,9 +120,4 @@ public sealed class GroupTuplets : IAstStage
     }
 
     // ── Reading the answer back ─────────────────────────────────────────────
-
-    /// <summary>How many notes this group holds, and how many notes' worth of time it takes.</summary>
-    public static (int Notes, int Time) Of(ContentNode group) =>
-        (int.TryParse(group.Said(AbcRoles.Value), out var notes) ? notes : 0,
-         int.TryParse(group.Said(AbcRoles.Duration), out var time) ? time : 0);
 }

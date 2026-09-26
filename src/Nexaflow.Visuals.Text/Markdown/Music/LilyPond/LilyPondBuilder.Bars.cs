@@ -4,7 +4,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
-using ClefKind = Nexaflow.Visuals.Text.Markdown.Music.Model.ClefKind;
+
 using KeySignature = Nexaflow.Visuals.Text.Markdown.Music.Model.KeySignature;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.LilyPond;
