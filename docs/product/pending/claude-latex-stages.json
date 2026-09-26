@@ -1,0 +1,20 @@
+{
+  "branch": "claude/latex-stages",
+  "nodes": {
+    "maths-typesetting-builder": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/TexTypesetter.cs",
+          "class": "TexTypesetter"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "maths-typesetting-builder"
+  ]
+}

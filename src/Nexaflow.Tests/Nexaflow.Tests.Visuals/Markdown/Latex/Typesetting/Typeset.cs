@@ -42,7 +42,7 @@ internal static class Typeset
     public static (ContentReading Reading, Set Set) Read(string markup, TexStyle style = TexStyle.Display)
     {
         var reading = Laying.Read("latex", markup);
-        return (reading, LatexBuilder.Formula(reading.Root, Environment(style), Knowledge));
+        return (reading, TexTypesetter.Formula(reading.Root, Environment(style), Knowledge));
     }
 
     /// <summary>The formula, set.</summary>

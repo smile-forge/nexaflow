@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
@@ -14,7 +14,8 @@ using Nexaflow.Markdown.Pipeline;
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 
 /// <summary>
-/// The setting half: a formula's reading turned into measured pieces, each construct set the way TeX sets it.
+/// The typesetter: a formula's reading turned into measured pieces, each construct set the way TeX sets it — what
+/// <see cref="LatexBuilder"/> lays out, and what the typesetting tests measure.
 /// Handed the reading and never the string, so nothing here can name a point in the source — what a piece came
 /// from is its part, and where that part is written is the reading's to answer. Anything nothing here has a
 /// drawing for is set as the characters it was written with, so a formula comes back whole whatever it holds.
@@ -22,7 +23,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// their classes, not from what was typed, so <c>a+b</c> and <c>a + b</c> set identically; <c>\,</c>, <c>\quad</c>
 /// and the rest are the writer overriding that.
 /// </summary>
-public sealed partial class LatexBuilder
+internal static class TexTypesetter
 {
     /// <summary>
     /// Whether the handful of disagreements parked for review are declined — the default. Turn off only to look at

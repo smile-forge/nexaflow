@@ -39,7 +39,7 @@ public sealed partial class LatexBuilder : ContentBuilder
 
     /// <summary>Whether the typesetter has a drawing for a named command. Passed to <see cref="LatexTree"/> as a function so reading needs no fonts or desktop.</summary>
     internal static bool Draws(string name) =>
-        Draws(name, WpfTeXFormulaParser.Instance);
+        TexTypesetter.Draws(name, WpfTeXFormulaParser.Instance);
 
 
     protected override Laid? Build()
@@ -54,7 +54,7 @@ public sealed partial class LatexBuilder : ContentBuilder
             scale: _scale,
             systemTextFontName: _systemFont);
 
-        var formula = Formula(Reading.Root, environment, knowledge);
+        var formula = TexTypesetter.Formula(Reading.Root, environment, knowledge);
 
         // Also settles the tree onto the origin: negative coordinates would put the caret outside the control
         // that draws it.
@@ -77,7 +77,7 @@ public sealed partial class LatexBuilder : ContentBuilder
             .ToList();
 
         // An equation's \tag number, set against the block's right edge — see Numbered.
-        var (tree, size) = Number(Reading.Root, environment) is { } number
+        var (tree, size) = TexTypesetter.Number(Reading.Root, environment) is { } number
             ? Numbered(placed, number, Reading)
             : (laid, placed.Size);
 
