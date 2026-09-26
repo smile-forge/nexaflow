@@ -219,10 +219,11 @@ public class StructureLayoutTests
             CollectionAssert.AreEqual(Lay(smiles).Structure.At.ToArray(), Lay(smiles).Structure.At.ToArray(), smiles);
     }
 
-    private static (Molecule Molecule, Structure Structure) Lay(string smiles)
+    /// <summary>A molecule as the stages leave it, and where they said its atoms go.</summary>
+    private static (MoleculeNode Molecule, Structure Structure) Lay(string smiles)
     {
-        var molecule = Molecule.Read(SmilesPipeline.Of().Run(SmilesParser.Molecule(smiles)));
-        return (molecule, StructureLayout.Of(molecule));
+        var molecule = (MoleculeNode)SmilesPipeline.Of().Run(SmilesParser.Molecule(smiles));
+        return (molecule, molecule.Structure!);
     }
 
     private static double Angle(Structure structure, int a, int centre, int b)

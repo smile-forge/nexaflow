@@ -9,13 +9,14 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Chemistry;
 using Nexaflow.Markdown.Chemistry.Depiction;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Chemistry.Stages;
 
 namespace Nexaflow.Visuals.Text.Markdown.Chemistry;
 
 /// <summary>
 /// Lays a <c>smiles</c> block out: each molecule as a skeletal structure with its caption beneath, flowing left to
-/// right and wrapping to the room given. <see cref="StructureLayout"/> decides atom positions; this decides how a
-/// chemist draws them (bare-corner carbon, half-and-half bond colouring, wedges for stereocentres). Every atom and
+/// right and wrapping to the room given. Where the atoms go is the stages' to say (<see cref="DepictStructure"/>); this
+/// decides how a chemist draws them (bare-corner carbon, half-and-half bond colouring, wedges for stereocentres). Every atom and
 /// bond is a piece carrying the source it was drawn from, so selection yields SMILES text and errors underline the
 /// offending atom. A molecule with trouble still draws as much of itself as reads, with the reason in red beneath
 /// its caption; unparseable source falls back to its own characters, struck through.
@@ -97,8 +98,8 @@ internal sealed class SmilesBuilder : ContentBuilder
         var label = entry.Children.FirstOrDefault(child => child.Kind == SmilesKinds.Label)?.Part(SmilesRoles.Label);
 
         Drawing? drawing = null;
-        if (molecule is not null && Nexaflow.Markdown.Chemistry.Molecule.Read(molecule.Node) is { Atoms.Count: > 0 } read)
-            drawing = new Drawing(this, molecule, read);
+        if (molecule?.Node is MoleculeNode { Structure: { } structure, Atoms.Count: > 0 } read)
+            drawing = new Drawing(this, molecule, read, structure);
 
         return new Sketched
         {
@@ -188,9 +189,13 @@ internal sealed class SmilesBuilder : ContentBuilder
     private sealed class Drawing
     {
         private readonly SmilesBuilder _owner;
-        private readonly Nexaflow.Markdown.Chemistry.Molecule _molecule;
+        private readonly MoleculeNode _molecule;
         private readonly Structure _structure;
-        private readonly IReadOnlyList<ContentPart> _atoms;
+        /// <summary>The part each atom was drawn from, by the order atoms are written in.</summary>
+        private readonly ContentPart?[] _atoms;
+
+        /// <summary>The part each bond was written as, where one was — a bond between two atoms side by side was not.</summary>
+        private readonly Dictionary<int, ContentPart> _written = [];
         private readonly Point[] _at;
         private readonly Label?[] _labels;
         private readonly double _scale;
@@ -204,13 +209,21 @@ internal sealed class SmilesBuilder : ContentBuilder
         /// <summary>For each bond of a solid that passes behind another, where on the page it does.</summary>
         private readonly Dictionary<int, List<Point>> _gaps;
 
-        public Drawing(SmilesBuilder owner, ContentPart part, Nexaflow.Markdown.Chemistry.Molecule molecule)
+        public Drawing(SmilesBuilder owner, ContentPart part, MoleculeNode molecule, Structure structure)
         {
             _owner = owner;
             _molecule = molecule;
             Part = part;
-            _structure = StructureLayout.Of(molecule);
-            _atoms = [.. part.SelfAndDescendants().Where(p => p.Kind == SmilesKinds.Atom && !p.Derived)];
+            _structure = structure;
+            _atoms = new ContentPart?[molecule.Atoms.Count];
+
+            foreach (var piece in part.SelfAndDescendants())
+                switch (piece.Node)
+                {
+                    case AtomNode atom: _atoms[atom.Index] = piece; break;
+                    case BondNode bond: _written[bond.Bond] = piece; break;
+                    case RingBondNode { Bond: { } closed }: _written[closed] = piece; break;
+                }
 
             var positions = _structure.At;
             var (minX, maxX, minY, maxY) = (positions.Min(p => p.X), positions.Max(p => p.X), positions.Min(p => p.Y), positions.Max(p => p.Y));
@@ -265,7 +278,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
             for (var i = 0; i < _at.Length; i++)
             {
-                build.Open(MoleculePiece.Atom, i < _atoms.Count ? _atoms[i] : null);
+                build.Open(MoleculePiece.Atom, _atoms[i]);
 
                 if (_labels[i] is { } label)
                 {
@@ -350,9 +363,9 @@ internal sealed class SmilesBuilder : ContentBuilder
         }
 
         /// <summary>How much to lengthen bonds so labels don't collide — needed when unbonded atoms land close together, as in a cage drawn in perspective.</summary>
-        private static double Spread(Nexaflow.Markdown.Chemistry.Molecule molecule, IReadOnlyList<Vec> at)
+        private static double Spread(MoleculeNode molecule, IReadOnlyList<Vec> at)
         {
-            static bool Labelled(MoleculeAtom atom) => atom.Number != 6 || atom.Charge != 0;
+            static bool Labelled(AtomNode atom) => atom.Number != 6 || atom.Charge != 0;
 
             var spread = 1.0;
             for (var i = 0; i < at.Count; i++)
@@ -369,11 +382,7 @@ internal sealed class SmilesBuilder : ContentBuilder
             return Math.Min(spread, LongestSpread);
         }
 
-        private ContentPart? PartOf(MoleculeBond bond)
-        {
-            if (bond.Node is null) return null;
-            return Part.SelfAndDescendants().FirstOrDefault(p => ReferenceEquals(p.Node, bond.Node));
-        }
+        private ContentPart? PartOf(MoleculeBond bond) => _written.GetValueOrDefault(bond.Index);
 
         private void DrawBond(LayoutBuilder build, MoleculeBond bond)
         {
@@ -589,7 +598,7 @@ internal sealed class SmilesBuilder : ContentBuilder
 
         public Rect Bounds { get; private set; }
 
-        public static Label? For(SmilesBuilder owner, Nexaflow.Markdown.Chemistry.Molecule molecule, MoleculeAtom atom, Point[] at, double scale)
+        public static Label? For(SmilesBuilder owner, MoleculeNode molecule, AtomNode atom, Point[] at, double scale)
         {
             var degree = molecule.BondsAt(atom.Index).Count;
             var shown = atom.Number != 6 || atom.Charge != 0 || atom.Isotope is not null || degree == 0;

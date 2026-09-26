@@ -90,14 +90,59 @@
           }
         ]
       }
+    },
+    "smiles-chemistry": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesPipeline.cs",
+          "class": "SmilesPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/SmilesNodes.cs",
+          "class": "MoleculeNode"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Elements.cs",
+          "class": "Elements"
+        }
+      ]
+    },
+    "smiles-structure-layout": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/StructureLayout.cs",
+          "class": "StructureLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/MoleculeRings.cs",
+          "class": "MoleculeRings"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Depiction/CageLayout.cs",
+          "class": "CageLayout"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Chemistry/Stages/DepictStructure.cs",
+          "class": "DepictStructure"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
     "fenced-code-blocks",
     "markdown-laid-again",
     "markdown-maths",
-    "markdown-styling"
+    "markdown-styling",
+    "smiles-chemistry",
+    "smiles-structure-layout"
   ]
 }

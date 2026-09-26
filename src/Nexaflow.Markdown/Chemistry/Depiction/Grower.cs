@@ -8,7 +8,7 @@ internal sealed class Grower
 {
     private const double Tau = 2 * Math.PI;
 
-    private readonly Molecule _molecule;
+    private readonly MoleculeNode _molecule;
     private readonly List<int> _component;
     private readonly Vec[] _at;
     private readonly bool[] _placed;
@@ -39,7 +39,7 @@ internal sealed class Grower
     /// <summary>A system drawn as a solid has at most this many atoms; past it, a flat drawing is all a page can hold.</summary>
     private const int LargestCage = 60;
 
-    public Grower(Molecule molecule, IReadOnlyList<int[]> rings, List<int> component, Vec[] at, double?[] depth)
+    public Grower(MoleculeNode molecule, IReadOnlyList<int[]> rings, List<int> component, Vec[] at, double?[] depth)
     {
         _molecule = molecule;
         _component = component;

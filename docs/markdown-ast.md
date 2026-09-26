@@ -331,9 +331,11 @@ bullseye, row indicators). What they share is `MatrixBuilder`. No piece carries 
 **Barcodes** — the same grammar, the value spelled out a piece per character by the parser, because each character
 printed stands for one written; while the block is written in, `HoldValue` gives a value not yet written a hole.
 
-**SMILES** — `ConnectAtoms`, `CountHydrogens`, `Kekulize`, each needing the one before. A bond between two atoms written
-side by side has no characters, so facts name atoms by the order written. Where the atoms go is worked out beside the
-model (`StructureLayout`, `CageLayout`), not by the builder.
+**SMILES** — `ConnectAtoms`, `CountHydrogens`, `Kekulize`, `DepictStructure`, each needing the one before, and each saying
+what it works out in the molecule's own nodes (`MoleculeNode`, `AtomNode`). A bond between two atoms written side by side
+has no characters, so a molecule's bonds name atoms by the order written. Where the atoms go is a stage's answer too
+(`DepictStructure`, through `StructureLayout` and `CageLayout`): it is a fact about the molecule, not the room, so the
+builder only scales it to its room and draws it.
 
 **Word clouds** — a parser and nothing between it and the builder: nothing about a cloud's line means anything its
 characters do not say. The layout tree is flat on purpose — every word placed absolutely, one run each — and the
