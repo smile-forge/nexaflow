@@ -17,9 +17,6 @@ public static class ArchitectureKinds
 
     /// <summary>An <c>align row</c> or <c>align column</c> line: the services that share a row or a column.</summary>
     public const string Align = "architecture-align";
-
-    /// <summary>What a stage worked out about a line.</summary>
-    public const string Fact = "architecture-fact";
 }
 
 /// <summary>What a piece of an <c>architecture-beta</c> diagram is <em>to</em> the piece holding it.</summary>

@@ -56,9 +56,6 @@ public static class StateKinds
 
     /// <summary>A <c>scale 350 width</c> line, which Mermaid keeps from its first renderer.</summary>
     public const string Scale = "state-scale";
-
-    /// <summary>What the stages hang under a line: which composite state it is in, which one it opens, and which note it is part of.</summary>
-    public const string Fact = "state-fact";
 }
 
 /// <summary>What a piece of a state diagram's line is to the piece holding it.</summary>
@@ -93,12 +90,6 @@ public static class StateRoles
 
     /// <summary>How wide a <c>scale</c> line asks for the diagram to be drawn.</summary>
     public const string Width = "state-width";
-
-    /// <summary>The composite state a line is written in (<see cref="MermaidNesting"/>).</summary>
-    public const string Inside = "state-inside";
-
-    /// <summary>The composite state a <c>state … {</c> line opens.</summary>
-    public const string Opened = "state-opened";
 
 
 }

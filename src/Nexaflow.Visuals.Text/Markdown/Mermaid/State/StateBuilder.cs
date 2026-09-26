@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
@@ -9,37 +10,6 @@ using Nexaflow.Markdown.Mermaid.State;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.State;
-
-/// <summary>The pieces a state diagram's layout is made of — its layers, and what is in them.</summary>
-public static class StatePiece
-{
-    /// <summary>The diagram itself: the states, and the composite states they are gathered into.</summary>
-    public const string States = "States";
-
-    /// <summary>One state, standing for what was written for it.</summary>
-    public const string State = "State";
-
-    /// <summary>A composite state: the box, and the states it holds drawn inside its piece.</summary>
-    public const string Group = "Group";
-
-    /// <summary>A composite state's own box and what is written at the top of it, behind the states it holds.</summary>
-    public const string Holding = "Holding";
-
-    /// <summary>The line dividing two regions of a composite state, which run at the same time.</summary>
-    public const string Divider = "Divider";
-
-    /// <summary>A note written beside a state.</summary>
-    public const string Note = "Note";
-
-    /// <summary>The transitions, drawn over the diagram.</summary>
-    public const string Steps = "Steps";
-
-    /// <inheritdoc cref="Steps"/>
-    public const string Step = "Step";
-
-    /// <summary>What is written on a transition, over the middle of its line.</summary>
-    public const string Label = "Label";
-}
 
 /// <summary>
 /// Draws a <c>stateDiagram</c> — or a <c>stateDiagram-v2</c>, which Mermaid reads the same way. The states are laid out in ranks by
@@ -57,7 +27,7 @@ public static class StatePiece
 /// two regions is a line drawn the width of the composite state holding it.
 /// </para>
 /// </summary>
-internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
+internal sealed class StateBuilder : MermaidBuilder
 {
     /// <summary>How big what is written on a state is, and on a transition.</summary>
     private const double TextSize = 13;
@@ -87,17 +57,346 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
     internal StateBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override StateDiagram Of(MermaidBlock block) => StateDiagram.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
 
-    /// <inheritdoc/>
-    protected override DiagramChart? Chart(StateDiagram diagram) =>
-        new([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Steps.Select(step => (step.From, step.To))]);
-
-    protected override Size Draw(StateDiagram diagram, LayoutBuilder build)
+    /// <summary>What a state is drawn as.</summary>
+    private enum Form
     {
+        /// <summary>A box, with what is written on it inside.</summary>
+        Plain,
+
+        /// <summary>The filled dot its scope starts at.</summary>
+        Start,
+
+        /// <summary>The ringed dot its scope stops at.</summary>
+        Stop,
+
+        /// <summary>The bar work forks from.</summary>
+        Fork,
+
+        /// <summary>The bar work joins at.</summary>
+        Join,
+
+        /// <summary>The diamond a choice between paths is drawn as.</summary>
+        Choice,
+
+        /// <summary>The line dividing two regions of a composite state, which run at the same time.</summary>
+        Divider,
+    }
+
+    /// <summary>One state: where it was first written, what it is called, what is drawn on it, and what it is drawn as.</summary>
+    /// <param name="part">The state as it was first named, which is what a press on it means.</param>
+    /// <param name="group">The key of the composite state it was first written in, or null for one written outside them all.</param>
+    /// <param name="region">
+    /// Which region of that composite it is in, counted from one: a <c>--</c> line divides a composite state into regions that run
+    /// at the same time, and what is written after one is in the next. A divider is in the region it closes.
+    /// </param>
+    private sealed class Node(ContentPart part, string id, string? group, int region)
+    {
+        public ContentPart Part { get; } = part;
+
+        /// <summary>What it is called, which is what a transition, a <c>class</c>, a <c>style</c> and a note name it by.</summary>
+        public string Id { get; } = id;
+
+        public string? Group { get; } = group;
+
+        public int Region { get; } = region;
+
+        public Form Form { get; set; }
+
+        /// <summary>The words drawn on it: what is written on it, or what it is called where nothing else says anything.</summary>
+        public ContentPart? Said { get; set; }
+
+        public ContentPart? SaidHole { get; set; }
+
+        public MermaidStyle Style { get; set; } = MermaidStyle.None;
+
+        /// <summary>Whether it is one of the dots a scope starts and stops at, which hold no words and are drawn small.</summary>
+        public bool Marker => Form is Form.Start or Form.Stop;
+    }
+
+    /// <summary>One transition: the states it joins and what is written on it.</summary>
+    private sealed record Step(ContentPart Part, string From, string To, ContentPart? Said, ContentPart? SaidHole);
+
+    /// <summary>
+    /// One composite state: the box drawn round every state first written inside it, what is written at the top of it, the
+    /// composite state it is itself inside, and the way its own states are laid out where a <c>direction</c> line says one.
+    /// </summary>
+    /// <param name="key">Where it stands among the composite states written, which is what a state says it is inside.</param>
+    /// <param name="id">What it is called, which a transition and a <c>style</c> line name it by.</param>
+    private sealed class Group(ContentPart part, string key, string id, string? parent, int region)
+    {
+        public ContentPart Part { get; } = part;
+
+        public string Key { get; } = key;
+
+        public string Id { get; } = id;
+
+        public string? Parent { get; } = parent;
+
+        public int Region { get; } = region;
+
+        public ContentPart? Said { get; init; }
+
+        public ContentPart? SaidHole { get; init; }
+
+        /// <summary>
+        /// The whole of it as it was written, from the line that opened it through the <c>}</c> that closed it — the opening line
+        /// alone, where nothing closed it.
+        /// </summary>
+        public ISourcePart Whole { get; init; } = default(SourceSpan);
+
+        public DiagramWay? Way { get; set; }
+
+        public MermaidStyle Style { get; set; } = MermaidStyle.None;
+    }
+
+    /// <summary>One note: the state it is written beside, and what it says, a part for each line it is written across.</summary>
+    private sealed record Note(ContentPart Part, string Of, IReadOnlyList<ContentPart> Said, ContentPart? SaidHole);
+
+    /// <summary>
+    /// What the block writes, read down the tree in the order it is written. A state written twice is one state: the second writing
+    /// says more about the one the first made — what is drawn on it, what it is drawn as — rather than making another, which is what
+    /// lets a transition name the states a line above wrote. A state belongs to the composite state it was first written in, and a
+    /// name the stages say is a composite's is drawn as that composite's box rather than as a state of its own.
+    /// </summary>
+    private sealed class Diagram
+    {
+        private readonly Dictionary<string, Node> known = new(StringComparer.Ordinal);
+
+        /// <summary>What each name is styled with, said on the one first writing it — a <c>[*]</c>'s by the dot it is.</summary>
+        private readonly Dictionary<string, MermaidStyle> styles = new(StringComparer.Ordinal);
+
+        private Diagram(StateConfig config) => Config = config;
+
+        public StateConfig Config { get; }
+
+        /// <summary>The way the whole diagram is laid out.</summary>
+        public DiagramWay Way { get; private set; } = DiagramWay.Down;
+
+        /// <summary>The states, in the order they are first written.</summary>
+        public List<Node> Nodes { get; } = [];
+
+        public List<Step> Steps { get; } = [];
+
+        /// <summary>The composite states, each before the ones nested in it.</summary>
+        public List<Group> Groups { get; } = [];
+
+        public List<Note> Notes { get; } = [];
+
+        public static Diagram Of(ContentPart root, StateConfig config)
+        {
+            var diagram = new Diagram(config);
+            diagram.Read(root, null);
+
+            foreach (var node in diagram.Nodes) node.Style = diagram.styles.GetValueOrDefault(node.Id, MermaidStyle.None);
+            foreach (var group in diagram.Groups) group.Style = diagram.styles.GetValueOrDefault(group.Id, MermaidStyle.None);
+
+            return diagram;
+        }
+
+        public Node? Find(string id) => id.Length == 0 ? null : known.GetValueOrDefault(id);
+
+        /// <summary>The states written inside a composite state — those written outside them all, for null.</summary>
+        public IEnumerable<Node> Inside(string? group) =>
+            Nodes.Where(node => string.Equals(node.Group, group, StringComparison.Ordinal));
+
+        /// <summary>The composite states opened inside one — the outermost ones, for null.</summary>
+        public IEnumerable<Group> Within(string? group) =>
+            Groups.Where(nested => string.Equals(nested.Parent, group, StringComparison.Ordinal));
+
+        /// <summary>Everything written in one scope — the block, or one composite state — counting the regions its dividers make.</summary>
+        private void Read(ContentPart holder, Group? inside)
+        {
+            var scope = inside?.Key;
+            var region = 1;
+
+            foreach (var part in holder.Children)
+            {
+                if (part.Kind == MermaidKinds.Group)
+                {
+                    if (part.Children.FirstOrDefault()?.Stated() is { Kind: StateKinds.Opens } opens)
+                        Read(part, Opened(part, opens, scope, region));
+
+                    continue;
+                }
+
+                if (part.Stated() is not { } stated) continue;
+                Styled(stated);
+
+                switch (stated.Kind)
+                {
+                    case StateKinds.State:
+                        Said(stated, scope, region);
+                        break;
+
+                    case StateKinds.Transition:
+                        Stepped(stated, scope, region);
+                        break;
+
+                    case StateKinds.Concurrent:
+                        Divided(stated, scope, region++);
+                        break;
+
+                    case StateKinds.Note:
+                        Notes.Add(Noted(stated));
+                        break;
+
+                    case StateKinds.Direction when Wayward(Setting(stated, StateRoles.Towards)) is { } way:
+                        if (inside is null) Way = way;
+                        else inside.Way = way;
+                        break;
+                }
+            }
+        }
+
+        /// <summary>What each name a line writes is styled with, where it is the first writing of that name.</summary>
+        private void Styled(ContentPart stated)
+        {
+            foreach (var named in stated.SelfAndDescendants().Where(part => part.Kind == StateKinds.Named))
+                if (Name(named) is { } name && ((named.Node as MarkerNode)?.Id ?? name.Words()?.Text) is { Length: > 0 } id)
+                    styles.TryAdd(id, StyleOf(name));
+        }
+
+        /// <summary>A state written on its own: what is drawn on it, and what it is drawn as.</summary>
+        private void Said(ContentPart stated, string? scope, int region)
+        {
+            if (stated.Inner(StateKinds.Named) is not { } named || Gathered(named, scope, region) is not { } node) return;
+
+            node.Said = Words(stated, StateKinds.Said) ?? Words(stated, MermaidKinds.Quoted) ?? node.Said;
+            node.SaidHole = Hole(stated, StateKinds.Said) ?? Hole(stated, MermaidKinds.Quoted) ?? node.SaidHole;
+
+            if (Setting(stated, StateRoles.Kind) is { Length: > 0 } drawn) node.Form = Formed(drawn);
+        }
+
+        /// <summary>A transition: the states either side of it, and what is written on it.</summary>
+        private void Stepped(ContentPart stated, string? scope, int region)
+        {
+            var named = stated.Children.Where(child => child.Kind == StateKinds.Named).ToList();
+            if (named.Count < 2) return;
+
+            var from = Ended(named[0], scope, region);
+            var to = Ended(named[1], scope, region);
+            if (from is null || to is null) return;
+
+            Steps.Add(new Step(stated, from, to, Words(stated, StateKinds.Said), Hole(stated, StateKinds.Said)));
+        }
+
+        /// <summary>What one end of a transition names: a composite state by its id, and otherwise a state, made where it is new.</summary>
+        private string? Ended(ContentPart named, string? scope, int region) =>
+            named.Node is GroupReferenceNode ? Name(named)?.Words()?.Text : Gathered(named, scope, region)?.Id;
+
+        /// <summary>
+        /// The state a name says, made where it has not been written before: a <c>[*]</c> is the dot the stages said it is, and a name
+        /// a composite state is called by is no state at all.
+        /// </summary>
+        private Node? Gathered(ContentPart named, string? scope, int region)
+        {
+            if (named.Node is GroupReferenceNode || Name(named)?.Words() is not { } words) return null;
+
+            var marker = named.Node as MarkerNode;
+            var id = marker?.Id ?? words.Text;
+
+            if (!known.TryGetValue(id, out var node))
+            {
+                node = new Node(named, id, scope, region)
+                {
+                    Form = marker is null ? Form.Plain : marker.Stop ? Form.Stop : Form.Start,
+                    Said = marker is null ? words : null,
+                };
+
+                Nodes.Add(node);
+                known[id] = node;
+            }
+
+            return node;
+        }
+
+        /// <summary>The line dividing two regions of a composite state, which is a state of the layout and nothing else.</summary>
+        private void Divided(ContentPart stated, string? scope, int region)
+        {
+            var id = $"--@{Nodes.Count}";
+            var node = new Node(stated, id, scope, region) { Form = Form.Divider };
+
+            Nodes.Add(node);
+            known[id] = node;
+        }
+
+        /// <summary>A composite state opening: known by where it stands among them, as a name the stages point at it says.</summary>
+        private Group Opened(ContentPart group, ContentPart opens, string? parent, int region)
+        {
+            Styled(opens);
+
+            var name = Name(opens.Inner(StateKinds.Named));
+            var closing = group.Children[^1].Stated() is { Kind: StateKinds.Ends } ends ? ends : opens;
+
+            var held = new Group(opens, Groups.Count.ToString(CultureInfo.InvariantCulture), name.Words()?.Text ?? string.Empty, parent, region)
+            {
+                // A composite state written with what is on it first is called by its id and drawn with those words.
+                Said = Words(opens, MermaidKinds.Quoted) ?? name.Words(),
+                SaidHole = Hole(opens, MermaidKinds.Quoted),
+                Whole = new SourceSpan(opens.Start, closing.End - opens.Start),
+            };
+
+            Groups.Add(held);
+            return held;
+        }
+
+        /// <summary>A note: the state it is beside, and what it says.</summary>
+        private static Note Noted(ContentPart stated)
+        {
+            var opens = stated.Inner(StateKinds.NoteOpens) ?? stated;
+            var name = Name(opens.Inner(StateKinds.Named) ?? stated.Inner(StateKinds.Named));
+
+            var said = new List<ContentPart>();
+            if (Words(opens, StateKinds.Said) is { } one) said.Add(one);
+            if (Words(stated, MermaidKinds.Quoted) is { } floating) said.Add(floating);
+
+            foreach (var text in stated.SelfAndDescendants().Where(part => part.Kind == StateKinds.NoteText))
+                if (text.Words() is { } words) said.Add(words);
+
+            return new Note(stated, name.Words()?.Text ?? string.Empty, said, Hole(opens, StateKinds.Said) ?? Hole(stated, MermaidKinds.Quoted));
+        }
+
+        private static ContentPart? Name(ContentPart? named) => named?.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
+
+        private static ContentPart? Words(ContentPart stated, string kind) => stated.Inner(kind)?.Words();
+
+        private static ContentPart? Hole(ContentPart stated, string kind) => stated.Inner(kind)?.Hole();
+
+        private static string? Setting(ContentPart stated, string role) =>
+            stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Setting && part.Role == role)?.Text;
+
+        private static Form Formed(string drawn) => drawn.ToLowerInvariant() switch
+        {
+            "fork" => Form.Fork,
+            "join" => Form.Join,
+            "choice" => Form.Choice,
+            _ => Form.Plain,
+        };
+
+        /// <summary>Which way a word lays a diagram out, or null where it lays it out no way at all.</summary>
+        private static DiagramWay? Wayward(string? said) => said?.ToUpperInvariant() switch
+        {
+            "TB" or "TD" => DiagramWay.Down,
+            "BT" => DiagramWay.Up,
+            "LR" => DiagramWay.Right,
+            "RL" => DiagramWay.Left,
+            _ => null,
+        };
+    }
+
+    // ── Drawing it ──────────────────────────────────────────────────────────
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var diagram = Diagram.Of(Reading.Root, Configured(StateConfig.Default));
+
         // A diagram with nothing written in it is the source: what the reader wants back is their own lines.
         if (diagram.Nodes.Count == 0 && diagram.Groups.Count == 0) return AsWritten(build);
+
+        // How much of it is drawn, worked out before anything is placed.
+        Fold(new DiagramChart([.. diagram.Nodes.Select(node => node.Id)], [.. diagram.Steps.Select(step => (step.From, step.To))]));
 
         var plan = Laid(diagram);
         var room = Reached(diagram, plan);
@@ -124,11 +423,11 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// Everything measured and placed: a cell for each state, each composite state and each note, a join for each transition, and
     /// the layered layout run over the lot of them.
     /// </summary>
-    private Plan Laid(StateDiagram diagram)
+    private Plan Laid(Diagram diagram)
     {
         var plan = new Plan();
         var cells = new List<DiagramCell>();
-        var towards = Towards(diagram.Way);
+        var towards = diagram.Way;
 
         foreach (var group in Nested(diagram, null))
         {
@@ -140,7 +439,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
                 Cell = new DiagramCell(new Size(said.Width + (Boxed * 2), 0))
                 {
                     Inside = Holder(plan, group.Parent, group.Region),
-                    Way = group.Way is { } way ? Towards(way) : null,
+                    Way = group.Way,
                     Pad = Boxed,
                     Heading = said.Height > 0 ? said.Height + diagram.Config.TitleMargin + (Boxed / 2) : 0,
                 },
@@ -150,7 +449,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
             cells.Add(box.Cell);
 
             // A composite a -- divides holds its regions, each a box of its own with no outline, laid out the composite's way.
-            var dividers = diagram.Inside(group.Key).Count(node => node.Shape == StateShape.Divider);
+            var dividers = diagram.Inside(group.Key).Count(node => node.Form == Form.Divider);
             if (dividers == 0) continue;
 
             plan.Regions[group.Key] =
@@ -173,7 +472,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
             if (!Draws(node.Id)) continue;
 
             // A divider is where one region ends and the next begins, which the regions' own boxes say — it takes no place of its own.
-            if (node.Shape == StateShape.Divider) continue;
+            if (node.Form == Form.Divider) continue;
 
             var shape = Shaped(node);
             var words = Said(node, diagram.Config);
@@ -237,7 +536,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>The cell a transition's end names: a state, or the box of a composite state where the id names one of those.</summary>
-    private static DiagramCell? Ended(Plan plan, StateDiagram diagram, string id)
+    private static DiagramCell? Ended(Plan plan, Diagram diagram, string id)
     {
         if (plan.Named.TryGetValue(id, out var node)) return node.Cell;
 
@@ -246,21 +545,21 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>How much room a state takes, which is what it is drawn as rather than what is written on it alone.</summary>
-    private static Size Around(StateNode node, DiagramShape shape, IReadOnlyList<DiagramWords> words, StateConfig config,
+    private static Size Around(Node node, DiagramShape shape, IReadOnlyList<DiagramWords> words, StateConfig config,
                                DiagramWay way)
     {
         var down = way is DiagramWay.Down or DiagramWay.Up;
 
-        return node.Shape switch
+        return node.Form switch
         {
-            StateShape.Start or StateShape.Stop => new Size(Dot, Dot),
-            StateShape.Fork or StateShape.Join => down
+            Form.Start or Form.Stop => new Size(Dot, Dot),
+            Form.Fork or Form.Join => down
                 ? new Size(config.ForkWidth, config.ForkHeight)
                 : new Size(config.ForkHeight, config.ForkWidth),
 
             // A line dividing two regions takes a rank of its own and is drawn the width of the box holding it.
-            StateShape.Divider => down ? new Size(1, config.DividerMargin * 2) : new Size(config.DividerMargin * 2, 1),
-            _ => Taken(shape, words, node.Shape == StateShape.Choice ? Decides : config.LeastWidth),
+            Form.Divider => down ? new Size(1, config.DividerMargin * 2) : new Size(config.DividerMargin * 2, 1),
+            _ => Taken(shape, words, node.Form == Form.Choice ? Decides : config.LeastWidth),
         };
     }
 
@@ -272,7 +571,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>The composite states, each before the ones nested in it, so a nested one is measured after the box it sits in.</summary>
-    private static IEnumerable<StateGroup> Nested(StateDiagram diagram, string? inside)
+    private static IEnumerable<Group> Nested(Diagram diagram, string? inside)
     {
         foreach (var group in diagram.Within(inside))
         {
@@ -284,7 +583,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// <summary>
     /// Everything the diagram means to draw, gathered so the whole of it is brought inside the box the block takes.
     /// </summary>
-    private DiagramRoom Reached(StateDiagram diagram, Plan plan) =>
+    private DiagramRoom Reached(Diagram diagram, Plan plan) =>
         DiagramRoom.Round(diagram.Config.Padding, plan.Size,
                           [.. plan.Nodes.Select(node => node.Cell), .. plan.Notes.Select(note => note.Cell),
                            .. plan.Groups.Values.Select(box => box.Cell)],
@@ -294,31 +593,31 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// What is written on a state: what it says, or what it is called where nothing else says anything. A fork or a join is a bar, and
     /// what it is called is only for the transitions to name it by — Mermaid writes nothing on one, and there is no room on it to.
     /// </summary>
-    private IReadOnlyList<DiagramWords> Said(StateNode node, StateConfig config) =>
-        node.Marker || node.Shape is StateShape.Divider or StateShape.Fork or StateShape.Join || (node.Said is null && node.SaidHole is null)
+    private IReadOnlyList<DiagramWords> Said(Node node, StateConfig config) =>
+        node.Marker || node.Form is Form.Divider or Form.Fork or Form.Join || (node.Said is null && node.SaidHole is null)
             ? []
             : Wrapped(node.Said, node.SaidHole, TextSize, Ink.Written(node.Style.Colour) ?? Palette.Text, config.Wrapping);
 
     /// <summary>What is written on a transition, where anything is.</summary>
-    private IReadOnlyList<DiagramWords> Says(StateStep step, StateConfig config) =>
+    private IReadOnlyList<DiagramWords> Says(Step step, StateConfig config) =>
         step.Said is null && step.SaidHole is null
             ? []
             : Wrapped(step.Said, step.SaidHole, LabelSize, Palette.Text, Widest);
 
     /// <summary>What a note says, a line for each line it is written across.</summary>
-    private IReadOnlyList<DiagramWords> Says(StateNote note, StateConfig config) =>
+    private IReadOnlyList<DiagramWords> Says(Note note, StateConfig config) =>
         note.Said.Count == 0 && note.SaidHole is null
             ? Wrapped(null, note.SaidHole, LabelSize, Palette.Text, config.Wrapping)
             : [.. note.Said.SelectMany(said => Wrapped(said, null, LabelSize, Palette.Text, config.Wrapping))];
 
     /// <summary>What is written at the top of a composite state.</summary>
-    private IReadOnlyList<DiagramWords> Naming(StateDiagram diagram, StateGroup group) =>
+    private IReadOnlyList<DiagramWords> Naming(Diagram diagram, Group group) =>
         Wrapped(group.Said, group.SaidHole, TextSize, Ink.Written(group.Style.Colour) ?? Palette.Text, diagram.Config.Wrapping);
 
     // ── The transitions ─────────────────────────────────────────────────────
 
     /// <summary>Where every transition runs once everything is placed, its ends brought in to the shapes it joins.</summary>
-    private List<Route> Routes(StateDiagram diagram, Plan plan, DiagramRoom room)
+    private List<Route> Routes(Diagram diagram, Plan plan, DiagramRoom room)
     {
         var routes = new List<Route>();
 
@@ -365,7 +664,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     // ── Drawing it ──────────────────────────────────────────────────────────
 
     /// <summary>A composite state: its box, what is written at the top of it, and the states it holds drawn inside its piece.</summary>
-    private void Held(LayoutBuilder build, StateDiagram diagram, Plan plan, DiagramRoom room, StateGroup group,
+    private void Held(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Group group,
                       IReadOnlyList<Geometry> over)
     {
         var box = plan.Groups[group.Key];
@@ -395,7 +694,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>One state: what it is drawn as, and what is written on it inside that.</summary>
-    private void Drawn(LayoutBuilder build, StateDiagram diagram, Plan plan, DiagramRoom room, StateNode node,
+    private void Drawn(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Node node,
                        IReadOnlyList<Geometry> over)
     {
         if (plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)) is not { } sized) return;
@@ -404,7 +703,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
 
 
 
-        if (node.Shape == StateShape.Stop)
+        if (node.Form == Form.Stop)
         {
             Stopped(build, node, bounds);
             return;
@@ -419,7 +718,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>The dot a diagram stops at: a ring with a dot filled in the middle of it, UML's bullseye, in the ink the start is filled with.</summary>
-    private void Stopped(LayoutBuilder build, StateNode node, Rect bounds)
+    private void Stopped(LayoutBuilder build, Node node, Rect bounds)
     {
         var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
         var radius = Math.Min(bounds.Width, bounds.Height) / 2;
@@ -445,11 +744,11 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     /// region and the next, and across the whole of the composite beside them — down it where the regions stand side by side, across
     /// it where they stand one above the other.
     /// </summary>
-    private void Divided(LayoutBuilder build, StateDiagram diagram, Plan plan, DiagramRoom room, StateGroup group, Rect bounds, double top)
+    private void Divided(LayoutBuilder build, Diagram diagram, Plan plan, DiagramRoom room, Group group, Rect bounds, double top)
     {
         if (!plan.Regions.TryGetValue(group.Key, out var regions)) return;
 
-        var dividers = diagram.Inside(group.Key).Where(node => node.Shape == StateShape.Divider).ToList();
+        var dividers = diagram.Inside(group.Key).Where(node => node.Form == Form.Divider).ToList();
         var boxes = regions.Select(region => room.At(region.Bounds)).ToList();
         var inner = new Rect(bounds.X, top, bounds.Width, Math.Max(0, bounds.Bottom - top));
 
@@ -484,7 +783,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     private static IEnumerable<Pinned> Noting(Plan plan, string? group) =>
         plan.Notes.Where(note => string.Equals(note.Group, group, StringComparison.Ordinal));
 
-    private static IEnumerable<Sized> Inside(StateDiagram diagram, Plan plan, string? group) =>
+    private static IEnumerable<Sized> Inside(Diagram diagram, Plan plan, string? group) =>
         diagram.Inside(group)
             .Select(node => plan.Nodes.FirstOrDefault(sized => ReferenceEquals(sized.Node, node)))
             .OfType<Sized>();
@@ -492,26 +791,26 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     // ── Colour and shape ────────────────────────────────────────────────────
 
     /// <summary>What a state is drawn as: the shape what it is says.</summary>
-    private static DiagramShape Shaped(StateNode node) => node.Shape switch
+    private static DiagramShape Shaped(Node node) => node.Form switch
     {
-        StateShape.Start => DiagramShape.Circle,
-        StateShape.Stop => DiagramShape.DoubleCircle,
-        StateShape.Choice => DiagramShape.Diamond,
-        StateShape.Fork or StateShape.Join or StateShape.Divider => DiagramShape.Rectangle,
+        Form.Start => DiagramShape.Circle,
+        Form.Stop => DiagramShape.DoubleCircle,
+        Form.Choice => DiagramShape.Diamond,
+        Form.Fork or Form.Join or Form.Divider => DiagramShape.Rectangle,
         _ => DiagramShape.Rounded,
     };
 
     /// <summary>What a state is filled with: what its styling writes, and otherwise what every state is — a dot the ink's.</summary>
-    private Brush Fill(StateNode node)
+    private Brush Fill(Node node)
     {
         var fill = Ink.Written(node.Style.Fill)
-                   ?? (node.Marker || node.Shape is StateShape.Fork or StateShape.Join ? Palette.Text : Ink.Node);
+                   ?? (node.Marker || node.Form is Form.Fork or Form.Join ? Palette.Text : Ink.Node);
 
         return node.Style.FillOpacity is { } opacity ? DiagramInk.Faded(fill, opacity) : fill;
     }
 
     /// <summary>What a composite state's box is filled with: what its styling writes, and otherwise what every composite is.</summary>
-    private Brush Fill(StateGroup group)
+    private Brush Fill(Group group)
     {
         var fill = Ink.Written(group.Style.Fill) ?? Ink.Group;
 
@@ -522,20 +821,12 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     private DiagramStroke Stroke(MermaidStyle style, Brush usual) =>
         new(Ink.Written(style.Stroke) ?? usual, style.StrokeWidth ?? 1, DiagramInk.Dashes(style.Dashes));
 
-    private static DiagramWay Towards(StateWay way) => way switch
-    {
-        StateWay.Up => DiagramWay.Up,
-        StateWay.Right => DiagramWay.Right,
-        StateWay.Left => DiagramWay.Left,
-        _ => DiagramWay.Down,
-    };
-
     // ── What it works with ──────────────────────────────────────────────────
 
     /// <summary>A state measured: what is written on it, what it is drawn as, and the cell the layout placed it in.</summary>
-    private sealed class Sized(StateNode node, IReadOnlyList<DiagramWords> words, DiagramShape shape)
+    private sealed class Sized(Node node, IReadOnlyList<DiagramWords> words, DiagramShape shape)
     {
-        public StateNode Node { get; } = node;
+        public Node Node { get; } = node;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -545,9 +836,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>A composite state measured.</summary>
-    private sealed class Box(StateGroup group, IReadOnlyList<DiagramWords> words)
+    private sealed class Box(Group group, IReadOnlyList<DiagramWords> words)
     {
-        public StateGroup Group { get; } = group;
+        public Group Group { get; } = group;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -555,9 +846,9 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>A note measured, held in the rank of the state it is about and drawn inside whatever holds that state.</summary>
-    private sealed class Pinned(StateNote note, IReadOnlyList<DiagramWords> words, string? group)
+    private sealed class Pinned(Note note, IReadOnlyList<DiagramWords> words, string? group)
     {
-        public StateNote Note { get; } = note;
+        public Note Note { get; } = note;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 
@@ -568,7 +859,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
     }
 
     /// <summary>A transition worked out: where it runs, what is written on it, and the room those words take over its middle.</summary>
-    private sealed record Route(StateStep Step, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
+    private sealed record Route(Step Step, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
 
     /// <summary>Everything the diagram was measured and laid out into.</summary>
     private sealed class Plan
@@ -587,7 +878,7 @@ internal sealed class StateBuilder : MermaidBuilder<StateDiagram>
         /// </summary>
         public Dictionary<string, List<DiagramCell>> Regions { get; } = new(StringComparer.Ordinal);
 
-        public Dictionary<StateStep, DiagramJoin> Joins { get; } = [];
+        public Dictionary<Step, DiagramJoin> Joins { get; } = [];
 
         /// <summary>The nodes offering what is left of each over-wide set of children.</summary>
         public DiagramSpill Spill { get; set; } = DiagramSpill.None;

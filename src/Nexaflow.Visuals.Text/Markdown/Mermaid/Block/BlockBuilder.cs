@@ -55,7 +55,7 @@ public static class BlockPiece
 /// drawn on it is the characters written — its label, or its id where nothing else says anything.
 /// </para>
 /// </summary>
-internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
+internal sealed class BlockBuilder : MermaidBuilder
 {
     /// <summary>How big what is written on a block is, and how wide it runs before it wraps.</summary>
     private const double TextSize = 13;
@@ -76,11 +76,268 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
     internal BlockBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override BlockDiagram Of(MermaidBlock block) => BlockDiagram.Of(block);
+    // ── What is written ─────────────────────────────────────────────────────
 
-    protected override Size Draw(BlockDiagram diagram, LayoutBuilder build)
+    /// <summary>What a block in the grid is: a block of its own, cells left empty, an arrow, or a grid holding other blocks.</summary>
+    private enum Kind
     {
+        Block,
+        Space,
+        Arrow,
+        Composite,
+    }
+
+    /// <summary>Where a block arrow points: <c>x</c> is left and right together, <c>y</c> up and down.</summary>
+    [Flags]
+    private enum Towards
+    {
+        None = 0,
+        Right = 1,
+        Left = 2,
+        Up = 4,
+        Down = 8,
+    }
+
+    /// <summary>
+    /// One block: where it was first written, what it is called, what is written on it, the shape its brackets say, how many
+    /// columns it takes, and — where it is a composite — the grid of blocks inside it.
+    /// </summary>
+    /// <param name="part">The whole block as it was first written, which is what a press on it means.</param>
+    /// <param name="id">What it is called, which is what a link, a <c>class</c> and a <c>style</c> name it by.</param>
+    private sealed class Item(ContentPart? part, string id, Kind kind)
+    {
+        public ContentPart? Part { get; } = part;
+
+        public string Id { get; } = id;
+
+        public Kind Kind { get; } = kind;
+
+        /// <summary>What the styling lines ask for it, said on the name first writing it.</summary>
+        public MermaidStyle Style { get; } = StyleOf(part?.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name));
+
+        /// <summary>The words drawn on it: what is written on it, or what it is called where nothing is.</summary>
+        public ContentPart? Said { get; set; }
+
+        public ContentPart? SaidHole { get; set; }
+
+        /// <summary>Whether a label was written on it, rather than its id standing in for one.</summary>
+        public bool Labelled { get; set; }
+
+        /// <summary>The shape its brackets say, or <see cref="MermaidShape.None"/> for the plain box of a block with none.</summary>
+        public MermaidShape Shape { get; set; }
+
+        /// <summary>How many columns of its grid it takes.</summary>
+        public int Span { get; init; } = 1;
+
+        public Towards Towards { get; init; }
+
+        /// <summary>How many columns a composite's own grid is laid out in — null for as many as it holds.</summary>
+        public int? Columns { get; set; }
+
+        /// <summary>The blocks inside a composite, in the order they are written.</summary>
+        public List<Item> Items { get; } = [];
+    }
+
+    /// <summary>One link: the blocks it joins, what is written on it, and what it draws.</summary>
+    /// <param name="Part">The link as it was written, which is what a press on it means.</param>
+    private sealed record Link(ContentPart Part, string From, string To, ContentPart? Said, MermaidHead Start, MermaidHead End,
+                               MermaidLineStyle Style)
+    {
+        public ContentPart? SaidHole { get; init; }
+    }
+
+    /// <summary>
+    /// The grid the block's author laid out, read down the tree in the order it is written: the composites nested in it, and the
+    /// links between the blocks. A block written twice is one block: the second writing of an id says more about the block the
+    /// first one made — the shape and the words it is drawn with — rather than making another, which is what lets a link name the
+    /// blocks laid out above it without laying them out again. Mermaid gathers them the same way.
+    /// </summary>
+    private sealed class Diagram
+    {
+        private readonly Item root = new(null, string.Empty, Kind.Composite);
+
+        private readonly Dictionary<string, Item> known = new(StringComparer.Ordinal);
+
+        private Diagram(BlockConfig config) => Config = config;
+
+        public BlockConfig Config { get; }
+
+        /// <summary>How many columns the outermost grid is laid out in — null for as many as it holds, on one row.</summary>
+        public int? Columns => root.Columns;
+
+        /// <summary>The blocks of the outermost grid, in the order they are written.</summary>
+        public IReadOnlyList<Item> Items => root.Items;
+
+        public List<Link> Links { get; } = [];
+
+        public static Diagram Of(ContentPart root, BlockConfig config)
+        {
+            var diagram = new Diagram(config);
+            diagram.Read(root, diagram.root);
+            return diagram;
+        }
+
+        /// <summary>Everything written in one part of the block — the whole of it, or one composite — into the grid given.</summary>
+        private void Read(ContentPart holder, Item grid)
+        {
+            foreach (var part in holder.Children)
+            {
+                if (part.Kind == MermaidKinds.Group)
+                {
+                    if (part.Children.FirstOrDefault()?.Stated() is { Kind: BlockKinds.Opens } opens)
+                    {
+                        var opened = ItemOf(opens.Inner(BlockKinds.Item), Kind.Composite);
+                        Gathered(grid, opened);
+                        Read(part, opened);
+                    }
+
+                    continue;
+                }
+
+                switch (part.Stated())
+                {
+                    case { Kind: BlockKinds.Columns } stated:
+                        grid.Columns = Counted(stated);
+                        break;
+
+                    case { Kind: BlockKinds.Items } stated:
+                        Laid(stated, grid);
+                        break;
+                }
+            }
+        }
+
+        /// <summary>The blocks a line lays out, and the links between them: each link joins the blocks written either side of it.</summary>
+        private void Laid(ContentPart stated, Item grid)
+        {
+            var pieces = stated.Children
+                .Where(part => part.Kind is BlockKinds.Item or BlockKinds.Arrow or BlockKinds.Space or BlockKinds.Link)
+                .ToList();
+
+            foreach (var part in pieces)
+                if (Kinded(part.Kind) is { } kind)
+                    Gathered(grid, ItemOf(part, kind));
+
+            for (var at = 0; at < pieces.Count; at++)
+            {
+                if (pieces[at].Kind != BlockKinds.Link) continue;
+                if (Joined(pieces, at, back: true) is not { } from || Joined(pieces, at, back: false) is not { } to) continue;
+
+                Links.Add(Linked(pieces[at], from, to));
+            }
+        }
+
+        /// <summary>
+        /// Takes a block into the grid it is written in — unless its id is already written, in which case this is that same block
+        /// said again: what it says now is kept, and no second cell is made for it.
+        /// </summary>
+        private void Gathered(Item grid, Item item)
+        {
+            if (item.Id.Length > 0 && known.TryGetValue(item.Id, out var already))
+            {
+                // What it says now is what it says, where this writing of it wrote anything: a block whose id was all it had to say is
+                // labelled by a later writing, as Mermaid labels it.
+                if (item.Labelled)
+                {
+                    already.Said = item.Said;
+                    already.SaidHole = item.SaidHole;
+                    already.Labelled = true;
+                }
+
+                if (item.Shape != MermaidShape.None) already.Shape = item.Shape;
+                return;
+            }
+
+            if (item.Id.Length > 0) known[item.Id] = item;
+            grid.Items.Add(item);
+        }
+
+        /// <summary>The block nearest a link on one side of it, or null where nothing is written there for it to join.</summary>
+        private static string? Joined(IReadOnlyList<ContentPart> pieces, int at, bool back)
+        {
+            for (var next = back ? at - 1 : at + 1; next >= 0 && next < pieces.Count; next += back ? -1 : 1)
+                if (pieces[next].Kind is BlockKinds.Item or BlockKinds.Arrow)
+                    return pieces[next].Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Words()?.Text;
+
+            return null;
+        }
+
+        /// <summary>One block as it was written: what it is called, what is written on it, its shape, its width and where it points.</summary>
+        private static Item ItemOf(ContentPart? part, Kind kind)
+        {
+            if (part is null) return new Item(null, string.Empty, kind);
+
+            var name = part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
+            var label = part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label);
+            var said = label ?? name;
+
+            return new Item(part, name.Words()?.Text ?? string.Empty, kind)
+            {
+                Shape = MermaidShapes.Of(part),
+                Span = part.Inner(MermaidKinds.Amount).Number() is { } span and >= 1 ? (int)span : 1,
+                Towards = kind == Kind.Arrow ? Pointed(part) : Towards.None,
+
+                // A block says what is written on it, or what it is called where nothing is; a composite and an empty cell say
+                // only what is written on them, which is how Mermaid leaves an unlabelled one blank.
+                Labelled = label.Words() is not null,
+                Said = label.Words() ?? (kind is Kind.Block or Kind.Arrow ? name.Words() : null),
+                SaidHole = said?.Hole(),
+            };
+        }
+
+        /// <summary>How many columns a grid is laid out in: the number written, or null where <c>auto</c> is written or nothing is.</summary>
+        private static int? Counted(ContentPart stated)
+        {
+            if (stated.Children.Any(child => child.Kind == MermaidKinds.Key && child.Role == BlockRoles.Count)) return null;
+
+            return stated.Inner(MermaidKinds.Amount).Number() is { } count and >= 1 ? (int)count : null;
+        }
+
+        /// <summary>Where a block arrow points, which is every direction written after it — <c>right</c> by default.</summary>
+        private static Towards Pointed(ContentPart part)
+        {
+            var towards = Towards.None;
+
+            foreach (var said in part.Inner(MermaidKinds.Names).Named())
+                towards |= (said.Words()?.Text ?? string.Empty).ToLowerInvariant() switch
+                {
+                    "right" => Towards.Right,
+                    "left" => Towards.Left,
+                    "up" => Towards.Up,
+                    "down" => Towards.Down,
+                    "x" => Towards.Left | Towards.Right,
+                    "y" => Towards.Up | Towards.Down,
+                    _ => Towards.None,
+                };
+
+            return towards == Towards.None ? Towards.Right : towards;
+        }
+
+        private static Kind? Kinded(string kind) => kind switch
+        {
+            BlockKinds.Item => Kind.Block,
+            BlockKinds.Arrow => Kind.Arrow,
+            BlockKinds.Space => Kind.Space,
+            _ => null,
+        };
+
+        private static Link Linked(ContentPart part, string from, string to)
+        {
+            var said = part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted);
+            var drawn = MermaidLinks.Of(part.Children.FirstOrDefault(child => child.Role == BlockRoles.Arrow)?.Text);
+
+            return new Link(part, from, to, said.Words(), drawn.Start, drawn.End, drawn.Style)
+            {
+                SaidHole = said?.Hole(),
+            };
+        }
+    }
+
+    // ── Drawing it ──────────────────────────────────────────────────────────
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var diagram = Diagram.Of(Reading.Root, Configured(BlockConfig.Default));
         // A block diagram with nothing laid out in it is the source: what the reader wants back is their own lines.
         if (diagram.Items.Count == 0) return AsWritten(build);
 
@@ -106,7 +363,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     // ── How much room it all takes ──────────────────────────────────────────
 
     /// <summary>What a block needs: the room its words take inside its shape, or the grid of a composite's own blocks.</summary>
-    private Sized Sizing(BlockItem item, double pad)
+    private Sized Sizing(Item item, double pad)
     {
         var said = item.Said is null && item.SaidHole is null
             ? []
@@ -116,8 +373,8 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
 
         sized.Natural = item.Kind switch
         {
-            BlockKind.Space => default,
-            BlockKind.Composite when sized.Items.Count > 0 => Holding(sized, pad),
+            Kind.Space => default,
+            Kind.Composite when sized.Items.Count > 0 => Holding(sized, pad),
             _ => DiagramShapes.Around(Shaped(item), DiagramWords.Taken(said), pad),
         };
 
@@ -155,7 +412,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         var wide = 0.0;
         var tall = 0.0;
 
-        foreach (var item in items.Where(item => item.Item.Kind != BlockKind.Space))
+        foreach (var item in items.Where(item => item.Item.Kind != Kind.Space))
         {
             wide = Math.Max(wide, (item.Natural.Width - (pad * (item.Item.Span - 1))) / item.Item.Span);
             tall = Math.Max(tall, item.Natural.Height);
@@ -209,7 +466,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
                                         (across * span) + (pad * (span - 1)),
                                         down);
 
-            if (items[at].Item.Kind == BlockKind.Composite) Place(items[at].Items, items[at].Item.Columns, Inside(items[at], pad), pad);
+            if (items[at].Item.Kind == Kind.Composite) Place(items[at].Items, items[at].Item.Columns, Inside(items[at], pad), pad);
         }
     }
 
@@ -226,15 +483,15 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     private void Drawn(LayoutBuilder build, Sized sized, double pad, IReadOnlyList<Geometry> over)
     {
         var item = sized.Item;
-        if (item.Kind == BlockKind.Space) return;
+        if (item.Kind == Kind.Space) return;
 
         switch (item.Kind)
         {
-            case BlockKind.Composite:
+            case Kind.Composite:
                 Holds(build, sized, pad, over);
                 break;
 
-            case BlockKind.Arrow:
+            case Kind.Arrow:
                 Pointing(build, sized);
                 break;
 
@@ -255,7 +512,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         var covered = DiagramShapes.United(
         [
             .. over,
-            .. sized.Items.Where(child => child.Item.Kind != BlockKind.Space)
+            .. sized.Items.Where(child => child.Item.Kind != Kind.Space)
                   .Select(child => DiagramShapes.Outline(Shaped(child.Item), Standing(child))),
         ]);
 
@@ -291,18 +548,18 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     }
 
     /// <summary>The arrow filling the room it has: a head where it points, and a shaft reaching back from each head.</summary>
-    private static Geometry Arrow(Rect bounds, BlockTowards towards)
+    private static Geometry Arrow(Rect bounds, Towards towards)
     {
         var least = Math.Min(bounds.Width, bounds.Height);
         var middle = new Point(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
         var parts = new List<Geometry>();
 
-        foreach (var (direction, tip, back) in new (BlockTowards Direction, Point Tip, Point Back)[]
+        foreach (var (direction, tip, back) in new (Towards Direction, Point Tip, Point Back)[]
                  {
-                     (BlockTowards.Right, new Point(bounds.Right, middle.Y), new Point(bounds.Left, middle.Y)),
-                     (BlockTowards.Left, new Point(bounds.Left, middle.Y), new Point(bounds.Right, middle.Y)),
-                     (BlockTowards.Down, new Point(middle.X, bounds.Bottom), new Point(middle.X, bounds.Top)),
-                     (BlockTowards.Up, new Point(middle.X, bounds.Top), new Point(middle.X, bounds.Bottom)),
+                     (Towards.Right, new Point(bounds.Right, middle.Y), new Point(bounds.Left, middle.Y)),
+                     (Towards.Left, new Point(bounds.Left, middle.Y), new Point(bounds.Right, middle.Y)),
+                     (Towards.Down, new Point(middle.X, bounds.Bottom), new Point(middle.X, bounds.Top)),
+                     (Towards.Up, new Point(middle.X, bounds.Top), new Point(middle.X, bounds.Bottom)),
                  })
         {
             if (!towards.HasFlag(direction)) continue;
@@ -328,12 +585,12 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
         return shape;
     }
 
-    private static BlockTowards Opposite(BlockTowards direction) => direction switch
+    private static Towards Opposite(Towards direction) => direction switch
     {
-        BlockTowards.Right => BlockTowards.Left,
-        BlockTowards.Left => BlockTowards.Right,
-        BlockTowards.Down => BlockTowards.Up,
-        _ => BlockTowards.Down,
+        Towards.Right => Towards.Left,
+        Towards.Left => Towards.Right,
+        Towards.Down => Towards.Up,
+        _ => Towards.Down,
     };
 
     private static Geometry Polygon(params Point[] points)
@@ -363,7 +620,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     /// Where every link runs: from the edge of the block it leaves to the edge of the block it reaches, with what is written
     /// on it over the middle of the line.
     /// </summary>
-    private List<Route> Routes(BlockDiagram diagram, IReadOnlyDictionary<string, Sized> placed)
+    private List<Route> Routes(Diagram diagram, IReadOnlyDictionary<string, Sized> placed)
     {
         var routes = new List<Route>();
 
@@ -408,7 +665,7 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     }
 
     /// <summary>A link worked out: where it runs, what is written on it, and the room those words take over the middle of it.</summary>
-    private sealed record Route(BlockLink Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
+    private sealed record Route(Link Link, IReadOnlyList<Point> Along, IReadOnlyList<DiagramWords> Said, Rect Room);
 
     private static Point Middle(Rect rect) => new(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
 
@@ -433,9 +690,9 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     // ── Colour ──────────────────────────────────────────────────────────────
 
     /// <summary>What a block is drawn as: the shape its brackets say, a rounded box for a composite that says none, a box otherwise.</summary>
-    private static DiagramShape Shaped(BlockItem item) =>
+    private static DiagramShape Shaped(Item item) =>
         item.Shape != MermaidShape.None ? DiagramShapes.For(item.Shape)
-        : item.Kind == BlockKind.Composite ? DiagramShape.Rounded
+        : item.Kind == Kind.Composite ? DiagramShape.Rounded
         : DiagramShape.Rectangle;
 
     /// <summary>
@@ -454,12 +711,12 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     /// What a block is filled with: what the styling writes for it, and otherwise what every one of its kind is — a block, a
     /// composite holding others, or an arrow pointing between them.
     /// </summary>
-    private Brush Fill(BlockItem item)
+    private Brush Fill(Item item)
     {
         var fill = Ink.Written(item.Style.Fill) ?? item.Kind switch
         {
-            BlockKind.Composite => Ink.Group,
-            BlockKind.Arrow => Ink.Quiet,
+            Kind.Composite => Ink.Group,
+            Kind.Arrow => Ink.Quiet,
             _ => Ink.Node,
         };
 
@@ -467,19 +724,19 @@ internal sealed class BlockBuilder : MermaidBuilder<BlockDiagram>
     }
 
     /// <summary>What a block is outlined in: what the styling writes for it, and otherwise what every one of its kind is.</summary>
-    private DiagramStroke Stroke(BlockItem item) =>
+    private DiagramStroke Stroke(Item item) =>
         new(Ink.Written(item.Style.Stroke) ?? item.Kind switch
             {
-                BlockKind.Composite => Ink.GroupEdge,
-                BlockKind.Arrow => Ink.QuietEdge,
+                Kind.Composite => Ink.GroupEdge,
+                Kind.Arrow => Ink.QuietEdge,
                 _ => Ink.NodeEdge,
             },
             item.Style.StrokeWidth ?? 1, DiagramInk.Dashes(item.Style.Dashes));
 
     /// <summary>A block measured: what is written on it, the room it needs, and — once its grid is laid out — where it sits.</summary>
-    private sealed class Sized(BlockItem item, IReadOnlyList<DiagramWords> words)
+    private sealed class Sized(Item item, IReadOnlyList<DiagramWords> words)
     {
-        public BlockItem Item { get; } = item;
+        public Item Item { get; } = item;
 
         public IReadOnlyList<DiagramWords> Words { get; } = words;
 

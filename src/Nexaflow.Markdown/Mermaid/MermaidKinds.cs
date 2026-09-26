@@ -109,6 +109,12 @@ public static class MermaidKinds
 
     /// <summary>What a property is set to, as it was written.</summary>
     public const string Setting = "mermaid-setting";
+
+    /// <summary>
+    /// A group gathered with everything written in it (<see cref="MermaidNesting.Nest"/>): the line opening it, every line inside it —
+    /// the groups inside it among them — and the line ending it, where one does.
+    /// </summary>
+    public const string Group = "mermaid-group";
 }
 
 /// <summary>What a piece of a <c>mermaid</c> block is <em>to</em> the piece holding it.</summary>

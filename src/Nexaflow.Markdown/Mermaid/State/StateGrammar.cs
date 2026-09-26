@@ -195,10 +195,12 @@ public sealed class StateGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Which composite state each line is in (<see cref="ResolveComposites"/>), and whether what is styled is written at all
-    /// (<see cref="ResolveStyles"/>).
+    /// Each composite state gathered with what is written in it (<see cref="ResolveComposites"/>), the dot each <c>[*]</c> is and
+    /// which names are a composite's (<see cref="ResolveStates"/>), what styles each state and whether what is styled is written at
+    /// all (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are
+    /// written.
     /// </remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveComposites(), new ResolveStyles()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveComposites(), new ResolveStates(), new ResolveStyles(), new WithConfig<StateConfig>(StateConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a name's quotes, and where what is written on a state is still to come after its colon.</remarks>

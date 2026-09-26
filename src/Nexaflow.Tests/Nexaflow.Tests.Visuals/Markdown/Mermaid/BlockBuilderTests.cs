@@ -254,4 +254,93 @@ public class BlockBuilderTests : MermaidBuilderContract
 
         return piece.SelfAndDescendants().First(part => part.Kind == MermaidPiece.Shape).Region?.FillContains(at - shift) == true;
     }
+
+    // ── What is read from the lines as written ──────────────────────────────
+
+    /// <summary>The blocks drawn, each by what is written on it.</summary>
+    private static Dictionary<string, Rect> Blocks(Laid laid) =>
+        Pieces(laid, BlockPiece.Block).ToDictionary(block => string.Concat(Said(block).Select(words => words.Words!.Glyphs.Text)), block => block.Bounds);
+
+    [TestMethod]
+    public void AGridWithNoColumnCountIsAsWideAsItHolds() => UiThread.Run(() =>
+    {
+        foreach (var source in new[] { "block-beta\n  a b c", "block-beta\n  columns auto\n  a b c" })
+        {
+            var cells = Blocks(Build(source));
+            Assert.IsTrue(cells["a"].Top == cells["b"].Top && cells["b"].Top == cells["c"].Top, $"all on one row: {source}");
+        }
+
+        var stacked = Blocks(Build("block-beta\n  columns 1\n  a b c"));
+        Assert.IsTrue(stacked["b"].Top > stacked["a"].Bottom && stacked["c"].Top > stacked["b"].Bottom, "and one column stacks them");
+    });
+
+    [TestMethod]
+    public void ABlockWrittenTwiceIsOneBlock_AndTheSecondWritingSaysMoreAboutIt() => UiThread.Run(() =>
+    {
+        const string source = "block-beta\n  A space B\n  A[\"Said later\"] --> B((\"Round later\"))";
+        var laid = Build(source);
+        var blocks = Pieces(laid, BlockPiece.Block);
+
+        CollectionAssert.AreEqual(new[] { "Said later", "Round later" }, Blocks(laid).Keys.ToArray(), "no second A or B");
+        Assert.AreEqual("A", Written(source, blocks[0].Part), "each standing for where it was first laid out");
+
+        var round = Marks(blocks[1])[0].Shape.Bounds;
+        Assert.AreEqual(round.Width, round.Height, 0.5, "and B drawn in the shape its second writing says");
+    });
+
+    [TestMethod]
+    public void ACompositeTakesTheColumnsItSpans_AndLaysItsOwnGridInTheColumnsItSays() => UiThread.Run(() =>
+    {
+        const string source = "block-beta\n  columns 3\n  a:3\n  block:group1:2\n    columns 2\n    h i j k\n  end\n  g";
+        var laid = Build(source);
+        var cells = Blocks(laid);
+        var group = Pieces(laid, BlockPiece.Composite).Single().Bounds;
+
+        Assert.IsTrue(group.Width > cells["g"].Width * 1.5, $"two of the three columns: {group} beside {cells["g"]}");
+        Assert.AreEqual(cells["h"].Top, cells["i"].Top, 0.01, "h and i share a row of its grid");
+        Assert.IsTrue(cells["j"].Top > cells["h"].Bottom, "and j wraps to the next");
+        Assert.AreEqual(string.Empty, string.Concat(Said(Pieces(laid, BlockPiece.Holding).Single()).Select(words => words.Words!.Glyphs.Text)),
+                        "a composite nobody labelled says nothing");
+    });
+
+    [TestMethod]
+    public void CompositesNestAsDeepAsTheyAreWritten() => UiThread.Run(() =>
+    {
+        const string source = "block-beta\n  block:one\n    block:two\n      a\n    end\n  end\n  block:three\n    b\n  end";
+        var laid = Build(source);
+        string[] Holding(Piece piece) =>
+            [.. piece.Ancestors().Where(over => over.Kind == BlockPiece.Composite).Select(over => Written(source, over.Part))];
+
+        var composites = Pieces(laid, BlockPiece.Composite).ToDictionary(piece => Written(source, piece.Part), Holding);
+        var a = Pieces(laid, BlockPiece.Block).Single(block => Written(source, block.Part) == "a");
+
+        CollectionAssert.AreEqual(new[] { "one" }, composites["two"], "two is inside one");
+        CollectionAssert.AreEqual(new[] { "two", "one" }, Holding(a), "and a inside two");
+        Assert.AreEqual(0, composites["three"].Length, "while three stands on its own");
+    });
+
+    [TestMethod]
+    public void ALinkIsDrawnAsItsArrowSays() => UiThread.Run(() =>
+    {
+        IReadOnlyList<GeometryMark> Link(string arrow) =>
+            [.. Pieces(Build($"block-beta\n  a space b\n  a {arrow} b"), BlockPiece.Link).Single()
+                .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>()];
+
+        Assert.IsTrue(Link("-->").Count > Link("---").Count, "an arrow draws a head where it points");
+        Assert.AreNotEqual(Outline(Link("<-->")), Outline(Link("-->")), "and one at each end where it points both ways");
+        Assert.AreNotEqual(Outline(Link("--x")), Outline(Link("-->")), "a cross is not an arrow's head");
+        Assert.AreNotEqual(Outline(Link("o--o")), Outline(Link("<-->")), "nor is a circle");
+        Assert.IsTrue(Link("==>")[0].Thickness > Link("-->")[0].Thickness, "a link of equals signs is drawn thick");
+        Assert.IsNotNull(Link("-.->")[0].Dashes, "and a dotted one dotted");
+    });
+
+    [TestMethod]
+    public void TitleIsABlockLikeAnyOther() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEquivalent(new[] { "title", "Where", "it", "runs" }, Blocks(Build("block-beta\n  title Where it runs")).Keys.ToArray(),
+                                       "Mermaid's block diagram has no title line of its own");
+    });
+
+    private static string Outline(IReadOnlyList<GeometryMark> marks) =>
+        string.Join("|", marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString(CultureInfo.InvariantCulture)));
 }

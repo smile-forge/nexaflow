@@ -14,7 +14,7 @@ namespace Nexaflow.Markdown.Mermaid.Architecture;
 /// goes in round brackets after it and a title in square ones, either of them where it has one; and <c>in</c> puts it in a
 /// group declared above it. An edge names the side each end leaves by — <c>db:R --> L:server</c> — and those sides are
 /// what say where things sit: the right of one against the left of another puts the second to its right
-/// (<see cref="ArchitectureDiagram.Places"/>).
+/// (<c>ArchitectureBuilder</c>).
 /// </para>
 /// </summary>
 public sealed class ArchitectureGrammar : IMermaidGrammar
@@ -102,7 +102,7 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Whether what a line names is declared, and what it is (<see cref="ResolveArchitecture"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveArchitecture()];
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveArchitecture(), new WithConfig<ArchitectureConfig>(ArchitectureConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Between a title's or an icon's brackets, and where an id is still to be written.</remarks>

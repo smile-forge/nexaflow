@@ -43,9 +43,6 @@ public static class ErKinds
 
     /// <summary>One entity where it is named: its name, what is drawn instead of it, and the classes <c>:::</c> gives it.</summary>
     public const string Named = "er-named";
-
-    /// <summary>What the stages hang under a line: which subgraph it is in, and which one it opens.</summary>
-    public const string Fact = "er-fact";
 }
 
 /// <summary>What a piece of an entity-relationship diagram's line is to the piece holding it.</summary>
@@ -89,13 +86,4 @@ public static class ErRoles
 
     /// <summary>The way the diagram is laid out: <c>TB</c>, <c>LR</c>.</summary>
     public const string Towards = "er-towards";
-
-    /// <summary>The subgraph a line is written in (<see cref="MermaidNesting"/>).</summary>
-    public const string Inside = "er-inside";
-
-    /// <summary>The subgraph a <c>subgraph</c> line opens.</summary>
-    public const string Opened = "er-opened";
-
-    /// <summary>The subgraph an end of a relationship names, where it names one rather than an entity.</summary>
-    public const string Boxed = "er-boxed";
 }

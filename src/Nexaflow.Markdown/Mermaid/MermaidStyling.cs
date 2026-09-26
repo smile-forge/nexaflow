@@ -9,7 +9,7 @@ namespace Nexaflow.Markdown.Mermaid;
 /// what its ids and classes are read under and what to call the things it styles, and reads all three the one way.
 ///
 /// <para>
-/// What the lines add up to is the model's: a class is a <see cref="MermaidStyle"/>, and what something is drawn with is the
+/// What the lines add up to is worked out over the whole block (<see cref="Style"/>): a class is a <see cref="MermaidStyle"/>, and what something is drawn with is the
 /// <see cref="Every"/> class, then the classes it is given, then the style written for it, each laid over the one before with
 /// <see cref="MermaidStyle.Over"/>.
 /// </para>
@@ -143,6 +143,63 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
 
         return AstRewrite.Each(tree, node => wrong.TryGetValue(node, out var reason) ? node.Saying(reason) : node);
     }
+
+    /// <summary>
+    /// Says what each thing the diagram draws is styled with, on the name first writing it (<see cref="StyledNode"/>): the
+    /// <see cref="Every"/> class, then the classes <c>class</c> lines give it, then those it is given where it is written, then
+    /// the style written for it (<see cref="Styles"/>). The styling lines may be written above what they style or below it, so
+    /// this is the whole block's to work out. Nothing is hung where the block defines no class and writes no style.
+    /// </summary>
+    /// <param name="drawn">The kinds of what writes the things the diagram draws, each named in this styling's id role.</param>
+    /// <param name="inline">The classes something is given where it is written — <c>A:::blue</c> — as each id and class.</param>
+    /// <param name="idOf">What something is styled by where it is not the name written — a state diagram's <c>[*]</c>, which is the
+    /// dot its scope starts or stops at — or null for the name.</param>
+    public ContentNode Style(ContentNode tree, IReadOnlyList<string> drawn, string classDef, string classKind, string styleKind,
+                             Func<ContentNode, IEnumerable<(string Id, string Class)>>? inline = null, Func<ContentNode, string?>? idOf = null)
+    {
+        var classes = new Dictionary<string, MermaidStyle>(StringComparer.Ordinal);
+        var taken = new List<(IReadOnlyList<string> Ids, string Class)>();
+        var given = new List<(IReadOnlyList<string> Ids, string Class)>();
+        var written = new List<(IReadOnlyList<string> Ids, MermaidStyle Style)>();
+        var first = new Dictionary<string, ContentNode>(StringComparer.Ordinal);
+
+        foreach (var node in tree.SelfAndDescendants())
+        {
+            if (node.Kind == classDef)
+            {
+                var style = MermaidStyle.None.With(node.Inner(MermaidKinds.Properties));
+                foreach (var name in Texts(node, classRole)) classes[name] = style;
+            }
+            else if (node.Kind == classKind)
+            {
+                var ids = Texts(node, idRole);
+                foreach (var name in Texts(node, classRole)) taken.Add((ids, name));
+            }
+            else if (node.Kind == styleKind)
+            {
+                written.Add((Texts(node, idRole), MermaidStyle.None.With(node.Inner(MermaidKinds.Properties))));
+            }
+            else if (drawn.Contains(node.Kind))
+            {
+                foreach (var name in Said(node, idRole))
+                    if ((idOf?.Invoke(node) ?? Text(name)) is { Length: > 0 } key) first.TryAdd(key, name);
+            }
+
+            if (inline is not null)
+                foreach (var (id, name) in inline(node)) given.Add(([id], name));
+        }
+
+        if (classes.Count == 0 && written.Count == 0) return tree;
+
+        var styles = Styles(first.Keys, classes, [.. taken, .. given], written);
+        var hung = new Dictionary<ContentNode, MermaidStyle>(ReferenceEqualityComparer.Instance);
+        foreach (var (id, name) in first) hung[name] = styles.GetValueOrDefault(id, MermaidStyle.None);
+
+        return AstRewrite.Each(tree, node => hung.TryGetValue(node, out var style) ? new StyledNode(node, style) : node);
+    }
+
+    /// <summary>Everything a line names in a role, in the order it is written.</summary>
+    private static IReadOnlyList<string> Texts(ContentNode line, string role) => [.. Said(line, role).Select(Text).OfType<string>().Where(said => said.Length > 0)];
 
     /// <summary>Everything named in a role by the lines of those kinds.</summary>
     private static HashSet<string> Names(ContentNode tree, IReadOnlyList<string> kinds, string role) =>

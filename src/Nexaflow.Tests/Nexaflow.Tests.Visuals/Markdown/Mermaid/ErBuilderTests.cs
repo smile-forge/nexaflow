@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
+
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Er;
@@ -187,4 +189,120 @@ public class ErBuilderTests : MermaidBuilderContract
 
     private static bool Holds(Rect over, Rect inner) =>
         inner.Left >= over.Left - 1 && inner.Right <= over.Right + 1 && inner.Top >= over.Top - 1 && inner.Bottom <= over.Bottom + 1;
+
+    // ── What is read from the lines as written ──────────────────────────────
+
+    /// <summary>What each attribute row says, in the order drawn.</summary>
+    private string[][] Rows(string source) =>
+        [.. Pieces(Lay(source), ErPiece.Attribute).Select(row => Said(row).Select(words => words.Words!.Glyphs.Text).ToArray())];
+
+    /// <summary>What one relationship draws: its line and the ends at either side of it.</summary>
+    private (string[] Shapes, bool Dotted) Line(string relation)
+    {
+        var marks = Pieces(Lay($"erDiagram\n  {relation}"), ErPiece.Relation).Single()
+            .SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).OfType<GeometryMark>().ToList();
+
+        return ([.. marks.Select(mark => PathGeometry.CreateFromGeometry(mark.Shape).ToString())], marks.Any(mark => mark.Dashes is not null));
+    }
+
+    [TestMethod]
+    public void AnEntityKeepsItsAttributesInTheOrderTheyAreWritten() => UiThread.Run(() =>
+    {
+        var rows = Rows("erDiagram\n  CAR {\n    string make\n    string plate PK \"What it is known by\"\n    int age\n  }");
+
+        CollectionAssert.AreEqual(new[] { "string", "make" }, rows[0], "one written without a key or a comment says nothing more");
+        CollectionAssert.AreEqual(new[] { "string", "plate", "PK", "What it is known by" }, rows[1]);
+        CollectionAssert.AreEqual(new[] { "int", "age" }, rows[2]);
+    });
+
+    [TestMethod]
+    public void ANameWrittenWithAStarIsAPrimaryKeyToo() => UiThread.Run(() =>
+    {
+        var rows = Rows("erDiagram\n  CAR {\n    string *plate\n    string *vin PK\n    string *owner FK\n    string[] parts\n  }");
+
+        CollectionAssert.AreEqual(new[] { "string", "*plate", "PK" }, rows[0], "the star says it without writing it, and the name is drawn as written");
+        CollectionAssert.AreEqual(new[] { "string", "*vin", "PK" }, rows[1], "one that says it both ways says it once");
+        CollectionAssert.AreEqual(new[] { "string", "*owner", "PK, FK" }, rows[2], "and the star comes before what else was written");
+        CollectionAssert.AreEqual(new[] { "string[]", "parts" }, rows[3], "a type says what brackets it was written with");
+    });
+
+    [TestMethod]
+    public void AnAliasIsDrawnInsteadOfTheNameWhereverItIsWritten() => UiThread.Run(() =>
+    {
+        var laid = Lay("erDiagram\n  p[Person] {\n    string firstName\n  }\n  p ||--o| a[\"The account\"] : has");
+        var said = Pieces(laid, ErPiece.Entity).Select(entity => Said(entity).First().Words!.Glyphs.Text).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Person", "The account" }, said);
+    });
+
+    [TestMethod]
+    public void EachCardinalityDrawsAnEndOfItsOwn_ReadAtEitherEnd() => UiThread.Run(() =>
+    {
+        var ends = new[] { "A |o--o| B : x", "A ||--|| B : x", "A }o--o{ B : x", "A }|--|{ B : x" }
+            .Select(relation => string.Join(" ", Line(relation).Shapes)).ToList();
+
+        Assert.AreEqual(4, ends.Distinct().Count());
+        CollectionAssert.AreEqual(Line("A ||--o| B : x").Shapes, Line("A||--o|B : x").Shapes, "one written with no space in it draws the same");
+    });
+
+    [TestMethod]
+    public void OneWrittenInWordsDrawsWhatTheSymbolsDraw() => UiThread.Run(() =>
+    {
+        CollectionAssert.AreEqual(Line("A ||--o{ B : x").Shapes, Line("A 1 to zero or more B : x").Shapes);
+        CollectionAssert.AreEqual(Line("A }o..o{ B : x").Shapes, Line("A many(0) optionally to 0+ B : x").Shapes);
+    });
+
+    [TestMethod]
+    public void ADottedLineIsOneThatDoesNotIdentifyWhatItReaches() => UiThread.Run(() =>
+    {
+        Assert.IsFalse(Line("A ||--|| B : x").Dotted);
+        Assert.IsTrue(Line("A ||..|| B : x").Dotted);
+        Assert.IsTrue(Line("A one optionally to one B : x").Dotted);
+    });
+
+    [TestMethod]
+    public void ANameWrittenTwiceIsOneEntity_AndOneARelationshipNamesIsMadeForIt() => UiThread.Run(() =>
+    {
+        const string source = "erDiagram\n  A ||--|| B : x\n  A {\n    string name\n  }\n  A ||--|| C : y";
+        var laid = Lay(source);
+
+        CollectionAssert.AreEquivalent(new[] { "A", "B", "C" }, Boxes(source, laid).Keys.ToArray());
+        Assert.AreEqual(1, Pieces(laid, ErPiece.Attribute).Count, "the attributes written for the A named above");
+    });
+
+    [TestMethod]
+    public void ADirectionLineWinsOverTheFrontMatter() => UiThread.Run(() =>
+    {
+        const string configured = "---\nconfig:\n  er:\n    layoutDirection: RL\n---\nerDiagram\n";
+
+        var left = Boxes(configured + "  A ||--o{ B : x", Lay(configured + "  A ||--o{ B : x"));
+        Assert.IsTrue(left["B"].Right < left["A"].Left, $"the front matter lays it right to left: {left["A"]} then {left["B"]}");
+
+        const string up = configured + "  direction BT\n  A ||--o{ B : x";
+        var above = Boxes(up, Lay(up));
+        Assert.IsTrue(above["B"].Bottom < above["A"].Top, $"and a direction line lays it bottom up: {above["A"]} then {above["B"]}");
+    });
+
+    [TestMethod]
+    public void AnEntityIsBoxedIntoTheSubgraphItIsWrittenIn() => UiThread.Run(() =>
+    {
+        const string source = "erDiagram\n  subgraph Outer\n    subgraph Inner\n      A\n    end\n    B\n  end\n  C";
+        var laid = Lay(source);
+        var boxes = Boxes(source, laid);
+
+        var groups = Pieces(laid, ErPiece.Group).ToDictionary(group => Written(source, group.Part).Split('\n')[0], group => group.Bounds);
+        var (outer, inner) = (groups["subgraph Outer"], groups["subgraph Inner"]);
+
+        Assert.IsTrue(Holds(inner, boxes["A"]), "A is in the inner subgraph");
+        Assert.IsTrue(Holds(outer, boxes["B"]) && !Holds(inner, boxes["B"]), "B in the outer one alone");
+        Assert.IsFalse(Holds(outer, boxes["C"]), "and C in neither");
+    });
+
+    [TestMethod]
+    public void ASubgraphStandsForTheWholeOfWhatWasWrittenInIt() => UiThread.Run(() =>
+    {
+        const string source = "erDiagram\n  subgraph Sales\n    A\n  end";
+
+        Assert.AreEqual("subgraph Sales\n    A\n  end", Written(source, Pieces(Lay(source), ErPiece.Group).Single().Part));
+    });
 }
