@@ -13,7 +13,7 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   built once as `MarkdownParser.Pipeline`. There is no second pipeline, and a host wanting an extension of its own
   starts from `Reading(new())` rather than writing the list again.
 - **Reading:** `MarkdownParser.Read` finds the blocks and what the document defines (link definitions,
-  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`WithBlocks`, each
+  abbreviations — `MarkdownDefinitions`), reads each block's body by the reader its kind names (`MarkdownBlocks`, each
   block's words read beside those definitions), pairs definition lists, and names the language every fence and formula
   is written in. The engine ([`ContentEngine`](../src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs)) has that
   language's parser read each one, then runs the stages (`WithImages`, `WithLinks`). Markdig's own HTML renderer is

@@ -9,7 +9,6 @@ using Markdig.Syntax;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
-using Nexaflow.Markdown.Prose.Stages;
 
 namespace Nexaflow.Markdown.Prose;
 
@@ -20,7 +19,7 @@ namespace Nexaflow.Markdown.Prose;
 /// <strong>A document is a list of blocks, and each block is its own content.</strong> A paragraph, a table, a
 /// quote and a fenced tune are four languages, read by four parsers into four trees — so this one only has to
 /// say where each block starts and which of them it is. What a block holds is settled by whoever reads that
-/// kind, when it is read (<see cref="Stages.WithBlocks"/>), which is what lets a keystroke re-read one paragraph
+/// kind, when it is read (<see cref="MarkdownBlocks"/>), which is what lets a keystroke re-read one paragraph
 /// rather than a thousand-line file, and what lets a kind nothing can read yet be shown exactly as it was typed.
 /// </para>
 /// <para>
@@ -56,13 +55,9 @@ public static class MarkdownParser
     /// </summary>
     public static Func<string, ContentParse> Parsing()
     {
-        var blocks = new WithBlocks(remembering: true);
-        return source => ContentParse.Of(Parsed(source, blocks));
+        var blocks = new MarkdownBlocks();
+        return source => ContentParse.Of(blocks.Read(Read(source)));
     }
-
-    /// <summary>The blocks, each block's body read by the reader its kind names, grouped, and closed.</summary>
-    private static ContentNode Parsed(string? source, WithBlocks blocks) =>
-        new WithClosingLines().Run(new WithGroups().Run(blocks.Run(Read(source))));
 
     /// <summary>What a formula is written in — which nobody writes after <c>$$</c>, because the <c>$$</c> says it.</summary>
     internal const string Maths = "latex";
@@ -173,7 +168,7 @@ public static class MarkdownParser
 
     /// <summary>
     /// The <c>[!NOTE]</c> an alert opens with, cut into its marks and the name between them — which are one marker is the
-    /// pipeline's to say (<see cref="Stages.WithGroups"/>) — and what follows it up to where the words under it start.
+    /// parse's to say (<see cref="MarkdownGroups"/>) — and what follows it up to where the words under it start.
     /// Where it is all its paragraph held, the line it stands on is all of it.
     /// </summary>
     /// <returns>Which of the alert's blocks is the first still to be read.</returns>
@@ -237,13 +232,13 @@ public static class MarkdownParser
     {
         var node = ContentNode.Branch(kind, parts, role);
 
-        return node.Print() == text ? node : ContentNode.Branch(kind, [ContentNode.Shown(text)], role);
+        return node.Prints(text) ? node : ContentNode.Branch(kind, [ContentNode.Shown(text)], role);
     }
 
     /// <summary>
     /// One block: what kind it is, and its own source held as written. Nothing is read out of the body here,
     /// because what is inside is a different language with a different grammar, and reading it is its own
-    /// parser's business — which happens a stage later, in <see cref="Stages.WithBlocks"/>.
+    /// parser's business — which happens a pass later, in <see cref="MarkdownBlocks"/>.
     /// </summary>
     private static ContentNode Block(Block block, string source)
     {

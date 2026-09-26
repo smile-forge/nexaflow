@@ -3,7 +3,6 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
-using Nexaflow.Markdown.Prose.Stages;
 using Nexaflow.Tests.Fixtures;
 
 namespace Nexaflow.Tests.Markdown.Prose;
@@ -13,7 +12,7 @@ namespace Nexaflow.Tests.Markdown.Prose;
 /// document read all the way down.
 ///
 /// <para>
-/// The rule a stage lives under is the whole of what is checked first: the characters coming out are the
+/// The rule every reading lives under is the whole of what is checked first: the characters coming out are the
 /// ones that went in, however far down the tree goes. Everything after that is about what each kind of block
 /// turned out to be made of, and about the marks a writer typed being still where they typed them — because
 /// those marks are what a reader puts a caret in.
@@ -21,7 +20,7 @@ namespace Nexaflow.Tests.Markdown.Prose;
 /// </summary>
 [TestClass]
 [CoversNode("markdown-text")]
-public class WithBlocksTests
+public class MarkdownBlocksTests
 {
     private static readonly (string What, string Source)[] Documents =
     [
@@ -75,7 +74,7 @@ public class WithBlocksTests
         ("only space", "   "),
     ];
 
-    // ── The rule every stage lives under ────────────────────────────────────
+    // ── The rule every reading lives under ──────────────────────────────────
 
     [TestMethod]
     public void EveryDocumentStillPrintsAsItWasWritten()
@@ -87,7 +86,7 @@ public class WithBlocksTests
     [TestMethod]
     public void EveryPrefixOfEveryDocumentDoesToo()
     {
-        // Half-written input is what an editor holds all day, and a stage sees every keystroke of it.
+        // Half-written input is what an editor holds all day, and the parse sees every keystroke of it.
         foreach (var (what, source) in Documents)
             for (var length = 0; length <= source.Length; length++)
             {
@@ -110,19 +109,6 @@ public class WithBlocksTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
-    }
-
-    [TestMethod]
-    public void ReadingADocumentTwiceIsTheSameAsReadingItOnce()
-    {
-        // A body that is already a tree is left alone, which is what stops a block whose own source reads
-        // back as itself from going round for ever.
-        foreach (var (what, source) in Documents)
-        {
-            var once = Read(source);
-
-            Assert.IsTrue(once.Same(new WithBlocks().Run(once)), what);
-        }
     }
 
     // ── What a block turned out to be made of ───────────────────────────────

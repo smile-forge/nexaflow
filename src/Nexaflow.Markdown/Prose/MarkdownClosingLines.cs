@@ -1,11 +1,10 @@
 using Nexaflow.Markdown.Ast;
-using Nexaflow.Markdown.Pipeline;
 
-namespace Nexaflow.Markdown.Prose.Stages;
+namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// Cuts the line break closing the last line of a block held as written — a fence's body, a maths block's, indented code,
-/// raw markup, front matter, a link's definition — into a piece of its own.
+/// The line break closing the last line of a block held as written — a fence's body, a maths block's, indented code, raw
+/// markup, front matter, a link's definition — cut into a piece of its own as the block is read (<see cref="MarkdownBlocks"/>).
 ///
 /// <para>
 /// That line break is where the next line starts rather than a line of the block's own: a fence's belongs to the line its
@@ -13,28 +12,31 @@ namespace Nexaflow.Markdown.Prose.Stages;
 /// them as they are, without looking at them to see where they stop.
 /// </para>
 /// </summary>
-public sealed class WithClosingLines : IAstStage
+internal static class MarkdownClosingLines
 {
-    public string Name => "markdown:closing-lines";
-
-    public ContentNode Run(ContentNode tree) => AstRewrite.Each(tree, Closed);
-
-    private static ContentNode Closed(ContentNode node)
+    /// <summary>This piece with the line break closing what it holds as written made a piece of its own, where it is one that does.</summary>
+    public static ContentNode Closed(ContentNode node)
     {
         if (node.Kind is not (MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Code or MarkdownKinds.Html
                               or MarkdownKinds.Reference or MarkdownKinds.FrontMatter)) return node;
 
-        var moved = false;
-        var children = new List<ContentNode>(node.Children.Count);
+        ContentNode[]? cut = null;
 
-        foreach (var child in node.Children)
+        for (var at = 0; at < node.Children.Count; at++)
         {
-            var cut = Cut(child);
-            moved |= !ReferenceEquals(cut, child);
-            children.Add(cut);
+            var child = node.Children[at];
+            var now = Cut(child);
+
+            if (cut is null && !ReferenceEquals(now, child))
+            {
+                cut = new ContentNode[node.Children.Count];
+                for (var before = 0; before < at; before++) cut[before] = node.Children[before];
+            }
+
+            if (cut is not null) cut[at] = now;
         }
 
-        return moved ? node.With(children) : node;
+        return cut is null ? node : node.With(cut);
     }
 
     /// <summary>A body held as one run of characters, with the line break closing it made a piece of its own.</summary>

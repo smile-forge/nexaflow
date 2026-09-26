@@ -243,12 +243,13 @@ what its language says (`Editing.Corner`, `Editing.Offers`): code no picture of 
 
 ## Markdown
 
-**A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in passes: where each
-block starts and which it is (Markdig decides the boundaries and nothing else); what each holds, by the reader for its
-kind (`WithBlocks` — `MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body); what
-pieces side by side make together (`WithGroups` — a definition list's pairs, an alert's marker, the display formula a
-paragraph of nothing but `$$ … $$` is); the line ending closing a block's last line (`WithClosingLines`); and which
-language every fence and formula is written in. A kind nothing reads is shown exactly as typed. A reader also records
+**A document is a list of blocks, and each block is its own content.** `MarkdownParser` reads in two passes: where each
+block starts and which it is, and which language every fence and formula is written in (Markdig decides the boundaries
+and nothing else); then each block in turn (`MarkdownBlocks`) — what it holds, by the reader for its kind
+(`MarkdownInline`, `MarkdownList`, `MarkdownTable`, the block reader again for a quote's body), with every piece finished
+as it is read: what pieces side by side make together (`MarkdownGroups` — a definition list's pairs, an alert's marker,
+the display formula a paragraph of nothing but `$$ … $$` is) and the line ending closing a block's last line
+(`MarkdownClosingLines`). A kind nothing reads is shown exactly as typed. A reader also records
 what the characters do not say — a column's alignment, the squares a cell covers, which alphabet a list counts in — as
 derived parts.
 
@@ -263,8 +264,9 @@ language implied, and `$x$` is that shape small, framed by words instead of by l
 | `ShowBlocksAsWritten` | the block somebody is changing the markup of, as the characters it is written with |
 
 **A block written as it was is read as it was.** The engine keeps a parse per document (`MarkdownParser.Parsing`) that
-hands back what it read of every block written exactly as last time beside the same definitions, so a keystroke reads
-the block it was typed in. `RereadingTests` holds such a reading to the same document read from nothing.
+hands back every block written exactly as last time beside the same definitions as the very block it handed out then,
+finished, so a keystroke reads and walks only the block it was typed in. `RereadingTests` holds such a reading to the
+same document read from nothing.
 
 **A block that reads as it did is laid as it was.** `WithUnchanged` says which of this reading's blocks are one the last
 reading had — the same characters and everything worked out about them, so a paragraph whose link was defined again

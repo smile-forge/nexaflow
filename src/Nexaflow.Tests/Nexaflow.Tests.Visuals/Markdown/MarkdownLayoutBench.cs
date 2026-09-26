@@ -14,7 +14,6 @@ using Nexaflow.Markdown.Music.Abc;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
-using Nexaflow.Markdown.Prose.Stages;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
