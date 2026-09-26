@@ -20,9 +20,6 @@ public static class GitKinds
 
     /// <summary>Which way the graph runs, written after the keyword: <c>gitGraph LR:</c>.</summary>
     public const string Direction = "git-direction";
-
-    /// <summary>What a stage worked out about a line: the branch a commit is made on.</summary>
-    public const string Fact = "git-fact";
 }
 
 /// <summary>What a piece of a <c>gitGraph</c> diagram is <em>to</em> the piece holding it.</summary>
@@ -33,7 +30,4 @@ public static class GitRoles
 
     /// <summary>Which way the graph runs.</summary>
     public const string Way = "git-way";
-
-    /// <summary>The branch a commit is made on, worked out over the whole block (<see cref="Stages.ResolveGraph"/>).</summary>
-    public const string On = "git-on";
 }

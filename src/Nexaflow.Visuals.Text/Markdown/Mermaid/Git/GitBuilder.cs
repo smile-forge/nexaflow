@@ -57,7 +57,7 @@ public static class GitPiece
 /// is, a track of its own between the lanes, as Mermaid reroutes one.
 /// </para>
 /// </summary>
-internal sealed class GitBuilder : MermaidBuilder<GitGraph>
+internal sealed class GitBuilder : MermaidBuilder
 {
     /// <summary>How far one commit is from the next, and the least one lane is from the next.</summary>
     private const double Along = 54;
@@ -97,16 +97,143 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
     internal GitBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting) : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <inheritdoc/>
-    protected override GitGraph Of(MermaidBlock block) => GitGraph.Of(block);
+    // ── What is written ───────────────────────────────────────────────────────
 
-    protected override Size Draw(GitGraph graph, LayoutBuilder build)
+    /// <summary>Which way a git graph runs: its commits across the page, down it, or up it.</summary>
+    private enum Way { LeftRight, TopBottom, BottomTop }
+
+    /// <summary>How a commit is kept: an ordinary one, one undoing what came before, or one drawn to stand out.</summary>
+    private enum Kept { Normal, Reverse, Highlight }
+
+    /// <summary>What an option says, without the quotes it is written in, and the piece it was written as — what pressing it means.</summary>
+    private sealed record Said(ContentPart Part, string Says);
+
+    /// <summary>One branch: the line making it — null for the branch everything starts on, which nothing makes — its name as written, and its lane.</summary>
+    private sealed record Branch(ContentPart? Part, ContentPart? Named, int Lane);
+
+    /// <summary>
+    /// One commit: the line it is written on — what pressing it means — where its stage placed it, the id written for it, its
+    /// tags, how it is kept, and whether it merges or is picked.
+    /// </summary>
+    private sealed record Commit(ContentPart Part, GitCommitNode Placed, Said? Said, IReadOnlyList<Said> Tags, Kept Kept, bool Merge, bool Picked)
     {
+        public int Lane => Placed.Lane;
+
+        public int Position => Placed.Position;
+
+        public IReadOnlyList<int> Follows => Placed.Follows;
+    }
+
+    /// <summary>The graph as written and as its stage placed it: which way it runs, its branches in the order they are made, and its commits.</summary>
+    private sealed class Graph(GitConfig config, Way way, IReadOnlyList<Branch> branches, IReadOnlyList<Commit> commits)
+    {
+        public GitConfig Config { get; } = config;
+
+        public Way Way { get; } = way;
+
+        /// <summary>The branches, in the order they are made — the branch everything starts on first.</summary>
+        public IReadOnlyList<Branch> Branches { get; } = branches;
+
+        /// <summary>The commits, in the order they are written.</summary>
+        public IReadOnlyList<Commit> Commits { get; } = commits;
+
+        /// <summary>How far along the last commit is, which is how long the history runs.</summary>
+        public int Length => Commits.Count == 0 ? 0 : Commits.Max(commit => commit.Position);
+
+        /// <summary>How many lanes there are, which is how wide the graph is across the branches.</summary>
+        public int Across => Branches.Max(branch => branch.Lane);
+    }
+
+    private Graph Read()
+    {
+        var block = Reading.Root.Node as GitBlockNode;
+        var config = block?.Config ?? GitConfig.Default;
+        var way = Way.LeftRight;
+        var branches = new List<Branch> { new(null, null, block?.Main ?? 0) };
+        var commits = new List<Commit>();
+
+        foreach (var part in Reading.Root.SelfAndDescendants())
+        {
+            switch (part.Node)
+            {
+                case { Kind: GitKinds.Direction } when Running(part) is { } running:
+                    way = running;
+                    break;
+
+                case GitBranchNode made:
+                    branches.Add(new Branch(part, part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name), made.Lane));
+                    break;
+
+                case GitCommitNode placed:
+                    commits.Add(Committed(part, placed, commits));
+                    break;
+            }
+        }
+
+        return new Graph(config, way, branches, commits);
+    }
+
+    /// <summary>
+    /// A commit as written: its id, its tags — or, for a cherry-pick nothing tags, what it takes, as Mermaid tags one, and
+    /// taking a merge, which of the merge's parents it takes it against — and how it is kept.
+    /// </summary>
+    private static Commit Committed(ContentPart part, GitCommitNode placed, IReadOnlyList<Commit> above)
+    {
+        var picked = part.Kind == GitKinds.Pick;
+        var written = Option(part, "id");
+        var tags = Options(part, "tag");
+
+        if (picked && tags.Count == 0 && written is { Says.Length: > 0 })
+        {
+            var against = placed.Takes >= 0 && above[placed.Takes].Merge && Option(part, "parent") is { Says.Length: > 0 } of ? $"|parent:{of.Says}" : "";
+            tags = [new Said(written.Part, $"cherry-pick:{written.Says}{against}")];
+        }
+
+        return new Commit(part, placed, picked ? null : written, tags, Keeping(part), part.Kind == GitKinds.Merge, picked);
+    }
+
+    private static Way? Running(ContentPart line)
+    {
+        if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting) is not { } way) return null;
+
+        var said = way.Text.AsSpan().Trim();
+        return said.Equals("LR", StringComparison.OrdinalIgnoreCase) ? Way.LeftRight
+             : said.Equals("TB", StringComparison.OrdinalIgnoreCase) ? Way.TopBottom
+             : said.Equals("BT", StringComparison.OrdinalIgnoreCase) ? Way.BottomTop
+             : null;
+    }
+
+    private static Kept Keeping(ContentPart line) =>
+        Option(line, "type")?.Says is { } kept
+            ? kept.Equals("REVERSE", StringComparison.OrdinalIgnoreCase) ? Kept.Reverse
+            : kept.Equals("HIGHLIGHT", StringComparison.OrdinalIgnoreCase) ? Kept.Highlight
+            : Kept.Normal
+            : Kept.Normal;
+
+    /// <summary>What a line's option says, and the piece saying it — or null where the line does not set it.</summary>
+    private static Said? Option(ContentPart line, string key) => Options(line, key).FirstOrDefault();
+
+    /// <summary>Everything a line's option says, each time the line sets it — a commit may be tagged more than once.</summary>
+    private static IReadOnlyList<Said> Options(ContentPart line, string key) =>
+        line.Inner(MermaidKinds.Properties)?.Children
+            .Where(property => property.Kind == MermaidKinds.Property)
+            .Where(property => property.Children.Any(child => child.Kind == MermaidKinds.Key && child.Text.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            .Select(property => property.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Setting))
+            .OfType<ContentPart>()
+            .Select(setting => new Said(setting, MermaidText.Bare(setting.Text)))
+            .ToList() ?? [];
+
+    // ── Laying it out ─────────────────────────────────────────────────────────
+
+    protected override Size Draw(MermaidBlock block, LayoutBuilder build)
+    {
+        var graph = Read();
+
         // A graph with no commits written in it is the source.
-        if (graph.Empty) return AsWritten(build);
+        if (graph.Commits.Count == 0) return AsWritten(build);
 
         var config = graph.Config;
-        var down = graph.Way != GitWay.LeftRight;
+        var down = graph.Way != Way.LeftRight;
         var turn = !down && config.RotateCommitLabel ? Turned : 0;
 
         // What every commit writes and every branch is called first, since that is what says how far apart the lanes stand.
@@ -120,7 +247,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         var length = graph.Length * Along;
         Point Where(int position, int lane)
         {
-            var along = graph.Way == GitWay.BottomTop ? length - (position * Along) : position * Along;
+            var along = graph.Way == Way.BottomTop ? length - (position * Along) : position * Along;
             return down ? new Point(lanes[lane], along) : new Point(along, lanes[lane]);
         }
 
@@ -129,7 +256,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
         foreach (var commit in graph.Commits)
         {
-            var at = Where(commit.Position, commit.Branch.Lane);
+            var at = Where(commit.Position, commit.Lane);
             room.Reach(new Rect(at.X - (Node * Raised), at.Y - (Node * Raised), Node * Raised * 2, Node * Raised * 2));
             Written(layout, commit, writing[commit], at, down, turn, room);
         }
@@ -154,19 +281,19 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     // ── What is laid out before it is drawn ────────────────────────────────────
 
     /// <summary>What a commit writes: its tags and its id.</summary>
-    private sealed record Inscribed(IReadOnlyList<(DiagramWords Words, ContentPart Part)> Tags, DiagramWords? Id, GitSaid? Said);
+    private sealed record Inscribed(IReadOnlyList<(DiagramWords Words, ContentPart Part)> Tags, DiagramWords? Id, Said? Said);
 
     /// <summary>Everything drawn, where it goes before it is moved clear of the edges.</summary>
     private sealed class Layout
     {
-        public List<(GitCommit Commit, Point At)> Commits { get; } = [];
-        public List<(GitCommit Commit, DiagramWords Words, ContentPart Part, Rect Box)> Tags { get; } = [];
-        public List<(DiagramWords Words, GitSaid Said, Point Place, Rect Box)> Ids { get; } = [];
-        public List<(GitBranch Branch, DiagramWords Name, Rect Box, Point From, Point To)> Lanes { get; } = [];
-        public List<(GitCommit Commit, IReadOnlyList<Point> Route, int Lane, bool Taken)> Follows { get; } = [];
+        public List<(Commit Commit, Point At)> Commits { get; } = [];
+        public List<(Commit Commit, DiagramWords Words, ContentPart Part, Rect Box)> Tags { get; } = [];
+        public List<(DiagramWords Words, Said Said, Point Place, Rect Box)> Ids { get; } = [];
+        public List<(Branch Branch, DiagramWords Name, Rect Box, Point From, Point To)> Lanes { get; } = [];
+        public List<(Commit Commit, IReadOnlyList<Point> Route, int Lane, bool Taken)> Follows { get; } = [];
     }
 
-    private Inscribed Writes(GitGraph graph, GitCommit commit)
+    private Inscribed Writes(Graph graph, Commit commit)
     {
         var config = graph.Config;
         var size = config.TagLabelFontSize ?? TagSize;
@@ -185,11 +312,11 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// under one lane's commits and the tags over the next's; running down it, the tags beside one lane's commits and the ids
     /// on the far side of the next's, and the branches' labels over them.
     /// </summary>
-    private static double Apart(GitGraph graph, IReadOnlyDictionary<GitCommit, Inscribed> writing, IReadOnlyDictionary<int, DiagramWords> labels,
+    private static double Apart(Graph graph, IReadOnlyDictionary<Commit, Inscribed> writing, IReadOnlyDictionary<int, DiagramWords> labels,
                                 int lane, bool down, double turn)
     {
         double Most(int of, Func<Inscribed, double> reach) =>
-            graph.Commits.Where(commit => commit.Branch.Lane == of).Select(commit => reach(writing[commit])).DefaultIfEmpty(0).Max();
+            graph.Commits.Where(commit => commit.Lane == of).Select(commit => reach(writing[commit])).DefaultIfEmpty(0).Max();
 
         double Stacked(Inscribed said) => said.Tags.Sum(tag => tag.Words.Height + Pad + 2);
 
@@ -208,7 +335,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     }
 
     /// <summary>Where a commit's tags and id go: running across the page, the tags stacked over it and the id under it; running down it, the tags beside it and the id on its other side.</summary>
-    private static void Written(Layout layout, GitCommit commit, Inscribed said, Point at, bool down, double turn, DiagramRoom room)
+    private static void Written(Layout layout, Commit commit, Inscribed said, Point at, bool down, double turn, DiagramRoom room)
     {
         layout.Commits.Add((commit, at));
 
@@ -242,7 +369,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// Where a branch's label goes — right against where its lane starts, or over it running down the page, under it running
     /// up — and the faint line of its lane, from its label to past the last commit.
     /// </summary>
-    private static void Laned(Layout layout, GitGraph graph, GitBranch branch, DiagramWords name, Func<int, int, Point> where, double across,
+    private static void Laned(Layout layout, Graph graph, Branch branch, DiagramWords name, Func<int, int, Point> where, double across,
                               double length, bool down, DiagramRoom room)
     {
         var size = new Size(name.Width + (Pad * 2), name.Height + Pad);
@@ -250,9 +377,9 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
         (Rect Box, Point From, Point To) placed = graph.Way switch
         {
-            GitWay.LeftRight => (new Rect(first - size.Width, across - (size.Height / 2), size.Width, size.Height),
+            Way.LeftRight => (new Rect(first - size.Width, across - (size.Height / 2), size.Width, size.Height),
                                  new Point(first, across), new Point(last, across)),
-            GitWay.TopBottom => (new Rect(across - (size.Width / 2), first - size.Height, size.Width, size.Height),
+            Way.TopBottom => (new Rect(across - (size.Width / 2), first - size.Height, size.Width, size.Height),
                                  new Point(across, first), new Point(across, last)),
             _ => (new Rect(across - (size.Width / 2), length + Node + Beside, size.Width, size.Height),
                   new Point(across, length + Node + Beside), new Point(across, -Node - Tail)),
@@ -270,23 +397,23 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// other turn, and where both are
     /// in the way, a track of its own between the lanes, clear of them and of every other track.
     /// </summary>
-    private static void Routed(Layout layout, GitGraph graph, Func<int, int, Point> where, IReadOnlyList<double> lanes, bool down)
+    private static void Routed(Layout layout, Graph graph, Func<int, int, Point> where, IReadOnlyList<double> lanes, bool down)
     {
         var tracks = new List<double>();
 
         bool Along(int lane, int from, int to) =>
-            !graph.Commits.Any(commit => commit.Branch.Lane == lane && commit.Position > Math.Min(from, to) && commit.Position < Math.Max(from, to));
+            !graph.Commits.Any(commit => commit.Lane == lane && commit.Position > Math.Min(from, to) && commit.Position < Math.Max(from, to));
 
         bool Over(int position, int from, int to) =>
-            !graph.Commits.Any(commit => commit.Position == position && commit.Branch.Lane > Math.Min(from, to) && commit.Branch.Lane < Math.Max(from, to));
+            !graph.Commits.Any(commit => commit.Position == position && commit.Lane > Math.Min(from, to) && commit.Lane < Math.Max(from, to));
 
         foreach (var commit in graph.Commits)
-            for (var at = 0; at < commit.Parents.Count; at++)
+            for (var at = 0; at < commit.Follows.Count; at++)
             {
-                if (graph.Of(commit.Parents[at]) is not { } parent) continue;
+                var parent = graph.Commits[commit.Follows[at]];
 
-                var (from, to) = (where(parent.Position, parent.Branch.Lane), where(commit.Position, commit.Branch.Lane));
-                var (a1, l1, a2, l2) = (parent.Position, parent.Branch.Lane, commit.Position, commit.Branch.Lane);
+                var (from, to) = (where(parent.Position, parent.Lane), where(commit.Position, commit.Lane));
+                var (a1, l1, a2, l2) = (parent.Position, parent.Lane, commit.Position, commit.Lane);
     // What a merge brings in, or a cherry-pick takes, comes along its own lane and turns in at the commit taking it.
                 var merged = at > 0;
                 IReadOnlyList<Point> corners;
@@ -311,7 +438,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
                     }
                 }
 
-                layout.Follows.Add((commit, Rounded(corners), at > 0 ? parent.Branch.Lane : commit.Branch.Lane, at > 0 && commit.Picked));
+                layout.Follows.Add((commit, Rounded(corners), at > 0 ? parent.Lane : commit.Lane, at > 0 && commit.Picked));
             }
     }
 
@@ -354,7 +481,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
     // ── Drawing it ────────────────────────────────────────────────────────────
 
-    private void Lanes(LayoutBuilder build, GitGraph graph, Layout layout, Vector shift)
+    private void Lanes(LayoutBuilder build, Graph graph, Layout layout, Vector shift)
     {
         if (layout.Lanes.Count == 0) return;
 
@@ -365,7 +492,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         build.Close();
     }
 
-    private void Follows(LayoutBuilder build, GitGraph graph, Layout layout, Vector shift)
+    private void Follows(LayoutBuilder build, Graph graph, Layout layout, Vector shift)
     {
         build.Open(GitPiece.Follows, part: null, stops: Stops.None);
         foreach (var (commit, route, lane, taken) in layout.Follows)
@@ -374,7 +501,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         build.Close();
     }
 
-    private void Commits(LayoutBuilder build, GitGraph graph, Layout layout, Vector shift)
+    private void Commits(LayoutBuilder build, Graph graph, Layout layout, Vector shift)
     {
         var config = graph.Config;
 
@@ -385,11 +512,11 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         foreach (var (commit, words, part, box) in layout.Tags)
             DiagramShapes.Draw(build, GitPiece.Tag, part, DiagramShape.Rounded, Rect.Offset(box, shift),
                                Ink.Written(config.TagLabelBackground) ?? Palette.CodeBg,
-                               new DiagramStroke(Ink.Written(config.TagLabelBorder) ?? Lane(graph, commit.Branch.Lane), 1.2),
+                               new DiagramStroke(Ink.Written(config.TagLabelBorder) ?? Lane(graph, commit.Lane), 1.2),
                                words, MermaidPiece.Words);
 
         // An id is written on a faint backing of its own, so a line running under it does not strike it through.
-        var turn = graph.Way == GitWay.LeftRight && config.RotateCommitLabel ? Turned : 0;
+        var turn = graph.Way == Way.LeftRight && config.RotateCommitLabel ? Turned : 0;
         foreach (var (id, said, place, _) in layout.Ids)
         {
             var at = place + shift;
@@ -406,7 +533,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         build.Close();
     }
 
-    private void Branches(LayoutBuilder build, GitGraph graph, Layout layout, Vector shift)
+    private void Branches(LayoutBuilder build, Graph graph, Layout layout, Vector shift)
     {
         if (layout.Lanes.Count == 0) return;
 
@@ -418,7 +545,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     }
 
     /// <summary>Each branch's label, by its lane — the name as written, where anything writes it.</summary>
-    private Dictionary<int, DiagramWords> Labels(GitGraph graph)
+    private Dictionary<int, DiagramWords> Labels(Graph graph)
     {
         var labels = new Dictionary<int, DiagramWords>();
 
@@ -428,7 +555,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
 
             labels[branch.Lane] = branch.Named is { } named
                 ? Written(named.Words(), named.Hole(), LabelSize, ink, FontWeights.SemiBold)
-                : Worked(branch.Name, branch.Part, LabelSize, ink, FontWeights.SemiBold);
+                : Worked(graph.Config.MainBranchName, branch.Part, LabelSize, ink, FontWeights.SemiBold);
         }
 
         return labels;
@@ -438,17 +565,17 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     /// One commit: a circle on its lane — ringed where it merges, a cherry where it is picked, crossed where it reverses, and
     /// squared where it stands out, its square set in a wider one of the lane's <c>gitInv</c> colour.
     /// </summary>
-    private void Drawn(LayoutBuilder build, GitGraph graph, GitCommit commit, Point at)
+    private void Drawn(LayoutBuilder build, Graph graph, Commit commit, Point at)
     {
-        var ink = Lane(graph, commit.Branch.Lane);
+        var ink = Lane(graph, commit.Lane);
         var under = Ink.Surface;
 
         build.Open(GitPiece.Commit, commit.Part, stops: Stops.None);
 
-        if (commit.Kept == GitKept.Highlight)
+        if (commit.Kept == Kept.Highlight)
         {
             var outer = Square(at, Node * Raised);
-            build.Draw(new GeometryMark(outer, Ink.Written(graph.Config.InverseAt(commit.Branch.Lane)) ?? DiagramInk.Faded(ink, LaneWash), null, 0));
+            build.Draw(new GeometryMark(outer, Ink.Written(graph.Config.InverseAt(commit.Lane)) ?? DiagramInk.Faded(ink, LaneWash), null, 0));
             build.Draw(new GeometryMark(Square(at, Node * 0.65), ink, null, 0));
             build.Occupies(outer);
             build.Close();
@@ -458,7 +585,7 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
         var circle = Circle(at, Node);
         build.Draw(new GeometryMark(circle, ink, under, 1.5));
 
-        if (commit.Kept == GitKept.Reverse)
+        if (commit.Kept == Kept.Reverse)
         {
             var cross = new GeometryGroup
             {
@@ -514,5 +641,5 @@ internal sealed class GitBuilder : MermaidBuilder<GitGraph>
     }
 
     /// <summary>What a lane is drawn in: the colour its <c>git</c> slot writes, or one of the theme's — the ninth lane taking the first's.</summary>
-    private Brush Lane(GitGraph graph, int lane) => Ink.Series(lane % GitConfig.Lanes, graph.Config.LaneAt(lane));
+    private Brush Lane(Graph graph, int lane) => Ink.Series(lane % GitConfig.Lanes, graph.Config.LaneAt(lane));
 }

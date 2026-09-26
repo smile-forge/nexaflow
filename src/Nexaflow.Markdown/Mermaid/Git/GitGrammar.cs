@@ -121,8 +121,8 @@ public sealed class GitGrammar : IMermaidGrammar
     public string Naming(string name) => Bare(name) ? name : "\"" + MermaidText.Quoted(name) + "\"";
 
     /// <inheritdoc/>
-    /// <remarks>What the history means together — the branch each commit is on, and what is not there to check out, merge or pick (<see cref="ResolveGraph"/>).</remarks>
-    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGraph(GitConfig.Read(block.Config).MainBranchName)];
+    /// <remarks>What the history means together — the branch each commit is on, what it follows, where it stands and each branch's lane — and what is not there to check out, merge or pick (<see cref="ResolveGraph"/>).</remarks>
+    public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGraph(GitConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a branch's name is still to write.</remarks>

@@ -220,4 +220,30 @@ public class GitBuilderTests : MermaidBuilderContract
         Assert.AreEqual("\"B\"", Written(source, tags[0].Part), "the tag stands for the id it took");
         Assert.AreEqual("\"taken\"", Written(tagged, Pieces(Build(tagged), GitPiece.Tag)[0].Part), "and its own tag where it has one");
     });
+
+    [TestMethod]
+    public void APickOfAMergeIsTaggedWithWhichOfItsParentsItTakes() => UiThread.Run(() =>
+    {
+        const string source = "gitGraph\n  commit id: \"A\"\n  branch develop\n  commit id: \"B\"\n  checkout main\n  merge develop id: \"M\"\n  branch release\n  cherry-pick id: \"M\" parent: \"A\"";
+
+        Assert.AreEqual("cherry-pick:M|parent:A", Pieces(Build(source), GitPiece.Tag).Single().SelfAndDescendants().Select(piece => piece.Words?.Glyphs.Text).OfType<string>().Single(),
+                        "tagged as Mermaid tags it");
+    });
+
+    [TestMethod]
+    public void ACommitNothingNamesSaysNothingUnderItself() => UiThread.Run(() =>
+        Assert.AreEqual(0, Pieces(Build("gitGraph\n  commit"), GitPiece.Id).Count));
+
+    [TestMethod]
+    public void AGraphWithABranchAndNoCommitsIsNothingToDraw() => UiThread.Run(() =>
+        Assert.AreEqual(0, Pieces(Build("gitGraph\n  branch develop"), GitPiece.Commit).Count));
+
+    [TestMethod]
+    public void AReversedCommitIsCrossedOut() => UiThread.Run(() =>
+    {
+        var commits = Pieces(Build(Kept), GitPiece.Commit);
+
+        Assert.IsTrue(commits[2].Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape is GeometryGroup), "the cross over it");
+        Assert.IsFalse(commits[0].Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Shape is GeometryGroup), "and none over an ordinary one");
+    });
 }

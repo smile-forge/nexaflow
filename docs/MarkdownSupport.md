@@ -140,15 +140,15 @@ JS/Mermaid.js, no browser).
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantStagesTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
 | `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
 | `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttChartTests`) + draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
-| `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitGraphTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
-| `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + nesting, shapes + config (`MindmapTreeTests`) + draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
+| `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitStagesTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
+| `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + config (`MindmapConfigTests`) + nesting, shapes and draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
 | `stateDiagram` / `stateDiagram-v2` | ✅ (shared layout tree; composite states, forks, notes, written in place) | ✅ grammar (`StateGrammarTests`) + states, transitions, notes + config (`StateDiagramTests`) + draw (`StateBuilderTests`) + writing (`StateEditingTests`) + sample render. See sub-features below. |
 | `classDiagram` / `classDiagram-v2` | ✅ (shared layout tree; compartments, namespaces, lollipops, written in place) | ✅ grammar (`ClassGrammarTests`) + classes, members, relations + config (`ClassDiagramTests`) + draw (`ClassBuilderTests`) + writing (`ClassEditingTests`) + sample render. See sub-features below. |
 | `requirementDiagram` | ✅ (shared layout tree; two compartments, SysML relations, written in place) | ✅ grammar (`RequirementGrammarTests`) + requirements, fields, relations + config (`RequirementDiagramTests`) + draw (`RequirementBuilderTests`) + writing (`RequirementEditingTests`) + sample render. See sub-features below. |
 | `kanban` | ✅ (shared layout tree; columns of cards with metadata, titles wrapped and written in place) | ✅ grammar (`KanbanGrammarTests`) + columns, cards + config (`KanbanStagesTests`) + draw (`KanbanBuilderTests`) + writing (`KanbanEditingTests`) + sample render. See sub-features below. |
-| `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + axes, series + config (`XyChartTests`) + draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
+| `xychart` / `xychart-beta` | ✅ (shared layout tree; bar + line, both orientations, written in place) | ✅ grammar (`XyGrammarTests`) + config (`XyConfigTests`) + axes, series and draw (`XyBuilderTests`) + writing (`XyEditingTests`) + sample render. See sub-features below. |
 | `radar-beta` | ✅ (shared layout tree; polar plot, written in place) | ✅ grammar (`RadarGrammarTests`) + spokes, curves, options + config (`RadarStagesTests`) + draw (`RadarBuilderTests`) + writing (`RadarEditingTests`) + sample render. See sub-features below. |
-| `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + nesting + config (`IshikawaChartTests`) + draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
+| `ishikawa` / `ishikawa-beta` | ✅ (shared layout tree; fishbone, written in place) | ✅ grammar (`IshikawaGrammarTests`) + config (`IshikawaConfigTests`) + nesting and draw (`IshikawaBuilderTests`) + writing (`IshikawaEditingTests`) + sample render. See sub-features below. |
 | `sankey` | ✅ (shared layout tree; ribbons by what they are worth, written in place) | ✅ grammar (`SankeyGrammarTests`) + config (`SankeyConfigTests`) + nodes, flows and draw (`SankeyBuilderTests`) + writing (`SankeyEditingTests`) + sample render. See sub-features below. |
 | `erDiagram` | ✅ (shared layout tree; attributes in columns, crow's feet, subgraphs, written in place) | ✅ grammar (`ErGrammarTests`) + entities, attributes, relationships + config (`ErDiagramTests`) + draw (`ErBuilderTests`) + writing (`ErEditingTests`) + sample render. See sub-features below. |
 | `venn-beta` | ✅ (shared layout tree; circles by area, written in place) | ✅ grammar (`VennGrammarTests`) + regions, styles + config (`VennDiagramTests`) + draw (`VennBuilderTests`) + writing (`VennEditingTests`) + sample render. See sub-features below. |
@@ -355,7 +355,7 @@ them; and `useMaxWidth`, `arrowMarkerAbsolute`, `theme`, `look` and the font fam
 drawing style and fonts a page has.
 
 **Git-graph sub-features** ([`GitGrammar`](../src/Nexaflow.Markdown/Mermaid/Git/GitGrammar.cs) →
-[`GitGraph`](../src/Nexaflow.Markdown/Mermaid/Git/GitGraph.cs) →
+its stage [`ResolveGraph`](../src/Nexaflow.Markdown/Mermaid/Git/Stages/ResolveGraph.cs), writing [its own nodes](../src/Nexaflow.Markdown/Mermaid/Git/GitNodes.cs) →
 [`GitBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Git/GitBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every branch name is the characters it was written
 as. Supported: the way it runs after the keyword (`gitGraph LR:`, `TB:`, `BT:`, and the bare `gitGraph:`); `title`;
@@ -392,7 +392,6 @@ pressed rather than typed into.
 
 **Mindmap sub-features** ([`MindmapGrammar`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapGrammar.cs) →
 its stage [`ResolveRoot`](../src/Nexaflow.Markdown/Mermaid/Mindmap/Stages/ResolveRoot.cs) →
-[`MindmapTree`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapTree.cs) →
 [`MindmapBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Mindmap/MindmapBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every title is the characters it was written as.
 Supported, as Mermaid documents it: `mindmap`; a node as `id[Title]`, `[Title]` or a bare `Title`, read as every outline
@@ -512,7 +511,6 @@ typed into bare text puts it in quotes; a class renamed in its `classDef` is ren
 caption starts the next quadrant's and elsewhere a point with its name still to write.
 
 **XY-chart sub-features** ([`XyGrammar`](../src/Nexaflow.Markdown/Mermaid/Xy/XyGrammar.cs) →
-[`XyChart`](../src/Nexaflow.Markdown/Mermaid/Xy/XyChart.cs) →
 [`XyBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Xy/XyBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and each category, title and name is the characters it
 was written as. Supported, as Mermaid documents it: `xychart` / `xychart-beta`, **vertical** (default) or **`horizontal`**;
@@ -564,7 +562,6 @@ the theme's.
 row; an axis renamed is renamed in every value naming it, bare or in quotes; Enter on a curve starts another curve with a
 hole for its name, on an axis another axis, and on an option nothing; a label deleted to nothing leaves a hole.
 **Ishikawa-chart sub-features** ([`IshikawaGrammar`](../src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaGrammar.cs) →
-[`IshikawaChart`](../src/Nexaflow.Markdown/Mermaid/Ishikawa/IshikawaChart.cs) →
 [`IshikawaBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Ishikawa/IshikawaBuilder.cs)).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every cause is the characters it was written as.
 Supported, as Mermaid documents it: `ishikawa-beta` (alias `ishikawa`); the **first line is the event** (the fish's head),
