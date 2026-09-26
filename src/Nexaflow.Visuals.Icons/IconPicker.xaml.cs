@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Visuals.Icons;
 

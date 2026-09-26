@@ -1,3 +1,5 @@
+using Nexaflow.Icons;
+
 namespace Nexaflow.Visuals.Icons;
 
 /// <summary>

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using System.Windows.Input;
 using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Icons;
+using Nexaflow.Icons;
 
 namespace Nexaflow.Core.Models;
 

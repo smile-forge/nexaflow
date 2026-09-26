@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
+using Nexaflow.Icons;
 using Nexaflow.Visuals.Common.Behaviors;
 using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;

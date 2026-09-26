@@ -2,6 +2,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Icons;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Icons;
 

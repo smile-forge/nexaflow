@@ -287,6 +287,9 @@
   <Project Path="src/Nexaflow.Visuals.Common/Nexaflow.Visuals.Common.csproj" Id="0096f396-9079-4b5a-8288-f593e0c1cadd">
     <Platform Project="x64" />
   </Project>
+  <Project Path="src/Nexaflow.Icons/Nexaflow.Icons.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="src/Nexaflow.Visuals.Icons/Nexaflow.Visuals.Icons.csproj">
     <Platform Project="x64" />
   </Project>

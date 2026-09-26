@@ -278,7 +278,7 @@ BreadcrumbSegment
 
 RibbonItem
   ├── Kind: Button | HalfGroup | Separator
-  ├── Label, Icon: IconRef, IsHalf
+   ├── Label, Icon: IconRef (Nexaflow.Icons), IsHalf
   ├── Foreground, Background, BorderColor: ColorSpec   (theme default · swatch token · custom)
   ├── BorderWeight, Shape
   ├── PageKind: string?               (persisted to ribbon.json)
