@@ -59,7 +59,7 @@ public sealed class SequenceGrammar : IMermaidGrammar
 
     /// <summary>
     /// The characters a message is drawn with, longest first so <c>-&gt;</c> does not stand for the start of <c>-&gt;&gt;</c>.
-    /// Which head each end draws is <see cref="SequenceDiagram.Ended"/>.
+    /// Which head each end draws is the builder's to say.
     /// </summary>
     public static readonly string[] Arrows =
         [.. new[]
@@ -201,7 +201,8 @@ public sealed class SequenceGrammar : IMermaidGrammar
     /// (<see cref="ResolveNumbers"/>).
     /// </remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
-        [new ResolveFrames(), new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered)];
+        [new ResolveFrames(), new ResolveNumbers(SequenceConfig.Read(block.Config).Numbered),
+         new WithConfig<SequenceConfig>(SequenceConfig.Read(block.Config))];
 
     /// <inheritdoc/>
     /// <remarks>Where a name is still to be written, and where what a message or a note says is still to come after its colon.</remarks>

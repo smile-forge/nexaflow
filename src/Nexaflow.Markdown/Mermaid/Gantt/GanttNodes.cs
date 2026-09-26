@@ -60,7 +60,7 @@ internal sealed class GanttTaskNode : ContentNode
     {
         this.Start = start;
         this.End = end;
-        this.Shown = shown;
+        this.DrawnTo = shown;
         this.Link = link;
         this.Clickable = clickable;
     }
@@ -70,7 +70,7 @@ internal sealed class GanttTaskNode : ContentNode
     public DateTime End { get; }
 
     /// <summary>Where its bar is drawn to — short of <see cref="End"/> where excluded days at its end push that on.</summary>
-    public DateTime Shown { get; }
+    public DateTime DrawnTo { get; }
 
     /// <summary>Where a <c>click … href</c> for it points, if one does.</summary>
     public string? Link { get; }
@@ -78,7 +78,7 @@ internal sealed class GanttTaskNode : ContentNode
     /// <summary>Whether a <c>click</c> names it.</summary>
     public bool Clickable { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new GanttTaskNode(shape, this.Start, this.End, this.Shown, this.Link, this.Clickable);
+    protected override ContentNode Reshaped(ContentNode shape) => new GanttTaskNode(shape, this.Start, this.End, this.DrawnTo, this.Link, this.Clickable);
 }
 
 /// <summary>

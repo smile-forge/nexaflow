@@ -99,7 +99,7 @@ internal sealed class GanttBuilder : MermaidBuilder
     {
         public DateTime Start => Said.Start;
         public DateTime End => Said.End;
-        public DateTime Shown => Said.Shown;
+        public DateTime Shown => Said.DrawnTo;
         public bool Clickable => Said.Clickable;
     }
 

@@ -108,8 +108,8 @@ public static class C4Elements
 
     /// <summary>
     /// Which band of C4's grading an element takes. C4's information is the grading rather than the particular colours —
-    /// the deeper the colour the higher the abstraction, and one colour for "not ours" whatever the level — so what the model
-    /// says is which band, and what a band comes to is the drawing's.
+    /// the deeper the colour the higher the abstraction, and one colour for "not ours" whatever the level — so what the stages
+    /// say is which band, and what a band comes to is the drawing's.
     /// </summary>
     public static int Banded(C4Level level, bool external) => external ? External : (int)level;
 

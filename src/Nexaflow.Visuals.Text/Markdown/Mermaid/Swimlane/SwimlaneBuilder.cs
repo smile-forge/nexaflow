@@ -13,8 +13,8 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Swimlane;
 ///
 /// <para>
 /// A swimlane is read as a flowchart and drawn by the flowchart's own builder, which is how Mermaid reads and draws it: the grammar,
-/// the model, the shapes, the links and the styling are all a flowchart's, and only the way it is laid out differs. What the lanes
-/// themselves ask for is <see cref="SwimlaneConfig"/>; everything else the front matter says is the flowchart's own.
+/// the stages, the shapes, the links and the styling are all a flowchart's, and only the way it is laid out differs. What the lanes
+/// themselves ask for is <see cref="SwimlaneConfig"/>, which its stages hang on the block with the flowchart's own inside it.
 /// </para>
 /// </summary>
 internal sealed class SwimlaneBuilder : FlowchartBuilder

@@ -262,4 +262,55 @@ public class C4BuilderTests : MermaidBuilderContract
 
     private static IEnumerable<Piece> Words(Piece piece) =>
         piece.SelfAndDescendants().Where(part => part.Words is not null);
+
+    [TestMethod]
+    [CoversNode("c4-elements")]
+    public void AnElementWithNoLabelIsDrawnAsItsOwnName() => UiThread.Run(() =>
+    {
+        var card = Pieces(Lay("C4Context\nPerson(customer)"), C4Piece.Element).Single();
+
+        Assert.IsTrue(card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == "customer"));
+    });
+
+    [TestMethod]
+    [CoversNode("c4-relationships")]
+    public void AnEndNobodyDeclaredStillStandsSomewhere() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Context\nRel(ghost, other, \"Uses\")");
+        var cards = Pieces(laid, C4Piece.Element);
+
+        Assert.AreEqual(2, cards.Count);
+        Assert.IsTrue(cards.Any(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == "ghost")));
+        Assert.IsTrue(cards.Any(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == "other")));
+        Assert.AreEqual(1, Pieces(laid, C4Piece.Relation).Count);
+    });
+
+    [TestMethod]
+    [CoversNode("c4-boundaries")]
+    public void BoundariesNestAndEachHoldsWhatIsWrittenInsideIt() => UiThread.Run(() =>
+    {
+        var laid = Lay("C4Container\nSystem_Boundary(outer, \"Outer\") {\n  Container_Boundary(inner, \"Inner\") {\n"
+                       + "    Container(a, \"A\")\n  }\n  Container(b, \"B\")\n}\nContainer(c, \"C\")");
+
+        Rect Box(string name) => Pieces(laid, C4Piece.Boundary).Where(box => box.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name))
+                                                              .OrderBy(box => box.Bounds.Width * box.Bounds.Height).First().Bounds;
+        Rect Card(string name) => Pieces(laid, C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
+
+        Assert.IsTrue(Box("Outer").Contains(Box("Inner")), "the inner boundary is drawn inside the outer one");
+        Assert.IsTrue(Box("Inner").Contains(Card("A")));
+        Assert.IsTrue(Box("Outer").Contains(Card("B")) && !Box("Inner").IntersectsWith(Card("B")));
+        Assert.IsFalse(Box("Outer").IntersectsWith(Card("C")));
+    });
+
+    [TestMethod]
+    [CoversNode("c4-diagram")]
+    public void TheLastLayoutDirectiveWrittenIsTheWayTheDiagramRuns() => UiThread.Run(() =>
+    {
+        const string source = "C4Context\nLAYOUT_LEFT_RIGHT()\nLAYOUT_TOP_DOWN()\nPerson(a, \"A\")\nSystem(b, \"B\")\nRel(a, b, \"Uses\")";
+
+        Rect Card(string name) =>
+            Pieces(Lay(source), C4Piece.Element).Single(card => card.SelfAndDescendants().Any(part => part.Words?.Glyphs.Text == name)).Bounds;
+
+        Assert.IsTrue(Card("B").Top > Card("A").Bottom - 1, "down the page, as the last one says");
+    });
 }

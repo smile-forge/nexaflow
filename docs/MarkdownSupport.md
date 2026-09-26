@@ -138,7 +138,7 @@ JS/Mermaid.js, no browser).
 | `graph` / `flowchart` | ✅ (shared layout tree; ranked layout, subgraphs with their own direction, written in place) | ✅ grammar (`FlowchartGrammarTests`) + subgraphs, links, metadata, styling + config (`FlowchartStagesTests`) + nodes and draw (`FlowchartBuilderTests`) + writing (`FlowchartEditingTests`) + layout (`DiagramLayersTests`) + links (`MermaidLinksTests`) + sample render. See sub-features below. |
 | `pie` | ✅ (shared layout tree; donut, legend positions, highlight) | ✅ grammar (`PieGrammarTests`) + chart + config (`PieChartTests`) + draw (`PieBuilderTests`) + routing (`DiagramRendererTests`) + sample render. See sub-features below. |
 | `quadrantChart` | ✅ (shared layout tree; styled points and classes, written in place) | ✅ grammar (`QuadrantGrammarTests`) + points, styles + config (`QuadrantStagesTests`) + draw (`QuadrantBuilderTests`) + writing (`QuadrantEditingTests`) + sample render. See sub-features below. |
-| `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + participants, timeline + config (`SequenceDiagramTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
+| `sequenceDiagram` | ✅ (shared layout tree; participants, frames, bars, notes, numbering and menus, written in place) | ✅ grammar (`SequenceGrammarTests`) + frames, numbering + config (`SequenceStagesTests`) + participants and timeline (`SequenceReadingTests`) + draw (`SequenceBuilderTests`) + writing (`SequenceEditingTests`) + sample render. See sub-features below. |
 | `gantt` | ✅ (shared layout tree; dependencies, excluded days, milestones and markers, written in place) | ✅ grammar (`GanttGrammarTests`) + schedule + config (`GanttStagesTests`) + rows and draw (`GanttBuilderTests`) + writing (`GanttEditingTests`) + dates (`MermaidTimeTests`, `DiagramTimeTests`) + sample render. See sub-features below. |
 | `gitGraph` | ✅ (shared layout tree; lanes, merges and cherry-picks, LR/TB/BT, written in place) | ✅ grammar (`GitGrammarTests`) + history, lanes + config (`GitStagesTests`) + draw (`GitBuilderTests`) + writing (`GitEditingTests`) + sample render. See sub-features below. |
 | `mindmap` | ✅ (shared layout tree; tidy tree with every shape, titles wrapped and written in place) | ✅ grammar (`MindmapGrammarTests`) + config (`MindmapConfigTests`) + nesting, shapes and draw (`MindmapBuilderTests`) + writing (`MindmapEditingTests`) + layout (`DiagramTreeTests`) + sample render. See sub-features below. |
@@ -157,8 +157,8 @@ JS/Mermaid.js, no browser).
 | `cynefin-beta` | ✅ (shared layout tree; five-domain grid, written in place) | ✅ grammar (`CynefinGrammarTests`) + config (`CynefinConfigTests`) + domains, movements and draw (`CynefinBuilderTests`) + writing (`CynefinEditingTests`) + sample render. See sub-features below. |
 | `timeline` | ✅ (shared layout tree; period spine, LR or TD, written in place) | ✅ grammar (`TimelineGrammarTests`) + config (`TimelineConfigTests`) + sections, events and draw (`TimelineBuilderTests`) + writing (`TimelineEditingTests`) + sample render. See sub-features below. |
 | `journey` | ✅ (shared layout tree; scored faces, actor legend, written in place) | ✅ grammar (`JourneyGrammarTests`) + config (`JourneyConfigTests`) + sections, tasks, actors and draw (`JourneyBuilderTests`) + writing (`JourneyEditingTests`) + sample render. See sub-features below. |
-| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StructureTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
-| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4SequenceTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
+| `C4Context` / `C4Container` / `C4Component` / `C4Dynamic` / `C4Deployment` | ✅ (shared layout tree; element cards, nested boundaries, a key, written in place) | ✅ grammar (`C4GrammarTests`) + elements, boundaries, relationships, styling + config (`C4StagesTests`) + draw and grading (`C4BuilderTests`) + writing (`C4EditingTests`) + sample render. See sub-features below. |
+| `C4Sequence` *(Nexaflow extension)* | ✅ (shared layout tree; element cards, boundaries, numbering and a key, written in place) | ✅ grammar (`C4SequenceGrammarTests`) + cards, boundaries, relationships + config (`C4StagesTests`) + draw (`C4SequenceBuilderTests`) + writing (`C4SequenceEditingTests`) + sample render. See sub-features below. |
 | `block-beta` | ✅ (shared layout tree; the author's own grid, nested composites, written in place) | ✅ grammar (`BlockGrammarTests`) + composites, styles + config (`BlockStagesTests`) + grid, links and draw (`BlockBuilderTests`) + writing (`BlockEditingTests`) + shapes (`MermaidShapesTests`) + sample render. See sub-features below. |
 
 **Flowchart sub-features** ([`FlowchartGrammar`](../src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs) →
@@ -326,9 +326,11 @@ what it takes rather than Mermaid's 200 by 200, because the words in it are meas
 read, only `%%`; and `rect_fill`, `text_color`, `rect_border_size`, `rect_border_color`, `theme`, `look`, `layout` and
 `useMaxWidth` name colours the theme decides here, a renderer, a drawing style and a layout engine.
 
-**Sequence-diagram sub-features** ([`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs),
-[`SequenceDiagram`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs),
-[`SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs)).
+**Sequence-diagram sub-features** ([`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) →
+its stages [`ResolveFrames`](../src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs), which gathers each box and
+frame with the lines written in it, and [`ResolveNumbers`](../src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveNumbers.cs) →
+[`SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs), which reads the timeline down
+the tree in the order it is written).
 Drawn on the **shared layout tree**, so what is drawn is selectable and every word is the characters it was written as.
 Supported: participants written where they are used or declared `participant A` / `actor A` to fix the order they stand
 in, with a label `as Alice` or an `"alias"` in the `@{ … }` metadata against the name (the label wins), and the whole
@@ -829,8 +831,10 @@ diagram and neither does this, so a title is the front matter's; a block whose s
 drawn to the end of that row rather than outside the grid; a label written with no id before it reads as a block still being
 written, where Mermaid needs the id; and `useMaxWidth` is not applied, the block being drawn at the size its blocks come to.
 
-**C4 sub-features** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
-[`C4Structure`](../src/Nexaflow.Markdown/Mermaid/C4/C4Structure.cs),
+**C4 sub-features** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs) →
+its stages [`ResolveBoundaries`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveBoundaries.cs), which gathers each boundary
+with the lines written in it, and [`ResolveMacros`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs), which says
+what each macro means →
 [`C4Builder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Builder.cs)).
 A C4 diagram **is** a graph with richer boxes, so it is drawn on the **shared layout tree** with the same layered layout
 ([`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs)) a class diagram and a flowchart use,
@@ -871,13 +875,12 @@ stands beside what here is worked out from what is joined to what. `SHOW_PERSON_
 read and a person is one card either way. An element's own name is never drawn — its label is — so it is renamed in the
 source rather than in the drawing, where every macro naming it is in view.
 
-**C4 sequence** ([`C4Grammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4Grammar.cs),
-[`C4Sequence`](../src/Nexaflow.Markdown/Mermaid/C4/C4Sequence.cs),
+**C4 sequence** ([`C4SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/C4/C4SequenceGrammar.cs) →
+a sequence diagram's stages with [`ResolveMacros`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs) →
 [`C4SequenceBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceBuilder.cs)).
 `C4Sequence` is a **Nexaflow extension** — it mirrors C4-PlantUML's `C4_Sequence.puml`, which Mermaid has no keyword
-for. Drawn on the **shared layout tree**, and read into the very same [`SequenceDiagram`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceDiagram.cs)
-a `sequenceDiagram` is read into, so it is **drawn by the sequence diagram's own builder** — only the words a reader
-wrote to say it differ. Element macros become participant lifelines whose boxes are C4 element cards instead of
+for. Drawn on the **shared layout tree**, **by the sequence diagram's own builder**, read by the sequence diagram's own
+reader with the macro lines taken as its own — only the words a reader wrote to say it differ. Element macros become participant lifelines whose boxes are C4 element cards instead of
 plain boxes, a `Boundary`…`Boundary_End()` pair becomes the `box` grouping over the participants it spans, and each
 `Rel` becomes a message carrying its technology under the label. `SHOW_INDEX()` numbers the messages (an explicit
 `$index`/`RelIndex` wins and the count continues from it), `SHOW_FOOT_BOXES(false)` drops the repeated heads at the
@@ -885,12 +888,13 @@ bottom, and `SHOW_ELEMENT_DESCRIPTIONS()` puts each element's description into i
 lifeline head is a column header and a paragraph in every column only pushes the columns apart.
 
 `SHOW_LEGEND()` works here too, drawn below the timeline and built from the same rows as a structural diagram's — both
-read by [`C4Said`](../src/Nexaflow.Markdown/Mermaid/C4/C4Said.cs), which is the pass that settles what a whole block is
-switched to show and what everything in it is styled with.
+said by [`ResolveMacros`](../src/Nexaflow.Markdown/Mermaid/C4/Stages/ResolveMacros.cs), which reads what a whole block is
+switched to show and what everything in it is styled with ([`C4Said`](../src/Nexaflow.Markdown/Mermaid/C4/C4Said.cs)) and
+says what each macro comes to.
 
 **Native sequence syntax works inside it.** Any line the C4 grammar does not claim is read by
 [`SequenceGrammar`](../src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs) itself, and any line
-`C4Sequence` does not claim is read by the sequence diagram's own model — so `alt`/`else`/`end`, `loop`, `par`,
+`C4SequenceBuilder` does not claim is read by the sequence diagram's own reader — so `alt`/`else`/`end`, `loop`, `par`,
 `critical`, `note over`, `activate` and even a plain `participant` sit alongside C4 macros in one diagram and nest
 around them correctly. It is the native grammar, not a second copy of it. **Divergences from C4-PlantUML:** an element's
 own name is never drawn — its label is — so a rename is made in the source rather than in the drawing, while a

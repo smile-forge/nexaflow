@@ -11,6 +11,5 @@ Nexaflow.Visuals.Text.Markdown.Latex.LatexBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.Aztec.AztecBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.DataMatrix.DataMatrixBuilder
 Nexaflow.Visuals.Text.Markdown.Matrix.Pdf417.Pdf417Builder
-Nexaflow.Visuals.Text.Markdown.Mermaid.MermaidBuilder`1
 
 Nexaflow.Visuals.Text.Markdown.Qr.QrBuilder
