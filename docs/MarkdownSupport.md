@@ -968,6 +968,8 @@ content is told, because what that content supplies is read into the diagram aga
 walks one module further) and an opening made here has to survive that; where nothing is bound, the diagram lays itself
 out again and opens the node from its own source. A right-click asks the piece under the pointer, and the language drawn there,
 what can be done to it and offers exactly that ([`DiagramRibbon`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs)).
+In the document's own words that is Insert, which opens a row of icons, one for every language a block can be started in —
+each diagram, barcode and QR-style symbol, tune, formula, chemical structure, plot and word cloud — and writes a small block of it that already draws, to start from.
 
 **Layout.** A folding diagram is laid out by the same
 [`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) as every other graph-shaped one:

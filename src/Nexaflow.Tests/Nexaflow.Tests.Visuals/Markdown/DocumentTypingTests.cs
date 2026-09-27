@@ -1,6 +1,13 @@
 using System;
 
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
@@ -97,4 +104,77 @@ public class DocumentTypingTests
                 Assert.AreEqual("Started. " + line, editor.Markdown, line);
             });
     });
+
+    [TestMethod]
+    [CoversNode("markdown-context-menu")]
+    public void MarkdownOffersABlockInEveryLanguageThereIsOneToStartIn_EachDrawnAsItsIcon() => UiThread.Run(() =>
+        MarkdownEditorHarness.Run("Below:\n\nAfter.\n", editor =>
+        {
+            var adds = Ribbon(editor, "Below").Offers.Where(offer => offer.Offer == LayoutOffer.Insert).ToList();
+
+            CollectionAssert.AreEqual(ContentLanguages.Insertable.Select(language => language.DisplayName).ToArray(),
+                                      adds.Select(offer => offer.Tip).ToArray(), "one for each language, in the table's order");
+            Assert.IsTrue(adds.All(offer => offer.Shape is { IsFrozen: true } shape && !shape.IsEmpty()), "each drawn as its icon");
+        }));
+
+    [TestMethod]
+    [CoversNode("markdown-context-menu")]
+    public void ChoosingOneWritesItsBlockAfterTheParagraph_WithTheCaretAtTheEndOfItsLastLine() => UiThread.Run(() =>
+        MarkdownEditorHarness.Run("Below:\n\nAfter.\n", editor =>
+        {
+            var ribbon = Ribbon(editor, "Below");
+            Press(ribbon, Inserting);
+            Press(ribbon, Inserting + "_insert:Pie chart");
+
+            Assert.AreEqual("Below:\n\n" + Pie + "\n\nAfter.\n", editor.Markdown);
+            Assert.AreEqual("Below:\n\n".Length + Pie.LastIndexOf("\n```", System.StringComparison.Ordinal), editor.Shown.Current.Caret,
+                "the caret where the block goes on being written");
+            Assert.AreEqual(0, MarkdownEditorHarness.Block(editor).Diagnostics.Count, "and the block reads");
+        }));
+
+    [TestMethod]
+    [CoversNode("markdown-context-menu")]
+    public void AtTheEndOfTheDocumentTheBlockEndsIt() => UiThread.Run(() =>
+        MarkdownEditorHarness.Run("Only words", editor =>
+        {
+            var ribbon = Ribbon(editor, "Only");
+            Press(ribbon, Inserting);
+            Press(ribbon, Inserting + "_insert:Pie chart");
+
+            Assert.AreEqual("Only words\n\n" + Pie + "\n", editor.Markdown);
+        }));
+
+    /// <summary>The pie's block to start from, as it is written into a document.</summary>
+    private const string Pie = "```mermaid\npie\n    title Pets\n    \"Dogs\" : 40\n```";
+
+    /// <summary>The ribbon a right-click on the words <paramref name="over"/> opens.</summary>
+    private static DiagramRibbon Ribbon(MarkdownSurface editor, string over)
+    {
+        var at = editor.Markdown.IndexOf(over, System.StringComparison.Ordinal);
+        var box = editor.Shown.Laid.Root.SelfAndDescendants().Last(piece => piece.Words is not null && piece.Sits().Start <= at && at < piece.Sits().End).Bounds;
+
+        var ribbon = editor.Shown.BuildRibbon(new Point(box.X + (box.Width / 2), box.Y + (box.Height / 2))) as DiagramRibbon;
+        Assert.IsNotNull(ribbon, "a right-click opens the ribbon");
+        return ribbon!;
+    }
+
+    /// <summary>What the ribbon's one button everything addable sits behind is found by.</summary>
+    private const string Inserting = "Diagram_Ribbon_Insert";
+
+    /// <summary>Presses the ribbon's button a journey finds by <paramref name="id"/>.</summary>
+    private static void Press(DiagramRibbon ribbon, string id)
+    {
+        var button = Logical(ribbon).OfType<Button>().Single(button => AutomationProperties.GetAutomationId(button) == id);
+        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        MarkdownEditorHarness.Pump();
+    }
+
+    private static IEnumerable<DependencyObject> Logical(DependencyObject from)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(from).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var further in Logical(child)) yield return further;
+        }
+    }
 }

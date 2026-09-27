@@ -297,7 +297,11 @@ that language what it offers there (`ContentEngine.Asked`, answered by `Editing.
 options of one choice come back under one `LayoutIntent.Group`, the one in force marked `Current`, and `DiagramRibbon` draws
 them side by side, each as what it would make (`LayoutIntent.Shape`) and named in its tooltip. A press on one comes back
 through the engine as a choosing edit on the same piece and part (`ContentEngine.Choose`), so what a ribbon does is written in
-the handler that answers the keys. The surface adds nothing to the ribbon of its own; Paste, where a language offers it, is the
+the handler that answers the keys. Markdown's own offer is Insert: every language that names a block to start from
+(`ContentLanguage.DisplayName`, `Icon` — a Fluent UI System Icons name — and `DefaultBlock`, gathered by
+`ContentLanguages.Insertable`) sits behind the ribbon's one Insert button, which opens a sub-ribbon of their icons; choosing one
+writes its block after the block the ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surface adds
+nothing to the ribbon of its own; Paste, where a language offers it, is the
 host's to do, since the clipboard is its — it hands what is there to the engine as a pasting edit. A drag of what is picked out
 asks too, over the piece it is let go on (`EditKind.Dropping`); a null answer moves the text as anywhere. While whole pieces are
 chosen — a slice, a node — there is no caret (`ContentEngine.ChoseWhole`).

@@ -1,0 +1,55 @@
+{
+  "branch": "claude/insert-languages",
+  "nodes": {
+    "markdown-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement",
+          "method": "BuildRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Offers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits",
+          "method": "Started"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentLanguages.cs",
+          "class": "ContentLanguages",
+          "method": "Insertable"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Languages/Languages.cs",
+          "class": "Shipped",
+          "method": "Starting"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "markdown-context-menu"
+  ]
+}

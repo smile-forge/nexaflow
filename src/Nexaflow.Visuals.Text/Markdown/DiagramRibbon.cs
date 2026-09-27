@@ -23,7 +23,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>Pictures first, then words.</strong> Offers that are options of one choice (<see cref="LayoutIntent.Group"/>) are drawn
 /// side by side, each as what it would make (<see cref="LayoutIntent.Shape"/>), the one the content says now picked out — choosing
 /// another picks it out instead, and the ribbon stays open for the next. Anything else with a picture stands beside the rest of its
-/// kind; what can be added is gathered behind one Insert button; what has no picture is named. Every button still says in words
+/// kind; what can be added is gathered behind one Insert button, which opens a sub-ribbon of their pictures; what has no picture is
+/// named. Every button still says in words
 /// what it does, to a reader hovering over it and to one hearing the screen read.
 /// </para>
 /// <para>
@@ -111,29 +112,44 @@ internal sealed class DiagramRibbon : UserControl
         button.Foreground = picked ? Brush("AccentBrush", Colors.Blue) : Brush("TextBrush", Colors.Black);
     }
 
-    /// <summary>Everything that can be added, behind the one button a reader opens to look through them.</summary>
+    /// <summary>
+    /// Everything that can be added, behind the one button a reader opens to look through them: pressed, it opens a sub-ribbon of their
+    /// pictures under it, each named to a reader hovering over it — or of their names, where they have no picture.
+    /// </summary>
     private static FrameworkElement Inserting(IReadOnlyList<LayoutIntent> adds, Action<LayoutIntent> invoke)
     {
-        var menu = new Menu { Margin = new Thickness(0, 0, 0, 2), Background = Brushes.Transparent };
-        var insert = new MenuItem { Header = Inserts, MinWidth = 130 };
+        var insert = Flat(new Thickness(8, 5, 8, 5));
+        insert.Foreground = Brush("TextBrush", Colors.Black);
+        insert.HorizontalAlignment = HorizontalAlignment.Stretch;
+        insert.HorizontalContentAlignment = HorizontalAlignment.Left;
+        insert.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                new TextBlock { Text = "\uE710", FontFamily = IconFont, FontSize = 14, Width = Side, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+                new TextBlock { Text = Inserts, FontSize = 12, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
+        Said(insert, Inserts, "Diagram_Ribbon_Insert");
+
+        var sub = new WrapPanel { MaxWidth = 8 * (Side + 12), Margin = new Thickness(0, 2, 0, 2), Visibility = Visibility.Collapsed };
 
         foreach (var offer in adds)
         {
-            var item = new MenuItem { Header = Names(offer) };
+            var button = Flat(new Thickness(6, 4, 6, 4));
+            button.Content = Face(offer, button);
+            button.Foreground = Brush("TextBrush", Colors.Black);
+            Said(button, Names(offer), "Diagram_Ribbon_Insert_" + offer.Verb);
+
             var meant = offer;
-
-            if (offer.Target is { Length: > 0 } target) item.ToolTip = new TextBlock { Text = target };
-
-            AutomationProperties.SetAutomationId(item, "Diagram_Ribbon_Insert_" + offer.Verb);
-
-            item.Click += (_, _) => invoke(meant);
-            insert.Items.Add(item);
+            button.Click += (_, _) => invoke(meant);
+            sub.Children.Add(button);
         }
 
-        AutomationProperties.SetAutomationId(insert, "Diagram_Ribbon_Insert");
-        menu.Items.Add(insert);
+        insert.Click += (_, _) => sub.Visibility = sub.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
 
-        return menu;
+        return new StackPanel { Margin = new Thickness(0, 0, 0, 2), Children = { insert, sub } };
     }
 
     /// <summary>One thing that may be done, standing on its own: its picture where it has one, else its name.</summary>

@@ -90,16 +90,23 @@ public class ContentOffersTests
         ], _ => { });
 
         var buttons = Descendants(ribbon).OfType<Button>().ToList();
-        var menus = Descendants(ribbon).OfType<MenuItem>().ToList();
+        var insert = buttons.Single(button => Id(button) == Inserting);
+        var adds = buttons.Where(button => Id(button).StartsWith(Inserting + "_", System.StringComparison.Ordinal)).ToList();
 
         // Doing something to what is there is not browsing: a reader reaching for one of these knows what
         // they want, and hiding it a level down makes them hunt for it.
         CollectionAssert.AreEquivalent(new[] { "Copy", "Restyle this" },
-                                       buttons.Select(Said).ToArray());
+                                       buttons.Except(adds).Where(button => button != insert).Select(Said).ToArray());
 
-        Assert.AreEqual(DiagramRibbon.Inserts, menus[0].Header, "everything addable is behind one button");
-        CollectionAssert.AreEquivalent(new[] { "A slice", "A row" },
-                                       menus.Skip(1).Select(item => (string)item.Header).ToArray());
+        Assert.AreEqual(DiagramRibbon.Inserts, Said(insert), "everything addable is behind one button");
+        CollectionAssert.AreEquivalent(new[] { "A slice", "A row" }, adds.Select(Said).ToArray());
+        Assert.IsTrue(adds.All(Hidden), "out of the way until it is opened");
+
+        Press(insert);
+        Assert.IsFalse(adds.Any(Hidden), "pressed, it opens a sub-ribbon of them");
+
+        Press(insert);
+        Assert.IsTrue(adds.All(Hidden), "and pressed again, closes it");
     });
 
     [TestMethod]
@@ -107,8 +114,13 @@ public class ContentOffersTests
     {
         var ribbon = new DiagramRibbon([new LayoutIntent(LayoutVerbs.Copy, null, "Copy")], _ => { });
 
-        Assert.AreEqual(0, Descendants(ribbon).OfType<MenuItem>().Count());
+        Assert.IsFalse(Descendants(ribbon).OfType<Button>().Any(button => Id(button) == Inserting));
     });
+
+    [TestMethod]
+    [CoversNode("markdown-context-menu")]
+    public void NothingIsOfferedToAReaderWhoMayNotWrite() =>
+        Assert.AreEqual(0, ContentLanguages.Markdown.Editing.Offers(new ContentAsk(string.Empty, "words\n") { IsReadOnly = true }).Count);
 
     [TestMethod]
     public void EveryOfferIsSomethingAReaderCanRead() => UiThread.Run(() =>
@@ -128,6 +140,17 @@ public class ContentOffersTests
 
     /// <summary>What a button says it does, whether it is drawn as words or as a picture.</summary>
     private static string Said(Button button) => System.Windows.Automation.AutomationProperties.GetName(button);
+
+    /// <summary>The handle a journey presses a button by.</summary>
+    private static string Id(Button button) => System.Windows.Automation.AutomationProperties.GetAutomationId(button);
+
+    /// <summary>What the ribbon's one button everything addable sits behind is found by.</summary>
+    private const string Inserting = "Diagram_Ribbon_Insert";
+
+    /// <summary>Whether a button is in a sub-ribbon still closed.</summary>
+    private static bool Hidden(Button button) => button.Parent is UIElement { Visibility: not Visibility.Visible };
+
+    private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
