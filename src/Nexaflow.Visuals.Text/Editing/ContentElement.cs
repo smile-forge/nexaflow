@@ -75,6 +75,7 @@ public class ContentElement : FrameworkElement
         _engine.SourceChanged += OnSourceChanged;
         _engine.Revealing += OnRevealing;
         _engine.Rebound += OnRebound;
+        _engine.Reread += OnReread;
 
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
@@ -106,6 +107,7 @@ public class ContentElement : FrameworkElement
         _engine.SourceChanged -= OnSourceChanged;
         _engine.Revealing -= OnRevealing;
         _engine.Rebound -= OnRebound;
+        _engine.Reread -= OnReread;
 
         StopBlinking();
     }
@@ -125,6 +127,9 @@ public class ContentElement : FrameworkElement
     /// <summary>Bound content changed on whatever thread it walked on; it is laid out again here, on this element's.</summary>
     private void OnRebound(object? sender, IBoundContent changed) =>
         Dispatcher.BeginInvoke(() => _engine.Rebind(changed));
+
+    /// <summary>A slower reading of what is shown landed on whatever thread read it; the content is laid out again here, on this element's.</summary>
+    private void OnReread(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
 
     private void OnCaretTaken(object? sender, EventArgs args)
     {

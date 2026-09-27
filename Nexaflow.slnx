@@ -168,6 +168,9 @@
     </Project>
   </Folder>
   <Folder Name="/Nexaflow.Analyzers/">
+    <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Content/Nexaflow.Analyzers.Content.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Analyzers/Nexaflow.Analyzers.Coverage/Nexaflow.Analyzers.Coverage.csproj">
       <Platform Project="x64" />
     </Project>

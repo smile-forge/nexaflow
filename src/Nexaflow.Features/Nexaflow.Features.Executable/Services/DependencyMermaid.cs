@@ -20,7 +20,10 @@ namespace Nexaflow.Features.Executable.Services;
 /// </summary>
 public static class DependencyMermaid
 {
-    /// <summary>The diagram's source — what a fence holds, or what a binding to the graph supplies.</summary>
+    /// <summary>
+    /// The diagram's lines — its front matter and everything after its header — what a binding after a <c>graph LR</c> header
+    /// supplies.
+    /// </summary>
     public static string Build(DependencyGraph graph)
     {
         var body      = new StringBuilder();
@@ -74,7 +77,6 @@ public static class DependencyMermaid
 
         var builder = new StringBuilder();
         AppendFrontMatter(builder, collapsed, expanded);
-        builder.AppendLine("graph LR");
         builder.Append(body);
 
         // classDef lines carry no colour: the renderer themes nodes, and a hard-coded fill here

@@ -17,7 +17,7 @@ public class SequenceReadingTests
 {
     /// <summary>A sequence diagram's own builder, asked what its reader makes of a block.</summary>
     private sealed class Reads(string source, bool writing = false)
-        : SequenceBuilder(Laying.Read("mermaid", source, writing), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
+        : SequenceBuilder(Laying.Read("sequenceDiagram", source, writing), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
     {
         public Diagram Diagram => Read(Reading.Root, Configured(SequenceConfig.Default));
     }

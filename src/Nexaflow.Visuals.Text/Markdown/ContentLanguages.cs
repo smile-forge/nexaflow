@@ -23,6 +23,7 @@ public static class ContentLanguages
     private static readonly List<ContentLanguage> Known =
     [
         Shipped.Mermaid,
+        .. Shipped.Diagrams,
         Shipped.Nomnoml,
         Shipped.Qr,
         Shipped.Barcode,
@@ -39,9 +40,9 @@ public static class ContentLanguages
         Shipped.Plot(PlotFence.Heatmap),
         Shipped.Plot(PlotFence.Density2d),
 
-        // Last, and deliberately. It answers to dozens of words, so a fence calling itself something a language of its own
+        // Last, and deliberately. Code answers to dozens of words, so a fence calling itself something a language of its own
         // already claims must reach that one first.
-        Shipped.Code,
+        .. Shipped.Codes,
     ];
 
     private static readonly Lock Adding = new();
@@ -63,6 +64,7 @@ public static class ContentLanguages
         lock (Adding)
         {
             Known.Insert(0, language);
+            Answered.Clear();
         }
     }
 
@@ -76,9 +78,14 @@ public static class ContentLanguages
 
         lock (Adding)
         {
-            return Known.FirstOrDefault(known => known.Reads(language));
+            if (Answered.TryGetValue(language, out var known)) return known;
+
+            return Answered[language] = Known.FirstOrDefault(known => known.Reads(language));
         }
     }
+
+    /// <summary>What each word was found to name, so a word is looked for in the table once — until a language is added.</summary>
+    private static readonly Dictionary<string, ContentLanguage?> Answered = new(StringComparer.Ordinal);
 
     /// <summary>
     /// The language <paramref name="part"/> holds content written in, where it holds content in one anything reads — a fence,

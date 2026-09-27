@@ -24,6 +24,13 @@
 
   <ItemGroup>
     <PackageReference Include="MSTest" Version="4.4.0" />
+    <!-- The analyzers' own tests compile small sources against them. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Referenced as a library, not run as an analyzer: its tests hand it compilations of their own. -->
+    <ProjectReference Include="..\..\Nexaflow.Analyzers\Nexaflow.Analyzers.Content\Nexaflow.Analyzers.Content.csproj" />
   </ItemGroup>
 
   <ItemGroup>

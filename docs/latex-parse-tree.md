@@ -387,12 +387,11 @@ A macro is a fact about what was *written* — one name standing for something t
 typed out longhand — so resolving it is reading, not setting. The typesetter had a table of them only
 because it used to be the reader as well.
 
-`TexMacros` is that table, and a pipeline stage, `ExpandMacros`, writes what it finds into the tree:
-the command the writer typed, with its expansion hanging underneath it as a `Roles.Derived` part —
-the shared tree's one role for what a piece amounts to rather than what was typed. Both are there to
-be asked — what was written, and what it means — and neither half has to know what the other wanted.
-It is a stage rather than the parser's work because it says what the text amounts to: the parser finds
-the name, and the table says what it stands for.
+`TexMacros` is that table, and the parser reads it as it reads: the command the writer typed, with what
+it stands for read and hanging underneath it as a `Roles.Derived` part — the shared tree's one role for
+what a piece amounts to rather than what was typed. Both are there to be asked — what was written, and
+what it means — and neither half has to know what the other wanted. A definition naming another
+shorthand is read the same way in turn, six deep at most.
 
 **An expansion is not source, and nothing that measures source may see it.** It has no width, prints
 as nothing, is not placed anywhere and holds no leaves. That is what keeps `Print(Parse(s)) == s`

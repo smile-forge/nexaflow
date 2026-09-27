@@ -27,7 +27,7 @@ lines list items with values and whose options share a line, xychart one with ax
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
 | `…/<Type>/<Type>Nodes.cs` | What the stages say lines mean where it is more than a word, as the diagram's own nodes — internal, and printing as what was written. A diagram with nothing of the kind to say has none | `PieNodes`, `RadarNodes`, `GanttNodes` |
 | `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Builder.cs` | `MermaidBuilder`: `Draw` lays the tree out at the origin, reading the lines in the order they are written and what its stages wrote, with the front matter from `Configured`; a `<Type>Piece` class names its pieces | `PieBuilder`, `SankeyBuilder`, `RadarBuilder` |
-| `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither | |
+| `MermaidDiagrams.Grammar` · `MermaidBuilders.For` | Where the diagram is named — both, or neither. The second names the builder's type, which makes the diagram a language of its own (`Shipped.Diagrams`) | |
 
 **A language of its own is read as one, and its diagrams share it.** C4 is not a Mermaid dialect — it is C4-PlantUML's
 macro set, one shape throughout, which Mermaid has borrowed a slice of. So the language is read once, apart from any one
@@ -53,8 +53,11 @@ The builder's base draws everything round the diagram: the title (a `title` line
 matter's), what could not be read set beneath it, the card, and the element the block is shown and written in — which
 is read-only where the host takes no edits (`MarkdownSurface.IsReadOnly`, which a viewer leaves set and an editor
 clears), leaving a diagram there looked at, selected and followed where it leads.
-`MermaidDiagramHandler` asks `MermaidBuilders` for the builder its header names, and a header naming no diagram at all
-falls to `UnknownDiagramBuilder`, which shows the block as written with the reason.
+Every diagram is a language of its own, answering to the words its header is written with. A `mermaid` block is the
+language that only reads the header: it holds the whole block as written in the diagram's language
+(`MermaidFenceParser`), and draws nothing of its own (`MermaidFenceBuilder`) — so a `mermaid` block and a block fenced
+with the diagram's own word are the same diagram. A header naming no diagram is that parser's parse error, and the
+block is shown as written with a wave under the word and the reason beneath.
 
 ## The kit
 

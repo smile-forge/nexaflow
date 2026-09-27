@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a content builder is (NXCB001-004): the engine makes every builder, from the builder a language names and the five
+    things every builder is made from, so a builder is that shape and nothing else, and nothing but the engine makes one.
+    Wired in Directory.Build.targets to every WPF project that is not a test project — tests being the one place a builder
+    is made by hand. Sibling of Nexaflow.Analyzers.Ui; same netstandard2.0 AnyCPU shape, because analyzers load into the
+    compiler as MSIL despite the solution's x64 pin.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+    <!-- Internal analyzer, not a shipped package — skip the release-tracking ledger nag. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

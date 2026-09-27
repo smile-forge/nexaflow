@@ -24,13 +24,11 @@ public class MermaidBindingTests
     [TestMethod]
     public void ABindingOnALineOfItsOwnIsHeldAsWritten()
     {
-        foreach (var source in new[] { "{{Graph}}\n", "graph TD\n  a --> b\n  {{More}}\n" })
-        {
-            var tree = MermaidParser.Parse(source);
+        var source = "graph TD\n  a --> b\n  {{More}}\n";
+        var tree = MermaidParser.Parse(source);
 
-            Assert.AreEqual(source, tree.Print(), "held, not read");
-            Assert.AreEqual(1, Bound(tree).Length, source);
-        }
+        Assert.AreEqual(source, tree.Print(), "held, not read");
+        Assert.AreEqual(1, Bound(tree).Length);
     }
 
     [TestMethod]
@@ -42,14 +40,17 @@ public class MermaidBindingTests
     }
 
     [TestMethod]
-    public void BeforeTheHeaderWhatIsSuppliedIsTheWholeDiagram()
+    public void ADiagramIsNeverBoundWhole_ABindingBeforeTheHeaderIsAParseError()
     {
+        // The header names the diagram, and so the language reading it: a diagram bound whole would be one whose type nothing names.
         var source = "{{Graph}}\n";
-        var bound = MermaidParser.Bind(MermaidParser.Parse(source), path => path == "Graph" ? "graph TD\n  a --> b\n" : null);
+        var tree = MermaidParser.Parse(source);
+        var bound = MermaidParser.Bind(tree, _ => "graph TD\n  a --> b\n");
 
-        Assert.AreEqual(source, bound.Print(), "what was supplied takes up none of the source");
-        Assert.AreEqual(MermaidDiagram.Flowchart, MermaidBlock.Of(bound).Diagram, "the header it supplied names the diagram");
-        Assert.IsTrue(Supplied(bound).Length > 0);
+        Assert.AreEqual(source, tree.Print());
+        Assert.AreEqual(0, Bound(tree).Length, "it is not a binding at all");
+        StringAssert.Contains(tree.SelfAndDescendants().Single(node => node.Trouble is not null).Trouble, "not bound whole");
+        Assert.AreEqual(0, Supplied(bound).Length, "and nothing is supplied for it");
     }
 
     [TestMethod]
@@ -91,7 +92,7 @@ public class MermaidBindingTests
     [TestMethod]
     public void ABindingNothingSuppliesIsLeftAsWrittenSayingSo()
     {
-        var source = "{{Graph}}\n";
+        var source = "graph TD\n  {{Graph}}\n";
         var bound = MermaidParser.Bind(MermaidParser.Parse(source), _ => null);
 
         Assert.AreEqual(source, bound.Print());

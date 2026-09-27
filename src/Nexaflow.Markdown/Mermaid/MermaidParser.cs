@@ -60,28 +60,50 @@ public static class MermaidParser
     }
 
     /// <summary>
-    /// <paramref name="block"/> with what each binding standing on a line of its own supplies read into its place: after the line
-    /// holding it, as lines of the block's own that nobody wrote here (<see cref="Roles.Supplied"/>) — so the block still prints as
-    /// its author wrote it, and everything that works a diagram over sees the supplied lines as it sees the rest.
+    /// The header of a block — the line that names its diagram — and where it starts, read no further than it; or null for a block
+    /// with none yet.
+    /// </summary>
+    public static (int At, ContentNode Header)? Heading(string? source)
+    {
+        source ??= string.Empty;
+        var lines = new List<ContentNode>();
+        var reading = new Reading();
+        var start = Fences(source) is (_, var close) ? close.Stop : 0;
+
+        for (var at = start; at < source.Length && !reading.Headed;) at = Next(source, at, reading, lines);
+
+        foreach (var part in lines.SelectMany(line => line.Children))
+        {
+            if (part.Kind == MermaidKinds.Header) return (start, part);
+            start += part.Width;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <paramref name="block"/> with what each binding standing on a line of its own after the header supplies read into its place:
+    /// after the line holding it, as lines of the block's own that nobody wrote here (<see cref="Roles.Supplied"/>) — so the block
+    /// still prints as its author wrote it, and everything that works a diagram over sees the supplied lines as it sees the rest.
     ///
     /// <para>
-    /// A binding before the header supplies the whole diagram, front matter and header and all. One after it supplies lines of the
-    /// diagram the header names, and may open with front matter of its own, which is how what it supplies says which of its nodes
-    /// have more behind them. A binding nothing supplies is left as written, saying so.
+    /// What a binding supplies is lines of the diagram the header names, and may open with front matter of its own, which is how
+    /// what it supplies says which of its nodes have more behind them. A binding nothing supplies is left as written, saying so. A
+    /// diagram is never bound whole: the header names its type, so a binding before it is not read as one (<see cref="Next"/>).
     /// </para>
     /// </summary>
     /// <param name="supplied">What the binding naming a path comes to, or null where it comes to nothing.</param>
     public static ContentNode Bind(ContentNode block, Func<string, string?> supplied)
     {
+        if (block.Children.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header) is not { } heading)
+            return block;
+
+        var header = heading.Print();
         List<ContentNode>? lines = null;
-        string? header = null;
 
         for (var at = 0; at < block.Children.Count; at++)
         {
             var line = block.Children[at];
-
-            if (header is null && line.Children.FirstOrDefault(part => part.Kind == MermaidKinds.Header) is { } heading)
-                header = heading.Print();
 
             if (line.IsDerived || line.Children.FirstOrDefault(part => part.Kind == Kinds.BoundContent) is not { } bound)
             {
@@ -101,28 +123,18 @@ public static class MermaidParser
             }
 
             lines.Add(line);
-
-            foreach (var read in Supplied(text, header))
-            {
-                lines.Add(ContentNode.Branch(read.Kind, read.Children, Roles.Supplied));
-
-                if (header is null && read.Children.FirstOrDefault(part => part.Kind == MermaidKinds.Header) is { } opened)
-                    header = opened.Print();
-            }
+            lines.AddRange(Supplied(text, header).Select(read => ContentNode.Branch(read.Kind, read.Children, Roles.Supplied)));
         }
 
         return lines is null ? block : block.With(lines);
     }
 
     /// <summary>
-    /// What a binding supplied, read as lines of a block: the whole of one where nothing has named the diagram yet, and otherwise
-    /// lines of the diagram <paramref name="header"/> names — read after it, so its grammar reads them — with any front matter
-    /// they open with read as front matter.
+    /// What a binding supplied, read as lines of the diagram <paramref name="header"/> names — read after it, so its grammar reads
+    /// them — with any front matter they open with read as front matter.
     /// </summary>
-    private static IEnumerable<ContentNode> Supplied(string text, string? header)
+    private static IEnumerable<ContentNode> Supplied(string text, string header)
     {
-        if (header is null) return Parse(text).Children;
-
         ContentNode? front = null;
         var body = text;
 
@@ -166,11 +178,16 @@ public static class MermaidParser
             return row.Stop;
         }
 
-        // A binding standing on a line of its own is content supplied by whatever the diagram is shown against — the whole of it,
-        // before a header, or lines of it after one. Held as written; read into its place before the diagram is worked over (Bind).
+        // A binding standing on a line of its own after the header is lines of the diagram supplied by whatever it is shown against.
+        // Held as written; read into its place before the diagram is worked over (Bind). Before the header it would be the whole
+        // diagram, which is never bound: the header is what names the diagram, and so what reads it.
         if (BoundText.Path(text) is not null)
         {
-            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(Kinds.BoundContent, text)], to, row));
+            lines.Add(Line(source, row.Start, from,
+                [reading.Headed
+                    ? ContentNode.Leaf(Kinds.BoundContent, text)
+                    : ContentNode.Shown(text, "A diagram is not bound whole: its first line names its type, and a binding after it supplies lines of it.")],
+                to, row));
             return row.Stop;
         }
 

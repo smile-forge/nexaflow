@@ -267,8 +267,8 @@ public sealed class ExecutableFeatureTests
         var graph  = new DependencyWalker().Walk(PeFixtures.Notepad);
         var markdown = DependencyMermaid.Build(graph);
 
-        Assert.IsTrue(markdown.StartsWith("---"), "The diagram opens with its front matter: what it supplies is the whole of it.");
-        Assert.IsTrue(markdown.Contains("graph LR"));
+        Assert.IsTrue(markdown.StartsWith("---"), "What it supplies opens with its front matter, saying which nodes have more behind them.");
+        Assert.IsFalse(markdown.Contains("graph LR"), "and has no header: the page's block names the diagram, and the binding supplies lines of it.");
         Assert.IsFalse(markdown.Contains("```"), "and it is the diagram, not a fence round one — the page's markdown holds the fence.");
 
         // Standard `click id href "…"` rather than a private convention, so the diagram stays

@@ -27,7 +27,7 @@ public class BoundContentTests
 
     private sealed class Host
     {
-        public string Graph { get; set; } = Flowchart;
+        public string Graph { get; set; } = "a[\"Alpha\"] --> b[\"Beta\"]\n";
         public string More { get; set; } = "b --> c[\"Gamma\"]\n";
         public string Two { get; set; } = "b --> c[\"Gamma\"]\nc --> d[\"Delta\"]\n";
     }
@@ -72,15 +72,14 @@ public class BoundContentTests
     }
 
     [TestMethod]
-    public void AWholeDiagramBoundIsDrawnAsIfItWereWritten()
+    public void ADiagramIsNeverBoundWhole_ABindingBeforeItsHeaderIsShownAsWrittenSayingWhy()
     {
         UiThread.Run(() =>
         {
-            var bound = Drawn("{{Graph}}\n", new ReflectionDataContext(new Host()));
-            var written = Drawn(Flowchart, data: null);
+            var element = Drawn("{{Graph}}\n", new ReflectionDataContext(new Host()));
 
-            CollectionAssert.AreEqual(Words(written), Words(bound));
-            Assert.AreEqual("{{Graph}}\n", bound.Source, "what is drawn is a reading of the source, never a rewrite of it");
+            Assert.IsTrue(element.Laid.ShowsSource, "the header names the diagram, so nothing before it can be all of one");
+            Assert.IsTrue(element.Laid.Trouble.Any(trouble => trouble.Message.Contains("not bound whole")), "and it says why");
         });
     }
 
@@ -100,7 +99,7 @@ public class BoundContentTests
     {
         UiThread.Run(() =>
         {
-            var element = Drawn("{{Nowhere}}\n", new ReflectionDataContext(new Host()));
+            var element = Drawn("graph TD\n  {{Nowhere}}\n", new ReflectionDataContext(new Host()));
 
             Assert.IsTrue(element.Laid.ShowsSource, "something is always drawn: what was written");
             Assert.IsTrue(element.Laid.Trouble.Count > 0, "with why");
@@ -112,11 +111,12 @@ public class BoundContentTests
     {
         UiThread.Run(() =>
         {
-            var graph = new BoundGraph<string>((opened, _) => Task.FromResult(opened.Count == 0 ? Flowchart : Flowchart + "  b --> c[\"Gamma\"]\n"),
+            const string lines = "a[\"Alpha\"] --> b[\"Beta\"]\n";
+            var graph = new BoundGraph<string>((opened, _) => Task.FromResult(opened.Count == 0 ? lines : lines + "b --> c[\"Gamma\"]\n"),
                                                text => text);
             graph.Walk();
 
-            var element = Drawn("{{Graph}}\n", new ReflectionDataContext(new { Graph = graph }));
+            var element = Drawn("graph TD\n  {{Graph}}\n", new ReflectionDataContext(new { Graph = graph }));
             Assert.IsFalse(Words(element).Contains("Gamma"));
 
             graph.Expand("b", open: true);

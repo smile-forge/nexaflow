@@ -79,5 +79,5 @@ public class TexMacroTableTests
     }
 
     /// <summary>What written LaTeX amounts to once its macros are expanded — the stage under test.</summary>
-    private static ContentNode Expanded(string latex) => new ExpandMacros().Run(TexParser.Parse(latex));
+    private static ContentNode Expanded(string latex) => TexParser.Parse(latex);
 }

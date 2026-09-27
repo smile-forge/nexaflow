@@ -37,6 +37,8 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Stages;
 using Nexaflow.Visuals.Text.Markdown.WordCloud;
 using Nexaflow.Markdown.WordCloud.Stages;
+using System.Linq;
+using Nexaflow.Syntax;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -66,25 +68,52 @@ internal static class Shipped
             // After it: a block shown as written is not what was read, and is never kept as if it were.
             show.Shown is { } zone ? new ShowBlocksAsWritten(zone, show.At, show.Reads) : null,
         ],
-        Builder: static (reading, show) =>
-            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting))
+        Builder: typeof(MarkdownBuilder))
         {
+            Writable = true,
             Editing = new MarkdownEditing(),
         };
 
+    /// <summary>What an edit means in any diagram. Before every language meaning it, which are made in the order written.</summary>
+    private static readonly IContentLanguage DiagramEditing = new MermaidEditing();
+
     /// <summary>
-    /// Every kind of diagram Mermaid names, which all arrive under the one fence word. The block's header names the diagram,
-    /// and so its stages and its builder; a header naming none is shown as written, with the reason.
+    /// <c>mermaid</c>: a block whose header names the diagram it is, held whole as written in that diagram's own language — which
+    /// is what is drawn, nothing of this one being (<see cref="MermaidFenceParser"/>). A header naming no diagram is shown as
+    /// written, the keyword marked.
     /// </summary>
     public static readonly ContentLanguage Mermaid = new(
         Reads: static word => "mermaid".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
+        Parser: static () => static source => ContentParse.Of(MermaidFenceParser.Parse(source)),
+        Stages: static (_, _) => [],
+        Builder: typeof(MermaidFenceBuilder))
+        {
+            // Whoever writes in the block writes in the diagram, which is laid out as this is.
+            Writable = true,
+            Editing = DiagramEditing,
+        };
+
+    /// <summary>
+    /// Every diagram, each a language of its own, answering to the words its header is written with. They read their lines with the
+    /// same parser, are worked over by the stages the header names and mean the same by an edit — which is sharing, not being one
+    /// language: each is drawn by its own builder.
+    /// </summary>
+    public static readonly IReadOnlyList<ContentLanguage> Diagrams =
+    [
+        .. Enum.GetValues<MermaidDiagram>()
+               .Where(diagram => MermaidBuilders.For(diagram) is not null)
+               .Select(diagram => Diagram(diagram, MermaidBuilders.For(diagram)!)),
+    ];
+
+    /// <summary><paramref name="diagram"/>, drawn by <paramref name="builder"/>.</summary>
+    private static ContentLanguage Diagram(MermaidDiagram diagram, Type builder) => new(
+        Reads: word => !string.IsNullOrWhiteSpace(word) && MermaidDiagrams.Named(word.Trim()) == diagram,
         Parser: static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
         Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
-        Builder: static (reading, show) =>
-            (MermaidBuilders.For(MermaidBlock.Of(reading).Diagram) ?? MermaidBuilders.Unknown)(
-                    reading, EditState.For(reading.Source) with { Raw = show.Shown }, show.Style, !show.Writing, show.Nesting))
+        Builder: builder)
         {
-            Editing = new MermaidEditing(),
+            Writable = true,
+            Editing = DiagramEditing,
             Bind = MermaidParser.Bind,
         };
 
@@ -96,7 +125,7 @@ internal static class Shipped
         Reads: static word => "nomnoml".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(NomnomlParser.Parse(source)),
         Stages: static (_, _) => [],
-        Builder: static (reading, show) => new NomnomlBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(NomnomlBuilder));
 
     /// <summary>What a host puts between reading a diagram and drawing it: what its words are bound against, and the pictures it names.</summary>
     private static IEnumerable<IAstStage?> Hosted(ContentShowing show) =>
@@ -127,31 +156,33 @@ internal static class Shipped
 
     /// <summary>A 2D code: read as fields, encoded by its own stage, and drawn as the symbol that comes to.</summary>
     private static ContentLanguage Symbol(Func<string?, bool> reads, IAstStage encode) =>
-        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), (_, _) => [encode],
-            static (reading, show) => new MatrixBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), (_, _) => [encode], typeof(MatrixBuilder));
 
     /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
     public static readonly ContentLanguage Barcode = new(
         Reads: static word => "barcode".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(BarcodeParser.Parse(source)),
         Stages: static (_, show) => show.Writing ? [new HoldValue(), new EncodeBarcode(writing: true)] : [new EncodeBarcode(writing: false)],
-        Builder: static (reading, show) => new BarcodeBuilder(reading, EditState.For(reading.Source), show.Style, !show.Writing, show.Nesting));
+        Builder: typeof(BarcodeBuilder))
+        {
+            Writable = true,
+        };
 
     /// <summary>A chemical structure written as SMILES.</summary>
     public static readonly ContentLanguage Smiles = new(
         Reads: static word => "smiles".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(SmilesParser.Parse(source)),
         Stages: static (_, _) => SmilesPipeline.Of().Stages,
-        Builder: static (reading, show) => new SmilesBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(SmilesBuilder));
 
     /// <summary>A formula, written in LaTeX — on a line of its own, or in the middle of a sentence.</summary>
     public static readonly ContentLanguage Latex = new(
         Reads: static word => word?.Trim().ToLowerInvariant() is "latex" or "math" or "tex",
         Parser: static () => static source => ContentParse.Of(TexParser.Parse(source)),
         Stages: static (tree, show) => TexPipeline.Of(Editing(show.Own(tree.Width)), holes: show.Writing).Stages,
-        Builder: static (reading, show) =>
-                new LatexBuilder(reading, new EditState(reading.Source, 0, null, show.Own(reading.Source.Length)), show.Style, !show.Writing, show.Nesting))
+        Builder: typeof(LatexBuilder))
         {
+            Writable = true,
             Editing = new LatexEditing(),
         };
 
@@ -160,14 +191,14 @@ internal static class Shipped
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.Abc,
         Parser: static () => static source => ContentParse.Of(AbcParser.Parse(source)),
         Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
-        Builder: static (reading, show) => new AbcBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(AbcBuilder));
 
     /// <summary>A tune written in LilyPond.</summary>
     public static readonly ContentLanguage LilyPond = new(
         Reads: static word => MusicDialectExtensions.FromTag(word ?? string.Empty) == MusicDialect.LilyPond,
         Parser: static () => static source => ContentParse.Of(LilyPondParser.Parse(source)),
         Stages: static (tree, show) => LilyPondPipeline.Of(Editing(show.Own(tree.Width))).Stages,
-        Builder: static (reading, show) => new LilyPondBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(LilyPondBuilder));
 
     /// <summary>The stretch being written in, as a pipeline that shows it as typed is told it — or null where there is none to show.</summary>
     private static (int Start, int Length)? Editing(RawZone? zone) =>
@@ -178,26 +209,36 @@ internal static class Shipped
         Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
         Parser: static () => static source => ContentParse.Of(PlotParser.Parse(source)),
         Stages: (_, _) => PlotPipeline.Of(fence).Stages,
-        Builder: static (reading, show) => new PlotBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(PlotBuilder));
 
     /// <summary>A cloud of words sized by how often each is said.</summary>
     public static readonly ContentLanguage WordCloud = new(
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
         Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Inputs.Pictures), new ResolveCloud(), new ResolveWords()],
-        Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
+        Builder: typeof(WordCloudBuilder));
+
+    /// <summary>What code shows and offers, in any grammar.</summary>
+    private static readonly IContentLanguage CodeEdits = new CodeEditing();
+
+    /// <summary>Code in a language no grammar reads: the same drawing, with nothing named — what a fence nothing reads is shown as.</summary>
+    public static readonly ContentLanguage Code = Coded(null);
 
     /// <summary>
-    /// Code, in any language a grammar reads — and in any language it does not, which is the same drawing with nothing named.
-    /// Coloured where the grammar has read it already, and plain until it has.
+    /// Code in every grammar there is, each a language of its own, answering to the words that name it. Drawn at once as written,
+    /// and coloured once its grammar has read it, which is never on the way to drawing.
     /// </summary>
-    public static readonly ContentLanguage Code = new(
-        Reads: static word => CodeGrammars.For(word) is not null,
+    public static readonly IReadOnlyList<ContentLanguage> Codes = [.. TreeSitterLanguages.Grammars.Select(grammar => Coded(grammar))];
+
+    /// <summary>Code in <paramref name="grammar"/>, or in none: read as written first, and by the grammar second (<see cref="CodeSpans"/>).</summary>
+    private static ContentLanguage Coded(string? grammar) => new(
+        Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(CodeParser.Parse(source)),
-        Stages: static (_, show) => [new WithHighlights(CodeGrammars.For(show.Named)), new CodeLines()],
-            Builder: static (reading, show) => new CodeBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting))
+        Stages: static (_, _) => [new CodeLines()],
+        Builder: typeof(CodeBuilder))
         {
-            Editing = new CodeEditing(),
+            Editing = CodeEdits,
+            SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, CodeSpans.Read(grammar, source))),
         };
 }
 

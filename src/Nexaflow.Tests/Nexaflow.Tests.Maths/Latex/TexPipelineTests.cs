@@ -75,7 +75,7 @@ public class TexPipelineTests
         foreach (var (what, written) in LatexConstructs.Everything)
         {
             // Every construct there is, each macro expanded and the meaning of every other name said: nothing is left to complain about.
-            var tree = new ResolveCommands().Run(new ExpandMacros().Run(TexParser.Parse(LatexConstructs.Flatten(written))));
+            var tree = new ResolveCommands().Run(TexParser.Parse(LatexConstructs.Flatten(written)));
 
             Assert.AreSame(tree, new CheckDrawable().Run(tree),
                 $"{what}: a tree with nothing wrong came back rebuilt");
@@ -223,37 +223,25 @@ public class TexPipelineTests
     }
 
     [TestMethod]
-    public void AMacroIsReadAsWritten_AndWhatItMeansIsAStagesToSay()
+    public void AMacroIsReadAsWritten_WithWhatItStandsForHungBeneathIt()
     {
         var parsed = TexParser.Parse(@"\neq");
-        Assert.IsFalse(parsed.SelfAndDescendants().Any(node => node.Role == Roles.Derived),
-            "the parser reads what was written; what a name stands for is a stage's to say");
-
-        var expanded = new ExpandMacros().Run(parsed);
-        var meaning = expanded.Children.Single().Part(Roles.Derived);
+        var meaning = parsed.Children.Single().Part(Roles.Derived);
 
         Assert.IsNotNull(meaning, "the expansion hangs under the macro it came from");
         Assert.AreEqual(@"\not\equals", string.Concat(meaning.Children.Select(child => child.Print())));
-        Assert.AreEqual(@"\neq", expanded.Print(), "and the source is exactly what was written");
+        Assert.AreEqual(@"\neq", parsed.Print(), "and the source is exactly what was written");
     }
 
     [TestMethod]
     public void AnExpansionThatNamesAMacroIsExpandedInTurn()
     {
         // \iff is a thick space either side of \Longleftrightarrow, which is itself shorthand.
-        var iff = new ExpandMacros().Run(TexParser.Parse(@"\iff")).Children.Single();
+        var iff = TexParser.Parse(@"\iff").Children.Single();
         var inner = iff.Part(Roles.Derived)!.SelfAndDescendants()
             .Single(node => node.Kind == TexKinds.Command && node.Part(Roles.Name)?.Text == @"\Longleftrightarrow");
 
         Assert.IsNotNull(inner.Part(Roles.Derived), "the macro inside the expansion was left unexpanded");
-    }
-
-    [TestMethod]
-    public void ExpandingWhatIsAlreadyExpandedChangesNothing()
-    {
-        var once = new ExpandMacros().Run(TexParser.Parse(@"a \neq b \iff \cos x"));
-
-        Assert.AreSame(once, new ExpandMacros().Run(once), "a second pass hung a second expansion");
     }
 
     [TestMethod]

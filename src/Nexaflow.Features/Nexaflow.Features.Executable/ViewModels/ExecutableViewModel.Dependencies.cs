@@ -31,7 +31,7 @@ public sealed partial class ExecutableViewModel
     }
 
     /// <summary>The markdown the diagram is shown from: one binding, to the graph as far as the reader has opened it.</summary>
-    private const string BoundDependencies = "```mermaid\n{{Dependencies}}\n```\n";
+    private const string BoundDependencies = "```mermaid\ngraph LR\n{{Dependencies}}\n```\n";
 
     private BoundGraph<DependencyGraph>? _dependencies;
 

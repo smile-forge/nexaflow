@@ -8,12 +8,17 @@ using Nexaflow.Visuals.Text.Editing;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// A language content can be written in: what parses it, what the parse is worked over by, what lays it out, and — where it
-/// has any — what an edit means in it.
+/// A language content can be written in: what parses it, what the parse is worked over by, which builder lays it out, and —
+/// where it has any — what an edit means in it.
 ///
 /// <para>
-/// Only a description. Nothing here runs anything, and a language never asks for another: the engine parses, reads what the
-/// parse holds in other languages, works it over and lays it out, in that order, every time (<see cref="ContentEngine"/>).
+/// Only a description — data, and delegates the engine calls. Nothing here runs anything or makes anything, and a language
+/// never asks for another: the engine parses, reads what the parse holds in other languages, works it over, makes the builder
+/// and lays it out, in that order, every time (<see cref="ContentEngine"/>).
+/// </para>
+/// <para>
+/// Languages that share a parser, stages or a kit of drawing are still a language each: every Mermaid diagram is one, told
+/// apart by the builder that draws it.
 /// </para>
 /// </summary>
 /// <param name="Reads">Whether a fence calling itself a word is written in this language.</param>
@@ -23,13 +28,30 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// that remembers what it read last time.
 /// </param>
 /// <param name="Stages">What the parse is worked over by, in order, given the tree and what this showing of it is. A null stage is none.</param>
-/// <param name="Builder">The builder that lays the worked-over tree out, made for this showing.</param>
+/// <param name="Builder">
+/// The <see cref="ContentBuilder"/> that lays the worked-over tree out. The engine makes it, from the five things every builder is
+/// made from.
+/// </param>
 public sealed record ContentLanguage(
     Func<string?, bool> Reads,
     Func<Func<string, ContentParse>> Parser,
     Func<ContentNode, ContentShowing, IEnumerable<IAstStage?>> Stages,
-    Func<ContentReading, ContentShowing, ContentBuilder> Builder)
+    Type Builder)
 {
+    /// <summary>
+    /// Whether somebody writing in the content writes in what is drawn. Where not, it is drawn read-only however it is shown, and
+    /// is written in as its characters.
+    /// </summary>
+    public bool Writable { get; init; }
+
+    /// <summary>
+    /// A second reading of the same characters, slower than <see cref="Parser"/> and made away from the thread that lays content
+    /// out — or null where the first reading is all there is. The engine lays the first reading at once, starts this one, and
+    /// lays the content again with what it gives once it lands; until then, and wherever it fails, the first reading stands.
+    /// Called on any thread, so it keeps no state between calls that is not its own to lock.
+    /// </summary>
+    public Func<string, ContentParse>? SlowParser { get; init; }
+
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 
@@ -49,7 +71,7 @@ public sealed record ContentLanguage(
 
 /// <summary>
 /// One showing of some content: what it is drawn in, whether anybody is writing in it, and what the host showing it said.
-/// What a language's stages and its builder are told, and all they are told.
+/// What a language's stages are told, and all they are told.
 /// </summary>
 /// <param name="Named">The word the content was called by — a fence's language as written, or empty for content no fence names.</param>
 /// <param name="Style">What it is drawn in.</param>
@@ -59,9 +81,6 @@ public sealed record ContentLanguage(
 /// <param name="Inputs">What the host said about the content it shows: pictures, links, what diagrams are bound against.</param>
 public sealed record ContentShowing(string Named, StyleFormat Style, bool Writing, RawZone? Shown, int At, ContentInputs Inputs)
 {
-    /// <summary>What lays out content written in another language inside this one — the one thing a builder may ask for.</summary>
-    public required Nesting Nesting { get; init; }
-
     /// <summary>
     /// Whether a word names a language anything reads, for a stage that has to know whether a stretch is another language's
     /// to show. Nothing is laid out by asking.

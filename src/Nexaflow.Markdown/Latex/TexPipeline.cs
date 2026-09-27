@@ -29,7 +29,6 @@ public static class TexPipeline
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
     public static AstPipeline Of((int Start, int Length)? editing = null, bool holes = false) =>
         new AstPipeline(
-            new ExpandMacros(),     // what each shorthand name stands for
             new GatherSigns(),      // a sign written as several things, as the one thing it means
             new SpanColumns(),      // how many columns a row of dots stands across
             new ReadValues(),       // what an argument holding a value rather than maths says

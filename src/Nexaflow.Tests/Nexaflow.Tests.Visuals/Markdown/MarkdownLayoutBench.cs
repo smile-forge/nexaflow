@@ -260,11 +260,7 @@ public class MarkdownLayoutBench
             var parse = read.Parser();
             var tree = Time(stages, $"{language}: parse", () => parse(source).Tree);
 
-            var showing = new ContentShowing(language, style, false, null, 0, inputs)
-            {
-                Nesting = Laying.NestingNothing,
-                Reads = ContentLanguages.Reads,
-            };
+            var showing = new ContentShowing(language, style, false, null, 0, inputs) { Reads = ContentLanguages.Reads };
 
             Staged(stages, language, tree, read.Stages(tree, showing).OfType<IAstStage>());
             Time(stages, $"{language}: lay", () => Laying.Lay(language, source, Room, style, inputs: inputs));
