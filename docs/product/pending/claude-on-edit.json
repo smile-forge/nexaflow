@@ -1,0 +1,388 @@
+{
+  "branch": "claude/on-edit",
+  "nodes": {
+    "pie-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Pie/PieEdits.cs",
+          "class": "PieEdits"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Asked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser",
+          "method": "SafeFormatText"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Safe"
+        }
+      ]
+    },
+    "architecture-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Architecture/ArchitectureEdits.cs",
+          "class": "ArchitectureEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "block-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Block/BlockEdits.cs",
+          "class": "BlockEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "c4-diagram-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4Edits.cs",
+          "class": "C4Edits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "c4-sequence-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/C4/C4SequenceEdits.cs",
+          "class": "C4SequenceEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "cynefin-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Cynefin/CynefinEdits.cs",
+          "class": "CynefinEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "flowchart-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Flowchart/FlowchartEdits.cs",
+          "class": "FlowchartEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "gantt-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Gantt/GanttEdits.cs",
+          "class": "GanttEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "gitgraph-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Git/GitEdits.cs",
+          "class": "GitEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "journey-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Journey/JourneyEdits.cs",
+          "class": "JourneyEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "kanban-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/MermaidBuilder.cs",
+          "class": "MermaidBuilder",
+          "method": "Wrapped"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramWords.cs",
+          "class": "DiagramWords",
+          "method": "Stack"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Kanban/KanbanEdits.cs",
+          "class": "KanbanEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "quadrant-graph-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Quadrant/QuadrantEdits.cs",
+          "class": "QuadrantEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "radar-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Radar/RadarEdits.cs",
+          "class": "RadarEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "sankey-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyEdits.cs",
+          "class": "SankeyEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "timeline-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Timeline/TimelineEdits.cs",
+          "class": "TimelineEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "xy-chart-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Xy/XyEdits.cs",
+          "class": "XyEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "venn-writing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidText.cs",
+          "class": "MermaidText"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Venn/VennEdits.cs",
+          "class": "VennEdits",
+          "method": "Escaping"
+        }
+      ]
+    },
+    "latex-document-seam": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/DocumentSelection.cs",
+          "class": "DocumentSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNested.cs",
+          "class": "ContentNested",
+          "method": "Own"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnEdit.cs",
+          "class": "IOnEdit"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Walked"
+        }
+      ]
+    },
+    "markdown-inline-editor": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "How it\u0027s wired"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Walked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface"
+        }
+      ]
+    },
+    "markdown-maths": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownInline.cs",
+          "class": "MarkdownInline",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownBuilder.Words.cs",
+          "class": "MarkdownBuilder",
+          "method": "Formula"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.cs",
+          "class": "ContentEngine",
+          "method": "Nested"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexBuilder.cs",
+          "class": "LatexBuilder",
+          "method": "Build"
+        }
+      ]
+    },
+    "markdown-context-menu": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
+          "class": "MarkdownSurface",
+          "method": "ShowRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/LinkedElement.cs",
+          "class": "LinkedElement",
+          "method": "BuildRibbon"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs",
+          "class": "DiagramRibbon"
+        }
+      ]
+    },
+    "markdown-format-toolbar": {
+      "links": [],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "markdown-fmt-headings": {
+      "links": [],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "markdown-fmt-quote": {
+      "links": [],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "markdown-fmt-codeblock": {
+      "links": [],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "markdown-fmt-inline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
+          "class": "ContentEngine",
+          "method": "Commanded"
+        }
+      ],
+      "concerns": {
+        "tests": []
+      }
+    },
+    "vtext-selectable-markdown": {
+      "concerns": {
+        "tests": []
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 32,
+  "touched_nodes": [
+    "architecture-writing",
+    "block-writing",
+    "c4-diagram-writing",
+    "c4-sequence-writing",
+    "cynefin-writing",
+    "flowchart-writing",
+    "gantt-writing",
+    "gitgraph-writing",
+    "journey-writing",
+    "kanban-writing",
+    "latex-document-seam",
+    "markdown-context-menu",
+    "markdown-fmt-codeblock",
+    "markdown-fmt-headings",
+    "markdown-fmt-inline",
+    "markdown-fmt-quote",
+    "markdown-format-toolbar",
+    "markdown-inline-editor",
+    "markdown-maths",
+    "pie-writing",
+    "quadrant-graph-writing",
+    "radar-writing",
+    "sankey-writing",
+    "timeline-writing",
+    "venn-writing",
+    "vtext-selectable-markdown",
+    "xy-chart-writing"
+  ]
+}

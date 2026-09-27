@@ -7,6 +7,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Cynefin;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -45,4 +47,14 @@ public class CynefinEditingTests : MermaidEditing
             Assert.AreEqual(0, diagram.Diagnostics.Count);
             StringAssert.Contains(editor.Markdown, "Investigate root causes", "and so does the document");
         }));
+
+    [TestMethod]
+    public void AnArrowTypedIntoABareItemPutsItInQuotes()
+    {
+        const string source = "cynefin-beta\n  complex\n    Investigate";
+        var says = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Investigate");
+        var writing = CynefinEdits.Escaping(says, says.End, " --> clear")!.Value;
+
+        Assert.AreEqual("cynefin-beta\n  complex\n    \"Investigate --> clear\"", MermaidStaged.Written(source, writing));
+    }
 }

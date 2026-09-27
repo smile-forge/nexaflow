@@ -88,38 +88,6 @@ public class JourneyGrammarTests : MermaidGrammarContract
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");
     }
 
-    [TestMethod]
-    public void ANewLineUnderATaskIsAnotherTask_ScoredInTheMiddle()
-    {
-        var grammar = new JourneyGrammar();
-        var task = Nodes(MermaidParser.Parse("journey\n    Make tea: 5: Me"), JourneyKinds.Task).Single();
-
-        Assert.AreEqual((": 3", 0), grammar.Blank(task));
-        Assert.IsNull(grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void AnActorRenamedWhereTheyFirstTakePartIsRenamedInEveryTaskTheyAreIn()
-    {
-        var actors = new JourneyGrammar().Names(ContentReading.Of(MermaidStaged.Read(Working)).Root);
-
-        Assert.AreEqual(2, actors.Count);
-        Assert.AreEqual("Me", actors[0].Name);
-        Assert.AreEqual(4, actors[0].Uses.Count, "the other four tasks Me takes part in");
-        Assert.AreEqual(0, actors[1].Uses.Count, "Cat takes part in one");
-    }
-
-    [TestMethod]
-    public void AColonTypedIntoWhatATaskSaysIsWrittenAsTheEntityCodeForIt()
-    {
-        const string source = "journey\n    Make tea: 5: Me";
-        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
-            .First(part => part.Kind == MermaidKinds.Words && part.Text == "Make tea");
-        var writing = new JourneyGrammar().Escaping(says, says.End, ": and toast")!.Value;
-
-        Assert.AreEqual("journey\n    Make tea#colon; and toast: 5: Me", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

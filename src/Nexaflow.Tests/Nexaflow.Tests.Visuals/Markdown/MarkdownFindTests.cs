@@ -235,7 +235,7 @@ public class MarkdownFindTests
         StringAssert.Contains(cell!.Print(), "two");
 
         var chart = Read("```mermaid\npie\n  \"chrome\" : 40\n  \"firefox\" : 12\n```\n");
-        var slice = ContentPath.Of(chart.SelfAndDescendants().First(part => part.Kind == MarkdownKinds.Fence));
+        var slice = ContentPath.Of(chart.SelfAndDescendants().First(part => ContentNested.Language(part) is not null));
 
         Assert.IsNotNull(ContentPath.Read(slice.ToString()).In(chart));
     }

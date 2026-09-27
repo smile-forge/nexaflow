@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -144,58 +146,6 @@ public class VennEditingTests
         + "  style Frontend fill:#4e79a7\n  style A1 color:red";
 
     [TestMethod]
-    public void RenamingASetWhereItIsDeclaredRenamesItWhereverItIsUsed() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            PressPast(venn, "Frontend");
-            Write(editor, "s");
-
-            StringAssert.Contains(venn.Source, "set Frontends\n", venn.Source);
-            StringAssert.Contains(venn.Source, "union Frontends,Backend[\"APIs\"]", $"the union still overlaps it: {venn.Source}");
-            StringAssert.Contains(venn.Source, "style Frontends fill", $"and the style still styles it: {venn.Source}");
-            Assert.AreEqual(0, venn.Diagnostics.Count, string.Join(" | ", venn.Diagnostics.Select(d => d.Message)));
-            Assert.AreEqual(venn.Source.IndexOf("Frontends", StringComparison.Ordinal) + "Frontends".Length, venn.Caret,
-                            "with the caret after what was typed");
-
-            Press(editor, Key.Space);
-            Write(editor, "2");
-
-            StringAssert.Contains(venn.Source, "union \"Frontends 2\",Backend", $"quoted where it is used, as where it is declared: {venn.Source}");
-            Assert.AreEqual(0, venn.Diagnostics.Count, string.Join(" | ", venn.Diagnostics.Select(d => d.Message)));
-            Assert.AreEqual(1, venn.Laid.Root.SelfAndDescendants().Count(piece => piece.Kind == VennPiece.Overlap), "and the overlap is still drawn");
-
-            Press(editor, Key.Back);
-            Press(editor, Key.Back);
-
-            StringAssert.Contains(venn.Source, "union Frontends,Backend", $"and taken back, bare again where it is used: {venn.Source}");
-            StringAssert.Contains(editor.Markdown, "style Frontends fill", "which the document says too");
-        }, Named));
-
-    [TestMethod]
-    public void RenamingAnItemRenamesTheStyleThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            PressPast(venn, "A1");
-            Write(editor, "x");
-
-            StringAssert.Contains(venn.Source, "text A1x\n", venn.Source);
-            StringAssert.Contains(venn.Source, "style A1x color:red", venn.Source);
-            Assert.AreEqual(0, venn.Diagnostics.Count, string.Join(" | ", venn.Diagnostics.Select(d => d.Message)));
-        }, Named));
-
-    [TestMethod]
-    public void ARenameOntoAnotherNameIsNotCarriedToWhereTheOldOneIsUsed() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            PressPast(venn, "A");
-            Write(editor, "B");
-            Write(editor, "C");
-
-            StringAssert.Contains(venn.Source, "set ABC\n", venn.Source);
-            StringAssert.Contains(venn.Source, "union A,AB", $"neither name's uses are guessed at: {venn.Source}");
-        }, "venn-beta\n  set A\n  set AB\n  union A,AB"));
-
-    [TestMethod]
     public void CtrlAddsEachThingPressedToWhatIsChosen_AndTakesItBackOut() => UiThread.Run(() =>
         InADocument((editor, venn) =>
         {
@@ -252,37 +202,6 @@ public class VennEditingTests
         venn.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == text);
 
     [TestMethod]
-    public void EnterInASetsLabelStartsAnItemInItToName() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            PressPast(venn, "Backend");
-            Press(editor, Key.Enter);
-
-            StringAssert.Contains(venn.Source, "set B[\"Backend\"]\n    text \"\"\n  union", $"an item under the set: {venn.Source}");
-            Assert.AreEqual(0, venn.Diagnostics.Count, "with nothing wrong with it — only nothing in it yet");
-            Assert.AreEqual(1, venn.Laid.Holes.Count, "a hole for its name");
-            Assert.AreEqual(venn.Laid.Holes[0].Sits().Start, venn.Caret, "with the caret in it");
-
-            Write(editor, "Go");
-
-            StringAssert.Contains(venn.Source, "text \"Go\"", venn.Source);
-            Assert.IsTrue(venn.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == VennPiece.Text && piece.Words?.Glyphs.Text == "Go"),
-                          "and it is written in the circle");
-        }));
-
-    [TestMethod]
-    public void EnterAfterAnItemStartsAnotherInTheSameRegion() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            PressPast(venn, "React");
-            Press(editor, Key.Enter);
-            Write(editor, "Vue");
-
-            StringAssert.Contains(venn.Source, "text A1[\"React\"]\n    text \"Vue\"\n  set B", venn.Source);
-            Assert.AreEqual(0, venn.Diagnostics.Count);
-        }));
-
-    [TestMethod]
     public void BackspaceInAnItemNothingIsWrittenInTakesItBack() => UiThread.Run(() =>
         InADocument((editor, venn) =>
         {
@@ -314,18 +233,6 @@ public class VennEditingTests
         }));
 
     [TestMethod]
-    public void DeleteAtTheEndOfALabelTakesNothingPastIt() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            var before = venn.Source;
-
-            PressPast(venn, "Frontend");
-            Press(editor, Key.Delete);
-
-            Assert.AreEqual(before, venn.Source, "past a label is its closing quote");
-        }));
-
-    [TestMethod]
     public void UndoTakesAnEditBackWithTheDiagramStillDrawn() => UiThread.Run(() =>
         InADocument((editor, venn) =>
         {
@@ -348,5 +255,57 @@ public class VennEditingTests
             if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
 
         return null;
+    }
+
+    [TestMethod]
+    public void WhatAPlaceCannotHoldIsEscaped_SoTheLineStillReads()
+    {
+        foreach (var (source, typedAfter, typed, becomes) in new[]
+                 {
+                     ("venn-beta\n  set Frontend", "Frontend", "\\", "venn-beta\n  set \"Frontend\\\""),
+                     ("venn-beta\n  set Frontend", "Frontend", " ", "venn-beta\n  set \"Frontend \""),
+                     ("venn-beta\n  set Frontend", "Frontend", "\"", "venn-beta\n  set \"Frontend#quot;\""),
+                     ("venn-beta\n  set A[\"Alpha\"]", "Alpha", "\"", "venn-beta\n  set A[\"Alpha#quot;\"]"),
+                     ("venn-beta\n  set A[ Alpha ]", "Alpha", "]", "venn-beta\n  set A[\"Alpha]\"]"),
+                     ("venn-beta\n  set A\n    text \"Vue\"", "Vue", "\"", "venn-beta\n  set A\n    text \"Vue#quot;\""),
+                     ("venn-beta\n  set A\n    text A1", "A1", "!", "venn-beta\n  set A\n    text \"A1!\""),
+                 })
+        {
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            var writing = VennEdits.Escaping(part, part.End, typed);
+
+            Assert.IsNotNull(writing, $"{source}: typing {typed}");
+            var written = MermaidStaged.Written(source, writing.Value);
+
+            Assert.AreEqual(becomes, written, $"{source}: typing {typed}");
+            Assert.AreEqual(typed, MermaidText.Decode(written[(written.IndexOf(typedAfter, StringComparison.Ordinal) + typedAfter.Length)..writing.Value.Caret]),
+                            $"{source}: the caret goes after what was typed");
+            Assert.IsFalse(MermaidStaged.Read(written).SelfAndDescendants().Any(node => node.Node.Trouble is not null), $"{written} still reads");
+        }
+    }
+
+    [TestMethod]
+    public void WhatAPlaceCanHoldGoesInAsItIs()
+    {
+        foreach (var (source, typedAfter, typed) in new[]
+                 {
+                     ("venn-beta\n  set Frontend", "Frontend", "s_2-x"),
+                     ("venn-beta\n  set A[\"Alpha\"]", "Alpha", "\\ ]%"),
+                     ("venn-beta\n  set A[Alpha]", "Alpha", " beta\\"),
+                 })
+        {
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            Assert.IsNull(VennEdits.Escaping(part, part.End, typed), $"{source}: typing {typed}");
+        }
+    }
+
+    [TestMethod]
+    public void AQuoteTypedIntoANameStillToBeWrittenIsEscapedToo()
+    {
+        const string source = "venn-beta\n  set A\n    text \"\"";
+        var hole = MermaidStaged.Read(source, holes: true).SelfAndDescendants().Single(node => node.Kind == Kinds.Hole);
+
+        var writing = VennEdits.Escaping(hole, hole.Start, "\"")!.Value;
+        Assert.AreEqual("venn-beta\n  set A\n    text \"#quot;\"", MermaidStaged.Written(source, writing));
     }
 }

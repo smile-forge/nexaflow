@@ -12,6 +12,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -100,7 +101,7 @@ public class BlockCornerTests
             editor.Raise(new LayoutIntent(LayoutVerbs.Save), Middle(box));
 
             var act = asked.Single();
-            Assert.AreEqual(MarkdownKinds.Fence, act.Node?.Kind, "the block it was pressed on");
+            Assert.AreEqual(Kinds.Block, act.Node?.Kind, "the block it was pressed on");
             StringAssert.StartsWith(act.Node!.Print(), "```mermaid");
 
             var picture = editor.Picture(act.Node, Brushes.White)!;

@@ -19,7 +19,8 @@ namespace Nexaflow.Markdown.Matrix;
 /// </summary>
 public static class MatrixParser
 {
-    public static ContentNode Parse(string? source)
+    /// <param name="language">The symbology the block was called by — every 2D code, and a barcode, is read the same way.</param>
+    public static ContentNode Parse(string? source, string language)
     {
         source ??= string.Empty;
         var lines = new List<ContentNode>();
@@ -36,7 +37,7 @@ public static class MatrixParser
             at = stop;
         }
 
-        return ContentNode.Branch(MatrixKinds.Block, lines);
+        return new BlockNode(language, lines, MatrixKinds.Block);
     }
 
     /// <summary>

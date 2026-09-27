@@ -39,13 +39,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <param name="inputs">What the host says about the content it shows — see <see cref="Inputs"/>.</param>
 public sealed partial class ContentEngine(ContentInputs? inputs = null)
 {
-    /// <summary>What a piece of content read to: its language's tree, and what each piece in it written in another language read to.</summary>
-    /// <param name="Pieces">Where its parser placed each piece written in another language.</param>
-    /// <param name="Inside">What each of those read to, by where its body starts in <paramref name="Tree"/>.</param>
-    private sealed record Parsed(ContentLanguage Language, string Named, string Text, ContentNode Tree,
-                                 IReadOnlyList<NestedPiece> Pieces, IReadOnlyDictionary<int, Parsed> Inside);
-
-    private static readonly IReadOnlyDictionary<int, Parsed> Nothing = new Dictionary<int, Parsed>();
+    /// <summary>What a piece of content read to: its language's tree, a block in that language.</summary>
+    private sealed record Parsed(ContentLanguage Language, string Named, string Text, ContentNode Tree);
 
     private readonly Stages.WithUnchanged _unchanged = new();
 
@@ -58,9 +53,6 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// <summary>What every piece in another language read to last time and this time, by what it was written as.</summary>
     private Dictionary<(ContentLanguage, string, string), Parsed> _before = [];
     private Dictionary<(ContentLanguage, string, string), Parsed> _now = [];
-
-    /// <summary>What each tree put in a body was read from — what a builder meeting it has laid out.</summary>
-    private readonly Dictionary<ContentNode, Parsed> _reads = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>What the reader has opened in each diagram, by where its body starts.</summary>
     private readonly Dictionary<int, DiagramViewState> _views = [];
@@ -89,6 +81,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     public Laid Lay(string? named, EditState state, StyleFormat style, double room, bool readOnly)
     {
         var language = Language(named);
+
+        Turn();
         var top = Parse(language, named, state.Source);
 
         Views(top);
@@ -108,8 +102,17 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// </summary>
     public ContentReading Read(string? named, string source, bool writing = false)
     {
+        Turn();
         var top = Parse(Language(named), named, source);
+
         return ContentReading.Of(Staged(top, Showing(named ?? string.Empty, StyleFormat.Dark, writing, null, 0)), 0, source);
+    }
+
+    /// <summary>Starts another reading: what the last one read in other languages is kept for it, and nothing older.</summary>
+    private void Turn()
+    {
+        _before = _now;
+        _now = [];
     }
 
     /// <summary>
@@ -120,6 +123,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         _unchanged.Forget();
         _before = [];
+        _now = [];
     }
 
     /// <summary>
@@ -151,33 +155,12 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     internal static ContentLanguage Language(string? named) =>
         named is null ? ContentLanguages.Markdown : ContentLanguages.For(named) ?? ContentLanguages.Code;
 
-    /// <summary>The content asked for, parsed — and every piece in it written in another language, parsed by that language.</summary>
+    /// <summary>The content asked for, parsed by its language — and nothing written in another language in it, which is read when a builder asks for it.</summary>
     private Parsed Parse(ContentLanguage language, string? named, string source)
     {
-        _now = [];
-        _reads.Clear();
-
         if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-        var parsed = Read(language, parse, source);
-        var read = new Parsed(language, named ?? string.Empty, source, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
-
-        _before = _now;
-        return read;
-    }
-
-    /// <summary>What every piece the parser placed in another language read to, by where its body starts.</summary>
-    private IReadOnlyDictionary<int, Parsed> Inside(IReadOnlyList<NestedPiece> pieces)
-    {
-        if (pieces.Count == 0) return Nothing;
-
-        var inside = new Dictionary<int, Parsed>(pieces.Count);
-
-        foreach (var piece in pieces)
-            if (ContentLanguages.For(piece.Language) is { } language)
-                inside[piece.At] = Nested(language, piece.Language, piece.Written);
-
-        return inside;
+        return new Parsed(language, named ?? string.Empty, source, Read(language, parse, source).Tree);
     }
 
     /// <summary>A piece written in another language, read by that language — or, written as it was last time, what it read to then.</summary>
@@ -185,28 +168,18 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     {
         var key = (language, named, text);
 
-        if (_before.TryGetValue(key, out var kept) || _now.TryGetValue(key, out kept))
+        if (_now.TryGetValue(key, out var kept) || _before.TryGetValue(key, out kept))
         {
             _now[key] = kept;
-            Known(kept);
             return kept;
         }
 
         if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
 
-        var parsed = Read(language, parse, text);
-        var read = new Parsed(language, named, text, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
+        var read = new Parsed(language, named, text, Read(language, parse, text).Tree);
 
         _now[key] = read;
-        _reads[parsed.Tree] = read;
         return read;
-    }
-
-    /// <summary>Says what a read kept from last time was read from, and so everything it holds.</summary>
-    private void Known(Parsed read)
-    {
-        _reads[read.Tree] = read;
-        foreach (var inner in read.Inside.Values) Known(inner);
     }
 
     private ContentShowing Showing(string named, StyleFormat style, bool writing, RawZone? shown, int at) =>
@@ -243,8 +216,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>
-    /// A read worked over by its language's stages, with what each piece in another language read to put back in its body
-    /// once they are done — so no stage ever sees a node of a language other than its own.
+    /// A read worked over by its language's stages. What is written in another language in it is its characters, which no stage
+    /// reads: that language's stages work it over when a builder asks for it.
     /// </summary>
     private ContentNode Staged(Parsed read, ContentShowing showing)
     {
@@ -252,45 +225,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var stages = read.Language.Stages(tree, showing).OfType<IAstStage>()
                          .Select(stage => stage is ISlowStage slow ? Staging(read, slow) : stage)
                          .ToList();
-        var staged = stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
 
-        return read.Inside.Count == 0 ? staged : Spliced(staged, read.Inside, 0);
-    }
-
-    /// <summary><paramref name="node"/>, starting at <paramref name="at"/>, with every piece in another language holding what it read to.</summary>
-    private static ContentNode Spliced(ContentNode node, IReadOnlyDictionary<int, Parsed> inside, int at)
-    {
-        if (node.IsDerived || node.IsLeaf) return node;
-
-        if (ContentNested.Language(node) is not null)
-        {
-            for (var index = 0; index < node.Children.Count; index++)
-            {
-                var child = node.Children[index];
-                if (child.Role == Roles.Body && !child.IsDerived)
-                    return inside.TryGetValue(at, out var read) ? ContentNested.Reading(node, read.Tree) : node;
-
-                at += child.Width;
-            }
-
-            return node;
-        }
-
-        ContentNode[]? spliced = null;
-
-        for (var index = 0; index < node.Children.Count; index++)
-        {
-            var child = node.Children[index];
-            var now = Spliced(child, inside, at);
-            at += child.Width;
-
-            if (ReferenceEquals(now, child)) continue;
-
-            spliced ??= [.. node.Children];
-            spliced[index] = now;
-        }
-
-        return spliced is null ? node : node.With(spliced);
+        return stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
     }
 
     /// <summary>
@@ -306,9 +242,29 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         _top = top.Language == ContentLanguages.Markdown ? null : _opened.Next();
         if (_top is not null) return;
 
-        foreach (var piece in top.Pieces)
-            if (piece.Holder is MarkdownKinds.Fence or Kinds.Nested && ContentLanguages.Reads(piece.Language))
-                _views[piece.At] = _opened.Next();
+        Held(top.Tree, 0);
+
+        void Held(ContentNode node, int at)
+        {
+            if (ContentNested.Language(node) is { } language)
+            {
+                if (!ContentLanguages.Reads(language)) return;
+
+                foreach (var child in node.Children)
+                {
+                    if (child.Kind == Kinds.Nested) { _views[at] = _opened.Next(); return; }
+                    at += child.Width;
+                }
+
+                return;
+            }
+
+            foreach (var child in node.Children)
+            {
+                Held(child, at);
+                at += child.Width;
+            }
+        }
     }
 
     /// <summary>
@@ -320,22 +276,26 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         : holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
 
     /// <summary>
-    /// What <paramref name="holder"/> holds in another language, worked over and laid out at <paramref name="room"/> — or null
-    /// where nothing read it.
+    /// What <paramref name="holder"/> holds in another language, read by that language, worked over and laid out at
+    /// <paramref name="room"/> — or null where nothing reads the language it names. The builder asking is handed the layout; the
+    /// tree it was drawn from is that language's own, and its root says so.
     /// </summary>
     internal ContentInset? Nested(ContentPart holder, double room, StyleFormat style, RawZone? shown, bool writing)
     {
-        if (ContentNested.Read(holder) is not { } inner || !_reads.TryGetValue(inner.Node, out var read)) return null;
+        if (ContentNested.Language(holder) is not { } named || holder.Part(Roles.Body) is not { } body
+            || ContentLanguages.For(named) is not { } language) return null;
 
-        var body = holder.Part(Roles.Body)!;
+        var text = ContentNested.Own(body.Node);
+        var read = Nested(language, named, text);
+
         if (Opened(holder) is { } view) style = style with { Expansion = view };
 
-        var showing = Showing(read.Named, style, writing,
+        var showing = Showing(named, style, writing,
                               shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End) ? zone : null,
-                              inner.Start);
+                              body.Start);
 
-        var reading = ContentReading.Of(Staged(read, showing), inner.Start, read.Text);
-        return new ContentInset(Builder(read.Language, reading, showing).Lay(room));
+        var reading = ContentReading.Of(Staged(read, showing), body.Start, text);
+        return new ContentInset(Builder(language, reading, showing).Lay(room));
     }
 }
 

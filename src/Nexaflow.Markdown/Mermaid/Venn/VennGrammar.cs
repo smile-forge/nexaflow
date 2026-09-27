@@ -55,73 +55,6 @@ public sealed class VennGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Under a set or a union, an item in it, indented under it; under an item, another in the same region, written the
-    /// way that one names it; anywhere else, another set. Each with its name still to write and the caret in its quotes.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        VennKinds.Set or VennKinds.Union => ("  text \"\"", 8),
-        VennKinds.Text when above.Part(VennRoles.Region) is { } region => ($"text {region.Print()} \"\"", 7 + region.Width),
-        VennKinds.Text => ("text \"\"", 6),
-        VennKinds.Style => null,
-        _ => ("set \"\"", 5),
-    };
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A bare name holds a word — letters, digits, <c>_</c> and <c>-</c>, and a set's starts with a letter or an underscore —
-    /// and is put in quotes to hold anything else; see <see cref="MermaidWriting.Escape"/> for quotes and labels.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (name, said) => Bare(said, set: name.Parent?.Kind == VennKinds.Set));
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A set is declared on its <c>set</c> line and used in the unions that overlap it, the items that name it as their
-    /// region and the styles that style it; an item is declared on its <c>text</c> line and used by a style naming it alone.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var lines = block.SelfAndDescendants()
-            .Where(part => part.Kind is VennKinds.Set or VennKinds.Union or VennKinds.Text or VennKinds.Style)
-            .ToList();
-
-        var ofSets = lines.SelectMany(line => line.Kind switch
-        {
-            VennKinds.Union => line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Names).Named(),
-            VennKinds.Text => line.Part(VennRoles.Region).Named(),
-            VennKinds.Style => line.Part(VennRoles.Target).Named(),
-            _ => [],
-        }).ToList();
-
-        var ofItems = lines.Where(line => line.Kind == VennKinds.Style)
-            .Select(line => line.Part(VennRoles.Target).Named())
-            .Where(targets => targets.Count == 1)
-            .Select(targets => targets[0])
-            .ToList();
-
-        return
-        [
-            .. lines.Where(line => line.Kind is VennKinds.Set or VennKinds.Text)
-                .Select(line => (Line: line, Name: line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)))
-                .Where(declared => declared.Name is not null)
-                .Select(declared =>
-                {
-                    var name = Said(declared.Name!);
-                    var uses = declared.Line.Kind == VennKinds.Set ? ofSets : ofItems;
-                    return new MermaidName(name, declared.Name!, [.. uses.Where(use => Said(use) == name)]);
-                }),
-        ];
-
-        static string Said(ContentPart name) => name.Words()?.Text ?? string.Empty;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>Bare where it can be — a word starting with a letter or an underscore — and in quotes otherwise.</remarks>
-    public string Naming(string name) => Bare(name, set: true) ? name : "\"" + name + "\"";
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// A set or a union is gathered with the items indented under it into one region (<see cref="GroupRegions"/>), so the tree
     /// holds what the diagram is made of rather than only the lines it was written on. Which region each part stands for — the
     /// sets a union overlaps, the region an item written on its own sits in, what a style styles — is a fact about the lines
@@ -140,7 +73,7 @@ public sealed class VennGrammar : IMermaidGrammar
         || (node.Kind == MermaidKinds.Quoted && holder?.Kind == MermaidKinds.Label);
 
     /// <summary>Whether a name can be written without quotes — as a set's name, where <paramref name="set"/> says it is one.</summary>
-    private static bool Bare(string name, bool set) =>
+    internal static bool Bare(string name, bool set) =>
         name.Length > 0
         && name.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-')
         && (!set || char.IsAsciiLetter(name[0]) || name[0] == '_');

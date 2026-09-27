@@ -1,4 +1,7 @@
+using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -40,4 +43,17 @@ public class SwimlaneEditingTests : MermaidEditing
             Assert.AreEqual(0, diagram.Diagnostics.Count);
             StringAssert.Contains(editor.Markdown, "Sales team", "and so does the document");
         }));
+
+    [TestMethod]
+    public void ALaneIsNamedInWords_SoASpaceBetweenThemGoesInAsItIs()
+    {
+        const string source = "swimlane-beta TB\n  subgraph Sales\n    one\n  end";
+        var name = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Sales");
+
+        Assert.IsNull(FlowchartEdits.Escaping(name, name.End, " team"),
+                      "Mermaid names a subgraph in words, so a space between two of them is a space the name may hold");
+        Assert.AreEqual("Sales team", MermaidStaged.Read("swimlane-beta TB\n  subgraph Sales team\n    one\n  end").SelfAndDescendants()
+                                                    .Single(part => part.Kind == FlowchartKinds.Opens).Node.Inner(MermaidKinds.Name)?.Words()?.Text,
+                        "and a lane written that way is called all of it");
+    }
 }

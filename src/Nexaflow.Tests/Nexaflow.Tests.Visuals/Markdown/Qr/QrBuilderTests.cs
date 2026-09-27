@@ -155,7 +155,7 @@ public class QrBuilderTests
 
     private static QrMatrix Encoded(string source)
     {
-        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(language: "qr", source:source), out var block, out var wrong), wrong.Reason);
         return QrEncoder.Encode(block!.Payload, block.ErrorCorrection);
     }
 }

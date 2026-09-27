@@ -126,8 +126,8 @@ public class ContentOffersTests
 
     private static ContentAsk Ask(string named, string source) => new(named, source);
 
-    private static string Said(Button button) =>
-        button.Content is TextBlock words ? words.Text : button.Content?.ToString() ?? string.Empty;
+    /// <summary>What a button says it does, whether it is drawn as words or as a picture.</summary>
+    private static string Said(Button button) => System.Windows.Automation.AutomationProperties.GetName(button);
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

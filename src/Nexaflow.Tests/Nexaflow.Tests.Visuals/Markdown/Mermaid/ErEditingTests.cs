@@ -35,18 +35,6 @@ public class ErEditingTests : MermaidEditing
         }));
 
     [TestMethod]
-    public void RenamingAnEntityCarriesToEveryRelationshipThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, diagram) =>
-        {
-            PressPast(diagram, "CUSTOMER");
-            Write(editor, "S");
-
-            StringAssert.Contains(diagram.Source, "CUSTOMERS ||--o{ ORDER", diagram.Source);
-            StringAssert.Contains(diagram.Source, "CUSTOMERS {", diagram.Source);
-            Assert.AreEqual(0, diagram.Diagnostics.Count);
-        }));
-
-    [TestMethod]
     public void WhatABareNameCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
         InADocument((editor, diagram) =>
         {

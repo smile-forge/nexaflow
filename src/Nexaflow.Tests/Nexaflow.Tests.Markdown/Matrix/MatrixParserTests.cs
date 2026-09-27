@@ -36,7 +36,7 @@ public class MatrixParserTests
     public void EveryBlockReadsBackAsItWasWritten()
     {
         foreach (var (what, source) in Blocks)
-            Assert.AreEqual(source, MatrixParser.Parse(source).Print(), what);
+            Assert.AreEqual(source, MatrixParser.Parse(language: "qr", source:source).Print(), what);
     }
 
     [TestMethod]
@@ -46,7 +46,7 @@ public class MatrixParserTests
             for (var length = 0; length <= source.Length; length++)
             {
                 var typed = source[..length];
-                Assert.AreEqual(typed, MatrixParser.Parse(typed).Print(), $"{what}: after {length} character(s)");
+                Assert.AreEqual(typed, MatrixParser.Parse(language: "qr", source:typed).Print(), $"{what}: after {length} character(s)");
             }
     }
 
@@ -54,7 +54,7 @@ public class MatrixParserTests
     public void TheParserOnlyEverCopies()
     {
         foreach (var (what, source) in Blocks)
-            foreach (var place in MatrixParser.Parse(source).Placed())
+            foreach (var place in MatrixParser.Parse(language: "qr", source:source).Placed())
             {
                 if (!place.Node.IsLeaf) continue;
 
@@ -69,7 +69,7 @@ public class MatrixParserTests
     [TestMethod]
     public void EveryLineIsALineOfTheBlock()
     {
-        var tree = MatrixParser.Parse("type: text\n\n# a note\nprose");
+        var tree = MatrixParser.Parse(language: "qr", source:"type: text\n\n# a note\nprose");
 
         Assert.AreEqual(MatrixKinds.Block, tree.Kind);
         Assert.AreEqual(4, tree.Children.Count);
@@ -109,7 +109,7 @@ public class MatrixParserTests
     [TestMethod]
     public void ALineThatIsNotAFieldIsHeldWithTheReason()
     {
-        var tree = MatrixParser.Parse("type: text\njust some prose\ntext: x");
+        var tree = MatrixParser.Parse(language: "qr", source:"type: text\njust some prose\ntext: x");
 
         var held = tree.SelfAndDescendants().Single(node => node.Trouble is not null);
         Assert.AreEqual(Kinds.Verbatim, held.Kind);
@@ -122,7 +122,7 @@ public class MatrixParserTests
     [TestMethod]
     public void AColonWithNoKeyIsNotAField()
     {
-        var tree = MatrixParser.Parse(": value");
+        var tree = MatrixParser.Parse(language: "qr", source:": value");
 
         Assert.AreEqual(0, Fields(tree).Count());
         Assert.IsNotNull(tree.SelfAndDescendants().Single(node => node.Trouble is not null));
@@ -131,13 +131,13 @@ public class MatrixParserTests
     [TestMethod]
     public void CommentsAndBlankLinesSayNothing()
     {
-        var tree = MatrixParser.Parse("# type: text\n\n   \n  # text: x");
+        var tree = MatrixParser.Parse(language: "qr", source:"# type: text\n\n   \n  # text: x");
 
         Assert.AreEqual(0, Fields(tree).Count(), "a comment that looks like a field is still a comment");
         Assert.IsFalse(tree.SelfAndDescendants().Any(node => node.Trouble is not null));
     }
 
-    private static IEnumerable<ContentNode> Fields(string source) => Fields(MatrixParser.Parse(source));
+    private static IEnumerable<ContentNode> Fields(string source) => Fields(MatrixParser.Parse(language: "qr", source:source));
 
     private static IEnumerable<ContentNode> Fields(ContentNode tree) =>
         tree.SelfAndDescendants().Where(node => node.Kind == MatrixKinds.Field);

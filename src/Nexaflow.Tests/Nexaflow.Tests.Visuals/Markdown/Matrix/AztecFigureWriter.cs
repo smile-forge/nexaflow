@@ -41,7 +41,7 @@ public class AztecFigureWriter
                          ("styled",      "type: text\ntext: An Aztec Code\ncellSize: 6\ndark: #1D4ED8\nlight: #EFF6FF"),
                      ])
             {
-                Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out var wrong), wrong.Reason);
+                Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(language: "aztec", source:source), out _, out var wrong), wrong.Reason);
 
                 var column = new StackPanel
                 {

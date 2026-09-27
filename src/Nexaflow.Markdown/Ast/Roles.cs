@@ -127,24 +127,18 @@ public static class Kinds
     public const string Verbatim = "verbatim";
 
     /// <summary>
-    /// A whole other content written inside this one — a tune in a flowchart node, a molecule in a song's lyrics, a
-    /// barcode in a formula — where the grammar holding it has no kind of its own for the construct.
-    ///
-    /// <para>
-    /// The parser holds the characters as written and names the language they are in (<see cref="Language"/>). Reading
-    /// them is that language's own parser's, which the engine runs and puts where the characters were: the body of any node
-    /// holding another language is, once read, a node of this kind holding that language's tree (<see cref="ContentNested"/>).
-    /// </para>
+    /// A block of content in one language (<see cref="BlockNode"/>) that holds content written in another: a fence in a document,
+    /// a formula in a sentence, a tune on a flowchart node. The language it names is the one its <see cref="Nested"/> body is
+    /// written in.
     /// </summary>
-    public const string Nested = "nested";
+    public const string Block = "block";
 
     /// <summary>
-    /// Which language what a node holds is written in: a derived part whose <see cref="ContentNode.Held"/> is the word naming it,
-    /// hung on the node by the parser that read it — a fence by the word after it, <c>$$</c> by being <c>$$</c>. Anything that
-    /// holds one is written in another language, and its <see cref="Roles.Body"/> is what that language reads
-    /// (<see cref="ContentNested"/>).
+    /// The characters of a whole other content written inside this one, held as written and unread — the body of a
+    /// <see cref="Block"/> naming their language. Reading them is that language's, and happens only when a builder asks the
+    /// engine to lay them out (<see cref="ContentNested"/>).
     /// </summary>
-    public const string Language = "language";
+    public const string Nested = "nested";
 
     /// <summary>
     /// A binding standing where content would be (<c>{{Path}}</c>) — a diagram's lines, or the whole of it. The parser holds it as

@@ -7,6 +7,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Git;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -52,4 +54,14 @@ public class GitEditingTests : MermaidEditing
 
             Assert.AreEqual("\"Alpha\"", diagram.Source.Substring(id.Sits().Start, id.Sits().Length), "the id stands for what writes it");
         }));
+
+    [TestMethod]
+    public void AQuoteTypedIntoAnIdIsWrittenAsTheEntityCodeForIt()
+    {
+        const string source = "gitGraph\n   commit id: \"Alpha\"";
+        var setting = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Setting);
+        var writing = GitEdits.Escaping(setting, setting.End - 1, "\"")!.Value;
+
+        Assert.AreEqual("gitGraph\n   commit id: \"Alpha#quot;\"", MermaidStaged.Written(source, writing));
+    }
 }

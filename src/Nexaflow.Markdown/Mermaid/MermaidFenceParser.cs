@@ -15,6 +15,9 @@ namespace Nexaflow.Markdown.Mermaid;
 /// </summary>
 public static class MermaidFenceParser
 {
+    /// <summary>The word naming what a <c>mermaid</c> block is written in, where its header names no diagram.</summary>
+    public const string Language = "mermaid";
+
     /// <summary>What the diagram a block with no header yet is written in.</summary>
     private const string Unheaded = "flowchart";
 
@@ -29,15 +32,15 @@ public static class MermaidFenceParser
 
         // What the header says is what went wrong, and it says so where it is written; the rest is only the block as written.
         var end = at + header.Width;
-        return ContentNode.Branch(MermaidKinds.Block,
+        return new BlockNode(Language,
         [
             .. at > 0 ? [ContentNode.Leaf(Kinds.Verbatim, source[..at])] : Array.Empty<ContentNode>(),
             header,
             .. end < source.Length ? [ContentNode.Leaf(Kinds.Verbatim, source[end..])] : Array.Empty<ContentNode>(),
-        ]);
+        ], MermaidKinds.Block);
     }
 
     /// <summary>The whole of <paramref name="source"/>, held as written in the diagram <paramref name="language"/> names.</summary>
     private static ContentNode Holding(string source, string language) =>
-        ContentNested.Naming(ContentNode.Branch(Kinds.Nested, [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]), language);
+        new BlockNode(language, [ContentNode.Leaf(Kinds.Nested, source, Roles.Body)]);
 }

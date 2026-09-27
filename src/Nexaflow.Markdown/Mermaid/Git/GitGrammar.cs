@@ -80,47 +80,6 @@ public sealed class GitGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Another commit, which is what a history is mostly made of.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => (CommitWord, CommitWord.Length);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A quote typed into a value written in quotes goes in as the entity code standing for it, and a branch name is put in
-    /// quotes to hold anything a branch is not named with.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (_, said) => Bare(said))
-        ?? (part.Kind == MermaidKinds.Setting ? MermaidWriting.InQuotes(caret, text) : null);
-
-    /// <inheritdoc/>
-    /// <remarks>A branch is named where it is made, and used wherever it is checked out or merged.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var lines = block.SelfAndDescendants()
-            .Where(part => part.Kind is GitKinds.Branch or GitKinds.Checkout or GitKinds.Merge)
-            .Select(part => (part.Kind, Name: part.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)))
-            .Where(line => line.Name is not null && line.Name.Words() is { Length: > 0 })
-            .Select(line => (line.Kind, Part: line.Name!, Said: line.Name!.Words()!.Text))
-            .ToList();
-
-        return
-        [
-            .. lines
-                .Where(line => line.Kind == GitKinds.Branch)
-                .GroupBy(branch => branch.Said, StringComparer.Ordinal)
-                .Select(branch => new MermaidName(branch.Key, branch.First().Part,
-                    [
-                        .. branch.Skip(1).Select(made => made.Part),
-                        .. lines.Where(line => line.Kind != GitKinds.Branch && line.Said == branch.Key).Select(use => use.Part),
-                    ])),
-        ];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>A branch's name goes in as it is, or in quotes to hold anything a branch is not named with.</remarks>
-    public string Naming(string name) => Bare(name) ? name : "\"" + MermaidText.Quoted(name) + "\"";
-
-    /// <inheritdoc/>
     /// <remarks>What the history means together — the branch each commit is on, what it follows, where it stands and each branch's lane — and what is not there to check out, merge or pick (<see cref="ResolveGraph"/>).</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveGraph(GitConfig.Read(block.Config))];
 
@@ -175,5 +134,5 @@ public sealed class GitGrammar : IMermaidGrammar
     private static bool Letter(char character) => char.IsLetterOrDigit(character) || character is '_' or '-' or '/' or '.';
 
     /// <summary>Whether a name can be written without quotes round it.</summary>
-    private static bool Bare(string name) => name.Length > 0 && name.All(Letter);
+    internal static bool Bare(string name) => name.Length > 0 && name.All(Letter);
 }

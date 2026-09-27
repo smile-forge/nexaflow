@@ -123,7 +123,7 @@ public class DiagramNestingTests
         var block = Nexaflow.Markdown.Mermaid.MermaidBlock.Read(Src);
 
         var links = block.Reading.Root.SelfAndDescendants()
-            .Where(part => part.Kind == Nexaflow.Markdown.Ast.Kinds.Nested)
+            .Where(part => Nexaflow.Markdown.Ast.ContentNested.Language(part) is not null)
             .ToList();
 
         Assert.AreEqual(1, links.Count, "one node for the block, never a parse of it into this tree");

@@ -13,7 +13,7 @@ public class PlotReaderTests
 {
     private static PlotSettings Read(string source, PlotFence fence = PlotFence.Scatter)
     {
-        Assert.IsTrue(PlotReader.TrySettings(PlotParser.Parse(source), fence, out var settings, out var error),
+        Assert.IsTrue(PlotReader.TrySettings(PlotParser.Parse(language: fence.ToString().ToLowerInvariant(), source:source), fence, out var settings, out var error),
                       error);
 
         return settings!;
@@ -21,7 +21,7 @@ public class PlotReaderTests
 
     private static string Refused(string source, PlotFence fence = PlotFence.Scatter)
     {
-        Assert.IsFalse(PlotReader.TrySettings(PlotParser.Parse(source), fence, out _, out var error),
+        Assert.IsFalse(PlotReader.TrySettings(PlotParser.Parse(language: fence.ToString().ToLowerInvariant(), source:source), fence, out _, out var error),
                        $"`{source}` should not read.");
 
         Assert.IsNotNull(error);

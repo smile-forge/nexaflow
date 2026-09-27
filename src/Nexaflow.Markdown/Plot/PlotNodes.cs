@@ -9,14 +9,14 @@ namespace Nexaflow.Markdown.Plot;
 /// whose settings will not read has none of this, and is left as written with the setting at fault marked. It prints as the
 /// block written.
 /// </summary>
-internal sealed class PlotBlockNode : ContentNode
+internal sealed class PlotBlockNode : BlockNode
 {
     private static readonly IReadOnlyDictionary<string, PlotCorrelation> NoStatistics = new Dictionary<string, PlotCorrelation>();
 
     internal PlotBlockNode(ContentNode written, PlotSettings settings, bool matrix = false,
                            IReadOnlyList<(string Across, string Down, double R)>? correlations = null,
                            PlotCorrelation? statistic = null, IReadOnlyDictionary<string, PlotCorrelation>? statistics = null)
-        : base(written)
+        : base((BlockNode)written)
     {
         this.Settings = settings;
         this.Matrix = matrix;
@@ -54,7 +54,7 @@ internal sealed class PlotBlockNode : ContentNode
     internal PlotBlockNode Reporting(PlotCorrelation? statistic, IReadOnlyDictionary<string, PlotCorrelation> statistics) =>
         new(this, this.Settings, this.Matrix, this.Correlations, statistic, statistics);
 
-    protected override ContentNode Reshaped(ContentNode shape) =>
+    protected override BlockNode Retyped(BlockNode shape) =>
         new PlotBlockNode(shape, this.Settings, this.Matrix, this.Correlations, this.Statistic, this.Statistics);
 }
 

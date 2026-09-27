@@ -25,7 +25,7 @@ public static class TexParser
         ArgumentNullException.ThrowIfNull(latex);
 
         var reader = new Reader(TexLexer.Scan(latex), depth: 0);
-        return ContentNode.Branch(Kinds.Sequence, reader.Run(Until.Input));
+        return new BlockNode("latex", reader.Run(Until.Input), Kinds.Sequence);
     }
 
     /// <summary>What brings a run of things to an end, besides running out of input.</summary>

@@ -60,11 +60,11 @@ internal static class MarkdownGroups
     {
         if (paragraph.Kind != MarkdownKinds.Paragraph || paragraph.Part(Roles.Body) is not { IsLeaf: false } words) return null;
 
-        ContentNode? formula = null;
+        BlockNode? formula = null;
 
         foreach (var child in words.Children)
         {
-            if (child.Kind == MarkdownKinds.Formula && formula is null) formula = child;
+            if (child is BlockNode { Language: MarkdownParser.Maths } found && formula is null) formula = found;
             else if (child.Role != Roles.Trivia) return null;
         }
 
@@ -81,7 +81,7 @@ internal static class MarkdownGroups
                 else parts.Add(written);
         }
 
-        return ContentNode.Branch(MarkdownKinds.Math, parts, paragraph.Role);
+        return new BlockNode(MarkdownParser.Maths, parts, role: paragraph.Role);
     }
 
     // ── Definitions ─────────────────────────────────────────────────────────

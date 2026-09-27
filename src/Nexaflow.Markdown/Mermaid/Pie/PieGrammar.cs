@@ -40,14 +40,6 @@ public sealed class PieGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>A slice with neither its label nor its value written, the caret between its quotes — whatever it follows.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => ("\"\" : ", 1);
-
-    /// <inheritdoc/>
-    /// <remarks>A label holds anything but a quote, which is written <c>#quot;</c>.</remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text) => MermaidWriting.Escape(part, caret, text);
-
-    /// <inheritdoc/>
     /// <remarks>
     /// What a slice is drawn in is written in the front matter by position rather than on the slice, so it is worked out and
     /// hung underneath it (<see cref="ResolveSlices"/>). Everything else a pie says, it says in its own characters.

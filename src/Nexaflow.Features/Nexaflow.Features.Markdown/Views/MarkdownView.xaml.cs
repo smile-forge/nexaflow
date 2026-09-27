@@ -99,10 +99,7 @@ public partial class MarkdownView : UserControl, IPageView
         public IReadOnlyList<LayoutIntent> Menu(LayoutAct act) => [];
 
         /// <summary>What the block is written in, for the file's name: a fence's word, or maths for a formula.</summary>
-        private static string? Language(ContentPart block) =>
-            block.Part(Roles.Name)?.Print().Trim() is { Length: > 0 } named ? named
-            : block.Kind is MarkdownKinds.Math ? "latex"
-            : null;
+        private static string? Language(ContentPart block) => ContentNested.Language(block);
     }
 
     private static byte[] Png(BitmapSource picture)

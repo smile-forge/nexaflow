@@ -103,108 +103,6 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// A label is put in quotes to hold a quote, a bracket closing it or a comment; what is written on a link is quoted to hold
-    /// whatever would close the link early. An id, a class and a way are written bare and cannot be quoted at all, so what they
-    /// cannot hold is dropped, and nothing but a digit goes where a link is numbered.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (part.Parent is { Kind: FlowchartKinds.Saying } saying) return Quoted(saying, part, caret, text);
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is FlowchartRoles.Id or FlowchartRoles.Class or FlowchartRoles.Link)
-            return Bared(part, caret, text, Naming(part));
-        if (part.Role is FlowchartRoles.Target or FlowchartRoles.Curve or FlowchartRoles.Call)
-            return MermaidWriting.Only(caret, text, Bare);
-
-        if (part.Role is FlowchartRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
-        if (part.Role is FlowchartRoles.Index) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
-
-        return null;
-    }
-
-    /// <summary>
-    /// Text written into a name that is written bare and cannot be quoted at all: a character goes in only where what the name would then
-    /// say still reads as the name, and whatever would not is dropped, since there is nowhere to put it.
-    ///
-    /// <para>
-    /// What follows the character is the rest of what is being written as well as the rest of the line. A name written in words takes a
-    /// space at the end of it too, a word at a time being how one is written: the space belongs to the line until the next word arrives,
-    /// and the line reads either way.
-    /// </para>
-    /// </summary>
-    /// <param name="worded">Whether it is a name written in words — a subgraph's own — rather than an id, a class or a link's.</param>
-    private static MermaidWriting? Bared(ContentPart part, int caret, string text, bool worded)
-    {
-        Func<string, int, int> ends = worded ? Titled : Ends;
-        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
-        var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var beyond = said[at..] + Following(part);
-        var kept = said[..at];
-        var written = string.Empty;
-
-        for (var character = 0; character < text.Length; character++)
-        {
-            var tried = kept + text[character];
-            var wanted = worded ? tried.TrimEnd(' ', '\t').Length : tried.Length;
-
-            if (ends(tried + text[(character + 1)..] + beyond, 0) < wanted) continue;
-
-            kept = tried;
-            written += text[character];
-        }
-
-        return written == text ? null : new MermaidWriting(caret, caret, written, caret + written.Length);
-    }
-
-    /// <summary>Whether a name is a subgraph's own, which may be written in words where an id may not.</summary>
-    private static bool Naming(ContentPart part)
-    {
-        for (var over = part.Parent; over is not null; over = over.Parent)
-            if (over.Kind == FlowchartKinds.Opens) return true;
-
-        return false;
-    }
-
-    /// <summary>What is written after a part, which is what a character typed at the end of it would run into.</summary>
-    private static string Following(ContentPart part)
-    {
-        var top = part;
-        while (top.Parent is { } holder) top = holder;
-
-        // Print, not Text: a branch holds no text of its own, and what is written after a part is the source it stands in.
-        var written = top.Print();
-        var at = part.End - top.Start;
-
-        return at >= 0 && at <= written.Length ? written[at..] : string.Empty;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A node is declared where it is first written and used wherever it is written again — the ends of a link, a <c>class</c>
-    /// line, a <c>style</c> line, a <c>click</c> line — because every one of those is the same id.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: FlowchartRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An id is written bare, so what an id cannot hold is dropped.</remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Which subgraph each line is in (<see cref="ResolveSubgraphs"/>), which nodes name a subgraph (<see cref="ResolveJoins"/>),
     /// what each link joins and is styled with (<see cref="ResolveLinks"/>), what each <c>id@{ … }</c> line means
     /// (<see cref="ResolveMetadata"/>), what styles each node and subgraph (<see cref="ResolveStyles"/>), whether a shape named is
@@ -523,24 +421,6 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     /// <summary>What closes a link opened the way <paramref name="opening"/> was written.</summary>
     private static string Closing(string opening) =>
         opening.Contains('=') ? "==" : opening.Contains('.') ? ".-" : "--";
-
-    /// <summary>
-    /// What is typed into what is written on a link, put in quotes where it would otherwise close the link early — which is how
-    /// Mermaid holds those characters there too.
-    /// </summary>
-    private static MermaidWriting? Quoted(ContentPart saying, ContentPart part, int caret, string text)
-    {
-        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
-        var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var (before, after) = (said[..at] + text, said[at..]);
-        var whole = before + after;
-
-        var closes = whole.Contains("--", StringComparison.Ordinal) || whole.Contains("==", StringComparison.Ordinal)
-                     || whole.Contains(".-", StringComparison.Ordinal) || whole.Contains("%%", StringComparison.Ordinal)
-                     || whole.Contains('"');
-
-        return closes ? MermaidWriting.Quoting(saying.Start, saying.End, before, after) : null;
-    }
 
     /// <summary>A bare name — a node's id, a class — read as far as Mermaid's rule carries it.</summary>
     private static bool Named(MermaidLine line, string role = FlowchartRoles.Id)

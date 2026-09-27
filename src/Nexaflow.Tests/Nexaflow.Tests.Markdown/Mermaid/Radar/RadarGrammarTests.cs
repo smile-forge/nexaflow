@@ -258,36 +258,6 @@ public class RadarGrammarTests : MermaidGrammarContract
         }
     }
 
-    [TestMethod]
-    public void ANewLineUnderACurveIsAnotherCurve_UnderAnOptionNothing_AndElsewhereAnAxis()
-    {
-        var grammar = new RadarGrammar();
-        const string source = "radar-beta\n  axis a\n  curve x{1}\n  max 2";
-
-        Assert.AreEqual(("curve ", 6), grammar.Blank(Nodes(source, RadarKinds.Curves).Single()));
-        Assert.IsNull(grammar.Blank(Nodes(source, RadarKinds.Options).Single()));
-        Assert.AreEqual(("axis ", 5), grammar.Blank(Nodes(source, RadarKinds.Axes).Single()));
-        Assert.AreEqual(("axis ", 5), grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void AnAxisRenamedToHoldASpaceIsPutInQuotes_AndSoIsEveryValueNamingIt()
-    {
-        const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
-        var grammar = new RadarGrammar();
-        var a = grammar.Names(ContentReading.Of(MermaidStaged.Read(source)).Root).Single(name => name.Name == "a");
-
-        Assert.AreEqual(1, a.Uses.Count, "the value that names it");
-
-        var words = a.Declared.Words()!;
-        var writing = grammar.Escaping(words, words.End, " ")!.Value;
-
-        Assert.AreEqual("radar-beta\n  axis \"a \", b\n  curve x{ a: 1, b: 2 }", source[..writing.Start] + writing.Text + source[writing.End..]);
-        Assert.AreEqual("\"two words\"", grammar.Naming("two words"));
-        Assert.AreEqual("\"9lives\"", grammar.Naming("9lives"), "a name starting with a digit too");
-        Assert.AreEqual("renamed", grammar.Naming("renamed"));
-    }
-
     private static List<ContentNode> Nodes(string source, string kind) =>
         [.. MermaidStaged.Read(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 

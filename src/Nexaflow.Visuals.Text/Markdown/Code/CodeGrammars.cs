@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using System.Linq;
 using Nexaflow.Syntax;
 
 namespace Nexaflow.Visuals.Text.Markdown.Code;
@@ -58,6 +59,8 @@ internal static class CodeGrammars
         var word = language?.Trim();
         if (string.IsNullOrEmpty(word)) return null;
 
-        return Called.TryGetValue(word, out var named) ? named : TreeSitterLanguages.ForFile("code." + word);
+        return Called.TryGetValue(word, out var named) ? named
+             : TreeSitterLanguages.Grammars.FirstOrDefault(grammar => grammar.Equals(word, StringComparison.OrdinalIgnoreCase))
+               ?? TreeSitterLanguages.ForFile("code." + word);
     }
 }

@@ -82,9 +82,8 @@ public static class ContentWords
     private static string Stands(ContentPart bound) => bound.Node.Said(Value) ?? bound.Print();
 
     /// <summary>
-    /// A run that is a whole other content, split into the parts that say which: the fence, what it names itself, and
-    /// that language's own source. A fence naming nothing, or naming something with nothing after it, is not a block
-    /// of anything — it is the characters somebody typed, and stays them.
+    /// A label written in another language: a block in the language the word after its fence names, holding the fence and that
+    /// word, and the characters written in that language — held as written, unread, since reading them is that language's.
     /// </summary>
     private static ContentNode Block(string text, string kind, string role)
     {
@@ -96,19 +95,9 @@ public static class ContentWords
 
         if (named == ContentLink.Fence.Length || at >= text.Length) return ContentNode.Leaf(kind, text, role);
 
-        List<ContentNode> parts =
-        [
-            ContentNode.Leaf(Kinds.Token, text[..ContentLink.Fence.Length], Roles.Trivia),
-            ContentNode.Leaf(Kinds.Token, text[ContentLink.Fence.Length..named], Roles.Name),
-        ];
-
-        if (at > named) parts.Add(ContentNode.Leaf(Kinds.Space, text[named..at], Roles.Trivia));
-
-        // Held as written and nothing read out of it: what is in there is a different language, and reading it is
-        // its own parser's business — which is why it is not this language's kind of words.
-        parts.Add(ContentNode.Leaf(Kinds.Verbatim, text[at..], Roles.Body));
-
-        return ContentNested.Naming(ContentNode.Branch(Kinds.Nested, parts, role), text[ContentLink.Fence.Length..named]);
+        return new BlockNode(text[ContentLink.Fence.Length..named],
+            [ContentNode.Leaf(Kinds.Token, text[..at], Roles.Open), ContentNode.Leaf(Kinds.Nested, text[at..], Roles.Body)],
+            role: role);
     }
 
     /// <summary>

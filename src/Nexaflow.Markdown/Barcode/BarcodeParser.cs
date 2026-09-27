@@ -12,7 +12,7 @@ namespace Nexaflow.Markdown.Barcode;
 /// </summary>
 public static class BarcodeParser
 {
-    public static ContentNode Parse(string? source) => AstRewrite.Each(MatrixParser.Parse(source), node =>
+    public static ContentNode Parse(string? source) => AstRewrite.Each(MatrixParser.Parse(source, "barcode"), node =>
         Values(node)
             ? node.With([.. node.Children.Select(child => child.Role == MatrixRoles.Value && child.IsLeaf ? Spelled(child) : child)])
             : node);

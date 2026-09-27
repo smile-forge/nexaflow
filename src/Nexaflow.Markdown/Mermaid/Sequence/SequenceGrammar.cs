@@ -72,9 +72,6 @@ public sealed class SequenceGrammar : IMermaidGrammar
     /// <summary>What ends a name wherever one is written, besides the characters of an arrow.</summary>
     private const string Stops = ":,;<>+@";
 
-    /// <summary>And what a name typed into never holds, since a name cannot be quoted and there would be nowhere to put it.</summary>
-    private const string Never = ":,;<>+@-|/\\%";
-
     private const string ParticipantShape = "A participant is written participant A, participant A as Alice, or actor A.";
     private const string LifetimeShape = "A participant is made by create participant B, and ended by destroy B.";
     private const string TurnShape = "A bar is started by activate A and ended by deactivate A.";
@@ -136,67 +133,6 @@ public sealed class SequenceGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Under the participants at the top, and inside a box, another participant; and everywhere else a message, which is what a
-    /// sequence diagram is mostly made of.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        SequenceKinds.Participant or SequenceKinds.Created or SequenceKinds.Box => (ParticipantWord + " ", ParticipantWord.Length + 1),
-        SequenceKinds.Ends or SequenceKinds.Numbering => null,
-        _ => ("->>: ", 0),
-    };
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A name holds anything that does not end one — the characters an arrow is written with, and what goes between a message's
-    /// parts. What a message says, what a note says and what a frame holds under are written to the end of the line and hold
-    /// anything at all.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        // In quotes anything but a quote goes in as it is, and the quote has already been written as its entity code.
-        if (part.Parent?.Children.Any(child => child.Role == Roles.Open && child.Text == "\"") ?? false) return null;
-
-        // A hole stands for what is not written yet, so what may go in it is what holds it.
-        var role = part.Kind == Kinds.Hole ? part.Parent?.Role ?? part.Role : part.Role;
-
-        if (role is SequenceRoles.Id) return Written(part, caret, text);
-        if (role is SequenceRoles.Key or SequenceRoles.Type) return MermaidWriting.Only(caret, text, MermaidLine.Letter);
-        if (role is SequenceRoles.Menu) return MermaidWriting.Only(caret, text, character => character != '@');
-        if (role is SequenceRoles.Url) return MermaidWriting.Only(caret, text, Linked);
-        if (role is SequenceRoles.Colour) return MermaidWriting.Only(caret, text, Tinted);
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A participant is declared where it is first written and used wherever it is written again — either end of a message, the
-    /// participants a note is over, an <c>activate</c> line, a <c>link</c> line.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: SequenceRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>A name cannot be quoted, so what would end one is dropped rather than held.</remarks>
-    public string Naming(string name) => new([.. name.Where(Held)]);
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Which box or frame each line is in (<see cref="ResolveFrames"/>), and the number <c>autonumber</c> gives each message
     /// (<see cref="ResolveNumbers"/>).
     /// </remarks>
@@ -232,30 +168,8 @@ public sealed class SequenceGrammar : IMermaidGrammar
         return written.Length;
     }
 
-    /// <summary>Whether a character may go in a name at all, wherever in one it is written.</summary>
-    private static bool Held(char character) => !Never.Contains(character) && !char.IsControl(character);
-
-    /// <summary>What a colour is written with: a name, a <c>#</c> and its digits, or a function and its parts.</summary>
-    private static bool Tinted(char character) =>
-        char.IsLetterOrDigit(character) || character is '#' or '(' or ')' or ',' or '.' or '%';
-
     /// <summary>What carries a url on, which is everything but what would close the quotes or the braces round it.</summary>
-    private static bool Linked(char character) => character is not ('"' or ',' or '}');
-
-    /// <summary>
-    /// A name typed into: the whole of what is typed goes in where the name still ends where it did, so a hyphen joins a name —
-    /// and where it would not, what would end one is dropped instead.
-    /// </summary>
-    private static MermaidWriting? Written(ContentPart part, int caret, string text)
-    {
-        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
-        var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var whole = said[..at] + text + said[at..];
-
-        return Ident(whole, 0) == whole.Length && !whole.Any(char.IsControl)
-            ? null
-            : MermaidWriting.Only(caret, text, Held);
-    }
+    internal static bool Linked(char character) => character is not ('"' or ',' or '}');
 
     // ── The lines ───────────────────────────────────────────────────────────
 

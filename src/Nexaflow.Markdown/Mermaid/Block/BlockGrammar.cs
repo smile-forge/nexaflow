@@ -68,49 +68,6 @@ public sealed class BlockGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Another block, with what is written on it to write — whatever the line above it says.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => ("[\"\"]", 2);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A label is put in quotes to hold a quote, a bracket closing it or a comment. An id, a class and a direction are written
-    /// bare and cannot be quoted at all, so what they cannot hold is dropped; so is anything but a digit in a width.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is BlockRoles.Id or BlockRoles.Class or BlockRoles.Direction) return MermaidWriting.Only(caret, text, Bare);
-        if (part.Parent is { Kind: MermaidKinds.Amount }) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A block is declared where it is first written and used wherever it is written again — a link's ends, a <c>class</c> line,
-    /// a <c>style</c> line — because every one of those is the same id.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: BlockRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An id is written bare, so what an id cannot hold is dropped.</remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
     /// <remarks>
     /// Each composite gathered with what is written in it (<see cref="ResolveBlocks"/>), whether a link has blocks to join
     /// (<see cref="ResolveLinks"/>), what styles each block and whether what is styled is written at all (<see cref="ResolveStyles"/>),

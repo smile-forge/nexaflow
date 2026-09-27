@@ -157,16 +157,6 @@ public class DocumentEditingTests
     private const string Pie = "Pets:\n\n```mermaid\npie showData\n    \"Dogs\" : 30\n```\n";
 
     [TestMethod]
-    public void EnterInADiagramInTheDocumentStartsItsNextLine() => UiThread.Run(() =>
-    {
-        var element = Element(Pie, caret: Pie.IndexOf("30", System.StringComparison.Ordinal) + 2);
-
-        Settle(element, "\n");
-
-        StringAssert.Contains(element.Source, "\"Dogs\" : 30\n    \"\" : \n```", "the pie's next slice, not a line of the document");
-    });
-
-    [TestMethod]
     public void AndAQuoteTypedIntoALabelIsWrittenAsTheDiagramWritesOne() => UiThread.Run(() =>
     {
         var element = Element(Pie, caret: Pie.IndexOf("Dogs", System.StringComparison.Ordinal) + 4);

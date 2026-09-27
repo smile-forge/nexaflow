@@ -47,7 +47,7 @@ public static class SmilesParser
             at = stop;
         }
 
-        return ContentNode.Branch(SmilesKinds.Block, lines);
+        return new BlockNode("smiles", lines, SmilesKinds.Block);
     }
 
     /// <summary>

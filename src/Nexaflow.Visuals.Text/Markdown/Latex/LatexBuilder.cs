@@ -25,11 +25,14 @@ public sealed partial class LatexBuilder : ContentBuilder
     internal LatexBuilder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
         : base(reading, state, style, isReadOnly, nesting) { }
 
-    /// <summary>How big the formula is set — body size for one in a line of text, larger for one on its own.</summary>
-    private double _scale => Style.TextSize;
+    /// <summary>How big the formula is set — body size, and half again for one standing as a block among a document's.</summary>
+    private double _scale => Style.Standing == ContentStanding.Block ? Style.TextSize * Display : Style.TextSize;
+
+    /// <summary>How much larger a formula standing as a block is set than the words round it.</summary>
+    private const double Display = 1.5;
 
     /// <summary>Whether it is set in a line of text rather than on its own.</summary>
-    private bool _inline => Style.InlineMath;
+    private bool _inline => Style.Standing == ContentStanding.Inline;
 
     /// <summary>The face <c>\text{…}</c> is set in.</summary>
     private const string _systemFont = "Arial";
@@ -75,6 +78,16 @@ public sealed partial class LatexBuilder : ContentBuilder
         var (tree, size) = TexTypesetter.Number(Reading.Root, environment) is { } number
             ? Numbered(placed, number, Reading)
             : (laid, placed.Size);
+
+        // A formula standing as a block among a document's is set apart: centred in the room it is given, with air above and below.
+        if (Style.Standing == ContentStanding.Block)
+        {
+            var air = Style.TextSize * 0.5;
+            var left = double.IsFinite(Room) ? System.Math.Max(0, (Room - size.Width) / 2) : 0;
+
+            tree.Settle(new Vector(left, air));
+            size = new System.Windows.Size(left + size.Width, size.Height + (air * 2));
+        }
 
         var made = new Laid(tree, size, trouble);
 

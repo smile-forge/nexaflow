@@ -218,7 +218,7 @@ internal static class MarkdownEditorHarness
             return [drawn.Count == 0 ? ContentPart.Of(ContentNode.Shown(editor.Markdown)) : drawn[0].Ancestors().LastOrDefault() ?? drawn[0]];
 
         return [.. drawn
-            .Where(part => part.Kind is MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Formula)
+            .Where(part => ContentNested.Language(part) is not null || part.Kind == MarkdownKinds.Formula)
             .Distinct()
             .OrderBy(part => part.Start)];
     }
@@ -301,6 +301,8 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
 
     /// <summary>Whether the caret is in this block.</summary>
     public bool HasCaret => Element.HasCaret && Caret >= Start && Caret <= End;
+
+    public bool ShowsCaret => Element.ShowsCaret && Caret >= Start && Caret <= End;
 
     /// <summary>The stretch shown as written, counted from <see cref="Origin"/>.</summary>
     public (int Start, int Length)? ShownAsWritten =>

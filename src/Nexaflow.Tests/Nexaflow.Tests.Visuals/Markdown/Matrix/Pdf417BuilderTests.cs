@@ -61,13 +61,13 @@ public class Pdf417BuilderTests
     [TestMethod]
     public void RefusesSettingsOutsideTheStandard()
     {
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumns: 40"), out _, out var wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse(language: "pdf417", source:"type: text\ntext: x\ncolumns: 40"), out _, out var wrong));
         StringAssert.Contains(wrong.Reason, "30");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\nrowHeight: 99"), out _, out wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse(language: "pdf417", source:"type: text\ntext: x\nrowHeight: 99"), out _, out wrong));
         StringAssert.Contains(wrong.Reason, "rowHeight");
 
-        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse("type: text\ntext: x\ncolumnz: 4"), out _, out wrong));
+        Assert.IsFalse(Pdf417BlockReader.TryRead(MatrixParser.Parse(language: "pdf417", source:"type: text\ntext: x\ncolumnz: 4"), out _, out wrong));
         StringAssert.Contains(wrong.Reason, "columnz");
     }
 
@@ -141,7 +141,7 @@ public class Pdf417BuilderTests
 
     private static Pdf417Block Read(string source)
     {
-        Assert.IsTrue(Pdf417BlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(Pdf417BlockReader.TryRead(MatrixParser.Parse(language: "pdf417", source:source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

@@ -1,6 +1,8 @@
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 
@@ -16,10 +18,21 @@ namespace Nexaflow.Tests.Visuals.Markdown.Source;
 [CoversNode("latex-editing")]
 public class EditStateTests
 {
+    /// <summary>
+    /// <paramref name="text"/> typed a character at a time: what LaTeX makes of each (<see cref="LatexEdits"/>), made as the engine
+    /// makes it, and the character itself where LaTeX has nothing to say.
+    /// </summary>
     private static EditState Typed(string text, EditState? from = null)
     {
         var state = from ?? EditState.For(string.Empty);
-        foreach (var character in text) state = state.Typing(character) ?? state.Type(character);
+        var formula = ContentPart.Of(new BlockNode("latex", []));
+
+        foreach (var character in text)
+        {
+            var edit = new ContentEdit(EditKind.Typing, character.ToString(), new Landing(state, Laid.Nothing, -1), default, null, formula);
+            state = LatexEdits.Instance.Edit(edit) is { } change ? ContentEngine.Made(state, change) : state.Type(character);
+        }
+
         return state;
     }
 

@@ -50,7 +50,7 @@ internal sealed class MarkdownBlocks
         {
             var block = document.Children[at];
 
-            if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim } body)
+            if (block.Part(Roles.Body) is not { IsLeaf: true, Kind: Kinds.Verbatim or Kinds.Nested } body)
             {
                 seen[at] = Read(block, besides);
             }

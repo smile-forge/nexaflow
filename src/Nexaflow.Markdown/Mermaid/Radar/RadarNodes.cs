@@ -13,11 +13,11 @@ public enum RadarGraticule
 /// A <c>radar-beta</c> block as its stages leave it: what its front matter asks for, and the scale, the rings and the legend its
 /// options set — the last one written winning, and Mermaid's own where none is.
 /// </summary>
-internal sealed class RadarBlockNode : ContentNode
+internal sealed class RadarBlockNode : BlockNode
 {
-    internal RadarBlockNode(ContentNode written, RadarConfig config) : base(written) => this.Config = config;
+    internal RadarBlockNode(ContentNode written, RadarConfig config) : base((BlockNode)written) => this.Config = config;
 
-    private RadarBlockNode(ContentNode shape, RadarBlockNode said) : base(shape)
+    private RadarBlockNode(BlockNode shape, RadarBlockNode said) : base(shape)
     {
         this.Config = said.Config;
         this.Min = said.Min;
@@ -46,7 +46,7 @@ internal sealed class RadarBlockNode : ContentNode
     /// <summary>Whether the legend is drawn.</summary>
     public bool ShowsLegend { get; init; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new RadarBlockNode(shape, this);
+    protected override BlockNode Retyped(BlockNode shape) => new RadarBlockNode(shape, this);
 }
 
 /// <summary>

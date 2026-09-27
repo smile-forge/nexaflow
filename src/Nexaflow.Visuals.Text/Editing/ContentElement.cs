@@ -206,6 +206,12 @@ public class ContentElement : FrameworkElement
     /// <summary>Whether this element currently owns the caret.</summary>
     public bool HasCaret { get; private set; }
 
+    /// <summary>
+    /// Whether there is a caret to draw: where something is being carried, the place it would land; otherwise the caret this has
+    /// taken, in content that is written in — and not while whole things are chosen, a slice or a node, which is no place to write.
+    /// </summary>
+    internal bool ShowsCaret => !IsReadOnly && (_engine.Dropping is not null || (HasCaret && !_engine.ChoseWhole));
+
     /// <summary>Where the caret sits, as an offset into <see cref="Source"/>.</summary>
     public int Caret => State.Caret;
 
@@ -358,6 +364,12 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Wraps the selection, or inserts the pair at the caret.</summary>
     public void Wrap(string before, string after) => _engine.Wrap(before, after);
+
+    /// <summary>
+    /// <paramref name="words"/> pasted where the caret is, as the language there says they are written — and whether it said anything;
+    /// where it said nothing, they are the host's to write as it writes them.
+    /// </summary>
+    public bool Paste(string words) => _engine.Pasted(words);
 
     /// <summary>Backspace; un-renders a construct drawn from more source than it shows rather than deleting a character of it. False (nothing to delete) is the host's cue to remove the content itself.</summary>
     public bool Backspace() => _engine.Backspace();
@@ -525,6 +537,12 @@ public class ContentElement : FrameworkElement
     /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
     protected LayoutAct? Offered(Point at, LayoutGesture gesture) => _engine.Offered(at, gesture);
 
+    /// <summary>What the language drawn at a point on the content offers there — see <see cref="ContentEngine.Asked"/>.</summary>
+    protected IReadOnlyList<LayoutIntent> Asked(Point at) => _engine.Asked(at);
+
+    /// <summary>Does one of what the language offered at a point, as its edit handler says — see <see cref="ContentEngine.Choose"/>.</summary>
+    protected bool Choose(string verb, Point at) => _engine.Choose(verb, at);
+
     // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
@@ -680,7 +698,7 @@ public class ContentElement : FrameworkElement
         PaintOver(dc);
 
         var dropping = _engine.Dropping;
-        if ((!HasCaret && dropping is null) || IsReadOnly || !_caretVisible) return;
+        if (!ShowsCaret || !_caretVisible) return;
 
         // While something is being carried the caret shows where it would land, not where it was picked
         // up from — that is the one thing the reader needs to see before letting go.

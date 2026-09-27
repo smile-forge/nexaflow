@@ -66,54 +66,6 @@ public sealed class RadarGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Under a curve, another curve; under an option, nothing, options being what a chart ends with; anywhere else, another
-    /// axis. Each with its name still to write, and the caret where it goes.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        RadarKinds.Curves => ("curve ", 6),
-        RadarKinds.Options => null,
-        _ => ("axis ", 5),
-    };
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A bare name holds a word starting with a letter or an underscore, and is put in quotes to hold anything else; see
-    /// <see cref="MermaidWriting.Escape"/> for quotes and labels.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (_, said) => Bare(said));
-
-    /// <inheritdoc/>
-    /// <remarks>An axis is declared where an <c>axis</c> line names it, and used wherever a curve's value names it.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var keys = block.SelfAndDescendants()
-            .Where(part => part.Kind == RadarKinds.Entry)
-            .Select(entry => entry.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name))
-            .OfType<ContentPart>()
-            .ToList();
-
-        return
-        [
-            .. block.SelfAndDescendants()
-                .Where(part => part.Kind == RadarKinds.Axis)
-                .Select(axis => axis.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name))
-                .OfType<ContentPart>()
-                .Select(name => (Name: name, Said: Said(name)))
-                .Where(declared => declared.Said.Length > 0)
-                .Select(declared => new MermaidName(declared.Said, declared.Name, [.. keys.Where(key => Said(key) == declared.Said)])),
-        ];
-
-        static string Said(ContentPart name) => name.Words()?.Text ?? string.Empty;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>Bare where it can be, and in quotes otherwise.</remarks>
-    public string Naming(string name) => Bare(name) ? name : "\"" + name + "\"";
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Which axis each value is for is a fact about every axis the block writes, wherever it writes them, so it is worked out and
     /// hung underneath (<see cref="ResolveCurves"/>).
     /// </remarks>
@@ -300,7 +252,7 @@ public sealed class RadarGrammar : IMermaidGrammar
         char.IsAsciiLetter(name[0]) || name[0] == '_' ? null : "A name starts with a letter or an underscore, or is written in quotes.";
 
     /// <summary>Whether a name can be written without quotes.</summary>
-    private static bool Bare(string name) =>
+    internal static bool Bare(string name) =>
         name.Length > 0 && (char.IsAsciiLetter(name[0]) || name[0] == '_') && name.All(Letter);
 
     private static bool Is(string value, params string[] words) => words.Contains(value, StringComparer.OrdinalIgnoreCase);

@@ -7,6 +7,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Kanban;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -63,6 +65,16 @@ public class KanbanEditingTests : MermaidEditing
         chart.Laid.Root.SelfAndDescendants().Single(piece => piece is { Kind: "Title", Words.Maps: true }
                                                             && piece.Part!.Start > chart.Source.IndexOf("id4[", StringComparison.Ordinal)
                                                             && piece.Part.Start < chart.Source.IndexOf("]@{", StringComparison.Ordinal));
+
+    [TestMethod]
+    public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
+    {
+        const string source = "kanban\n  Todo";
+        var id = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Todo");
+        var writing = KanbanEdits.Escaping(id, id.End, "(")!.Value;
+
+        Assert.AreEqual("kanban\n  [\"Todo(\"]", MermaidStaged.Written(source, writing));
+    }
 }
 
 

@@ -21,7 +21,8 @@ lines list items with values and whose options share a line, xychart one with ax
 
 | File | What it is | Pie / Venn |
 |---|---|---|
-| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what a new line starts as (`Blank`); what it writes across several lines rather than one (`Stretches`); what typing escapes (`Escaping`); the names a rename carries (`Names`, `Naming`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
+| `src/Nexaflow.Markdown/Mermaid/<Type>/<Type>Grammar.cs` | `IMermaidGrammar`: what each line says, read through `MermaidLine`; what it writes across several lines rather than one (`Stretches`); the stages it runs (`Stages`) and where holes stand (`Holds`) | `PieGrammar`, `VennGrammar`, `RadarGrammar` |
+| `src/Nexaflow.Visuals.Text/Markdown/Mermaid/<Type>/<Type>Edits.cs` | The diagram's own `IOnEdit`, named in `DiagramEdits.For`: what a key means in it — what typing a character a place cannot hold is written as (`Escaping`, through `DiagramWriting.Typed`); where the diagram has decided it, what Enter, Shift+Enter, Tab, Delete, Insert and a drop mean, and what its ribbon offers (`Offers`) and a choice on it writes, down the front matter's nodes; every other key left to do what it does anywhere | `PieEdits`, `VennEdits`, `RadarEdits` |
 | `…/<Type>/<Type>Kinds.cs` | The kinds of the diagram's own lines, and their roles. The shapes lines are made of — names, labels, numbers, styles — are `MermaidKinds`' | `PieKinds`, `VennKinds`, `RadarKinds` |
 | `…/<Type>/Stages/*.cs` | `IAstStage`s: what lines mean together that the order they are written in does not already say, worked out and said in the diagram's own nodes — `PieSliceNode` — or, where it is only a word, hung underneath as a fact, as a message's `autonumber` number is; and what is wrong that only the whole block shows. The front matter goes on the block through `WithConfig` | `ResolveSlices`, `ResolveShares`; `GroupRegions`, `ResolveRegions`; `ResolveCurves`, `ResolveOptions` |
 | `…/<Type>/<Type>Config.cs` | The front matter's options, from `MermaidConfig.Diagram(name)`, `Theme`, `DiagramTheme(name)` and `Shared` | `PieConfig`, `VennConfig`, `RadarConfig` |
@@ -166,8 +167,8 @@ the curves after it). A piece standing for a stretch nothing is written in yet s
    place in the order, whether something is listed — so the builder only lays out.
 5. **The builder**, named in `MermaidBuilders.For`: layers by how the diagram looks, each piece standing for the part it
    was drawn from. Its tests derive from `MermaidBuilderContract` and list what it draws in `Drawn`.
-6. **Writing in place**: `Blank`, `Escaping`, `Names` and `Naming` on the grammar, with editing tests like
-   `PieEditingTests` and `VennEditingTests`.
+6. **Writing in place**: the diagram's edit handler, `<Type>Edits`, named in `DiagramEdits.For` — its `Escaping`, and what
+   any key means in it that is its own — with editing tests like `PieEditingTests` and `VennEditingTests`.
 7. **The rest of the product**: a section in `MarkdownSamples`, the help page's example and its figure
    (`MermaidFigureWriter`), the row in [MarkdownSupport.md](MarkdownSupport.md), and the product tree node with its
    snaplinks.

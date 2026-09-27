@@ -59,17 +59,24 @@ public sealed class AstPipeline
     /// </summary>
     public ContentNode Run(ContentNode tree)
     {
-#if DEBUG
+    #if DEBUG
         var source = tree.Print();
-#endif
+    #endif
         foreach (var stage in this._stages)
         {
+            var block = tree as BlockNode;
             tree = stage.Run(tree);
-#if DEBUG
+
+            // A stage may put a node of its language's own type in the root's place, and it is still the block it was: the
+            // language is on the root, and whatever stands in the tree finds it there.
+            if (block is not null && (tree is not BlockNode now || now.Language != block.Language))
+                throw new InvalidOperationException(
+                    $"The stage '{stage.Name}' put something that is not a block in '{block.Language}' in the place of the root.");
+    #if DEBUG
             var printed = tree.Print();
             if (printed != source)
                 throw new AstStageException(stage.Name, source, printed);
-#endif
+    #endif
         }
 
         return tree;

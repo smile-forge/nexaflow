@@ -95,10 +95,11 @@ public sealed record StyleFormat
     public DiagramViewState? Expansion { get; init; }
 
     /// <summary>
-    /// Whether a formula is set in a line of text rather than on its own — which decides how tall its operators
-    /// are allowed to grow and how its limits sit.
+    /// Where the content stands in what holds it: on its own, as a block among a document's blocks, or in a line of words. The
+    /// content holding it says so, knowing nothing of the language it is; a language that lays itself out by it — a formula set
+    /// smaller in a line, and larger and apart as a block — reads it here.
     /// </summary>
-    public bool InlineMath { get; init; }
+    public ContentStanding Standing { get; init; }
 
 
 
@@ -303,4 +304,17 @@ public sealed record StyleFormat
             C4DeploymentNode = res?["C4DeploymentNodeBrush"] as Brush,
         };
     }
+}
+
+/// <summary>Where content stands in what holds it (<see cref="StyleFormat.Standing"/>).</summary>
+public enum ContentStanding
+{
+    /// <summary>On its own: the whole of what is shown.</summary>
+    Alone,
+
+    /// <summary>As a block among a document's blocks.</summary>
+    Block,
+
+    /// <summary>In a line of words.</summary>
+    Inline,
 }

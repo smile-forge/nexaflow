@@ -93,65 +93,6 @@ public class C4Grammar : IMermaidGrammar
     public IEnumerable<MermaidStretch> Stretches => [];
 
     /// <inheritdoc/>
-    /// <remarks>Under a macro, a relationship — which is what most of a C4 diagram is.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        C4Kinds.Macro or C4Kinds.Boundary or C4Kinds.Aside => Relationship,
-        _ => this.Within is { } within ? within.Blank(above) : Relationship,
-    };
-
-    private static (string Text, int Caret) Relationship => ("Rel(, , \"\")", 4);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// An argument in quotes holds anything but a quote; a bare one holds anything that does not close it; and a name holds
-    /// what a name holds, since the same name is written in a native <c>note over</c> where it cannot be quoted at all.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        // In quotes anything but a quote goes in as it is, and the quote has already been written as its entity code.
-        if (part.Parent?.Children.Any(child => child.Role == Roles.Open && child.Text == "\"") ?? false) return null;
-
-        var role = part.Kind == Kinds.Hole ? part.Parent?.Role ?? part.Role : part.Role;
-
-        if (role is C4Roles.Value) return MermaidWriting.Only(caret, text, Argued);
-        if (role is C4Roles.Key or C4Roles.Macro) return MermaidWriting.Only(caret, text, MermaidLine.Letter);
-        if (role is C4Roles.Aside) return null;
-
-        // A name is written bare in a macro's argument list, so what neither that nor a native line can hold is dropped —
-        // the same name is used in both, and it has to read in each.
-        if (role is C4Roles.Alias or SequenceRoles.Id) return MermaidWriting.Only(caret, text, Bare);
-
-        return this.Within?.Escaping(part, caret, text);
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An element is named by the macro declaring it and used by every relationship and boundary naming it.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: SequenceRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A name is written bare in a macro's argument list and bare again in a native line, so what neither can hold is
-    /// dropped rather than quoted.
-    /// </remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
     /// <remarks>
     /// Which boundary each line is written inside, and what each macro means — both facts about the whole block rather than
     /// about a line — and what the front matter asks for. A <c>C4Dynamic</c> numbers its relationships without being asked,
@@ -211,7 +152,7 @@ public class C4Grammar : IMermaidGrammar
         char.IsLetterOrDigit(character) || character is '_' or '-' or '.' || character > '';
 
     /// <summary>And whether one carries a bare argument on, which is anything that does not close it.</summary>
-    private static bool Argued(char character) => character is not ('"' or ',' or '(' or ')') && !char.IsControl(character);
+    internal static bool Argued(char character) => character is not ('"' or ',' or '(' or ')') && !char.IsControl(character);
 
     // ── The lines ───────────────────────────────────────────────────────────
 

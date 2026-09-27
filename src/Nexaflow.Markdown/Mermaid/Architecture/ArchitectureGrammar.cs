@@ -56,51 +56,6 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Another service, with its id still to write — which is what most of a diagram's lines are.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => (ServiceWord + " ", ServiceWord.Length + 1);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A title and an icon are in brackets, and are put in quotes to hold a quote, a bracket closing them or a comment. An id,
-    /// the group something is in and a side are written bare and cannot be quoted at all, so what they cannot hold is dropped —
-    /// and a hole standing where one of those goes holds what it will hold.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        var role = part.Kind == Kinds.Hole ? part.Parent?.Role : part.Role;
-        return role is ArchitectureRoles.Id or ArchitectureRoles.In or ArchitectureRoles.Side
-            ? MermaidWriting.Only(caret, text, MermaidLine.Letter)
-            : null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A group, a service and a junction are declared where they are named, and used by every <c>in</c>, edge and
-    /// <c>align</c> that names them afterwards — which is one namespace, since Mermaid refuses an id already in use.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Length: > 0 } words) continue;
-            if (words.Role is not (ArchitectureRoles.Id or ArchitectureRoles.In)) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An id is written bare, so what an id cannot hold is dropped.</remarks>
-    public string Naming(string name) => new([.. name.Where(MermaidLine.Letter)]);
-
-    /// <inheritdoc/>
     /// <remarks>Whether what a line names is declared, and what it is (<see cref="ResolveArchitecture"/>).</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveArchitecture(), new WithConfig<ArchitectureConfig>(ArchitectureConfig.Read(block.Config))];
 

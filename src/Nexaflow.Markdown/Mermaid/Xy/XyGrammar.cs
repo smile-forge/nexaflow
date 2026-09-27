@@ -62,18 +62,6 @@ public sealed class XyGrammar : IMermaidGrammar
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<XyConfig>(XyConfig.Read(block.Config))];
 
     /// <inheritdoc/>
-    /// <remarks>Under a series, another of its kind; anywhere else, a bar — each with its values still to write, the caret in its brackets.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above?.Kind == XyKinds.Series && above.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Key) is { } word
-            ? ($"{word.Text} []", word.Text.Length + 2)
-            : ($"{Bar} []", Bar.Length + 2);
-
-    /// <inheritdoc/>
-    /// <remarks>A bare word holds no space, comma, bracket, quote or arrow, and is put in quotes to hold one; see <see cref="MermaidWriting.Escape"/>.</remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text) =>
-        MermaidWriting.Escape(part, caret, text, (_, said) => said.Length > 0 && said.All(Letter));
-
-    /// <inheritdoc/>
     /// <remarks>Where a category, a title or a name is still to write, and between the quotes of a title, a name or a label.</remarks>
     public bool Holds(ContentNode? holder, ContentNode node) => node.Kind is MermaidKinds.Name or MermaidKinds.Quoted;
 
@@ -210,7 +198,7 @@ public sealed class XyGrammar : IMermaidGrammar
     private static bool Category(MermaidLine line) => line.Name(XyRoles.Category, Letter);
 
     /// <summary>What a bare word is made of: anything but space, a comma, a bracket, a quote or the arrow's head.</summary>
-    private static bool Letter(char character) => character > ' ' && character is not (',' or '[' or ']' or '"' or '>');
+    internal static bool Letter(char character) => character > ' ' && character is not (',' or '[' or ']' or '"' or '>');
 
     /// <summary>Whether what is written starts with where a range starts: a single word, then the arrow.</summary>
     private static bool Ranged(string rest)

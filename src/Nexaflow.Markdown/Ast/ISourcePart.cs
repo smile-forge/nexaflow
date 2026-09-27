@@ -62,6 +62,17 @@ public sealed record PartRun(IReadOnlyList<ISourcePart> Parts) : ISourcePart
 }
 
 /// <summary>
+/// A stretch of source standing for a part of the syntax tree that it is not itself: a slice cut from one, or one narrowed to the
+/// characters an editor is told the part is named by. What it stands for is the question anything asking about the tree asks —
+/// which language a key is in, which part a press means — and <see cref="Of"/> answers it.
+/// </summary>
+public interface IStandsFor : ISourcePart
+{
+    /// <summary>The part it stands for.</summary>
+    ISourcePart Of { get; }
+}
+
+/// <summary>
 /// A stretch inside one part that no node of the tree stands for — a line break written in a label, an entity code — named by
 /// that part and by where in its characters the stage that read them found the stretch.
 ///
@@ -70,7 +81,7 @@ public sealed record PartRun(IReadOnlyList<ISourcePart> Parts) : ISourcePart
 /// part, so it goes on standing where it was found when an edit moves the part.
 /// </para>
 /// </summary>
-public sealed record PartSlice(ISourcePart Of, int From, int Length) : ISourcePart
+public sealed record PartSlice(ISourcePart Of, int From, int Length) : IStandsFor
 {
     public int Start => this.Of.Start + this.From;
 }

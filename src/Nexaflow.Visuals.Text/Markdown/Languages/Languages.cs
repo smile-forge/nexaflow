@@ -71,11 +71,8 @@ internal static class Shipped
         Builder: typeof(MarkdownBuilder))
         {
             Writable = true,
-            Editing = new MarkdownEditing(),
+            Editing = new EditedBy(MarkdownEdits.Instance),
         };
-
-    /// <summary>What an edit means in any diagram. Before every language meaning it, which are made in the order written.</summary>
-    private static readonly IContentLanguage DiagramEditing = new MermaidEditing();
 
     /// <summary>
     /// <c>mermaid</c>: a block whose header names the diagram it is, held whole as written in that diagram's own language — which
@@ -88,15 +85,14 @@ internal static class Shipped
         Stages: static (_, _) => [],
         Builder: typeof(MermaidFenceBuilder))
         {
-            // Whoever writes in the block writes in the diagram, which is laid out as this is.
+            // Whoever writes in the block writes in the diagram, which is laid out as this is — and whose own handler is told the edit.
             Writable = true,
-            Editing = DiagramEditing,
         };
 
     /// <summary>
     /// Every diagram, each a language of its own, answering to the words its header is written with. They read their lines with the
-    /// same parser, are worked over by the stages the header names and mean the same by an edit — which is sharing, not being one
-    /// language: each is drawn by its own builder.
+    /// same parser and are worked over by the stages the header names — which is sharing, not being one language: each is drawn by
+    /// its own builder, and says what an edit means through its own handler.
     /// </summary>
     public static readonly IReadOnlyList<ContentLanguage> Diagrams =
     [
@@ -113,8 +109,9 @@ internal static class Shipped
         Builder: builder)
         {
             Writable = true,
-            Editing = DiagramEditing,
+            Editing = DiagramEdits.For(diagram) is IContentLanguage own ? own : new EditedBy(DiagramEdits.For(diagram)),
             Bind = MermaidParser.Bind,
+            SafeFormatText = MermaidParser.SafeFormatText,
         };
 
     /// <summary>
@@ -135,28 +132,28 @@ internal static class Shipped
     ];
 
     /// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
-    public static readonly ContentLanguage Qr = Symbol(
+    public static readonly ContentLanguage Qr = Symbol("qr",
         static word => "qr".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         new EncodeQr());
 
     /// <summary>An Aztec symbol.</summary>
-    public static readonly ContentLanguage Aztec = Symbol(
+    public static readonly ContentLanguage Aztec = Symbol("aztec",
         static word => word?.Trim().ToLowerInvariant() is "aztec" or "aztec-code",
         new EncodeAztec());
 
     /// <summary>A Data Matrix symbol.</summary>
-    public static readonly ContentLanguage DataMatrix = Symbol(
+    public static readonly ContentLanguage DataMatrix = Symbol("datamatrix",
         static word => word?.Trim().ToLowerInvariant() is "datamatrix" or "data-matrix",
         new EncodeDataMatrix());
 
     /// <summary>A PDF417 symbol.</summary>
-    public static readonly ContentLanguage Pdf417 = Symbol(
+    public static readonly ContentLanguage Pdf417 = Symbol("pdf417",
         static word => "pdf417".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         new EncodePdf417());
 
-    /// <summary>A 2D code: read as fields, encoded by its own stage, and drawn as the symbol that comes to.</summary>
-    private static ContentLanguage Symbol(Func<string?, bool> reads, IAstStage encode) =>
-        new(reads, static () => static source => ContentParse.Of(MatrixParser.Parse(source)), (_, _) => [encode], typeof(MatrixBuilder));
+    /// <summary>A 2D code, <paramref name="named"/>: read as fields, encoded by its own stage, and drawn as the symbol that comes to.</summary>
+    private static ContentLanguage Symbol(string named, Func<string?, bool> reads, IAstStage encode) =>
+        new(reads, () => source => ContentParse.Of(MatrixParser.Parse(source, named)), (_, _) => [encode], typeof(MatrixBuilder));
 
     /// <summary>A one-dimensional barcode, in whichever symbology the block names.</summary>
     public static readonly ContentLanguage Barcode = new(
@@ -183,7 +180,7 @@ internal static class Shipped
         Builder: typeof(LatexBuilder))
         {
             Writable = true,
-            Editing = new LatexEditing(),
+            Editing = new EditedBy(LatexEdits.Instance),
         };
 
     /// <summary>A tune written in ABC.</summary>
@@ -207,7 +204,7 @@ internal static class Shipped
     /// <summary>A table of values against a pair of axes, drawn the way its fence names.</summary>
     public static ContentLanguage Plot(PlotFence fence) => new(
         Reads: word => PlotFences.Named(word ?? string.Empty) == fence,
-        Parser: static () => static source => ContentParse.Of(PlotParser.Parse(source)),
+        Parser: () => source => ContentParse.Of(PlotParser.Parse(source, fence.ToString().ToLowerInvariant())),
         Stages: (_, _) => PlotPipeline.Of(fence).Stages,
         Builder: typeof(PlotBuilder));
 
@@ -233,31 +230,19 @@ internal static class Shipped
     /// <summary>Code in <paramref name="grammar"/>, or in none: read as written first, and by the grammar second (<see cref="CodeSpans"/>).</summary>
     private static ContentLanguage Coded(string? grammar) => new(
         Reads: word => grammar is not null && string.Equals(CodeGrammars.For(word), grammar, StringComparison.OrdinalIgnoreCase),
-        Parser: static () => static source => ContentParse.Of(CodeParser.Parse(source)),
+        Parser: () => source => ContentParse.Of(CodeParser.Parse(source, grammar ?? string.Empty)),
         Stages: static (_, _) => [new CodeLines()],
         Builder: typeof(CodeBuilder))
         {
             Editing = CodeEdits,
-            SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, CodeSpans.Read(grammar, source))),
+            SlowParser = grammar is null ? null : source => ContentParse.Of(CodeParser.Parse(source, grammar, CodeSpans.Read(grammar, source))),
         };
 }
 
-/// <summary>What an edit means in a markdown document.</summary>
-internal sealed class MarkdownEditing : IContentLanguage
+/// <summary>A language whose edits are told to <paramref name="onEdit"/> — or, where that is null, one with nothing of its own to say about an edit.</summary>
+internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
 {
-    public IOnEdit OnEdit => MarkdownEdits.Instance;
-}
-
-/// <summary>What an edit means in a Mermaid diagram.</summary>
-internal sealed class MermaidEditing : IContentLanguage
-{
-    public IOnEdit OnEdit => MermaidEdits.Instance;
-}
-
-/// <summary>What an edit means in a formula.</summary>
-internal sealed class LatexEditing : IContentLanguage
-{
-    public IOnEdit OnEdit => LatexEdits.Instance;
+    public IOnEdit? OnEdit => onEdit;
 }
 
 /// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>

@@ -255,7 +255,7 @@ public sealed partial class MarkdownSurface
         _shown.Laid.Root.SelfAndDescendants()
             .Select(piece => piece.Part as ContentPart)
             .OfType<ContentPart>()
-            .Where(part => part.Kind is MarkdownKinds.Math or MarkdownKinds.Formula)
+            .Where(part => ContentLanguages.Held(part) is { } language && language == ContentLanguages.For(MarkdownParser.Maths))
             .Distinct()
             .OrderBy(part => part.Start);
 }

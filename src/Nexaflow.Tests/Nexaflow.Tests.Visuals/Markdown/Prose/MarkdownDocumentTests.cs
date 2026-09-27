@@ -67,10 +67,10 @@ public class MarkdownDocumentTests
         var content = new ContentEngine();
 
         // At its start there is nothing of it left to take, so the key stops rather than eating the line before it.
-        Assert.IsNotNull(content.Erasing(null, Land(content, state), forward: false));
+        Assert.IsNotNull(ContentEngine.Edited(EditKind.Erasing, string.Empty, Land(content, state)));
 
         // Anywhere inside it, it is ordinary text.
-        Assert.IsNull(content.Erasing(null, Land(content, state with { Caret = 4 }), forward: false));
+        Assert.IsNull(ContentEngine.Edited(EditKind.Erasing, string.Empty, Land(content, state with { Caret = 4 })));
     }
 
     [TestMethod]
@@ -79,7 +79,7 @@ public class MarkdownDocumentTests
         var state = new EditState("# Title\n", 7, null, new RawZone(0, 7));
         var content = new ContentEngine();
 
-        var typed = content.Typing(null, Land(content, state), "!");
+        var typed = ContentEngine.Edited(EditKind.Typing, "!", Land(content, state));
 
         Assert.AreEqual("# Title!\n", typed?.Source);
         Assert.AreEqual(8, typed?.Raw?.End);
@@ -91,7 +91,7 @@ public class MarkdownDocumentTests
         var content = new ContentEngine();
         var state = new EditState("# Title\n", 7);
 
-        Assert.IsNull(content.Erasing(null, Land(content, state), forward: true));
+        Assert.IsNull(ContentEngine.Edited(EditKind.Deleting, string.Empty, Land(content, state)));
     }
 
     // ── Ticking ─────────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ public class MarkdownDocumentTests
     {
         var content = new ContentEngine();
 
-        return content.Erasing(null, Land(content, new EditState(source, caret)), forward: false);
+        return ContentEngine.Edited(EditKind.Erasing, string.Empty, Land(content, new EditState(source, caret)));
     }
 
     private static Landing Land(ContentEngine engine, EditState state) =>

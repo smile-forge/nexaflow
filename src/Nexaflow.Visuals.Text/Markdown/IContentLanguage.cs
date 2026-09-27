@@ -74,11 +74,20 @@ public interface IContentLanguage
 /// <param name="Source">The characters, exactly as the writer typed them.</param>
 public sealed record ContentAsk(string Named, string Source)
 {
-    /// <summary>The piece of the content the gesture landed on, where it landed on one.</summary>
+    /// <summary>The part of the content's tree the gesture landed on, where it landed on one.</summary>
     public Nexaflow.Markdown.Ast.ContentPart? Part { get; init; }
+
+    /// <summary>The piece of layout it landed on — what was drawn there, which says which of the things drawn from one part it was.</summary>
+    public Editing.Piece Piece { get; init; }
+
+    /// <summary>The root of <see cref="Part"/>'s tree: the content in this language, all of it.</summary>
+    public Nexaflow.Markdown.Ast.ContentPart? Root { get; init; }
 
     /// <summary>What is picked out, where anything is — offsets into <see cref="Source"/>.</summary>
     public (int Start, int Length)? Chosen { get; init; }
+
+    /// <summary>Where the caret stands, where nothing is picked out — in the document's offsets, as every part names them — or null.</summary>
+    public int? Caret { get; init; }
 
     /// <summary>Whether the reader may write in it, so nothing that changes it is offered where they may not.</summary>
     public bool IsReadOnly { get; init; }

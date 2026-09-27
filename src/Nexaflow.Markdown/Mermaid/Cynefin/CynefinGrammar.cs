@@ -50,34 +50,6 @@ public sealed class CynefinGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a domain or an item, another item, its words still to write; anywhere else, the domain to open.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above?.Kind is CynefinKinds.Domain or CynefinKinds.Item ? ("\"\"", 1) : (Complex, Complex.Length);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// In quotes, a quote is written as its entity code; bare text is put in quotes to hold a quote, a comment or an arrow,
-    /// and to say a word that would otherwise open a domain or title the diagram rather than sit in it.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-        if (part.Parent is not { Kind: CynefinKinds.Text } holder || holder.Children.Any(child => child.Role == Roles.Open)) return null;
-
-        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
-        var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var (before, after) = (said[..at] + text, said[at..]);
-        var whole = before + after;
-
-        return whole.Any(character => character is '"' or '%')
-            || whole.Contains(Arrow, StringComparison.Ordinal)
-            || MermaidLine.Keyword(whole, MermaidLine.TitleWord) is not null
-            || Domains.Any(domain => whole.Trim().Equals(domain, StringComparison.OrdinalIgnoreCase))
-                ? MermaidWriting.Quoting(part.Start, part.Start + said.Length, before, after)
-                : null;
-    }
-
-    /// <inheritdoc/>
     /// <remarks>Where an item has no domain above it (<see cref="ResolveDomains"/>), and what the front matter asks for.</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveDomains(), new WithConfig<CynefinConfig>(CynefinConfig.Read(block.Config))];

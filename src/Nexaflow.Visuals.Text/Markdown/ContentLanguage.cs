@@ -67,6 +67,14 @@ public sealed record ContentLanguage(
     {
         public static readonly IContentLanguage Editing = new Usual();
     }
+
+    /// <summary>
+    /// Words as a part of this language's tree can hold them — what its parser says makes them read back as what was meant — or null
+    /// where the part can hold none of them. The engine asks it of every stretch an edit names as words (<see cref="ContentWrite.Words"/>),
+    /// because only what reads the language knows what is safe to write in it. Null for a language that has said nothing, whose words
+    /// are written as they came.
+    /// </summary>
+    public Func<ContentPart, string, string?>? SafeFormatText { get; init; }
 }
 
 /// <summary>

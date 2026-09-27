@@ -39,9 +39,9 @@ internal sealed record QuadrantStyle(double? Radius, string? Colour, string? Str
 /// A <c>quadrantChart</c> block as its stages leave it: what its front matter asks for, and whether the x-axis's words go over
 /// the chart.
 /// </summary>
-internal sealed class QuadrantBlockNode : ContentNode
+internal sealed class QuadrantBlockNode : BlockNode
 {
-    internal QuadrantBlockNode(ContentNode written, QuadrantConfig config, bool xAxisOnTop) : base(written) =>
+    internal QuadrantBlockNode(ContentNode written, QuadrantConfig config, bool xAxisOnTop) : base((BlockNode)written) =>
         (this.Config, this.XAxisOnTop) = (config, xAxisOnTop);
 
     public QuadrantConfig Config { get; }
@@ -49,7 +49,7 @@ internal sealed class QuadrantBlockNode : ContentNode
     /// <summary>Whether the x-axis's words go over the chart: as the front matter says, or else only where there are no points.</summary>
     public bool XAxisOnTop { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new QuadrantBlockNode(shape, this.Config, this.XAxisOnTop);
+    protected override BlockNode Retyped(BlockNode shape) => new QuadrantBlockNode(shape, this.Config, this.XAxisOnTop);
 }
 
 /// <summary>

@@ -21,7 +21,7 @@ namespace Nexaflow.Tests.Markdown.Plot;
 public class PlotStagesTests
 {
     private static ContentNode Read(string source, PlotFence fence = PlotFence.Scatter) =>
-        PlotPipeline.Of(fence).Run(PlotParser.Parse(source));
+        PlotPipeline.Of(fence).Run(PlotParser.Parse(language: fence.ToString().ToLowerInvariant(), source:source));
 
     private static IReadOnlyList<ContentNode> Rows(string source, PlotFence fence = PlotFence.Scatter) =>
         Read(source, fence).Rows();
@@ -298,7 +298,7 @@ public class PlotStagesTests
         foreach (var fence in Enum.GetValues<PlotFence>())
             foreach (var source in blocks)
             {
-                var tree = PlotParser.Parse(source);
+                var tree = PlotParser.Parse(language: fence.ToString().ToLowerInvariant(), source:source);
 
                 foreach (var stage in PlotPipeline.Of(fence).Stages)
                 {

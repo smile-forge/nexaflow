@@ -154,7 +154,6 @@ public sealed partial class ContentEngine
     /// </param>
     internal void Apply(EditState next, bool notify, int at = -1)
     {
-        if (notify && next.Source != _state.Source) next = Edited(_named, Landing, next);
         next = Held(Left(next));
 
         var before = _state;
@@ -288,7 +287,7 @@ public sealed partial class ContentEngine
     {
         if (Unwritable) return;
 
-        Apply(Typing(_named, Landing, text) ?? _state.Write(text), notify: true);
+        Apply(Edited(EditKind.Typing, text, Landing) ?? _state.Write(text), notify: true);
     }
 
     /// <summary>
@@ -301,7 +300,7 @@ public sealed partial class ContentEngine
         if (_readOnly) return;
 
         var over = _state.Select(start, length);
-        var written = Typing(_named, new Landing(over, _laid, _at), text) ?? over.Write(text);
+        var written = Edited(EditKind.Typing, text, new Landing(over, _laid, _at)) ?? over.Write(text);
         var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
 
         Apply(written.MoveCaretTo(caret), notify: true);
@@ -320,7 +319,7 @@ public sealed partial class ContentEngine
 
         // A palette key and a pasted formula land in a construct the same way a typed character does. Only when the template
         // wants the caret walked back into a hole of its own, which is about the text and not the structure.
-        if (caretBack == 0 && Typing(_named, Landing, text) is { } written) { Apply(written, notify: true); return; }
+        if (caretBack == 0 && Edited(EditKind.Typing, text, Landing) is { } written) { Apply(written, notify: true); return; }
 
         Apply(_state.Insert(text, caretBack), notify: true);
     }
@@ -356,7 +355,7 @@ public sealed partial class ContentEngine
     internal bool Backspace()
     {
         if (Unwritable) return false;
-        if (Erasing(_named, Landing, forward: false) is { } erased) { Apply(erased, notify: true); return true; }
+        if (Edited(EditKind.Erasing, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
         Apply(Backspacing(_state) ?? _state.Backspace(), notify: true);
@@ -395,19 +394,73 @@ public sealed partial class ContentEngine
 
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
-        if (Erasing(_named, Landing, forward: true) is { } erased) { Apply(erased, notify: true); return true; }
+        if (Edited(EditKind.Deleting, string.Empty, Landing) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
 
         Apply(_state.Delete(), notify: true);
         return true;
     }
 
-    /// <summary>Ends whatever is half-written — what Space and Enter mean, and the language's to say (<see cref="Settle(string?, Landing, string)"/>).</summary>
+    /// <summary>Ends whatever is half-written — what Space and Enter mean, and the language's to say; anywhere it says nothing, the separator itself.</summary>
     internal void Settle(string separator)
     {
         if (Unwritable) return;
 
-        Apply(Settle(_named, Landing, separator), notify: true);
+        Apply(Edited(EditKind.Settling, separator, Landing) ?? _state.Write(separator), notify: true);
+    }
+
+    /// <summary>
+    /// Breaks a line inside what is being written — Shift+Enter — as the language says; anywhere it says nothing, a backslash and a
+    /// line break written as a palette key writes them.
+    /// </summary>
+    internal void Break()
+    {
+        if (Unwritable) return;
+
+        if (Edited(EditKind.Breaking, "\n", Landing) is { } broken) Apply(broken, notify: true);
+        else Insert("\\\n");
+    }
+
+    /// <summary>
+    /// <paramref name="words"/> pasted where the caret is, as the language there says — and whether it said anything. Where it says
+    /// nothing, they are the host's to write as it writes them.
+    /// </summary>
+    internal bool Pasted(string words)
+    {
+        if (Unwritable || Edited(EditKind.Pasting, words, Landing) is not { } pasted) return false;
+
+        Apply(pasted, notify: true);
+        return true;
+    }
+
+    /// <summary>Moves on to the next place to write in, or back to the one before, where the language says where that is.</summary>
+    private bool Tabbed(bool forward)
+    {
+        if (Edited(forward ? EditKind.Tabbing : EditKind.TabbingBack, string.Empty, Landing) is not { } tabbed) return false;
+
+        Apply(tabbed, notify: true);
+        return true;
+    }
+
+    /// <summary>Puts something new where the caret is — the Insert key — where the language has something to put there.</summary>
+    private bool Inserted()
+    {
+        if (Edited(EditKind.Inserting, string.Empty, Landing) is not { } inserted) return false;
+
+        Apply(inserted, notify: true);
+        return true;
+    }
+
+    /// <summary>
+    /// Does what was chosen from what the language offered at <paramref name="at"/> (<see cref="Asked"/>): told to its edit handler
+    /// as <see cref="EditKind.Choosing"/>, from the same piece — false where it said nothing to it.
+    /// </summary>
+    internal bool Choose(string verb, Point at)
+    {
+        if (Unwritable || Edited(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } chosen) return false;
+
+        Apply(chosen, notify: true);
+        return true;
     }
 
     /// <summary>Puts the caret in the next place still waiting to be written in, so an inserted construct can be filled by typing and tabbing. False when there is none.</summary>
@@ -474,12 +527,22 @@ public sealed partial class ContentEngine
         Select(Math.Min(Anchor, offset), Math.Abs(offset - Anchor));
     }
 
+    /// <summary>What was last chosen whole — pieces pressed, not characters dragged over — so what is picked out can say whether it still is.</summary>
+    private IReadOnlyList<EditRange> _chosenWhole = [];
+
+    /// <summary>
+    /// Whether what is picked out is whole things drawn — a slice, a node — chosen as they are rather than characters dragged over.
+    /// Nothing is being written in, so there is no caret.
+    /// </summary>
+    internal bool ChoseWhole => _state.HasSelection && _state.Selection.SequenceEqual(_chosenWhole);
+
     /// <summary>Takes a selection worked out over the layout tree, in the source's own offsets.</summary>
     internal void SelectNodes(ContentSelection selection)
     {
         if (selection.IsEmpty) { ClearSelection(); return; }
 
         SelectRanges([.. selection.Ranges.Select(range => new EditRange(range.Start, range.Length))]);
+        _chosenWhole = _state.Selection;
     }
 
     /// <summary>Picks out exactly <paramref name="ranges"/>, several stretches at once — false where that is what was picked out already.</summary>

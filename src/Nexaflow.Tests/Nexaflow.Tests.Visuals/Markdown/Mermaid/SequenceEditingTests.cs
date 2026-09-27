@@ -31,19 +31,6 @@ public class SequenceEditingTests : MermaidEditing
         }));
 
     [TestMethod]
-    public void RenamingAParticipantCarriesToEveryLineThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, diagram) =>
-        {
-            PressPast(diagram, "Alice");
-            Write(editor, "a");
-
-            StringAssert.Contains(diagram.Source, "participant Alicea", diagram.Source);
-            StringAssert.Contains(diagram.Source, "Alicea->>John", diagram.Source);
-            StringAssert.Contains(diagram.Source, "Note over Alicea,John", diagram.Source);
-            Assert.AreEqual(0, diagram.Diagnostics.Count);
-        }));
-
-    [TestMethod]
     public void WhatWouldMakeANameAnArrowIsDroppedRatherThanWritten() => UiThread.Run(() =>
         InADocument((editor, diagram) =>
         {

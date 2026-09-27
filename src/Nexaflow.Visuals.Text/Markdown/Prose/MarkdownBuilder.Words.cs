@@ -178,6 +178,7 @@ public sealed partial class MarkdownBuilder
             case MarkdownKinds.Task:
                 return;
 
+            case Kinds.Block:
             case MarkdownKinds.Formula:
                 Formula(part, face, runs);
                 return;
@@ -280,7 +281,7 @@ public sealed partial class MarkdownBuilder
     /// </summary>
     private void Formula(ContentPart part, Face face, List<Run> runs)
     {
-        var nested = Nested(part, double.PositiveInfinity);
+        var nested = Nested(part, double.PositiveInfinity, ContentStanding.Inline);
 
         if (nested is { Draws: true, Laid.ShowsSource: false } set)
         {

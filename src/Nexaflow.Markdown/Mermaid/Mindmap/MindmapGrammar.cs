@@ -36,29 +36,6 @@ public sealed class MindmapGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a node, another as far in as it — a child of the same parent, with its title still to write.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind == MindmapKinds.Node ? ("[\"\"]", 2) : null;
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A title in brackets is put in quotes to hold a quote, a bracket closing it or a comment; a bare id that is its own title is
-    /// written as a title in quotes to hold anything an id cannot (<see cref="MermaidOutline.Escaping"/>). An icon's name runs to
-    /// its bracket, so it cannot hold one.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role == MindmapRoles.Icon && text.Contains(')'))
-        {
-            var named = text.Replace(")", string.Empty, StringComparison.Ordinal);
-            return new MermaidWriting(caret, caret, named, caret + named.Length);
-        }
-
-        return MermaidOutline.Escaping(part, caret, text, MindmapRoles.Id, Stops);
-    }
-
-    /// <inheritdoc/>
     /// <remarks>Whether every node hangs off the root, by its indentation over the whole block (<see cref="ResolveRoot"/>), and what the front matter asks for.</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveRoot(), new WithConfig<MindmapConfig>(MindmapConfig.Read(block.Config))];
@@ -66,7 +43,4 @@ public sealed class MindmapGrammar : IMermaidGrammar
     /// <inheritdoc/>
     /// <remarks>Where a title is still to write, between its quotes.</remarks>
     public bool Holds(ContentNode? holder, ContentNode node) => node.Kind == MermaidKinds.Quoted;
-
-    /// <summary>Whether a character ends a bare id.</summary>
-    private static bool Stops(char character) => character is '(' or '[' or ')' or '{' or '}' or '"' or '%';
 }

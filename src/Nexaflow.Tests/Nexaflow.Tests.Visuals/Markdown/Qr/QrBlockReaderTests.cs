@@ -24,13 +24,13 @@ public class QrBlockReaderTests
 {
     private static QrBlock Parse(string source)
     {
-        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(QrBlockReader.TryRead(MatrixParser.Parse(language: "qr", source:source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 
     private static string Rejects(string source)
     {
-        Assert.IsFalse(QrBlockReader.TryRead(MatrixParser.Parse(source), out _, out var wrong), "expected a rejection");
+        Assert.IsFalse(QrBlockReader.TryRead(MatrixParser.Parse(language: "qr", source:source), out _, out var wrong), "expected a rejection");
         Assert.IsFalse(string.IsNullOrWhiteSpace(wrong.Reason), "a rejection should say why");
         return wrong.Reason;
     }

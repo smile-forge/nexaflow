@@ -7,9 +7,9 @@ namespace Nexaflow.Markdown.Barcode;
 /// where that is said under the value rather than by showing the block as written. What is drawn hangs under it: the bars
 /// (<see cref="BarcodeBarsNode"/>) and what is printed with them (<see cref="BarcodeRunNode"/>). It prints as the fields written.
 /// </summary>
-internal sealed class BarcodeBlockNode : ContentNode
+internal sealed class BarcodeBlockNode : BlockNode
 {
-    internal BarcodeBlockNode(ContentNode written, BarcodeBlock settings, string? refusal) : base(written)
+    internal BarcodeBlockNode(ContentNode written, BarcodeBlock settings, string? refusal) : base((BlockNode)written)
     {
         this.Settings = settings;
         this.Refusal = refusal;
@@ -24,7 +24,7 @@ internal sealed class BarcodeBlockNode : ContentNode
     /// </summary>
     public string? Refusal { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new BarcodeBlockNode(shape, this.Settings, this.Refusal);
+    protected override BlockNode Retyped(BlockNode shape) => new BarcodeBlockNode(shape, this.Settings, this.Refusal);
 }
 
 /// <summary>

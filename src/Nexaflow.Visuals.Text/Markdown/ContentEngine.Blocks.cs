@@ -37,7 +37,7 @@ public sealed partial class ContentEngine
     private const double MarkSize = 13;
 
     /// <summary>A document with nothing in it, for before anything has been laid.</summary>
-    private static readonly ContentPart NothingRead = ContentPart.Of(ContentNode.Branch(MarkdownKinds.Document, []));
+    private static readonly ContentPart NothingRead = ContentPart.Of(new BlockNode(MarkdownParser.Language, []));
 
     private Point? _pointer;
     private ContentPart? _over;

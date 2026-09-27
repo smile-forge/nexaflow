@@ -92,26 +92,6 @@ public class MindmapGrammarTests : MermaidGrammarContract
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");
     }
 
-    [TestMethod]
-    public void ANewLineUnderANodeIsAnotherAsFarInAsIt()
-    {
-        var grammar = new MindmapGrammar();
-        var node = Nodes(MermaidStaged.Read("mindmap\n  root((r))\n    A"), MindmapKinds.Node)[1];
-
-        Assert.AreEqual(("[\"\"]", 2), grammar.Blank(node));
-        Assert.IsNull(grammar.Blank(above: null));
-    }
-
-    [TestMethod]
-    public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
-    {
-        const string source = "mindmap\n  root((r))\n    Origins";
-        var id = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Origins");
-        var writing = new MindmapGrammar().Escaping(id, id.End, "(")!.Value;
-
-        Assert.AreEqual("mindmap\n  root((r))\n    [\"Origins(\"]", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>
