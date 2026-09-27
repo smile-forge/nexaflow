@@ -34,18 +34,9 @@ public class ContentElement : FrameworkElement
 
     /// <summary>Set while the element is being measured, when laying out again needs no second measure.</summary>
     private bool _measuring;
-
-    private Piece _anchorNode;
     private Point _pressedAt;
-    private bool _dragging;
-
-    private bool _moving;
-    private int _dropAt;
-    private Point? _dropPoint;
-    private Laid? _preview;
-    private Moved? _previewOf;
-    private (int Start, int End) _previewMoved;
-
+    /// <summary>Whether a press is held, so a move far enough from it is a drag.</summary>
+    private bool _pressing;
     /// <summary>Raised whenever the caret moves inside the content.</summary>
     public event EventHandler? CaretMoved;
 
@@ -57,7 +48,8 @@ public class ContentElement : FrameworkElement
 
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
-    public ContentElement(string source, StyleFormat palette, ContentEngine engine, string? language = null)
+    /// <param name="actions">What answers what the content's pieces mean by a gesture — null where nothing here answers one.</param>
+    public ContentElement(string source, StyleFormat palette, ContentEngine engine, string? language = null, ILayoutActions? actions = null)
     {
         Palette = palette;
         _engine = engine;
@@ -66,6 +58,7 @@ public class ContentElement : FrameworkElement
 
         _engine.Show(language, palette);
         _engine.Start(source ?? string.Empty);
+        _engine.Actions = actions;
 
         _engine.Changed += OnChanged;
         _engine.PreRender += OnLaid;
@@ -73,6 +66,7 @@ public class ContentElement : FrameworkElement
         _engine.CaretMoved += OnCaretMoved;
         _engine.SelectionChanged += OnSelectionChanged;
         _engine.SourceChanged += OnSourceChanged;
+        _engine.Revealing += OnRevealing;
 
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
@@ -102,6 +96,7 @@ public class ContentElement : FrameworkElement
         _engine.CaretMoved -= OnCaretMoved;
         _engine.SelectionChanged -= OnSelectionChanged;
         _engine.SourceChanged -= OnSourceChanged;
+        _engine.Revealing -= OnRevealing;
 
         StopBlinking();
     }
@@ -130,6 +125,9 @@ public class ContentElement : FrameworkElement
     private void OnSelectionChanged(object? sender, EventArgs args) => SelectionChanged?.Invoke(this, EventArgs.Empty);
 
     private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
+
+    private void OnRevealing(object? sender, Rect shown) =>
+        BringIntoView(new Rect(shown.X * Zoom, shown.Y * Zoom, Math.Max(shown.Width * Zoom, 1), Math.Max(shown.Height * Zoom, 1)));
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
     protected StyleFormat Palette { get; }
@@ -371,131 +369,16 @@ public class ContentElement : FrameworkElement
 
     // ── Pointer, driven by the host ─────────────────────────────────────────
 
-    /// <summary>
-    /// A press landed at <paramref name="at"/>. True where it meant something — which is the end of it, and no caret is
-    /// placed and nothing is selected. Nothing, unless the content declares what its pieces answer to.
-    /// </summary>
-    protected virtual bool Pressed(Point at, ModifierKeys modifiers) => false;
-
-    /// <summary>Two presses landed at <paramref name="at"/>. True where that meant something.</summary>
-    protected virtual bool Chosen(Point at) => false;
-
-    /// <summary>A piece was picked by a press at <paramref name="at"/>. It is chosen either way; this is only the telling.</summary>
-    protected virtual void Picked(Point at) { }
-
     /// <inheritdoc />
     public void BeginPointerSelect(Point pointInElement) => BeginPointerSelect(pointInElement, ModifierKeys.None);
 
-    /// <inheritdoc />
+    /// <summary>A press at a point on this content, held with <paramref name="modifiers"/> — taken by the engine as what it means there.</summary>
     public void BeginPointerSelect(Point pointInElement, ModifierKeys modifiers)
     {
-        var at = Unscaled(pointInElement);
         _pressedAt = pointInElement;
-        _moving = false;
+        _pressing = true;
 
-        // A piece that answers to a press means what it answers with, and not a place to put the caret.
-        if (Pressed(at, modifiers)) return;
-
-        // Several things chosen at once: what Ctrl presses is added to what is chosen, or taken back out of it.
-        if (modifiers.HasFlag(ModifierKeys.Control))
-        {
-            _dragging = false;
-            Toggle(at);
-            return;
-        }
-
-        // From where the choosing started to the press, as a drag from there would choose — from the caret, where nothing is
-        // chosen yet — and a drag after it goes on choosing from the same place.
-        if (modifiers.HasFlag(ModifierKeys.Shift))
-        {
-            if (!State.HasSelection)
-            {
-                _engine.Anchor = State.Caret;
-                _anchorNode = Laid.Root.WordsAt(_engine.Anchor);
-            }
-
-            _dragging = true;
-            ChooseTo(at);
-            return;
-        }
-
-        _engine.Anchor = Laid.OffsetAt(at);
-        _anchorNode = Laid.PieceAt(at);
-        _dragging = true;
-
-        // Pressing on what is already selected is how a move begins — the reader is picking the term up,
-        // not starting a new selection over it. The selection is kept until the button comes back up, so a
-        // press that turns out to be an ordinary click can still fall through to placing the caret.
-        if (_engine.Covers(_engine.Anchor)) { _moving = true; _dropAt = _engine.Anchor; return; }
-
-        ClearSelection();
-
-        // A press squarely on something means that thing; a press at a stop — between two things, or at the
-        // edge of one — means the place. One rule for every kind of content: a note pressed is a note
-        // picked, and a letter pressed at its edge is a caret put down beside it.
-        // A run of text is written in rather than picked up, so a press inside one is a caret between two of its
-        // letters — including the press that has to show it as written before there is anywhere to put one.
-        if (Writing(_anchorNode, at)) return;
-
-        if (On(_anchorNode, at)) { _engine.SelectNodes(ContentSelection.Of(_anchorNode)); Picked(at); return; }
-
-        TakeCaret(Laid.Root.OffsetAt(at), Laid.StopNear(at));
-    }
-
-    /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
-    private void Toggle(Point at)
-    {
-        var piece = Pointing(Laid.PieceAt(at));
-        if (!piece.Exists || piece.Sits() is not { Length: > 0 } sits) return;
-
-        _engine.Anchor = sits.Start;
-        _anchorNode = piece;
-
-        var pressed = new EditRange(sits.Start, sits.Length);
-        var chosen = State.Selection;
-
-        IReadOnlyList<EditRange> next = chosen.Any(range => range.Start <= pressed.Start && range.End >= pressed.End)
-            ? [.. chosen.SelectMany(range => Outside(range, pressed))]
-            : [.. chosen, pressed];
-
-        if (next.Count == 0) { ClearSelection(); return; }
-
-        if (_engine.SelectRanges(next)) Picked(at);
-    }
-
-    /// <summary>What of <paramref name="range"/> lies outside <paramref name="taken"/>.</summary>
-    private static IEnumerable<EditRange> Outside(EditRange range, EditRange taken)
-    {
-        if (taken.End <= range.Start || taken.Start >= range.End)
-        {
-            yield return range;
-            yield break;
-        }
-
-        if (taken.Start > range.Start) yield return new EditRange(range.Start, taken.Start - range.Start);
-        if (taken.End < range.End) yield return new EditRange(taken.End, range.End - taken.End);
-    }
-
-    /// <summary>
-    /// Puts the caret inside a run of text that was pressed, and says whether it did. A run showing something
-    /// worked out (a rounded value, a percentage) has nowhere to put a caret since what is drawn isn't what
-    /// was written — pressing it reveals the source first, then re-answers the press against that.
-    /// </summary>
-    private bool Writing(Piece piece, Point at)
-    {
-        if (piece.Words is not { } words || piece.Part is not { } part) return false;
-
-        if (!words.Maps)
-        {
-            // A run that only says something about its part — the share of a pie a slice takes — is not written in: the
-            // press means the slice, which is what the ordinary rules already do with it.
-            if (IsReadOnly || !words.Writes) return false;
-
-            _engine.Apply(State.MoveCaretTo(part.Start) with { Raw = new RawZone(part.Start, part.End()) }, notify: false);
-        }
-
-        TakeCaret(Laid.Root.OffsetAt(Unscaled(_pressedAt)), -1);
-        return true;
+        _engine.Input(new ContentPress(Unscaled(pointInElement), 1, modifiers));
     }
 
     /// <summary>How far past a written run the pointer still counts as inside it — just over half the widest gap on a formula's line, so moving along one never flickers to an arrow between glyphs.</summary>
@@ -584,24 +467,6 @@ public class ContentElement : FrameworkElement
     public Cursor? PointerCursor(Point pointInElement) => Pointing(Unscaled(pointInElement));
 
     /// <summary>
-    /// Whether a press lands on <paramref name="piece"/> itself rather than at one of its stops. The reach is
-    /// capped at a quarter of the piece's width so a letter as narrow as an "i" still has a place at each side.
-    /// </summary>
-    private static bool On(Piece piece, Point at)
-    {
-        if (!piece.Exists) return false;
-
-        var box = piece.Ink();
-        if (box.IsEmpty || !box.Contains(at)) return false;
-
-        var reach = Math.Min(CaretReach, box.Width / 4);
-        return at.X - box.Left > reach && box.Right - at.X > reach;
-    }
-
-    /// <summary>How near a stop a press has to be to mean the stop rather than the thing, in layout pixels.</summary>
-    private const double CaretReach = 3.0;
-
-    /// <summary>
     /// The pieces that answer to a gesture and are covered by what is picked out — empty where nothing is, which is
     /// what makes "for one item" and "for a selection of them" the same question asked twice.
     /// </summary>
@@ -609,59 +474,15 @@ public class ContentElement : FrameworkElement
         [.. Laid.Root.SelfAndDescendants()
                  .Where(piece => piece.Acts is not null && piece.Sits() is { Length: > 0 } sits && _engine.Covers(sits.Start))];
 
-    /// <inheritdoc />
+    /// <summary>The pointer moved while pressed.</summary>
     public void ExtendPointerSelect(Point pointInElement)
     {
-        if (!_dragging) return;
-
         // A click is not a drag. The pointer moves a pixel or two under any real hand, and treating that
         // as a selection meant clicking after a number selected it — so the next key typed replaced the
         // number instead of following it.
-        if (!HasDragged(pointInElement)) return;
+        if (!_pressing || !HasDragged(pointInElement)) return;
 
-        var at = Unscaled(pointInElement);
-
-        // Carrying something: the content is shown as it would read if it were let go here, with the
-        // carried part marked out, so the reader is choosing between finished results.
-        if (_moving)
-        {
-            var drop = Laid.OffsetAt(at);
-            if (drop == _dropAt) return;
-
-            _dropAt = drop;
-            _dropPoint = at;
-            BuildPreview();
-            HoldCaretVisible();
-            InvalidateMeasure();
-            InvalidateVisual();
-            return;
-        }
-
-        ChooseTo(at);
-    }
-
-    /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>
-    private void ChooseTo(Point at)
-    {
-        // Inside one run of text it picks out characters, because that is what dragging through text means. Everywhere else
-        // it is whole pieces — see below.
-        if (_anchorNode.Words is { Maps: true } && Laid.PieceAt(at) == _anchorNode)
-        {
-            _engine.ExtendSelectionTo(Laid.OffsetAt(at));
-            return;
-        }
-
-        // What was dragged over is a set of pieces, not a stretch of text. Inside a matrix that is what makes a drag down a
-        // column select the column rather than everything written between its top cell and its bottom one.
-        if (Pointing(_anchorNode) is { Exists: true } from && Pointing(Laid.PieceAt(at)) is { Exists: true } focus)
-        {
-            // Through whatever owns each end. Landing on a bracket means the group it opens or closes: half a pair is not a
-            // smaller selection, it is one that cannot be read.
-            _engine.SelectNodes(ContentSelection.Between(Laid.Root, from, focus));
-            return;
-        }
-
-        _engine.ExtendSelectionTo(Laid.OffsetAt(at));
+        _engine.Input(new ContentDrag(Unscaled(pointInElement)));
     }
 
     /// <summary>
@@ -672,69 +493,19 @@ public class ContentElement : FrameworkElement
         Math.Abs(pointInElement.X - _pressedAt.X) >= SystemParameters.MinimumHorizontalDragDistance
         || Math.Abs(pointInElement.Y - _pressedAt.Y) >= SystemParameters.MinimumVerticalDragDistance;
 
-    /// <inheritdoc />
+    /// <summary>The press was let go.</summary>
     public void EndPointerSelect()
     {
-        _dragging = false;
-        if (!_moving) return;
+        _pressing = false;
 
-        _moving = false;
-        var settled = _previewOf;
-        ClearPreview();
-
-        if (IsReadOnly) return;
-
-        // The press never became a drag: an ordinary click on the selection, which places the caret there
-        // and drops the selection, as clicking a selection does everywhere.
-        if (settled is not { } moved) { ClearSelection(); TakeCaret(_engine.Anchor); return; }
-
-        // Exactly what was on screen a moment ago — settling is letting go of it, not recomputing
-        // something the reader has to check.
-        _engine.Apply(new EditState(moved.Source, moved.Caret), notify: true);
+        _engine.Input(new ContentRelease());
     }
 
-    /// <summary>Lays the content out as it would read if what is carried were dropped where it is now.</summary>
-    private void BuildPreview()
-    {
-        ClearPreview();
+    /// <summary>Two presses at a point on this content — taken by the engine as what they mean there.</summary>
+    public bool PointerDoubleClick(Point pointInElement) => _engine.Input(new ContentPress(Unscaled(pointInElement), 2));
 
-        if (_engine.Moving(_dropAt) is not { } moved) return;
-
-        _previewOf = moved;
-        _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
-        _preview = _engine.LaidOut(new EditState(moved.Source, moved.Caret));
-    }
-
-    private void ClearPreview()
-    {
-        _preview = null;
-        _previewOf = null;
-        _previewMoved = default;
-    }
-
-    /// <inheritdoc />
-    public bool PointerDoubleClick(Point pointInElement)
-    {
-        // Select the thing under the pointer rather than letting the host drop the whole block into
-        // source-edit mode: inside content, "the word you clicked" is the symbol you clicked.
-        var at = Unscaled(pointInElement);
-        if (Chosen(at)) return true;
-
-        var here = Laid.OffsetAt(at);
-
-        var under = Pointing(Laid.PieceAt(at));
-
-        // In a run of text, the word you pressed is a word of it rather than the whole run.
-        if (under is { Words: { Maps: true } words, Part: { } part })
-        {
-            var (from, to) = words.WordAt(here - part.Start);
-            Select(part.Start + from, to - from);
-        }
-        else if (under.Exists && under.Sits() is { Length: > 0 } sits) Select(sits.Start, sits.Length);
-        else Select(Math.Max(0, here - 1), 1);
-
-        return true;
-    }
+    /// <summary>What the piece under a point means by <paramref name="gesture"/>, or null where nothing there means anything by it.</summary>
+    protected LayoutAct? Offered(Point at, LayoutGesture gesture) => _engine.Offered(at, gesture);
 
     // Hosted in a plain panel (the read-only markdown view), the element does get its own mouse events.
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -756,7 +527,7 @@ public class ContentElement : FrameworkElement
         Cursor = Pointing(Unscaled(e.GetPosition(this)));
         ForceCursor = true;
 
-        if (_dragging) ExtendPointerSelect(e.GetPosition(this));
+        if (_pressing) ExtendPointerSelect(e.GetPosition(this));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -826,7 +597,7 @@ public class ContentElement : FrameworkElement
 
         // While something is being carried, what is on screen is what it would become, so that is what has
         // to fit — otherwise the preview is clipped at the settled content's width.
-        var size = _preview?.Size ?? Laid.Size;
+        var size = _engine.Preview?.Laid.Size ?? Laid.Size;
         return new Size(Math.Ceiling(size.Width * Scale), Math.Ceiling(size.Height * Scale));
     }
 
@@ -840,7 +611,7 @@ public class ContentElement : FrameworkElement
         var scaled = Math.Abs(Scale - 1.0) > 0.001;
         if (scaled) dc.PushTransform(new ScaleTransform(Scale, Scale));
 
-        if (_preview is { } preview) PaintPreview(dc, preview);
+        if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, (preview.Start, preview.End));
         else PaintContent(dc);
 
         if (scaled) dc.Pop();
@@ -868,12 +639,13 @@ public class ContentElement : FrameworkElement
 
         PaintOver(dc);
 
-        if ((!HasCaret && !_moving) || IsReadOnly || !_caretVisible) return;
+        var dropping = _engine.Dropping;
+        if ((!HasCaret && dropping is null) || IsReadOnly || !_caretVisible) return;
 
         // While something is being carried the caret shows where it would land, not where it was picked
         // up from — that is the one thing the reader needs to see before letting go.
-        var caret = _moving || _engine.At < 0
-            ? laid.Root.CaretRect(_moving ? _dropAt : state.Caret)
+        var caret = dropping is not null || _engine.At < 0
+            ? laid.Root.CaretRect(dropping ?? state.Caret)
             : laid.Places[_engine.At].CaretRect();
 
         DrawCaret(dc, caret.X, caret.Y, caret.Height);
@@ -925,20 +697,20 @@ public class ContentElement : FrameworkElement
     protected virtual void PaintOver(DrawingContext dc) { }
 
     /// <summary>Draws the content as it would read after the drop, with the carried part in the accent colour — once it's merged in (braces, spacing and all) nothing else would distinguish it.</summary>
-    private void PaintPreview(DrawingContext dc, Laid preview)
+    private void PaintPreview(DrawingContext dc, Laid preview, (int Start, int End) moved)
     {
-        LayoutPainter.Paint(dc, preview.Root, Palette.Text);
+    LayoutPainter.Paint(dc, preview.Root, Palette.Text);
 
-        // Over the top rather than instead of: painting all of it and then the carried part again is what
-        // keeps this to two calls, and the second colour is the one that shows.
-        foreach (var piece in Carried(preview))
+    // Over the top rather than instead of: painting all of it and then the carried part again is what
+    // keeps this to two calls, and the second colour is the one that shows.
+    foreach (var piece in Carried(preview, moved))
             LayoutPainter.PaintOne(dc, piece, Palette.Accent);
     }
 
     /// <summary>The outermost pieces of <paramref name="preview"/> lying wholly inside what is carried — outermost so a piece and its children aren't painted twice.</summary>
-    private IEnumerable<Piece> Carried(Laid preview)
+    private static IEnumerable<Piece> Carried(Laid preview, (int Start, int End) moved)
     {
-        var (start, end) = _previewMoved;
+    var (start, end) = moved;
         if (end <= start) yield break;
 
         var taken = new List<Piece>();

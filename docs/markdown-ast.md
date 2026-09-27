@@ -215,7 +215,10 @@ block scrolled far away is let go.
 keyboard, the history, what a search turned up and the buttons in a block's corner. Inside it one element
 (`MarkdownElement`, a `ContentElement`) shows what its engine holds: the engine keeps the content as it is being written —
 the source, the caret, the selection and the laid tree — and makes every edit to it, and the element paints that and says
-where the reader is.
+where the reader is. Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key,
+text typed, a press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other
+does; the element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a
+drag, and the surface keeps the keys that are its own — the clipboard's and the page's.
 A whole document is one element — the prose, the diagrams and the tunes are pieces of one tree, so a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 

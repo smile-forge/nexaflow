@@ -20,7 +20,7 @@ namespace Nexaflow.Visuals.Text.Editing;
 /// </summary>
 /// <param name="actions">What answers a gesture — null where nothing here answers one.</param>
 public class LinkedElement(string source, StyleFormat palette, ContentEngine engine, string? language, ILayoutActions? actions)
-    : ContentElement(source, palette, engine, language)
+    : ContentElement(source, palette, engine, language, actions)
 {
     /// <inheritdoc/>
     protected override Cursor Pointing(Point at)
@@ -30,17 +30,6 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
         Tip(act.Intent.Tip ?? act.Intent.Target);
         return Cursors.Hand;
     }
-
-    /// <inheritdoc/>
-    /// <remarks>Only a plain press: Ctrl and Shift are adding to a selection, which is not what a press on a node means.</remarks>
-    protected override bool Pressed(Point at, ModifierKeys modifiers) =>
-        modifiers == ModifierKeys.None && Answered(at, LayoutGesture.Click);
-
-    /// <inheritdoc/>
-    protected override bool Chosen(Point at) => Answered(at, LayoutGesture.DoubleClick);
-
-    /// <inheritdoc/>
-    protected override void Picked(Point at) => Answered(at, LayoutGesture.Select);
 
     /// <summary>
     /// What may be done where the pointer is: what the piece under it answers to, and what the host adds — or, where
@@ -118,28 +107,5 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
 
         var named = over[0].Naming();
         actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));
-    }
-
-    /// <summary>Puts what the gesture meant to whatever answers it, and says whether that took it on.</summary>
-    private bool Answered(Point at, LayoutGesture gesture) =>
-        actions is not null && Offered(at, gesture) is { } act && actions.Invoke(act);
-
-    /// <summary>
-    /// What the piece under a point means by <paramref name="gesture"/>: the innermost one that means anything by it,
-    /// or null where none does.
-    /// </summary>
-    protected LayoutAct? Offered(Point at, LayoutGesture gesture)
-    {
-        var found = default(Piece);
-        LayoutIntent? meant = null;
-
-        foreach (var (piece, where) in Laid.Tree.Root.Placed())
-            if (where.Contains(at) && piece.Acts?.For(gesture) is { } intent)
-                (found, meant) = (piece, intent);
-
-        if (meant is not { } intended) return null;
-
-        var part = found.Naming();
-        return new LayoutAct(gesture, intended, found, part, part as ContentPart, [found], at);
     }
 }

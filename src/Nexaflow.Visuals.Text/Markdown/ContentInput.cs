@@ -19,6 +19,18 @@ public sealed record ContentKey(Key Key, ModifierKeys Modifiers = ModifierKeys.N
 /// <summary>Characters typed — what a key, a composition or a dictation comes to.</summary>
 public sealed record ContentText(string Text) : ContentInput;
 
+/// <summary>A press at a point, the second of two in quick succession where <paramref name="Clicks"/> says so.</summary>
+public sealed record ContentPress(Point At, int Clicks = 1, ModifierKeys Modifiers = ModifierKeys.None) : ContentInput;
+
+/// <summary>
+/// The pointer moved while pressed, far enough to be a drag rather than a hand's tremor — how far that is being the
+/// pointer's to say, since it is counted in the pixels of the screen.
+/// </summary>
+public sealed record ContentDrag(Point At) : ContentInput;
+
+/// <summary>The press was let go.</summary>
+public sealed record ContentRelease : ContentInput;
+
 /// <summary>What changed in the source, and how it came to change.</summary>
 /// <param name="Before">The content as it was.</param>
 /// <param name="After">The content as it is now.</param>

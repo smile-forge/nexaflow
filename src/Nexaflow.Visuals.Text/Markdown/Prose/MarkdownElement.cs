@@ -124,50 +124,6 @@ public sealed class MarkdownElement : LinkedElement
     /// <summary>What this is drawn in, which a host may swap for another theme.</summary>
     private StyleFormat Style => Palette;
 
-    /// <inheritdoc/>
-    /// <remarks>Only a plain press: Ctrl and Shift are adding to a selection, which is not what ticking an item is.</remarks>
-    protected override bool Pressed(Point at, ModifierKeys modifiers) =>
-        (modifiers == ModifierKeys.None && (Ticked(at) || Anchored(at))) || base.Pressed(at, modifiers);
-
-    /// <summary>
-    /// A press on a task's box: the mark between its brackets written over as the press means — an edit like any other,
-    /// through the document's own edit handling, told to whoever follows the document.
-    /// </summary>
-    private bool Ticked(Point at)
-    {
-        if (IsReadOnly) return false;
-        if (Offered(at, LayoutGesture.Click) is not { Intent.Verb: MarkdownVerbs.Tick } act) return false;
-        if (act.Part is not ContentPart box
-            || (box.Part(MarkdownRoles.Done) ?? box.Part(MarkdownRoles.Todo)) is not { Length: 1 } mark) return false;
-
-        WriteOver(mark.Start, mark.Length, act.Intent.Target == "on" ? "x" : " ");
-
-        return true;
-    }
-
-    /// <summary>
-    /// Goes to the heading an in-page link names, where a press landed on one.
-    ///
-    /// <para>
-    /// <strong>A link into this document is never the host's.</strong> Nobody else can answer it: the heading
-    /// is on this page, laid out by this element, and a host handed <c>#getting-started</c> has no way to know
-    /// what that means or where it went. So it is answered here and not offered onwards — and a name this
-    /// document has no heading for is still not the host's, because it is still a link into this document. It
-    /// does nothing, which is what a reader sees when they follow a link to a section somebody deleted.
-    /// </para>
-    /// </summary>
-    private bool Anchored(Point at)
-    {
-        if (Offered(at, LayoutGesture.Click) is not { Intent: { Verb: LayoutVerbs.Navigate, Target: { } where } } ) return false;
-        if (!MarkdownAnchors.IsInPage(where, out var anchor)) return false;
-
-        if (MarkdownAnchors.Sought(Laid, anchor) is { Exists: true } heading)
-            BringIntoView(new Rect(heading.Bounds.X * Zoom, heading.Bounds.Y * Zoom,
-                                   Math.Max(heading.Bounds.Width * Zoom, 1), Math.Max(heading.Bounds.Height * Zoom, 1)));
-
-        return true;
-    }
-
     /// <summary>
     /// Brings a stretch of the source into view and picks it out.
     ///

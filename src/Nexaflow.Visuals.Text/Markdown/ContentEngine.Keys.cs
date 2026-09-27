@@ -41,7 +41,7 @@ public sealed partial class ContentEngine
     {
         ContentKey key => Pressed(key.Key, key.Modifiers),
         ContentText text => Typed(text.Text),
-        _ => false,
+        _ => Pointed(input),
     };
 
     /// <summary>Raised when the source changed — written, taken back, written again, or put there by whatever shows it.</summary>
