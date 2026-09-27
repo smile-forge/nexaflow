@@ -86,14 +86,164 @@
           "class": "IOnEdit"
         }
       ]
+    },
+    "latex-drag-move": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "Moving"
+        }
+      ]
+    },
+    "latex-palette-wrap": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "WrapSelectionInto"
+        }
+      ]
+    },
+    "markdown-anchors": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Prose/MarkdownParser.cs",
+          "class": "MarkdownParser",
+          "method": "Block"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownAnchors.cs",
+          "class": "MarkdownAnchors",
+          "method": "Sought"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Pointer.cs",
+          "class": "ContentEngine",
+          "method": "Anchored"
+        }
+      ]
+    },
+    "markdown-fmt-inline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownBlockFormat.cs",
+          "class": "MarkdownBlockFormat",
+          "method": "InsertMarkers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Menu.cs",
+          "class": "MarkdownSurface",
+          "method": "Marked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Keys.cs",
+          "class": "ContentEngine",
+          "method": "Commanded"
+        }
+      ]
+    },
+    "solver-latex-fence": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "WrittenIn"
+        }
+      ]
+    },
+    "markdown-surface": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Blocked"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownElement.cs",
+          "class": "MarkdownElement",
+          "method": "PaintOver"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Stages/ShowBlocksAsWritten.cs",
+          "class": "ShowBlocksAsWritten"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/MarkdownSurfaceTests.cs",
+            "class": "MarkdownSurfaceTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/SelectedTests.cs",
+            "class": "SelectedTests"
+          }
+        ]
+      }
+    },
+    "markdown-block-picture": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Markdown/Views/MarkdownView.xaml.cs",
+          "class": "MarkdownView"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "Corner"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs",
+          "class": "MarkdownSurface",
+          "method": "Picture"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Blocks.cs",
+          "class": "ContentEngine",
+          "method": "Cornered"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 12,
   "touched_nodes": [
     "abbreviations",
     "latex-document-seam",
+    "latex-drag-move",
+    "latex-palette-wrap",
+    "markdown-anchors",
+    "markdown-block-picture",
+    "markdown-fmt-inline",
     "markdown-inline-editor",
-    "md-task-toggle"
+    "markdown-surface",
+    "md-task-toggle",
+    "solver-latex-fence"
   ]
 }
