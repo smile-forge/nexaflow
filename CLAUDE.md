@@ -237,6 +237,12 @@ building; `test --failed` reruns exactly what failed. UI journey suites are name
   instead). Read [externals.md](docs/externals.md) before touching one; use `git -C external/<name> …`.
 - Shared non-contract code goes in `Nexaflow.Visuals.*` / `Nexaflow.IO.*` / `Nexaflow.Syntax`, never
   `Features.Common`.
+- NEVER substitute a simpler, "equivalent", or partial approach. If the specified design seems hard, wrong, or blocked, STOP and tell me why. Do not work around it.
+- No placeholder implementations, stubs, TODO shortcuts, or hardcoded special cases unless I explicitly ask for them.
+- Extensibility and performance are requirements. A version that "works" but can't be extended as designed is a failure, not a partial success.
+
+### When uncertain
+- Ask. A question costs me less than a rewrite.
 
 ## Scope
 
@@ -269,6 +275,12 @@ to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#owners
   hard or convoluted, the structure is wrong.
 - Trust the DI. MVVM Toolkit patterns: `[ObservableProperty]`, `[RelayCommand]`, constructor injection. No static
   singletons in feature ViewModels.
+
+## Naming
+- NEVER rename existing types, members, files, or namespaces unless I explicitly ask. This includes "for consistency".
+- Before introducing any new name, check it for collisions with the graph tool.
+- If a new name clashes with an existing one, change the NEW name. Never resolve a clash by renaming existing code.
+- For non-trivial tasks, list all new names in the plan so I can approve them before any code is written.
 
 ## Working with the user
 
