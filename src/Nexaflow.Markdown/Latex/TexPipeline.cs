@@ -12,8 +12,9 @@ namespace Nexaflow.Markdown.Latex;
 /// <para>
 /// The order is the only thing here that is an argument. A macro means what its definition says, so it is
 /// expanded before anything asks what a piece is; a sign written as several things is gathered next, inside
-/// an expansion as much as outside one; and only then is it worth saying where something still has to go
-/// and what cannot be drawn. Last is a stretch shown exactly as typed while somebody is mid-keystroke: a
+/// an expansion as much as outside one; what each name means is said once the values written with them are
+/// read; and only then is it worth saying where something still has to go and what cannot be drawn. Last is a
+/// stretch shown exactly as typed while somebody is mid-keystroke: a
 /// half-written command is invalid almost by definition, and saying so on every keystroke would be the
 /// wrong thing to draw.
 /// </para>
@@ -26,15 +27,15 @@ namespace Nexaflow.Markdown.Latex;
 public static class TexPipeline
 {
     /// <summary>The pipeline itself, for anything that wants to run the stages over a tree it already has.</summary>
-    public static AstPipeline Of(Func<string, bool>? draws = null, (int Start, int Length)? editing = null,
-                                 bool holes = false) =>
+    public static AstPipeline Of((int Start, int Length)? editing = null, bool holes = false) =>
         new AstPipeline(
             new ExpandMacros(),     // what each shorthand name stands for
             new GatherSigns(),      // a sign written as several things, as the one thing it means
             new SpanColumns(),      // how many columns a row of dots stands across
-            new ReadValues())       // what an argument holding a value rather than maths says
+            new ReadValues(),       // what an argument holding a value rather than maths says
+            new ResolveCommands())  // what every name means, and every character that is not a letter
             .Then(holes ? new WithHoles(Holds) : null)
-            .Then(draws is null ? null : new CheckDrawable(draws))
+            .Then(new CheckDrawable())
             .Then(ShowAsWritten.Of(editing));
 
     /// <summary>

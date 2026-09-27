@@ -148,10 +148,12 @@ parser) went first, and the *back* (its renderer) was replaced by a capture that
 landed.
 
 **And then the middle went too.** Its atoms were a second tree between the parse tree and the layout: the
-builder turned the reading into atoms, and the atoms made boxes. The builder now sets each construct
-itself, straight from the reading — the rules the atoms carried moved into it, and what was left of them
-(the symbol table, a matrix's spacing) moved to the glyph and the command table that name them. The engine
-now lives beside the builder that draws with it, under `src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/`.
+builder turned the reading into atoms, and the atoms made boxes. The typesetter (`TexTypesetter`) now sets
+each construct itself, straight from the reading — the rules the atoms carried moved into it, and what was
+left of them went where it belongs: what a name means (the symbol table, which command is which construct,
+how a matrix is arranged) to the reading, and how each glyph is measured to the engine's fonts, which live
+beside the typesetter under `src/Nexaflow.Visuals.Text/Markdown/Latex/Tex/`. `LatexBuilder` sets a formula
+with it and lays out what comes back.
 Its F# approval suite recorded atom and box trees that no longer exist; the TeX rules it pinned are
 measured on what the builder sets, in `Nexaflow.Tests.Visuals` under `Markdown/Latex/Typesetting/`.
 
@@ -430,8 +432,9 @@ Everything else was checked and found not to move. `\ldots` becoming `\mathinner
 Not everything in that table was one, and the ones that were not should not be made to look like one.
 Each of them reaches for something LaTeX cannot say — a length in mu, a sign lifted onto the axis, one
 glyph set over another at a fixed height without being shrunk — which makes them the same kind of
-thing as a symbol. So they are built by the typesetter, in `StandardCommands.PrimitiveOf`, in C#
-rather than as a recipe interpreted out of XML at run time:
+thing as a symbol. So the vocabulary names them as what they are — a strut is a space in mu, `\surd` a
+sign with nothing under it, `\doteq` and `\cong` one glyph piled on another — and the typesetter builds
+them in C# rather than as a recipe interpreted out of XML at run time:
 
 - **ten struts** (`\quad`, `\thinspace`, `\enspace` …) — a length in mu and nothing else.
 - **`\surd`**, a radical sign with nothing under it, lifted so it sits about the axis.
@@ -454,12 +457,41 @@ All thirteen moved without shifting a single box, on the corpus and on the hand-
 So `TexFormulaParser.ExpansionOf` had nothing left to serve, and the table it read has gone with it:
 no predefined formulas, no XML of them, no `Func<TexFormula?>` threaded through two constructors to
 carry an empty dictionary. What is not a macro is a length in mu with no LaTeX spelling, and those
-are built beside the symbols by `StandardCommands.PrimitiveOf`.
+are named beside the symbols in `TexVocabulary`.
 
 `TexMacroTableTests` holds every row against what expanding macros does with it, and the first thing it
 asks is whether the row fires at all. A row for a name the command table already claims is invisible
 otherwise: nothing breaks, nothing complains, and the sweep reports a clean pass. That happened once
 already, to `\mod`.
+
+## What every name means is the reading's too
+
+A macro is not the only name whose meaning is a fact about what was written. Which construct `\frac` is,
+that `\alpha` is an ordinary symbol and `\sum` a big operator whose limits go over it, that `\bf` sets the
+rest of its group, what `\color{teal}` names, how many em `\hspace{2em}` is, which columns an `array`'s
+preamble asks for: none of it needs a font to answer. So it is answered once, by a stage, and said in the
+tree — and the typesetter reads meanings, never names.
+
+`ResolveCommands` says it, from `TexVocabulary` in `Nexaflow.Markdown` (the symbol table and the character
+mappings are XAML-Math's, `TexSymbols.xml` and `TexFormulaSettings.xml`):
+
+- each command it knows becomes a `TexCommandNode` carrying a `TexMeaning` — a fraction, a root, a symbol and
+  its class, a face, a switch, a colour, a space in a unit, a sized delimiter, an equation's number and the
+  rest — with whatever was written with it read into that meaning (`ReadValues` reads the values first);
+- each environment becomes a `TexGridNode` carrying how it arranges its cells: a matrix and its brackets,
+  alignment, style and spacing, an `array` and its columns, or nothing but its contents;
+- each character that is not set as the letter it is becomes a `TexCharNode`: a symbol (`+` is `plus`, a
+  binary operator), a tie, a prime with nothing to mark.
+
+A command LaTeX has and nothing here draws means `TexUnset`; one it does not have is left as read, which is
+what `CheckDrawable` marks. So what can be drawn is asked of the tree, and reading a formula needs no
+typesetter at all.
+
+**A meaning is said in place.** The node keeps its parts, their roles and their characters, so everything
+that edits a formula finds each part where it was written, and a later stage can gather pieces into bigger
+ones — an operator over what it operates on — without anything here changing. The typesetter sets a node it
+has no meaning for as a row of what it holds, spaced by their classes as if it were not there, so how the
+tree is grouped never decides what is drawn.
 
 ## It is wired in
 

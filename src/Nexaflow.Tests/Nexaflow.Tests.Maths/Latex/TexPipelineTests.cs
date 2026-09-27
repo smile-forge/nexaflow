@@ -25,11 +25,6 @@ namespace Nexaflow.Tests.Maths.Latex;
 [CoversNode("maths-latex-pipeline")]
 public class TexPipelineTests
 {
-    /// <summary>Something no command table will ever have heard of.</summary>
-    private static bool Nothing(string name) => false;
-
-    private static bool Everything(string name) => true;
-
     [TestMethod]
     public void ShowingAnyStretchAtAllLeavesTheSourceExactlyAsItWas()
     {
@@ -55,7 +50,8 @@ public class TexPipelineTests
         {
             var latex = LatexConstructs.Flatten(written);
 
-            Assert.AreEqual(latex, new CheckDrawable(Nothing).Run(TexParser.Parse(latex)).Print(),
+            // Read with no meaning said for any of its names, every command in it is one nothing can draw.
+            Assert.AreEqual(latex, new CheckDrawable().Run(TexParser.Parse(latex)).Print(),
                 $"{what}: finding nothing drawable changed the source");
         }
     }
@@ -68,7 +64,7 @@ public class TexPipelineTests
             var latex = LatexConstructs.Flatten(written);
 
             for (var start = 0; start < latex.Length; start += 3)
-                Assert.AreEqual(latex, TexPipeline.Of(Nothing, (start, 5)).Run(TexParser.Parse(latex)).Print(),
+                Assert.AreEqual(latex, TexPipeline.Of((start, 5)).Run(TexParser.Parse(latex)).Print(),
                     $"{what}: reading it with {start}+5 under the caret changed the source");
         }
     }
@@ -78,9 +74,10 @@ public class TexPipelineTests
     {
         foreach (var (what, written) in LatexConstructs.Everything)
         {
-            var tree = TexParser.Parse(LatexConstructs.Flatten(written));
+            // Every construct there is, each macro expanded and the meaning of every other name said: nothing is left to complain about.
+            var tree = new ResolveCommands().Run(new ExpandMacros().Run(TexParser.Parse(LatexConstructs.Flatten(written))));
 
-            Assert.AreSame(tree, new CheckDrawable(Everything).Run(tree),
+            Assert.AreSame(tree, new CheckDrawable().Run(tree),
                 $"{what}: a tree with nothing wrong came back rebuilt");
         }
     }
@@ -90,7 +87,7 @@ public class TexPipelineTests
     {
         // Only the name is shown. `\textrm{Hello}` set in the wrong face is much closer to right than a
         // blank, and the argument of an unknown command is usually ordinary maths.
-        var tree = new CheckDrawable(Nothing).Run(TexParser.Parse(@"\wat{x + y}"));
+        var tree = new CheckDrawable().Run(new ResolveCommands().Run(TexParser.Parse(@"\wat{x + y}")));
 
         var shown = tree.SelfAndDescendants().Where(node => node.Kind == Kinds.Verbatim).ToList();
         Assert.AreEqual(1, shown.Count, "the whole command was shown, not just its name");
@@ -132,7 +129,7 @@ public class TexPipelineTests
 
             // A caret a third of the way in, which lands mid-construct far more often than an endpoint
             // would, and is where the widening has to be right.
-            var read = TexPipeline.Of(Nothing, (latex.Length / 3, 7)).Run(TexParser.Parse(latex));
+            var read = TexPipeline.Of((latex.Length / 3, 7)).Run(TexParser.Parse(latex));
             if (read.Print() == latex) continue;
 
             faults++;
@@ -217,7 +214,7 @@ public class TexPipelineTests
             var latex = LatexConstructs.Flatten(written);
             var tree = TexParser.Parse(latex);
 
-            foreach (var stage in TexPipeline.Of(Nothing, holes: true).Stages)
+            foreach (var stage in TexPipeline.Of(holes: true).Stages)
             {
                 tree = stage.Run(tree);
                 Assert.AreEqual(latex, tree.Print(), $"{what}: after {stage.Name}");

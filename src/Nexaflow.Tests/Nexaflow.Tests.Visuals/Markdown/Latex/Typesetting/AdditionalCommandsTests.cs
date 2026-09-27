@@ -3,6 +3,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 

@@ -7,6 +7,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Exceptions;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering.Transformations;
 
 using static Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting.Typeset;
+using Nexaflow.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Latex.Typesetting;
 

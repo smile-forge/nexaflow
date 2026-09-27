@@ -4,6 +4,8 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using System.Collections.Generic;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
+using Nexaflow.Markdown.Latex;
+using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

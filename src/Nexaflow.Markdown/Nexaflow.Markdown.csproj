@@ -49,6 +49,17 @@
     <!-- And the codes' encoders: their layouts, codeword tables and fields, which the tests that draw a symbol and read it
          back assert on. -->
     <InternalsVisibleTo Include="Nexaflow.Tests.Visuals" />
+    <!-- And what a formula's names mean, which the tests of LaTeX's stages assert on. -->
+    <InternalsVisibleTo Include="Nexaflow.Tests.Maths" />
+  </ItemGroup>
+
+  <!--
+    What LaTeX's names mean: every symbol and its class, and which character stands for which symbol and delimiter. XAML-Math's
+    tables (MIT; see Core's ThirdPartyNotices), read by TexVocabulary. How each symbol is drawn stays with the typesetter.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Latex\Data\TexSymbols.xml" LogicalName="Nexaflow.Markdown.Latex.Data.TexSymbols.xml" />
+    <EmbeddedResource Include="Latex\Data\TexFormulaSettings.xml" LogicalName="Nexaflow.Markdown.Latex.Data.TexFormulaSettings.xml" />
   </ItemGroup>
 
 </Project>

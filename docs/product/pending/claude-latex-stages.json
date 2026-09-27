@@ -1,0 +1,59 @@
+{
+  "branch": "claude/latex-stages",
+  "nodes": {
+    "maths-typesetting-builder": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/TexTypesetter.cs",
+          "class": "TexTypesetter"
+        }
+      ]
+    },
+    "maths-latex-pipeline": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexPipeline.cs",
+          "class": "TexPipeline"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/Stages/SpanColumns.cs",
+          "class": "SpanColumns"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/Stages/ResolveCommands.cs",
+          "class": "ResolveCommands"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Latex/TexVocabulary.cs",
+          "class": "TexVocabulary"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/TexPipelineTests.cs",
+            "class": "TexPipelineTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Maths/Latex/ResolveCommandsTests.cs",
+            "class": "ResolveCommandsTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "maths-latex-pipeline",
+    "maths-typesetting-builder"
+  ]
+}

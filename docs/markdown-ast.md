@@ -296,7 +296,10 @@ by the order the headings were written in, so following one is never handed to t
 
 ## The languages
 
-**LaTeX** — its own document: [latex-parse-tree.md](latex-parse-tree.md).
+**LaTeX** — its own document: [latex-parse-tree.md](latex-parse-tree.md). Its stages expand each macro into what it
+stands for (`ExpandMacros`), gather a sign written as several things (`GatherSigns`), read the values written with a
+command (`SpanColumns`, `ReadValues`) and then say what every name means (`ResolveCommands`: `TexCommandNode`,
+`TexGridNode`, `TexCharNode`), so `LatexBuilder` sets a formula with `TexTypesetter` from meanings alone.
 
 **Mermaid** — one parser for every diagram, because they all open the same way: front matter, comments, directives, the
 header (the first line that says anything, naming the diagram — `MermaidDiagrams`), accessibility lines; every other

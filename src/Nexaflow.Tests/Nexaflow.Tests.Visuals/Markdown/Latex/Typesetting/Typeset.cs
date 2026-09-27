@@ -5,7 +5,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Latex;
-using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Parsers;
+
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using TexEnvironment = Nexaflow.Visuals.Text.Markdown.Latex.Tex.TexEnvironment;
@@ -27,7 +27,7 @@ internal static class Typeset
     [ThreadStatic]
     private static Dictionary<TexStyle, TexEnvironment>? _environments;
 
-    private static TexFormulaParser Knowledge => WpfTeXFormulaParser.Instance;
+
 
     public static TexEnvironment Environment(TexStyle style = TexStyle.Display)
     {
@@ -42,7 +42,7 @@ internal static class Typeset
     public static (ContentReading Reading, Set Set) Read(string markup, TexStyle style = TexStyle.Display)
     {
         var reading = Laying.Read("latex", markup);
-        return (reading, LatexBuilder.Formula(reading.Root, Environment(style), Knowledge));
+        return (reading, TexTypesetter.Formula(reading.Root, Environment(style)));
     }
 
     /// <summary>The formula, set.</summary>
