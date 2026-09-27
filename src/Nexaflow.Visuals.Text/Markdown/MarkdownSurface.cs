@@ -401,6 +401,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         // What was laid in the old colours, at the old size or for the old reader is not set down again as it was.
         _engine.Forget();
 
+        _shown.Release();
         _shown = Made(state.Source);
         _shown.Restore(state);
 

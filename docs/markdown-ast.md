@@ -213,7 +213,9 @@ block scrolled far away is let go.
 
 `MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the
 keyboard, the history, what a search turned up and the buttons in a block's corner. Inside it one element
-(`MarkdownElement`, a `ContentElement`) owns the laid tree, the caret and the selection, and lays out through its engine.
+(`MarkdownElement`, a `ContentElement`) shows what its engine holds: the engine keeps the content as it is being written —
+the source, the caret, the selection and the laid tree — and makes every edit to it, and the element paints that and says
+where the reader is.
 A whole document is one element — the prose, the diagrams and the tunes are pieces of one tree, so a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 
