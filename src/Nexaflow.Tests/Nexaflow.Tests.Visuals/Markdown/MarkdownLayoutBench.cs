@@ -113,15 +113,15 @@ public class MarkdownLayoutBench
                                                        Dictionary<string, (int Count, double Ms)> stages,
                                                        Dictionary<string, (int Count, double Ms)> kinds)
     {
-        var (open, openKb) = Cost(() => MarkdownContent.Of(style, new ContentEngine(inputs)).Lay(EditState.For(text), Room, false));
+        var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
-        var content = MarkdownContent.Of(style, new ContentEngine(inputs));
-        content.Lay(EditState.For(text), Room, false);
+        var content = new ContentEngine(inputs);
+        content.Lay(null, EditState.For(text), style, Room, false);
         var middle = Middle(text);
         var typed = 0;
-        var (edit, editKb) = Cost(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
+        var (edit, editKb) = Cost(() => content.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false));
 
         ContentNode read = null!;
         var tRead = Median(() => read = MarkdownParser.Parsing()(text).Tree);
@@ -193,18 +193,18 @@ public class MarkdownLayoutBench
 
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
-        var painter = MarkdownContent.Of(style, new ContentEngine(inputs));
-        Painted(painter.Lay(EditState.For(text), Room, false), style);
+        var painter = new ContentEngine(inputs);
+        Painted(painter.Lay(null, EditState.For(text), style, Room, false), style);
         var retyped = 0;
-        var (editPaint, editPaintKb) = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
+        var (editPaint, editPaintKb) = Timed(() => painter.Lay(null, EditState.For(text.Insert(middle, new string('x', ++retyped))), style, Room, false),
                                              typedIn => Painted(typedIn, style));
 
         // What a document open for writing holds on to once it is on the page: its tree, the pictures its blocks keep,
         // and the reading kept so the next keystroke knows which blocks it has not touched.
         var retained = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, new ContentEngine(inputs));
-            var shown = held.Lay(EditState.For(text), Room, false);
+            var held = new ContentEngine(inputs);
+            var shown = held.Lay(null, EditState.For(text), style, Room, false);
             Painted(shown, style);
 
             return (held, shown);
@@ -212,8 +212,8 @@ public class MarkdownLayoutBench
 
         var retainedShown = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, new ContentEngine(inputs));
-            var shown = held.Lay(EditState.For(text), Room, false);
+            var held = new ContentEngine(inputs);
+            var shown = held.Lay(null, EditState.For(text), style, Room, false);
             Painted(shown, style, Screen);
 
             return (held, shown);
@@ -442,7 +442,7 @@ public class MarkdownLayoutBench
         }
 
         // Every cache warmed first, so what is held is what the document holds.
-        Paint(MarkdownContent.Of(style, new ContentEngine(inputs)).Lay(EditState.For(text), Room, false));
+        Paint(new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
 
         static long Heap() => GC.GetTotalMemory(forceFullCollection: true);
 
@@ -472,15 +472,15 @@ public class MarkdownLayoutBench
         Thread.Sleep(500);
 
         var middle = Middle(text);
-        var typing = MarkdownContent.Of(style, new ContentEngine(inputs));
-        typing.Lay(EditState.For(text), Room, false);
+        var typing = new ContentEngine(inputs);
+        typing.Lay(null, EditState.For(text), style, Room, false);
         var typed = 0;
 
         return new Dictionary<string, object>
         {
             ["held"] = held,
-            ["openByType"] = allocations.Sampled(() => MarkdownContent.Of(style, new ContentEngine(inputs)).Lay(EditState.For(text), Room, false), 5),
-            ["editByType"] = allocations.Sampled(() => typing.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false), 10),
+            ["openByType"] = allocations.Sampled(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false), 5),
+            ["editByType"] = allocations.Sampled(() => typing.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false), 10),
         };
     }
 

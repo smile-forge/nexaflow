@@ -69,15 +69,13 @@ public class ContentElement : FrameworkElement
     /// <summary>Raised when the reader's own editing changed the source.</summary>
     public event EventHandler? SourceChanged;
 
-    /// <summary>The ordinary case: a new kind of content costs only a builder.</summary>
-    /// <param name="lay">Handed the whole <see cref="EditState"/>, not just the string, since what is being typed changes what is drawn.</param>
-    public ContentElement(string source, StyleFormat palette, Func<EditState, double, Laid> lay)
-        : this(source, palette, Content.Of(lay)) { }
-
-    public ContentElement(string source, StyleFormat palette, IContent content)
+    /// <param name="engine">What lays the content out, and says what a key means in it.</param>
+    /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
+    public ContentElement(string source, StyleFormat palette, ContentEngine engine, string? language = null)
     {
-        Palette = palette;
-        _content = content;
+    Palette = palette;
+    _engine = engine;
+    _language = language;
         _wash = Wash(palette);
         _state = EditState.For(source ?? string.Empty);
 
@@ -122,7 +120,7 @@ public class ContentElement : FrameworkElement
     {
         try
         {
-            return _content.Lay(state, room, IsReadOnly);
+            return _engine.Lay(_language, state, Palette, room, IsReadOnly);
         }
         catch (Exception error)
         {
@@ -135,17 +133,20 @@ public class ContentElement : FrameworkElement
     private FormattedText Unread(string text) =>
         new(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Palette.Face(Palette.MonoFont), Palette.TextSize, Palette.Text, LayoutText.Density);
 
-    /// <summary>The whole chain from source to picture; everything that differs by kind of content is behind it — see <see cref="IContent"/>.</summary>
-    private readonly IContent _content;
+    /// <summary>What lays the content out, and says what a key means in it — see <see cref="ContentEngine"/>.</summary>
+    private readonly ContentEngine _engine;
+
+    /// <summary>What the content is written in, or null for markdown.</summary>
+    private readonly string? _language;
 
     /// <summary>Where an edit is landing, for the content to make what it will of it.</summary>
     private Landing Landing => new(_state, _laid, _at);
 
     /// <summary>
     /// What writing <paramref name="text"/> means, given what it lands in — the content's rule, not the
-    /// element's. See <see cref="IContent.Typing"/>.
+    /// element's. See <see cref="ContentEngine.Typing"/>.
     /// </summary>
-    private EditState? Typing(EditState state, string text) => _content.Typing(Landing, text);
+    private EditState? Typing(EditState state, string text) => _engine.Typing(_language, Landing, text);
 
     /// <summary>
     /// Backspace behind a construct drawn from more source than it shows (fraction, root, matrix) un-renders
@@ -501,7 +502,7 @@ public class ContentElement : FrameworkElement
         if (IsReadOnly) return;
 
         var over = _state.Select(start, length);
-        var written = _content.Typing(new Landing(over, _laid, _at), text) ?? over.Write(text);
+        var written = _engine.Typing(_language, new Landing(over, _laid, _at), text) ?? over.Write(text);
         var caret = _state.Caret >= start + length ? _state.Caret + text.Length - length : _state.Caret;
 
         Apply(written.MoveCaretTo(caret), notify: true);
@@ -556,7 +557,7 @@ public class ContentElement : FrameworkElement
     public bool Backspace()
     {
         if (IsReadOnly) return false;
-        if (_content.Erasing(Landing, forward: false) is { } erased) { Apply(erased, notify: true); return true; }
+        if (_engine.Erasing(_language, Landing, forward: false) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
         Apply(Backspacing(_state) ?? _state.Backspace(), notify: true);
@@ -570,7 +571,7 @@ public class ContentElement : FrameworkElement
 
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed
         // back to the document from there takes whatever the document has next.
-        if (_content.Erasing(Landing, forward: true) is { } erased) { Apply(erased, notify: true); return true; }
+        if (_engine.Erasing(_language, Landing, forward: true) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state.Caret >= _state.Source.Length && !_state.HasSelection) return false;
 
         Apply(_state.Delete(), notify: true);
@@ -579,13 +580,13 @@ public class ContentElement : FrameworkElement
 
     /// <summary>
     /// Ends whatever is half-written — what Space and Enter mean. The content's rule, not the element's; see
-    /// <see cref="IContent.Settle"/>.
+    /// <see cref="ContentEngine.Settle"/>.
     /// </summary>
     public void Settle(string separator)
     {
         if (IsReadOnly) return;
 
-        Apply(_content.Settle(Landing, separator), notify: true);
+        Apply(_engine.Settle(_language, Landing, separator), notify: true);
     }
 
     /// <summary>Selects the next place still waiting to be written in, so an inserted construct can be filled by typing and tabbing. False when there is none.</summary>
@@ -1086,7 +1087,7 @@ public class ContentElement : FrameworkElement
     /// </param>
     protected void Apply(EditState next, bool notify, int at = -1)
     {
-        if (notify && next.Source != _state.Source) next = _content.Edited(Landing, next);
+        if (notify && next.Source != _state.Source) next = _engine.Edited(_language, Landing, next);
         next = Left(next);
 
         var resized = next.Source != _state.Source || next.Raw != _state.Raw;
@@ -1129,7 +1130,7 @@ public class ContentElement : FrameworkElement
     public void Refresh()
     {
         // Asked for because something the source does not say has changed, so nothing laid before still holds.
-        _content.Forget();
+        _engine.Forget();
         Rebuild();
         InvalidateMeasure();
         InvalidateVisual();
@@ -1146,7 +1147,7 @@ public class ContentElement : FrameworkElement
     public BitmapSource Picture(Brush? ground = null)
     {
         var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var laid = _content.Lay(_state with { Selected = null, Raw = null }, Room(), readOnly: true);
+        var laid = _engine.Lay(_language, _state with { Selected = null, Raw = null }, Palette, Room(), readOnly: true);
         var size = new Size(Math.Max(1, Math.Ceiling(laid.Size.Width * Scale)), Math.Max(1, Math.Ceiling(laid.Size.Height * Scale)));
 
         var drawing = new DrawingVisual();

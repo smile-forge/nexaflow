@@ -67,7 +67,10 @@ internal static class Shipped
             show.Shown is { } zone ? new ShowBlocksAsWritten(zone, show.At, show.Reads) : null,
         ],
         Builder: static (reading, show) =>
-            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting));
+            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting))
+        {
+            Editing = new MarkdownEditing(),
+        };
 
     /// <summary>
     /// Every kind of diagram Mermaid names, which all arrive under the one fence word. The block's header names the diagram,
@@ -195,6 +198,12 @@ internal static class Shipped
         {
             Editing = new CodeEditing(),
         };
+}
+
+/// <summary>What an edit means in a markdown document.</summary>
+internal sealed class MarkdownEditing : IContentLanguage
+{
+    public IOnEdit OnEdit => MarkdownEdits.Instance;
 }
 
 /// <summary>What an edit means in a Mermaid diagram.</summary>

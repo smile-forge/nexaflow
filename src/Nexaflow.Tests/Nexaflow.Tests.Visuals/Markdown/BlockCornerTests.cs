@@ -10,6 +10,7 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Tests.Visuals.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -95,8 +96,8 @@ public class BlockCornerTests
     [TestMethod]
     public void APictureIsTheContentAsItReadsWithNobodyWritingInIt() => UiThread.Run(() =>
     {
-        var writable = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()));
-        var reading = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()) { IsReadOnly = true });
+        var writable = Shown(HandLaid.Element("x", Marked));
+        var reading = Shown(HandLaid.Element("x", Marked, readOnly: true));
 
         var picture = writable.Picture(Brushes.White);
 
@@ -132,18 +133,15 @@ public class BlockCornerTests
     }
 
     /// <summary>Content that draws a block for everybody, and a second only where somebody can write in it.</summary>
-    private sealed class Marked : IContent
+    private static Laid Marked(EditState state, bool readOnly)
     {
-        public Laid Lay(EditState state, double room, bool readOnly)
-        {
-            var build = new LayoutBuilder();
-            build.Open("content");
-            build.Draw(new RuleMark(new Rect(0, 0, 40, 20), Brushes.Blue));
-            if (!readOnly) build.Draw(new RuleMark(new Rect(50, 0, 20, 20), Brushes.Red));
-            build.Close();
+        var build = new LayoutBuilder();
+        build.Open("content");
+        build.Draw(new RuleMark(new Rect(0, 0, 40, 20), Brushes.Blue));
+        if (!readOnly) build.Draw(new RuleMark(new Rect(50, 0, 20, 20), Brushes.Red));
+        build.Close();
 
-            return new Laid(build.Seal(), new Size(80, 20), []);
-        }
+        return new Laid(build.Seal(), new Size(80, 20), []);
     }
 
     /// <summary>An element measured and arranged, as it would be on a page.</summary>

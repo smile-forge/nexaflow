@@ -220,14 +220,15 @@ word into a chart with nothing forwarding gestures between controls.
 **Who answers a key.** From the piece holding the caret up the layout to the first piece naming a part of the tree, then
 up the tree to the first part holding another language (`ContentNested.Holders`): that language's `Editing.OnEdit` is
 asked what the key means (`IOnEdit`: typing, settling, taking back, and what an edit came to). Where it says nothing the
-key does to the characters what a key does; no such part means markdown's own source, answered by `MarkdownEdits`. A
+key does to the characters what a key does; no such part means the content's own language, answered by its `Editing` —
+`MarkdownEdits` for a document. A
 language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at; a key
 taking back characters stops at the edges of its source, and takes the whole construct once nothing is left inside.
 LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a place cannot
 hold, starts its next line on Enter and carries a rename to where the name is used (`MermaidEdits`); markdown writes
 typed markup behind a backslash, continues a list on Enter and joins two paragraphs on backspace.
 
-**What a key means where the caret is, is the content's** (`IContent.Typing`, `Settle`, `Erasing`, `Edited`). Space and
+**What a key means where the caret is, is the engine's to ask** (`ContentEngine.Typing`, `Settle`, `Erasing`, `Edited`). Space and
 Enter both arrive at `Settle`, so content made of lines starts another on Enter while a formula settles what is
 half-written. A diagram starts its next line under the one the caret is on, as its grammar starts one there
 (`IMermaidGrammar.Blank`), with the caret in its first hole; what a place cannot hold is escaped as it is typed

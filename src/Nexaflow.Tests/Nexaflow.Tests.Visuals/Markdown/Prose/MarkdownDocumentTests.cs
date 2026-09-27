@@ -14,7 +14,7 @@ namespace Nexaflow.Tests.Visuals.Markdown.Prose;
 /// </summary>
 [TestClass]
 [CoversNode("markdown-text")]
-public class MarkdownContentTests
+public class MarkdownDocumentTests
 {
     // ── Backspace at the end of a line shows the line ───────────────────────
 
@@ -64,22 +64,22 @@ public class MarkdownContentTests
     public void AShownLineIsTextToItsEndsAndNoFurther()
     {
         var state = new EditState("# Title\n", 0, null, new RawZone(0, 7));
-        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
+        var content = new ContentEngine();
 
         // At its start there is nothing of it left to take, so the key stops rather than eating the line before it.
-        Assert.IsNotNull(content.Erasing(Land(content, state), forward: false));
+        Assert.IsNotNull(content.Erasing(null, Land(content, state), forward: false));
 
         // Anywhere inside it, it is ordinary text.
-        Assert.IsNull(content.Erasing(Land(content, state with { Caret = 4 }), forward: false));
+        Assert.IsNull(content.Erasing(null, Land(content, state with { Caret = 4 }), forward: false));
     }
 
     [TestMethod]
     public void TypingIntoAShownLineKeepsItShown()
     {
         var state = new EditState("# Title\n", 7, null, new RawZone(0, 7));
-        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
+        var content = new ContentEngine();
 
-        var typed = content.Typing(Land(content, state), "!");
+        var typed = content.Typing(null, Land(content, state), "!");
 
         Assert.AreEqual("# Title!\n", typed?.Source);
         Assert.AreEqual(8, typed?.Raw?.End);
@@ -88,10 +88,10 @@ public class MarkdownContentTests
     [TestMethod]
     public void DeleteIsLeftAloneEntirely()
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
+        var content = new ContentEngine();
         var state = new EditState("# Title\n", 7);
 
-        Assert.IsNull(content.Erasing(Land(content, state), forward: true));
+        Assert.IsNull(content.Erasing(null, Land(content, state), forward: true));
     }
 
     // ── Ticking ─────────────────────────────────────────────────────────────
@@ -211,11 +211,11 @@ public class MarkdownContentTests
 
     private static EditState? Erase(string source, int caret)
     {
-        var content = MarkdownContent.Of(StyleFormat.Dark, new ContentEngine());
+        var content = new ContentEngine();
 
-        return content.Erasing(Land(content, new EditState(source, caret)), forward: false);
+        return content.Erasing(null, Land(content, new EditState(source, caret)), forward: false);
     }
 
-    private static Landing Land(MarkdownContent content, EditState state) =>
-        new(state, content.Lay(state, 480, readOnly: false), -1);
+    private static Landing Land(ContentEngine engine, EditState state) =>
+        new(state, engine.Lay(null, state, StyleFormat.Dark, 480, readOnly: false), -1);
 }

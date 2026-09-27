@@ -34,7 +34,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// </summary>
 /// <param name="inputs">What the host says about the content it shows — see <see cref="Inputs"/>.</param>
-public sealed class ContentEngine(ContentInputs? inputs = null)
+public sealed partial class ContentEngine(ContentInputs? inputs = null)
 {
     /// <summary>What a piece of content read to: its language's tree, and what each piece in it written in another language read to.</summary>
     /// <param name="Pieces">Where its parser placed each piece written in another language.</param>

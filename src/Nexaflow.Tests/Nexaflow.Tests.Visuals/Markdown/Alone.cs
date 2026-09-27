@@ -32,9 +32,7 @@ internal static class Alone
         if (!ContentLanguages.Reads(language)) throw new ArgumentException($"no language reads '{language}'", nameof(language));
 
         var style = palette ?? StyleFormat.FromTheme();
-        var engine = new ContentEngine(inputs);
-
-        return new ContentElement(source, style, Content.Of((state, room) => engine.Lay(language, state, style, room, readOnly: false)))
+        return new ContentElement(source, style, new ContentEngine(inputs), language)
         {
             Cursor = Cursors.Arrow,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -45,9 +43,8 @@ internal static class Alone
     /// <summary>A score on an element of its own, written in to by nobody.</summary>
     public static ContentElement Engraved(MusicDialect dialect, string source, StyleFormat palette, double zoom = 1)
     {
-        var engine = new ContentEngine();
         var named = dialect == MusicDialect.LilyPond ? "lilypond" : "abc";
 
-        return new(source, palette, (state, room) => engine.Lay(named, state, palette, room, readOnly: true)) { Zoom = zoom };
+        return new(source, palette, new ContentEngine(), named) { IsReadOnly = true, Zoom = zoom };
     }
 }

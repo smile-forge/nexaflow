@@ -109,7 +109,7 @@ public class ContentBuilderTests
     [TestMethod]
     public void ReadingThatFallsOverBeforeAnyBuilderIsShownAsWrittenWithWhy() => UiThread.Run(() =>
     {
-        var element = new Nexaflow.Visuals.Text.Editing.ContentElement("a+b", StyleFormat.Dark, (state, room) => throw new InvalidOperationException("no reader"));
+        var element = HandLaid.Unreadable("a+b");
         element.Measure(new Size(400, double.PositiveInfinity));
 
         Assert.IsTrue(element.HasError, "the element still stands, saying something is wrong");
