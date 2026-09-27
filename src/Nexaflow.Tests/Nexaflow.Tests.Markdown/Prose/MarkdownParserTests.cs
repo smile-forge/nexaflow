@@ -144,8 +144,8 @@ public class MarkdownParserTests
     {
         var fence = Blocks("```csharp\nvar x = 1;\n```\n")[0];
 
-        Assert.AreEqual(MarkdownKinds.Fence, fence.Kind);
-        Assert.AreEqual("csharp", fence.Part(Roles.Name)?.Text);
+        Assert.AreEqual(Kinds.Block, fence.Kind);
+        Assert.AreEqual("csharp", ContentNested.Language(fence));
         Assert.AreEqual("var x = 1;\n", Body(fence));
     }
 
@@ -155,7 +155,7 @@ public class MarkdownParserTests
         // What is in there is a different language, and reading it is its own parser's business.
         var fence = Blocks("```mermaid\npie\n  \"a\" : 1\n```\n")[0];
 
-        Assert.AreEqual(Kinds.Verbatim, fence.Part(Roles.Body)?.Kind);
+        Assert.AreEqual(Kinds.Nested, fence.Part(Roles.Body)?.Kind);
         Assert.AreEqual("pie\n  \"a\" : 1\n", Body(fence));
     }
 
@@ -174,8 +174,8 @@ public class MarkdownParserTests
         // Half-written input is what an editor holds all day.
         var fence = Blocks("```csharp\nvar x = 1;\n")[0];
 
-        Assert.AreEqual(MarkdownKinds.Fence, fence.Kind);
-        Assert.AreEqual("csharp", fence.Part(Roles.Name)?.Text);
+        Assert.AreEqual(Kinds.Block, fence.Kind);
+        Assert.AreEqual("csharp", ContentNested.Language(fence));
     }
 
     [TestMethod]

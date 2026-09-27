@@ -19,13 +19,15 @@ namespace Nexaflow.Visuals.Text.Markdown.Code;
 /// </summary>
 public static class CodeParser
 {
+    /// <param name="language">The grammar the code is read against, or nothing for code in a language no grammar reads.</param>
     /// <param name="spans">What a grammar made of it, or null where nothing has read it against one.</param>
-    public static ContentNode Parse(string? source, IReadOnlyList<HighlightSpan>? spans = null)
+    public static ContentNode Parse(string? source, string language, IReadOnlyList<HighlightSpan>? spans = null)
     {
         source ??= string.Empty;
 
-        return ContentNode.Branch(CodeKinds.Code,
-            [spans is null || source.Length == 0 ? ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body) : Tokens(source, spans)]);
+        return new BlockNode(language,
+            [spans is null || source.Length == 0 ? ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body) : Tokens(source, spans)],
+            CodeKinds.Code);
     }
 
     private static ContentNode Tokens(string text, IReadOnlyList<HighlightSpan> spans)

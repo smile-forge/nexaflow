@@ -966,9 +966,8 @@ was pressed in: the engine's view state for that diagram, and whatever its conte
 ([bound content](#bound-content-a-diagrams-lines-or-the-whole-of-it)). A chip writes its opening down **before** bound
 content is told, because what that content supplies is read into the diagram again once it has walked (the PE inspector
 walks one module further) and an opening made here has to survive that; where nothing is bound, the diagram lays itself
-out again and opens the node from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that
-([`DiagramRibbon`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs)), falling through to the document's own menu
-where it offers nothing.
+out again and opens the node from its own source. A right-click asks the piece under the pointer, and the language drawn there,
+what can be done to it and offers exactly that ([`DiagramRibbon`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs)).
 
 **Layout.** A folding diagram is laid out by the same
 [`DiagramLayers`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/DiagramLayers.cs) as every other graph-shaped one:

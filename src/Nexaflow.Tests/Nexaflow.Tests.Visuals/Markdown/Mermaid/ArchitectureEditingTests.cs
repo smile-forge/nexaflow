@@ -26,7 +26,6 @@ public class ArchitectureEditingTests : MermaidEditing
                      ("Edge", "s", "[Edges]"),
                      ("Store", "s", "[Stores]"),
                      ("feeds", "!", "-[feeds!]-"),
-                     ("plain", "s", "service plains"),
                  })
         {
             InADocument((editor, diagram) =>

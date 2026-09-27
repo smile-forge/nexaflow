@@ -178,31 +178,6 @@ public class PieGrammarTests : MermaidGrammarContract
     }
 
     [TestMethod]
-    public void ANewSliceIsALabelAndAValueStillToWrite()
-    {
-        var (text, caret) = new PieGrammar().Blank(above: null)!.Value;
-        var slice = Slices("pie\n  " + text).Single();
-
-        Assert.AreEqual(string.Empty, slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text);
-        Assert.AreEqual(string.Empty, Value(slice).Text);
-        Assert.AreEqual('"', text[caret - 1], "the caret starts inside the label's quotes");
-    }
-
-    [TestMethod]
-    public void AQuoteTypedIntoALabelIsWrittenAsItsEntityCode()
-    {
-        const string source = "pie\n  \"Dogs\" : 3";
-        var label = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().Single(part => part.Kind == MermaidKinds.Words);
-
-        var writing = new PieGrammar().Escaping(label, label.End, "\"")!.Value;
-        var written = source[..writing.Start] + writing.Text + source[writing.End..];
-
-        Assert.AreEqual("pie\n  \"Dogs#quot;\" : 3", written);
-        Assert.IsNull(new PieGrammar().Escaping(label, label.End, "s"), "and anything else goes in as it is");
-        Assert.AreEqual("Dogs\"", MermaidText.Decode(MermaidStaged.Read(written).SelfAndDescendants().Single(node => node.Kind == PieKinds.Slice).Inner(MermaidKinds.Words)!.Print()), "which reads as the quote typed");
-    }
-
-    [TestMethod]
     public void OptionsNobodyKnowsAreHeldWithTheReason()
     {
         var held = MermaidParser.Parse("pie wibble\n  \"Dogs\" : 386")

@@ -47,6 +47,12 @@ public static class LayoutVerbs
     /// </summary>
     public const string Copy = "copy";
 
+    /// <summary>
+    /// Put what was copied where the caret is. The host's to do, as copying is — the clipboard is its — and what is on it goes to
+    /// the engine as a paste, for the language the caret is in to say what it comes to there.
+    /// </summary>
+    public const string Paste = "paste";
+
     /// <summary>Keep a picture of what is under the pointer. The host decides where, and whether at all.</summary>
     public const string Save = "save";
 }
@@ -70,6 +76,21 @@ public readonly record struct LayoutIntent(string Verb, string? Target = null, s
     /// </para>
     /// </summary>
     public LayoutOffer Offer { get; init; }
+
+    /// <summary>
+    /// The choice this is one of the options of — a legend's position, a hole's size — or null for something done on its own.
+    /// Options of one choice are shown side by side, one of them <see cref="Current"/>.
+    /// </summary>
+    public string? Group { get; init; }
+
+    /// <summary>Whether this option is what the content says now.</summary>
+    public bool Current { get; init; }
+
+    /// <summary>
+    /// What it is drawn as where a picture says it better than a word — a shape in a 16 by 16 box, filled in the ink of whatever
+    /// shows it — or null, to be named. Its name is still what a reader hovering over it, or hearing the screen read, is told.
+    /// </summary>
+    public System.Windows.Media.Geometry? Shape { get; init; }
 }
 
 /// <summary>Which of the two kinds of thing an offer is.</summary>

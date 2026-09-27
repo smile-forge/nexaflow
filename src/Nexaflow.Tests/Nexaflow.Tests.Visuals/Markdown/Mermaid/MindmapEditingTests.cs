@@ -7,6 +7,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Visuals.Text.Markdown.Mermaid.Mindmap;
+using Nexaflow.Markdown.Mermaid;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -49,6 +51,16 @@ public class MindmapEditingTests : MermaidEditing
             StringAssert.Contains(chart.Source, "of writing?]", chart.Source);
             Assert.AreEqual(0, chart.Diagnostics.Count, string.Join(" | ", chart.Diagnostics.Select(diagnostic => diagnostic.Message)));
         }));
+
+    [TestMethod]
+    public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
+    {
+        const string source = "mindmap\n  root((r))\n    Origins";
+        var id = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Origins");
+        var writing = MindmapEdits.Escaping(id, id.End, "(")!.Value;
+
+        Assert.AreEqual("mindmap\n  root((r))\n    [\"Origins(\"]", MermaidStaged.Written(source, writing));
+    }
 }
 
 

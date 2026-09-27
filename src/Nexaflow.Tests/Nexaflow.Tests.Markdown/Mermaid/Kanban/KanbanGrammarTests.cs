@@ -104,26 +104,6 @@ public class KanbanGrammarTests : MermaidGrammarContract
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");
     }
 
-    [TestMethod]
-    public void ANewLineUnderAColumnIsACardIndentedUnderIt_AndUnderACardAnother()
-    {
-        var grammar = new KanbanGrammar();
-        var nodes = Nodes(MermaidStaged.Read("kanban\n  todo[Todo]\n    a[Card]"), KanbanKinds.Node);
-
-        Assert.AreEqual(("  [\"\"]", 4), grammar.Blank(nodes[0]));
-        Assert.AreEqual(("[\"\"]", 2), grammar.Blank(nodes[1]));
-    }
-
-    [TestMethod]
-    public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
-    {
-        const string source = "kanban\n  Todo";
-        var id = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Todo");
-        var writing = new KanbanGrammar().Escaping(id, id.End, "(")!.Value;
-
-        Assert.AreEqual("kanban\n  [\"Todo(\"]", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

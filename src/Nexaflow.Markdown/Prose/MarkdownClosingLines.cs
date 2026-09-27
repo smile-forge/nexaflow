@@ -3,8 +3,9 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Markdown.Prose;
 
 /// <summary>
-/// The line break closing the last line of a block held as written — a fence's body, a maths block's, indented code, raw
-/// markup, front matter, a link's definition — cut into a piece of its own as the block is read (<see cref="MarkdownBlocks"/>).
+/// The line break closing the last line of a block held as written — indented code, raw markup, front matter, a link's
+/// definition — cut into a piece of its own as the block is read (<see cref="MarkdownBlocks"/>). Not a block in another
+/// language, whose characters are that language's, held whole and unread (<see cref="ContentNested"/>).
 ///
 /// <para>
 /// That line break is where the next line starts rather than a line of the block's own: a fence's belongs to the line its
@@ -17,8 +18,7 @@ internal static class MarkdownClosingLines
     /// <summary>This piece with the line break closing what it holds as written made a piece of its own, where it is one that does.</summary>
     public static ContentNode Closed(ContentNode node)
     {
-        if (node.Kind is not (MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Code or MarkdownKinds.Html
-                              or MarkdownKinds.Reference or MarkdownKinds.FrontMatter)) return node;
+        if (node.Kind is not (MarkdownKinds.Code or MarkdownKinds.Html or MarkdownKinds.Reference or MarkdownKinds.FrontMatter)) return node;
 
         ContentNode[]? cut = null;
 

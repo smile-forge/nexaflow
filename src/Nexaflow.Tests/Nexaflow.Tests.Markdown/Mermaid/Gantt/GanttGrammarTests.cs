@@ -144,35 +144,6 @@ public class GanttGrammarTests : MermaidGrammarContract
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");
     }
 
-    [TestMethod]
-    public void ANewLineUnderATaskOrASectionIsATask_AndUnderASettingNothing()
-    {
-        var grammar = new GanttGrammar();
-        var tree = MermaidParser.Parse("gantt\n  dateFormat YYYY\n  section A\n  Task : 2014, 3d");
-
-        Assert.AreEqual((": 1d", 0), grammar.Blank(Nodes(tree, GanttKinds.Task).Single()));
-        Assert.AreEqual((": 1d", 0), grammar.Blank(Nodes(tree, GanttKinds.Section).Single()));
-        Assert.IsNull(grammar.Blank(Nodes(tree, GanttKinds.Setting).Single()));
-    }
-
-    [TestMethod]
-    public void AnIdRenamedWhereItIsDeclaredIsRenamedWhereverAfterUntilOrClickNameIt()
-    {
-        var names = new GanttGrammar().Names(ContentReading.Of(MermaidStaged.Read(Syntax)).Root);
-
-        Assert.AreEqual(3, names.Single(name => name.Name == "des1").Uses.Count + names.Single(name => name.Name == "isadded").Uses.Count);
-        Assert.AreEqual("two_words", new GanttGrammar().Naming("two words"));
-    }
-
-    [TestMethod]
-    public void AColonTypedIntoATasksNameIsNotWritten()
-    {
-        const string source = "gantt\n  Design : 2014-01-01, 3d";
-        var name = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Design");
-
-        Assert.AreEqual(string.Empty, new GanttGrammar().Escaping(name, name.End, ":")!.Value.Text);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

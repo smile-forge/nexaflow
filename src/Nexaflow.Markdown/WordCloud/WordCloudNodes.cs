@@ -7,9 +7,9 @@ namespace Nexaflow.Markdown.WordCloud;
 /// A <c>wordcloud</c> block as its stages leave it (<see cref="Stages.ResolveCloud"/>): what the cloud is drawn like, and what its
 /// words are drawn in. It prints as the lines written.
 /// </summary>
-internal sealed class WordCloudBlockNode : ContentNode
+internal sealed class WordCloudBlockNode : BlockNode
 {
-    internal WordCloudBlockNode(ContentNode written, WordCloudSettings settings, WordCloudColours colours) : base(written)
+    internal WordCloudBlockNode(ContentNode written, WordCloudSettings settings, WordCloudColours colours) : base((BlockNode)written)
     {
         this.Settings = settings;
         this.Colours = colours;
@@ -21,7 +21,7 @@ internal sealed class WordCloudBlockNode : ContentNode
     /// <summary>What the words are drawn in, and on.</summary>
     public WordCloudColours Colours { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new WordCloudBlockNode(shape, this.Settings, this.Colours);
+    protected override BlockNode Retyped(BlockNode shape) => new WordCloudBlockNode(shape, this.Settings, this.Colours);
 }
 
 /// <summary>

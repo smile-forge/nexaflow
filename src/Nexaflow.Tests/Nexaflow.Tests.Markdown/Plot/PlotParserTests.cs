@@ -53,7 +53,7 @@ public class PlotParserTests
     public void EveryBlockReadsBackAsItWasWritten()
     {
         foreach (var (what, source) in Blocks)
-            Assert.AreEqual(source, PlotParser.Parse(source).Print(), what);
+            Assert.AreEqual(source, PlotParser.Parse(language: "scatter", source:source).Print(), what);
     }
 
     [TestMethod]
@@ -63,7 +63,7 @@ public class PlotParserTests
             for (var length = 0; length <= source.Length; length++)
             {
                 var typed = source[..length];
-                Assert.AreEqual(typed, PlotParser.Parse(typed).Print(),
+                Assert.AreEqual(typed, PlotParser.Parse(language: "scatter", source:typed).Print(),
                                 $"{what}: after {length} character(s)");
             }
     }
@@ -72,7 +72,7 @@ public class PlotParserTests
     public void TheParserOnlyEverCopies()
     {
         foreach (var (what, source) in Blocks)
-            foreach (var place in PlotParser.Parse(source).Placed())
+            foreach (var place in PlotParser.Parse(language: "scatter", source:source).Placed())
             {
                 if (!place.Node.IsLeaf) continue;
 
@@ -99,7 +99,7 @@ public class PlotParserTests
                 {
                     var written = source[..at] + character + source[at..];
 
-                    Assert.AreEqual(written, PlotParser.Parse(written).Print(),
+                    Assert.AreEqual(written, PlotParser.Parse(language: "scatter", source:written).Print(),
                                     $"{what}: {character} typed at {at}");
                 }
     }
@@ -109,7 +109,7 @@ public class PlotParserTests
     [TestMethod]
     public void EveryLineIsALineOfTheBlock()
     {
-        var tree = PlotParser.Parse("x: weight\n\n# a note\n1 2");
+        var tree = PlotParser.Parse(language: "scatter", source:"x: weight\n\n# a note\n1 2");
 
         Assert.AreEqual(PlotKinds.Block, tree.Kind);
         Assert.AreEqual(4, tree.Children.Count);
@@ -119,7 +119,7 @@ public class PlotParserTests
     [TestMethod]
     public void AnEmptyBlockIsNoLinesAtAll()
     {
-        var tree = PlotParser.Parse("");
+        var tree = PlotParser.Parse(language: "scatter", source:"");
 
         Assert.AreEqual(PlotKinds.Block, tree.Kind);
         Assert.AreEqual(0, tree.Children.Count);
@@ -270,7 +270,7 @@ public class PlotParserTests
     {
         // Nothing here knows that — it is what the pipeline reads the matrix form off — but the cells
         // have to be there to be counted.
-        var rows = PlotParser.Parse("      mpg   hp\nmpg   1.00  -0.78")
+        var rows = PlotParser.Parse(language: "scatter", source:"      mpg   hp\nmpg   1.00  -0.78")
                              .SelfAndDescendants()
                              .Where(node => node.Kind == PlotKinds.Row)
                              .ToList();
@@ -283,13 +283,13 @@ public class PlotParserTests
 
     /// <summary>What each line of <paramref name="source"/> turned out to be.</summary>
     private static IEnumerable<string> Lines(string source) =>
-        PlotParser.Parse(source).Children
+        PlotParser.Parse(language: "scatter", source:source).Children
                   .Select(line => line.Children.FirstOrDefault(piece => piece.Kind != Kinds.Space)?.Kind
                                   ?? Kinds.Space);
 
     /// <summary>What the lines of <paramref name="source"/> say, without the space around them.</summary>
     private static IEnumerable<ContentNode> Said(string source) =>
-        PlotParser.Parse(source).Children
+        PlotParser.Parse(language: "scatter", source:source).Children
                   .SelectMany(line => line.Children)
                   .Where(piece => piece.Kind != Kinds.Space);
 

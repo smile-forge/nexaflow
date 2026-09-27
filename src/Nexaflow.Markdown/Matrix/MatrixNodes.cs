@@ -7,13 +7,13 @@ namespace Nexaflow.Markdown.Matrix;
 /// modules are dark, which of the parts the code is made of each belongs to, and how big and in what colours it is drawn. It
 /// prints as the fields written.
 /// </summary>
-internal sealed class MatrixSymbolNode : ContentNode
+internal sealed class MatrixSymbolNode : BlockNode
 {
     private readonly int[] _owners;
 
     private MatrixSymbolNode(ContentNode written, IModuleMatrix modules, MatrixSettings settings, double rowHeight,
                              IReadOnlyList<string> parts, int[] owners)
-        : base(written)
+        : base((BlockNode)written)
     {
         this.Modules = modules;
         this.Settings = settings;
@@ -61,7 +61,7 @@ internal sealed class MatrixSymbolNode : ContentNode
     /// <summary>Which of <see cref="Parts"/> the module at (<paramref name="x"/>, <paramref name="y"/>) is in, or past the last where it is in none.</summary>
     public int Owner(int x, int y) => _owners[y * this.Modules.Width + x];
 
-    protected override ContentNode Reshaped(ContentNode shape) =>
+    protected override BlockNode Retyped(BlockNode shape) =>
         new MatrixSymbolNode(shape, this.Modules, this.Settings, this.RowHeight, this.Parts, _owners);
 }
 

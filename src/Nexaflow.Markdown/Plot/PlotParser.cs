@@ -35,7 +35,8 @@ public static class PlotParser
     /// <summary>The word that opens the table where a reader wants to say so rather than let the first row do it.</summary>
     public const string DataWord = "data";
 
-    public static ContentNode Parse(string? source)
+    /// <param name="language">The fence the block was called by — every plot is read the same way.</param>
+    public static ContentNode Parse(string? source, string language)
     {
         source ??= string.Empty;
         var lines = new List<ContentNode>();
@@ -56,7 +57,7 @@ public static class PlotParser
             at = stop;
         }
 
-        return ContentNode.Branch(PlotKinds.Block, lines);
+        return new BlockNode(language, lines, PlotKinds.Block);
     }
 
     /// <summary>

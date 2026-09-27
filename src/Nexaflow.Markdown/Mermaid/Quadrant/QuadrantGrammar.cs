@@ -51,62 +51,6 @@ public sealed class QuadrantGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a quadrant's caption, the next quadrant's; anywhere else, a point with its name still to write, in the middle.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above)
-    {
-        var word = above?.Kind == QuadrantKinds.Region ? above.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Key)?.Text : null;
-        var next = word is null ? -1 : Regions.ToList().FindIndex(region => region.Equals(word, StringComparison.OrdinalIgnoreCase)) + 1;
-
-        return next is > 0 and < 4 ? ($"{Regions[next]} ", Regions[next].Length + 1) : (": [0.5, 0.5]", 0);
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// In quotes, a quote is written as its entity code; bare text is put in quotes to hold a colon, a quote or a bracket, which
-    /// would end it; a bare class name is put in quotes to hold anything but a word.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text, (_, said) => Bare(said)) is { } escaped) return escaped;
-        if (part.Parent is not { Kind: QuadrantKinds.Text } holder || holder.Children.Any(child => child.Role == Roles.Open)) return null;
-
-        var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
-        var at = Math.Clamp(caret - part.Start, 0, said.Length);
-        var (before, after) = (said[..at] + text, said[at..]);
-
-        return (before + after).Any(character => character is ':' or '"' or '[' or ']')
-            ? MermaidWriting.Quoting(part.Start, part.Start + said.Length, before, after)
-            : null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>A class is declared where a <c>classDef</c> names it, and used by every point that takes it after <c>:::</c>.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var uses = block.SelfAndDescendants()
-            .Where(part => part.Kind == QuadrantKinds.Point)
-            .Select(point => point.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name))
-            .OfType<ContentPart>()
-            .ToList();
-
-        return
-        [
-            .. block.SelfAndDescendants()
-                .Where(part => part.Kind == QuadrantKinds.Class)
-                .Select(line => line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name))
-                .OfType<ContentPart>()
-                .Select(name => (Name: name, Said: Said(name)))
-                .Where(declared => declared.Said.Length > 0)
-                .Select(declared => new MermaidName(declared.Said, declared.Name, [.. uses.Where(use => Said(use) == declared.Said)])),
-        ];
-
-        static string Said(ContentPart name) => name.Words()?.Text ?? string.Empty;
-    }
-
-    /// <inheritdoc/>
-    public string Naming(string name) => Bare(name) ? name : "\"" + name + "\"";
-
-    /// <inheritdoc/>
     /// <remarks>Whether each point's class is written is worked out over the whole block (<see cref="ResolveClasses"/>).</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolvePoints(QuadrantConfig.Read(block.Config))];
 
@@ -243,7 +187,7 @@ public sealed class QuadrantGrammar : IMermaidGrammar
 
     private static bool Letter(char character) => char.IsAsciiLetterOrDigit(character) || character is '_' or '-';
 
-    private static bool Bare(string name) => name.Length > 0 && name.All(Letter);
+    internal static bool Bare(string name) => name.Length > 0 && name.All(Letter);
 
     /// <summary>A position: a number from 0 to 1.</summary>
     private static readonly Func<string, string?> Coordinate = MermaidNumber.Where(number => number is >= 0 and <= 1, "A point stands from 0 to 1 across and up.");

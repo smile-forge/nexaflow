@@ -158,13 +158,13 @@ public class AztecBuilderTests
 
     private static AztecBlock Read(string source)
     {
-        Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(AztecBlockReader.TryRead(MatrixParser.Parse(language: "aztec", source:source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 
     private static void AssertRefused(string source, string expected)
     {
-        Assert.IsFalse(AztecBlockReader.TryRead(MatrixParser.Parse(source), out _, out var wrong), $"'{source}' was accepted");
+        Assert.IsFalse(AztecBlockReader.TryRead(MatrixParser.Parse(language: "aztec", source:source), out _, out var wrong), $"'{source}' was accepted");
         StringAssert.Contains(wrong.Reason, expected, $"'{source}' said: {wrong.Reason}");
     }
 }

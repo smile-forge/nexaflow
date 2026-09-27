@@ -44,49 +44,6 @@ public sealed class JourneyGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a task or the section holding it, another task, scored in the middle with its name still to write.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above?.Kind is JourneyKinds.Task or JourneyKinds.Section ? (": 3", 0) : null;
-
-    /// <inheritdoc/>
-    /// <remarks>Every colon splits a task from its score and its actors, and a <c>%%</c> closes the line, so both go in as the entity codes standing for them.</remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (part.Parent is not { Kind: JourneyKinds.Text or MermaidKinds.Name } || !text.Any(character => character is ':' or '%' or ',')) return null;
-
-        var written = Escaped(text);
-        return new MermaidWriting(caret, caret, written, caret + written.Length);
-    }
-
-    /// <summary>Text with the characters a line is read by — the colons between a task's parts, the commas between its actors, and a comment's per cent signs — written as the entity codes standing for them.</summary>
-    private static string Escaped(string text) =>
-        text.Replace(":", "#colon;", StringComparison.Ordinal)
-            .Replace("%", "#37;", StringComparison.Ordinal)
-            .Replace(",", "#44;", StringComparison.Ordinal);
-
-    /// <inheritdoc/>
-    /// <remarks>An actor is named wherever they take part: renaming one renames every task they are in.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var named = block.SelfAndDescendants()
-            .Where(part => part is { Kind: MermaidKinds.Words, Role: JourneyRoles.Actor, Length: > 0 })
-            .Select(words => (Part: words.Parent ?? words, Said: words.Text.Trim()))
-            .Where(actor => actor.Said.Length > 0)
-            .ToList();
-
-        return
-        [
-            .. named
-                .GroupBy(actor => actor.Said, StringComparer.Ordinal)
-                .Select(actor => new MermaidName(actor.Key, actor.First().Part, [.. actor.Skip(1).Select(use => use.Part)])),
-        ];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>A name goes in as it is, but for the characters a line is read by, which go in as their entity codes.</remarks>
-    public string Naming(string name) => Escaped(name);
-
-    /// <inheritdoc/>
     /// <remarks>Only what the front matter asks for: which section each task is in is the order the lines are written in.</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<JourneyConfig>(JourneyConfig.Read(block.Config))];
 

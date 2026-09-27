@@ -304,7 +304,7 @@ public class MarkdownBlocksTests
         const string source = "$$ \\frac{a}{b} $$\n\n$x$\n\n$$y$$ and words\n";
         var blocks = Blocks(source);
 
-        Assert.AreEqual(MarkdownKinds.Math, blocks[0].Kind, "written on one line, it is still a formula on a line of its own");
+        Assert.AreEqual("latex", ContentNested.Language(blocks[0]), "written on one line, it is still a formula on a line of its own");
         Assert.AreEqual("\\frac{a}{b}", blocks[0].Part(Roles.Body)?.Text);
         Assert.AreEqual(MarkdownKinds.Paragraph, blocks[1].Kind, "single dollars are a formula in a sentence");
         Assert.AreEqual(MarkdownKinds.Paragraph, blocks[2].Kind, "and one with words beside it is part of the sentence");
@@ -318,8 +318,8 @@ public class MarkdownBlocksTests
     {
         var fence = Blocks("```mermaid\npie\n```\n")[0];
 
-        Assert.AreEqual(Kinds.Verbatim, Body(fence).Kind);
-        Assert.AreEqual("pie\n", Body(fence).Print(), "its body, the line break closing it a piece of its own");
+        Assert.AreEqual(Kinds.Nested, Body(fence).Kind);
+        Assert.AreEqual("pie\n", Body(fence).Print(), "its body held whole, the line break closing it with it");
     }
 
     [TestMethod]
@@ -327,13 +327,13 @@ public class MarkdownBlocksTests
     {
         var maths = Blocks("$$\n\\frac{x^2}{2}\n$$\n")[0];
 
-        Assert.AreEqual(MarkdownKinds.Math, maths.Kind);
+        Assert.AreEqual(Kinds.Block, maths.Kind);
+        Assert.AreEqual("latex", ContentNested.Language(maths));
 
         // The same shape a fence has, because it is the same thing: a delimiter, another language, a delimiter.
         // Nobody writes the language after the $$, so there is no name — which is the only difference.
-        Assert.AreEqual("$$", maths.Part(Roles.Open)?.Text);
-        Assert.IsNull(maths.Part(Roles.Name));
-        Assert.AreEqual(Kinds.Verbatim, Body(maths).Kind);
+        Assert.AreEqual("$$\n", maths.Part(Roles.Open)?.Text);
+        Assert.AreEqual(Kinds.Nested, Body(maths).Kind);
         Assert.AreEqual("\\frac{x^2}{2}\n", Body(maths).Print());
         Assert.AreEqual("$$\n", maths.Part(Roles.Close)?.Text);
     }
@@ -344,7 +344,7 @@ public class MarkdownBlocksTests
         var words = Blocks("The value $x^2$ and then some.\n")[0];
 
         var maths = words.Part(Roles.Body)!.Children
-            .Where(child => child.Kind == MarkdownKinds.Formula)
+            .Where(child => ContentNested.Language(child) == "latex")
             .ToList();
 
         Assert.AreEqual(1, maths.Count);

@@ -90,10 +90,9 @@ public sealed partial class ContentEngine
                 Delete();
                 return true;
 
-            // Both end whatever is half-written, which is the language's to say; a line break inside a paragraph is written
-            // as one, since Enter already means the next paragraph.
+            // A line broken inside what is being written — the language's to say how.
             case Key.Enter when shift:
-                Insert("\\\n");
+                Break();
                 return true;
 
             case Key.Enter or Key.Space:
@@ -101,9 +100,14 @@ public sealed partial class ContentEngine
                 _spaced = key == Key.Space;
                 return true;
 
-            // Through the holes a construct left while any remain; otherwise Tab is the window's, to move on with.
+            // On to the next place to write in, where the language says; otherwise through the holes a construct left while any
+            // remain; otherwise Tab is the window's, to move on with.
             case Key.Tab:
-                return SelectNextPlaceholder(forward: !shift);
+                return Tabbed(forward: !shift) || SelectNextPlaceholder(forward: !shift);
+
+            // Something new where the caret is, where the language has something to put there.
+            case Key.Insert when !shift:
+                return Inserted();
 
             default:
                 return false;

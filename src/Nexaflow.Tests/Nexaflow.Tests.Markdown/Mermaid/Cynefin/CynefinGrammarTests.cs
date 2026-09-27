@@ -119,27 +119,6 @@ public class CynefinGrammarTests : MermaidGrammarContract
         Assert.AreEqual(0, Trouble(source).Count);
     }
 
-    [TestMethod]
-    public void ANewLineUnderADomainIsAnItem_AndElsewhereTheDomainToOpen()
-    {
-        var grammar = new CynefinGrammar();
-        var domain = Nodes(MermaidParser.Parse("cynefin-beta\n  complex"), CynefinKinds.Domain).Single();
-
-        Assert.AreEqual(("\"\"", 1), grammar.Blank(domain));
-        Assert.AreEqual(("complex", 7), grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void AnArrowTypedIntoABareItemPutsItInQuotes()
-    {
-        const string source = "cynefin-beta\n  complex\n    Investigate";
-        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
-            .First(part => part.Kind == MermaidKinds.Words && part.Text == "Investigate");
-        var writing = new CynefinGrammar().Escaping(says, says.End, " --> clear")!.Value;
-
-        Assert.AreEqual("cynefin-beta\n  complex\n    \"Investigate --> clear\"", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

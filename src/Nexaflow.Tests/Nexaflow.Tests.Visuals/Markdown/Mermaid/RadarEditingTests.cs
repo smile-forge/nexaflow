@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
@@ -76,25 +77,6 @@ public class RadarEditingTests
         }));
 
     [TestMethod]
-    public void RenamingAnAxisRenamesTheValuesThatNameIt() => UiThread.Run(() =>
-        InADocument((editor, radar) =>
-        {
-            PressPast(radar, "api");
-            Write(editor, "s");
-
-            StringAssert.Contains(radar.Source, "axis ui[\"UI\"], apis\n", radar.Source);
-            StringAssert.Contains(radar.Source, "{ ui: 3, apis: 4 }", $"the value still names it: {radar.Source}");
-            Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
-
-            Press(editor, Key.Space);
-            Write(editor, "2");
-
-            StringAssert.Contains(radar.Source, "{ ui: 3, \"apis 2\": 4 }", $"quoted where it is used, as where it is declared: {radar.Source}");
-            Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
-            StringAssert.Contains(editor.Markdown, "\"apis 2\": 4", "and the document says so too");
-        }));
-
-    [TestMethod]
     public void TypingInALegendRowChangesTheCurvesLabel() => UiThread.Run(() =>
         InADocument((editor, radar) =>
         {
@@ -103,25 +85,6 @@ public class RadarEditingTests
 
             StringAssert.Contains(radar.Source, "curve alice[\"Alicea\"]", radar.Source);
             Assert.AreEqual(0, radar.Diagnostics.Count, Trouble(radar));
-        }));
-
-    [TestMethod]
-    public void EnterInALegendRowStartsAnotherCurveToName() => UiThread.Run(() =>
-        InADocument((editor, radar) =>
-        {
-            PressPast(radar, "bob");
-            Press(editor, Key.Enter);
-
-            StringAssert.Contains(radar.Source, "curve bob{2, 5}\n  curve ", radar.Source);
-            Assert.AreEqual(0, radar.Diagnostics.Count, "with nothing wrong with it — only nothing in it yet");
-            Assert.AreEqual(1, radar.Laid.Holes.Count, "a hole for its name");
-            Assert.AreEqual(radar.Laid.Holes[0].Sits().Start, radar.Caret, "with the caret in it");
-
-            Write(editor, "carol");
-
-            StringAssert.Contains(radar.Source, "curve carol", radar.Source);
-            Assert.IsTrue(radar.Laid.Root.SelfAndDescendants().Any(piece => piece.Kind == RadarPiece.Name && piece.Words?.Glyphs.Text == "carol"),
-                          "and it is written in its legend row");
         }));
 
     [TestMethod]
@@ -148,5 +111,15 @@ public class RadarEditingTests
             if (Find<T>(VisualTreeHelper.GetChild(root, at)) is { } found) return found;
 
         return null;
+    }
+
+    [TestMethod]
+    public void ASpaceTypedIntoABareAxisNamePutsItInQuotes()
+    {
+        const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
+        var words = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "a");
+        var writing = RadarEdits.Escaping(words, words.End, " ")!.Value;
+
+        Assert.AreEqual("radar-beta\n  axis \"a \", b\n  curve x{ a: 1, b: 2 }", MermaidStaged.Written(source, writing));
     }
 }

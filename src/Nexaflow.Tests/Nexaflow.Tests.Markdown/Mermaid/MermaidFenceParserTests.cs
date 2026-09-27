@@ -14,41 +14,43 @@ namespace Nexaflow.Tests.Markdown.Mermaid;
 [CoversNode("mermaid")]
 public class MermaidFenceParserTests
 {
+    private static BlockNode Read(string source) => (BlockNode)MermaidFenceParser.Parse(source);
+
     [TestMethod]
     public void TheWholeBlockIsHeldInTheLanguageItsHeaderNames()
     {
         const string source = "---\ntitle: T\n---\n%% note\ngraph TD\n  a --> b";
-        var parse = ContentParse.Of(MermaidFenceParser.Parse(source));
+        var block = Read(source);
 
-        Assert.AreEqual(source, parse.Tree.Print(), "every character kept");
-        Assert.AreEqual(("graph", source, 0), (parse.Nested.Single().Language, parse.Nested.Single().Written, parse.Nested.Single().At),
-                        "the whole of it, named as its header names it");
+        Assert.AreEqual(source, block.Print(), "every character kept");
+        Assert.AreEqual("graph", block.Language, "named as its header names it");
+        Assert.AreEqual(source, block.Children.Single(child => child.Kind == Kinds.Nested).Text, "the whole of it, unread");
     }
 
     [TestMethod]
     public void EveryKeywordOfADiagramNamesIt()
     {
         foreach (var keyword in new[] { "flowchart", "sequenceDiagram", "stateDiagram-v2", "pie", "C4Context", "xychart-beta" })
-            Assert.AreEqual(keyword, ContentParse.Of(MermaidFenceParser.Parse(keyword + "\n")).Nested.Single().Language, keyword);
+            Assert.AreEqual(keyword, Read(keyword + "\n").Language, keyword);
     }
 
     [TestMethod]
     public void ABlockWithNoHeaderYetIsAFlowchart()
     {
-        Assert.AreEqual("flowchart", ContentParse.Of(MermaidFenceParser.Parse("")).Nested.Single().Language);
-        Assert.AreEqual("flowchart", ContentParse.Of(MermaidFenceParser.Parse("%% nothing yet\n")).Nested.Single().Language);
+        Assert.AreEqual("flowchart", Read("").Language);
+        Assert.AreEqual("flowchart", Read("%% nothing yet\n").Language);
     }
 
     [TestMethod]
     public void AHeaderNamingNoDiagramIsAParseError_MarkedOnItsKeyword()
     {
         const string source = "---\ntitle: T\n---\nwibble TD\n  a --> b";
-        var tree = MermaidFenceParser.Parse(source);
+        var block = Read(source);
 
-        Assert.AreEqual(source, tree.Print());
-        Assert.AreEqual(0, ContentParse.Of(tree).Nested.Count, "nothing is held in a language nothing names");
+        Assert.AreEqual(source, block.Print());
+        Assert.IsNull(ContentNested.Language(block), "nothing is held in a language nothing names");
 
-        var wrong = tree.SelfAndDescendants().Single(node => node.Trouble is not null);
+        var wrong = block.SelfAndDescendants().Single(node => node.Trouble is not null);
         Assert.AreEqual("wibble", wrong.Text);
         StringAssert.Contains(wrong.Trouble, "is not a Mermaid diagram type");
     }

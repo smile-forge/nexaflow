@@ -6,16 +6,16 @@ namespace Nexaflow.Markdown.Mermaid.Git;
 /// A <c>gitGraph</c> block as its stage leaves it: what its front matter asks for, and the lane of the branch everything
 /// starts on — which no line makes, so nothing else can say where it goes.
 /// </summary>
-internal sealed class GitBlockNode : ContentNode
+internal sealed class GitBlockNode : BlockNode
 {
-    internal GitBlockNode(ContentNode written, GitConfig config, int main) : base(written) => (this.Config, this.Main) = (config, main);
+    internal GitBlockNode(ContentNode written, GitConfig config, int main) : base((BlockNode)written) => (this.Config, this.Main) = (config, main);
 
     public GitConfig Config { get; }
 
     /// <summary>The lane of the branch everything starts on.</summary>
     public int Main { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) => new GitBlockNode(shape, this.Config, this.Main);
+    protected override BlockNode Retyped(BlockNode shape) => new GitBlockNode(shape, this.Config, this.Main);
 }
 
 /// <summary>

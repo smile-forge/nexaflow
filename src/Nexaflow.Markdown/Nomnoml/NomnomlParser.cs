@@ -69,7 +69,7 @@ public static class NomnomlParser
     public static ContentNode Parse(string? source)
     {
         source ??= string.Empty;
-        return ContentNode.Branch(NomnomlKinds.Diagram, Read(source, 0, source.Length));
+        return new BlockNode("nomnoml", Read(source, 0, source.Length), NomnomlKinds.Diagram);
     }
 
     // ── Lines ───────────────────────────────────────────────────────────────

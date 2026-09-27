@@ -59,24 +59,6 @@ public sealed class TimelineGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a period, or under more of its events, another event; anywhere else nothing, since a period is named before it says anything.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above?.Kind is TimelineKinds.Period or TimelineKinds.More ? (": ", 2) : null;
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// Every colon splits a period from its events, and a <c>%%</c> closes the line, so both go in as the entity codes
-    /// standing for them — which is how Mermaid writes a colon inside what something says.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (part.Parent is not { Kind: TimelineKinds.Text } || !text.Any(character => character is ':' or '%')) return null;
-
-        var written = text.Replace(":", "#colon;", StringComparison.Ordinal).Replace("%", "#37;", StringComparison.Ordinal);
-        return new MermaidWriting(caret, caret, written, caret + written.Length);
-    }
-
-    /// <inheritdoc/>
     /// <remarks>Where a line of further events has no period above it (<see cref="ResolveEvents"/>), and what the front matter asks for.</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveEvents(), new WithConfig<TimelineConfig>(TimelineConfig.Read(block.Config))];

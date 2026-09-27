@@ -131,60 +131,6 @@ public sealed class RequirementGrammar : IMermaidGrammar
         [new MermaidStretch(RequirementKinds.Block, Begun, Shutting, Within, Shutter, "These fields are never closed: } closes them.")];
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Under a field, nothing in particular: the fields are the block's own, and a line opening another here would swallow
-    /// everything under it. Everywhere else a relation, which is the whole of what a requirement diagram writes to one line.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        RequirementKinds.Field or RequirementKinds.Opens or RequirementKinds.Shut => null,
-        RequirementKinds.Direction or RequirementKinds.ClassDef or RequirementKinds.CssClass or RequirementKinds.Style => null,
-        _ => ("\"\" - satisfies -> \"\"", 1),
-    };
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A field's value runs to the end of its line and holds anything but a comment. A name and a class are written bare — in
-    /// quotes, where one holds what a bare name cannot — and a way is letters.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is RequirementRoles.Id or RequirementRoles.Class) return MermaidWriting.Only(caret, text, Bare);
-        if (part.Role is RequirementRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A requirement is declared where its block opens and used wherever it is named again — either end of a relation, a
-    /// <c>class</c> line, a <c>style</c> line.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: RequirementRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A name carried to every use of it has to read in all of them, and a <c>style</c> line names one bare, so what a bare name
-    /// cannot hold is dropped rather than quoted.
-    /// </remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
     /// <remarks>Whether what is styled is written at all (<see cref="ResolveStyles"/>).</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveStyles(), new WithConfig<RequirementConfig>(RequirementConfig.Read(block.Config))];
 

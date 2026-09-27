@@ -117,28 +117,6 @@ public class TimelineGrammarTests : MermaidGrammarContract
         CollectionAssert.AreEqual(new[] { "Facebook", "Google", "Orkut" }, events.Select(text => text.Print().Trim()).ToArray());
     }
 
-    [TestMethod]
-    public void ANewLineUnderAPeriodIsAnotherEvent_AndElsewhereNothing()
-    {
-        var grammar = new TimelineGrammar();
-        var period = Nodes(MermaidParser.Parse("timeline\n    2002 : LinkedIn"), TimelineKinds.Period).Single();
-        var section = Nodes(MermaidParser.Parse("timeline\n    section Early"), TimelineKinds.Section).Single();
-
-        Assert.AreEqual((": ", 2), grammar.Blank(period));
-        Assert.IsNull(grammar.Blank(section));
-    }
-
-    [TestMethod]
-    public void AColonTypedIntoWhatSomethingSaysIsWrittenAsTheEntityCodeForIt()
-    {
-        const string source = "timeline\n    2004 : Facebook";
-        var says = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
-            .First(part => part.Kind == MermaidKinds.Words && part.Text == "Facebook");
-        var writing = new TimelineGrammar().Escaping(says, says.End, ": the wall")!.Value;
-
-        Assert.AreEqual("timeline\n    2004 : Facebook#colon; the wall", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<ContentNode> Events(ContentNode tree) =>

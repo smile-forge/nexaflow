@@ -39,54 +39,59 @@ internal sealed partial class MarkdownEdits : IOnEdit
     public static MarkdownEdits Instance { get; } = new();
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// A line shown as its characters stays shown as its characters while it is written in — typed at its end it grows
-    /// to hold what was typed, or the markup would turn back into what it reads as under the caret.
-    /// </remarks>
-    public EditState? Typing(ContentEdit edit, string text)
+    public ContentChange? Edit(ContentEdit edit) => edit.Kind switch
+    {
+        EditKind.Typing => Typing(edit),
+        EditKind.Settling when edit.Text == "\n" => Breaking(edit),
+        EditKind.Settling => Typing(edit),
+        EditKind.Erasing => Erasing(edit, forward: false),
+        EditKind.Deleting => Erasing(edit, forward: true),
+        _ => null,
+    };
+
+    /// <summary>
+    /// A character written so it reads as itself. A line shown as its characters stays shown as its characters while it is written
+    /// in — typed at its end it grows to hold what was typed, or the markup would turn back into what it reads as under the caret.
+    /// </summary>
+    private static ContentChange? Typing(ContentEdit edit)
     {
         var state = edit.State;
+        var text = edit.Text;
         if (text.Length == 0) return null;
 
         if (!state.HasSelection && state.Raw is { } shown && shown.Holds(state.Caret))
-            return state.Write(text, shown with { End = shown.End + text.Length });
+            return ContentChange.Typed(state, text, shown with { End = shown.End + text.Length });
 
-        if (text.Length != 1 || !Prose(edit.Landing)) return null;
-
-        return Literal(state.HasSelection ? state.Write(string.Empty) : state, text[0]);
+        return text.Length == 1 && Prose(edit.Part) ? Literal(state, text[0]) : null;
     }
 
-    /// <inheritdoc/>
-    public EditState? Settling(ContentEdit edit, string separator)
+    /// <summary>Enter: what comes next after the line it was pressed on.</summary>
+    private static ContentChange? Breaking(ContentEdit edit)
     {
-        if (separator != "\n") return Typing(edit, separator);
-
         var state = edit.State;
         if (!state.HasSelection && state.Raw is { } shown && shown.Holds(state.Caret)) return null;
-
-        var part = ContentEngine.Standing(edit.Landing);
-        if (!Prose(part)) return null;
+        if (!Prose(edit.Part)) return null;
 
         // A table is a line per row, so there is no second line a cell could go on to.
-        if (Within(part, MarkdownKinds.Cell)) return state;
+        if (Within(edit.Part, MarkdownKinds.Cell)) return ContentChange.Stay(state);
 
-        return Broken(state.HasSelection ? state.Write(string.Empty) : state, Within(part, MarkdownKinds.Item));
+        return Broken(state, Within(edit.Part, MarkdownKinds.Item));
     }
 
-    /// <inheritdoc/>
-    public EditState? Erasing(ContentEdit edit, bool forward)
+    /// <summary>Taking back a character: the gap between two paragraphs, or the characters a line was written with.</summary>
+    private static ContentChange? Erasing(ContentEdit edit, bool forward)
     {
         var state = edit.State;
         if (state.HasSelection) return null;
 
         // Already shown as its characters: it is text to its ends, and no further.
         if (state.Raw is { } raw)
-            return !forward && raw.Holds(state.Caret) && state.Caret == raw.Start ? state : null;
+            return !forward && raw.Holds(state.Caret) && state.Caret == raw.Start ? ContentChange.Stay(state) : null;
 
         if (Joined(state, forward) is { } joined) return joined;
         if (forward) return null;
 
-        return Written(edit.Landing) is { } line ? state with { Raw = line } : null;
+        return Written(edit.Landing) is { } line ? ContentChange.Showing(state, line) : null;
     }
 
     // ── What is typed is what is on the page ────────────────────────────────
@@ -95,19 +100,26 @@ internal sealed partial class MarkdownEdits : IOnEdit
     /// The character written so that it reads as itself — behind a backslash where markdown would read it as markup, and
     /// as itself everywhere else. Null where nothing needs doing, which leaves it to be typed as any character is.
     /// </summary>
-    internal static EditState? Literal(EditState state, char typed)
+    internal static ContentChange? Literal(EditState state, char typed)
     {
-        var source = state.Source;
-        var at = Math.Clamp(state.Caret, 0, source.Length);
+        // Read as the line will be once what is picked out is gone, which changes nothing in front of where the character goes.
+        var cleared = state.HasSelection ? state.Write(string.Empty) : state;
+        var source = cleared.Source;
+        var at = Math.Clamp(cleared.Caret, 0, source.Length);
 
         // Two things only become markup once something follows them, so they are put beyond it when that arrives: an
         // entity when its semicolon is typed, and a tag when the first letter of its name is.
-        if (typed == ';' && Entity(source, at) is { } amp) return Behind(state, amp).Write(";");
+        var behind = typed == ';' ? Entity(source, at)
+                   : (char.IsLetter(typed) || typed is '/' or '!' or '?') && at > 0 && source[at - 1] == '<' && !Escaped(source, at - 1) ? at - 1
+                   : (int?)null;
 
-        if ((char.IsLetter(typed) || typed is '/' or '!' or '?') && at > 0 && source[at - 1] == '<' && !Escaped(source, at - 1))
-            return Behind(state, at - 1).Write(typed.ToString());
+        if (behind is { } mark)
+        {
+            var written = ContentChange.Typed(state, typed.ToString());
+            return written.And(new ContentWrite(mark, 0, "\\")) with { Caret = written.Caret + 1, Raw = null };
+        }
 
-        return Marks(source, at, typed) ? state.Write("\\" + typed) : null;
+        return Marks(source, at, typed) ? ContentChange.Typed(state, "\\" + typed) : null;
     }
 
     /// <summary>Whether <paramref name="typed"/>, written at <paramref name="at"/>, is something markdown would read as markup.</summary>
@@ -175,17 +187,17 @@ internal sealed partial class MarkdownEdits : IOnEdit
         return slashes % 2 == 1;
     }
 
-    /// <summary>A backslash put in front of the character at <paramref name="at"/>, which is before the caret.</summary>
-    private static EditState Behind(EditState state, int at) =>
-        state with { Source = state.Source.Insert(at, "\\"), Caret = state.Caret + 1, Selected = [], Raw = null };
-
     // ── Enter starts what comes next ────────────────────────────────────────
 
-    /// <summary>What Enter writes where the caret is: the next item, the next paragraph of a quote, or the next paragraph.</summary>
-    private static EditState Broken(EditState state, bool inItem)
+    /// <summary>
+    /// What Enter writes where the caret is: the next item, the next paragraph of a quote, or the next paragraph — over whatever is
+    /// picked out.
+    /// </summary>
+    private static ContentChange Broken(EditState state, bool inItem)
     {
-        var source = state.Source;
-        var at = Math.Clamp(state.Caret, 0, source.Length);
+        var cleared = state.HasSelection ? state.Write(string.Empty) : state;
+        var source = cleared.Source;
+        var at = Math.Clamp(cleared.Caret, 0, source.Length);
         var start = at == 0 ? 0 : source.LastIndexOf('\n', at - 1) + 1;
         var ending = source.IndexOf('\n', at);
         var end = ending < 0 ? source.Length : ending > start && source[ending - 1] == '\r' ? ending - 1 : ending;
@@ -198,27 +210,19 @@ internal sealed partial class MarkdownEdits : IOnEdit
             var written = start + quote.Length + marker.Length;
 
             // Nothing written in it: this is the Enter that ends the list, and the marker goes.
-            if (string.IsNullOrWhiteSpace(source[Math.Min(written, end)..end]) && at >= written)
-                return state with
-                {
-                    Source = source[..(start + quote.Length)] + source[end..],
-                    Caret = start + quote.Length,
-                    Selected = [],
-                    Raw = null,
-                };
+            if (!state.HasSelection && string.IsNullOrWhiteSpace(source[Math.Min(written, end)..end]) && at >= written)
+                return ContentChange.Write(start + quote.Length, end - (start + quote.Length), string.Empty);
 
             var bullet = marker.Groups["bullet"].Value;
             var next = int.TryParse(bullet[..^1], out var number) && bullet.Length > 1 && bullet[^1] is '.' or ')'
                 ? (number + 1).ToString() + bullet[^1]
                 : bullet;
 
-            return state.Write("\n" + quote + marker.Groups["indent"].Value + next + marker.Groups["gap"].Value
-                               + (marker.Groups["task"].Success ? "[ ] " : string.Empty));
+            return ContentChange.Typed(state, "\n" + quote + marker.Groups["indent"].Value + next + marker.Groups["gap"].Value
+                                              + (marker.Groups["task"].Success ? "[ ] " : string.Empty));
         }
 
-        return quote.Length > 0
-            ? state.Write("\n" + quote.TrimEnd() + "\n" + quote)
-            : state.Write("\n\n");
+        return ContentChange.Typed(state, quote.Length > 0 ? "\n" + quote.TrimEnd() + "\n" + quote : "\n\n");
     }
 
     // ── Backspace ───────────────────────────────────────────────────────────
@@ -227,7 +231,7 @@ internal sealed partial class MarkdownEdits : IOnEdit
     /// Backspace at the start of a paragraph, or delete at the end of one, where only the gap between it and its neighbour
     /// is in the way: the gap goes, and the two are one. Null anywhere else.
     /// </summary>
-    private static EditState? Joined(EditState state, bool forward)
+    private static ContentChange? Joined(EditState state, bool forward)
     {
         var source = state.Source;
         var at = Math.Clamp(state.Caret, 0, source.Length);
@@ -238,7 +242,7 @@ internal sealed partial class MarkdownEdits : IOnEdit
         // Nothing on the far side of the gap is no neighbour to join.
         if (from == 0 || to == source.Length) return null;
 
-        return state with { Source = source[..from] + source[to..], Caret = from, Selected = [], Raw = null };
+        return ContentChange.Write(from, to - from, string.Empty);
     }
 
     /// <summary>Past the white space on one side of <paramref name="at"/>.</summary>
@@ -291,12 +295,9 @@ internal sealed partial class MarkdownEdits : IOnEdit
 
     // ── Where the caret is ──────────────────────────────────────────────────
 
-    /// <summary>Whether the caret stands in words a reader writes, rather than in code, markup or a document's front matter.</summary>
-    private static bool Prose(Landing landing) => Prose(ContentEngine.Standing(landing));
-
     private static bool Prose(ContentPart? part) =>
-        part is null || !Within(part, MarkdownKinds.Code, MarkdownKinds.Fence, MarkdownKinds.Html, MarkdownKinds.FrontMatter,
-                                MarkdownKinds.Reference, MarkdownKinds.Math, MarkdownKinds.Formula);
+        part is null || (!Within(part, MarkdownKinds.Code, MarkdownKinds.Html, MarkdownKinds.FrontMatter, MarkdownKinds.Reference, MarkdownKinds.Formula)
+                         && !ContentNested.Holders(part).Any());
 
     /// <summary>Whether a part is, or is inside, one of <paramref name="kinds"/>.</summary>
     private static bool Within(ContentPart? part, params string[] kinds)

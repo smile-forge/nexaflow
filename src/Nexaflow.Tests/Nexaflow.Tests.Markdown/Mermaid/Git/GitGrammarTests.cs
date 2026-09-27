@@ -132,37 +132,6 @@ public class GitGrammarTests : MermaidGrammarContract
             Assert.IsTrue(Trouble(source).Any(said => said.Contains(reason, StringComparison.Ordinal)), $"{source}: {string.Join(" | ", Trouble(source))}");
     }
 
-    [TestMethod]
-    public void ANewLineIsAnotherCommit()
-    {
-        var grammar = new GitGrammar();
-        var commit = Nodes(MermaidParser.Parse("gitGraph\n   commit"), GitKinds.Commit).Single();
-
-        Assert.AreEqual(("commit", 6), grammar.Blank(commit));
-        Assert.AreEqual(("commit", 6), grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void ABranchRenamedWhereItIsMadeIsRenamedWhereverItIsCheckedOutOrMerged()
-    {
-        var branches = new GitGrammar().Names(ContentReading.Of(MermaidStaged.Read(History)).Root);
-
-        Assert.AreEqual(1, branches.Count);
-        Assert.AreEqual("develop", branches[0].Name);
-        Assert.AreEqual(2, branches[0].Uses.Count, "checked out once and merged once");
-    }
-
-    [TestMethod]
-    public void AQuoteTypedIntoAnIdIsWrittenAsTheEntityCodeForIt()
-    {
-        const string source = "gitGraph\n   commit id: \"Alpha\"";
-        var setting = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants()
-            .First(part => part.Kind == MermaidKinds.Setting);
-        var writing = new GitGrammar().Escaping(setting, setting.End - 1, "\"")!.Value;
-
-        Assert.AreEqual("gitGraph\n   commit id: \"Alpha#quot;\"", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

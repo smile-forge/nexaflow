@@ -140,6 +140,9 @@ public sealed partial class MarkdownSurface
         if (InFormula())
             return PasteIntoFormula(MarkdownClipboard.ReadPlainText(data));
 
+        // The words, to the language the caret is in, which says what they come to there — a diagram takes them only where it holds words.
+        if (MarkdownClipboard.ReadPlainText(data) is { Length: > 0 } words && _shown.Paste(words.ReplaceLineEndings("\n"))) return true;
+
         if (MarkdownClipboard.ReadBestMarkdown(data) is not { Length: > 0 } markdown) return false;
 
         Write(_shown.Current.Insert(markdown.ReplaceLineEndings("\n")));

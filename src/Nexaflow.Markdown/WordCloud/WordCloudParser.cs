@@ -44,7 +44,7 @@ public static class WordCloudParser
             at = stop;
         }
 
-        return ContentNode.Branch(WordCloudKinds.Block, lines);
+        return new BlockNode("wordcloud", lines, WordCloudKinds.Block);
     }
 
     /// <summary>

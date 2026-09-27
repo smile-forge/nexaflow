@@ -7,10 +7,10 @@ namespace Nexaflow.Markdown.Mermaid.Gantt;
 /// setting something for the whole chart mean — the last of each written, else the front matter's, else Mermaid's — and the
 /// moment it was read, which is today to every task and the line drawn at today. It prints as the block written.
 /// </summary>
-internal sealed class GanttBlockNode : ContentNode
+internal sealed class GanttBlockNode : BlockNode
 {
     internal GanttBlockNode(ContentNode written, GanttConfig config, GanttDays days, DateTime now, string axisFormat, GanttTick? tick,
-                            GanttToday marker, DayOfWeek weekday, bool topAxis) : base(written)
+                            GanttToday marker, DayOfWeek weekday, bool topAxis) : base((BlockNode)written)
     {
         this.Config = config;
         this.Days = days;
@@ -45,7 +45,7 @@ internal sealed class GanttBlockNode : ContentNode
     /// <summary>Whether the axis's dates are written over the chart as well as under it.</summary>
     public bool TopAxis { get; }
 
-    protected override ContentNode Reshaped(ContentNode shape) =>
+    protected override BlockNode Retyped(BlockNode shape) =>
         new GanttBlockNode(shape, this.Config, this.Days, this.Now, this.AxisFormat, this.Tick, this.Marker, this.Weekday, this.TopAxis);
 }
 

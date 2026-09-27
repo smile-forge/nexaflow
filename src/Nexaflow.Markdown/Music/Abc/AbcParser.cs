@@ -74,7 +74,7 @@ public static class AbcParser
             at = stop;
         }
 
-        return ContentNode.Branch(AbcKinds.Tune, lines);
+        return new BlockNode("abc", lines, AbcKinds.Tune);
     }
 
     // ── Lines ───────────────────────────────────────────────────────────────

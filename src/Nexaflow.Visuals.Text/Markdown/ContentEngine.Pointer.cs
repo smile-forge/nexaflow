@@ -29,6 +29,9 @@ public sealed partial class ContentEngine
 
     private bool _moving;
     private int _dropAt;
+
+    /// <summary>The piece what is carried is over, which the language it is written in is told where it is let go.</summary>
+    private Piece _dropOver;
     private Laid? _preview;
     private Moved? _previewOf;
     private (int Start, int End) _previewMoved;
@@ -159,7 +162,10 @@ public sealed partial class ContentEngine
 
         if (next.Count == 0) { ClearSelection(); return; }
 
-        if (SelectRanges(next)) Picked(at);
+        if (!SelectRanges(next)) return;
+
+        _chosenWhole = _state.Selection;
+        Picked(at);
     }
 
     /// <summary>What of <paramref name="range"/> lies outside <paramref name="taken"/>.</summary>
@@ -230,6 +236,7 @@ public sealed partial class ContentEngine
             if (drop == _dropAt) return;
 
             _dropAt = drop;
+            _dropOver = _laid.PieceAt(at);
             BuildPreview();
 
             PreRender?.Invoke(this, EventArgs.Empty);
@@ -294,11 +301,17 @@ public sealed partial class ContentEngine
         _previewOf = null;
         _previewMoved = default;
 
-        if (Moving(_dropAt) is not { } moved) return;
+        // What the language it is let go in says a drop there is, where it says; otherwise the characters carried, cut and put
+        // back at the offset they are over.
+        var moved = Edited(EditKind.Dropping, string.Empty, Landing, _dropOver) is { } dropped
+            ? new Moved(dropped.Source, dropped.Caret, new EditRange(dropped.Caret, 0))
+            : Moving(_dropAt);
 
-        _previewOf = moved;
-        _previewMoved = (moved.Wrote.Start, moved.Wrote.End);
-        _preview = LaidOut(new EditState(moved.Source, moved.Caret));
+        if (moved is not { } carried) return;
+
+        _previewOf = carried;
+        _previewMoved = (carried.Wrote.Start, carried.Wrote.End);
+        _preview = LaidOut(new EditState(carried.Source, carried.Caret));
     }
 
     private void ClearPreview()

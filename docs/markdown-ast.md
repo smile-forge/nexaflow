@@ -260,23 +260,27 @@ drag, and the surface keeps the keys that are its own — the clipboard's and th
 A whole document is one element — the prose, the diagrams and the tunes are pieces of one tree, so a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 
-**Who answers a key.** From the piece holding the caret up the layout to the first piece naming a part of the tree, then
-up the tree to the first part holding another language (`ContentNested.Holders`): that language's `Editing.OnEdit` is
-asked what the key means (`IOnEdit`: typing, settling, taking back, and what an edit came to). Where it says nothing the
-key does to the characters what a key does; no such part means the content's own language, answered by its `Editing` —
-`MarkdownEdits` for a document. A
-language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at; a key
-taking back characters stops at the edges of its source, and takes the whole construct once nothing is left inside.
-LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a place cannot
-hold, starts its next line on Enter and carries a rename to where the name is used (`MermaidEdits`); markdown writes
-typed markup behind a backslash, continues a list on Enter and joins two paragraphs on backspace.
+**Who answers a key: two walks.** From the piece the caret stands against, up the layout to the first piece drawn from a part
+of a syntax tree (through anything standing for one — `IStandsFor`); from that part, up its own tree to the root, whose
+`BlockNode.Language` names the language (`ContentLanguages.WrittenIn`). Every tree is its own and only the layout is one tree,
+so nothing is tracked to know which language a key is in. The engine hands that language's `Editing.OnEdit` a `ContentEdit` —
+what was done (`EditKind`: typing, pasting, settling, breaking on Shift+Enter, erasing, deleting, tabbing either way,
+inserting, choosing on a ribbon, dropping what is picked out), the text, the piece, the part and the root — and the
+handler answers with a `ContentChange`: the stretches to write over, where the caret goes, and what is shown as written. The
+engine makes it and lays the content out again (`ContentEngine.Edited`). A null answer leaves the key to do what it does
+anywhere; a key taking back characters still stops at the edges of content in another language, and takes the whole construct
+once nothing is left inside.
 
-**What a key means where the caret is, is the engine's to ask** (`ContentEngine.Typing`, `Settle`, `Erasing`, `Edited`). Space and
-Enter both arrive at `Settle`, so content made of lines starts another on Enter while a formula settles what is
-half-written. A diagram starts its next line under the one the caret is on, as its grammar starts one there
-(`IMermaidGrammar.Blank`), with the caret in its first hole; what a place cannot hold is escaped as it is typed
-(`IMermaidGrammar.Escaping`); a name renamed where it is declared is renamed where it is used (`IMermaidGrammar.Names`),
-where it is declared once.
+**What is safe to write is the parser's to say.** A handler writing what a reader means rather than characters — a paste into
+a label — names the part and the words (`ContentWrite.Words`), and the engine has the language's parser make them safe for that
+part before writing them (`ContentLanguage.SafeFormatText`; for Mermaid, `MermaidParser.SafeFormatText`: a quote as its entity
+code and a line break as `<br>` between quotes, a line break as a space in a title, only a number in a value). Where the part cannot hold them, nothing is written.
+
+Offsets are the document's, because a language is laid at the offset its source starts at. Space and Enter both arrive as
+settling, so a formula settles what is half-written where a document starts its next paragraph. Markdown writes typed markup
+behind a backslash, continues a list on Enter and joins two paragraphs on backspace (`MarkdownEdits`); LaTeX spells a command
+as itself and settles it on Space or Enter (`LatexEdits`); every diagram has a handler of its own (`DiagramEdits`), which
+escapes what a place cannot hold as it is typed and leaves every other key to do what it does anywhere.
 
 **Whatever the edit came to, the whole content is read again from its source.** An edit to the tree is provisional — the
 stages do not re-derive themselves underneath it — so it prints, and what it prints is parsed and laid again. An edit
@@ -287,6 +291,16 @@ against a part knows what it touched, so trouble afterwards is blamed on the key
 the column (`LayoutQuery.StepVertical`); undo takes back a stretch of writing, each step the whole document as it stood
 (`EditHistory`); the pointer is a bar only over what can be written in (`LayoutQuery.Writable`). A block's corner offers
 what its language says (`Editing.Corner`, `Editing.Offers`): code no picture of itself, prose no corner at all.
+
+**A right-click asks the same language.** The engine walks from the piece under the pointer as it does for a key and asks
+that language what it offers there (`ContentEngine.Asked`, answered by `Editing.Offers` with the piece and the root); the
+options of one choice come back under one `LayoutIntent.Group`, the one in force marked `Current`, and `DiagramRibbon` draws
+them side by side, each as what it would make (`LayoutIntent.Shape`) and named in its tooltip. A press on one comes back
+through the engine as a choosing edit on the same piece and part (`ContentEngine.Choose`), so what a ribbon does is written in
+the handler that answers the keys. The surface adds nothing to the ribbon of its own; Paste, where a language offers it, is the
+host's to do, since the clipboard is its — it hands what is there to the engine as a pasting edit. A drag of what is picked out
+asks too, over the piece it is let go on (`EditKind.Dropping`); a null answer moves the text as anywhere. While whole pieces are
+chosen — a slice, a node — there is no caret (`ContentEngine.ChoseWhole`).
 
 ## Markdown
 
@@ -350,7 +364,9 @@ command (`SpanColumns`, `ReadValues`) and then say what every name means (`Resol
 
 **Mermaid** — one parser for every diagram, because they all open the same way: front matter, comments, directives, the
 header (the first line that says anything, naming the diagram — `MermaidDiagrams`), accessibility lines; every other
-line a statement its diagram's grammar reads (`IMermaidGrammar`). The grammar names the diagram's stages, and every
+line a statement its diagram's grammar reads (`IMermaidGrammar`). The front matter nests: each line holds, after its own
+ending, the lines indented under it, so `config:` holds `pie:`, which holds `legendPosition:`, and a handler writing an
+option walks down to its node rather than reading lines. The grammar names the diagram's stages, and every
 diagram's grammar and builder are built from the kit. How a diagram is added and what the kit holds:
 [mermaid-diagrams.md](mermaid-diagrams.md).
 
@@ -461,6 +477,6 @@ Refactoring guards are opt-in and run beside any change to how content is reache
 3. A builder that walks a `ContentReading` and lays out pieces each carrying the part it was drawn from, asking
    `Nested` for anything in another language.
 4. A `ContentLanguage` describing the three, in the table — and, where a key means something other than its
-   characters, an `IOnEdit` offered through its `Editing`.
+   characters, an `IOnEdit` offered through its `Editing` (`EditedBy`).
 
 The caret, selection, choosing, undo, the clipboard, search and painting come with the element.

@@ -52,15 +52,9 @@ public class ContentNode
         if (this.IsDerived) { this.Width = 0; return; }
 
         var width = text.Length;
-        var nests = 0;
-        for (var i = 0; i < children.Count; i++)
-        {
-            width += children[i].Width;
-            nests += children[i].Kind == Kinds.Language ? 1 : children[i].Nests;
-        }
+        for (var i = 0; i < children.Count; i++) width += children[i].Width;
 
         this.Width = width;
-        this.Nests = nests;
     }
 
     /// <summary>A language's own node, standing for exactly what <paramref name="shape"/> stands for.</summary>
@@ -88,12 +82,6 @@ public class ContentNode
 
     /// <summary>How many characters this piece prints as, itself and everything under it.</summary>
     public int Width { get; }
-
-    /// <summary>
-    /// How many pieces written in another language this node is or holds (<see cref="ContentNested"/>) — counted as the node is
-    /// made, as its width is, so where they are is found by following the counts rather than by walking the tree.
-    /// </summary>
-    public int Nests { get; }
 
     /// <summary>
     /// What is wrong with this piece, where anything is — the reason a reader would want a line drawn

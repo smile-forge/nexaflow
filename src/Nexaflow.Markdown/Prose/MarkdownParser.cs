@@ -59,6 +59,9 @@ public static class MarkdownParser
         return source => ContentParse.Of(blocks.Read(Read(source)));
     }
 
+    /// <summary>The word naming what a document is written in — what its root says it is (<see cref="BlockNode"/>).</summary>
+    public const string Language = "markdown";
+
     /// <summary>What a formula is written in — which nobody writes after <c>$$</c>, because the <c>$$</c> says it.</summary>
     internal const string Maths = "latex";
 
@@ -89,7 +92,7 @@ public static class MarkdownParser
     public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(MarkdownKinds.Document, []);
+        if (text.Length == 0) return new BlockNode(Language, []);
 
         var read = new Cut(text);
         var parts = new List<ContentNode>();
@@ -111,7 +114,7 @@ public static class MarkdownParser
 
         read.Gap(parts, read.Length);
 
-        var whole = Checked(MarkdownKinds.Document, parts, text, Roles.Element);
+        var whole = new BlockNode(Language, Checked(Kinds.Block, parts, text, Roles.Element).Children);
 
         // Seen only by reading the whole document, and wanted by every block's words — see MarkdownDefinitions.
         return defined is null ? whole : whole.Holding(MarkdownKinds.Definitions, Roles.Derived, defined);
@@ -245,9 +248,9 @@ public static class MarkdownParser
         // A maths block IS a fenced block — Markdig derives one from the other — and it reads the same way: a
         // delimiter, a body in another language, a delimiter. What differs is only that nobody writes the
         // language after the fence, because the $$ is what says it.
-        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, source, MarkdownKinds.Math);
+        if (block is Markdig.Extensions.Mathematics.MathBlock maths) return Fenced(maths, source, isMaths: true);
 
-        if (block is FencedCodeBlock fence) return Fenced(fence, source, MarkdownKinds.Fence);
+        if (block is FencedCodeBlock fence) return Fenced(fence, source, isMaths: false);
 
         var read = ContentNode.Branch(Kind(block), [ContentNode.Leaf(Kinds.Verbatim, source, Roles.Body)]);
 
@@ -265,12 +268,10 @@ public static class MarkdownParser
     }
 
     /// <summary>
-    /// A fenced block, as the fence, the language it names itself and that language's own source. The language
-    /// is a part rather than the kind because a writer typed it: a fence saying <c>mermaid</c> has those seven
-    /// characters in the source and they are still in the tree, where a paragraph has nothing written anywhere
-    /// that says it is one.
+    /// A fence: a block in the language the word after it names — or maths, which a <c>$$</c> says by being one — holding the
+    /// fence line, the characters written in that language (<see cref="Kinds.Nested"/>, unread), and the closing fence.
     /// </summary>
-    private static ContentNode Fenced(FencedCodeBlock fence, string source, string kind)
+    private static ContentNode Fenced(FencedCodeBlock fence, string source, bool isMaths)
     {
         var opens = 0;
         while (opens < source.Length && source[opens] == fence.FencedChar) opens++;
@@ -294,23 +295,16 @@ public static class MarkdownParser
         if (shut == closes) shut = source.Length;
         else while (shut > body && (source[shut - 1] == ' ' || source[shut - 1] == '\t')) shut--;
 
-        List<ContentNode> parts =
-        [
-            ContentNode.Leaf(Kinds.Token, source[..opens], Roles.Open),
-        ];
+        var language = isMaths ? Maths : source[opens..named].Trim();
 
-        if (named > opens) parts.Add(ContentNode.Leaf(Kinds.Token, source[opens..named], Roles.Name));
-        if (body > named) parts.Add(ContentNode.Leaf(Kinds.Space, source[named..body], Roles.Trivia));
+        List<ContentNode> parts = [ContentNode.Leaf(Kinds.Token, source[..body], Roles.Open)];
 
-        // Held as written and nothing read out of it: what is in there is a different language.
-        if (shut > body) parts.Add(ContentNode.Leaf(Kinds.Verbatim, source[body..shut], Roles.Body));
+        // Held as written and nothing read out of it: what is in there is a different language — or, where the fence names none, the
+        // document's own code, as indented code is.
+        if (shut > body) parts.Add(ContentNode.Leaf(language.Length > 0 ? Kinds.Nested : Kinds.Verbatim, source[body..shut], Roles.Body));
         if (source.Length > shut) parts.Add(ContentNode.Leaf(Kinds.Token, source[shut..], Roles.Close));
 
-        // What the body is written in: the word after the fence, or maths, which a $$ says by being one.
-        var language = kind == MarkdownKinds.Math ? Maths : source[opens..named].Trim();
-        if (shut > body && language.Length > 0) parts.Add(ContentNode.Holding(Kinds.Language, Roles.Derived, language));
-
-        return ContentNode.Branch(kind, parts);
+        return language.Length > 0 ? new BlockNode(language, parts) : ContentNode.Branch(MarkdownKinds.Code, parts);
     }
 
     /// <summary>Which language reads a block's body.</summary>

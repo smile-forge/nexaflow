@@ -152,21 +152,6 @@ public class SwimlaneGrammarTests : MermaidGrammarContract
     ];
 
     [TestMethod]
-    public void ALaneIsNamedInWords_SoASpaceBetweenThemGoesInAsItIs()
-    {
-        const string source = "swimlane-beta TB\n  subgraph Sales\n    one\n  end";
-
-        var root = ContentReading.Of(MermaidStaged.Read(source)).Root;
-        var name = root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Sales");
-
-        Assert.IsNull(Grammar.Escaping(name, name.End, " team"),
-                      "Mermaid names a subgraph in words, so a space between two of them is a space the name may hold");
-        Assert.AreEqual("Sales team", MermaidStaged.Read("swimlane-beta TB\n  subgraph Sales team\n    one\n  end").SelfAndDescendants()
-                                                    .Single(node => node.Kind == FlowchartKinds.Opens).Inner(MermaidKinds.Name).Words()?.Text,
-                        "and a lane written that way is called all of it");
-    }
-
-    [TestMethod]
     public void TheLanesKeepTheirOwnOptionsAndTheChartKeepsTheRest()
     {
         var read = SwimlaneConfig.Read("config:\n  swimlane:\n    automaticLaneOrdering: true\n"

@@ -164,26 +164,6 @@ public class XyGrammarTests : MermaidGrammarContract
         }
     }
 
-    [TestMethod]
-    public void ANewLineUnderASeriesIsAnotherOfItsKind_AndElsewhereABar()
-    {
-        var grammar = new XyGrammar();
-        var line = MermaidParser.Parse("xychart\n  line [1]").SelfAndDescendants().Single(node => node.Kind == XyKinds.Series);
-
-        Assert.AreEqual(("line []", 6), grammar.Blank(line));
-        Assert.AreEqual(("bar []", 5), grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void ACategoryGivenASpaceIsPutInQuotes()
-    {
-        const string source = "xychart\n  x-axis [jan, feb]";
-        var jan = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "jan");
-        var writing = new XyGrammar().Escaping(jan, jan.End, " ")!.Value;
-
-        Assert.AreEqual("xychart\n  x-axis [\"jan \", feb]", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
     private static List<string> Trouble(string source) =>
         [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 }

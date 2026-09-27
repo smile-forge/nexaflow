@@ -217,16 +217,7 @@ public static class MarkdownInline
             [read.Take(at + 1, Roles.Open, Kinds.Token), read.Take(at + 2, mark, Kinds.Token), read.Take(end, Roles.Close, Kinds.Token)]);
     }
 
-    /// <summary>
-    /// A formula in the middle of a sentence, cut where its delimiters stop: the dollars that hold it, and the
-    /// LaTeX between them.
-    ///
-    /// <para>
-    /// Shaped like a fenced block for the same reason — what is between the delimiters is another language, and
-    /// whoever reads that language wants the body and not the marks. Where the delimiters cannot be told from
-    /// the body the whole of it is held as one, rather than guessed at.
-    /// </para>
-    /// </summary>
+    /// <summary>A formula in a sentence: a block in LaTeX holding its opening dollars, the formula as written (unread), and the closing ones.</summary>
     private static ContentNode Formula(Markdig.Extensions.Mathematics.MathInline maths, Cut read, int end)
     {
         var from = read.At;
@@ -238,11 +229,10 @@ public static class MarkdownInline
         List<ContentNode> parts = [];
 
         if (opens > from) parts.Add(read.Take(opens, Roles.Open, Kinds.Token));
-        parts.Add(read.Take(shuts, Roles.Body, Kinds.Verbatim));
+        parts.Add(read.Take(shuts, Roles.Body, Kinds.Nested));
         if (end > shuts) parts.Add(read.Take(end, Roles.Close, Kinds.Token));
-        parts.Add(ContentNode.Holding(Kinds.Language, Roles.Derived, MarkdownParser.Maths));
 
-        return ContentNode.Branch(MarkdownKinds.Formula, parts);
+        return new BlockNode(MarkdownParser.Maths, parts);
     }
 
     /// <summary>

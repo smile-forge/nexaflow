@@ -43,11 +43,11 @@ public static class MermaidParts
     /// says. Which of the two came back shows in its kind, and only a builder that draws the second has to care.
     /// </remarks>
     public static ContentPart? Words(this ContentPart? part) =>
-        part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Nested);
+        part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Block);
 
     /// <summary>The words a node holds — or the content in another language written where they would be — or null where it holds none.</summary>
     public static ContentNode? Words(this ContentNode? node) =>
-        node?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Nested);
+        node?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Block);
 
     /// <summary>What a name or a list's names say, as text: empty for a name still to be written.</summary>
     public static IReadOnlyList<string> SaidNames(this ContentNode? names) =>

@@ -46,32 +46,6 @@ public interface IMermaidGrammar
     IEnumerable<MermaidStretch> Stretches => [];
 
     /// <summary>
-    /// What a new line written under <paramref name="above"/> starts as before anything is filled in, and how far into it the
-    /// caret goes — what Enter starts. <paramref name="above"/> is what the line the caret is on says, as this grammar read
-    /// it, or null for a line that says nothing: a diagram whose lines come in several shapes starts the one that follows it.
-    /// Null where no shape of line follows it.
-    /// </summary>
-    (string Text, int Caret)? Blank(ContentNode? above) => null;
-
-    /// <summary>
-    /// What writing <paramref name="text"/> at <paramref name="caret"/>, in <paramref name="part"/> — a part this grammar read,
-    /// or a hole standing where one goes — is written as, where it cannot go in as it is without the line saying something
-    /// else: a name put in quotes so it can hold a space, a quote written as the entity code that stands for it
-    /// (<see cref="MermaidText"/>). Null where the text goes in as it is.
-    /// </summary>
-    MermaidWriting? Escaping(ContentPart part, int caret, string text) => null;
-
-    /// <summary>
-    /// The names <paramref name="block"/> declares that its other lines use: where each is declared, and every place it is
-    /// used — so a name renamed where it is declared can be renamed wherever it is used. Nothing, for a diagram whose lines
-    /// name nothing another line uses.
-    /// </summary>
-    IReadOnlyList<MermaidName> Names(ContentPart block) => [];
-
-    /// <summary>How a name is written where it is used.</summary>
-    string Naming(string name) => name;
-
-    /// <summary>
     /// The stages this type runs over a block once it is parsed, in order: what its lines mean together rather than each on its
     /// own — which region an item sits in, what colour a slice takes — worked out and hung underneath (<see cref="IAstStage"/>).
     /// None, for a diagram whose lines say everything they mean.
@@ -167,9 +141,3 @@ public readonly record struct MermaidWriting(int Start, int End, string Text, in
         return null;
     }
 }
-
-/// <summary>A name a block declares, and the places it is used.</summary>
-/// <param name="Name">What it is called, without the quotes it may be written in.</param>
-/// <param name="Declared">Where it is declared, quotes and all.</param>
-/// <param name="Uses">Every other place it is written, quotes and all.</param>
-public sealed record MermaidName(string Name, ContentPart Declared, IReadOnlyList<ContentPart> Uses);

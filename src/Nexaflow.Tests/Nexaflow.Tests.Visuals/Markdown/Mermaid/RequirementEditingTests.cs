@@ -36,18 +36,6 @@ public class RequirementEditingTests : MermaidEditing
         }));
 
     [TestMethod]
-    public void RenamingARequirementCarriesToTheRelationThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, diagram) =>
-        {
-            PressPast(diagram, "test_req");
-            Write(editor, "2");
-
-            StringAssert.Contains(diagram.Source, "requirement test_req2 {", diagram.Source);
-            StringAssert.Contains(diagram.Source, "-> test_req2", diagram.Source);
-            Assert.AreEqual(0, diagram.Diagnostics.Count);
-        }));
-
-    [TestMethod]
     public void WhatABareNameCannotHoldIsDroppedRatherThanWritten() => UiThread.Run(() =>
         InADocument((editor, diagram) =>
         {

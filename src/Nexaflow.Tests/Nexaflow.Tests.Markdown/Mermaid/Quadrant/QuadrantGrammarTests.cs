@@ -134,33 +134,6 @@ public class QuadrantGrammarTests : MermaidGrammarContract
         }
     }
 
-    [TestMethod]
-    public void ANewLineUnderACaptionIsTheNextQuadrants_AndElsewhereAPoint()
-    {
-        var grammar = new QuadrantGrammar();
-        var region = Nodes(MermaidParser.Parse("quadrantChart\n  quadrant-1 Plan"), QuadrantKinds.Region).Single();
-
-        Assert.AreEqual(("quadrant-2 ", 11), grammar.Blank(region));
-        Assert.AreEqual((": [0.5, 0.5]", 0), grammar.Blank(null));
-    }
-
-    [TestMethod]
-    public void AColonTypedIntoABareNamePutsItInQuotes()
-    {
-        const string source = "quadrantChart\n  Campaign A: [0.1, 0.2]";
-        var name = ContentReading.Of(MermaidStaged.Read(source)).Root.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Campaign A");
-        var writing = new QuadrantGrammar().Escaping(name, name.End, ":")!.Value;
-
-        Assert.AreEqual("quadrantChart\n  \"Campaign A:\": [0.1, 0.2]", source[..writing.Start] + writing.Text + source[writing.End..]);
-    }
-
-    [TestMethod]
-    public void AClassRenamedWhereItIsDeclaredIsRenamedInThePointsTakingIt()
-    {
-        var hot = new QuadrantGrammar().Names(ContentReading.Of(MermaidStaged.Read(Styled)).Root).Single(name => name.Name == "class1");
-        Assert.AreEqual(1, hot.Uses.Count);
-    }
-
     private static List<ContentNode> Nodes(ContentNode tree, string kind) => [.. tree.SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static List<string> Trouble(string source) =>

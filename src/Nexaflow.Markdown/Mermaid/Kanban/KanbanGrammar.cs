@@ -37,31 +37,6 @@ public sealed class KanbanGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a column, a card with its title still to write, indented under it; anywhere else, one as far in as the line above.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above is KanbanColumnNode ? ("  [\"\"]", 4) : ("[\"\"]", 2);
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A title in brackets is put in quotes to hold a quote, a bracket closing it or a comment; a bare id that is its own title is
-    /// written as a title in quotes to hold anything an id cannot (<see cref="MermaidOutline.Escaping"/>). An icon's name runs to its
-    /// bracket and metadata to its brace, so neither can hold the one closing it.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        var closing = part.Role switch { KanbanRoles.Icon => ")", KanbanRoles.Data => "}", _ => null };
-        if (closing is not null && text.Contains(closing, StringComparison.Ordinal))
-        {
-            var kept = text.Replace(closing, string.Empty, StringComparison.Ordinal);
-            return new MermaidWriting(caret, caret, kept, caret + kept.Length);
-        }
-
-        return MermaidOutline.Escaping(part, caret, text, KanbanRoles.Id, Stops);
-    }
-
-    /// <inheritdoc/>
     /// <remarks>Whether each node is a column or a card, by its indentation over the whole block (<see cref="ResolveColumns"/>).</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing)
     {
@@ -102,7 +77,4 @@ public sealed class KanbanGrammar : IMermaidGrammar
         var closed = line.Token("}", Roles.Close);
         line.Close(KanbanKinds.Data, trouble: closed ? null : "Metadata is closed with }.");
     }
-
-    /// <summary>Whether a character ends a bare id.</summary>
-    private static bool Stops(char character) => character is '(' or '[' or ')' or '{' or '}' or '@' or '"' or '%';
 }

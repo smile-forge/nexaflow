@@ -135,75 +135,6 @@ public sealed class ClassGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Under a member, another member of the same class; under a line that styles or says something about one, nothing in
-    /// particular; and under everything else another class, which is what a diagram is mostly made of.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        ClassKinds.Says when Declaring(above) is { Length: > 0 } id => ($"{Naming(id)} : ", Naming(id).Length + 3),
-        ClassKinds.Relation => ("\"\" --> \"\"", 1),
-        ClassKinds.Note or ClassKinds.Direction or ClassKinds.Annotation or ClassKinds.Click => null,
-        ClassKinds.ClassDef or ClassKinds.Style or ClassKinds.CssClass => null,
-        _ => ("class \"\"", 7),
-    };
-
-    /// <summary>The class a line declares, which is the first one it names.</summary>
-    private static string? Declaring(ContentNode line) =>
-        line.SelfAndDescendants().FirstOrDefault(node => node.Kind == MermaidKinds.Words && node.Role == ClassRoles.Id)?.Text;
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A member and what is written on a relation run to the end of their line and hold anything but a comment. An id and a class
-    /// are written bare — in backticks, where one holds what a bare id cannot — and a way and a target are words.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is ClassRoles.Id or ClassRoles.Class)
-            return Backed(part)
-                ? MermaidWriting.Only(caret, text, character => character != '`')
-                : MermaidWriting.Only(caret, text, Bare);
-
-        if (part.Role is ClassRoles.Space) return MermaidWriting.Only(caret, text, Dotted);
-
-        // A function named after call is written bare, and the quotes past it open what the class says while pointed at.
-        if (part.Role is ClassRoles.Call) return MermaidWriting.Only(caret, text, character => character != '"');
-        if (part.Role is ClassRoles.Towards or ClassRoles.Target) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A class is declared where it is first written and used wherever it is written again — either end of a relation, a
-    /// <c>cssClass</c> line, a <c>style</c> line, a member's own line, the class a note is written beside.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: ClassRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// An id is written bare, so what an id cannot hold is dropped. A class declared in backticks may be called anything at
-    /// all, but a <c>cssClass</c> line names it inside quotes of its own and a <c>style</c> line bare, so a name carried to
-    /// every use of it has to be one that reads in all three.
-    /// </remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Each namespace gathered with what is written in it (<see cref="ResolveNamespaces"/>), what each member draws
     /// (<see cref="ResolveMembers"/>), what styles each class and whether what is styled is written at all
     /// (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are written.
@@ -220,10 +151,6 @@ public sealed class ClassGrammar : IMermaidGrammar
 
     /// <summary>Whether a character carries a namespace's name on, which holds the dots that nest one inside another.</summary>
     public static bool Dotted(char character) => Bare(character) || character == '.';
-
-    /// <summary>Whether a name is written between backticks, which hold anything a bare id cannot.</summary>
-    private static bool Backed(ContentPart part) =>
-        part.Parent?.Children.Any(child => child.Role == Roles.Open && child.Text == Backtick) ?? false;
 
     // ── The lines ───────────────────────────────────────────────────────────
 

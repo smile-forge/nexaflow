@@ -21,10 +21,13 @@ namespace Nexaflow.Visuals.Text.Markdown.Latex;
 /// as the part it wraps and can be compared by reference like one.
 /// </para>
 /// </summary>
-internal sealed class TexSourcePart(ContentPart of) : ISourcePart
+internal sealed class TexSourcePart(ContentPart of) : IStandsFor
 {
     /// <summary>The part itself, for every question that is about the formula rather than the source.</summary>
     public ContentPart Of { get; } = of;
+
+    /// <inheritdoc/>
+    ISourcePart IStandsFor.Of => this.Of;
 
     /// <inheritdoc/>
     public int Start => Named.Start;

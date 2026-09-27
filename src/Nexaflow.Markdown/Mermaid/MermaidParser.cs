@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Pipeline;
@@ -56,8 +57,17 @@ public static class MermaidParser
 
         while (at < source.Length) at = Next(source, at, reading, lines);
 
-        return ContentNode.Branch(MermaidKinds.Block, lines);
+        return new BlockNode(Named(lines), lines, MermaidKinds.Block);
     }
+
+    /// <summary>
+    /// The word the diagram <paramref name="lines"/> are is named by: its header's, as written — a flowchart, for a block with no
+    /// header yet, and a <c>mermaid</c> block for one whose header names no diagram.
+    /// </summary>
+    private static string Named(IEnumerable<ContentNode> lines) =>
+        lines.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header) is not { } header ? "flowchart"
+        : header.Part(Roles.Name) is { } keyword && MermaidDiagrams.Named(keyword.Text) != MermaidDiagram.Unknown ? keyword.Text
+        : MermaidFenceParser.Language;
 
     /// <summary>
     /// The header of a block — the line that names its diagram — and where it starts, read no further than it; or null for a block
@@ -128,6 +138,27 @@ public static class MermaidParser
 
         return lines is null ? block : block.With(lines);
     }
+
+    /// <summary>
+    /// <paramref name="text"/> as <paramref name="part"/> can hold it — written so it reads back as what was meant, with nothing in it
+    /// that would end the part or the line it is on — or null where the part can hold none of it. What a place in a diagram may hold
+    /// is the reading's to say, so whatever writes words into one asks here rather than knowing.
+    /// <list type="bullet">
+    /// <item>Between quotes, anything: a quote as the entity code standing for it, a line ending as the break a label is drawn with.</item>
+    /// <item>A title, anything on its one line: a line ending as a space.</item>
+    /// <item>A value, a number and nothing else.</item>
+    /// </list>
+    /// </summary>
+    public static string? SafeFormatText(ContentPart part, string text) => part.Kind switch
+    {
+        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
+        MermaidKinds.Title => text.ReplaceLineEndings(" "),
+        MermaidKinds.Amount => text.Length > 0 && double.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _) ? text : null,
+        _ => null,
+    };
+
+    /// <summary>How a line breaks inside what a diagram draws as words.</summary>
+    public const string LineBreak = "<br>";
 
     /// <summary>
     /// What a binding supplied, read as lines of the diagram <paramref name="header"/> names — read after it, so its grammar reads
@@ -455,18 +486,42 @@ public static class MermaidParser
         return null;
     }
 
+    /// <summary>
+    /// The front matter, read as the tree its YAML is: every line holds, after its own line ending, the lines written under it — the
+    /// ones indented further, up to the next line that is not — so <c>config:</c> holds <c>pie:</c>, and <c>pie:</c> holds
+    /// <c>legendPosition:</c>. A blank line goes with the lines round it. Nothing is moved, so it still prints as it was written.
+    /// </summary>
     private static ContentNode FrontMatter(string source, Row open, Row close)
     {
-        var lines = new List<ContentNode> { FenceLine(source, open, Roles.Open) };
+        var top = new List<Nested>();
+        var under = new List<Nested>();
 
         for (var row = Row.At(source, open.Stop); row.Start < close.Start; row = Row.At(source, row.Stop))
         {
             var (from, to) = row.Text(source);
-            lines.Add(Line(source, row.Start, from, from == to ? [] : [Yaml(source[from..to])], to, row));
+            var line = new Nested(from - row.Start, Line(source, row.Start, from, from == to ? [] : [Yaml(source[from..to])], to, row));
+
+            if (from != to)
+                while (under.Count > 0 && under[^1].Indent >= line.Indent) under.RemoveAt(under.Count - 1);
+
+            (under.Count > 0 ? under[^1].Under : top).Add(line);
+            if (from != to) under.Add(line);
         }
 
-        lines.Add(FenceLine(source, close, Roles.Close));
-        return ContentNode.Branch(MermaidKinds.FrontMatter, lines);
+        return ContentNode.Branch(MermaidKinds.FrontMatter,
+            [FenceLine(source, open, Roles.Open), .. top.Select(line => line.Built()), FenceLine(source, close, Roles.Close)]);
+    }
+
+    /// <summary>A line of front matter while it is read, how far it is indented, and the lines found under it so far.</summary>
+    private sealed class Nested(int indent, ContentNode line)
+    {
+        public int Indent { get; } = indent;
+
+        public List<Nested> Under { get; } = [];
+
+        /// <summary>The line, holding the lines under it after its own.</summary>
+        public ContentNode Built() =>
+            this.Under.Count == 0 ? line : ContentNode.Branch(line.Kind, [.. line.Children, .. this.Under.Select(nested => nested.Built())], line.Role);
     }
 
     private static ContentNode FenceLine(string source, Row row, string role)

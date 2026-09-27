@@ -152,49 +152,6 @@ public sealed class StateGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// What is written on a state or a transition runs to the end of its line and holds anything but a comment. An id, a class and a
-    /// way are written bare and cannot be quoted at all, so what they cannot hold is dropped.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is StateRoles.Id or StateRoles.Class) return MermaidWriting.Only(caret, text, Bare);
-        if (part.Role is StateRoles.Towards or StateRoles.Kind or StateRoles.Side)
-            return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
-
-        if (part.Role is StateRoles.Width) return MermaidWriting.Only(caret, text, char.IsAsciiDigit);
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A state is declared where it is first written and used wherever it is written again — either end of a transition, a
-    /// <c>class</c> line, a <c>style</c> line, the state a note is written beside. What is written inside a note names nothing, a
-    /// note's own words being read as words rather than as a name.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: StateRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An id is written bare, so what an id cannot hold is dropped.</remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Each composite state gathered with what is written in it (<see cref="ResolveComposites"/>), the dot each <c>[*]</c> is and
     /// which names are a composite's (<see cref="ResolveStates"/>), what styles each state and whether what is styled is written at
     /// all (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are

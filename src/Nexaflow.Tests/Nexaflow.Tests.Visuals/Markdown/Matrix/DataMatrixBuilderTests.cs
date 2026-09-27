@@ -117,7 +117,7 @@ public class DataMatrixBuilderTests
 
     private static DataMatrixBlock Read(string source)
     {
-        Assert.IsTrue(DataMatrixBlockReader.TryRead(MatrixParser.Parse(source), out var block, out var wrong), wrong.Reason);
+        Assert.IsTrue(DataMatrixBlockReader.TryRead(MatrixParser.Parse(language: "datamatrix", source:source), out var block, out var wrong), wrong.Reason);
         return block!;
     }
 

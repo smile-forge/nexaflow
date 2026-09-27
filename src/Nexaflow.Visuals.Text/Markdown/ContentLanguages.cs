@@ -4,6 +4,7 @@ using System.Linq;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Plot;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Languages;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -93,4 +94,17 @@ public static class ContentLanguages
     /// </summary>
     public static ContentLanguage? Held(ContentPart part) =>
         ContentNested.Language(part) is { } named && part.Part(Roles.Body) is not null ? For(named) : null;
+
+    /// <summary>
+    /// The language the tree holding <paramref name="part"/> was read in: the one its root names (<see cref="BlockNode"/>). Markdown is
+    /// what content is written in where nothing names a language, so nothing in the table answers to it; its root is known by the
+    /// name its parser gives it.
+    /// </summary>
+    public static ContentLanguage? WrittenIn(ContentPart part) =>
+        (part.Ancestors().LastOrDefault() ?? part).Node switch
+        {
+            BlockNode { Language: MarkdownParser.Language } => Markdown,
+            BlockNode block => For(block.Language),
+            _ => null,
+        };
 }

@@ -461,8 +461,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
             return Copy(MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)));
 
+            case LayoutVerbs.Paste:
+                return Paste();
+
             default:
-                return Diagrammed(act) ?? (Chose(act.Intent.Verb) || (Host?.Invoke(act) ?? false));
+                return Diagrammed(act) ?? Host?.Invoke(act) ?? false;
         }
     }
 
@@ -509,7 +512,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     }
 
     /// <inheritdoc/>
-    IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => [.. Offered(), .. Host?.Menu(act) ?? []];
+    IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => Host?.Menu(act) ?? [];
 
     // ── What a block offers ─────────────────────────────────────────────────
 

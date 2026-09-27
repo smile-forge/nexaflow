@@ -34,11 +34,11 @@ public readonly record struct ContentLink(ContentPart Part, string Language, str
     /// </summary>
     public static ContentLink? Of(ContentPart? part)
     {
-        if (part is not { Kind: Kinds.Nested, Length: > 0 } block) return null;
-        if (block.Part(Roles.Name) is not { Length: > 0 } language) return null;
+        if (part is not { Kind: Kinds.Block, Length: > 0 } block) return null;
+        if (ContentNested.Language(block) is not { Length: > 0 } language) return null;
         if (block.Part(Roles.Body) is not { Length: > 0 } source) return null;
 
-        return new ContentLink(block, language.Text, source.Text, source.Start);
+        return new ContentLink(block, language, source.Text, source.Start);
     }
 
     /// <summary>Whether a run of characters opens a block of another language — the cheap question, asked while reading.</summary>

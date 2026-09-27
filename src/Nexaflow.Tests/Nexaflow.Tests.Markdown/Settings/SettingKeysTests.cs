@@ -46,10 +46,10 @@ public class SettingKeysTests
             var written = PlotSays(key);
             if (written is null) continue;
 
-            var plain = PlotReader.TrySettings(PlotParser.Parse("1 2\n3 4"),
+            var plain = PlotReader.TrySettings(PlotParser.Parse(language: "scatter", source:"1 2\n3 4"),
                                                PlotFence.Scatter, out var bare, out _);
 
-            var told = PlotReader.TrySettings(PlotParser.Parse($"{key}: {written}\n1 2\n3 4"),
+            var told = PlotReader.TrySettings(PlotParser.Parse(language: "scatter", source:$"{key}: {written}\n1 2\n3 4"),
                                               PlotFence.Scatter, out var set, out var error);
 
             if (!plain || !told)

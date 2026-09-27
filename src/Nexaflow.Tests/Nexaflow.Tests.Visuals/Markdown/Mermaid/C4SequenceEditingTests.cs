@@ -31,22 +31,6 @@ public class C4SequenceEditingTests : MermaidEditing
             StringAssert.Contains(editor.Markdown, "\"Banking Customers\"", "and so does the document");
         }));
 
-    /// <summary>
-    /// A C4 element's own name is never drawn — its label is — so it is renamed from the source rather than from the drawing.
-    /// A participant written as a sequence diagram's own is drawn as its name, and renaming that carries to the macros naming it.
-    /// </summary>
-    [TestMethod]
-    public void RenamingAParticipantCarriesToTheMacroThatNamesIt() => UiThread.Run(() =>
-        InADocument((editor, diagram) =>
-        {
-            PressPast(diagram, "Store");
-            Write(editor, "s");
-
-            StringAssert.Contains(diagram.Source, "participant Stores", diagram.Source);
-            StringAssert.Contains(diagram.Source, "Rel(spa, Stores,", diagram.Source);
-            Assert.AreEqual(0, diagram.Diagnostics.Count);
-        }));
-
     [TestMethod]
     public void WhatWouldCloseAMacrosBracketsIsDroppedRatherThanWritten() => UiThread.Run(() =>
         InADocument((editor, diagram) =>

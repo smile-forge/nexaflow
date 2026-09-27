@@ -30,7 +30,7 @@ public static class LilyPondParser
 {
     /// <summary>Reads LilyPond.</summary>
     public static ContentNode Parse(string source) =>
-        ContentNode.Branch(LilyPondKinds.File, new Reader(source).Items(Mode.Music));
+        new BlockNode("lilypond", new Reader(source).Items(Mode.Music), LilyPondKinds.File);
 
     /// <summary>Which of LilyPond's lexers is reading.</summary>
     private enum Mode { Music, Lyrics, Chords }

@@ -60,44 +60,6 @@ public sealed class GanttGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    /// <remarks>Under a task, a section or the header, a task with its name still to write, lasting a day; elsewhere nothing in particular.</remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) =>
-        above is null || above.Kind is GanttKinds.Task or GanttKinds.Section ? (": 1d", 0) : null;
-
-    /// <inheritdoc/>
-    /// <remarks>A task's name runs to its colon, so a colon typed into one is not written; a link's quote is written as its entity code.</remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        return part.Parent is { Kind: GanttKinds.Text, Role: GanttRoles.Name } && text.Contains(':')
-            ? new MermaidWriting(caret, caret, text.Replace(":", string.Empty, StringComparison.Ordinal), caret + text.Replace(":", string.Empty, StringComparison.Ordinal).Length)
-            : null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>A task's id is declared in its schedule, and used by every <c>after</c>, <c>until</c> and <c>click</c> naming it.</remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var uses = block.SelfAndDescendants().Where(part => part is { Kind: MermaidKinds.Name, Role: GanttRoles.Reference }).ToList();
-
-        return
-        [
-            .. block.SelfAndDescendants()
-                .Where(part => part is { Kind: MermaidKinds.Name, Role: GanttRoles.Id })
-                .Select(id => (Id: id, Said: Said(id)))
-                .Where(declared => declared.Said.Length > 0)
-                .Select(declared => new MermaidName(declared.Said, declared.Id, [.. uses.Where(use => Said(use) == declared.Said)])),
-        ];
-
-        static string Said(ContentPart name) => name.Words()?.Text ?? string.Empty;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>An id is letters, digits, <c>-</c> and <c>_</c>, which is all an <c>after</c> or <c>until</c> can name.</remarks>
-    public string Naming(string name) => new([.. name.Select(character => Letter(character) ? character : '_')]);
-
-    /// <inheritdoc/>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new ResolveSchedule(), new ResolveTasks(GanttConfig.Read(block.Config))];
 
     /// <inheritdoc/>

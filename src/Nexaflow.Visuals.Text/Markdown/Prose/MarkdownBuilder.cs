@@ -179,8 +179,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
             case MarkdownKinds.List: Listed(into, part, x, room); return;
             case MarkdownKinds.Item: Item(into, part, x, room, null); return;
             case MarkdownKinds.Table: Tabled(into, part, x, room); return;
-            case MarkdownKinds.Fence: Fenced(into, part, x, room); return;
-            case MarkdownKinds.Math: Displayed(into, part, x, room); return;
+            case Kinds.Block: Fenced(into, part, x, room); return;
 
             case MarkdownKinds.Definition: Blocks(into, Body(part), x, room); return;
             case MarkdownKinds.Term: Text(into, Body(part), x, room, Face.Plain with { Bold = true, Ink = Style.DefTerm }); return;
@@ -201,23 +200,11 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// What <paramref name="part"/> holds in another language, laid out at <paramref name="room"/> — drawn at the size of the
-    /// words round it, except a formula on a line of its own, which is set half as big again as the words round it.
+    /// What <paramref name="part"/> holds in another language, laid out as it stands — as a block among blocks, or in a line of
+    /// words. That is all a document says of it: how a language lays itself out standing either way is its own.
     /// </summary>
-    private ContentInset? Nested(ContentPart part, double room)
-    {
-        var style = part.Kind switch
-        {
-            MarkdownKinds.Math => Style with { TextSize = Style.TextSize * Display, InlineMath = false },
-            MarkdownKinds.Formula => Style with { InlineMath = true },
-            _ => Style,
-        };
-
-        return Nested(part, room, style);
-    }
-
-    /// <summary>How much bigger than the words around it a formula on its own line is set.</summary>
-    private const double Display = 1.5;
+    private ContentInset? Nested(ContentPart part, double room, ContentStanding standing) =>
+        Nested(part, room, Style with { Standing = standing });
 
 
     /// <summary>
@@ -553,7 +540,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     /// </summary>
     private void Fenced(LayoutBuilder into, ContentPart part, double x, double room)
     {
-        var nested = Nested(part, room);
+        var nested = Nested(part, room, ContentStanding.Block);
 
         if (nested is { Draws: true, Laid.ShowsSource: false } inset)
         {
@@ -574,45 +561,6 @@ public sealed partial class MarkdownBuilder : ContentBuilder
     }
 
     /// <summary>
-    /// A formula on a line of its own: set half as big again as the words around it, centred, with air above
-    /// and below so it reads as a thing rather than as a tall line of a paragraph.
-    ///
-    /// <para>
-    /// <strong>Trouble in a formula does not cost it its typesetting.</strong> Maths under a caret is invalid
-    /// most of the time — every command is unreadable until its last letter is typed — so a formula that turned
-    /// into a box of its source as it was written would spend most of its life as a box of source. What could be
-    /// read is set and a wave goes under the rest, which is the reader's own parser's doing and not this one's.
-    /// Only a delimiter with nothing between it and its partner falls back, because there is no formula there to
-    /// draw and the characters are all there is to put a caret in.
-    /// </para>
-    /// </summary>
-    private void Displayed(LayoutBuilder into, ContentPart part, double x, double room)
-    {
-        if (Nested(part, room) is not { Draws: true, Laid.ShowsSource: false } inset)
-        {
-            if (Nested(part, room) is { Laid.Trouble.Count: > 0 } unread) Unreadable(into, part, x, room, unread.Laid.Trouble);
-            else AsWritten(into, part, x, room);
-
-            return;
-        }
-
-        _borrowed.AddRange(inset.Laid.Trouble);
-
-        var air = Style.TextSize * 0.5;
-        var left = x + Math.Max(0, (Fits(room) - inset.Width) / 2);
-
-        _y += air;
-
-        // What stands round a formula is nowhere to write; the formula's own places are where the caret goes.
-        into.Open(MarkdownPieces.Block, part, new Point(left, _y), stops: Stops.None);
-        inset.Set(into, default, MarkdownPieces.Block);
-        into.Close();
-
-        _y += inset.Height + air;
-        Reached(left + inset.Width);
-    }
-
-    /// <summary>
     /// Source held as written, set in a monospaced face on a panel of its own — a fence in a language nothing draws,
     /// indented code, raw markup, the front matter a document says about itself: its characters, as the block holds them. A
     /// block with nothing in it — a fence or a formula with nothing between its marks — is its marks, each where it stands.
@@ -623,7 +571,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         var pad = Style.TextSize * 0.55;
         var face = Face.Plain with { Mono = true, Scale = 0.94 };
 
-        var glyphs = held is null ? null : Glyphs(held.Text.Length == 0 ? " " : held.Text, face);
+        // What is written in another language is its body's own characters: the line break closing them is the closing fence's line.
+        var text = held is null ? null : held.Kind == Kinds.Nested ? ContentNested.Own(held.Node) : held.Text;
+        var glyphs = text is null ? null : Glyphs(text.Length == 0 ? " " : text, face);
         if (glyphs is not null) glyphs.MaxTextWidth = Math.Max(1, room - pad * 2);
 
         var marks = held is null ? Marks(part) : [];
@@ -637,7 +587,7 @@ public sealed partial class MarkdownBuilder : ContentBuilder
 
         if (glyphs is not null)
             LayoutText.Words(into, glyphs, new Point(x + pad, top + pad), Math.Max(1, room - pad * 2),
-                             TextAlignment.Left, held, MarkdownPieces.Verbatim, maps: held!.Text.Length > 0, ink: Style.Text);
+                             TextAlignment.Left, Shown(held!, text!), MarkdownPieces.Verbatim, maps: text!.Length > 0, ink: Style.Text);
         else
         {
             // Each mark where it was written: a line break starts the next line, and the rest are set one after another.
@@ -662,6 +612,9 @@ public sealed partial class MarkdownBuilder : ContentBuilder
         Reached(x + room);
 
         static bool Ends(ContentPart mark) => mark.Text.Trim('\r', '\n').Length == 0;
+
+        // The characters drawn, so a caret after the last of them stays on its line rather than past the break closing it.
+        static ISourcePart Shown(ContentPart held, string text) => text.Length == held.Length ? held : new PartSlice(held, 0, text.Length);
     }
 
     /// <summary>The pieces a block is written with, in order — the ones standing for characters.</summary>

@@ -106,7 +106,7 @@ public class MarkdownBuilderTests
     private static bool InAnotherLanguage(Laid laid, Diagnostic trouble) =>
         laid.Root.SelfAndDescendants()
             .Select(piece => piece.Part as Nexaflow.Markdown.Ast.ContentPart)
-            .Any(part => part is { Kind: MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Formula }
+            .Any(part => part is not null && (ContentNested.Language(part) is not null || part.Kind == MarkdownKinds.Formula)
                          && part.Start <= trouble.Start && trouble.Start + trouble.Length <= part.End);
 
     [TestMethod]

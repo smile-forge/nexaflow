@@ -32,13 +32,13 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
     }
 
     /// <summary>
-    /// What may be done where the pointer is: what the piece under it answers to, and what the host adds — or, where
-    /// the press landed inside a selection, only what every chosen piece offers, so an item appears when it means the
-    /// same thing for all of them.
+    /// What may be done where the pointer is: what the piece under it answers to, what the language drawn there offers, and what
+    /// the host adds — or, where the press landed inside a selection, only what every chosen piece offers, so an item appears when
+    /// it means the same thing for all of them.
     /// </summary>
     public FrameworkElement? BuildRibbon(Point? at = null)
     {
-        if (actions is null || at is not { } pointer) return null;
+        if (at is not { } pointer) return null;
 
         var where = Unscaled(pointer);
         var over = Selected();
@@ -55,8 +55,11 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
         var act = new LayoutAct(LayoutGesture.ContextMenu, under?.Intent ?? default, over[0],
                                 over[0].Naming(), over[0].Naming() as ContentPart, over, where);
 
-        var offers = Shared(over).Concat(Offering(act)).Concat(actions.Menu(act)).DistinctBy(offer => offer.Verb).ToList();
-        return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where));
+        var asked = Asked(where);
+        var offers = Shared(over).Concat(asked).Concat(Offering(act)).Concat(actions?.Menu(act) ?? [])
+            .DistinctBy(offer => offer.Verb).ToList();
+
+        return offers.Count == 0 ? null : new DiagramRibbon(offers, meant => Invoke(meant, over, where, asked));
     }
 
     /// <summary>
@@ -86,24 +89,32 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
                 .Select(one => one.First());
 
     /// <summary>
-    /// Does what was chosen from the menu: to each piece it was offered for, or — where no piece offered it, because the
-    /// content or the host did — once, for where the menu was opened.
+    /// Does what was chosen from the menu: what the language offered is its edit handler's to do, from where the menu was opened;
+    /// anything else, to each piece it was offered for, or — where no piece offered it, because the content or the host did —
+    /// once, for where the menu was opened.
     /// </summary>
-    private void Invoke(LayoutIntent meant, IReadOnlyList<Piece> over, Point where)
+    private void Invoke(LayoutIntent meant, IReadOnlyList<Piece> over, Point where, IReadOnlyList<LayoutIntent> asked)
     {
+        // Pasting needs what is on the clipboard, which is the host's: it asks for it, and hands it to the engine as a paste.
+        if (meant.Verb != LayoutVerbs.Paste && asked.Any(offer => offer.Verb == meant.Verb))
+        {
+            Choose(meant.Verb, where);
+            return;
+        }
+
         if (actions is null) return;
 
-        var asked = false;
+        var told = false;
 
         foreach (var piece in over)
             if (Offers(piece).FirstOrDefault(offer => offer.Verb == meant.Verb) is { Verb.Length: > 0 } theirs)
             {
                 var part = piece.Naming();
                 actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, theirs, piece, part, part as ContentPart, over, where));
-                asked = true;
+                told = true;
             }
 
-        if (asked || over.Count == 0) return;
+        if (told || over.Count == 0) return;
 
         var named = over[0].Naming();
         actions.Invoke(new LayoutAct(LayoutGesture.ContextMenu, meant, over[0], named, named as ContentPart, over, where));

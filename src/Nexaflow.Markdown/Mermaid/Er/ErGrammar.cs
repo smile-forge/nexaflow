@@ -104,64 +104,6 @@ public sealed class ErGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Under an attribute, nothing in particular — the attributes are the entity's own, and a line opening another here would
-    /// swallow everything under it. Everywhere else a relationship, which is what an ER diagram is mostly made of.
-    /// </remarks>
-    public (string Text, int Caret)? Blank(ContentNode? above) => above?.Kind switch
-    {
-        ErKinds.Attribute or ErKinds.Opens or ErKinds.Shut => null,
-        ErKinds.Direction or ErKinds.ClassDef or ErKinds.CssClass or ErKinds.Style => null,
-        _ => ("\"\" ||--o{ \"\" : \"\"", 1),
-    };
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// What is written on a relationship and what an attribute says it is for hold anything but a comment. A name, a class, a
-    /// type and a key are written bare — in quotes, where one holds what a bare name cannot — and a way is letters.
-    /// </remarks>
-    public MermaidWriting? Escaping(ContentPart part, int caret, string text)
-    {
-        if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
-
-        if (part.Role is ErRoles.Id or ErRoles.Class or ErRoles.Field) return MermaidWriting.Only(caret, text, Bare);
-        if (part.Role is ErRoles.Type) return MermaidWriting.Only(caret, text, Typed);
-        if (part.Role is ErRoles.Key or ErRoles.Towards) return MermaidWriting.Only(caret, text, char.IsAsciiLetter);
-
-        // A subgraph's name is written in words, and the brackets past it open the label drawn instead of it.
-        if (part.Role is ErRoles.Space) return MermaidWriting.Only(caret, text, character => character is not ('[' or ']'));
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// An entity is declared where it is first written and used wherever it is written again — either end of a relationship, a
-    /// <c>class</c> line, a <c>style</c> line.
-    /// </remarks>
-    public IReadOnlyList<MermaidName> Names(ContentPart block)
-    {
-        var said = new Dictionary<string, List<ContentPart>>(StringComparer.Ordinal);
-
-        foreach (var name in block.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Name))
-        {
-            if (name.Words() is not { Role: ErRoles.Id, Length: > 0 } words) continue;
-
-            if (!said.TryGetValue(words.Text, out var places)) said[words.Text] = places = [];
-            places.Add(name);
-        }
-
-        return [.. said.Select(name => new MermaidName(name.Key, name.Value[0], [.. name.Value.Skip(1)]))];
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// A name carried to every use of it has to read in all of them, and a <c>style</c> line names one bare, so what a bare
-    /// name cannot hold is dropped rather than quoted.
-    /// </remarks>
-    public string Naming(string name) => new([.. name.Where(Bare)]);
-
-    /// <inheritdoc/>
-    /// <remarks>
     /// Each subgraph gathered with what is written in it (<see cref="ResolveGroups"/>), which ends of a relationship name a subgraph
     /// rather than an entity (<see cref="ResolveJoins"/>), what styles each entity and whether what is styled is written at all
     /// (<see cref="ResolveStyles"/>), and what the front matter asks for. Everything else is the lines in the order they are written.
