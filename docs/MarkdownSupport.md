@@ -962,11 +962,11 @@ function and cannot close over a host's state;
 the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
 the routed `Selected` that anything picked out raises — with the node's id — and
 [`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers `expand`/`collapse` for the diagram it
-was pressed in: the engine's view state for that diagram, and the host's `DiagramExpand`. A chip writes its opening down
-**before** the host is offered the request,
-because a host that takes it on answers by re-emitting the whole diagram (the PE inspector walks one level further) and
-an opening made here has to survive that; where nobody takes it on, the diagram lays itself out again and opens the node
-from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that
+was pressed in: the engine's view state for that diagram, and whatever its content is bound to
+([bound content](#bound-content-a-diagrams-lines-or-the-whole-of-it)). A chip writes its opening down **before** bound
+content is told, because what that content supplies is read into the diagram again once it has walked (the PE inspector
+walks one module further) and an opening made here has to survive that; where nothing is bound, the diagram lays itself
+out again and opens the node from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that
 ([`DiagramRibbon`](../src/Nexaflow.Visuals.Text/Markdown/DiagramRibbon.cs)), falling through to the document's own menu
 where it offers nothing.
 
@@ -1027,6 +1027,44 @@ Hung underneath, so **the source is untouched**: the block still says `{{Team.Na
 drawn over it. That is also what makes a binding writable in place — pressing one reveals the characters and puts the
 caret in them, exactly as an entity code does, because they are still there. With no data context at all nothing is
 hung under it and a binding is drawn as the text it is, so a document nobody has bound to still reads.
+
+### Bound content (a diagram's lines, or the whole of it)
+
+A binding on a line of its own stands for content rather than words — before the header, the whole diagram; after it,
+lines of the diagram the header names:
+
+```
+{{Dependencies}}
+```
+
+```
+graph LR
+  app --> lib
+  {{More}}
+```
+
+The parser holds the line as written (`Kinds.BoundContent`). Before the stages run, the engine asks the host's data what
+it comes to, and the language reads that into its place
+([`MermaidParser.Bind`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs)) as lines nobody wrote here
+(`Roles.Supplied`), so every stage and builder sees them as it sees the rest and the block still prints as it was
+written. Lines supplied after a header may open with front matter of their own, which is how they say which of their
+nodes have more behind them; every front matter in a block says its part, the first to say a thing winning. A binding
+nothing supplies is drawn as written, saying so.
+
+**Content that grows.** A binding may come to
+[`IBoundContent`](../src/Nexaflow.Markdown/Binding/IBoundContent.cs) —
+[`BoundGraph<T>`](../src/Nexaflow.Markdown/Binding/BoundGraph.cs) for a graph too big to write out whole. It keeps which
+nodes are opened, walks what they show away from the thread that asked (a walk overtaken by another never lands) and
+writes what it walked as the diagram's text. A chip pressed in the diagram tells it which node was opened or closed; when
+the walk lands it says so, and the engine lays out again only the blocks holding a binding to it. The host keeps no logic
+for growing the diagram: the PE inspector's dependency tab is a Mermaid fence holding only `{{Dependencies}}`, bound to
+one.
+
+**Read, not written — and still picked out.** Supplied content stands for no source, so a press never puts the caret in
+it, the arrow keys step over it and nothing is typed into it. It is picked out whole — the node pressed, every node a drag
+spans, Ctrl adding or taking one away — raised in `Selected` with its id where the drawing gives one, washed like any
+selection and copied as the words drawn. Tested by `MermaidBindingTests`, `BoundGraphTests`, `BoundContentTests` and
+`FoldingDiagramTests`.
 
 Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`, which
 lays out from the source again.

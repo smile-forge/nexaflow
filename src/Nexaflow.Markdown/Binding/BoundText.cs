@@ -25,6 +25,20 @@ public static class BoundText
     /// <summary>Whether anything in it is bound — the cheap question asked of every run of words a diagram draws.</summary>
     public static bool Binds(string? text) => text is { Length: > 3 } && text.Contains(Opens, StringComparison.Ordinal);
 
+    /// <summary>
+    /// The path a binding names, where <paramref name="text"/> is nothing but one binding — <c>{{Dependencies}}</c> on a line
+    /// of its own — and null otherwise.
+    /// </summary>
+    public static string? Path(string? text)
+    {
+        var said = text?.Trim();
+        if (said is not { Length: > 4 } || !said.StartsWith(Opens, StringComparison.Ordinal) || !said.EndsWith(Shuts, StringComparison.Ordinal))
+            return null;
+
+        var path = said[Opens.Length..^Shuts.Length].Trim();
+        return path.Length > 0 && !path.Contains(Opens, StringComparison.Ordinal) && !path.Contains(Shuts, StringComparison.Ordinal) ? path : null;
+    }
+
     /// <summary>What one path says, drawn the way a reader expects to see it.</summary>
     public static string Says(string path, IDataContext data) =>
         path.Length > 0 && data.TryGet(path, out var value) ? Said(value) : string.Empty;
@@ -33,7 +47,7 @@ public static class BoundText
     /// A value as words: the invariant form for a number or a date, so a diagram reads the same wherever it is
     /// drawn, and whatever the object says for itself otherwise.
     /// </summary>
-    private static string Said(object? value) => value switch
+    internal static string Said(object? value) => value switch
     {
         null => string.Empty,
         string said => said,

@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.Features.Executable.ViewModels;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Text.Editor.Highlighting;
 using Nexaflow.Visuals.Text.Markdown;
 
@@ -28,9 +29,10 @@ public partial class ExecutableView : UserControl, IPageView
         DataContext = vm;
 
         // Two independent regions on a dependency node: the body carries the module's path and opens
-        // it as its own tab, the chip opens the module up in place.
+        // it as its own tab; the chip opens the module up in place, told straight to the graph the
+        // diagram is bound to.
+        DependencyDiagram.DiagramData    = new ReflectionDataContext(vm);
         DependencyDiagram.LinkNavigate  += (_, e) => e.Handled = OnDiagramLink(e.Url);
-        DependencyDiagram.DiagramExpand  = OnDiagramExpand;
         DependencyDiagram.Selected      += (_, e) => _vm.SelectDependency(e.Change.Picked.FirstOrDefault(pick => pick.Id is not null)?.Id);
 
         vm.PropertyChanged              += OnViewModelPropertyChanged;
@@ -156,21 +158,6 @@ public partial class ExecutableView : UserControl, IPageView
             : href;
 
         return File.Exists(path) && _vm.OpenDependency(path);
-    }
-
-    /// <summary>
-    /// A node's expand chip was clicked. The key is the module name the generated diagram declared,
-    /// so this hands it straight to the walk without keeping a table of mermaid ids. Claiming the
-    /// request (returning true) is what makes the diagram wait for the re-walk rather than opening
-    /// a subtree it does not have.
-    /// </summary>
-    private bool OnDiagramExpand(DiagramExpandRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Key)) return false;
-
-        if (request.Expand) _vm.ExpandModule(request.Key);
-        else                _vm.CollapseModule(request.Key);
-        return true;
     }
 
     /// <summary>

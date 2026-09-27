@@ -78,6 +78,27 @@ public sealed record NexaflowConfig(
     public bool IsEmpty => DefaultExpansion is null && MaxFanOut <= 0 && Collapsed.Count == 0 && Expanded.Count == 0;
 
     /// <summary>
+    /// This and <paramref name="more"/> together: every node either says is folded away or opened, and the first of the two to
+    /// say how deep a diagram opens and how many children it draws at once.
+    /// </summary>
+    public NexaflowConfig And(NexaflowConfig more) =>
+        more.IsEmpty ? this
+        : IsEmpty ? more
+        : new NexaflowConfig(DefaultExpansion ?? more.DefaultExpansion, MaxFanOut > 0 ? MaxFanOut : more.MaxFanOut,
+                             Merged(Collapsed, more.Collapsed), Merged(Expanded, more.Expanded));
+
+    private static IReadOnlyDictionary<string, string> Merged(IReadOnlyDictionary<string, string> first, IReadOnlyDictionary<string, string> then)
+    {
+        if (then.Count == 0) return first;
+        if (first.Count == 0) return then;
+
+        var all = new Dictionary<string, string>(first);
+        foreach (var (id, key) in then) all.TryAdd(id, key);
+
+        return all;
+    }
+
+    /// <summary>
     /// What the name of the node offering a parent's remaining children begins with.
     ///
     /// <para>

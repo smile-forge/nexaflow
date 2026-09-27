@@ -110,6 +110,7 @@ public sealed partial class ContentEngine
     internal void Relay()
     {
         _laid = LaidOut(_state);
+        Repick();
         Recornered();
 
         PreRender?.Invoke(this, EventArgs.Empty);
@@ -221,6 +222,9 @@ public sealed partial class ContentEngine
         // characters leaves behind — the nearest one past the offset it is at.
         var next = _at >= 0 ? _laid.Step(_at, forward) : Rejoining(forward);
 
+        // Content a binding supplied is stepped over: nobody wrote it here, so there is nowhere in it to write.
+        while (next is { } over && Supplied(_laid.Places[over].Against)) next = _laid.Step(over, forward);
+
         if (next is not { } landed) return false;
 
         MoveTo(_laid.Places[landed].Offset, landed, extend);
@@ -247,6 +251,8 @@ public sealed partial class ContentEngine
     {
         // Extending is about a stretch of source, and a stretch has no places — which of the marks at its far end the caret
         // would have been drawn as says nothing about what is picked out.
+        if (!extend && Unpick()) Chosen();
+
         if (extend) ExtendSelectionTo(offset);
         else Apply(_state.MoveCaretTo(offset), notify: false, at);
     }
@@ -280,7 +286,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void Write(string text)
     {
-        if (_readOnly) return;
+        if (Unwritable) return;
 
         Apply(Typing(_named, Landing, text) ?? _state.Write(text), notify: true);
     }
@@ -307,7 +313,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal void Insert(string text, int caretBack = 0)
     {
-        if (_readOnly) return;
+        if (Unwritable) return;
 
         // Something picked out and a construct with a hole in it: what you picked goes in the hole.
         if (_state.HasSelection && WrapSelectionInto(text, caretBack)) return;
@@ -341,7 +347,7 @@ public sealed partial class ContentEngine
     /// <summary>Wraps the selection, or inserts the pair at the caret.</summary>
     internal void Wrap(string before, string after)
     {
-        if (_readOnly) return;
+        if (Unwritable) return;
 
         Apply(_state.Wrap(before, after), notify: true);
     }
@@ -349,7 +355,7 @@ public sealed partial class ContentEngine
     /// <summary>Backspace; un-renders a construct drawn from more source than it shows rather than deleting a character of it. False (nothing to delete) is the host's cue to remove the content itself.</summary>
     internal bool Backspace()
     {
-        if (_readOnly) return false;
+        if (Unwritable) return false;
         if (Erasing(_named, Landing, forward: false) is { } erased) { Apply(erased, notify: true); return true; }
         if (_state is { Caret: 0, SelectionLength: 0 }) return false;
 
@@ -385,7 +391,7 @@ public sealed partial class ContentEngine
     /// <summary>Forward delete. False when the caret is already at the end.</summary>
     internal bool Delete()
     {
-        if (_readOnly) return false;
+        if (Unwritable) return false;
 
         // Asked before the end of the source is: past the last thing written in a diagram is its end, and a delete handed back to
         // the document from there takes whatever the document has next.
@@ -399,7 +405,7 @@ public sealed partial class ContentEngine
     /// <summary>Ends whatever is half-written — what Space and Enter mean, and the language's to say (<see cref="Settle(string?, Landing, string)"/>).</summary>
     internal void Settle(string separator)
     {
-        if (_readOnly) return;
+        if (Unwritable) return;
 
         Apply(Settle(_named, Landing, separator), notify: true);
     }
@@ -440,7 +446,7 @@ public sealed partial class ContentEngine
         var (from, snapped) = _laid.Root.Snap(start, length);
 
         var next = _state.Select(from, snapped);
-        if (next.Selection.SequenceEqual(_state.Selection)) return;
+        if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return;
 
         Apply(next, notify: false);
         Chosen();
@@ -449,7 +455,8 @@ public sealed partial class ContentEngine
     /// <summary>Picks nothing out.</summary>
     internal void ClearSelection()
     {
-        if (!_state.HasSelection) return;
+        var unpicked = Unpick();
+        if (!_state.HasSelection && !unpicked) return;
 
         Apply(_state.Select(0, 0), notify: false);
 
@@ -479,7 +486,7 @@ public sealed partial class ContentEngine
     internal bool SelectRanges(IReadOnlyList<EditRange> ranges)
     {
         var next = _state.Select(ranges);
-        if (next.Selection.SequenceEqual(_state.Selection)) return false;
+        if (!Unpick() && next.Selection.SequenceEqual(_state.Selection)) return false;
 
         Apply(next, notify: false);
         Chosen();

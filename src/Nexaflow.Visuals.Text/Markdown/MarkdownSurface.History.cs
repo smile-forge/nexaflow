@@ -103,7 +103,10 @@ public sealed partial class MarkdownSurface
     /// <summary>
     /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was.
     /// </summary>
-    public bool CopySelection() => Copy(MarkdownClipboard.Copied(_shown.Markdown, Chosen()));
+    public bool CopySelection() =>
+        Copy(_engine.PickedText is { } drawn
+            ? new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty)
+            : MarkdownClipboard.Copied(_shown.Markdown, Chosen()));
 
     /// <summary>Copies what is chosen, then takes it away — but only once it has been put somewhere, so nothing is lost.</summary>
     public bool Cut()

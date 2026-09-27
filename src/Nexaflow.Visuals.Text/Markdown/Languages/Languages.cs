@@ -85,6 +85,7 @@ internal static class Shipped
                     reading, EditState.For(reading.Source) with { Raw = show.Shown }, show.Style, !show.Writing, show.Nesting))
         {
             Editing = new MermaidEditing(),
+            Bind = MermaidParser.Bind,
         };
 
     /// <summary>

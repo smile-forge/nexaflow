@@ -78,6 +78,13 @@ public static class Roles
     public const string Derived = "derived";
 
     /// <summary>
+    /// Content a binding supplied (<see cref="Kinds.BoundContent"/>): derived, since nobody wrote it here and it stands for none of the
+    /// source, and set apart from what a stage works out because it is read-only in a way worked-out content is not — it can be
+    /// picked out, but there is nowhere in it to put the caret or type.
+    /// </summary>
+    public const string Supplied = "supplied";
+
+    /// <summary>
     /// What a piece says while the pointer rests on it — what an abbreviation stands for. Held by a
     /// <see cref="Derived"/> part, so it is found by asking the tree when the pointer arrives and is never laid out.
     /// </summary>
@@ -138,6 +145,14 @@ public static class Kinds
     /// (<see cref="ContentNested"/>).
     /// </summary>
     public const string Language = "language";
+
+    /// <summary>
+    /// A binding standing where content would be (<c>{{Path}}</c>) — a diagram's lines, or the whole of it. The parser holds it as
+    /// written; the engine asks whatever the content is shown against what it comes to, and the language reads that into its
+    /// place as content of its own (<see cref="Roles.Supplied"/>), so the tree still prints as its author wrote it. Not
+    /// <see cref="Bound"/>, which is a binding among words, standing for words.
+    /// </summary>
+    public const string BoundContent = "bound-content";
 
     /// <summary>
     /// A run standing in for a value somebody else holds, rather than for itself: what a document says about data

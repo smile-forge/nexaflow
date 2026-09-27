@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 
@@ -58,6 +59,85 @@ public static class MermaidParser
         return ContentNode.Branch(MermaidKinds.Block, lines);
     }
 
+    /// <summary>
+    /// <paramref name="block"/> with what each binding standing on a line of its own supplies read into its place: after the line
+    /// holding it, as lines of the block's own that nobody wrote here (<see cref="Roles.Supplied"/>) — so the block still prints as
+    /// its author wrote it, and everything that works a diagram over sees the supplied lines as it sees the rest.
+    ///
+    /// <para>
+    /// A binding before the header supplies the whole diagram, front matter and header and all. One after it supplies lines of the
+    /// diagram the header names, and may open with front matter of its own, which is how what it supplies says which of its nodes
+    /// have more behind them. A binding nothing supplies is left as written, saying so.
+    /// </para>
+    /// </summary>
+    /// <param name="supplied">What the binding naming a path comes to, or null where it comes to nothing.</param>
+    public static ContentNode Bind(ContentNode block, Func<string, string?> supplied)
+    {
+        List<ContentNode>? lines = null;
+        string? header = null;
+
+        for (var at = 0; at < block.Children.Count; at++)
+        {
+            var line = block.Children[at];
+
+            if (header is null && line.Children.FirstOrDefault(part => part.Kind == MermaidKinds.Header) is { } heading)
+                header = heading.Print();
+
+            if (line.IsDerived || line.Children.FirstOrDefault(part => part.Kind == Kinds.BoundContent) is not { } bound)
+            {
+                lines?.Add(line);
+                continue;
+            }
+
+            lines ??= [.. block.Children.Take(at)];
+
+            var path = BoundText.Path(bound.Text)!;
+            if (supplied(path) is not { } text)
+            {
+                lines.Add(line.With([.. line.Children.Select(part => ReferenceEquals(part, bound)
+                    ? ContentNode.Leaf(Kinds.BoundContent, bound.Text, bound.Role, $"Nothing is bound to '{path}'.")
+                    : part)]));
+                continue;
+            }
+
+            lines.Add(line);
+
+            foreach (var read in Supplied(text, header))
+            {
+                lines.Add(ContentNode.Branch(read.Kind, read.Children, Roles.Supplied));
+
+                if (header is null && read.Children.FirstOrDefault(part => part.Kind == MermaidKinds.Header) is { } opened)
+                    header = opened.Print();
+            }
+        }
+
+        return lines is null ? block : block.With(lines);
+    }
+
+    /// <summary>
+    /// What a binding supplied, read as lines of a block: the whole of one where nothing has named the diagram yet, and otherwise
+    /// lines of the diagram <paramref name="header"/> names — read after it, so its grammar reads them — with any front matter
+    /// they open with read as front matter.
+    /// </summary>
+    private static IEnumerable<ContentNode> Supplied(string text, string? header)
+    {
+        if (header is null) return Parse(text).Children;
+
+        ContentNode? front = null;
+        var body = text;
+
+        if (Fences(text) is (_, var close))
+        {
+            front = Parse(text[..close.Stop]).Children.FirstOrDefault(part => part.Kind == MermaidKinds.FrontMatter);
+            body = text[close.Stop..];
+        }
+
+        // The header's own line is not what was supplied: it is there so the lines after it are read as the diagram they belong to.
+        var read = Parse(header + "\n" + body).Children.Skip(1);
+
+        return front is null ? read : [front, .. read];
+    }
+
     // ── Lines ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -83,6 +163,14 @@ public static class MermaidParser
         if (text.StartsWith("%%", StringComparison.Ordinal))
         {
             lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia)], to, row));
+            return row.Stop;
+        }
+
+        // A binding standing on a line of its own is content supplied by whatever the diagram is shown against — the whole of it,
+        // before a header, or lines of it after one. Held as written; read into its place before the diagram is worked over (Bind).
+        if (BoundText.Path(text) is not null)
+        {
+            lines.Add(Line(source, row.Start, from, [ContentNode.Leaf(Kinds.BoundContent, text)], to, row));
             return row.Stop;
         }
 

@@ -114,6 +114,10 @@ public sealed partial class ContentEngine
 
         Anchor = _laid.OffsetAt(at);
         _anchorNode = _laid.PieceAt(at);
+
+        // Content a binding supplied has nowhere to put the caret: a press on it picks out what was pressed, whole.
+        if (Supplied(_anchorNode)) { PickPressed(_anchorNode); Picked(at); return; }
+
         _dragging = true;
 
         // Pressing on what is already selected is how a move begins — the reader is picking the term up, not starting a new
@@ -138,6 +142,8 @@ public sealed partial class ContentEngine
     /// <summary>Adds what a press lands on to what is chosen — or, where all of it is chosen already, takes it back out.</summary>
     private void Toggle(Point at)
     {
+        if (Supplied(_laid.PieceAt(at))) { TogglePicked(_laid.PieceAt(at)); return; }
+
         var piece = _laid.PieceAt(at).Selectable();
         if (!piece.Exists || piece.Sits() is not { Length: > 0 } sits) return;
 
@@ -237,6 +243,9 @@ public sealed partial class ContentEngine
     /// <summary>Chooses from the anchor to <paramref name="at"/>: what a drag there chooses, and what Shift and a press there choose.</summary>
     private void ChooseTo(Point at)
     {
+        // From content a binding supplied, there are no characters to choose between: it picks out every piece of it spanned.
+        if (Supplied(_anchorNode)) { PickSpanned(at); return; }
+
         // Inside one run of text it picks out characters, because that is what dragging through text means. Everywhere else it
         // is whole pieces — see below.
         if (_anchorNode.Words is { Maps: true } && _laid.PieceAt(at) == _anchorNode)
@@ -313,6 +322,9 @@ public sealed partial class ContentEngine
     {
         // Two presses on a block show it as it was written, where it can be written in and is not already.
         if (OpenAsWritten(at)) return;
+
+        // Content a binding supplied is picked out whole however often it is pressed.
+        if (Supplied(_laid.PieceAt(at))) { PickPressed(_laid.PieceAt(at)); return; }
 
         if (Offered(at, LayoutGesture.DoubleClick) is { } act && Actions?.Invoke(act) == true) return;
 

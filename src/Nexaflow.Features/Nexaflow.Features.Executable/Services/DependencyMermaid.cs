@@ -20,7 +20,7 @@ namespace Nexaflow.Features.Executable.Services;
 /// </summary>
 public static class DependencyMermaid
 {
-    /// <summary>Builds the markdown block, including the fence.</summary>
+    /// <summary>The diagram's source — what a fence holds, or what a binding to the graph supplies.</summary>
     public static string Build(DependencyGraph graph)
     {
         var body      = new StringBuilder();
@@ -73,7 +73,6 @@ public static class DependencyMermaid
         Emit(graph.Root);
 
         var builder = new StringBuilder();
-        builder.AppendLine("```mermaid");
         AppendFrontMatter(builder, collapsed, expanded);
         builder.AppendLine("graph LR");
         builder.Append(body);
@@ -85,7 +84,6 @@ public static class DependencyMermaid
         foreach (var line in styled) builder.AppendLine(line);
         foreach (var line in clicks) builder.AppendLine(line);
 
-        builder.AppendLine("```");
         return builder.ToString();
     }
 

@@ -8,6 +8,9 @@ using System.Linq;
 using System.Windows;
 
 using System;
+using Nexaflow.Markdown.Binding;
+using System.Threading.Tasks;
+using System.Windows.Threading;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -111,16 +114,28 @@ public class FoldingDiagramTests
         Assert.IsTrue(Words(surface).Contains("Hidden"), "pressing the chip opened what was behind it, in place");
     });
 
+    /// <summary>Bound content that supplies nothing and keeps what it was told.</summary>
+    private sealed class Told : IBoundContent
+    {
+        public List<(string Key, bool Open)> Asked { get; } = [];
+
+        public string Text => string.Empty;
+
+        public event EventHandler? Changed { add { } remove { } }
+
+        public void Expand(string key, bool open) => Asked.Add((key, open));
+    }
+
     [TestMethod]
     public void ANodesBodyAndItsChipAreTwoIndependentTargets() => UiThread.Run(() =>
     {
         var followed = new List<string>();
-        var opened = new List<DiagramExpandRequest>();
+        var more = new Told();
 
-        var surface = Shown(Src, host =>
+        var surface = Shown(Src + "\n  {{More}}", host =>
         {
             host.LinkNavigate += (_, e) => { followed.Add(e.Url); e.Handled = true; };
-            host.DiagramExpand = asked => { opened.Add(asked); return true; };
+            host.DiagramData = new ReflectionDataContext(new { More = more });
         });
 
         // The root's body: a press on it follows where its click line said it leads.
@@ -129,26 +144,44 @@ public class FoldingDiagramTests
         CollectionAssert.Contains(followed, "https://example.com/root",
                                   "the node body still leads where it said — folding did not take its press");
 
-        // Its chip: a press on it asks for the node it belongs to, and nothing was followed by it.
+        // Its chip: a press on it tells what the diagram is bound to about the node it belongs to, and follows nothing.
         Press(surface, Placed(surface, MermaidPiece.Chip).First());
 
         Assert.AreEqual(1, followed.Count, "the chip is not the body");
-        Assert.AreEqual(1, opened.Count, "and it asked about a node");
-        Assert.AreEqual("root", opened[0].NodeId);
+        Assert.AreEqual(1, more.Asked.Count, "and it told what is bound about a node");
+        Assert.AreEqual(("root", false), more.Asked[0], "the root is open, so its chip closes it");
     });
 
     [TestMethod]
-    public void AnOpeningIsWrittenDownBeforeTheHostIsOfferedIt() => UiThread.Run(() =>
+    public void AnOpeningIsWrittenDownBeforeWhatIsBoundIsTold() => UiThread.Run(() =>
     {
-        // The host answers by drawing the whole diagram again, so an opening made here has to survive that.
-        var surface = Shown(Src, host => host.DiagramExpand = _ => true);
+        // What is bound answers by being read into the diagram again, so an opening made here has to survive that.
+        var more = new BoundGraph<string>((opened, _) => Task.FromResult(string.Empty), graph => graph);
+        var surface = Shown(Src + "\n  {{More}}", host => host.DiagramData = new ReflectionDataContext(new { More = more }));
 
         Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
-        surface.RefreshDiagrams();
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
         Settled(surface);
 
-        Assert.IsTrue(Words(surface).Contains("Hidden"), "the opening was kept, whoever took the request on");
+        Assert.IsTrue(Words(surface).Contains("Hidden"), "the opening was kept, and what is bound was told of it");
     });
+
+    [TestMethod]
+    public void PickingOutASuppliedNodeSaysWhichNode() => UiThread.Run(() =>
+    {
+        var surface = Shown(Src + "\n  {{More}}", host => host.DiagramData = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
+
+        ContentSelectionChange? told = null;
+        surface.Selected += (_, e) => told = e.Change;
+
+        Press(surface, Placed(surface, FlowchartPiece.Node).First(where => Says(surface, where, "Other")));
+
+        Assert.AreEqual("other", told?.Picked.Single().Id, "what a page picking a supplied node out hears is which node");
+    });
+
+    /// <summary>Whether the node drawn at <paramref name="where"/> says <paramref name="words"/>.</summary>
+    private static bool Says(MarkdownSurface surface, Rect where, string words) =>
+        surface.Shown.Laid.Tree.Root.Placed().Any(at => at.Piece.Words?.Glyphs.Text == words && where.Contains(at.Where));
 
     [TestMethod]
     public void WhatWasOpenedIsForgottenOnlyWhenTheHostSaysSo() => UiThread.Run(() =>

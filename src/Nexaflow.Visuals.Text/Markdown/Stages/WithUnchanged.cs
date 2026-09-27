@@ -67,6 +67,15 @@ public sealed class WithUnchanged : IAstStage
     /// <summary>Says that something the characters do not say has changed, so no block is the one it was.</summary>
     public void Forget() => _before = [];
 
+    /// <summary>
+    /// Says that something the characters do not say has changed about the blocks <paramref name="which"/> picks out, so none
+    /// of those is the one it was — and every other block still is.
+    /// </summary>
+    public void Forget(Func<ContentNode, bool> which)
+    {
+        foreach (var alike in _before.Values) alike.RemoveAll(kept => which(kept.Block));
+    }
+
     /// <summary>What the last reading kept for a block written as this one is and reading as it does — each given out once.</summary>
     private LaidBlock? Taken(int written, ContentNode block)
     {

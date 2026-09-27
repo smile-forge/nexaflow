@@ -145,6 +145,24 @@ public sealed class MermaidBlock
         }
     }
 
+    /// <summary>What every front matter in the block says, in the order written — its own, and any a binding supplied.</summary>
+    public IEnumerable<string> Configs
+    {
+        get
+        {
+            foreach (var node in _tree.SelfAndDescendants())
+            {
+                if (node.Kind != MermaidKinds.FrontMatter || node.Children.Count < 2) continue;
+
+                var inner = new StringBuilder();
+                for (var at = 1; at < node.Children.Count - 1; at++) node.Children[at].PrintTo(inner);
+
+                var text = inner.ToString();
+                yield return text.EndsWith('\n') ? text[..^1] : text;
+            }
+        }
+    }
+
     /// <summary>
     /// Where the diagram starts, in <see cref="Source"/>: past the front matter where there is one, and the start of the
     /// block where there is not.
