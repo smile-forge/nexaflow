@@ -17,8 +17,9 @@ namespace Nexaflow.Tests.Visuals.Markdown.Code;
 ///
 /// <para>
 /// The whole point is the order. A document re-lays on every keystroke and compiling a grammar's query costs
-/// about fifteen milliseconds, so colouring is never on the way to drawing: the code appears at once in one
-/// colour and colours itself a moment later. These say both halves, and that the second one arrives.
+/// about fifteen milliseconds, so colouring is never on the way to drawing: code is read in two stages, as written
+/// at once and by its grammar away from the thread that draws, and colours itself when the second reading lands.
+/// These say both halves, and that the second one arrives.
 /// </para>
 /// </summary>
 [TestClass]
@@ -45,14 +46,15 @@ public class CodeLanguageTests
     }
 
     [TestMethod]
-    public void TheTableReadsCodeOnlyAfterEveryLanguageOfItsOwn()
+    public void EveryGrammarIsALanguageOfItsOwn_ReadOnlyAfterEveryOtherLanguage()
     {
-        Assert.AreSame(ContentLanguages.Code, ContentLanguages.For("csharp"));
-        Assert.AreSame(ContentLanguages.Code, ContentLanguages.For("python"));
+        Assert.AreEqual(typeof(CodeBuilder), ContentLanguages.For("csharp")!.Builder);
+        Assert.AreSame(ContentLanguages.For("csharp"), ContentLanguages.For("c#"), "one language, whatever a writer calls it");
+        Assert.AreNotSame(ContentLanguages.For("csharp"), ContentLanguages.For("python"), "and another for another grammar");
 
         // A word a language of its own claims must reach that one, however many words code answers to.
-        Assert.AreNotSame(ContentLanguages.Code, ContentLanguages.For("mermaid"));
-        Assert.AreNotSame(ContentLanguages.Code, ContentLanguages.For("qr"));
+        Assert.AreNotEqual(typeof(CodeBuilder), ContentLanguages.For("mermaid")!.Builder);
+        Assert.AreNotEqual(typeof(CodeBuilder), ContentLanguages.For("qr")!.Builder);
     }
 
     [TestMethod]
@@ -69,19 +71,9 @@ public class CodeLanguageTests
     }
 
     [TestMethod]
-    public void AskingForAReadingNeverWaitsForOne()
+    public void CodeDrawsBeforeAnythingHasReadIt_WaitingForNothing()
     {
-        CodeSpans.Forget();
-
-        Assert.IsNull(CodeSpans.For("c-sharp", Source), "nothing is known yet, and nothing was waited for");
-    }
-
-    [TestMethod]
-    public void CodeDrawsBeforeAnythingHasReadIt()
-    {
-        CodeSpans.Forget();
-
-        var laid = Laying.Lay("csharp", Source, 480);
+        var laid = Laying.Lay("csharp", Unread(Source), 480);
 
         Assert.IsTrue(laid.Size.Height > 0, "it drew");
         Assert.IsTrue(Pieces(laid).All(kind => kind == Kinds.Verbatim),
@@ -91,23 +83,30 @@ public class CodeLanguageTests
     [TestMethod]
     public void AndColoursItselfOnceTheReadingLands()
     {
-        CodeSpans.Forget();
-
-        Assert.IsTrue(Read("c-sharp", Source), "the grammar read it");
-
-        var kinds = Pieces(Laying.Lay("csharp", Source, 480)).ToList();
+        var kinds = Pieces(Landed("csharp", Unread(Source))).ToList();
 
         CollectionAssert.Contains(kinds, "keyword", $"what was found: {string.Join(", ", kinds.Distinct())}");
         Assert.IsTrue(kinds.Distinct().Count() > 1, "and not everything is one thing");
     }
 
     [TestMethod]
+    public void AFenceInADocumentIsReadAgainWhenItsReadingLands()
+    {
+        var engine = new ContentEngine();
+        var document = "# Code\n\n```csharp\n" + Unread(Source) + "```\n";
+
+        Assert.IsTrue(Reread(engine, () => engine.Lay(null, EditState.For(document), StyleFormat.Dark, 480, readOnly: true)), "it said so");
+
+        engine.Forget();
+        CollectionAssert.Contains(Pieces(engine.Lay(null, EditState.For(document), StyleFormat.Dark, 480, readOnly: true)).ToList(), "keyword",
+                                  "and what was read the first time is read again");
+    }
+
+    [TestMethod]
     public void WhatWasWrittenIsStillWhatIsDrawn()
     {
-        CodeSpans.Forget();
-        Read("c-sharp", Source);
-
-        var laid = Laying.Lay("csharp", Source, 480);
+        var source = Unread(Source);
+        var laid = Landed("csharp", source);
 
         // Every run says it is the source, at the offset it was cut from — so the caret lands where it looks.
         foreach (var piece in laid.Root.SelfAndDescendants())
@@ -115,7 +114,7 @@ public class CodeLanguageTests
             if (piece.Words is not { } words || piece.Part is not { } part) continue;
 
             Assert.IsTrue(words.Maps);
-            Assert.AreEqual(words.Glyphs.Text, Source.Substring(part.Start, part.Length));
+            Assert.AreEqual(words.Glyphs.Text, source.Substring(part.Start, part.Length));
         }
     }
 
@@ -125,13 +124,11 @@ public class CodeLanguageTests
         // Reported from the app: the caret in the second of two identical lines landed in the first, because each line was
         // found by what it says rather than cut where it ends.
         const string twice = "x = 1;\r\nx = 1;\ny\n";
-        CodeSpans.Forget();
 
         var starts = Words(Laying.Lay("nothing-reads-this", twice, 480)).Select(part => part.Start).ToArray();
         CollectionAssert.AreEqual(new[] { 0, 8, 15 }, starts, "held as written, each line where it is written");
 
-        Read("c-sharp", twice);
-        var read = Words(Laying.Lay("csharp", twice, 480)).ToList();
+        var read = Words(Landed("csharp", twice)).ToList();
 
         Assert.AreEqual(read.Count, read.Select(part => part.Start).Distinct().Count(), "and read, no two runs in one place");
         Assert.IsTrue(read.Any(part => part.Start >= 8 && part.Start < 14), "with runs of the second line in it");
@@ -156,24 +153,41 @@ public class CodeLanguageTests
 
     // ── Reading the answers ─────────────────────────────────────────────────
 
-    /// <summary>Waits for the grammar to read it, which happens off the way to drawing.</summary>
-    private static bool Read(string grammar, string source)
+    /// <summary>
+    /// <paramref name="source"/> with a comment no other source has — what is read slowly is kept for every engine, so content
+    /// nothing has read yet is content nobody has written before.
+    /// </summary>
+    private static string Unread(string source) => $"// {Guid.NewGuid():N}\n{source}";
+
+    /// <summary><paramref name="source"/> laid out once the grammar has read it, which happens off the way to drawing.</summary>
+    private static Laid Landed(string language, string source)
+    {
+        var engine = new ContentEngine();
+        Laid Lay() => engine.Lay(language, EditState.For(source), StyleFormat.Dark, 480, readOnly: true);
+
+        Assert.IsTrue(Reread(engine, () => Pieces(Lay()).Any(kind => kind != Kinds.Verbatim)), "the grammar read it");
+        return Lay();
+    }
+
+    /// <summary>
+    /// Lays out with <paramref name="lay"/> and waits for a slower reading of it to land — true at once where what
+    /// <paramref name="lay"/> says shows it already has.
+    /// </summary>
+    private static bool Reread(ContentEngine engine, Func<object> lay)
     {
         using var landed = new ManualResetEventSlim();
 
         void Done(object? sender, EventArgs args) => landed.Set();
 
-        CodeSpans.Ready += Done;
+        engine.Reread += Done;
 
         try
         {
-            if (CodeSpans.For(grammar, source) is not null) return true;
-
-            return landed.Wait(TimeSpan.FromSeconds(10)) && CodeSpans.For(grammar, source) is { Count: > 0 };
+            return lay() is true || landed.Wait(TimeSpan.FromSeconds(10));
         }
         finally
         {
-            CodeSpans.Ready -= Done;
+            engine.Reread -= Done;
         }
     }
 

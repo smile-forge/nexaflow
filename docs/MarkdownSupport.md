@@ -988,8 +988,9 @@ the front-matter title (applied to a chart that has none of its own) and the con
 **except `xychart`, `radar-beta`, `ishikawa-beta`, `sankey`, `erDiagram`, `venn-beta`, `architecture-beta` and
 `cynefin-beta`** (which read `MermaidBlock.Config` and apply the `config:` options described above) **and the
 `config: nexaflow:` block**, which every graph-family diagram reads. A header naming no diagram type shows the block
-as written, with a wave under the header's word and the reason beneath
-([`UnknownDiagramBuilder`](../src/Nexaflow.Visuals.Text/Markdown/Mermaid/UnknownDiagramBuilder.cs), tested by
+as written, with a wave under the header's word and the reason beneath: the header is all a `mermaid` block reads for
+itself, holding the rest as the diagram its header names
+([`MermaidFenceParser`](../src/Nexaflow.Markdown/Mermaid/MermaidFenceParser.cs), tested by `MermaidFenceParserTests` and
 `MermaidBuilderTests`).
 A document-level YAML front-matter block is handled separately (`UseYamlFrontMatter`, parsed but
 not rendered — see the extensions table above); this Mermaid front-matter is a different, fence-local
@@ -1028,14 +1029,10 @@ drawn over it. That is also what makes a binding writable in place — pressing 
 caret in them, exactly as an entity code does, because they are still there. With no data context at all nothing is
 hung under it and a binding is drawn as the text it is, so a document nobody has bound to still reads.
 
-### Bound content (a diagram's lines, or the whole of it)
+### Bound content (lines of a diagram)
 
-A binding on a line of its own stands for content rather than words — before the header, the whole diagram; after it,
-lines of the diagram the header names:
-
-```
-{{Dependencies}}
-```
+A binding on a line of its own after the header stands for content rather than words — lines of the diagram the header
+names:
 
 ```
 graph LR
@@ -1047,9 +1044,12 @@ The parser holds the line as written (`Kinds.BoundContent`). Before the stages r
 it comes to, and the language reads that into its place
 ([`MermaidParser.Bind`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs)) as lines nobody wrote here
 (`Roles.Supplied`), so every stage and builder sees them as it sees the rest and the block still prints as it was
-written. Lines supplied after a header may open with front matter of their own, which is how they say which of their
-nodes have more behind them; every front matter in a block says its part, the first to say a thing winning. A binding
-nothing supplies is drawn as written, saying so.
+written. Supplied lines may open with front matter of their own, which is how they say which of their nodes have more
+behind them; every front matter in a block says its part, the first to say a thing winning. A binding nothing supplies
+is drawn as written, saying so.
+
+**A diagram is never bound whole.** Its header names its type, and so the language that reads it; a binding before the
+header is a parse error, shown as written with the reason.
 
 **Content that grows.** A binding may come to
 [`IBoundContent`](../src/Nexaflow.Markdown/Binding/IBoundContent.cs) —
@@ -1057,8 +1057,8 @@ nothing supplies is drawn as written, saying so.
 nodes are opened, walks what they show away from the thread that asked (a walk overtaken by another never lands) and
 writes what it walked as the diagram's text. A chip pressed in the diagram tells it which node was opened or closed; when
 the walk lands it says so, and the engine lays out again only the blocks holding a binding to it. The host keeps no logic
-for growing the diagram: the PE inspector's dependency tab is a Mermaid fence holding only `{{Dependencies}}`, bound to
-one.
+for growing the diagram: the PE inspector's dependency tab is a Mermaid fence holding a `graph LR` header and
+`{{Dependencies}}`, bound to one.
 
 **Read, not written — and still picked out.** Supplied content stands for no source, so a press never puts the caret in
 it, the arrow keys step over it and nothing is typed into it. It is picked out whole — the node pressed, every node a drag

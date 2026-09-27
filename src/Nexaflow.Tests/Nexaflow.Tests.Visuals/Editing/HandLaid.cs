@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Markdown.Pipeline;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -34,14 +35,17 @@ internal static class HandLaid
         ContentLanguages.Register(new ContentLanguage(
             Reads: static word => word?.StartsWith(Laying, StringComparison.Ordinal) == true,
             Parser: static () => static source => ContentParse.Of(ContentNode.Shown(source)),
-            Stages: static (_, _) => [],
-            Builder: static (reading, show) => new Builder(reading, show, Lays[show.Named])));
+            Stages: static (_, show) => [new AstStage("hand-laid", tree => new Handed(tree, Lays[show.Named]))],
+            Builder: typeof(Builder))
+            {
+                Writable = true,
+            });
 
         ContentLanguages.Register(new ContentLanguage(
             Reads: static word => word == Unreading,
             Parser: static () => static _ => throw new InvalidOperationException("no reader"),
             Stages: static (_, _) => [],
-            Builder: static (reading, show) => new Builder(reading, show, static (_, _) => Laid.Nothing)));
+            Builder: typeof(Builder)));
     }
 
     /// <summary>An element showing <paramref name="source"/> as <paramref name="lay"/> lays it, told the state and whether nobody can write in it.</summary>
@@ -56,10 +60,20 @@ internal static class HandLaid
     /// <summary>An element showing <paramref name="source"/> in a language whose reading falls over before anything is laid out.</summary>
     public static ContentElement Unreadable(string source) => new(source, StyleFormat.Dark, new ContentEngine(), Unreading);
 
-    private sealed class Builder(ContentReading reading, ContentShowing show, Func<EditState, bool, Laid> lay)
-        : ContentBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting)
+    /// <summary>The content, carrying how the test lays it out — hung on it by a stage, as any language's stages hang what they work out.</summary>
+    private sealed class Handed : ContentNode
     {
-        protected override Laid? Build() => lay(State, IsReadOnly);
+        public Handed(ContentNode written, Func<EditState, bool, Laid> lay) : base(written) => Lay = lay;
+
+        public Func<EditState, bool, Laid> Lay { get; }
+
+        protected override ContentNode Reshaped(ContentNode shape) => new Handed(shape, Lay);
+    }
+
+    private sealed class Builder(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting)
+        : ContentBuilder(reading, state, style, isReadOnly, nesting)
+    {
+        protected override Laid? Build() => ((Handed)Reading.Root.Node).Lay(State, IsReadOnly);
 
         protected override FormattedText Characters(string text) =>
             new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), Style.TextSize, Brushes.Black, 1);

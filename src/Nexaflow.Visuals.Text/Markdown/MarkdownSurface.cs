@@ -486,9 +486,27 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         return Named is null ? null : Folded(Read, act);
     }
 
-    /// <summary>A chip pressed in the diagram <paramref name="diagram"/> holds: opened in the engine's view of it, and told to what it is bound to.</summary>
-    private bool Folded(ContentPart diagram, LayoutAct act) =>
-        new DiagramActions((key, open) => _engine.Expand(diagram, key, open), _engine.Opened(diagram)) { Shown = _shown }.Invoke(act);
+    /// <summary>
+    /// What a press on a chip in the diagram <paramref name="holder"/> holds does: opens or closes the node there, as that diagram's
+    /// view state, and tells whatever the diagram it was drawn in is bound to — that diagram's own tree, up to the first nesting and
+    /// no further, since what holds it is read, bound and worked over where it is laid out.
+    /// </summary>
+    private bool Folded(ContentPart holder, LayoutAct act) =>
+        new DiagramActions((key, open) => _engine.Expand(DrawnFrom(act.Piece) ?? holder, key, open), _engine.Opened(holder)) { Shown = _shown }.Invoke(act);
+
+    /// <summary>The whole of the tree <paramref name="piece"/> was drawn from — the root of the part it stands for — or null where it stands for none.</summary>
+    private static ContentPart? DrawnFrom(Piece piece)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+        {
+            if (at.Part is not ContentPart part) continue;
+
+            while (part.Parent is { } up) part = up;
+            return part;
+        }
+
+        return null;
+    }
 
     /// <inheritdoc/>
     IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => [.. Offered(), .. Host?.Menu(act) ?? []];

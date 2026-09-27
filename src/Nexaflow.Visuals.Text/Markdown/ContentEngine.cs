@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
+using System.Linq.Expressions;
+using System.Reflection;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Prose;
@@ -96,7 +99,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         Reading = ContentReading.Of(staged, 0, state.Source);
 
-        return language.Builder(Reading, showing).Lay(room);
+        return Builder(language, Reading, showing).Lay(room);
     }
 
     /// <summary>
@@ -110,10 +113,14 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>
-    /// Says that something the source does not say has changed — which nodes of a diagram are open, what a binding is bound
-    /// against — so nothing is set down as it was.
+    /// Forgets what was read and laid, so the next layout reads everything again — for content shown against something else, or
+    /// read again because a slower reading of it has landed.
     /// </summary>
-    public void Forget() => _unchanged.Forget();
+    public void Forget()
+    {
+        _unchanged.Forget();
+        _before = [];
+    }
 
     /// <summary>
     /// What the host says about the content (<see cref="ContentInputs"/>). Nothing laid by what it said before is set down again
@@ -152,7 +159,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         if (!_parses.TryGetValue(language, out var parse)) _parses[language] = parse = language.Parser();
 
-        var parsed = parse(source);
+        var parsed = Read(language, parse, source);
         var read = new Parsed(language, named ?? string.Empty, source, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
 
         _before = _now;
@@ -187,7 +194,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
 
         if (!_nestedParses.TryGetValue(language, out var parse)) _nestedParses[language] = parse = language.Parser();
 
-        var parsed = parse(text);
+        var parsed = Read(language, parse, text);
         var read = new Parsed(language, named, text, parsed.Tree, parsed.Nested, Inside(parsed.Nested));
 
         _now[key] = read;
@@ -203,7 +210,37 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     private ContentShowing Showing(string named, StyleFormat style, bool writing, RawZone? shown, int at) =>
-        new(named, style, writing, shown, at, _inputs) { Nesting = _nesting ??= new Nesting(this), Reads = ContentLanguages.Reads };
+        new(named, style, writing, shown, at, _inputs) { Reads = ContentLanguages.Reads };
+
+    /// <summary>
+    /// The builder <paramref name="language"/> is laid out by, made for this showing — here, and nowhere else. A language only names
+    /// its builder, and every builder is made from the same five things: what was read, what is being written, what it is drawn in,
+    /// whether it is only looked at, and what lays out what it holds in another language.
+    /// </summary>
+    private ContentBuilder Builder(ContentLanguage language, ContentReading reading, ContentShowing showing) =>
+        Makers.GetOrAdd(language.Builder, Maker)(
+            reading, EditState.For(reading.Source) with { Raw = showing.Shown }, showing.Style,
+            !(language.Writable && showing.Writing), _nesting ??= new Nesting(this));
+
+    /// <summary>Makes a builder from the five things every builder is made from.</summary>
+    private delegate ContentBuilder Make(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting);
+
+    /// <summary>What makes each builder a language names, found once.</summary>
+    private static readonly ConcurrentDictionary<Type, Make> Makers = new();
+
+    /// <summary>What makes a <paramref name="builder"/>: its one constructor, taking the five things every builder is made from.</summary>
+    private static Make Maker(Type builder)
+    {
+        Type[] shape = [typeof(ContentReading), typeof(EditState), typeof(StyleFormat), typeof(bool), typeof(Nesting)];
+
+        if (builder.IsAbstract || !typeof(ContentBuilder).IsAssignableFrom(builder)
+            || builder.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, shape) is not { } made)
+            throw new InvalidOperationException(
+                $"{builder.FullName} is not a builder made from ({string.Join(", ", shape.Select(type => type.Name))}).");
+
+        var given = shape.Select(type => Expression.Parameter(type)).ToArray();
+        return Expression.Lambda<Make>(Expression.New(made, given), given).Compile();
+    }
 
     /// <summary>
     /// A read worked over by its language's stages, with what each piece in another language read to put back in its body
@@ -212,7 +249,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private ContentNode Staged(Parsed read, ContentShowing showing)
     {
         var tree = Bound(read.Language, read.Tree);
-        var stages = read.Language.Stages(tree, showing).OfType<IAstStage>().ToList();
+        var stages = read.Language.Stages(tree, showing).OfType<IAstStage>()
+                         .Select(stage => stage is ISlowStage slow ? Staging(read, slow) : stage)
+                         .ToList();
         var staged = stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
 
         return read.Inside.Count == 0 ? staged : Spliced(staged, read.Inside, 0);
@@ -296,7 +335,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                               inner.Start);
 
         var reading = ContentReading.Of(Staged(read, showing), inner.Start, read.Text);
-        return new ContentInset(read.Language.Builder(reading, showing).Lay(room));
+        return new ContentInset(Builder(read.Language, reading, showing).Lay(room));
     }
 }
 

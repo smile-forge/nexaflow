@@ -39,10 +39,6 @@ public sealed class MarkdownElement : LinkedElement
     private MarkdownElement(ContentEngine engine, string source, StyleFormat palette, ILayoutActions? host, string? language)
         : base(source ?? string.Empty, palette, engine, language, host)
     {
-        // A fenced block draws uncoloured until its language has been read against it, which happens off the
-        // way to drawing. When it lands, this is what shows it — the same refresh a ticked item uses.
-        Loaded += (_, _) => Code.CodeSpans.Ready += Coloured;
-        Unloaded += (_, _) => Code.CodeSpans.Ready -= Coloured;
     }
 
     /// <summary>
@@ -227,7 +223,4 @@ public sealed class MarkdownElement : LinkedElement
 
         return to > from ? (from - body.Start, to - from) : null;
     }
-
-    /// <summary>A reading landed somewhere. Laid again on the thread that draws, since it did not land there.</summary>
-    private void Coloured(object? sender, EventArgs args) => Dispatcher.BeginInvoke(Refresh);
 }

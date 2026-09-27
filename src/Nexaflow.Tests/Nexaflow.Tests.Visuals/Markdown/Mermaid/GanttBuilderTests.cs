@@ -169,7 +169,7 @@ public class GanttBuilderTests : MermaidBuilderContract
     /// </summary>
     private static Laid ReadAt(string source, DateTime now)
     {
-        var read = AstRewrite.Each(Laying.Read("mermaid", source).Root.Node, node => node is GanttBlockNode chart
+        var read = AstRewrite.Each(Laying.Read("gantt", source).Root.Node, node => node is GanttBlockNode chart
             ? new GanttBlockNode(chart, chart.Config, chart.Days, now, chart.AxisFormat, chart.Tick, chart.Marker, chart.Weekday, chart.TopAxis)
             : node);
 

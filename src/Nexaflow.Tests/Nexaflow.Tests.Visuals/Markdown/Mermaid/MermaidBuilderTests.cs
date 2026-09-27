@@ -85,7 +85,7 @@ public class MermaidBuilderTests
 
     /// <summary>A diagram that draws every part it was told is wrong as words the reader types into.</summary>
     private sealed class Typing(string source, bool isReadOnly)
-        : MermaidBuilder(Laying.Read("mermaid", source), EditState.For(source), StyleFormat.Dark, isReadOnly, Laying.NestingNothing)
+        : MermaidBuilder(Laying.Read("pie", source), EditState.For(source), StyleFormat.Dark, isReadOnly, Laying.NestingNothing)
     {
         public static Laid Build(string source, bool isReadOnly) => new Typing(source, isReadOnly).Lay(700);
 
@@ -162,7 +162,7 @@ public class MermaidBuilderTests
 
     /// <summary>A diagram that is one box of a known size — what the frame is tested around.</summary>
     private sealed class Box(string source, bool fail)
-        : MermaidBuilder(Laying.Read("mermaid", source), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
+        : MermaidBuilder(Laying.Read("pie", source), EditState.For(source), StyleFormat.Dark, isReadOnly: true, Laying.NestingNothing)
     {
         public const string Kind = "Box";
         public const double Width = 120;

@@ -24,7 +24,7 @@ public static class TexParser
     {
         ArgumentNullException.ThrowIfNull(latex);
 
-        var reader = new Reader(TexLexer.Scan(latex));
+        var reader = new Reader(TexLexer.Scan(latex), depth: 0);
         return ContentNode.Branch(Kinds.Sequence, reader.Run(Until.Input));
     }
 
@@ -41,8 +41,16 @@ public static class TexParser
         Cell = 8,
     }
 
-    private sealed class Reader(List<TexToken> tokens)
+    /// <param name="depth">How many shorthand names deep this reads — nought for what was written, one for what a name stands for.</param>
+    private sealed class Reader(List<TexToken> tokens, int depth)
     {
+        /// <summary>
+        /// How deep what a shorthand name stands for is read: a definition may name another (<c>\iff</c> reaches
+        /// <c>\Longleftrightarrow</c>), and six is well past the deepest real chain and shallow enough that a table naming
+        /// itself stops rather than fills the stack.
+        /// </summary>
+        private const int Deepest = 6;
+
         private int _at;
 
         private bool Done => _at >= tokens.Count;
@@ -280,11 +288,16 @@ public static class TexParser
 
             var children = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, name, Roles.Name) };
 
-            // A name the table has no entry for takes no arguments. If it is shorthand for something, what it
-            // stands for is hung beneath it later, by the ExpandMacros stage: that is reading what was written,
-            // not writing it down.
+            // A name the table has no entry for takes no arguments. Where it is shorthand for something (TexMacros), what it
+            // stands for is read and hung beneath it as a part nobody wrote here: no characters wide, printing as nothing, so
+            // the command is still what was written and what it stands for is there to be asked.
             if (TexCommands.Lookup(name) is not { } command)
+            {
+                if (depth < Deepest && TexMacros.Lookup(name) is { } definition)
+                    children.Add(ContentNode.Branch(Kinds.Sequence, new Reader(TexLexer.Scan(definition), depth + 1).Run(Until.Input), Roles.Derived));
+
                 return ContentNode.Branch(TexKinds.Command, children);
+            }
 
             if (command.Option is { } option) this.Optional(children, option, until);
 

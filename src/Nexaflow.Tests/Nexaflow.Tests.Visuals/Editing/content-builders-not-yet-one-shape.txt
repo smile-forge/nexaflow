@@ -1,9 +1,0 @@
-# Builders not yet the one shape a builder is — see ContentBuilderRulesTests.
-#
-# The rule is: one constructor, taking (ContentReading, EditState, StyleFormat, bool), nothing told to it
-# afterwards, and nothing named that ContentBuilder does not declare.
-#
-# A builder named here is still told something as a fifth thing, or names something ContentBuilder does not declare.
-# Every builder is in shape, so none is.
-#
-# This list may only shrink. A name that comes into shape has to come off it, which the second test enforces.

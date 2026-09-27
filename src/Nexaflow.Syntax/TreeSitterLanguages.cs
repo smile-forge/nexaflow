@@ -53,6 +53,9 @@ public static class TreeSitterLanguages
         foreach (var ext in extensions) ByExtension[ext] = grammarId;
     }
 
+    /// <summary>Every grammar a file can be read with, each once.</summary>
+    public static IReadOnlyCollection<string> Grammars => [.. ByExtension.Values.Distinct(StringComparer.OrdinalIgnoreCase)];
+
     /// <summary>The grammar id for this file, or <c>null</c> when no tree-sitter grammar covers its extension.</summary>
     public static string? ForFile(string fileName)
     {

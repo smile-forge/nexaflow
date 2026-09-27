@@ -393,19 +393,24 @@ and shows each *declared-but-unlinked* test as a **non-gating advisory** with an
 fail the installer. Id validity is checked against the live `.product/tree.json` (gitignored → absent in CI, where
 the guard degrades to presence-only).
 
-### One shape for a builder (`ContentBuilderRulesTests`)
+### What a builder is (`NXCB001`–`NXCB004`)
 
 A `ContentBuilder` is one step of the chain in [markdown-ast.md](markdown-ast.md) — reading in, layout out — and owns
-nothing. `ContentBuilderRulesTests` (in `Tests.Visuals`) reflects over every class deriving from it and requires one
-constructor, taking `(ContentReading, EditState, StyleFormat, bool)`; nothing told to it afterwards; and nothing
-named that `ContentBuilder` does not declare. Anything else a builder was going to be given is a fact about the
-content or about this showing of it, and belongs somewhere every builder can be given it the same way — the
-style, the tree, or a pipeline stage that puts it there. How wide it may be goes to `Lay(room)`, because that is
-the one thing that changes without the content or the showing of it changing.
+nothing. A language names its builder's type and the engine makes it, so `Nexaflow.Analyzers.Content` holds, as build
+errors:
 
-It is a **ratchet**: builders that predate the rule are listed in
-`Editing/content-builders-not-yet-one-shape.txt`, and the two tests pull opposite ways — a new builder out of shape
-fails until it is fixed or listed, and a listed builder fails once it *is* in shape. So the list can only shrink.
+- **`NXCB001`** — one constructor, taking exactly what `ContentBuilder`'s takes: `(ContentReading, EditState,
+  StyleFormat, bool, Nesting)`. Anything else a builder was going to be given is a fact about the content or about this
+  showing of it, and belongs somewhere every builder can be given it the same way — the style, the tree, or a stage that
+  puts it there. How wide it may be goes to `Lay(room)`, the one thing that changes without either changing.
+- **`NXCB002`** — nothing told to it after it is made: no property with a setter.
+- **`NXCB003`** — nothing public named that `ContentBuilder` does not declare.
+- **`NXCB004`** — nothing makes a builder with `new`: the engine makes each from the type its language names.
+
+`Directory.Build.targets` hands the analyzer to every WPF project that is not a test project. Tests are the one place a
+builder is made by hand — a fake of the base to hold it to what it promises — and the analyzer stays quiet in any
+compilation that holds a `[TestClass]`. `ContentBuilderAnalyzerTests` (in `Tests.Features.Architecture`) puts each rule
+to a compilation of its own.
 
 ### Automation ids (`NXUI001` / `AutomationIdJourneyCoverageTests`)
 

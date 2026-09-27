@@ -36,11 +36,18 @@ has, because where a line breaks is a layout decision; how big the content is se
 
 ## Languages
 
-A language is a description (`ContentLanguage`): which fence words it answers to, how to make its parser, the stages
-its parse is worked over by, how to make its builder, and `Editing` — an `IContentLanguage` saying what a key, a
+A language is a description (`ContentLanguage`) — data, and delegates the engine calls: which fence words it answers to,
+how to make its parser, the stages its parse is worked over by, which builder lays it out (a type, never an instance),
+whether it is written in where it is drawn (`Writable`), and `Editing` — an `IContentLanguage` saying what a key, a
 gesture and a block's corner mean in it, where they mean something of their own. The ones that ship are
 `Languages/Shipped`; `ContentLanguages` is the one table of them, and markdown is what content is written in where
-nothing names a language. A language's description runs nothing and names no other language.
+nothing names a language. A language's description runs nothing, makes nothing and names no other language.
+
+Languages that share a parser, stages or a kit of drawing are still a language each. Every Mermaid diagram is one,
+answering to the words its header is written with, and told apart by its builder. `mermaid` is a language too, and the
+smallest: its parser reads no further than the header and holds the whole block as written in the language the header
+names (`MermaidFenceParser`), and its builder hands back what that lays out as its own, so nothing of it is drawn,
+found or picked out. A header naming no diagram is its parse error, marked on the keyword.
 
 A language's stages are chosen from the tree and from the showing it is laid for (`ContentShowing`: what it is drawn
 in, whether somebody is writing in it, the stretch shown as typed, where it starts in the document holding it, and what
@@ -57,7 +64,9 @@ names, and a block being written in gets the stage that puts holes where somethi
    nothing is left unread.
 3. **Stages.** Run the language's stages. A stage sees only its own language's nodes: it works over the characters of
    any piece in another language, and the piece's tree goes back into the body once the stages are done.
-4. **Build.** Make the language's builder with the worked-over reading and lay it out at the room it was given.
+4. **Build.** Make the builder the language names — from the worked-over reading, what is being written (the stretch
+   shown as typed, counted in the document), what it is drawn in, whether it is only looked at, and `Nesting` — and lay
+   it out at the room it was given.
 
 A builder that meets a piece in another language asks for it with `Nested(part, room, style)` — the one thing a builder
 may ask for. The engine works that piece's tree over with its own language's stages and lays it out with its own
@@ -154,11 +163,28 @@ begins is a fact about the text no later stage can change.
 is parsed and worked over again: one path, always taken, therefore always right. What is saved is reading and laying out
 what did not change (see *Markdown*), which is where the time goes.
 
+## What is slow is never waited on
+
+Some reading is too slow for the thread that lays content out, and is done in the background by the engine, never by a
+language (`ContentEngine.Slow`):
+
+- **A second parse.** A language's `Parser` is fast; its `SlowParser`, where it has one, reads the same characters more
+  fully. Code is the example: read as written at once, and by its grammar (tree-sitter) in the background, where every
+  stretch becomes a piece of the kind the grammar called it.
+- **A slow stage** (`ISlowStage`) — a spelling checked, say. It is two halves: `Find`, made in the background from the
+  characters alone, and `Apply`, which hangs what was found on the tree at once. Run by anything but the engine it has found
+  nothing, and hands the tree back as it was.
+
+Either way the content is laid without it first; the engine starts the work, keeps what it comes to by the language, the
+stage and the characters — a few hundred deep, for every engine, so content shown again is shown as it was left — and says
+so when it lands (`Reread`). Whatever shows the content moves to its own thread and lays it again.
+
 ## Builders
 
 A builder is made by the engine and by nothing else, always the same way — what was read, what is being written, what it
 is drawn in, whether it is read-only, and `Nesting` — and gives back a `Laid` from `Build`. It exposes nothing else.
-`ContentBuilderRulesTests` holds the shape; `MermaidDiagramRulesTests` holds that no builder names the table of languages.
+`Nexaflow.Analyzers.Content` holds that as build errors (see [testing.md](testing.md)); `MermaidDiagramRulesTests` holds
+that no builder names the table of languages.
 
 **A builder never touches the source.** It works in tree parts and layout pieces: it never reads characters, prints the
 tree or works out which characters a part came from — structure it needs belongs in a stage. Every piece it lays says
@@ -317,8 +343,8 @@ by the order the headings were written in, so following one is never handed to t
 
 ## The languages
 
-**LaTeX** — its own document: [latex-parse-tree.md](latex-parse-tree.md). Its stages expand each macro into what it
-stands for (`ExpandMacros`), gather a sign written as several things (`GatherSigns`), read the values written with a
+**LaTeX** — its own document: [latex-parse-tree.md](latex-parse-tree.md). Its parser hangs what each shorthand name stands for
+beneath it as it reads (`TexMacros`); its stages gather a sign written as several things (`GatherSigns`), read the values written with a
 command (`SpanColumns`, `ReadValues`) and then say what every name means (`ResolveCommands`: `TexCommandNode`,
 `TexGridNode`, `TexCharNode`), so `LatexBuilder` sets a formula with `TexTypesetter` from meanings alone.
 

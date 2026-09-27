@@ -53,6 +53,19 @@
     <AdditionalFiles Include="@(ApplicationDefinition)" />
   </ItemGroup>
 
+  <!-- Nexaflow.Analyzers.Content holds what a content builder is (NXCB001-004): every builder the one shape, and only the
+       engine making one. Handed to every WPF project, which is every project that could hold a builder, apart from test
+       projects — the one place a builder is made by hand, to hold the base to what it promises. Excluded for the same
+       reasons as above besides: external/, and the _wpftmp pass. -->
+  <ItemGroup Condition="'$(UseWPF)' == 'true'
+                        And '$(MSBuildProjectExtension)' == '.csproj'
+                        And '$(IsTestProject)' != 'true'
+                        And '$(_TargetAssemblyProjectName)' == ''
+                        And !$([System.String]::new('$(MSBuildProjectDirectory)').StartsWith('$(MSBuildThisFileDirectory)external'))">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Nexaflow.Analyzers\Nexaflow.Analyzers.Content\Nexaflow.Analyzers.Content.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
   <!-- `dotnet build Nexaflow.slnx -t:Rebuild` failed with 278 errors in external/AngouriMath, every one of
        them a missing polyfill type (IsExternalInit, NotNullWhen) in its netstandard2.0 pass. Nothing had
        changed there: a plain `dotnet build` is green, and Rebuild is simply what nobody had run.
