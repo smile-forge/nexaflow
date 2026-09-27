@@ -74,6 +74,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     public MarkdownSurface()
     {
         Focusable = true;
+
+        // What the engine says happened, said again to the page.
+        _engine.SourceChanged += (_, change) => Written(change);
+        _engine.SelectionChanged += Picked;
+        _engine.PreRender += Laid;
         FocusVisualStyle = null;
         Background = Brushes.Transparent;
 
@@ -288,9 +293,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>What answers the verbs this document raises and does not answer itself — saving a picture, and anything a language offers.</summary>
     public ILayoutActions? Host { get; set; }
 
-    /// <summary>A link out of the document. True where the host took it; false leaves it to open as links do.</summary>
-    public Func<string, bool>? LinkNavigate { get; set; }
-
     /// <summary>The host's say in where a picture comes from, asked before <see cref="BaseDirectory"/>.</summary>
     public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Hosted(); } }
 
@@ -310,9 +312,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// already says.
     /// </summary>
     public Func<DiagramExpandRequest, bool>? DiagramExpand { get; set; }
-
-    /// <summary>A diagram's chosen node changed — for a host showing detail beside the diagram. The key is null when nothing is chosen.</summary>
-    public Action<DiagramSelection>? DiagramSelect { get; set; }
 
     /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
     public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
@@ -424,7 +423,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             Margin = ContentPadding,
         };
 
-        element.SourceChanged += (_, change) => Written(change);
+        
         element.CaretMoved += (_, _) => Reveal();
 
         _scroller.Content = element;
@@ -484,10 +483,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
     public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
 
-    // A link into this document is answered by the element and never reaches here. Anything else that says where it goes is
-    // the host's; a relative link that is not an anchor says nowhere, so nothing is handed on for it.
-    private bool OpenLink(string url) => LinkNavigate?.Invoke(url) ?? false;
-
     private static bool Leads(string url) => Uri.TryCreate(url, UriKind.Absolute, out _);
 
     /// <inheritdoc/>
@@ -516,17 +511,17 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// </summary>
     private bool? Diagrammed(LayoutAct act)
     {
-        if (act.Intent.Verb is not (LayoutVerbs.Expand or LayoutVerbs.Collapse or LayoutVerbs.Select)) return null;
+        if (act.Intent.Verb is not (LayoutVerbs.Expand or LayoutVerbs.Collapse)) return null;
 
         for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
         {
             if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
 
-            return new DiagramActions(DiagramExpand, DiagramSelect, _engine.Opened(part)) { Shown = _shown }.Invoke(act);
+            return new DiagramActions(DiagramExpand, _engine.Opened(part)) { Shown = _shown }.Invoke(act);
         }
 
         // Content in one language is one diagram, where it is one.
-        return Named is null ? null : new DiagramActions(DiagramExpand, DiagramSelect, _engine.Opened(Read)) { Shown = _shown }.Invoke(act);
+        return Named is null ? null : new DiagramActions(DiagramExpand, _engine.Opened(Read)) { Shown = _shown }.Invoke(act);
     }
 
     /// <inheritdoc/>

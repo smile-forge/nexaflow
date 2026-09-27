@@ -5,15 +5,12 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// What a gesture on a diagram comes to where the diagram answers it itself: opening a node, folding it away, choosing it.
-/// The host is told of each through the hook it gave for it, and may take an opening on — writing the diagram again with more
-/// of it walked, or opening the node in a tab of its own — rather than have it answered here.
+/// What a gesture on a diagram comes to where the diagram answers it itself: opening a node, or folding it away. The host may
+/// take an opening on — writing the diagram again with more of it walked — rather than have it answered here.
 /// </summary>
 /// <param name="expand">The host's say in a node opened or folded away: true where it took it on.</param>
-/// <param name="select">What is told which node was chosen.</param>
 /// <param name="view">This diagram's own state, where whatever shows it keeps one per diagram.</param>
-internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, Action<DiagramSelection>? select, DiagramViewState? view)
-    : ILayoutActions
+internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, DiagramViewState? view) : ILayoutActions
 {
     /// <summary>
     /// Where what the reader opens and folds is kept: the host's, where it keeps one, and this element's own where it
@@ -35,7 +32,6 @@ internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, A
         {
             LayoutVerbs.Expand => Folded(act, open: true),
             LayoutVerbs.Collapse => Folded(act, open: false),
-            LayoutVerbs.Select => Chose(act),
             _ => false,
         };
 
@@ -71,15 +67,5 @@ internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, A
             if (piece.Part is ContentPart part && WithFolds.Holding(part) is { } folds) return folds;
 
         return NexaflowConfig.None;
-    }
-
-    /// <summary>
-    /// Tells a host following the selection which node was picked. Never takes the press on: the piece is chosen
-    /// either way, and what the host shows beside the diagram happens alongside that rather than instead of it.
-    /// </summary>
-    private bool Chose(LayoutAct act)
-    {
-        select?.Invoke(new DiagramSelection(act.Intent.Target, act.Intent.Target, act.Intent.Tip));
-        return false;
     }
 }

@@ -41,7 +41,7 @@ public class ContentElement : FrameworkElement
     public event EventHandler? CaretMoved;
 
     /// <summary>Raised whenever what is selected inside the content changes.</summary>
-    public event EventHandler? SelectionChanged;
+    public event EventHandler<ContentSelectionChange>? SelectionChanged;
 
     /// <summary>Raised when the reader's own editing changed the source.</summary>
     public event EventHandler<ContentSourceChange>? SourceChanged;
@@ -122,7 +122,7 @@ public class ContentElement : FrameworkElement
 
     private void OnCaretMoved(object? sender, EventArgs args) => CaretMoved?.Invoke(this, EventArgs.Empty);
 
-    private void OnSelectionChanged(object? sender, EventArgs args) => SelectionChanged?.Invoke(this, EventArgs.Empty);
+    private void OnSelectionChanged(object? sender, ContentSelectionChange change) => SelectionChanged?.Invoke(this, change);
 
     private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
 

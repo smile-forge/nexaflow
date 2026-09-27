@@ -59,6 +59,24 @@ public sealed class ContentSelection
     public static ContentSelection Of(Piece piece) => piece.Exists ? new([piece]) : None;
 
     /// <summary>
+    /// What <paramref name="ranges"/> of the source pick out: the stretches themselves, and the whole pieces that lie inside them
+    /// — none, where they are characters inside one run of words.
+    /// </summary>
+    public static ContentSelection Over(Piece root, IReadOnlyList<(int Start, int Length)> ranges)
+    {
+        if (ranges.All(range => range.Length <= 0)) return None;
+
+        var inside = root.SelfAndDescendants()
+            .Select(piece => piece.Selectable())
+            .Where(piece => piece.Exists && piece.Sits() is { Length: > 0 } at
+                            && ranges.Any(range => at.Start >= range.Start && at.End <= range.Start + range.Length))
+            .Distinct()
+            .ToList();
+
+        return new ContentSelection(inside.Count == 0 ? [] : LayoutQuery.Promote(inside), ranges);
+    }
+
+    /// <summary>
     /// The piece a selection steps from: the first thing on a run of its own, and failing that the first
     /// thing the source named. Two separate climbs, since a run is not always declared on the thing that
     /// names source — a matrix cell carries the run while the letters inside it carry the source, so climbing

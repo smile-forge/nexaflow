@@ -959,10 +959,11 @@ orphan it, and neither is one something else visible also points at, since it is
 **A press means what the builder said it means.** A builder declares a verb and its argument
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
 function and cannot close over a host's state;
-the surface resolves it: `navigate` goes to the host's `LinkNavigate`, and
-[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers the rest for the diagram it was pressed
-in — `expand`/`collapse` → the engine's view state for that diagram and the host's `DiagramExpand`, `select` → the host's
-`DiagramSelect`. A chip writes its opening down **before** the host is offered the request,
+the engine resolves it: a link out of the document is raised to the page as the routed `LinkNavigate`, choosing a node is
+the routed `Selected` that anything picked out raises — with the node's id — and
+[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers `expand`/`collapse` for the diagram it
+was pressed in: the engine's view state for that diagram, and the host's `DiagramExpand`. A chip writes its opening down
+**before** the host is offered the request,
 because a host that takes it on answers by re-emitting the whole diagram (the PE inspector walks one level further) and
 an opening made here has to survive that; where nobody takes it on, the diagram lays itself out again and opens the node
 from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that

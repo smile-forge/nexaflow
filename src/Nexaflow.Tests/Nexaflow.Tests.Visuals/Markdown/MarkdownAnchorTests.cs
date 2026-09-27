@@ -37,7 +37,8 @@ public class MarkdownAnchorTests
     public void AnInPageLink_IsTheViewsToResolve_NeverTheHosts() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new MarkdownSurface { LinkNavigate = url => { handed.Add(url); return true; } };
+        var view = new MarkdownSurface();
+        view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
         view.Markdown = Doc;
 
@@ -80,7 +81,8 @@ public class MarkdownAnchorTests
     public void ARelativeLinkThatIsNotAnAnchor_StaysInert() => UiThread.Run(() =>
     {
         var handed = new List<string>();
-        var view = new MarkdownSurface { LinkNavigate = url => { handed.Add(url); return true; } };
+        var view = new MarkdownSurface();
+        view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
 
         view.Markdown = "[notes](notes.md)\n";
         Press(view, "notes");

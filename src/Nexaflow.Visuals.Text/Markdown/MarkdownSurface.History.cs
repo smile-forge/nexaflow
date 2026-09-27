@@ -22,9 +22,6 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class MarkdownSurface
 {
-    /// <summary>Raised whenever something was written here, after the host has been told what.</summary>
-    public event EventHandler? Edited;
-
     /// <summary>What was written here, which a host with buttons for undo and redo asks whether either can be done.</summary>
     public EditHistory History => _engine.History;
 
@@ -49,6 +46,8 @@ public sealed partial class MarkdownSurface
         if (change.Kind != ContentChangeKind.Written && !IsReadOnly && IsKeyboardFocusWithin) _shown.ShowCaret();
 
         Told();
+
+        RaiseEvent(new ContentSourceChangedEventArgs(SourceChangedEvent, change) { Source = this });
     }
 
     /// <summary>Tells a binding what the document now says, without it coming back as a new one; and anybody listening.</summary>
@@ -59,7 +58,6 @@ public sealed partial class MarkdownSurface
         finally { _telling = false; }
 
         Prompted();
-        Edited?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

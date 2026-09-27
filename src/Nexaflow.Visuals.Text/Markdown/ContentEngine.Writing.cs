@@ -51,11 +51,8 @@ public sealed partial class ContentEngine
     /// <summary>Raised when the caret is put somewhere in the content, which is where whatever shows it shows it.</summary>
     internal event EventHandler? CaretTaken;
 
-    /// <summary>Raised whenever what is picked out changes.</summary>
-    internal event EventHandler? SelectionChanged;
-
-    /// <summary>Raised once the content has been laid out again, before anything is asked of the new layout.</summary>
-    internal event EventHandler? PreRender;
+    /// <summary>Raised once the content has been laid out again, before anything is asked of the new layout or it is shown.</summary>
+    public event EventHandler? PreRender;
 
     /// <summary>Says what the content being written is written in, what it is drawn in, and whether anybody may write in it.</summary>
     /// <param name="named">The language, or null for markdown.</param>
@@ -444,7 +441,7 @@ public sealed partial class ContentEngine
         if (next.Selection.SequenceEqual(_state.Selection)) return;
 
         Apply(next, notify: false);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        Chosen();
     }
 
     /// <summary>Picks nothing out.</summary>
@@ -454,7 +451,7 @@ public sealed partial class ContentEngine
 
         Apply(_state.Select(0, 0), notify: false);
 
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        Chosen();
     }
 
     /// <summary>
@@ -483,7 +480,7 @@ public sealed partial class ContentEngine
         if (next.Selection.SequenceEqual(_state.Selection)) return false;
 
         Apply(next, notify: false);
-        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        Chosen();
         return true;
     }
 

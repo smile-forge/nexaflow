@@ -215,7 +215,11 @@ block scrolled far away is let go.
 keyboard, the history, what a search turned up and the buttons in a block's corner. Inside it one element
 (`MarkdownElement`, a `ContentElement`) shows what its engine holds: the engine keeps the content as it is being written —
 the source, the caret, the selection and the laid tree — and makes every edit to it, and the element paints that and says
-where the reader is. Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key,
+where the reader is. What happened is the engine's to say, and the surface says it again to the page as routed events:
+`SourceChanged` (what changed, and whether it was written, taken back or put there), `Selected` (what is picked out —
+words, a note, a box in a flowchart, each with the language it is written in and the id the drawing gives it), `PreRender`
+(laid out, not yet shown) and `LinkNavigate` (a link out of the content, handled where the page took it).
+Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key,
 text typed, a press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other
 does; the element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a
 drag, and the surface keeps the keys that are its own — the clipboard's and the page's.

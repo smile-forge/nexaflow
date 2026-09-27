@@ -45,7 +45,7 @@ public sealed partial class ContentEngine
     };
 
     /// <summary>Raised when the source changed — written, taken back, written again, or put there by whatever shows it.</summary>
-    internal event EventHandler<ContentSourceChange>? SourceChanged;
+    public event EventHandler<ContentSourceChange>? SourceChanged;
 
     /// <summary>What a key means here, done.</summary>
     private bool Pressed(Key key, ModifierKeys modifiers)
