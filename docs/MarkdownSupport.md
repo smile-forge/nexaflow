@@ -959,9 +959,10 @@ orphan it, and neither is one something else visible also points at, since it is
 **A press means what the builder said it means.** A builder declares a verb and its argument
 ([`LayoutIntent`](../src/Nexaflow.Visuals.Text/Editing/LayoutAction.cs)) rather than a handler, since it is a static
 function and cannot close over a host's state;
-[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) resolves it, offering the host's `OnAction`
-everything first and then falling to the verbs it knows: `navigate` → `OnNavigate`, `expand`/`collapse` → the view state
-and `OnExpand`, `select` → `OnSelect`. A chip writes its opening down **before** the host is offered the request,
+the surface resolves it: `navigate` goes to the host's `LinkNavigate`, and
+[`DiagramActions`](../src/Nexaflow.Visuals.Text/Markdown/DiagramActions.cs) answers the rest for the diagram it was pressed
+in — `expand`/`collapse` → the engine's view state for that diagram and the host's `DiagramExpand`, `select` → the host's
+`DiagramSelect`. A chip writes its opening down **before** the host is offered the request,
 because a host that takes it on answers by re-emitting the whole diagram (the PE inspector walks one level further) and
 an opening made here has to survive that; where nobody takes it on, the diagram lays itself out again and opens the node
 from its own source. A right-click asks the piece under the pointer what can be done to it and offers exactly that
@@ -974,9 +975,7 @@ ranks, then an ordering that keeps crossings down, then each node pulled toward 
 sits under its parent — and a rank too wide for the room wraps onto further rows rather than running off the side.
 
 **Still to come.** A diagram on the shared tree has no viewport of its own: no drag-to-pan, no zoom chips and no
-minimap. `DiagramRenderOptions.ZoomOnWheel`, `MaxHeight`, `FitToWidth` and `OpenOnDoubleClick` — and the
-`DiagramOpenOnDoubleClick` property on `MarkdownSurface` that sets the last — are the seam
-those will be wired back through, and nothing reads them today.
+minimap.
 
 A Mermaid block is read by [`MermaidParser`](../src/Nexaflow.Markdown/Mermaid/MermaidParser.cs) into a lossless tree
 of what every diagram type shares — `--- … ---` front-matter (title/config), `%%` comments, `%%{ … }%%` directives
@@ -998,7 +997,7 @@ mechanism.
 ### Bound words (every diagram on the shared tree)
 
 Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
-renderer (`MarkdownSurface.DiagramData` → `DiagramRenderOptions.DataContext` →
+renderer (`MarkdownSurface.DiagramData` → `ContentInputs.Data` →
 [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
 
 ```
@@ -1545,7 +1544,7 @@ are the other way round: every cell outside the shape is taken before a word is 
 it from the inside and never has to know what shape it is. A stencil sets `shape:` and `ellipticity:` aside
 while it is in force, sizes the picture to its own proportions, and is what makes a cloud spell a word or
 hold a silhouette. A picture is found exactly as an `![](…)` is — the host's resolver, then the document's
-folder (`DiagramRenderOptions.Pictures`) — so a block can reach no picture an image could not, and the part
+folder (`ContentInputs.Pictures`) — so a block can reach no picture an image could not, and the part
 of it that is the shape is its own to say: one drawn with transparency means the part that is there, one
 without means the part that is dark.
 

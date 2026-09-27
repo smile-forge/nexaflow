@@ -82,7 +82,7 @@ public class MatrixSelectionPicture
 
     private static RenderTargetBitmap Shot(string from, string to)
     {
-        var formula = Alone.Drawn("latex", Latex, new DiagramRenderOptions { Palette = StyleFormat.Light with { TextSize = 26 }, ReadOnly = false });
+        var formula = Alone.Drawn("latex", Latex, StyleFormat.Light with { TextSize = 26 });
         formula.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         formula.Arrange(new Rect(formula.DesiredSize));
 

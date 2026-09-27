@@ -28,14 +28,13 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 public sealed class MarkdownElement : LinkedElement
 {
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
-    /// <param name="options">What the host said about the content written inside the document.</param>
-    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null,
-                           DiagramRenderOptions? options = null)
-        : this(source, palette, host, new ContentEngine(options))
+    /// <param name="engine">What lays it out — the host's, where the host keeps one for longer than an element lasts.</param>
+    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null, ContentEngine? engine = null)
+        : this(engine ?? new ContentEngine(), source, palette, host)
     {
     }
 
-    private MarkdownElement(string source, StyleFormat palette, ILayoutActions? host, ContentEngine engine)
+    private MarkdownElement(ContentEngine engine, string source, StyleFormat palette, ILayoutActions? host)
         : base(source ?? string.Empty, palette, MarkdownContent.Of(palette, engine), host)
     {
         Engine = engine;

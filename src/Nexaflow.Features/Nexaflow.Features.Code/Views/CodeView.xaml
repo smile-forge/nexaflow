@@ -48,7 +48,6 @@
                 <md:MarkdownSurface x:Name="Md" Grid.Row="1"
                                            Margin="10,0,10,10"
                                            VerticalScrollBarVisibility="Auto"
-                                           FitContentToWidth="True"
                                            Markdown="{Binding IntelligenceMarkdown}"/>
             </Grid>
         </Border>

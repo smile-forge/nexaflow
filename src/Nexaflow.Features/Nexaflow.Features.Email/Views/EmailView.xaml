@@ -203,7 +203,6 @@
                 <Grid>
                     <md:MarkdownSurface x:Name="MarkdownBody"
                                                Markdown="{Binding RenderedMarkdown}"
-                                               FitContentToWidth="True"
                                                VerticalScrollBarVisibility="Auto"
                                                Margin="12,10"
                                                Visibility="{Binding IsRenderedView, Converter={StaticResource BoolToVis}}"/>

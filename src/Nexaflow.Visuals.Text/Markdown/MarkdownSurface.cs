@@ -49,8 +49,14 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private MarkdownElement _shown;
     private ContentPart? _over;
 
-    /// <summary>What the element now on the page was built with, so it is only made again when that changes.</summary>
-    private (StyleFormat Style, bool Writable, DiagramRenderOptions Options)? _built;
+    /// <summary>What the element now on the page is drawn in.</summary>
+    private StyleFormat? _drawnIn;
+
+    /// <summary>
+    /// What lays the document out, for as long as this shows one: what it read, the blocks that read as they did, and what the
+    /// reader opened in each diagram outlive every element made to show it.
+    /// </summary>
+    private readonly ContentEngine _engine = new();
 
     /// <summary>
     /// The document as it was read — the tree the laid layout was drawn from, reached through any part it drew, so the
@@ -250,30 +256,12 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     }
 
     /// <summary>
-    /// Height a diagram may take, for a pane that is entirely one diagram: bind it to the pane and the diagram fills it
-    /// instead of running past the bottom. Zero, the default, uses the built-in cap.
-    /// </summary>
-    public static readonly DependencyProperty MaxDiagramHeightProperty = DependencyProperty.Register(
-        nameof(MaxDiagramHeight), typeof(double), typeof(MarkdownSurface),
-        new PropertyMetadata(0.0, (surface, args) =>
-        {
-            // A pane resize walks this through every pixel on the way; a diagram does not care about a few of them.
-            if (Math.Abs((double)args.NewValue - (double)args.OldValue) >= 24) ((MarkdownSurface)surface).Remake();
-        }));
-
-    public double MaxDiagramHeight
-    {
-        get => (double)GetValue(MaxDiagramHeightProperty);
-        set => SetValue(MaxDiagramHeightProperty, value);
-    }
-
-    /// <summary>
     /// Where a relative <c>![](file.png)</c> is looked for. Null leaves only absolute and <c>file:</c> pictures, and
     /// whatever <see cref="ImageResolver"/> finds.
     /// </summary>
     public static readonly DependencyProperty BaseDirectoryProperty = DependencyProperty.Register(
         nameof(BaseDirectory), typeof(string), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Remake()));
+        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Hosted()));
 
     public string? BaseDirectory
     {
@@ -300,7 +288,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     public Func<string, bool>? LinkNavigate { get; set; }
 
     /// <summary>The host's say in where a picture comes from, asked before <see cref="BaseDirectory"/>.</summary>
-    public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Remake(); } }
+    public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Hosted(); } }
 
     private Func<string, ImageSource?>? _pictures;
 
@@ -308,7 +296,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// The host's say in how a link looks, asked for every link with the URL as written and the words it was written as —
     /// which is what lets the help pane mark a <c>locate:</c> link without disturbing those words.
     /// </summary>
-    public Func<string, string, LinkLook?>? LinkDecorator { get => _links; set { _links = value; Remake(); } }
+    public Func<string, string, LinkLook?>? LinkDecorator { get => _links; set { _links = value; Hosted(); } }
 
     private Func<string, string, LinkLook?>? _links;
 
@@ -317,29 +305,15 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <see cref="Markdown"/> again with more of the tree walked. Null lets the diagram open the node from what its source
     /// already says.
     /// </summary>
-    public Func<DiagramExpandRequest, bool>? DiagramExpand { get => _expand; set { _expand = value; Remake(); } }
-
-    private Func<DiagramExpandRequest, bool>? _expand;
+    public Func<DiagramExpandRequest, bool>? DiagramExpand { get; set; }
 
     /// <summary>A diagram's chosen node changed — for a host showing detail beside the diagram. The key is null when nothing is chosen.</summary>
-    public Action<DiagramSelection>? DiagramSelect { get => _select; set { _select = value; Remake(); } }
-
-    private Action<DiagramSelection>? _select;
+    public Action<DiagramSelection>? DiagramSelect { get; set; }
 
     /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
-    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Remake(); } }
+    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
 
     private Nexaflow.Markdown.Binding.IDataContext? _data;
-
-    /// <summary>In a diagram, a single press chooses a node and two open it — for a pane where opening one costs something.</summary>
-    public bool DiagramOpenOnDoubleClick { get => _double; set { _double = value; Remake(); } }
-
-    private bool _double;
-
-    /// <summary>When true, a diagram scales down to the width it is given rather than being cut off.</summary>
-    public bool FitContentToWidth { get => _fit; set { _fit = value; Remake(); } }
-
-    private bool _fit;
 
     /// <summary>
     /// The host's say in something dropped here — a picture, a file, a link. True where it took it (usually through
@@ -356,13 +330,10 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>Lays everything out again — what a host calls once what <see cref="DiagramData"/> holds has changed.</summary>
     public void RefreshDiagrams() => _shown.Refresh();
 
-    /// <summary>Where each diagram's opened nodes and zoom live between renders — on this control rather than on the element.</summary>
-    private readonly DiagramViewStates _diagramStates = new();
-
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()
     {
-        _diagramStates.Clear();
+        _engine.CloseDiagrams();
         _shown.Refresh();
     }
 
@@ -375,22 +346,17 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             TextSize = double.IsNaN(BaseFontSize) || BaseFontSize <= 0 ? TextTypography.BaseFontSize : BaseFontSize,
         };
 
-    /// <summary>What the host said about the content written inside the document, gathered once per element.</summary>
-    private DiagramRenderOptions Asked(StyleFormat style) => new()
+    /// <summary>What the host said about what the document holds, as the engine is told it.</summary>
+    private ContentInputs Asked => new(MarkdownPictures.Found(_pictures, BaseDirectory), _links, _data);
+
+    /// <summary>Tells the engine what the host now says, and lays the document out again by it.</summary>
+    private void Hosted()
     {
-        Palette = style,
-        ReadOnly = IsReadOnly,
-        OnNavigate = OpenLink,
-        OnExpand = _expand,
-        OnSelect = _select,
-        DataContext = _data,
-        Pictures = MarkdownPictures.Found(_pictures, BaseDirectory),
-        Links = _links,
-        FitToWidth = _fit || !IsReadOnly,
-        OpenOnDoubleClick = _double,
-        MaxHeight = MaxDiagramHeight,
-        Views = _diagramStates,
-    };
+        if (_shown is null) return;
+
+        _engine.Inputs = Asked;
+        _shown.Refresh();
+    }
 
     /// <summary>A new document from outside — not something written here, which never comes back this way.</summary>
     private void Shows(string markdown)
@@ -429,6 +395,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         var state = _shown.Current;
         var caret = _shown.HasCaret;
 
+        // What was laid in the old colours, at the old size or for the old reader is not set down again as it was.
+        _engine.Forget();
+
         _shown = Made(state.Source);
         _shown.Restore(state);
 
@@ -443,11 +412,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private MarkdownElement Made(string source)
     {
         var style = Drawn;
-        var options = Asked(style);
 
-        _built = (style, !IsReadOnly, options);
+        _drawnIn = style;
+        _engine.Inputs = Asked;
 
-        var element = new MarkdownElement(source, style, this, options)
+        var element = new MarkdownElement(source, style, this, _engine)
         {
             IsReadOnly = IsReadOnly,
             Margin = ContentPadding,
@@ -616,7 +585,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         {
             if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
 
-            return new DiagramActions(Asked(Drawn), _shown.Engine.Opened(part)) { Shown = _shown }.Invoke(act);
+            return new DiagramActions(DiagramExpand, DiagramSelect, _engine.Opened(part)) { Shown = _shown }.Invoke(act);
         }
 
         return null;
@@ -849,7 +818,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             dc.PushTransform(new ScaleTransform(scale, scale));
             dc.PushTransform(new TranslateTransform(-box.X, -box.Y));
             dc.PushClip(new RectangleGeometry(box));
-            LayoutPainter.Paint(dc, _shown.Laid.Root, (_built?.Style ?? Drawn).Text);
+            LayoutPainter.Paint(dc, _shown.Laid.Root, (_drawnIn ?? Drawn).Text);
             dc.Pop();
             dc.Pop();
             dc.Pop();

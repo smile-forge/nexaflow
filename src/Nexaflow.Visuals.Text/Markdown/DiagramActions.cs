@@ -5,18 +5,15 @@ using Nexaflow.Markdown.Ast;
 namespace Nexaflow.Visuals.Text.Markdown;
 
 /// <summary>
-/// What a gesture on a diagram comes to: the host first, then the verbs the renderer knows how to answer itself.
-///
-/// <para>
-/// The host is offered everything before anything is resolved, so it can take on a verb that would otherwise be
-/// answered here — opening a node in a tab of its own rather than in place. What it declines falls to the typed hooks
-/// on <see cref="DiagramRenderOptions"/>, which is why a host wired up before any of this existed goes on working
-/// unchanged.
-/// </para>
+/// What a gesture on a diagram comes to where the diagram answers it itself: opening a node, folding it away, choosing it.
+/// The host is told of each through the hook it gave for it, and may take an opening on — writing the diagram again with more
+/// of it walked, or opening the node in a tab of its own — rather than have it answered here.
 /// </summary>
-/// <param name="source">The block, for the front matter — which is where a node's own name for the host is written.</param>
+/// <param name="expand">The host's say in a node opened or folded away: true where it took it on.</param>
+/// <param name="select">What is told which node was chosen.</param>
 /// <param name="view">This diagram's own state, where whatever shows it keeps one per diagram.</param>
-internal sealed class DiagramActions(DiagramRenderOptions options, DiagramViewState? view = null) : ILayoutActions
+internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, Action<DiagramSelection>? select, DiagramViewState? view)
+    : ILayoutActions
 {
     /// <summary>
     /// Where what the reader opens and folds is kept: the host's, where it keeps one, and this element's own where it
@@ -27,25 +24,20 @@ internal sealed class DiagramActions(DiagramRenderOptions options, DiagramViewSt
     /// so there is always somewhere to write the opening down, even if it lives only as long as the element does.
     /// </para>
     /// </summary>
-    public DiagramViewState View { get; } = view ?? options.ViewState ?? new DiagramViewState();
+    public DiagramViewState View { get; } = view ?? new DiagramViewState();
 
     /// <summary>The element the diagram is shown in, once there is one: what a verb answered here redraws.</summary>
     public Editing.ContentElement? Shown { get; set; }
 
     /// <inheritdoc/>
-    public bool Invoke(LayoutAct act)
-    {
-        if (options.OnAction?.Invoke(act) == true) return true;
-
-        return act.Intent.Verb switch
+    public bool Invoke(LayoutAct act) =>
+        act.Intent.Verb switch
         {
-            LayoutVerbs.Navigate => act.Intent.Target is { Length: > 0 } href && options.OnNavigate?.Invoke(href) == true,
             LayoutVerbs.Expand => Folded(act, open: true),
             LayoutVerbs.Collapse => Folded(act, open: false),
             LayoutVerbs.Select => Chose(act),
             _ => false,
         };
-    }
 
     /// <summary>
     /// Opens a node, or folds it away again.
@@ -63,7 +55,7 @@ internal sealed class DiagramActions(DiagramRenderOptions options, DiagramViewSt
         var key = Folds(act).KeyFor(id);
         View.Expansion[key] = open;
 
-        if (options.OnExpand?.Invoke(new DiagramExpandRequest(id, key, act.Intent.Tip ?? id, open)) == true) return true;
+        if (expand?.Invoke(new DiagramExpandRequest(id, key, act.Intent.Tip ?? id, open)) == true) return true;
 
         Shown?.Refresh();
         return true;
@@ -87,7 +79,7 @@ internal sealed class DiagramActions(DiagramRenderOptions options, DiagramViewSt
     /// </summary>
     private bool Chose(LayoutAct act)
     {
-        options.OnSelect?.Invoke(new DiagramSelection(act.Intent.Target, act.Intent.Target, act.Intent.Tip));
+        select?.Invoke(new DiagramSelection(act.Intent.Target, act.Intent.Target, act.Intent.Tip));
         return false;
     }
 }

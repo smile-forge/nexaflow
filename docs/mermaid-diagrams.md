@@ -51,8 +51,8 @@ and a builder's over what it draws.
 
 The builder's base draws everything round the diagram: the title (a `title` line, a header's title, or the front
 matter's), what could not be read set beneath it, the card, and the element the block is shown and written in — which
-is read-only where the host takes no edits (`DiagramRenderOptions.ReadOnly`, which a viewer sets and an editor does
-not), leaving a diagram there looked at, selected and followed where it leads.
+is read-only where the host takes no edits (`MarkdownSurface.IsReadOnly`, which a viewer leaves set and an editor
+clears), leaving a diagram there looked at, selected and followed where it leads.
 `MermaidDiagramHandler` asks `MermaidBuilders` for the builder its header names, and a header naming no diagram at all
 falls to `UnknownDiagramBuilder`, which shows the block as written with the reason.
 
@@ -136,7 +136,7 @@ diagram's own code sits in a folder of its own under each.
 | draw an axis and number it | `DiagramAxis.Draw` and `Room` with `DiagramTick`s — `line` and `tick` length as the config asks; `DiagramScale` for round-number ticks, `DiagramTime` for dates on round boundaries or every so many of a unit |
 | round a panel between two axes — the room their numbers and titles take, the panel left inside it, the titles along it | `DiagramPanel.Room` for the axes' own room and `DiagramEdges` added for a key, a title band or a caption; `Round` for the panel, held to an `aspect` and shrunk to what was drawn; `Titles` for the turned upright title and the flat one under its numbers |
 | draw gridlines across a panel | `DiagramGrid.Draw`, or `DiagramGrid.Lines` into a shape of your own where a diagram draws more than one set of them |
-| say what a press on a piece means | `build.Acts` of a `LayoutActions` — a verb and its argument (`LayoutIntent`), never a delegate: a press that means something means that rather than a place for the caret. `build.Links(href)` is the shorthand for the commonest verb. Held in a table beside the pieces rather than a slot on each, since almost nothing drawn answers to a press; dispatched by `LinkedElement` to `DiagramActions`, which offers the host `OnAction` first and then resolves the verbs it knows |
+| say what a press on a piece means | `build.Acts` of a `LayoutActions` — a verb and its argument (`LayoutIntent`), never a delegate: a press that means something means that rather than a place for the caret. `build.Links(href)` is the shorthand for the commonest verb. Held in a table beside the pieces rather than a slot on each, since almost nothing drawn answers to a press; dispatched by `LinkedElement` to the surface, which follows a link itself and hands `expand`, `collapse` and `select` to `DiagramActions` for the diagram pressed in |
 | hang a node off one with too many children, offering the rest | `Spilled` for the cells and lines, added to what `DiagramLayers.Lay` is given, then `Draw` after the nodes. Layout only: it stands for no part of the source, and its press is the same `expand` verb a chip declares |
 | say what a run of words says — entity codes read back, a binding replaced by what it stands for | `Written`/`Shown`, which ask the tree: the grammar handed the run to `ContentWords` when it read it, so each `{{…}}` is a part of its own and a builder never looks at a character to find one. What a binding stands for is hung under it by the `WithBindings` stage before the builder sees the tree |
 | draw another language inside a label — a tune on a node, a formula on a class | `Inset` for the label, which is a `ContentInset` where the grammar read a `Kinds.Nested` node there; `Set` it where the words would have gone. The engine parsed the inner content with its own language before the builder was made; `Inset` asks it to lay that out, positioned where it was written, and the two trees are grafted into one layout — `ContentNested` and `ContentEngine` |

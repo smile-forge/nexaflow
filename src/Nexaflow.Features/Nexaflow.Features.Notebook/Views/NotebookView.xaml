@@ -28,8 +28,7 @@
         <DataTemplate x:Key="MarkdownCellTemplate">
             <Border Style="{StaticResource CellHit}" Padding="8,0,0,0" Margin="6,0,0,0">
                 <md:MarkdownSurface Markdown="{Binding Source}"
-                                           Margin="14,6,14,6"
-                                           FitContentToWidth="True"/>
+                                           Margin="14,6,14,6"/>
             </Border>
         </DataTemplate>
 

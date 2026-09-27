@@ -25,7 +25,6 @@ public class LaidBlocksTests
     public void EverySampleLaidAgainAfterAnEditIsTheSampleLaidAfresh()
     {
         var style = StyleFormat.Dark;
-        var options = new DiagramRenderOptions { Palette = style, ReadOnly = false };
 
         var documents = TestSampleData.Files("markdown").ToList();
         documents.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
@@ -33,7 +32,7 @@ public class LaidBlocksTests
         foreach (var path in documents)
         {
             var text = File.ReadAllText(path);
-            var content = MarkdownContent.Of(style, new ContentEngine(options));
+            var content = MarkdownContent.Of(style, new ContentEngine());
             content.Lay(EditState.For(text), Room, false);
 
             // Typed in the middle, typed before everything so every block moves, taken back near the end, and undone.
@@ -49,7 +48,7 @@ public class LaidBlocksTests
             foreach (var edited in edits)
             {
                 var again = content.Lay(EditState.For(edited), Room, false);
-                var fresh = MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(edited), Room, false);
+                var fresh = MarkdownContent.Of(style, new ContentEngine()).Lay(EditState.For(edited), Room, false);
 
                 Same(fresh, again, Path.GetFileName(path));
             }

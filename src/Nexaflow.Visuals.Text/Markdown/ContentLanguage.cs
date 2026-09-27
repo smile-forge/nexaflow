@@ -49,8 +49,8 @@ public sealed record ContentLanguage(
 /// <param name="Writing">Whether somebody is writing in it, which puts a hole wherever something is still to be written.</param>
 /// <param name="Shown">The stretch shown as typed rather than as what it says, counted in the document — or null.</param>
 /// <param name="At">Where the content's own source starts in the document holding it.</param>
-/// <param name="Options">What the host said about the content it shows: pictures, links, what diagrams are bound against.</param>
-public sealed record ContentShowing(string Named, StyleFormat Style, bool Writing, RawZone? Shown, int At, DiagramRenderOptions? Options)
+/// <param name="Inputs">What the host said about the content it shows: pictures, links, what diagrams are bound against.</param>
+public sealed record ContentShowing(string Named, StyleFormat Style, bool Writing, RawZone? Shown, int At, ContentInputs Inputs)
 {
     /// <summary>What lays out content written in another language inside this one — the one thing a builder may ask for.</summary>
     public required Nesting Nesting { get; init; }

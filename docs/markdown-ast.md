@@ -70,8 +70,11 @@ rather than to draw it.
 
 **One engine per showing of some content**, because what it keeps is that content's: the parse of a document read again
 as it is written, what every nested piece read to (a keystroke in a paragraph does not read the diagram under it again),
-the blocks that read as they did last time, and what the reader has opened in each diagram. What the source does not say
-— which nodes of a diagram are open, what a binding is bound against — the host says has changed with `Forget`.
+the blocks that read as they did last time, and what the reader has opened in each diagram. A surface keeps its engine for
+as long as it shows content, so none of that is lost when a change of colours or of who may write makes its element again.
+What the host says that the source does not — where pictures are found, how links look, what diagrams are bound against —
+is the engine's `Inputs` (`ContentInputs`), and what a language's stages read; setting them, or `Forget`, says that
+nothing laid before is to be set down again as it was.
 
 ## The tree
 

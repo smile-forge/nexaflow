@@ -188,7 +188,7 @@ public class MarkdownLinkTests
     // ── Reading the answers ─────────────────────────────────────────────────
 
     private static Laid Lay(string source, System.Func<string, string, LinkLook?>? asked = null) =>
-        Laying.Lay(null, source, 480, options: new DiagramRenderOptions { Palette = StyleFormat.Dark, Links = asked });
+        Laying.Lay(null, source, 480, inputs: new ContentInputs(Links: asked));
 
     private static List<Piece> Words(Laid laid) =>
         [.. laid.Root.SelfAndDescendants().Where(piece => piece.Words is not null)];
