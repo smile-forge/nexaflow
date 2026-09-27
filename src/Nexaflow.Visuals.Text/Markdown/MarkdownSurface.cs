@@ -42,13 +42,9 @@ namespace Nexaflow.Visuals.Text.Markdown;
 public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 {
     private readonly ScrollViewer _scroller;
-    private readonly Border _corner;
-    private readonly StackPanel _buttons;
     private readonly TextBlock _prompt;
 
     private MarkdownElement _shown;
-    private ContentPart? _over;
-
     /// <summary>What the element now on the page is drawn in.</summary>
     private StyleFormat? _drawnIn;
 
@@ -58,15 +54,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// </summary>
     private readonly ContentEngine _engine = new();
 
-    /// <summary>
-    /// The document as it was read — the tree the laid layout was drawn from, as the engine last read it — so the document is
-    /// read once and every question about what it is made of is asked of that one reading. A paragraph that needed no piece
-    /// of its own is still a paragraph in it.
-    /// </summary>
-    private ContentPart Read => _engine.Reading?.Root ?? Unread;
-
-    /// <summary>A document with nothing in it, for before anything has been laid.</summary>
-    private static readonly ContentPart Unread = ContentPart.Of(ContentNode.Branch(MarkdownKinds.Document, []));
+    /// <summary>The document as it was read — the tree the laid layout was drawn from, as the engine last read it.</summary>
+    private ContentPart Read => _engine.ReadRoot;
 
     /// <summary>Set while this control is telling a binding what was written, so the value coming back is not taken for a new document.</summary>
     private bool _telling;
@@ -74,28 +63,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     public MarkdownSurface()
     {
         Focusable = true;
+        FocusVisualStyle = null;
+        Background = Brushes.Transparent;
 
         // What the engine says happened, said again to the page.
         _engine.SourceChanged += (_, change) => Written(change);
         _engine.SelectionChanged += Picked;
         _engine.PreRender += Laid;
-        FocusVisualStyle = null;
-        Background = Brushes.Transparent;
-
-        _buttons = new StackPanel { Orientation = Orientation.Horizontal };
-
-        // Faint, in the corner, out of the way of the words — and whole once the pointer is on it.
-        _corner = new Border
-        {
-            Child = _buttons,
-            Opacity = Faint,
-            Visibility = Visibility.Collapsed,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, 2, 12, 0),
-            Padding = new Thickness(2),
-            CornerRadius = new CornerRadius(3),
-        };
 
         // Over the document rather than in it, where the first thing written will go, and never in the way of a press.
         _prompt = new TextBlock
@@ -118,20 +92,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         _shown = Made(string.Empty);
 
-        base.Content = new Grid { Children = { _scroller, _prompt, _corner } };
+        base.Content = new Grid { Children = { _scroller, _prompt } };
 
-        _corner.MouseEnter += (_, _) => _corner.Opacity = 1;
-        _corner.MouseLeave += (_, _) => _corner.Opacity = Faint;
-
-        // Over the corner's own buttons the block they belong to is still the one pointed at.
-        MouseMove += (_, args) => { if (!_corner.IsMouseOver) Over(args.GetPosition(_shown)); };
-        MouseLeave += (_, _) => Over(null);
-        PreviewMouseLeftButtonDown += (_, args) =>
+        PreviewMouseLeftButtonDown += (_, _) =>
         {
-            if (!IsKeyboardFocusWithin) Focus();
-
-            // Two presses on a block show it as it was written; taken here, before the element picks out the word pressed.
-            if (args.ClickCount == 2 && OpenAsWritten(args.GetPosition(_shown))) args.Handled = true;
+        if (!IsKeyboardFocusWithin) Focus();
         };
 
         // A scroller that is not to scroll still takes the wheel, and a document in a conversation would then stop the
@@ -497,7 +462,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
                 return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
 
             case LayoutVerbs.Copy when act.Intent.Target is { } what:
-                return Copy(MarkdownClipboard.Copied(what, null));
+            return Copy(MarkdownClipboard.Copied(what, null));
+
+            // A corner's copy, pressed on a block: the block, as the document writes it.
+            case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
+            return Copy(MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)));
 
             default:
                 return Diagrammed(act) ?? (Chose(act.Intent.Verb) || (Host?.Invoke(act) ?? false));
@@ -529,216 +498,24 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
     // ── What a block offers ─────────────────────────────────────────────────
 
-    /// <summary>
-    /// Shows the buttons for whatever block the pointer is over, and takes them away when it leaves.
-    ///
-    /// <para>
-    /// What they are is the language's to say — a picture of a diagram is worth keeping and a picture of a code fence is
-    /// a worse copy of the code — so this asks rather than deciding.
-    /// </para>
-    /// </summary>
-    private void Over(Point? at)
-    {
-        var block = at is { } where ? Blocked(where) : null;
-
-        if (ReferenceEquals(block, _over)) return;
-
-        _over = block;
-        _buttons.Children.Clear();
-
-        if (block is null || at is not { } point)
-        {
-            _corner.Visibility = Visibility.Collapsed;
-
-            return;
-        }
-
-        foreach (var offer in Offered(block)) _buttons.Children.Add(Button(offer, point));
-
-        var box = Where(block);
-
-        _corner.Visibility = _buttons.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        _corner.Margin = new Thickness(0, Math.Max((box.IsEmpty ? 0 : box.Y) * _shown.Zoom - _scroller.VerticalOffset + 2, 2), 12, 0);
-    }
-
-    /// <summary>
-    /// The block a point is in: not the word or the run under it, but the thing the document is made of that holds them
-    /// — a paragraph, a table, a fence — and nothing where the point is on none of them.
-    ///
-    /// <para>
-    /// Found by the offset rather than by walking up from the piece. A piece knows the characters it was drawn from, but
-    /// not always as a part of this document's tree: a code fence's runs carry plain spans, because the thing that drew
-    /// them was reading code and not markdown. An offset is an offset whatever drew it, and every language is laid at
-    /// the offset its body starts at — so this is the one question that works the same everywhere.
-    /// </para>
-    /// </summary>
-    private ContentPart? Blocked(Point at)
-    {
-        var piece = _shown.Laid.Root.PieceAt(at);
-        if (!piece.Exists) return null;
-
-        // The nearest piece answers a point that is on nothing, which is a question about what is near and not about what
-        // the point is on.
-        return Blocked(piece.Sits().Start) is { } block && Where(block) is { IsEmpty: false } box && box.Contains(at) ? block : null;
-    }
-
     /// <summary>The block of the document an offset is in — the whole of it, where it is content in one language.</summary>
-    private ContentPart? Blocked(int offset)
-    {
-        if (Named is not null) return Read;
+    private ContentPart? Blocked(int offset) => _engine.Blocked(offset);
 
-        foreach (var block in Read.Children)
-            if (!block.Derived && block.Role != Roles.Trivia && offset >= block.Start && offset < block.End)
-                return block;
-
-        return null;
-    }
+    /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds.</summary>
+    public IReadOnlyList<LayoutIntent> Corner(Point at) => _engine.Offers(at);
 
     /// <summary>
-    /// Where a block came out on the page: the whole of what it drew, from its top to its bottom and across the page — a
-    /// short line is still a block the width of the page, and its corner stands at the page's edge, so the way from the
-    /// words to the corner never leaves the block.
-    ///
-    /// <para>
-    /// Every block of the document is a piece of its own, holding all it drew — a barcode's bars and a chart's wedges too,
-    /// which stand for no characters and so lie in no stretch of them. So the block's own piece is what answers, found by the
-    /// first thing in it that was written; the stretch of its characters answers only where there is no such piece.
-    /// </para>
+    /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — what two presses on a
+    /// block do. It is drawn again once the caret leaves it.
     /// </summary>
-    private Rect Where(ContentPart block)
-    {
-        Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _shown.Laid.Size.Width), box.Height);
-
-        // Content in one language is one block, and all of what was laid is it.
-        if (block.Parent is null) return new Rect(_shown.Laid.Size);
-
-        foreach (var whole in _shown.Laid.Root.Children)
-        {
-            if (whole.Kind != MarkdownPieces.Whole) continue;
-            if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;
-
-            if (named.Start >= block.Start && named.Start < block.End) return Across(whole.Bounds);
-        }
-
-        var rects = _shown.Laid.Root.RangeRects(block.Start, Math.Max(block.Length, 1));
-        if (rects.Count == 0) return Rect.Empty;
-
-        var box = rects[0];
-
-        foreach (var rect in rects) box = Rect.Union(box, rect);
-
-        return Across(box);
-    }
-
-    /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds of its own.</summary>
-    public IReadOnlyList<LayoutIntent> Corner(Point at) =>
-        Blocked(at) is { } block ? [.. Offered(block)] : [];
+    /// <returns>Whether it did: not where the document is only read, and not in a block already shown as written.</returns>
+    public bool OpenAsWritten(Point at) => _engine.OpenAsWritten(at);
 
     /// <summary>
-    /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — the whole block,
-    /// whatever it holds, which is the default a language may one day say otherwise to for its own. It is drawn again once
-    /// the caret leaves it.
+    /// What a corner button means for the block at <paramref name="at"/>: copying it is asked of whoever holds the clipboard, and
+    /// anything else goes to the host with the block it was pressed on.
     /// </summary>
-    /// <returns>
-    /// Whether it did: not where the document is only read, and not in a block already shown as written, where two presses
-    /// pick out a word as they do in any text.
-    /// </returns>
-    public bool OpenAsWritten(Point at)
-    {
-        if (IsReadOnly || Blocked(at) is not { } block) return false;
-
-        // As much of it as is drawn when it is shown: the line ending that closes it is not somewhere to write.
-        var zone = new RawZone(block.Start, block.Start + block.Print().TrimEnd('\n', '\r').Length);
-        var state = _shown.Current;
-
-        if (zone.Length == 0 || (state.Raw is { } shown && shown.Start < zone.End && zone.Start < shown.End)) return false;
-
-        var caret = Math.Clamp(_shown.Laid.OffsetAt(at), zone.Start, zone.End);
-
-        _shown.Restore(state.MoveCaretTo(caret) with { Raw = zone });
-        _shown.Refresh();
-        _shown.TakeCaret(caret);
-
-        return true;
-    }
-
-    /// <summary>What a block's corner offers: whichever of the usual ones it allows, and whatever it adds.</summary>
-    private IEnumerable<LayoutIntent> Offered(ContentPart block)
-    {
-        var corner = CornerOf(block);
-
-        if (corner.Copies) yield return new LayoutIntent(LayoutVerbs.Copy, null, "Copy");
-        if (corner.Saves) yield return new LayoutIntent(LayoutVerbs.Save, null, "Save as a picture");
-
-        foreach (var added in corner.Adds) yield return added;
-    }
-
-    /// <summary>What the language drawing a block says about its corner, or the usual where no language is.</summary>
-    private BlockCorner CornerOf(ContentPart block)
-    {
-        for (var at = block; at is not null; at = at.Parent)
-        {
-            if (ContentLanguages.Held(at) is not { } language) continue;
-
-            var ask = new ContentAsk(ContentNested.Language(at)!, at.Part(Roles.Body)!.Text) { Part = block, IsReadOnly = IsReadOnly };
-            return language.Editing.Corner(ask);
-        }
-
-        // Content in one language is one block of it.
-        if (Named is { } named)
-            return ContentEngine.Language(named).Editing.Corner(new ContentAsk(named, _shown.Markdown) { Part = block, IsReadOnly = IsReadOnly });
-
-        // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
-        return BlockCorner.None;
-    }
-
-    /// <summary>
-    /// One of a corner's buttons: the app's own icon button, drawing the mark for what it does where there is one and its
-    /// name where there is not, and saying its name while pointed at.
-    /// </summary>
-    private FrameworkElement Button(LayoutIntent offer, Point at)
-    {
-        var named = DiagramRibbon.Names(offer);
-        var button = new Button
-        {
-            Content = DiagramRibbon.Icon(offer) is { } icon
-                ? new TextBlock { Text = icon, FontFamily = DiagramRibbon.IconFont, FontSize = 13 }
-                : new TextBlock { Text = named, Margin = new Thickness(6, 0, 6, 0) },
-            ToolTip = named,
-            Margin = new Thickness(1),
-            Command = new Does(() => Raise(offer, at)),
-        };
-
-        button.SetResourceReference(StyleProperty, "IconButton");
-        if (DiagramRibbon.Icon(offer) is null) button.Width = double.NaN;
-
-        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "Markdown_Corner_" + offer.Verb);
-
-        return button;
-    }
-
-    /// <summary>How faint a block's corner is until the pointer is on it.</summary>
-    private const double Faint = 0.55;
-
-    /// <summary>
-    /// What a corner button does. Copying is asked of whoever holds the clipboard, with what copying the block would put
-    /// there already worked out; anything else goes to the host with the block it was pressed on.
-    /// </summary>
-    public void Raise(LayoutIntent offer, Point at)
-    {
-        if (Blocked(at) is not { } block) return;
-
-        if (offer.Verb == LayoutVerbs.Copy)
-        {
-            Copy(MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)));
-
-            return;
-        }
-
-        var piece = _shown.Laid.Root.PieceAt(at);
-
-        Host?.Invoke(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
-    }
+    public void Raise(LayoutIntent offer, Point at) => _engine.Raise(offer, at);
 
     /// <summary>
     /// A picture of one block as it is on the page, for a host keeping one of what a corner button was pressed on —
@@ -746,7 +523,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// </summary>
     public System.Windows.Media.Imaging.BitmapSource? Picture(ContentPart block, Brush? ground = null)
     {
-        var box = Where(block);
+        var box = _engine.Where(block);
         if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) return null;
 
         var scale = _shown.Zoom;
@@ -779,14 +556,4 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private Point Middle() =>
         new(_scroller.HorizontalOffset + (_scroller.ViewportWidth / 2),
             _scroller.VerticalOffset + (_scroller.ViewportHeight / 2));
-
-    /// <summary>A command that is one thing done, which is all a button in a corner needs.</summary>
-    private sealed class Does(Action what) : ICommand
-    {
-        event EventHandler? ICommand.CanExecuteChanged { add { } remove { } }
-
-        public bool CanExecute(object? parameter) => true;
-
-        public void Execute(object? parameter) => what();
-    }
 }

@@ -211,10 +211,12 @@ block scrolled far away is let go.
 
 ## The element and the surface
 
-`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the
-keyboard, the history, what a search turned up and the buttons in a block's corner. Inside it one element
-(`MarkdownElement`, a `ContentElement`) shows what its engine holds: the engine keeps the content as it is being written —
-the source, the caret, the selection and the laid tree — and makes every edit to it, and the element paints that and says
+`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
+the clipboard and what a search turned up. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+engine holds: the engine keeps the content as it is being written — the source, the caret, the selection, what was
+written so it can be taken back, and the laid tree — and makes every edit to it; it also lays out the buttons in the
+corner of the block the pointer is over, since only it knows both where the block came out and what its language offers
+(`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says
 where the reader is. What happened is the engine's to say, and the surface says it again to the page as routed events:
 `SourceChanged` (what changed, and whether it was written, taken back or put there), `Selected` (what is picked out —
 words, a note, a box in a flowchart, each with the language it is written in and the id the drawing gives it), `PreRender`

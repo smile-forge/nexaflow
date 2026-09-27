@@ -31,6 +31,9 @@ public sealed record ContentDrag(Point At) : ContentInput;
 /// <summary>The press was let go.</summary>
 public sealed record ContentRelease : ContentInput;
 
+/// <summary>The pointer is over the content at a point, or — null — has left it.</summary>
+public sealed record ContentHover(Point? At) : ContentInput;
+
 /// <summary>What changed in the source, and how it came to change.</summary>
 /// <param name="Before">The content as it was.</param>
 /// <param name="After">The content as it is now.</param>

@@ -66,8 +66,12 @@ public sealed partial class ContentEngine
                 return true;
 
             case ContentRelease:
-                Release();
-                return true;
+            Release();
+            return true;
+
+            case ContentHover hover:
+            Hover(hover.At);
+            return true;
 
             default:
                 return false;
@@ -307,6 +311,9 @@ public sealed partial class ContentEngine
     /// </summary>
     private void Twice(Point at)
     {
+        // Two presses on a block show it as it was written, where it can be written in and is not already.
+        if (OpenAsWritten(at)) return;
+
         if (Offered(at, LayoutGesture.DoubleClick) is { } act && Actions?.Invoke(act) == true) return;
 
         var here = _laid.OffsetAt(at);
@@ -327,21 +334,29 @@ public sealed partial class ContentEngine
 
     /// <summary>
     /// What the piece under a point means by <paramref name="gesture"/>: the innermost one that means anything by it, or null
-    /// where none does.
+    /// where none does. The corner's buttons stand over the content, so they answer first — each for the block it is the corner of.
     /// </summary>
     internal LayoutAct? Offered(Point at, LayoutGesture gesture)
     {
-        var found = default(Piece);
-        LayoutIntent? meant = null;
+        if (_corner is { } corner && _over is { } block && Answering(corner, at, gesture) is var (button, offer))
+            return new LayoutAct(gesture, offer, button, block, block, [button], at);
 
-        foreach (var (piece, where) in _laid.Tree.Root.Placed())
-            if (where.Contains(at) && piece.Acts?.For(gesture) is { } intent)
-                (found, meant) = (piece, intent);
-
-        if (meant is not { } intended) return null;
+        if (Answering(_laid, at, gesture) is not var (found, meant)) return null;
 
         var part = found.Naming();
-        return new LayoutAct(gesture, intended, found, part, part as ContentPart, [found], at);
+        return new LayoutAct(gesture, meant, found, part, part as ContentPart, [found], at);
+    }
+
+    /// <summary>The innermost piece of <paramref name="laid"/> under a point that means something by <paramref name="gesture"/>, and what.</summary>
+    private static (Piece Piece, LayoutIntent Intent)? Answering(Laid laid, Point at, LayoutGesture gesture)
+    {
+        (Piece, LayoutIntent)? found = null;
+
+        foreach (var (piece, where) in laid.Tree.Root.Placed())
+            if (where.Contains(at) && piece.Acts?.For(gesture) is { } intent)
+                found = (piece, intent);
+
+        return found;
     }
 
     /// <summary>

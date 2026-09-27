@@ -11,6 +11,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Tests.Visuals.Editing;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -35,6 +36,35 @@ public class BlockCornerTests
 
             CollectionAssert.AreEqual(new[] { LayoutVerbs.Copy, LayoutVerbs.Save }, offered);
         }));
+
+    [TestMethod]
+    public void OverABlockItsButtonsStandInItsCorner_AndPressingOneTellsTheHostWhichBlock() => UiThread.Run(() =>
+    {
+        var asked = new List<LayoutAct>();
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, new Keeper(asked), engine);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        var box = engine.Where(pie);
+
+        engine.Input(new ContentHover(Middle(box)));
+
+        var buttons = engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null).ToList();
+        Assert.AreEqual(2, buttons.Count, "copying it and keeping a picture of it, as the pie says");
+        Assert.IsTrue(buttons.All(button => button.Bounds.Top >= box.Top && button.Bounds.Right <= box.Right),
+                      "standing in the block's own top right-hand corner");
+
+        engine.Input(new ContentPress(Middle(buttons[1].Bounds)));
+
+        var act = asked.Single();
+        Assert.AreEqual(LayoutVerbs.Save, act.Intent.Verb);
+        StringAssert.StartsWith(act.Node!.Print(), "```mermaid", "told which block it was pressed on");
+
+        engine.Input(new ContentHover(null));
+        Assert.IsNull(engine.Corner, "and gone once the pointer has left");
+    });
 
     [TestMethod]
     public void OffEveryBlockNothingIsOffered() => UiThread.Run(() =>

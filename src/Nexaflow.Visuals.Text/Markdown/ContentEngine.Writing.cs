@@ -110,6 +110,8 @@ public sealed partial class ContentEngine
     internal void Relay()
     {
         _laid = LaidOut(_state);
+        Recornered();
+
         PreRender?.Invoke(this, EventArgs.Empty);
     }
 

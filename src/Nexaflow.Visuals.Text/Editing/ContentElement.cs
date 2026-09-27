@@ -37,6 +37,12 @@ public class ContentElement : FrameworkElement
     private Point _pressedAt;
     /// <summary>Whether a press is held, so a move far enough from it is a drag.</summary>
     private bool _pressing;
+
+    /// <summary>Whether the pointer is on the corner's buttons, which are faint until it is.</summary>
+    private bool _onCorner;
+
+    /// <summary>How faint the corner is until the pointer is on it.</summary>
+    private const double Faint = 0.55;
     /// <summary>Raised whenever the caret moves inside the content.</summary>
     public event EventHandler? CaretMoved;
 
@@ -527,6 +533,13 @@ public class ContentElement : FrameworkElement
         Cursor = Pointing(Unscaled(e.GetPosition(this)));
         ForceCursor = true;
 
+        var over = Unscaled(e.GetPosition(this));
+        _engine.Input(new ContentHover(over));
+
+        // The corner is faint until the pointer is on it, and whole once it is.
+        var onCorner = _engine.Corner?.Root.Bounds.Contains(over) == true;
+        if (onCorner != _onCorner) { _onCorner = onCorner; InvalidateVisual(); }
+
         if (_pressing) ExtendPointerSelect(e.GetPosition(this));
     }
 
@@ -541,6 +554,9 @@ public class ContentElement : FrameworkElement
     {
         base.OnMouseLeave(e);
         Tip(null);
+
+        _onCorner = false;
+        _engine.Input(new ContentHover(null));
     }
 
     // ── Applying an edit ────────────────────────────────────────────────────
@@ -614,6 +630,14 @@ public class ContentElement : FrameworkElement
         if (_engine.Preview is { } preview) PaintPreview(dc, preview.Laid, (preview.Start, preview.End));
         else PaintContent(dc);
 
+        // Over everything, the buttons in the corner of the block the pointer is over.
+        if (_engine.Corner is { } corner)
+        {
+            if (!_onCorner) dc.PushOpacity(Faint);
+            LayoutPainter.Paint(dc, corner.Root, Palette.Text);
+            if (!_onCorner) dc.Pop();
+        }
+
         if (scaled) dc.Pop();
     }
 
@@ -680,6 +704,8 @@ public class ContentElement : FrameworkElement
         {
             if (_onScreen == value) return;
             _onScreen = value;
+
+            _engine.OnScreen = value is { } seen ? new Rect(seen.X / Scale, seen.Y / Scale, seen.Width / Scale, seen.Height / Scale) : null;
 
             // Painted again only once what is shown leaves what was painted round it last time.
             if (value is not { } shown || _painted is not { } painted
