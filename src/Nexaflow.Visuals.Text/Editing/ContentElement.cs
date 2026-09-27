@@ -53,7 +53,7 @@ public class ContentElement : FrameworkElement
     public event EventHandler? SelectionChanged;
 
     /// <summary>Raised when the reader's own editing changed the source.</summary>
-    public event EventHandler? SourceChanged;
+    public event EventHandler<ContentSourceChange>? SourceChanged;
 
     /// <param name="engine">What lays the content out, and holds it as it is being written.</param>
     /// <param name="language">What the content is written in — markdown, where nothing names a language.</param>
@@ -129,7 +129,7 @@ public class ContentElement : FrameworkElement
 
     private void OnSelectionChanged(object? sender, EventArgs args) => SelectionChanged?.Invoke(this, EventArgs.Empty);
 
-    private void OnSourceChanged(object? sender, EventArgs args) => SourceChanged?.Invoke(this, EventArgs.Empty);
+    private void OnSourceChanged(object? sender, ContentSourceChange change) => SourceChanged?.Invoke(this, change);
 
     /// <summary>The theme, for the ink, the accent and the two colours trouble is drawn in.</summary>
     protected StyleFormat Palette { get; }

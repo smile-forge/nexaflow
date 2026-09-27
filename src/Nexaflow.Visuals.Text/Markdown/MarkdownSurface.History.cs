@@ -9,9 +9,9 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// What was written here, so it can be taken back; and the clipboard, which is the application's.
 ///
 /// <para>
-/// <strong>The history is this control's.</strong> An edit is whatever the element and the language the caret was in
-/// made of a key, and what it came to is a document — so a step back is that document as it was, put back and read
-/// again (<see cref="EditHistory"/>). An edit to a formula and an edit to a paragraph are the same thing to take back.
+/// <strong>The history is the engine's.</strong> An edit is whatever the language the caret was in made of a key, and what
+/// it came to is a document — so a step back is that document as it was, put back and read again. This control only says
+/// where it can be asked for (<see cref="EditHistory"/>).
 /// </para>
 /// <para>
 /// <strong>The clipboard is not.</strong> Copying says what would go on a clipboard and asks for it to be put there
@@ -22,48 +22,31 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class MarkdownSurface
 {
-    private readonly EditHistory _history = new();
-
-    /// <summary>The document as it stood after the last thing written, which is where the next step starts from.</summary>
-    private EditState _last = EditState.For(string.Empty);
-
     /// <summary>Raised whenever something was written here, after the host has been told what.</summary>
     public event EventHandler? Edited;
 
     /// <summary>What was written here, which a host with buttons for undo and redo asks whether either can be done.</summary>
-    public EditHistory History => _history;
+    public EditHistory History => _engine.History;
 
     /// <summary>Whether there is anything to take back.</summary>
-    public bool CanUndo => _history.CanUndo;
+    public bool CanUndo => _engine.History.CanUndo;
 
     /// <summary>Whether anything taken back could be written again.</summary>
-    public bool CanRedo => _history.CanRedo;
+    public bool CanRedo => _engine.History.CanRedo;
 
     /// <summary>Takes back the last thing written.</summary>
-    public void Undo() => Back(_history.Undo(_shown.Current));
+    public void Undo() => _engine.Undo();
 
     /// <summary>Writes again what was last taken back.</summary>
-    public void Redo() => Back(_history.Redo(_shown.Current));
+    public void Redo() => _engine.Redo();
 
-    private void Back(EditState? state)
+    /// <summary>
+    /// The document changed — written in, taken back, or put there here on the reader's behalf: the host is told, and where the
+    /// change was not typed, the caret is shown where it now stands.
+    /// </summary>
+    private void Written(ContentSourceChange change)
     {
-        if (state is null) return;
-
-        _shown.Restore(state);
-        if (!IsReadOnly && IsKeyboardFocusWithin) _shown.ShowCaret();
-
-        _last = _shown.Current;
-        Told();
-    }
-
-    /// <summary>Something was written in the element: remembered, held as source if it is being, and told to the host.</summary>
-    private void Written()
-    {
-        HoldAsWritten();
-
-        var now = _shown.Current;
-        _history.Record(_last, now);
-        _last = now;
+        if (change.Kind != ContentChangeKind.Written && !IsReadOnly && IsKeyboardFocusWithin) _shown.ShowCaret();
 
         Told();
     }
@@ -83,17 +66,7 @@ public sealed partial class MarkdownSurface
     /// Writes <paramref name="next"/> as though it had been typed — one step to take back, the host told — for an edit made
     /// here on somebody's behalf: something dropped or pasted, a block put in by the host.
     /// </summary>
-    private void Write(EditState next)
-    {
-        if (IsReadOnly || string.Equals(next.Source, _shown.Markdown, StringComparison.Ordinal)) return;
-
-        _history.Break();
-        _shown.Restore(next);
-        if (IsKeyboardFocusWithin) _shown.ShowCaret();
-
-        Written();
-        _history.Break();
-    }
+    private void Write(EditState next) => _engine.Replace(next);
 
     // ── The clipboard ───────────────────────────────────────────────────────
 
@@ -178,19 +151,6 @@ public sealed partial class MarkdownSurface
     {
         var state = _shown.Current;
         return state.HasSelection ? (state.SelectionStart, state.SelectionLength) : null;
-    }
-
-    /// <summary>
-    /// The caret was put somewhere, or something was picked out, with nothing written: whatever is written next is a step of
-    /// its own, and starts from here — so taking it back puts the caret back where the reader had put it.
-    /// </summary>
-    private void Moved()
-    {
-        var now = _shown.Current;
-        if (ReferenceEquals(now, _last) || !string.Equals(now.Source, _last.Source, StringComparison.Ordinal)) return;
-
-        _last = now;
-        _history.Break();
     }
 }
 

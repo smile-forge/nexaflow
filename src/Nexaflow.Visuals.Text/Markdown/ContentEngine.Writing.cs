@@ -54,9 +54,6 @@ public sealed partial class ContentEngine
     /// <summary>Raised whenever what is picked out changes.</summary>
     internal event EventHandler? SelectionChanged;
 
-    /// <summary>Raised when the reader's own editing changed the source.</summary>
-    internal event EventHandler? SourceChanged;
-
     /// <summary>Raised once the content has been laid out again, before anything is asked of the new layout.</summary>
     internal event EventHandler? PreRender;
 
@@ -80,6 +77,8 @@ public sealed partial class ContentEngine
     {
         _state = EditState.For(source);
         _at = -1;
+
+        Begin();
     }
 
     /// <summary>The source, the caret, what is picked out and what is shown as typed.</summary>
@@ -156,11 +155,12 @@ public sealed partial class ContentEngine
     internal void Apply(EditState next, bool notify, int at = -1)
     {
         if (notify && next.Source != _state.Source) next = Edited(_named, Landing, next);
-        next = Left(next);
+        next = Held(Left(next));
 
-        var resized = next.Source != _state.Source || next.Raw != _state.Raw;
-        var was = (_state.Caret, _at);
-        var changed = next.Source != _state.Source;
+        var before = _state;
+        var resized = next.Source != before.Source || next.Raw != before.Raw;
+        var was = (before.Caret, _at);
+        var changed = next.Source != before.Source;
 
         _state = next;
 
@@ -173,10 +173,14 @@ public sealed partial class ContentEngine
 
         var moved = was != (_state.Caret, _at);
 
+        // What the reader wrote is a step to take back; anything that left what is written alone starts the next one.
+        if (notify && changed) Recorded();
+        else if (!changed) Stayed();
+
         Changed?.Invoke(this, moved || changed);
 
         if (moved) CaretMoved?.Invoke(this, EventArgs.Empty);
-        if (notify && changed) SourceChanged?.Invoke(this, EventArgs.Empty);
+        if (notify && changed) SourceChanged?.Invoke(this, new ContentSourceChange(before, _state, ContentChangeKind.Written));
     }
 
     /// <summary>

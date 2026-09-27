@@ -375,13 +375,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>After a different document is shown: nothing of the last one can be taken back, found or held open.</summary>
     private void Settled()
     {
-        _history.Clear();
+        
 
         // A field holding one language is written at the end of what it holds; a document is read from its top.
         _shown.Restore(_shown.Current.MoveCaretTo(Named is null ? 0 : _shown.Markdown.Length));
 
         HoldAsWritten();
-        _last = _shown.Current;
+        _engine.Begin();
 
         Stop();
         Prompted();
@@ -409,8 +409,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         // formula under the caret — has a tree to ask.
         _shown.Refresh();
         if (caret) _shown.TakeCaret(state.Caret);
-
-        _last = _shown.Current;
     }
 
     private MarkdownElement Made(string source)
@@ -426,9 +424,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             Margin = ContentPadding,
         };
 
-        element.SourceChanged += (_, _) => Written();
-        element.CaretMoved += (_, _) => { Moved(); Reveal(); };
-        element.SelectionChanged += (_, _) => Moved();
+        element.SourceChanged += (_, change) => Written(change);
+        element.CaretMoved += (_, _) => Reveal();
 
         _scroller.Content = element;
         Shows(element);
@@ -479,15 +476,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     {
         if (_shown is null) return;
 
-        var state = _shown.Current;
-        var whole = new RawZone(0, state.Source.Length);
-
-        // Let go of only what this held open: a command being spelled is the writer's, and stays shown as they spell it.
-        RawZone? wanted = EditAsSource ? whole : state.Raw == whole ? null : state.Raw;
-        if (state.Raw == wanted) return;
-
-        _shown.Restore(state with { Raw = wanted });
-        _last = _shown.Current;
+        _engine.HoldsWritten = EditAsSource;
     }
 
     // ── Links ───────────────────────────────────────────────────────────────
@@ -674,7 +663,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _shown.Restore(state.MoveCaretTo(caret) with { Raw = zone });
         _shown.Refresh();
         _shown.TakeCaret(caret);
-        _last = _shown.Current;
 
         return true;
     }
