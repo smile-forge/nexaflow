@@ -26,7 +26,7 @@ public sealed class ContentPart : ISourcePart
         // was hung under begins and is no characters long, which is the only answer that keeps a part's
         // span and what it prints as the same thing. Selecting the whole of what it explains still works
         // — the piece drawn from it carries the *written* part, which does have a span.
-        var inherited = derived ?? (node.Role == Roles.Derived && parent is not null
+        var inherited = derived ?? (node.Role is Roles.Derived or Roles.Supplied && parent is not null
             ? parent.Start
             : (int?)null);
 
@@ -99,6 +99,18 @@ public sealed class ContentPart : ISourcePart
     /// </para>
     /// </summary>
     public bool Derived => this._derived is not null || this.Node.IsDerived;
+
+    /// <summary>Whether this part is content a binding supplied, or inside some — which can be picked out and never written in.</summary>
+    public bool Supplied
+    {
+        get
+        {
+            for (var part = this; part is not null; part = part.Parent)
+                if (part.Role == Roles.Supplied) return true;
+
+            return false;
+        }
+    }
 
     /// <summary>One past the last character this part stands for.</summary>
     public int End => this.Start + this.Length;

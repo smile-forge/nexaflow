@@ -271,13 +271,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
     private Func<string, string, LinkLook?>? _links;
 
-    /// <summary>
-    /// A diagram node's expand chip was pressed. True claims it — a host that generated the diagram writes
-    /// <see cref="Markdown"/> again with more of the tree walked. Null lets the diagram open the node from what its source
-    /// already says.
-    /// </summary>
-    public Func<DiagramExpandRequest, bool>? DiagramExpand { get; set; }
-
     /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
     public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
 
@@ -486,12 +479,16 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         {
             if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
 
-            return new DiagramActions(DiagramExpand, _engine.Opened(part)) { Shown = _shown }.Invoke(act);
+            return Folded(part, act);
         }
 
         // Content in one language is one diagram, where it is one.
-        return Named is null ? null : new DiagramActions(DiagramExpand, _engine.Opened(Read)) { Shown = _shown }.Invoke(act);
+        return Named is null ? null : Folded(Read, act);
     }
+
+    /// <summary>A chip pressed in the diagram <paramref name="diagram"/> holds: opened in the engine's view of it, and told to what it is bound to.</summary>
+    private bool Folded(ContentPart diagram, LayoutAct act) =>
+        new DiagramActions((key, open) => _engine.Expand(diagram, key, open), _engine.Opened(diagram)) { Shown = _shown }.Invoke(act);
 
     /// <inheritdoc/>
     IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => [.. Offered(), .. Host?.Menu(act) ?? []];

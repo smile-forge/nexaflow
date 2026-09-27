@@ -126,6 +126,8 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         {
             if (_inputs == value) return;
 
+            if (_inputs.Data != value.Data) Unbind();
+
             _inputs = value;
             Forget();
         }
@@ -209,8 +211,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// </summary>
     private ContentNode Staged(Parsed read, ContentShowing showing)
     {
-        var stages = read.Language.Stages(read.Tree, showing).OfType<IAstStage>().ToList();
-        var staged = stages.Count == 0 ? read.Tree : new AstPipeline(stages).Run(read.Tree);
+        var tree = Bound(read.Language, read.Tree);
+        var stages = read.Language.Stages(tree, showing).OfType<IAstStage>().ToList();
+        var staged = stages.Count == 0 ? tree : new AstPipeline(stages).Run(tree);
 
         return read.Inside.Count == 0 ? staged : Spliced(staged, read.Inside, 0);
     }

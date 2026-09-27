@@ -24,7 +24,8 @@ public sealed class WithFolds : IAstStage
     {
         if (Held(tree) is not null) return tree;
 
-        var folds = NexaflowConfig.Read(MermaidBlock.Of(tree).Config);
+        // Every front matter says its part: the block's own, and what a binding supplied about the nodes it supplied.
+        var folds = MermaidBlock.Of(tree).Configs.Aggregate(NexaflowConfig.None, (all, yaml) => all.And(NexaflowConfig.Read(yaml)));
 
         return folds.IsEmpty ? tree : tree.Holding(MermaidKinds.Folds, Roles.Derived, folds);
     }

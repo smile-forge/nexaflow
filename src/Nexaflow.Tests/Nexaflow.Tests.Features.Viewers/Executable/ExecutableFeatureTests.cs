@@ -267,9 +267,9 @@ public sealed class ExecutableFeatureTests
         var graph  = new DependencyWalker().Walk(PeFixtures.Notepad);
         var markdown = DependencyMermaid.Build(graph);
 
-        Assert.IsTrue(markdown.StartsWith("```mermaid"), "The block must be fenced as mermaid.");
+        Assert.IsTrue(markdown.StartsWith("---"), "The diagram opens with its front matter: what it supplies is the whole of it.");
         Assert.IsTrue(markdown.Contains("graph LR"));
-        Assert.IsTrue(markdown.TrimEnd().EndsWith("```"));
+        Assert.IsFalse(markdown.Contains("```"), "and it is the diagram, not a fence round one — the page's markdown holds the fence.");
 
         // Standard `click id href "…"` rather than a private convention, so the diagram stays
         // portable if it is pasted anywhere else.
@@ -313,9 +313,7 @@ public sealed class ExecutableFeatureTests
         child.Children.Add(new DependencyNode("deep.dll", DependencyKind.Resolved, @"C:\app\deep.dll"));
         root.Children.Add(child);
 
-        var lines  = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))
-                                      .Split('\n', StringSplitOptions.None);
-        var cfg = NexaflowConfig.Read(MermaidBlock.Read(string.Join("\n", lines[1..^2])).Config);
+        var cfg = NexaflowConfig.Read(MermaidBlock.Read(DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))).Config);
 
         Assert.IsFalse(cfg.Expanded.ContainsKey("n0"), "the root is never declared collapsible");
         Assert.AreEqual("lib.dll", cfg.Expanded["n1"], "…but an opened module below it still is");
@@ -329,10 +327,8 @@ public sealed class ExecutableFeatureTests
         opened.Children.Add(new DependencyNode("shut.dll", DependencyKind.Resolved, @"C:\app\shut.dll"));
         root.Children.Add(opened);
 
-        // The fence is markdown; the diagram source is what is inside it.
-        var lines  = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2))
-                                      .Split('\n', StringSplitOptions.None);
-        var source = string.Join("\n", lines[1..^2]);
+        // What the binding supplies is the diagram's source itself, with no fence round it.
+        var source = DependencyMermaid.Build(new DependencyGraph(root, 3, false, 2));
 
         var cfg = NexaflowConfig.Read(MermaidBlock.Read(source).Config);
         Assert.AreEqual("lib.dll",  cfg.Expanded["n1"],  "an opened module can be closed again");

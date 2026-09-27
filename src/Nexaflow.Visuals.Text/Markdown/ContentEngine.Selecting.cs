@@ -56,6 +56,7 @@ public sealed partial class ContentEngine
             }
         }
 
+        picks.AddRange(PickedPicks());
         return picks;
     }
 

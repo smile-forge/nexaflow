@@ -10,6 +10,7 @@ using Nexaflow.Features.Common;
 using Nexaflow.Features.Executable.Models;
 using Nexaflow.Features.Executable.Services;
 using Nexaflow.IO.Pe;
+using Nexaflow.Markdown.Binding;
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Executable.ViewModels;
@@ -26,27 +27,66 @@ public sealed partial class ExecutableViewModel
         _dependenciesRequested = true;
         DependenciesLoading    = true;
 
-        _shell.QueueBackgroundTask(new DependencyTask(this), ct: _cts.Token);
+        Dependencies.Walk();
     }
 
-    /// <summary>Modules the user has opened up, by name. The root is always expanded.</summary>
-    private readonly HashSet<string> _expandedModules = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The markdown the diagram is shown from: one binding, to the graph as far as the reader has opened it.</summary>
+    private const string BoundDependencies = "```mermaid\n{{Dependencies}}\n```\n";
 
-    private sealed class DependencyTask(ExecutableViewModel owner) : IBackgroundTask
+    private BoundGraph<DependencyGraph>? _dependencies;
+
+    /// <summary>
+    /// The import graph, walked only as far as the reader has opened it — what the diagram is bound to
+    /// (<c>{{Dependencies}}</c>). A chip pressed in the diagram opens a module here without passing through this view-model,
+    /// and every walk that lands is published to the tree and the detail pane as well.
+    /// </summary>
+    public BoundGraph<DependencyGraph> Dependencies => _dependencies ??= Bound();
+
+    private BoundGraph<DependencyGraph> Bound()
+    {
+        var graph = new BoundGraph<DependencyGraph>(Walk, DependencyMermaid.Build, StringComparer.OrdinalIgnoreCase);
+        graph.Walked += (_, walked) => _ = _shell.RunOnUiAsync(() => PublishDependencies(walked));
+        return graph;
+    }
+
+    /// <summary>
+    /// One walk, as a task in the shell's activity area. The walk opens and parses every module it resolves; what it walks is
+    /// only what the reader opened, so the graph only ever grows where they pointed.
+    /// </summary>
+    private Task<DependencyGraph> Walk(IReadOnlySet<string> opened, CancellationToken ct)
+    {
+        var walked = new TaskCompletionSource<DependencyGraph>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ct.Register(() => walked.TrySetCanceled(ct));
+
+        _shell.QueueBackgroundTask(new DependencyTask(this, opened, walked), ct: ct);
+        return walked.Task;
+    }
+
+    private sealed class DependencyTask(ExecutableViewModel owner, IReadOnlySet<string> opened,
+                                        TaskCompletionSource<DependencyGraph> walked) : IBackgroundTask
     {
         public string Description => Str.Format("Executable.Task.MappingFormat", owner.FileName);
 
         public async Task RunAsync(CancellationToken ct)
         {
-            string path     = owner.FilePath;
-            var    expanded = new HashSet<string>(owner._expandedModules, StringComparer.OrdinalIgnoreCase);
+            using var either = CancellationTokenSource.CreateLinkedTokenSource(ct, owner._cts.Token);
+            string path = owner.FilePath;
 
-            // MaxDepth stays as a runaway guard only; what actually gets walked is the explicit
-            // expansion set, so the graph only ever grows where the user pointed.
-            var graph = await Task.Run(() => new DependencyWalker(maxDepth: 8).Walk(path, expanded, ct), ct);
-
-            ct.ThrowIfCancellationRequested();
-            await owner._shell.RunOnUiAsync(() => owner.PublishDependencies(graph));
+            try
+            {
+                // MaxDepth stays as a runaway guard only; what actually gets walked is the set opened.
+                walked.TrySetResult(await Task.Run(() => new DependencyWalker(maxDepth: 8).Walk(path, opened, either.Token), either.Token));
+            }
+            catch (OperationCanceledException)
+            {
+                walked.TrySetCanceled(either.Token);
+                throw;
+            }
+            catch (Exception error)
+            {
+                walked.TrySetException(error);
+                throw;
+            }
         }
     }
 
@@ -58,7 +98,7 @@ public sealed partial class ExecutableViewModel
     {
         DependenciesLoading = false;
         _dependencyGraph    = graph;
-        DependencyMarkdown  = DependencyMermaid.Build(graph);
+        DependencyMarkdown  = BoundDependencies;
 
         DependencyNodes.Clear();
         DependencyNodes.Add(ToInspector(graph.Root));
@@ -169,18 +209,15 @@ public sealed partial class ExecutableViewModel
     }
 
     /// <summary>
-    /// Opens up one module. Re-walks rather than grafting onto the existing graph: the walk already
-    /// owns cycle detection and the shared-module rules, and re-running it is cheap next to keeping
-    /// a second, subtly different merge path correct.
+    /// Opens up one module. Walks again rather than grafting onto the existing graph: the walk already owns cycle detection and
+    /// the shared-module rules, and walking again is cheap next to keeping a second, subtly different merge path correct.
     /// </summary>
     public void ExpandModule(string moduleName)
     {
-        if (string.IsNullOrWhiteSpace(moduleName)) return;
-        if (!_expandedModules.Add(moduleName)) return;
+        if (string.IsNullOrWhiteSpace(moduleName) || IsModuleExpanded(moduleName)) return;
 
-        _dependenciesRequested = false;
-        DependenciesLoading    = true;
-        EnsureDependencies();
+        DependenciesLoading = true;
+        Dependencies.Expand(moduleName, open: true);
     }
 
     /// <summary>
@@ -194,28 +231,29 @@ public sealed partial class ExecutableViewModel
     [RelayCommand]
     private void CollapseDependencies()
     {
-        _expandedModules.Clear();
-        _dependenciesRequested = false;
         DependencyNodes.Clear();
         DependencyMarkdown = string.Empty;
         SelectedDependency = null;
         DependencyViewResetRequested?.Invoke();
-        EnsureDependencies();
+
+        if (_image is null) return;
+
+        _dependenciesRequested = true;
+        DependenciesLoading    = true;
+        Dependencies.Reset();
     }
 
     /// <summary>Closes one module back up, leaving the rest of the graph as it is.</summary>
     public void CollapseModule(string moduleName)
     {
-        if (string.IsNullOrWhiteSpace(moduleName)) return;
-        if (!_expandedModules.Remove(moduleName)) return;
+        if (string.IsNullOrWhiteSpace(moduleName) || !IsModuleExpanded(moduleName)) return;
 
-        _dependenciesRequested = false;
-        DependenciesLoading    = true;
-        EnsureDependencies();
+        DependenciesLoading = true;
+        Dependencies.Expand(moduleName, open: false);
     }
 
     /// <summary>Whether a module is currently opened up — the state a +/− affordance reflects.</summary>
-    public bool IsModuleExpanded(string moduleName) => _expandedModules.Contains(moduleName);
+    public bool IsModuleExpanded(string moduleName) => Dependencies.Opened.Contains(moduleName);
 
     [RelayCommand]
     private void ExpandModuleNode(InspectorNode? node)
@@ -259,14 +297,18 @@ public sealed partial class ExecutableViewModel
         return inspector;
     }
 
-    /// <summary>Re-walks from scratch, keeping whatever is currently expanded.</summary>
+    /// <summary>Walks again from scratch, keeping whatever is currently opened.</summary>
     [RelayCommand]
     private void RefreshDependencies()
     {
-        _dependenciesRequested = false;
         DependencyNodes.Clear();
         DependencyMarkdown = string.Empty;
-        EnsureDependencies();
+
+        if (_image is null) return;
+
+        _dependenciesRequested = true;
+        DependenciesLoading    = true;
+        Dependencies.Walk();
     }
 
     /// <summary>

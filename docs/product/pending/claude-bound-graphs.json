@@ -1,0 +1,72 @@
+{
+  "branch": "claude/bound-graphs",
+  "nodes": {
+    "diagram-bound-content": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/IBoundContent.cs",
+          "class": "IBoundContent"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Binding/BoundGraph.cs",
+          "class": "BoundGraph"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidParser.cs",
+          "class": "MermaidParser",
+          "method": "Bind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Binding.cs",
+          "class": "ContentEngine",
+          "method": "Rebind"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Supplied.cs",
+          "class": "ContentEngine",
+          "method": "PickWhole"
+        }
+      ],
+      "concerns": {
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "docs/MarkdownSupport.md",
+            "title_path": [
+              "Markdown Support",
+              "Diagrams \u2014 sub-support",
+              "Bound content (a diagram\u0027s lines, or the whole of it)"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Mermaid/MermaidBindingTests.cs",
+            "class": "MermaidBindingTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Markdown/Binding/BoundGraphTests.cs",
+            "class": "BoundGraphTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/BoundContentTests.cs",
+            "class": "BoundContentTests"
+          }
+        ]
+      }
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "diagram-bound-content"
+  ]
+}

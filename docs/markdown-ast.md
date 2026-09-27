@@ -113,6 +113,12 @@ earlier one said.
 the node it is about — a hole, what a macro means, which picture a name resolved to (`ContentNode.Held`, untyped
 because what a name resolves to is often something this assembly cannot name).
 
+**What a binding supplied is derived too** (`Roles.Supplied`): a binding standing where content would be
+(`Kinds.BoundContent`, a line that is only `{{Path}}`) is held as written, and what it comes to is read into its place by
+the language before the stages run — lines of the block's own that nobody wrote here. It is kept apart from `Derived`
+because it is read-only in a way worked-out content is not: it is picked out whole, and there is nowhere in it to put the
+caret (`ContentPart.Supplied`).
+
 **A tree the builder has laid out is finished.** Nothing rewrites it: editing works from where its parts stand in the
 source, writes the source, and the engine reads it again.
 

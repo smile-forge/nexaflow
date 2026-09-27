@@ -10,7 +10,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 /// <param name="expand">The host's say in a node opened or folded away: true where it took it on.</param>
 /// <param name="view">This diagram's own state, where whatever shows it keeps one per diagram.</param>
-internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, DiagramViewState? view) : ILayoutActions
+internal sealed class DiagramActions(Func<string, bool, bool>? expand, DiagramViewState? view) : ILayoutActions
 {
     /// <summary>
     /// Where what the reader opens and folds is kept: the host's, where it keeps one, and this element's own where it
@@ -39,9 +39,9 @@ internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, D
     /// Opens a node, or folds it away again.
     ///
     /// <para>
-    /// The opening is written down before the host is offered anything, because a host that takes this on answers by
-    /// re-emitting the whole diagram — and an opening made here has to survive that. Where nothing takes it on, the
-    /// element lays itself out again, which reads the view state back and draws what is now shown.
+    /// The opening is written down before bound content is told, because what that content supplies is read into the
+    /// diagram again when it has walked — and an opening made here has to survive that. Where no bound content takes it on,
+    /// the element lays itself out again, which reads the view state back and draws what is now shown.
     /// </para>
     /// </summary>
     private bool Folded(LayoutAct act, bool open)
@@ -51,7 +51,7 @@ internal sealed class DiagramActions(Func<DiagramExpandRequest, bool>? expand, D
         var key = Folds(act).KeyFor(id);
         View.Expansion[key] = open;
 
-        if (expand?.Invoke(new DiagramExpandRequest(id, key, act.Intent.Tip ?? id, open)) == true) return true;
+        if (expand?.Invoke(key, open) == true) return true;
 
         Shown?.Refresh();
         return true;

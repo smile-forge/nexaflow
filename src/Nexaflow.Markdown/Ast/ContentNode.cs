@@ -118,7 +118,7 @@ public class ContentNode
     /// exactly what was written.
     /// </para>
     /// </summary>
-    public bool IsDerived => this.Role == Roles.Derived || this.Kind == Kinds.Hole;
+    public bool IsDerived => this.Role is Roles.Derived or Roles.Supplied || this.Kind == Kinds.Hole;
 
     /// <summary>Whether this stands for characters rather than for parts.</summary>
     public bool IsLeaf => this.Children.Count == 0;

@@ -10,6 +10,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using System.Windows.Media.Imaging;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using Nexaflow.Markdown.Binding;
 
 namespace Nexaflow.Visuals.Text.Editing;
 
@@ -73,6 +74,7 @@ public class ContentElement : FrameworkElement
         _engine.SelectionChanged += OnSelectionChanged;
         _engine.SourceChanged += OnSourceChanged;
         _engine.Revealing += OnRevealing;
+        _engine.Rebound += OnRebound;
 
         SnapsToDevicePixels = true;
         Cursor = Cursors.IBeam;
@@ -103,6 +105,7 @@ public class ContentElement : FrameworkElement
         _engine.SelectionChanged -= OnSelectionChanged;
         _engine.SourceChanged -= OnSourceChanged;
         _engine.Revealing -= OnRevealing;
+        _engine.Rebound -= OnRebound;
 
         StopBlinking();
     }
@@ -118,6 +121,10 @@ public class ContentElement : FrameworkElement
     {
         if (!_measuring) InvalidateMeasure();
     }
+
+    /// <summary>Bound content changed on whatever thread it walked on; it is laid out again here, on this element's.</summary>
+    private void OnRebound(object? sender, IBoundContent changed) =>
+        Dispatcher.BeginInvoke(() => _engine.Rebind(changed));
 
     private void OnCaretTaken(object? sender, EventArgs args)
     {
@@ -658,6 +665,10 @@ public class ContentElement : FrameworkElement
         // One shape for the whole selection, joined across the spacing between what it holds — and not one box
         // around it all: a column of a matrix washed from its first cell to its last would highlight the lot.
         if (state.HasSelection) dc.DrawGeometry(_wash, null, laid.Root.Wash(state.Selection, WashPad));
+
+        // What of content a binding supplied is picked out stands for no source, so it is washed piece by piece.
+        foreach (var picked in _engine.PickedWhole)
+            if (picked.Ink() is { IsEmpty: false } ink) dc.DrawRectangle(_wash, null, Rect.Inflate(ink, WashPad, WashPad));
 
         Waves(dc, laid);
 

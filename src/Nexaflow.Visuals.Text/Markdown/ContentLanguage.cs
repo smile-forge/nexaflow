@@ -33,6 +33,13 @@ public sealed record ContentLanguage(
     /// <summary>What an edit, a gesture and a block's corner mean in it — what they mean everywhere, unless it says otherwise.</summary>
     public IContentLanguage Editing { get; init; } = Usual.Editing;
 
+    /// <summary>
+    /// Reads what each binding standing where content would be (<c>{{Path}}</c>) comes to into its place in a parse, given what
+    /// the binding naming a path comes to (null where it comes to nothing) — or null for a language holding no such bindings.
+    /// Run by the engine before the stages, so they see what was supplied as they see the rest.
+    /// </summary>
+    public Func<ContentNode, Func<string, string?>, ContentNode>? Bind { get; init; }
+
     /// <summary>A language whose editing means nothing of its own.</summary>
     private sealed class Usual : IContentLanguage
     {
