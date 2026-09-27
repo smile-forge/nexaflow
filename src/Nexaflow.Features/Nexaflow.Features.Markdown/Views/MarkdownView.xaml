@@ -284,7 +284,7 @@
                                          BaseFontSize="{Binding Zoom.FontSize}"
                                          AutomationProperties.AutomationId="Markdown_Editor"
                                          Visibility="{Binding ShowRendered, Converter={StaticResource BoolVis}}"
-                                         SingleBlock="{Binding SingleBlock, Mode=OneTime}"
+                                         WrittenIn="{Binding WrittenIn, Mode=OneTime}"
                                          Markdown="{Binding Markdown, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
 

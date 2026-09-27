@@ -29,13 +29,15 @@ public sealed class MarkdownElement : LinkedElement
 {
     /// <param name="host">What the host answers, for the verbs this document does not answer itself.</param>
     /// <param name="engine">What lays it out — the host's, where the host keeps one for longer than an element lasts.</param>
-    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null, ContentEngine? engine = null)
-        : this(engine ?? new ContentEngine(), source, palette, host)
+    /// <param name="language">What it is written in, where that is one language rather than a markdown document.</param>
+    public MarkdownElement(string source, StyleFormat palette, ILayoutActions? host = null, ContentEngine? engine = null,
+                           string? language = null)
+        : this(engine ?? new ContentEngine(), source, palette, host, language)
     {
     }
 
-    private MarkdownElement(ContentEngine engine, string source, StyleFormat palette, ILayoutActions? host)
-        : base(source ?? string.Empty, palette, engine, null, host)
+    private MarkdownElement(ContentEngine engine, string source, StyleFormat palette, ILayoutActions? host, string? language)
+        : base(source ?? string.Empty, palette, engine, language, host)
     {
         // A fenced block draws uncoloured until its language has been read against it, which happens off the
         // way to drawing. When it lands, this is what shows it — the same refresh a ticked item uses.
@@ -248,7 +250,15 @@ public sealed class MarkdownElement : LinkedElement
             });
         }
 
-        return [];
+        // Content in one language answers for itself wherever nothing else is written inside it.
+        if (WrittenIn is not { } named) return [];
+
+        return ContentEngine.Language(named).Editing.Offers(new ContentAsk(named, Markdown)
+        {
+            Part = part,
+            Chosen = Chosen(part.Ancestors().LastOrDefault() ?? part),
+            IsReadOnly = IsReadOnly,
+        });
     }
 
     /// <summary>What is picked out inside a piece of content, said as offsets into that content's own source.</summary>

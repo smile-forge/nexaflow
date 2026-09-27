@@ -265,7 +265,7 @@ public class FormulaEditingTests
     private static void InFormula(string latex, Action<MarkdownSurface, DocumentBlock> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex,
                                                      editor => test(editor, MarkdownEditorHarness.Block(editor)),
-                                                     editor => editor.SingleBlock = "latex"));
+                                                     editor => editor.WrittenIn = "latex"));
 
     /// <summary>The caret <paramref name="at"/> characters into the formula's LaTeX.</summary>
     private static void At(DocumentBlock formula, int at) => formula.TakeCaret(formula.Origin + at);

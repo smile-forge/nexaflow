@@ -20,8 +20,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 ///
 /// <para>
 /// <strong>Two things decide what it is.</strong> <see cref="IsReadOnly"/> — a reply from the assistant is only read,
-/// a document open in its own tab is written in — and <see cref="SingleBlock"/>, which makes it one block of one
-/// language rather than a document: the Solver's formula field is this control holding nothing but LaTeX. Everything
+/// a document open in its own tab is written in — and <see cref="WrittenIn"/>, which makes it content in one language
+/// rather than a document: the Solver's formula field is this control holding nothing but LaTeX. Everything
 /// else is how it is drawn and what the host is told.
 /// </para>
 /// <para>
@@ -59,12 +59,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private readonly ContentEngine _engine = new();
 
     /// <summary>
-    /// The document as it was read — the tree the laid layout was drawn from, reached through any part it drew, so the
-    /// document is read once and every question about what it is made of is asked of that one reading. A paragraph that
-    /// needed no piece of its own is still a paragraph in it.
+    /// The document as it was read — the tree the laid layout was drawn from, as the engine last read it — so the document is
+    /// read once and every question about what it is made of is asked of that one reading. A paragraph that needed no piece
+    /// of its own is still a paragraph in it.
     /// </summary>
-    private ContentPart Read =>
-        _shown.Laid.Root.Part is ContentPart drawn ? drawn.Ancestors().LastOrDefault() ?? drawn : Unread;
+    private ContentPart Read => _engine.Reading?.Root ?? Unread;
 
     /// <summary>A document with nothing in it, for before anything has been laid.</summary>
     private static readonly ContentPart Unread = ContentPart.Of(ContentNode.Branch(MarkdownKinds.Document, []));
@@ -171,20 +170,25 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     }
 
     /// <summary>
-    /// Makes this one block of one language rather than a document — <c>latex</c>, <c>abc</c>, any fenced language —
-    /// with <see cref="Markdown"/> carrying only that language's own text. What says "this is maths" (<c>$$</c>) or "this
-    /// is a tune" (a fence) is put round it to be drawn and taken off again on the way out, so the host never sees or has
-    /// to keep it. Empty, the default, for a document.
+    /// What the content is written in, where it is one language rather than a markdown document — <c>latex</c>, <c>abc</c>,
+    /// any language a fence can name — with <see cref="Markdown"/> carrying only that language's own text, laid out by that
+    /// language alone. Empty, the default, for a document.
     /// </summary>
-    public static readonly DependencyProperty SingleBlockProperty = DependencyProperty.Register(
-        nameof(SingleBlock), typeof(string), typeof(MarkdownSurface),
-        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Reframe()));
+    public static readonly DependencyProperty WrittenInProperty = DependencyProperty.Register(
+        nameof(WrittenIn), typeof(string), typeof(MarkdownSurface),
+        new PropertyMetadata(null, (surface, _) => ((MarkdownSurface)surface).Rewritten()));
 
-    public string? SingleBlock
+    public string? WrittenIn
     {
-        get => (string?)GetValue(SingleBlockProperty);
-        set => SetValue(SingleBlockProperty, value);
+        get => (string?)GetValue(WrittenInProperty);
+        set => SetValue(WrittenInProperty, value);
     }
+
+    /// <summary>The language the content is written in, or null for a document.</summary>
+    private string? Named => string.IsNullOrWhiteSpace(WrittenIn) ? null : WrittenIn.Trim();
+
+    /// <summary>Whether the content is a formula, which a palette key types into wherever the caret is.</summary>
+    private bool Maths => Named?.ToLowerInvariant() is "latex" or "math" or "tex";
 
     /// <summary>
     /// Shows the characters written rather than what they draw — for when the drawing itself is the trouble, a formula that
@@ -361,9 +365,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>A new document from outside — not something written here, which never comes back this way.</summary>
     private void Shows(string markdown)
     {
-        if (_telling || string.Equals(Unframed(_shown.Markdown), markdown, StringComparison.Ordinal)) return;
+        if (_telling || string.Equals(_shown.Markdown, markdown, StringComparison.Ordinal)) return;
 
-        _shown.Markdown = Framed(markdown);
+        _shown.Markdown = markdown;
 
         Settled();
     }
@@ -373,9 +377,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     {
         _history.Clear();
 
-        // A field holding one block is written at the end of what it holds; a document is read from its top.
-        var (start, length) = Inner;
-        _shown.Restore(_shown.Current.MoveCaretTo(string.IsNullOrEmpty(SingleBlock) ? 0 : start + length));
+        // A field holding one language is written at the end of what it holds; a document is read from its top.
+        _shown.Restore(_shown.Current.MoveCaretTo(Named is null ? 0 : _shown.Markdown.Length));
 
         HoldAsWritten();
         _last = _shown.Current;
@@ -416,14 +419,14 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _drawnIn = style;
         _engine.Inputs = Asked;
 
-        var element = new MarkdownElement(source, style, this, _engine)
+        var element = new MarkdownElement(source, style, this, _engine, Named)
         {
             IsReadOnly = IsReadOnly,
             Margin = ContentPadding,
         };
 
         element.SourceChanged += (_, _) => Written();
-        element.CaretMoved += (_, _) => { Confined(); Moved(); Reveal(); };
+        element.CaretMoved += (_, _) => { Moved(); Reveal(); };
         element.SelectionChanged += (_, _) => Moved();
 
         _scroller.Content = element;
@@ -443,20 +446,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         element.OnScreen = new Rect(_scroller.HorizontalOffset, _scroller.VerticalOffset, _scroller.ViewportWidth, _scroller.ViewportHeight);
     }
 
-    /// <summary>
-    /// In one block of a language, keeps the caret in the host's own text: past either end are the delimiters that were
-    /// put round it to draw it, which are nobody's to write in.
-    /// </summary>
-    private void Confined()
-    {
-        if (string.IsNullOrEmpty(SingleBlock)) return;
-
-        var (start, length) = Inner;
-        var caret = _shown.Caret;
-
-        if (caret < start || caret > start + length) _shown.Restore(_shown.Current.MoveCaretTo(Math.Clamp(caret, start, start + length)));
-    }
-
     private void Padded()
     {
         _shown.Margin = ContentPadding;
@@ -473,66 +462,24 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _prompt.Visibility = !string.IsNullOrEmpty(Placeholder) && Markdown.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // ── One block of one language ───────────────────────────────────────────
+    // ── What it is written in ───────────────────────────────────────────────
 
-    /// <summary>What goes either side of the text to make it the block it is. Maths is delimited, not fenced — a <c>```latex</c> block would be a listing of LaTeX, not a formula.</summary>
-    private (string Open, string Close) Fence =>
-        SingleBlock?.Trim().ToLowerInvariant() switch
-        {
-            null or "" => (string.Empty, string.Empty),
-            "latex" or "math" or "tex" => ("$$\n", "\n$$"),
-            var language => ("```" + language + "\n", "\n```"),
-        };
-
-    /// <summary>What the element is given for what the host said: the text inside whatever makes it the block it is.</summary>
-    private string Framed(string markdown) => Fence.Open + markdown + Fence.Close;
-
-    /// <summary>What the host is told for what the element holds: the text without what was put round it to draw it.</summary>
-    private string Unframed(string source)
-    {
-        var (open, close) = Fence;
-        if (open.Length == 0) return source;
-
-        return source.Length >= open.Length + close.Length
-               && source.StartsWith(open, StringComparison.Ordinal)
-               && source.EndsWith(close, StringComparison.Ordinal)
-            ? source[open.Length..^close.Length]
-            : source;
-    }
-
-    /// <summary>Where the host's own text lies in what the element holds.</summary>
-    private (int Start, int Length) Inner
-    {
-        get
-        {
-            var source = _shown.Markdown;
-            var (open, close) = Fence;
-            var framed = open.Length > 0 && !ReferenceEquals(Unframed(source), source);
-
-            return framed ? (open.Length, source.Length - open.Length - close.Length) : (0, source.Length);
-        }
-    }
-
-    /// <summary>Re-reads the same text as the block it now is — a document, or one block of a language.</summary>
-    private void Reframe()
+    /// <summary>Reads the same text again as what it now is — a document, or content in one language.</summary>
+    private void Rewritten()
     {
         if (_shown is null) return;
 
-        _shown.Markdown = Framed(Markdown ?? string.Empty);
+        Remake();
         Settled();
     }
 
-    /// <summary>
-    /// Keeps the text shown as it was written while <see cref="EditAsSource"/> says so — the whole of it, or the whole of
-    /// the block's own text where it is one block, so the delimiters that were never the host's are not shown either.
-    /// </summary>
+    /// <summary>Keeps the whole text shown as it was written while <see cref="EditAsSource"/> says so.</summary>
     private void HoldAsWritten()
     {
         if (_shown is null) return;
 
         var state = _shown.Current;
-        var (start, length) = Inner;
-        var whole = new RawZone(start, start + length);
+        var whole = new RawZone(0, state.Source.Length);
 
         // Let go of only what this held open: a command being spelled is the writer's, and stays shown as they spell it.
         RawZone? wanted = EditAsSource ? whole : state.Raw == whole ? null : state.Raw;
@@ -588,7 +535,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             return new DiagramActions(DiagramExpand, DiagramSelect, _engine.Opened(part)) { Shown = _shown }.Invoke(act);
         }
 
-        return null;
+        // Content in one language is one diagram, where it is one.
+        return Named is null ? null : new DiagramActions(DiagramExpand, DiagramSelect, _engine.Opened(Read)) { Shown = _shown }.Invoke(act);
     }
 
     /// <inheritdoc/>
@@ -649,9 +597,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         return Blocked(piece.Sits().Start) is { } block && Where(block) is { IsEmpty: false } box && box.Contains(at) ? block : null;
     }
 
-    /// <summary>The block of the document an offset is in.</summary>
+    /// <summary>The block of the document an offset is in — the whole of it, where it is content in one language.</summary>
     private ContentPart? Blocked(int offset)
     {
+        if (Named is not null) return Read;
+
         foreach (var block in Read.Children)
             if (!block.Derived && block.Role != Roles.Trivia && offset >= block.Start && offset < block.End)
                 return block;
@@ -673,6 +623,9 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private Rect Where(ContentPart block)
     {
         Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _shown.Laid.Size.Width), box.Height);
+
+        // Content in one language is one block, and all of what was laid is it.
+        if (block.Parent is null) return new Rect(_shown.Laid.Size);
 
         foreach (var whole in _shown.Laid.Root.Children)
         {
@@ -746,6 +699,10 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             var ask = new ContentAsk(ContentNested.Language(at)!, at.Part(Roles.Body)!.Text) { Part = block, IsReadOnly = IsReadOnly };
             return language.Editing.Corner(ask);
         }
+
+        // Content in one language is one block of it.
+        if (Named is { } named)
+            return ContentEngine.Language(named).Editing.Corner(new ContentAsk(named, _shown.Markdown) { Part = block, IsReadOnly = IsReadOnly });
 
         // Prose is read rather than handled: it is no picture to keep, and copying it is what selecting it is for.
         return BlockCorner.None;

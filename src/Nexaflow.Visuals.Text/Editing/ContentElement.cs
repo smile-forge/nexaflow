@@ -139,6 +139,9 @@ public class ContentElement : FrameworkElement
     /// <summary>What the content is written in, or null for markdown.</summary>
     private readonly string? _language;
 
+    /// <summary>What the content is written in, or null for markdown.</summary>
+    protected string? WrittenIn => _language;
+
     /// <summary>Where an edit is landing, for the content to make what it will of it.</summary>
     private Landing Landing => new(_state, _laid, _at);
 

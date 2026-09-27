@@ -181,7 +181,7 @@ public class SingleFormulaEditorTests
         {
             var formula = Focused(editor);
             var end = formula.Laid.Root.CaretRect(formula.Origin + formula.Latex.Length);
-            var at = new System.Windows.Point(end.X - 2, end.Y + (end.Height / 2));
+            var at = new System.Windows.Point(end.X, end.Y + (end.Height / 2));
 
             formula.BeginPointerSelect(at);
             formula.ExtendPointerSelect(new System.Windows.Point(at.X + 1, at.Y));   // a hand, not a drag
@@ -517,7 +517,7 @@ public class SingleFormulaEditorTests
 
             Assert.AreEqual(@"\frac{a}{b}", editor.Markdown, "and it still holds what it was given");
         },
-        e => { e.SingleBlock = "latex"; e.Visibility = System.Windows.Visibility.Collapsed; }));
+        e => { e.WrittenIn = "latex"; e.Visibility = System.Windows.Visibility.Collapsed; }));
     }
 
     // ── One caret ───────────────────────────────────────────────────────────
@@ -533,7 +533,7 @@ public class SingleFormulaEditorTests
             Assert.IsTrue(editor.Shown.HasCaret, "the editor is focused, so there is a caret");
             Assert.IsTrue(editor.InFormula(), "and it is in the formula");
 
-            editor.SingleBlock = null;   // the same text read as a document, where it is a word
+            editor.WrittenIn = null;   // the same text read as a document, where it is a word
             Assert.IsFalse(editor.InFormula(), "a document's words are not a formula");
         });
     }
@@ -542,7 +542,7 @@ public class SingleFormulaEditorTests
 
     /// <summary>Runs <paramref name="test"/> against an editor holding <paramref name="latex"/> as one formula.</summary>
     private static void RunInFormula(string latex, System.Action<MarkdownSurface> test) =>
-        UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.SingleBlock = "latex"));
+        UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.WrittenIn = "latex"));
 
     /// <summary>The formula, with the caret put in it where it was not already.</summary>
     private static DocumentBlock Focused(MarkdownSurface editor)

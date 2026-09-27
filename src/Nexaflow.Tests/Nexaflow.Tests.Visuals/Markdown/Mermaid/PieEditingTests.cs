@@ -44,7 +44,7 @@ public class PieEditingTests
 
             test(editor, pie!);
         },
-        editor => editor.SingleBlock = "mermaid");
+        editor => editor.WrittenIn = "mermaid");
 
     /// <summary>Presses just past the last digit of a slice's value, where it is drawn in the legend.</summary>
     private static void PressPastTheValue(DocumentBlock pie, string number)
@@ -432,7 +432,7 @@ public class PieEditingTests
             Assert.IsTrue(pie.SelectionLength < title.Sits().Length,
                           $"part of the title, not all {title.Sits().Length} characters of it");
         },
-        editor => editor.SingleBlock = "mermaid"));
+        editor => editor.WrittenIn = "mermaid"));
 
     [TestMethod]
     public void TheShareWrittenOnASliceIsNowhereToPutACaret() => UiThread.Run(() =>

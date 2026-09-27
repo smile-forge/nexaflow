@@ -27,8 +27,7 @@ public sealed partial class MarkdownSurface
         Focus();
         Keyboard.Focus(this);
 
-        var (start, length) = Inner;
-        _shown.TakeCaret(start + length);
+        _shown.TakeCaret(_shown.Markdown.Length);
     }
 
     // ── Blocks from the host ────────────────────────────────────────────────
@@ -41,12 +40,11 @@ public sealed partial class MarkdownSurface
     {
         if (string.IsNullOrWhiteSpace(markdown) || IsReadOnly) return;
 
-        if (!string.IsNullOrEmpty(SingleBlock))
+        if (Named is not null)
         {
-            if (InsertLatexAtCaret(markdown)) return;
+        if (InsertLatexAtCaret(markdown)) return;
 
-            var (start, length) = Inner;
-            Write(_shown.Current.MoveCaretTo(start + length).Insert(markdown));
+        Write(_shown.Current.MoveCaretTo(_shown.Markdown.Length).Insert(markdown));
 
             return;
         }
@@ -136,7 +134,7 @@ public sealed partial class MarkdownSurface
     {
         if (IsReadOnly || ContentDropped?.Invoke(data, pointInEditor) == true) return;
 
-        var maths = SingleBlock?.Trim().ToLowerInvariant() is "latex" or "math" or "tex";
+        var maths = Maths;
         var text = maths ? MarkdownClipboard.AsFormula(MarkdownClipboard.ReadPlainText(data)) : MarkdownClipboard.ReadBestMarkdown(data);
         if (string.IsNullOrEmpty(text)) return;
 
@@ -149,9 +147,8 @@ public sealed partial class MarkdownSurface
         }
 
         var at = Offset(pointInEditor) ?? _shown.Markdown.Length;
-        var (start, length) = Inner;
 
-        Write(_shown.Current.MoveCaretTo(Math.Clamp(at, start, start + length)).Insert(text.ReplaceLineEndings("\n")));
+        Write(_shown.Current.MoveCaretTo(at).Insert(text.ReplaceLineEndings("\n")));
     }
 
     /// <summary>The offset of the source drawn at a point on this control, or null where nothing is drawn there.</summary>
@@ -171,6 +168,8 @@ public sealed partial class MarkdownSurface
     /// <summary>Whether the caret — or where what is picked out starts — is in a formula, which a palette key types into and a paste is cleaned up for.</summary>
     public bool InFormula()
     {
+        if (Maths) return true;
+
         var state = _shown.Current;
         return Formula(state.HasSelection ? state.SelectionStart : state.Caret) is not null;
     }

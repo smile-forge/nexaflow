@@ -74,6 +74,12 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     private ContentInputs _inputs = inputs ?? ContentInputs.None;
 
     /// <summary>
+    /// What the content read to when it was last laid out — its worked-over tree, the one the layout was drawn from — or null
+    /// before it has been.
+    /// </summary>
+    public ContentReading? Reading { get; private set; }
+
+    /// <summary>
     /// <paramref name="state"/>'s source laid out at <paramref name="room"/>, written in the language called
     /// <paramref name="named"/> — or in markdown, where nothing names one.
     /// </summary>
@@ -88,7 +94,9 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged };
         var staged = Staged(top, showing);
 
-        return language.Builder(ContentReading.Of(staged, 0, state.Source), showing).Lay(room);
+        Reading = ContentReading.Of(staged, 0, state.Source);
+
+        return language.Builder(Reading, showing).Lay(room);
     }
 
     /// <summary>
@@ -131,7 +139,7 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     }
 
     /// <summary>What language content called <paramref name="named"/> is written in: markdown where nothing names one, and plain code where nothing reads what does.</summary>
-    private static ContentLanguage Language(string? named) =>
+    internal static ContentLanguage Language(string? named) =>
         named is null ? ContentLanguages.Markdown : ContentLanguages.For(named) ?? ContentLanguages.Code;
 
     /// <summary>The content asked for, parsed — and every piece in it written in another language, parsed by that language.</summary>
@@ -261,9 +269,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
                 _views[piece.At] = _opened.Next();
     }
 
-    /// <summary>What the reader has opened in the diagram <paramref name="holder"/> holds, or null where nothing says.</summary>
+    /// <summary>
+    /// What the reader has opened in the diagram <paramref name="holder"/> holds — or in the content itself, where
+    /// <paramref name="holder"/> is the whole of it and it is a diagram — or null where nothing says.
+    /// </summary>
     public DiagramViewState? Opened(ContentPart holder) =>
-        holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
+        holder.Parent is null ? _top
+        : holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
 
     /// <summary>
     /// What <paramref name="holder"/> holds in another language, worked over and laid out at <paramref name="room"/> — or null

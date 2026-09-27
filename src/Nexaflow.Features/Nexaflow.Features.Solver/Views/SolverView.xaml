@@ -233,8 +233,8 @@
                             <md:MarkdownSurface x:Name="LatexInput" IsReadOnly="False" VerticalScrollBarVisibility="Auto"
                                                      AutomationProperties.AutomationId="Solver_LatexInput"
                                                      Visibility="{Binding IsLatexMode, Converter={StaticResource BoolToVis}}"
+                                                     WrittenIn="latex"
                                                      Markdown="{Binding LatexText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     SingleBlock="latex"
                                                      EditAsSource="{Binding ShowsSource}"
                                                      ContentPadding="10,8"
                                                      Placeholder="Type a formula…"/>

@@ -208,8 +208,7 @@ public sealed partial class MarkdownSurface
     /// </summary>
     public void SelectAll()
     {
-        var (start, length) = Inner;
-        _shown.Restore(_shown.Current.Select(start, length));
+        _shown.Restore(_shown.Current.Select(0, _shown.Markdown.Length));
     }
 
     /// <summary>

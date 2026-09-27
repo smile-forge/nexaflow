@@ -72,7 +72,7 @@ public sealed partial class MarkdownSurface
     private void Told()
     {
         _telling = true;
-        try { SetCurrentValue(MarkdownProperty, Unframed(_shown.Markdown)); }
+        try { SetCurrentValue(MarkdownProperty, _shown.Markdown); }
         finally { _telling = false; }
 
         Prompted();

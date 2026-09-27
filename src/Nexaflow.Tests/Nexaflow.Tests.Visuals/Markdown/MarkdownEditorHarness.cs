@@ -12,6 +12,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
+using Nexaflow.Visuals.Text.Markdown.Latex;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -38,7 +39,7 @@ internal static class MarkdownEditorHarness
     /// <summary>Shows an editor loaded with <paramref name="markdown"/>, runs <paramref name="test"/>, closes it.</summary>
     /// <param name="configure">
     /// Applied before the text is loaded, for the properties that change what the document even is —
-    /// <see cref="MarkdownSurface.SingleBlock"/> decides whether the text is framed as maths, so setting it afterwards
+    /// <see cref="MarkdownSurface.WrittenIn"/> decides whether the text is a document or maths, so setting it afterwards
     /// would mean loading the text once as the wrong thing.
     /// </param>
     public static void Run(string markdown, Action<MarkdownSurface> test, Action<MarkdownSurface>? configure = null)
@@ -125,16 +126,9 @@ internal static class MarkdownEditorHarness
         editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
     }
 
-    /// <summary>
-    /// Puts the caret <paramref name="at"/> characters into the markdown the editor was handed — which in one block of a
-    /// language is that language's own text, not the delimiters the editor put round it to draw it.
-    /// </summary>
+    /// <summary>Puts the caret <paramref name="at"/> characters into the markdown the editor was handed.</summary>
     public static void PlaceCaret(MarkdownSurface editor, int at) =>
-        editor.Shown.TakeCaret(Framing(editor) + Math.Clamp(at, 0, editor.Markdown.Length));
-
-    /// <summary>Where the host's own text starts in what the editor holds.</summary>
-    private static int Framing(MarkdownSurface editor) =>
-        string.IsNullOrEmpty(editor.SingleBlock) ? 0 : editor.Shown.Markdown.IndexOf('\n') + 1;
+        editor.Shown.TakeCaret(Math.Clamp(at, 0, editor.Markdown.Length));
 
     /// <summary>Puts the caret at the start of the <paramref name="block"/>th block of the document.</summary>
     public static void CaretAtStartOf(MarkdownSurface editor, int block) => editor.Shown.TakeCaret(Blocked(editor, block).Start);
@@ -211,14 +205,23 @@ internal static class MarkdownEditorHarness
     /// <summary>The <paramref name="index"/>th block of another language in the document — a diagram, a formula, a tune.</summary>
     public static DocumentBlock Block(MarkdownSurface editor, int index = 0) => new(editor, index);
 
-    /// <summary>Every block of another language the document drew, in the order written.</summary>
-    internal static IReadOnlyList<ContentPart> Blocks(MarkdownSurface editor) =>
-        [.. editor.Shown.Laid.Root.SelfAndDescendants()
-            .Select(piece => piece.Part as ContentPart)
+    /// <summary>Every block of another language the document drew, in the order written — or the whole of it, where it is written in one.</summary>
+    internal static IReadOnlyList<ContentPart> Blocks(MarkdownSurface editor)
+    {
+        var drawn = editor.Shown.Laid.Root.SelfAndDescendants()
+            .Select(piece => piece.Part switch { ContentPart part => part, TexSourcePart tex => tex.Of, _ => null })
             .OfType<ContentPart>()
+            .ToList();
+
+        // Nothing written yet is still the one block, and the one about to be written.
+        if (!string.IsNullOrEmpty(editor.WrittenIn))
+            return [drawn.Count == 0 ? ContentPart.Of(ContentNode.Shown(editor.Markdown)) : drawn[0].Ancestors().LastOrDefault() ?? drawn[0]];
+
+        return [.. drawn
             .Where(part => part.Kind is MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Formula)
             .Distinct()
             .OrderBy(part => part.Start)];
+    }
 }
 
 /// <summary>
@@ -273,10 +276,10 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     /// Where the text a host would call the block's begins: in one block of a language, the host's own text; in a
     /// document, the block's.
     /// </summary>
-    public int Origin => string.IsNullOrEmpty(editor.SingleBlock) ? Start : Element.Markdown.IndexOf('\n') + 1;
+    public int Origin => string.IsNullOrEmpty(editor.WrittenIn) ? Start : 0;
 
     /// <summary>The block's own text — a formula's LaTeX, a diagram's lines — as a host would be handed it.</summary>
-    public string Latex => string.IsNullOrEmpty(editor.SingleBlock) ? Element.Markdown.Substring(Start, End - Start) : editor.Markdown;
+    public string Latex => string.IsNullOrEmpty(editor.WrittenIn) ? Element.Markdown.Substring(Start, End - Start) : editor.Markdown;
 
     /// <summary>What is laid, which a block is pieces of.</summary>
     public Laid Laid => Element.Laid;

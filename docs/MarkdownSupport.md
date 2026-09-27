@@ -23,7 +23,7 @@ and [extensions](https://xoofx.github.io/markdig/docs/extensions/) docs.
   markdown builder asks for it, and grafted in where its fence was, so its pieces are selectable in the document that
   holds them.
 - **Surface:** [`MarkdownSurface`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) is the one control every
-  markdown host uses — read-only or written in, a whole document or one block of a language (`SingleBlock`). It
+  markdown host uses — read-only or written in, a whole document or content in one language (`WrittenIn`). It
   draws the whole document on one element; there is no text box underneath.
 - **Consequence:** a feature can be *parsed* by an enabled extension yet not *drawn* if the builder has no case for
   it. The tables below track **drawn** support, which is what actually matters.
@@ -1712,23 +1712,22 @@ in the wrong place, a duration mis-scaled — moves a head, and that is where it
 `.abc` and `.ly` open in the **markdown tab**, each as the one block it is rather than as a document that
 contains one.
 
-The mechanism is `MarkdownSurface.SingleBlock` — a fenced language name, or empty for a document. The
-surface owns the fence: the host hands it the tune, the surface puts a ```` ```abc ```` or ```` ```lilypond ````
-around it to render, and takes it off again on the way out. So `MarkdownViewModel.Markdown` holds the tune
-and nothing else, `Save`
-writes exactly what was read, and **the bytes on disk never carry a wrapper**. A file that was never
-markdown does not become markdown by having been opened.
+The mechanism is `MarkdownSurface.WrittenIn` — the name of a language a fence can name, or empty for a
+document. The surface's engine lays the text out in that language alone: nothing is put round it to say what
+it is, so `MarkdownViewModel.Markdown` holds the tune and nothing else, `Save` writes exactly what was read,
+and **the bytes on disk never carry a wrapper**. A file that was never markdown does not become markdown by
+having been opened. Laid out by its own language, it is drawn as that language draws it — at the body size
+and from the left edge, not centred as a block in a document is.
 
-That property was already there for maths — it is how the Solver's LaTeX tab has always worked, with `$$`
-instead of a fence — and was called `SingleFormula`. ABC is what made it worth generalising: the concept is
-"one block of one language", and only the delimiters were ever LaTeX's.
+The Solver's LaTeX tab is the same property holding `latex`: the concept is "content in one language", and
+maths is one of them.
 
 | Touch point | Where |
 |---|---|
 | Which extensions are one block, and in what language | [`SingleBlockFiles`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/SingleBlockFiles.cs) — one row per file type |
 | The tab that opens | [`ShowMusicAction`](../src/Nexaflow.Features/Nexaflow.Features.Markdown/FileActions/ShowMusicAction.cs), experience `/text/music` |
 | The extension → experience mapping | `default-filemap.json` |
-| The editor property | [`MarkdownSurface.SingleBlock`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) |
+| The editor property | [`MarkdownSurface.WrittenIn`](../src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.cs) |
 
 Adding another notation is a row in `SingleBlockFiles`, a filemap entry, and nothing else — the reading,
 the rendering, the inline editing, the dirty tracking and the saving are the markdown tab's, unchanged.
