@@ -162,7 +162,7 @@ public sealed partial class MarkdownSurface
     /// </summary>
     private bool InWords()
     {
-        if (!string.IsNullOrEmpty(SingleBlock) || InFormula()) return false;
+        if (Named is not null || InFormula()) return false;
 
         return Holding(_shown.Caret) is not { } block
                || block.Kind is not (MarkdownKinds.Fence or MarkdownKinds.Math or MarkdownKinds.Code or MarkdownKinds.Html

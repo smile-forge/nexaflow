@@ -66,7 +66,7 @@ public class MarkdownLayoutBench
         docs.Add(Path.GetFullPath(Path.Combine(TestSampleData.Root, "..", "docs", "MarkdownSupport.md")));
 
         var style = StyleFormat.Dark;
-        var options = new DiagramRenderOptions { Palette = style, ReadOnly = false };
+        var inputs = ContentInputs.None;
 
         var rows = new List<Dictionary<string, object>>();
         var languages = new Dictionary<string, (int Count, double Ms)>();
@@ -76,7 +76,7 @@ public class MarkdownLayoutBench
         foreach (var path in docs)
         {
             var text = File.ReadAllText(path);
-            rows.Add(Document(Path.GetFileName(path), text, style, options, languages, stages, kinds));
+            rows.Add(Document(Path.GetFileName(path), text, style, inputs, languages, stages, kinds));
         }
 
         var run = new Dictionary<string, object>
@@ -97,7 +97,7 @@ public class MarkdownLayoutBench
             ["languages"] = Listed(languages),
             ["languageStages"] = Listed(stages),
             ["blockKinds"] = Listed(kinds),
-            ["memory"] = Memory(File.ReadAllText(docs[^1]), style, options),
+            ["memory"] = Memory(File.ReadAllText(docs[^1]), style, inputs),
         };
 
         Directory.CreateDirectory(folder!);
@@ -108,28 +108,28 @@ public class MarkdownLayoutBench
     });
 
     /// <summary>One document, step by step.</summary>
-    private static Dictionary<string, object> Document(string name, string text, StyleFormat style, DiagramRenderOptions options,
+    private static Dictionary<string, object> Document(string name, string text, StyleFormat style, ContentInputs inputs,
                                                        Dictionary<string, (int Count, double Ms)> languages,
                                                        Dictionary<string, (int Count, double Ms)> stages,
                                                        Dictionary<string, (int Count, double Ms)> kinds)
     {
-        var (open, openKb) = Cost(() => MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false));
+        var (open, openKb) = Cost(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
 
         // A keystroke: the same content, laid again with one more character in the middle — a different one each time,
         // so nothing laid before is the answer.
-        var content = MarkdownContent.Of(style, new ContentEngine(options));
-        content.Lay(EditState.For(text), Room, false);
+        var content = new ContentEngine(inputs);
+        content.Lay(null, EditState.For(text), style, Room, false);
         var middle = Middle(text);
         var typed = 0;
-        var (edit, editKb) = Cost(() => content.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false));
+        var (edit, editKb) = Cost(() => content.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false));
 
         ContentNode read = null!;
         var tRead = Median(() => read = MarkdownParser.Parsing()(text).Tree);
 
         IAstStage[] pipeline =
         [
-            new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(options.Pictures),
-            new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(options.Links),
+            new Nexaflow.Visuals.Text.Markdown.Stages.WithImages(inputs.Pictures),
+            new Nexaflow.Visuals.Text.Markdown.Stages.WithLinks(inputs.Links),
 
             // Timed against itself: from the second run every block is the one it was, so every block is compared whole.
             new Nexaflow.Visuals.Text.Markdown.Stages.WithUnchanged(),
@@ -153,7 +153,7 @@ public class MarkdownLayoutBench
         // Laying out is the engine's, parse and all: what building costs is what is left of laying it out once reading it and
         // working it over are taken away.
         Laid laid = null!;
-        var whole = Median(() => laid = Laying.Lay(null, text, Room, style, writing: true, options: options));
+        var whole = Median(() => laid = Laying.Lay(null, text, Room, style, writing: true, inputs: inputs));
         var build = Math.Max(0, whole - tRead - staged.Values.Sum(Convert.ToDouble));
 
         var nested = 0.0;
@@ -168,11 +168,11 @@ public class MarkdownLayoutBench
             var (start, length) = ContentNested.Own(body);
             var own = text.Substring(start, length);
 
-            var t = Median(() => Laying.Lay(named, own, Room, style, writing: true, options: options));
+            var t = Median(() => Laying.Lay(named, own, Room, style, writing: true, inputs: inputs));
             nested += t;
             Add(languages, named, t);
 
-            Language(named, own, style, options, stages);
+            Language(named, own, style, inputs, stages);
         }
 
         foreach (var block in reading.Root.Children.Where(part => part.Role != Roles.Trivia && !part.Derived))
@@ -183,28 +183,28 @@ public class MarkdownLayoutBench
 
         // Painting what was just laid, as a keystroke does; and painting the same tree again, as a caret blink or a
         // change of selection does — the two differ by whatever painting keeps from one time to the next.
-        var (paint, paintKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, options: options),
+        var (paint, paintKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, inputs: inputs),
                           fresh => Painted(fresh, style));
         var repaint = Median(() => Painted(laid, style));
 
         // The same, as a window showing a screen of it paints it: only what is near the screen.
-        var (paintShown, paintShownKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, options: options),
+        var (paintShown, paintShownKb) = Timed(() => Laying.Lay(null, text, Room, style, writing: true, inputs: inputs),
                                                fresh => Painted(fresh, style, Screen));
 
         // Painting what a keystroke laid, where the page was painted before it: what was kept of the blocks nobody typed in
         // is drawn as it was, and only the block typed in is painted.
-        var painter = MarkdownContent.Of(style, new ContentEngine(options));
-        Painted(painter.Lay(EditState.For(text), Room, false), style);
+        var painter = new ContentEngine(inputs);
+        Painted(painter.Lay(null, EditState.For(text), style, Room, false), style);
         var retyped = 0;
-        var (editPaint, editPaintKb) = Timed(() => painter.Lay(EditState.For(text.Insert(middle, new string('x', ++retyped))), Room, false),
+        var (editPaint, editPaintKb) = Timed(() => painter.Lay(null, EditState.For(text.Insert(middle, new string('x', ++retyped))), style, Room, false),
                                              typedIn => Painted(typedIn, style));
 
         // What a document open for writing holds on to once it is on the page: its tree, the pictures its blocks keep,
         // and the reading kept so the next keystroke knows which blocks it has not touched.
         var retained = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, new ContentEngine(options));
-            var shown = held.Lay(EditState.For(text), Room, false);
+            var held = new ContentEngine(inputs);
+            var shown = held.Lay(null, EditState.For(text), style, Room, false);
             Painted(shown, style);
 
             return (held, shown);
@@ -212,8 +212,8 @@ public class MarkdownLayoutBench
 
         var retainedShown = Retained(() =>
         {
-            var held = MarkdownContent.Of(style, new ContentEngine(options));
-            var shown = held.Lay(EditState.For(text), Room, false);
+            var held = new ContentEngine(inputs);
+            var shown = held.Lay(null, EditState.For(text), style, Room, false);
             Painted(shown, style, Screen);
 
             return (held, shown);
@@ -250,7 +250,7 @@ public class MarkdownLayoutBench
     }
 
     /// <summary>A nested language's own parse and each of its stages, and what laying it out costs whole.</summary>
-    private static void Language(string language, string source, StyleFormat style, DiagramRenderOptions options,
+    private static void Language(string language, string source, StyleFormat style, ContentInputs inputs,
                                  Dictionary<string, (int Count, double Ms)> stages)
     {
         try
@@ -260,14 +260,14 @@ public class MarkdownLayoutBench
             var parse = read.Parser();
             var tree = Time(stages, $"{language}: parse", () => parse(source).Tree);
 
-            var showing = new ContentShowing(language, style, false, null, 0, options)
+            var showing = new ContentShowing(language, style, false, null, 0, inputs)
             {
                 Nesting = Laying.NestingNothing,
                 Reads = ContentLanguages.Reads,
             };
 
             Staged(stages, language, tree, read.Stages(tree, showing).OfType<IAstStage>());
-            Time(stages, $"{language}: lay", () => Laying.Lay(language, source, Room, style, options: options));
+            Time(stages, $"{language}: lay", () => Laying.Lay(language, source, Room, style, inputs: inputs));
         }
         catch (Exception ex)
         {
@@ -432,7 +432,7 @@ public class MarkdownLayoutBench
     /// reading, the laid tree, the pictures kept of its blocks, and all of it as an open document holds it — and what opening
     /// it and typing in it allocate, by type, sampled by the runtime about every hundred KB.
     /// </summary>
-    private static Dictionary<string, object> Memory(string text, StyleFormat style, DiagramRenderOptions options)
+    private static Dictionary<string, object> Memory(string text, StyleFormat style, ContentInputs inputs)
     {
         void Paint(Laid laid)
         {
@@ -442,7 +442,7 @@ public class MarkdownLayoutBench
         }
 
         // Every cache warmed first, so what is held is what the document holds.
-        Paint(MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false));
+        Paint(new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false));
 
         static long Heap() => GC.GetTotalMemory(forceFullCollection: true);
 
@@ -451,7 +451,7 @@ public class MarkdownLayoutBench
         var read = Heap();
         var reading = ContentReading.Of(tree, 0, text);
         var positioned = Heap();
-        var laid = Laying.Lay(null, text, Room, style, writing: true, options: options);
+        var laid = Laying.Lay(null, text, Room, style, writing: true, inputs: inputs);
         var built = Heap();
         Paint(laid);
         var painted = Heap();
@@ -472,15 +472,15 @@ public class MarkdownLayoutBench
         Thread.Sleep(500);
 
         var middle = Middle(text);
-        var typing = MarkdownContent.Of(style, new ContentEngine(options));
-        typing.Lay(EditState.For(text), Room, false);
+        var typing = new ContentEngine(inputs);
+        typing.Lay(null, EditState.For(text), style, Room, false);
         var typed = 0;
 
         return new Dictionary<string, object>
         {
             ["held"] = held,
-            ["openByType"] = allocations.Sampled(() => MarkdownContent.Of(style, new ContentEngine(options)).Lay(EditState.For(text), Room, false), 5),
-            ["editByType"] = allocations.Sampled(() => typing.Lay(EditState.For(text.Insert(middle, new string('x', ++typed))), Room, false), 10),
+            ["openByType"] = allocations.Sampled(() => new ContentEngine(inputs).Lay(null, EditState.For(text), style, Room, false), 5),
+            ["editByType"] = allocations.Sampled(() => typing.Lay(null, EditState.For(text.Insert(middle, new string('x', ++typed))), style, Room, false), 10),
         };
     }
 

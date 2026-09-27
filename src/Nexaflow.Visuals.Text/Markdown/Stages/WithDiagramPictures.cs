@@ -18,7 +18,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Stages;
 /// is missing.
 /// </para>
 /// </summary>
-/// <param name="find">What this showing of the block resolves a name against (<see cref="DiagramRenderOptions.Pictures"/>).</param>
+/// <param name="find">What this showing of the block resolves a name against (<see cref="ContentInputs.Pictures"/>).</param>
 public sealed class WithDiagramPictures(Func<string, ImageSource?>? find) : IAstStage
 {
     /// <summary>The role a found picture is hung under.</summary>

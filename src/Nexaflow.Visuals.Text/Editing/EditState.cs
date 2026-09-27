@@ -110,7 +110,7 @@ public sealed record EditState(
 
     /// <summary>
     /// Types one character: it replaces whatever is selected and lands at the caret. Content with its own
-    /// typing rule gets first refusal before this — see <see cref="IContent.Type"/>. LaTeX's own rule (a
+    /// typing rule gets first refusal before this — see <see cref="Markdown.ContentEngine.Typing"/>. LaTeX's own rule (a
     /// backslash opens a raw stretch, letters extend it) lives with LaTeX, not here, which is what makes
     /// <c>\alpha</c> show as itself while being typed instead of flickering through four failed parses.
     /// </summary>

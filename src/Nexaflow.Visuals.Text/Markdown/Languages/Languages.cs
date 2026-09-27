@@ -57,8 +57,8 @@ internal static class Shipped
         Parser: MarkdownParser.Parsing,
         Stages: static (_, show) =>
         [
-            new WithImages(show.Options?.Pictures),
-            new WithLinks(show.Options?.Links),
+            new WithImages(show.Inputs.Pictures),
+            new WithLinks(show.Inputs.Links),
 
             // Last of what is read, because a block is only the same as it was when everything worked out about it is too.
             show.Unchanged,
@@ -67,7 +67,10 @@ internal static class Shipped
             show.Shown is { } zone ? new ShowBlocksAsWritten(zone, show.At, show.Reads) : null,
         ],
         Builder: static (reading, show) =>
-            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting));
+            new MarkdownBuilder(reading, new EditState(reading.Source, 0, null, show.Shown), show.Style, !show.Writing, show.Nesting))
+        {
+            Editing = new MarkdownEditing(),
+        };
 
     /// <summary>
     /// Every kind of diagram Mermaid names, which all arrive under the one fence word. The block's header names the diagram,
@@ -97,8 +100,8 @@ internal static class Shipped
     /// <summary>What a host puts between reading a diagram and drawing it: what its words are bound against, and the pictures it names.</summary>
     private static IEnumerable<IAstStage?> Hosted(ContentShowing show) =>
     [
-        show.Options?.DataContext is { } data ? new WithBindings(data) : null,
-        new WithDiagramPictures(show.Options?.Pictures),
+        show.Inputs.Data is { } data ? new WithBindings(data) : null,
+        new WithDiagramPictures(show.Inputs.Pictures),
     ];
 
     /// <summary>A QR symbol — <see href="https://markdown.org/tools/diagrams/qr/"/>.</summary>
@@ -180,7 +183,7 @@ internal static class Shipped
     public static readonly ContentLanguage WordCloud = new(
         Reads: static word => "wordcloud".Equals(word?.Trim(), StringComparison.OrdinalIgnoreCase),
         Parser: static () => static source => ContentParse.Of(WordCloudParser.Parse(source)),
-        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Options?.Pictures), new ResolveCloud(), new ResolveWords()],
+        Stages: static (_, show) => [new WordCloud.Stages.WithPictures(show.Inputs.Pictures), new ResolveCloud(), new ResolveWords()],
         Builder: static (reading, show) => new WordCloudBuilder(reading, EditState.For(reading.Source), show.Style, true, show.Nesting));
 
     /// <summary>
@@ -195,6 +198,12 @@ internal static class Shipped
         {
             Editing = new CodeEditing(),
         };
+}
+
+/// <summary>What an edit means in a markdown document.</summary>
+internal sealed class MarkdownEditing : IContentLanguage
+{
+    public IOnEdit OnEdit => MarkdownEdits.Instance;
 }
 
 /// <summary>What an edit means in a Mermaid diagram.</summary>

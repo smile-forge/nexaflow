@@ -188,8 +188,8 @@ public class LilyPondCorpusParityTests
     /// </summary>
     private static void Picture(string abc, string ly, string file)
     {
-        var one = Engraved(abc, (source, room) => Laying.Engraved("abc", source, room, StyleFormat.Light));
-        var other = Engraved(ly, (source, room) => Laying.Engraved("lilypond", source, room, StyleFormat.Light));
+        var one = Engraved(abc, "abc");
+        var other = Engraved(ly, "lilypond");
 
         var height = one.PixelHeight + other.PixelHeight + 24;
         var visual = new DrawingVisual();
@@ -211,9 +211,9 @@ public class LilyPondCorpusParityTests
     }
 
     /// <summary>A source engraved as the page shows it, at the sweep's width.</summary>
-    private static RenderTargetBitmap Engraved(string source, Func<string, double, Laid> build)
+    private static RenderTargetBitmap Engraved(string source, string dialect)
     {
-        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, StyleFormat.Light, (state, room) => build(state.Source, room));
+        var element = new Nexaflow.Visuals.Text.Editing.ContentElement(source, StyleFormat.Light, new ContentEngine(), dialect) { IsReadOnly = true };
         element.Measure(new Size(Width, double.PositiveInfinity));
         element.Arrange(new Rect(new Point(0, 0), element.DesiredSize));
 

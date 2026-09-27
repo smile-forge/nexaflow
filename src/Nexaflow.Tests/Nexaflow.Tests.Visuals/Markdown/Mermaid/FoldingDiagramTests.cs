@@ -119,7 +119,7 @@ public class FoldingDiagramTests
 
         var surface = Shown(Src, host =>
         {
-            host.LinkNavigate = href => { followed.Add(href); return true; };
+            host.LinkNavigate += (_, e) => { followed.Add(e.Url); e.Handled = true; };
             host.DiagramExpand = asked => { opened.Add(asked); return true; };
         });
 
@@ -167,7 +167,7 @@ public class FoldingDiagramTests
     {
         var followed = new List<string>();
         var surface = Shown("graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com/a\"\n",
-                            host => host.LinkNavigate = href => { followed.Add(href); return true; });
+                            host => host.LinkNavigate += (_, e) => { followed.Add(e.Url); e.Handled = true; });
 
         Press(surface, Placed(surface, FlowchartPiece.Node).First());
 

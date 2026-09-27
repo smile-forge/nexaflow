@@ -61,10 +61,7 @@ public class ContentWordsTests
 
     private static ContentElement Element(bool readOnly = false)
     {
-        var element = new ContentElement(Source, StyleFormat.Dark, (state, _) => Lay(state))
-        {
-            IsReadOnly = readOnly,
-        };
+        var element = HandLaid.Element(Source, (state, _) => Lay(state), readOnly);
 
         element.Measure(new Size(400, double.PositiveInfinity));
         element.Arrange(new Rect(0, 0, 400, element.DesiredSize.Height));

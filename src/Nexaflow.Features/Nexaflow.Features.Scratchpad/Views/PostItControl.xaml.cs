@@ -48,7 +48,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
 
         // A clicked link (file path or URL) is dispatched by the shell to whichever feature
         // claims it; if none does, returning false lets the renderer open it in the OS browser.
-        Editor.LinkNavigate = url => Vm.OpenUrl?.Invoke(url) ?? false;
+        Editor.LinkNavigate += (_, e) => e.Handled = Vm.OpenUrl?.Invoke(e.Url) ?? false;
 
         // Dropping an image / file / url / text onto a note inserts it as a block at the drop point.
         // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the

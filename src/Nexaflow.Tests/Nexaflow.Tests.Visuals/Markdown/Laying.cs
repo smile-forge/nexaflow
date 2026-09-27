@@ -18,8 +18,8 @@ internal static class Laying
     /// <param name="writing">Whether somebody is writing in it, which draws a hole wherever something is still to be written.</param>
     /// <param name="shown">The stretch shown as typed rather than as what it says.</param>
     public static Laid Lay(string? language, string source, double room = double.PositiveInfinity, StyleFormat? style = null,
-                           bool writing = false, RawZone? shown = null, DiagramRenderOptions? options = null) =>
-        new ContentEngine(options).Lay(language, EditState.For(source) with { Raw = shown }, style ?? StyleFormat.Dark, room, readOnly: !writing);
+                           bool writing = false, RawZone? shown = null, ContentInputs? inputs = null) =>
+        new ContentEngine(inputs).Lay(language, EditState.For(source) with { Raw = shown }, style ?? StyleFormat.Dark, room, readOnly: !writing);
 
     /// <summary><paramref name="source"/> read and worked over as the engine works it over for a builder, with nothing laid out.</summary>
     public static ContentReading Read(string? language, string source, bool writing = false) =>

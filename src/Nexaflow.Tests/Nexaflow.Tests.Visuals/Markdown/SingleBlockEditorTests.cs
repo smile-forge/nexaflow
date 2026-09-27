@@ -45,7 +45,7 @@ public class SingleBlockEditorTests
             Assert.AreEqual(Tune, editor.Markdown);
             Assert.IsFalse(editor.Markdown.Contains("```"), $"a fence leaked into the text: {editor.Markdown}");
         },
-        e => e.SingleBlock = "abc"));
+        e => e.WrittenIn = "abc"));
 
     [TestMethod]
     public void AndTheLanguageIsWhatDecidesTheFence() => UiThread.Run(() =>
@@ -53,7 +53,7 @@ public class SingleBlockEditorTests
         // The same text, told it is two different things. With a language it engraves; without one it is a
         // markdown document, and four lines of ABC are four lines of prose.
         MarkdownEditorHarness.Run(Tune, editor =>
-            Assert.AreEqual(1, MarkdownEditorHarness.Blocks(editor).Count), e => e.SingleBlock = "abc");
+            Assert.AreEqual(1, MarkdownEditorHarness.Blocks(editor).Count), e => e.WrittenIn = "abc");
 
         MarkdownEditorHarness.Run(Tune, editor =>
         {

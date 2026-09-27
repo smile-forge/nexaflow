@@ -29,8 +29,7 @@ public partial class CodeView : UserControl, IPageView
 
         _vm = vm;
 
-        // Set the link hook before the markdown binding first rebuilds (LinkNavigate is read at build time).
-        Md.LinkNavigate  = OnLink;
+        Md.LinkNavigate += (_, e) => e.Handled = OnLink(e.Url);
         Md.BaseDirectory = Path.GetDirectoryName(vm.FilePath);
 
         DataContext = vm;

@@ -587,9 +587,7 @@
                                  own devices it caps itself at a fixed height and runs its minimap and
                                  frame off the bottom of the panel. -->
                             <md:MarkdownSurface x:Name="DependencyDiagram"
-                                                       Markdown="{Binding DependencyMarkdown}"
-                                                       DiagramOpenOnDoubleClick="True"
-                                                       MaxDiagramHeight="{Binding ActualHeight, ElementName=DependencyPane}"/>
+                                                       Markdown="{Binding DependencyMarkdown}"/>
                         </Border>
 
                         <Border Style="{StaticResource Pane}"

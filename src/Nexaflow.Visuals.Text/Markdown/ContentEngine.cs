@@ -33,8 +33,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// in a paragraph does not read the diagram under it again.
 /// </para>
 /// </summary>
-/// <param name="options">What the host says about the content it shows — pictures, links, what diagrams are bound against.</param>
-public sealed class ContentEngine(DiagramRenderOptions? options = null)
+/// <param name="inputs">What the host says about the content it shows — see <see cref="Inputs"/>.</param>
+public sealed partial class ContentEngine(ContentInputs? inputs = null)
 {
     /// <summary>What a piece of content read to: its language's tree, and what each piece in it written in another language read to.</summary>
     /// <param name="Pieces">Where its parser placed each piece written in another language.</param>
@@ -63,6 +63,23 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     private readonly Dictionary<int, DiagramViewState> _views = [];
 
     /// <summary>
+    /// What the reader has opened and chosen in each diagram, in the order the diagrams are written — kept for as long as the
+    /// engine is, so it outlives every reading of the content an edit or a press causes.
+    /// </summary>
+    private readonly DiagramViewStates _opened = new();
+
+    /// <summary>What the reader has opened in the content itself, where it is a diagram rather than a document holding some.</summary>
+    private DiagramViewState? _top;
+
+    private ContentInputs _inputs = inputs ?? ContentInputs.None;
+
+    /// <summary>
+    /// What the content read to when it was last laid out — its worked-over tree, the one the layout was drawn from — or null
+    /// before it has been.
+    /// </summary>
+    public ContentReading? Reading { get; private set; }
+
+    /// <summary>
     /// <paramref name="state"/>'s source laid out at <paramref name="room"/>, written in the language called
     /// <paramref name="named"/> — or in markdown, where nothing names one.
     /// </summary>
@@ -71,12 +88,15 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
         var language = Language(named);
         var top = Parse(language, named, state.Source);
 
+        Views(top);
+        if (_top is { } opened) style = style with { Expansion = opened };
+
         var showing = Showing(named ?? string.Empty, style, !readOnly, state.Raw, 0) with { Unchanged = _unchanged };
         var staged = Staged(top, showing);
 
-        Views(top);
+        Reading = ContentReading.Of(staged, 0, state.Source);
 
-        return language.Builder(ContentReading.Of(staged, 0, state.Source), showing).Lay(room);
+        return language.Builder(Reading, showing).Lay(room);
     }
 
     /// <summary>
@@ -95,8 +115,31 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     /// </summary>
     public void Forget() => _unchanged.Forget();
 
+    /// <summary>
+    /// What the host says about the content (<see cref="ContentInputs"/>). Nothing laid by what it said before is set down again
+    /// as it was.
+    /// </summary>
+    public ContentInputs Inputs
+    {
+        get => _inputs;
+        set
+        {
+            if (_inputs == value) return;
+
+            _inputs = value;
+            Forget();
+        }
+    }
+
+    /// <summary>Forgets what the reader opened and chose in every diagram, so each is drawn as its source says.</summary>
+    public void CloseDiagrams()
+    {
+        _opened.Clear();
+        Forget();
+    }
+
     /// <summary>What language content called <paramref name="named"/> is written in: markdown where nothing names one, and plain code where nothing reads what does.</summary>
-    private static ContentLanguage Language(string? named) =>
+    internal static ContentLanguage Language(string? named) =>
         named is null ? ContentLanguages.Markdown : ContentLanguages.For(named) ?? ContentLanguages.Code;
 
     /// <summary>The content asked for, parsed — and every piece in it written in another language, parsed by that language.</summary>
@@ -158,7 +201,7 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
     }
 
     private ContentShowing Showing(string named, StyleFormat style, bool writing, RawZone? shown, int at) =>
-        new(named, style, writing, shown, at, options) { Nesting = _nesting ??= new Nesting(this), Reads = ContentLanguages.Reads };
+        new(named, style, writing, shown, at, _inputs) { Nesting = _nesting ??= new Nesting(this), Reads = ContentLanguages.Reads };
 
     /// <summary>
     /// A read worked over by its language's stages, with what each piece in another language read to put back in its body
@@ -210,23 +253,29 @@ public sealed class ContentEngine(DiagramRenderOptions? options = null)
 
     /// <summary>
     /// What the reader has opened in each diagram, handed out afresh in the order the diagrams are written: the one thing a
-    /// reading of the same document again keeps, where the source is exactly what may have changed.
+    /// reading of the same document again keeps, where the source is exactly what may have changed. Content that is itself a
+    /// diagram, rather than a document holding some, is the first.
     /// </summary>
     private void Views(Parsed top)
     {
         _views.Clear();
-        if (options?.Views is not { } views) return;
+        _opened.Rewind();
 
-        views.Rewind();
+        _top = top.Language == ContentLanguages.Markdown ? null : _opened.Next();
+        if (_top is not null) return;
 
         foreach (var piece in top.Pieces)
             if (piece.Holder is MarkdownKinds.Fence or Kinds.Nested && ContentLanguages.Reads(piece.Language))
-                _views[piece.At] = views.Next();
+                _views[piece.At] = _opened.Next();
     }
 
-    /// <summary>What the reader has opened in the diagram <paramref name="holder"/> holds, or null where nothing says.</summary>
+    /// <summary>
+    /// What the reader has opened in the diagram <paramref name="holder"/> holds — or in the content itself, where
+    /// <paramref name="holder"/> is the whole of it and it is a diagram — or null where nothing says.
+    /// </summary>
     public DiagramViewState? Opened(ContentPart holder) =>
-        holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
+        holder.Parent is null ? _top
+        : holder.Part(Roles.Body) is { } body && _views.TryGetValue(body.Start, out var view) ? view : null;
 
     /// <summary>
     /// What <paramref name="holder"/> holds in another language, worked over and laid out at <paramref name="room"/> — or null

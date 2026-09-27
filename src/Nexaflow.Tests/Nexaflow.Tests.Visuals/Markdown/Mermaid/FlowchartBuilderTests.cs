@@ -274,10 +274,10 @@ public class FlowchartBuilderTests : MermaidBuilderContract
     public void APictureIsTheOneTheHostFinds_AtTheSizeItIsAskedFor() => UiThread.Run(() =>
     {
         var picture = System.Windows.Media.Imaging.BitmapSource.Create(4, 2, 96, 96, PixelFormats.Bgra32, null, new byte[4 * 2 * 4], 4 * 4);
-        var options = new DiagramRenderOptions { Palette = StyleFormat.Dark, Pictures = name => name == "found.png" ? picture : null };
+        var inputs = new ContentInputs(Pictures: name => name == "found.png" ? picture : null);
         const string source = "flowchart LR\n  A@{ img: \"found.png\", label: \"Found\", h: 30 }\n  B@{ img: \"lost.png\", label: \"Lost\", w: 50, h: 40 }";
 
-        var laid = Laying.Lay("mermaid", source, 900, options: options);
+        var laid = Laying.Lay("mermaid", source, 900, inputs: inputs);
         var marks = laid.Root.SelfAndDescendants().SelectMany(piece => piece.Marks.ToArray()).ToList();
 
         var drawn = marks.OfType<PictureMark>().Single();

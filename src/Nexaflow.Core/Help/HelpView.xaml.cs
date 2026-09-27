@@ -25,7 +25,7 @@ public partial class HelpView : UserControl, IPageView
         Doc.LinkDecorator = (url, _) => LocateLink.TryParse(url, out IReadOnlyList<string> _)
             ? new LinkLook(Before: LocateLink.PinGlyph, Says: Str.Get("Help.Locate.Tooltip")) { MarkFont = LocateLink.IconFont }
             : null;
-        Doc.LinkNavigate  = url => Locate(url) || vm.FollowLink(url);
+        Doc.LinkNavigate += (_, e) => e.Handled = Locate(e.Url) || vm.FollowLink(e.Url);
         vm.FindInRendered = Doc.FindInRendered;
         vm.StepRendered   = Doc.StepSearch;
         vm.ClearRendered  = Doc.ClearSearch;

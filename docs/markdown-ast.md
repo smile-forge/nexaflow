@@ -70,8 +70,11 @@ rather than to draw it.
 
 **One engine per showing of some content**, because what it keeps is that content's: the parse of a document read again
 as it is written, what every nested piece read to (a keystroke in a paragraph does not read the diagram under it again),
-the blocks that read as they did last time, and what the reader has opened in each diagram. What the source does not say
-— which nodes of a diagram are open, what a binding is bound against — the host says has changed with `Forget`.
+the blocks that read as they did last time, and what the reader has opened in each diagram. A surface keeps its engine for
+as long as it shows content, so none of that is lost when a change of colours or of who may write makes its element again.
+What the host says that the source does not — where pictures are found, how links look, what diagrams are bound against —
+is the engine's `Inputs` (`ContentInputs`), and what a language's stages read; setting them, or `Forget`, says that
+nothing laid before is to be set down again as it was.
 
 ## The tree
 
@@ -208,23 +211,35 @@ block scrolled far away is let go.
 
 ## The element and the surface
 
-`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the
-keyboard, the history, what a search turned up and the buttons in a block's corner. Inside it one element
-(`MarkdownElement`, a `ContentElement`) owns the laid tree, the caret and the selection, and lays out through its engine.
+`MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
+the clipboard and what a search turned up. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+engine holds: the engine keeps the content as it is being written — the source, the caret, the selection, what was
+written so it can be taken back, and the laid tree — and makes every edit to it; it also lays out the buttons in the
+corner of the block the pointer is over, since only it knows both where the block came out and what its language offers
+(`ContentEngine.Corner`), and a press on one is a press like any other. The element paints all that and says
+where the reader is. What happened is the engine's to say, and the surface says it again to the page as routed events:
+`SourceChanged` (what changed, and whether it was written, taken back or put there), `Selected` (what is picked out —
+words, a note, a box in a flowchart, each with the language it is written in and the id the drawing gives it), `PreRender`
+(laid out, not yet shown) and `LinkNavigate` (a link out of the content, handled where the page took it).
+Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key,
+text typed, a press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other
+does; the element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a
+drag, and the surface keeps the keys that are its own — the clipboard's and the page's.
 A whole document is one element — the prose, the diagrams and the tunes are pieces of one tree, so a drag runs from a
 word into a chart with nothing forwarding gestures between controls.
 
 **Who answers a key.** From the piece holding the caret up the layout to the first piece naming a part of the tree, then
 up the tree to the first part holding another language (`ContentNested.Holders`): that language's `Editing.OnEdit` is
 asked what the key means (`IOnEdit`: typing, settling, taking back, and what an edit came to). Where it says nothing the
-key does to the characters what a key does; no such part means markdown's own source, answered by `MarkdownEdits`. A
+key does to the characters what a key does; no such part means the content's own language, answered by its `Editing` —
+`MarkdownEdits` for a document. A
 language is told in the document's offsets (`ContentEdit`), because it is laid at the offset its source starts at; a key
 taking back characters stops at the edges of its source, and takes the whole construct once nothing is left inside.
 LaTeX spells a command as itself and settles it on Space or Enter (`LatexEdits`); Mermaid escapes what a place cannot
 hold, starts its next line on Enter and carries a rename to where the name is used (`MermaidEdits`); markdown writes
 typed markup behind a backslash, continues a list on Enter and joins two paragraphs on backspace.
 
-**What a key means where the caret is, is the content's** (`IContent.Typing`, `Settle`, `Erasing`, `Edited`). Space and
+**What a key means where the caret is, is the engine's to ask** (`ContentEngine.Typing`, `Settle`, `Erasing`, `Edited`). Space and
 Enter both arrive at `Settle`, so content made of lines starts another on Enter while a formula settles what is
 half-written. A diagram starts its next line under the one the caret is on, as its grammar starts one there
 (`IMermaidGrammar.Blank`), with the caret in its first hole; what a place cannot hold is escaped as it is typed

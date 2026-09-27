@@ -8,7 +8,7 @@ namespace Nexaflow.Features.Markdown.FileActions;
 ///
 /// <para>
 /// The same tab and the same editor as a markdown document, told by
-/// <see cref="SingleBlockFiles"/> that this file is a single fenced block rather than a document. So the
+/// <see cref="SingleBlockFiles"/> that this file is written in one language rather than being a document. So the
 /// tune renders engraved, the caret edits it in place, and what is saved is the ABC — no fence, no
 /// wrapper, byte-for-byte the kind of file that was opened.
 /// </para>

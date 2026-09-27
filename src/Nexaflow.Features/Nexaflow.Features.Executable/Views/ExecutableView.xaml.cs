@@ -29,9 +29,9 @@ public partial class ExecutableView : UserControl, IPageView
 
         // Two independent regions on a dependency node: the body carries the module's path and opens
         // it as its own tab, the chip opens the module up in place.
-        DependencyDiagram.LinkNavigate  = OnDiagramLink;
-        DependencyDiagram.DiagramExpand = OnDiagramExpand;
-        DependencyDiagram.DiagramSelect = s => _vm.SelectDependency(s.Key);
+        DependencyDiagram.LinkNavigate  += (_, e) => e.Handled = OnDiagramLink(e.Url);
+        DependencyDiagram.DiagramExpand  = OnDiagramExpand;
+        DependencyDiagram.Selected      += (_, e) => _vm.SelectDependency(e.Change.Picked.FirstOrDefault(pick => pick.Id is not null)?.Id);
 
         vm.PropertyChanged              += OnViewModelPropertyChanged;
         vm.ScrollToHitRequested         += OnScrollToHit;

@@ -28,11 +28,7 @@ public class DiagramBindingTests
 
     private static ContentElement Drawn(string source, IDataContext? data)
     {
-        var element = (ContentElement)Alone.Drawn("mermaid", source, new DiagramRenderOptions
-        {
-            Palette = StyleFormat.Dark,
-            DataContext = data,
-        });
+        var element = (ContentElement)Alone.Drawn("mermaid", source, StyleFormat.Dark, new ContentInputs(Data: data));
 
         element.Measure(new Size(900, 900));
         element.Arrange(new Rect(0, 0, 900, 900));

@@ -10,6 +10,8 @@ using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
+using Nexaflow.Tests.Visuals.Editing;
+using Nexaflow.Visuals.Text.Markdown.Prose;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -34,6 +36,35 @@ public class BlockCornerTests
 
             CollectionAssert.AreEqual(new[] { LayoutVerbs.Copy, LayoutVerbs.Save }, offered);
         }));
+
+    [TestMethod]
+    public void OverABlockItsButtonsStandInItsCorner_AndPressingOneTellsTheHostWhichBlock() => UiThread.Run(() =>
+    {
+        var asked = new List<LayoutAct>();
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, new Keeper(asked), engine);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        var box = engine.Where(pie);
+
+        engine.Input(new ContentHover(Middle(box)));
+
+        var buttons = engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null).ToList();
+        Assert.AreEqual(2, buttons.Count, "copying it and keeping a picture of it, as the pie says");
+        Assert.IsTrue(buttons.All(button => button.Bounds.Top >= box.Top && button.Bounds.Right <= box.Right),
+                      "standing in the block's own top right-hand corner");
+
+        engine.Input(new ContentPress(Middle(buttons[1].Bounds)));
+
+        var act = asked.Single();
+        Assert.AreEqual(LayoutVerbs.Save, act.Intent.Verb);
+        StringAssert.StartsWith(act.Node!.Print(), "```mermaid", "told which block it was pressed on");
+
+        engine.Input(new ContentHover(null));
+        Assert.IsNull(engine.Corner, "and gone once the pointer has left");
+    });
 
     [TestMethod]
     public void OffEveryBlockNothingIsOffered() => UiThread.Run(() =>
@@ -95,8 +126,8 @@ public class BlockCornerTests
     [TestMethod]
     public void APictureIsTheContentAsItReadsWithNobodyWritingInIt() => UiThread.Run(() =>
     {
-        var writable = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()));
-        var reading = Shown(new ContentElement("x", StyleFormat.Dark, new Marked()) { IsReadOnly = true });
+        var writable = Shown(HandLaid.Element("x", Marked));
+        var reading = Shown(HandLaid.Element("x", Marked, readOnly: true));
 
         var picture = writable.Picture(Brushes.White);
 
@@ -132,18 +163,15 @@ public class BlockCornerTests
     }
 
     /// <summary>Content that draws a block for everybody, and a second only where somebody can write in it.</summary>
-    private sealed class Marked : IContent
+    private static Laid Marked(EditState state, bool readOnly)
     {
-        public Laid Lay(EditState state, double room, bool readOnly)
-        {
-            var build = new LayoutBuilder();
-            build.Open("content");
-            build.Draw(new RuleMark(new Rect(0, 0, 40, 20), Brushes.Blue));
-            if (!readOnly) build.Draw(new RuleMark(new Rect(50, 0, 20, 20), Brushes.Red));
-            build.Close();
+        var build = new LayoutBuilder();
+        build.Open("content");
+        build.Draw(new RuleMark(new Rect(0, 0, 40, 20), Brushes.Blue));
+        if (!readOnly) build.Draw(new RuleMark(new Rect(50, 0, 20, 20), Brushes.Red));
+        build.Close();
 
-            return new Laid(build.Seal(), new Size(80, 20), []);
-        }
+        return new Laid(build.Seal(), new Size(80, 20), []);
     }
 
     /// <summary>An element measured and arranged, as it would be on a page.</summary>

@@ -45,7 +45,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     /// read, and a file that was never markdown never gains a wrapper by having been opened here.
     /// </para>
     /// </summary>
-    public string? SingleBlock { get; }
+    public string? WrittenIn { get; }
 
     private readonly IShellServices _shell;
 
@@ -110,7 +110,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
         FilePath       = filePath;
         _shell         = shell;
         InitialHeading = initialHeading;
-        SingleBlock    = SingleBlockFiles.LanguageOf(filePath);
+        WrittenIn      = SingleBlockFiles.LanguageOf(filePath);
         _savedText = VirtualFileSystem.Instance.Exists(filePath)
             ? VirtualFileSystem.Instance.ReadAllText(filePath).ReplaceLineEndings("\n")
             : string.Empty;

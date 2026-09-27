@@ -64,7 +64,7 @@ internal sealed partial class MarkdownEdits : IOnEdit
         var state = edit.State;
         if (!state.HasSelection && state.Raw is { } shown && shown.Holds(state.Caret)) return null;
 
-        var part = MarkdownContent.Standing(edit.Landing);
+        var part = ContentEngine.Standing(edit.Landing);
         if (!Prose(part)) return null;
 
         // A table is a line per row, so there is no second line a cell could go on to.
@@ -292,7 +292,7 @@ internal sealed partial class MarkdownEdits : IOnEdit
     // ── Where the caret is ──────────────────────────────────────────────────
 
     /// <summary>Whether the caret stands in words a reader writes, rather than in code, markup or a document's front matter.</summary>
-    private static bool Prose(Landing landing) => Prose(MarkdownContent.Standing(landing));
+    private static bool Prose(Landing landing) => Prose(ContentEngine.Standing(landing));
 
     private static bool Prose(ContentPart? part) =>
         part is null || !Within(part, MarkdownKinds.Code, MarkdownKinds.Fence, MarkdownKinds.Html, MarkdownKinds.FrontMatter,

@@ -214,7 +214,7 @@ public class WordCloudBuilderTests
     {
         // Black on white, left half only — every word should land in that half.
         var laid = Laying.Lay("wordcloud", "mask: half.png\nminSize: 5\nmaxSize: 18\ngap: 1\n" + Many(), 600,
-                              options: new DiagramRenderOptions { Palette = StyleFormat.Dark, Pictures = _ => Half() });
+                              inputs: new ContentInputs(Pictures: _ => Half()));
 
         Assert.IsTrue(Words(laid).Length > 20, $"only {Words(laid).Length} word(s) were placed");
 
