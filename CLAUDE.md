@@ -280,7 +280,6 @@ to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#owners
 - NEVER rename existing types, members, files, or namespaces unless I explicitly ask. This includes "for consistency".
 - Before introducing any new name, check it for collisions with the graph tool.
 - If a new name clashes with an existing one, change the NEW name. Never resolve a clash by renaming existing code.
-- For non-trivial tasks, list all new names in the plan so I can approve them before any code is written.
 
 ## Working with the user
 
