@@ -7,6 +7,8 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Visuals.Text.Markdown.Prose;
+using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 
@@ -113,6 +115,66 @@ public class ContentBuilderTests
         element.Measure(new Size(400, double.PositiveInfinity));
 
         Assert.IsTrue(element.HasError, "the element still stands, saying something is wrong");
+    });
+
+    [TestMethod]
+    public void EveryPlaceTheContentCanFallOverBeforeABuilderIsShownAsWrittenWithWhy() => UiThread.Run(() =>
+    {
+        // The builder's own promise covers a builder. These are the steps before it: reading the source, working the
+        // reading over, binding what it refers to, and being handed something that is not a builder to lay it with. Each
+        // of them lands in the engine's catch, and each of them has to come out as the source with a reason on it.
+        (string Where, ContentElement Element, string Says)[] falling =
+        [
+            ("reading it", HandLaid.Unreadable("a+b"), "no reader"),
+            ("working it over", HandLaid.Unstageable("a+b"), "no stage"),
+            ("binding it", HandLaid.Unbindable("a+b"), "no binding"),
+            ("laying it out at all", HandLaid.Unbuildable("a+b"), "not a builder"),
+        ];
+
+        foreach (var (where, element, says) in falling)
+        {
+            element.Measure(new Size(400, double.PositiveInfinity));
+            var laid = element.Laid;
+
+            Assert.IsTrue(laid.ShowsSource, $"{where}: the source is still on the page");
+            Assert.AreEqual(3, laid.Root.SelfAndDescendants().Single(piece => piece.Kind == LayoutText.SourceKind).Sits().Length,
+                            $"{where}: standing for every character of it");
+
+            var trouble = laid.Trouble.Single();
+            Assert.AreEqual((0, 3), (trouble.Start, trouble.Length), $"{where}: blaming all of it, which is all it knows");
+            StringAssert.Contains(trouble.Message, says, $"{where}: and saying what happened");
+        }
+    });
+
+    [TestMethod]
+    public void SourceNothingCouldReadIsStillSomethingToTypeInto() => UiThread.Run(() =>
+    {
+        // Why the fallback is a layout rather than a drawing, one step up from ABuilderThatCanReadNothing: this is exactly
+        // the document somebody is about to fix, and a fallback with nowhere to put the caret is one they cannot fix here.
+        var element = HandLaid.Unreadable("a+b");
+        element.Measure(new Size(400, double.PositiveInfinity));
+
+        CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, element.Laid.Stops.ToArray(), "a place to stand between every character");
+    });
+
+    [TestMethod]
+    public void ABlockWhoseReadingFallsOverCostsTheBlockRatherThanTheDocument() => UiThread.Run(() =>
+    {
+        // Content in another language is read while the document's own builder is part-way through laying it, so a throw
+        // let out would be blamed on the only tree that builder has — all of it.
+        var document = $"Pets:\n\n```{HandLaid.Unreading}\nx\n```\n\nThe end.\n";
+        var element = new MarkdownElement(document, StyleFormat.Dark);
+        element.Measure(new Size(400, double.PositiveInfinity));
+
+        var laid = element.Laid;
+        Assert.IsFalse(laid.ShowsSource, "the document is still a document, not one long quotation of itself");
+
+        var trouble = laid.Trouble.Single();
+        StringAssert.Contains(trouble.Message, "no reader", "with the block's own reason on it");
+        Assert.IsTrue(laid.Root.SelfAndDescendants().Any(piece => piece.Kind == SourceShown.Reason), "and that reason written under it");
+        Assert.IsTrue(trouble.Start > document.IndexOf("```", StringComparison.Ordinal)
+                      && trouble.Start + trouble.Length <= document.IndexOf("The end.", StringComparison.Ordinal),
+                      "marked inside the block, not over the whole document");
     });
 
     [TestMethod]

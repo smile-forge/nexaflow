@@ -77,6 +77,24 @@ public class BlockCornerTests
         }));
 
     [TestMethod]
+    public void ABlockWhoseLanguageFallsOverOnItsCornerLeavesTheDocumentDrawn() => UiThread.Run(() =>
+    {
+        // The corner is worked out inside laying out but past the catch that covers it, and worked out again on every
+        // hover, out of code the language wrote. Moving the pointer must not be able to cost the reader the document.
+        var document = $"Pets:\n\n```{HandLaid.Uncornering}\nx\n```\n\nThe end.\n";
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(document, StyleFormat.Dark, engine: engine);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        var block = engine.Blocked(document.IndexOf(HandLaid.Uncornering, StringComparison.Ordinal))!;
+        engine.Input(new ContentHover(Middle(engine.Where(block))));
+
+        Assert.IsNull(engine.Corner, "no corner, because asking the language what it offers threw");
+        Assert.IsFalse(engine.Laid.ShowsSource, "and the hover cost the document nothing");
+    });
+
+    [TestMethod]
     public void AFormulaOnALineOfItsOwnIsAPictureWorthKeeping_AndOneInASentenceIsTheSentences() => UiThread.Run(() =>
         MarkdownEditorHarness.Run("Area $\\pi r^2$ of a circle.\n\n$$\n\\frac{a}{b}\n$$\n", editor =>
         {

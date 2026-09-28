@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Windows;
-using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Editing;
@@ -117,31 +115,28 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// <paramref name="state"/> laid out as it is being shown.
+    /// <paramref name="state"/> laid out as it is being shown, read only where <paramref name="readOnly"/> says so rather
+    /// than as the content stands — which is what a picture of it is taken as.
     ///
     /// <para>
-    /// A builder that falls over is its runner's to catch, and shows the block as written with why. What falls over before any
-    /// builder has a tree to be given — the reading itself — is caught here: the text stands as the one unread part of a tree
-    /// of its own, and is shown as written with why, the same way.
+    /// A builder that falls over is its runner's to catch, and shows the block as written with why. What falls over before
+    /// any builder has a tree to be given — the reading itself — is caught here, and shown as written with why the same
+    /// way, by the builder that does nothing else (<see cref="UnreadBuilder"/>).
     /// </para>
     /// </summary>
-    internal Laid LaidOut(EditState state)
+    internal Laid LaidOut(EditState state, bool? readOnly = null)
     {
+        var only = readOnly ?? _readOnly;
+
         try
         {
-            return Lay(_named, state, _style, Room, _readOnly);
+            return Lay(_named, state, _style, Room, only);
         }
         catch (Exception error)
         {
-            var unread = ContentPart.Of(ContentNode.Shown(state.Source));
-            return SourceShown.Lay(unread, [(unread, $"This could not be read: {error.Message}")], Unread, _style, Room);
+            return Unreadable(state.Source, 0, $"This could not be read: {error.Message}", _style, only, Room);
         }
     }
-
-    /// <summary>Raw characters for text nothing could read, in the fixed-width face.</summary>
-    private FormattedText Unread(string text) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _style.Face(_style.MonoFont), _style.TextSize, _style.Text,
-            LayoutText.Density);
 
     /// <summary>Where an edit is landing, for the language it lands in to make what it will of it.</summary>
     internal Landing Landing => new(_state, _laid, _at);

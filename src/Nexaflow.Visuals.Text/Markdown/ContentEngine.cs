@@ -195,6 +195,21 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             reading, EditState.For(reading.Source) with { Raw = showing.Shown }, showing.Style,
             !(language.Writable && showing.Writing), _nesting ??= new Nesting(this));
 
+    /// <summary>
+    /// <paramref name="source"/> laid out as content nothing could read: shown as it is written, with <paramref name="why"/>
+    /// said beneath it. The stopgap the pipeline's promise rests on.
+    ///
+    /// <para>
+    /// Made through <see cref="Maker"/> like any other builder, and deliberately not through <see cref="ContentLanguages"/>:
+    /// a language whose builder is not one is among the things that land here, so this must not need the table to be right.
+    /// </para>
+    /// </summary>
+    /// <param name="at">Where <paramref name="source"/> begins in the document holding it, so what is said of it is said where it is.</param>
+    private Laid Unreadable(string source, int at, string why, StyleFormat style, bool readOnly, double room) =>
+        Makers.GetOrAdd(typeof(UnreadBuilder), Maker)(
+            ContentReading.Of(ContentNode.Shown(source, why), at, source), EditState.For(source), style, readOnly,
+            _nesting ??= new Nesting(this)).Lay(room);
+
     /// <summary>Makes a builder from the five things every builder is made from.</summary>
     private delegate ContentBuilder Make(ContentReading reading, EditState state, StyleFormat style, bool isReadOnly, Nesting nesting);
 
@@ -279,6 +294,13 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
     /// What <paramref name="holder"/> holds in another language, read by that language, worked over and laid out at
     /// <paramref name="room"/> — or null where nothing reads the language it names. The builder asking is handed the layout; the
     /// tree it was drawn from is that language's own, and its root says so.
+    ///
+    /// <para>
+    /// A failure here is the block's, not the document's. Reading or working over nested content happens while the builder
+    /// asking is part-way through laying its own, so letting a throw out would blame a whole document for one block of it.
+    /// What could not be read comes back as that block shown as it is written, with why — which is what the builder asking
+    /// already does with a block it cannot draw. Null keeps its own meaning: nothing is nested here.
+    /// </para>
     /// </summary>
     internal ContentInset? Nested(ContentPart holder, double room, StyleFormat style, RawZone? shown, bool writing)
     {
@@ -286,16 +308,25 @@ public sealed partial class ContentEngine(ContentInputs? inputs = null)
             || ContentLanguages.For(named) is not { } language) return null;
 
         var text = ContentNested.Own(body.Node);
-        var read = Nested(language, named, text);
 
-        if (Opened(holder) is { } view) style = style with { Expansion = view };
+        try
+        {
+            var read = Nested(language, named, text);
 
-        var showing = Showing(named, style, writing,
-                              shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End) ? zone : null,
-                              body.Start);
+            if (Opened(holder) is { } view) style = style with { Expansion = view };
 
-        var reading = ContentReading.Of(Staged(read, showing), body.Start, text);
-        return new ContentInset(Builder(language, reading, showing).Lay(room));
+            var showing = Showing(named, style, writing,
+                                  shown is { } zone && ContentNested.Holds(body, zone.Start, zone.End) ? zone : null,
+                                  body.Start);
+
+            var reading = ContentReading.Of(Staged(read, showing), body.Start, text);
+            return new ContentInset(Builder(language, reading, showing).Lay(room));
+        }
+        catch (Exception error)
+        {
+            return new ContentInset(Unreadable(text, body.Start, $"This could not be read: {error.Message}",
+                                               style, !(language.Writable && writing), room));
+        }
     }
 }
 
