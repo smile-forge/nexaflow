@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Editing;
@@ -75,6 +76,18 @@ public sealed record ContentLanguage(
     /// are written as they came.
     /// </summary>
     public Func<ContentPart, string, string?>? SafeFormatText { get; init; }
+
+    /// <summary>What a reader calls it — on a button offering to start a block of it, and read out for one — or null for one never offered.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>What it is drawn as where there is room only for a mark: one of the Fluent UI System Icons, by name.</summary>
+    public IconRef Icon { get; init; }
+
+    /// <summary>
+    /// A whole block of it, fences and all, that reads without fault and draws something a reader can start from — what is written where
+    /// somebody asks for a block of it. Null for a language nobody starts a block of: markdown itself, what nests another, code.
+    /// </summary>
+    public string? DefaultBlock { get; init; }
 }
 
 /// <summary>

@@ -1,9 +1,16 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
+using System.Windows;
+using System.Windows.Media;
+using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Prose;
+using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Prose;
@@ -33,8 +40,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Prose;
 /// characters instead, which is the one thing a reader wanting to change the markup is reaching for. Moving away puts
 /// it back. At the start of a paragraph it takes back the gap before it, joining the two.
 /// </para>
+/// <para>
+/// <strong>A right-click offers a block in any language there is one to start in.</strong> Each is drawn as its icon, behind the
+/// ribbon's one Insert button, and choosing one writes the block it starts from after the block the ribbon was opened over.
+/// </para>
 /// </summary>
-internal sealed partial class MarkdownEdits : IOnEdit
+internal sealed partial class MarkdownEdits : IContentLanguage, IOnEdit
 {
     public static MarkdownEdits Instance { get; } = new();
 
@@ -46,8 +57,89 @@ internal sealed partial class MarkdownEdits : IOnEdit
         EditKind.Settling => Typing(edit),
         EditKind.Erasing => Erasing(edit, forward: false),
         EditKind.Deleting => Erasing(edit, forward: true),
+        EditKind.Choosing => Started(edit),
         _ => null,
     };
+
+    /// <inheritdoc/>
+    public IOnEdit OnEdit => this;
+
+    /// <summary>
+    /// A block to start in every language there is one to start in (<see cref="ContentLanguages.Insertable"/>), each drawn as its icon and
+    /// named for a reader hovering over it — nothing, where the reader may not write.
+    /// </summary>
+    public IReadOnlyList<LayoutIntent> Offers(ContentAsk ask) => ask.IsReadOnly ? [] :
+    [
+        .. ContentLanguages.Insertable.Select(language => new LayoutIntent(Inserts + language.DisplayName, null, language.DisplayName)
+        {
+            Offer = LayoutOffer.Insert,
+            Shape = Drawn(language.Icon),
+        }),
+    ];
+
+    /// <summary>What every offer to start a block begins its verb with; the language's name follows.</summary>
+    private const string Inserts = "insert:";
+
+    /// <summary>
+    /// A block started in the language chosen: the block it starts from, written after the block the ribbon was opened over with a blank
+    /// line either side, and the caret at the end of its last line, where a reader goes on to write it.
+    /// </summary>
+    private static ContentChange? Started(ContentEdit edit)
+    {
+        if (!edit.Text.StartsWith(Inserts, StringComparison.Ordinal)
+            || ContentLanguages.Insertable.FirstOrDefault(language => Inserts + language.DisplayName == edit.Text)?.DefaultBlock is not { } starts)
+            return null;
+
+        var block = starts.ReplaceLineEndings("\n");
+        var source = edit.State.Source;
+        var end = Outermost(edit) is { } over ? over.Start + over.Length : edit.State.Caret;
+
+        // At the end of the line the block over ends on, so the gap after it stays after the new one.
+        var at = source.IndexOf('\n', Math.Clamp(end - 1, edit.Start, edit.End));
+        at = at < 0 || at > edit.End ? edit.End : at;
+
+        var lead = at == edit.Start ? string.Empty : "\n\n";
+        var rest = source[at..edit.End];
+        var trail = rest.Length == 0 ? "\n" : rest == "\n" || rest.StartsWith("\n\n", StringComparison.Ordinal) ? string.Empty : "\n";
+
+        return ContentChange.Write(at, 0, lead + block + trail, caret: at + lead.Length + block.LastIndexOf("\n```", StringComparison.Ordinal));
+    }
+
+    /// <summary>The block of the document the edit landed in — the part it names, or what holds it, just under the root — or null for none.</summary>
+    private static ContentPart? Outermost(ContentEdit edit)
+    {
+        for (var part = edit.Part; part?.Parent is { } parent; part = parent)
+            if (ReferenceEquals(parent, edit.Root)) return part;
+
+        return null;
+    }
+
+    /// <summary>
+    /// <paramref name="icon"/> as a shape in the ribbon's box — its glyph's outline, centred — or null where the font has no such icon and
+    /// the offer is named instead. Each is made once.
+    /// </summary>
+    private static Geometry? Drawn(IconRef icon) => Shapes.GetOrAdd(icon, static icon =>
+    {
+        var font = icon.IsEmpty || !IconCatalog.Contains(icon) ? null : IconCatalog.FontFor(icon);
+        if (font is null) return null;
+
+        var face = new Typeface(font, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var glyph = new FormattedText(IconCatalog.GlyphFor(icon), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, Side, Brushes.Black, 1.0)
+            .BuildGeometry(new Point(0, 0));
+
+        var bounds = glyph.Bounds;
+        if (bounds.IsEmpty) return null;
+
+        glyph.Transform = new TranslateTransform((Side - bounds.Width) / 2 - bounds.X, (Side - bounds.Height) / 2 - bounds.Y);
+        glyph.Freeze();
+        return glyph;
+    });
+
+    /// <summary>Every icon drawn so far.</summary>
+    private static readonly ConcurrentDictionary<IconRef, Geometry?> Shapes = new();
+
+    /// <summary>How wide and high the box an icon is drawn in is.</summary>
+    private const double Side = 16;
 
     /// <summary>
     /// A character written so it reads as itself. A line shown as its characters stays shown as its characters while it is written

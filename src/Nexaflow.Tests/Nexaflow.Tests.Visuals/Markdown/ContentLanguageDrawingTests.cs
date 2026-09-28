@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
@@ -105,6 +106,45 @@ public class ContentLanguageDrawingTests
         Assert.IsTrue(Written.Select(entry => ContentLanguages.For(entry.Named)).Distinct().Count() >= 17,
             "the sweep should reach every language in the table, not the same one under many names");
     }
+
+    [TestMethod]
+    [CoversNode("markdown-context-menu")]
+    public void EveryLanguageABlockCanBeStartedIn_StartsFromOneThatReadsWithoutFault_AndIsNamedAndDrawnAsAnIcon() => UiThread.Run(() =>
+    {
+        var insertable = ContentLanguages.Insertable;
+        var faults = new List<string>();
+
+        foreach (var language in insertable)
+        {
+            var name = language.DisplayName;
+            var lines = language.DefaultBlock!.ReplaceLineEndings("\n").Split('\n');
+            var fence = lines[0]["```".Length..];
+            var body = string.Join("\n", lines[1..^1]) + "\n";
+
+            if (string.IsNullOrWhiteSpace(name)) faults.Add($"a {fence} block has no name");
+            if (!IconCatalog.Contains(language.Icon)) faults.Add($"{name}: the Fluent font has no icon '{language.Icon}'");
+            if (!lines[0].StartsWith("```", System.StringComparison.Ordinal) || lines[^1] != "```") faults.Add($"{name}: not one fenced block");
+
+            // A diagram is named by its header, inside the mermaid fence that nests it.
+            var header = body.Split('\n', System.StringSplitOptions.RemoveEmptyEntries)[0].Trim().Split(' ')[0];
+            var named = language.Reads(fence) ? fence : header;
+            if (!language.Reads(named)) faults.Add($"{name}: its block is written in another language");
+
+            if (Laying.Read(named, body).Root.SelfAndDescendants().FirstOrDefault(part => part.Trouble is not null) is { } troubled)
+                faults.Add($"{name}: '{troubled.Text}' {troubled.Trouble}");
+
+            var laid = Laying.Lay(named, body, 480, StyleFormat.Dark);
+            if (laid.Trouble.Count > 0) faults.Add($"{name}: {string.Join("; ", laid.Trouble.Select(trouble => trouble.Message))}");
+            if (laid.ShowsSource || !Anything(laid)) faults.Add($"{name}: drew no {name}");
+        }
+
+        if (faults.Count > 0)
+            Assert.Fail($"blocks to start from that do not:{System.Environment.NewLine}  " + string.Join(System.Environment.NewLine + "  ", faults));
+
+        Assert.AreEqual(insertable.Count, insertable.Select(language => language.DisplayName).Distinct().Count(), "every name is its own");
+        Assert.IsTrue(Nexaflow.Visuals.Text.Markdown.Languages.Shipped.Diagrams.All(diagram => diagram.DefaultBlock is not null),
+            "every diagram drawn can be started");
+    });
 
     [TestMethod]
     public void ALanguageThatCannotReadABlockLeavesTheCharactersToBeDrawn() => UiThread.Run(() =>

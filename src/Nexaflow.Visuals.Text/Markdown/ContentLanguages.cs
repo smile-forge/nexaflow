@@ -85,6 +85,19 @@ public static class ContentLanguages
         }
     }
 
+    /// <summary>
+    /// Every language a block can be started in (<see cref="ContentLanguage.DefaultBlock"/>), in the table's order, each once: where a
+    /// host has put one in place of one that ships, only the host's.
+    /// </summary>
+    public static IReadOnlyList<ContentLanguage> Insertable
+    {
+        get
+        {
+            lock (Adding)
+                return [.. Known.Where(known => known.DefaultBlock is not null).DistinctBy(known => known.DisplayName)];
+        }
+    }
+
     /// <summary>What each word was found to name, so a word is looked for in the table once — until a language is added.</summary>
     private static readonly Dictionary<string, ContentLanguage?> Answered = new(StringComparer.Ordinal);
 
