@@ -610,7 +610,8 @@ public class ContentElement : FrameworkElement
     public BitmapSource Picture(Brush? ground = null)
     {
         var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var laid = _engine.Lay(_language, State with { Selected = null, Raw = null }, Palette, _engine.Room, readOnly: true);
+        // Through the engine's own runner, so a language that falls over costs the picture its drawing rather than the window.
+        var laid = _engine.LaidOut(State with { Selected = null, Raw = null }, readOnly: true);
         var size = new Size(Math.Max(1, Math.Ceiling(laid.Size.Width * Scale)), Math.Max(1, Math.Ceiling(laid.Size.Height * Scale)));
 
         var drawing = new DrawingVisual();

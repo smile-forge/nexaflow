@@ -136,15 +136,24 @@ public sealed partial class ContentEngine
             ? (state.SelectionStart - edit.Start, state.SelectionLength)
             : ((int, int)?)null;
 
-        return language.Editing.Offers(new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+        // Asking a language what it offers is running its code, on a right-click. One that falls over costs the reader what
+        // that language would have added to the menu, not the window.
+        try
         {
-            Part = edit.Part,
-            Piece = edit.Piece,
-            Root = edit.Root,
-            Chosen = chosen,
-            Caret = state.HasSelection ? null : state.Caret,
-            IsReadOnly = _readOnly,
-        });
+            return language.Editing.Offers(new ContentAsk(edit.Root.Node is BlockNode block ? block.Language : string.Empty, edit.Source)
+            {
+                Part = edit.Part,
+                Piece = edit.Piece,
+                Root = edit.Root,
+                Chosen = chosen,
+                Caret = state.HasSelection ? null : state.Caret,
+                IsReadOnly = _readOnly,
+            });
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>

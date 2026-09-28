@@ -251,46 +251,61 @@ public sealed partial class ContentEngine
     /// <summary>
     /// The buttons <paramref name="block"/> offers, laid out in a row at its top right-hand corner — and kept on screen while
     /// the block runs off the top of it — or null where it offers none.
+    ///
+    /// <para>
+    /// A corner is worked out of code the language wrote, worked out again every time the pointer moves, and worked out
+    /// inside laying out but past the catch that covers it. So it is caught here rather than at each caller, and here is
+    /// the one place in the pipeline where swallowing is right: there is nothing to show a reader about a button that
+    /// failed to appear, and showing a whole document as written because the pointer moved over it would be worse than
+    /// the fault it reported.
+    /// </para>
     /// </summary>
     private Laid? Cornered(ContentPart block)
     {
-        var offers = Offered(block).ToList();
-        if (offers.Count == 0) return null;
-
-        var box = Where(block);
-        if (box.IsEmpty) return null;
-
-        var faces = offers.Select(offer => (Offer: offer, Face: Face(offer))).ToList();
-        var width = faces.Sum(face => Width(face.Face, face.Offer));
-
-        var top = Math.Max(box.Y, _showing?.Y ?? box.Y) + CornerDrop;
-        var x = Math.Max(box.Right, _laid.Size.Width) - CornerInset - width;
-
-        var build = new LayoutBuilder();
-        build.Open(CornerPieces.Corner, stops: Stops.None);
-
-        foreach (var (offer, face) in faces)
+        try
         {
-            var wide = Width(face, offer);
-            var where = new Rect(x, top, wide, ButtonSize);
+            var offers = Offered(block).ToList();
+            if (offers.Count == 0) return null;
 
-            var shape = new RectangleGeometry(where, ButtonRound, ButtonRound);
-            shape.Freeze();
+            var box = Where(block);
+            if (box.IsEmpty) return null;
 
-            build.Open(CornerPieces.Button, stops: Stops.None);
-            build.Acts(new LayoutActions { Click = offer });
-            build.Draw(new GeometryMark(shape, _style.QuoteBg, null, 0));
-            build.Occupies(shape);
-            build.Draw(new TextMark(face, new Point(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
+            var faces = offers.Select(offer => (Offer: offer, Face: Face(offer))).ToList();
+            var width = faces.Sum(face => Width(face.Face, face.Offer));
+
+            var top = Math.Max(box.Y, _showing?.Y ?? box.Y) + CornerDrop;
+            var x = Math.Max(box.Right, _laid.Size.Width) - CornerInset - width;
+
+            var build = new LayoutBuilder();
+            build.Open(CornerPieces.Corner, stops: Stops.None);
+
+            foreach (var (offer, face) in faces)
+            {
+                var wide = Width(face, offer);
+                var where = new Rect(x, top, wide, ButtonSize);
+
+                var shape = new RectangleGeometry(where, ButtonRound, ButtonRound);
+                shape.Freeze();
+
+                build.Open(CornerPieces.Button, stops: Stops.None);
+                build.Acts(new LayoutActions { Click = offer });
+                build.Draw(new GeometryMark(shape, _style.QuoteBg, null, 0));
+                build.Occupies(shape);
+                build.Draw(new TextMark(face, new Point(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
+                build.Close();
+
+                x += wide;
+            }
+
             build.Close();
 
-            x += wide;
+            var tree = build.Seal();
+            return new Laid(tree, tree.Root.Bounds.Size, []);
         }
-
-        build.Close();
-
-        var tree = build.Seal();
-        return new Laid(tree, tree.Root.Bounds.Size, []);
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>What a button shows: the mark for what it does, where there is one, and its name where there is not.</summary>
