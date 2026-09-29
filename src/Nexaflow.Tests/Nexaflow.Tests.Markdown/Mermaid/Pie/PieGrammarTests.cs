@@ -70,7 +70,7 @@ public class PieGrammarTests : MermaidGrammarContract
     {
         var slice = Slices("pie\n  \"Calcium\" : 42.96").Single();
 
-        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text);
+        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == Kinds.Words).Text);
         Assert.AreEqual("42.96", Value(slice).Text);
         Assert.IsNull(slice.SelfAndDescendants().FirstOrDefault(node => node.Trouble is not null));
     }
@@ -82,7 +82,7 @@ public class PieGrammarTests : MermaidGrammarContract
 
         CollectionAssert.AreEqual(
             new[] { "Calcium", "Potassium", "Magnesium", "Iron" },
-            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text).ToArray(),
+            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == Kinds.Words).Text).ToArray(),
             "clockwise, in the order they were written");
 
         CollectionAssert.AreEqual(

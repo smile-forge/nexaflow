@@ -279,13 +279,13 @@ internal sealed class ArchitectureBuilder : MermaidBuilder
         private static string Named(ContentPart part, string role) => Words(part, role)?.Text ?? string.Empty;
 
         private static ContentPart? Words(ContentPart part, string role) =>
-            part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Words && inner.Role == role);
+            part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == Kinds.Words && inner.Role == role);
 
         /// <summary>The hole standing in the brackets something is written in, where nothing is written there yet.</summary>
         private static ContentPart? Hole(ContentPart part, string role) =>
             part.Children
                 .FirstOrDefault(child => child.Kind == MermaidKinds.Label
-                                         && child.SelfAndDescendants().Any(inner => inner.Kind == MermaidKinds.Words && inner.Role == role))
+                                         && child.SelfAndDescendants().Any(inner => inner.Kind == Kinds.Words && inner.Role == role))
                 .Hole();
 
         private static string? In(ContentPart part) => Words(part, ArchitectureRoles.In) is { Length: > 0 } inside ? inside.Text : null;

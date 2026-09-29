@@ -79,7 +79,7 @@ public sealed class ResolveMetadata : IAstStage
 
     /// <summary>What an <c>id@{ … }</c> line names.</summary>
     internal static string? Id(ContentNode line) =>
-        line.SelfAndDescendants().FirstOrDefault(node => node.Kind == MermaidKinds.Words && node.Role == FlowchartRoles.Id)?.Text;
+        line.SelfAndDescendants().FirstOrDefault(node => node.Kind == Kinds.Words && node.Role == FlowchartRoles.Id)?.Text;
 
     /// <summary>
     /// What a property of some metadata is set to, or null where the metadata does not set it — an icon's name as written, inside

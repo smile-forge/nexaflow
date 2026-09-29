@@ -599,11 +599,11 @@ public static class NomnomlParser
         }
 
         /// <summary>Takes everything still to be read as words.</summary>
-        public void Words(string role) => Add(ContentNode.Leaf(NomnomlKinds.Words, Written[At..], role));
+        public void Words(string role) => Add(ContentNode.Leaf(Kinds.Words, Written[At..], role));
 
         /// <summary>Takes words up to <paramref name="end"/>, less the space before it.</summary>
         public void Words(string role, int end) =>
-            Add(ContentNode.Leaf(NomnomlKinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role));
+            Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role));
 
         /// <summary>Starts a piece holding what is read from here until <see cref="Close"/>.</summary>
         public void Open() => groups.Push(pieces.Count);

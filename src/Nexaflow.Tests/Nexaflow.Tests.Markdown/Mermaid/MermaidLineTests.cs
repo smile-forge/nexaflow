@@ -46,7 +46,7 @@ public class MermaidLineTests
             var items = line.Read("line").Children.Single().Children.Where(child => child.Kind == "item").ToList();
 
             Assert.AreEqual(count, items.Count, text);
-            Assert.AreEqual(string.Empty, items[^1].Inner(MermaidKinds.Words)!.Text, $"'{text}': the last is a name still to write");
+            Assert.AreEqual(string.Empty, items[^1].Inner(Kinds.Words)!.Text, $"'{text}': the last is a name still to write");
         }
     }
 

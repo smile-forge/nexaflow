@@ -287,7 +287,7 @@ public sealed class MermaidLine
 
         var name = Written[At..end];
         Open();
-        Add(ContentNode.Leaf(MermaidKinds.Words, name, role, trouble?.Invoke(name)));
+        Add(ContentNode.Leaf(Kinds.Words, name, role, trouble?.Invoke(name)));
         Close(MermaidKinds.Name);
         return true;
     }
@@ -343,7 +343,7 @@ public sealed class MermaidLine
     /// <summary>A name still to write — as an item of <paramref name="item"/>, where a list's items are more than their names.</summary>
     private static ContentNode Unwritten(string named, string? item)
     {
-        var name = ContentNode.Branch(MermaidKinds.Name, [ContentNode.Leaf(MermaidKinds.Words, string.Empty, named)]);
+        var name = ContentNode.Branch(MermaidKinds.Name, [ContentNode.Leaf(Kinds.Words, string.Empty, named)]);
         return item is null ? name : ContentNode.Branch(item, [name]);
     }
 
@@ -382,7 +382,7 @@ public sealed class MermaidLine
 
             if (lead > 0) Add(ContentNode.Leaf(Kinds.Space, inner[..lead], Roles.Trivia));
 
-            Add(ContentWords.Of(words, MermaidKinds.Words, role,
+            Add(ContentWords.Of(words, Kinds.Words, role,
                                 words.Length == 0 ? $"A label in brackets has something in it: {open}Alpha{close}, or {open}\"Alpha\"{close}." : null));
             if (inner.Length > lead + words.Length) Add(ContentNode.Leaf(Kinds.Space, inner[(lead + words.Length)..], Roles.Trivia));
         }
@@ -494,7 +494,7 @@ public sealed class MermaidLine
     /// <paramref name="stop"/>, less the space before it, where either is given and written.
     /// </summary>
     public void Words(string role, string? trouble = null, string? until = null, string? stop = null) =>
-        Add(ContentNode.Leaf(MermaidKinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
+        Add(ContentNode.Leaf(Kinds.Words, until is null && stop is null ? Rest : Upto(until, stop), role, trouble));
 
     /// <summary>
     /// What is written from here to <paramref name="end"/>, as what it says, less the space before it — where a rule of the
@@ -502,7 +502,7 @@ public sealed class MermaidLine
     /// depending on what is written after it.
     /// </summary>
     public void Words(string role, int end, string? trouble = null) =>
-        Add(ContentNode.Leaf(MermaidKinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, trouble));
+        Add(ContentNode.Leaf(Kinds.Words, Written[At..Math.Clamp(end, At, Written.Length)].TrimEnd(), role, trouble));
 
     /// <summary>Everything left on the line, held as written with the reason — the rest of a line whose start could be read.</summary>
     public void Held(string reason) => Add(ContentNode.Shown(Rest, reason));
@@ -572,7 +572,7 @@ public sealed class MermaidLine
     private void Quotes(int close, string role)
     {
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Open));
-        Add(ContentWords.Of(Written[At..close], MermaidKinds.Words, role));
+        Add(ContentWords.Of(Written[At..close], Kinds.Words, role));
         Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
     }
 

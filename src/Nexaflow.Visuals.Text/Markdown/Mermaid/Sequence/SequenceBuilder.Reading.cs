@@ -605,8 +605,8 @@ internal partial class SequenceBuilder
 
             foreach (var property in stated.SelfAndDescendants().Where(part => part.Kind == MermaidKinds.Property))
             {
-                var said = property.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == SequenceRoles.Menu);
-                var url = property.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == SequenceRoles.Url);
+                var said = property.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == SequenceRoles.Menu);
+                var url = property.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == SequenceRoles.Url);
 
                 if (url is { Length: > 0 }) one.Links.Add(new Link(property, said, url.Text));
             }
@@ -623,13 +623,13 @@ internal partial class SequenceBuilder
         private static ContentPart? Meta(ContentPart stated, string key) =>
             stated.SelfAndDescendants()
                   .Where(part => part.Kind == MermaidKinds.Property
-                                 && string.Equals(part.SelfAndDescendants().FirstOrDefault(said => said.Kind == MermaidKinds.Words && said.Role == SequenceRoles.Key)?.Text,
+                                 && string.Equals(part.SelfAndDescendants().FirstOrDefault(said => said.Kind == Kinds.Words && said.Role == SequenceRoles.Key)?.Text,
                                                   key, StringComparison.OrdinalIgnoreCase))
-                  .Select(part => part.SelfAndDescendants().FirstOrDefault(said => said.Kind == MermaidKinds.Words && said.Role == SequenceRoles.Type))
+                  .Select(part => part.SelfAndDescendants().FirstOrDefault(said => said.Kind == Kinds.Words && said.Role == SequenceRoles.Type))
                   .FirstOrDefault(said => said is { Length: > 0 });
 
         private static ContentPart? Piece(ContentPart stated, string role) =>
-            stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == role);
+            stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == role);
 
         private static string? Said(ContentPart stated, string kind, string role) =>
             stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == kind && part.Role == role)?.Text;

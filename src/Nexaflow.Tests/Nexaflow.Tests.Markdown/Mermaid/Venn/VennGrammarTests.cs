@@ -107,7 +107,7 @@ public class VennGrammarTests : MermaidGrammarContract
         var union = Nodes(Features, VennKinds.Union).Last();
 
         CollectionAssert.AreEqual(new[] { "Desirable", "Feasible", "Viable" },
-                                  union.SelfAndDescendants().Where(node => node is { Kind: MermaidKinds.Words, Role: VennRoles.Id })
+                                  union.SelfAndDescendants().Where(node => node is { Kind: Kinds.Words, Role: VennRoles.Id })
                                       .Select(node => node.Text).ToArray());
         Assert.AreEqual("Ship it", Name(union.Children.Single(child => child.Kind == MermaidKinds.Label)));
     }
@@ -170,8 +170,8 @@ public class VennGrammarTests : MermaidGrammarContract
                  {
                      ("venn-beta\n  set A:lots", MermaidKinds.Number, "not a number"),
                      ("venn-beta\n  set A:0", MermaidKinds.Number, "greater than nought"),
-                     ("venn-beta\n  set 1A", MermaidKinds.Words, "starts with a letter"),
-                     ("venn-beta\n  set A[]", MermaidKinds.Words, "has something in it"),
+                     ("venn-beta\n  set 1A", Kinds.Words, "starts with a letter"),
+                     ("venn-beta\n  set A[]", Kinds.Words, "has something in it"),
                      ("venn-beta\n  set A\n  style A glow:yes", MermaidKinds.Key, "not 'glow'"),
                      ("venn-beta\n  set A\n  style A fill-opacity:2", MermaidKinds.Setting, "from 0 to 1"),
                      ("venn-beta\n  set A\n  style A stroke-width:thick", MermaidKinds.Setting, "pixels"),
@@ -199,5 +199,5 @@ public class VennGrammarTests : MermaidGrammarContract
 
     /// <summary>What a name or a label says, without its quotes or brackets.</summary>
     private static string Name(ContentNode node) =>
-        node.SelfAndDescendants().First(child => child.Kind == MermaidKinds.Words).Text;
+        node.SelfAndDescendants().First(child => child.Kind == Kinds.Words).Text;
 }

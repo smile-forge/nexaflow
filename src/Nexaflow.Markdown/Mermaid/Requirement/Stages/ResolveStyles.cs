@@ -28,8 +28,8 @@ public sealed class ResolveStyles : IAstStage
     {
         if (node.Kind != RequirementKinds.Named) yield break;
 
-        var id = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == MermaidKinds.Words && words.Role == RequirementRoles.Id)?.Text;
-        var given = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == MermaidKinds.Words && words.Role == RequirementRoles.Class)?.Text;
+        var id = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == Kinds.Words && words.Role == RequirementRoles.Id)?.Text;
+        var given = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == Kinds.Words && words.Role == RequirementRoles.Class)?.Text;
 
         if (id is { Length: > 0 } && given is { Length: > 0 }) yield return (id, given);
     }

@@ -271,7 +271,7 @@ public class VennEditingTests
                      ("venn-beta\n  set A\n    text A1", "A1", "!", "venn-beta\n  set A\n    text \"A1!\""),
                  })
         {
-            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == Kinds.Words && node.Text == typedAfter);
             var writing = VennEdits.Escaping(part, part.End, typed);
 
             Assert.IsNotNull(writing, $"{source}: typing {typed}");
@@ -294,7 +294,7 @@ public class VennEditingTests
                      ("venn-beta\n  set A[Alpha]", "Alpha", " beta\\"),
                  })
         {
-            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == Kinds.Words && node.Text == typedAfter);
             Assert.IsNull(VennEdits.Escaping(part, part.End, typed), $"{source}: typing {typed}");
         }
     }

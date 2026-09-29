@@ -105,6 +105,22 @@ public static class Kinds
     /// <summary>One ordinary character of content.</summary>
     public const string Char = "char";
 
+    /// <summary>
+    /// A run of text a reader writes in: what a label, a title, a name or a lyric says, without the quotes or brackets
+    /// around it.
+    ///
+    /// <para>
+    /// Shared because the engine has to ask it. What a key means where nothing is written is the same question in every
+    /// language, and the layout cannot answer it — a layout is a picture of what the source meant, and every piece of one
+    /// offers the caret a stop. So a language says which of its pieces are runs of text, and the engine does the rest.
+    /// </para>
+    /// <para>
+    /// Not a value. A number, a date, a setting and an identifier are written in too, and each has its own rule about what
+    /// may go in it; this is the kind whose only rule is that it holds words.
+    /// </para>
+    /// </summary>
+    public const string Words = "words";
+
     /// <summary>A character that is machinery rather than content.</summary>
     public const string Token = "token";
 

@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Kanban;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -70,7 +71,7 @@ public class KanbanEditingTests : MermaidEditing
     public void ABracketTypedIntoABareIdWritesItAsATitleInQuotes()
     {
         const string source = "kanban\n  Todo";
-        var id = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Todo");
+        var id = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == "Todo");
         var writing = KanbanEdits.Escaping(id, id.End, "(")!.Value;
 
         Assert.AreEqual("kanban\n  [\"Todo(\"]", MermaidStaged.Written(source, writing));

@@ -340,7 +340,7 @@ internal partial class FlowchartBuilder
             foreach (var (stated, group) in said)
             {
                 if (stated.Node is not FlowchartMetadataNode { About: FlowchartSaid.Node or FlowchartSaid.New } meant) continue;
-                if (stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == FlowchartRoles.Id) is not { Length: > 0 } name) continue;
+                if (stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == FlowchartRoles.Id) is not { Length: > 0 } name) continue;
 
                 if (!known.TryGetValue(name.Text, out var node))
                 {
@@ -386,7 +386,7 @@ internal partial class FlowchartBuilder
                 .FirstOrDefault(value => value is { Length: > 0 });
 
         private static string? Words(ContentPart stated, string role) =>
-            stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role == role)?.Text;
+            stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == role)?.Text;
 
         /// <summary>The way a word says something is laid out, or null where it says nothing this reads.</summary>
         private static DiagramWay? Wayward(string? said) => (said ?? string.Empty).ToUpperInvariant() switch

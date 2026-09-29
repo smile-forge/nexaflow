@@ -35,7 +35,7 @@ public static class MermaidParts
     public static ContentPart? Hole(this ContentPart? part) => part.Inner(Kinds.Hole);
 
     /// <summary>
-    /// What a name, a label or a title says — its <see cref="MermaidKinds.Words"/>, without quotes or brackets — or
+    /// What a name, a label or a title says — its <see cref="Kinds.Words"/>, without quotes or brackets — or
     /// the whole other content written in its place, or null.
     /// </summary>
     /// <remarks>
@@ -43,20 +43,20 @@ public static class MermaidParts
     /// says. Which of the two came back shows in its kind, and only a builder that draws the second has to care.
     /// </remarks>
     public static ContentPart? Words(this ContentPart? part) =>
-        part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Block);
+        part?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is Kinds.Words or Kinds.Block);
 
     /// <summary>The words a node holds — or the content in another language written where they would be — or null where it holds none.</summary>
     public static ContentNode? Words(this ContentNode? node) =>
-        node?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is MermaidKinds.Words or Kinds.Block);
+        node?.SelfAndDescendants().FirstOrDefault(inner => inner.Kind is Kinds.Words or Kinds.Block);
 
     /// <summary>What a name or a list's names say, as text: empty for a name still to be written.</summary>
     public static IReadOnlyList<string> SaidNames(this ContentNode? names) =>
         names is null ? []
-        : names.Kind == MermaidKinds.Name ? [names.Inner(MermaidKinds.Words)?.Text ?? string.Empty]
+        : names.Kind == MermaidKinds.Name ? [names.Inner(Kinds.Words)?.Text ?? string.Empty]
         : [.. names.Children
               .Select(child => child.Kind == MermaidKinds.Name ? child : child.Children.FirstOrDefault(inner => inner.Kind == MermaidKinds.Name))
               .OfType<ContentNode>()
-              .Select(name => name.Inner(MermaidKinds.Words)?.Text ?? string.Empty)];
+              .Select(name => name.Inner(Kinds.Words)?.Text ?? string.Empty)];
 
     /// <summary>
     /// The names a <see cref="MermaidKinds.Names"/> lists — the name of each item, where its items are more than their names —

@@ -320,8 +320,8 @@ internal abstract class MermaidBuilder : ContentBuilder
     private IReadOnlyList<Line> Lines(ContentPart part, bool breaks)
     {
         // A name or a label handed over whole is set as the words in it.
-        var words = part.Kind == MermaidKinds.Words || part.Node.IsLeaf ? part
-            : part.Words() is { Kind: MermaidKinds.Words } inner ? inner
+        var words = part.Kind == Kinds.Words || part.Node.IsLeaf ? part
+            : part.Words() is { Kind: Kinds.Words } inner ? inner
             : part;
 
         if (Pieces.Of(words.Node) is not { } pieces)

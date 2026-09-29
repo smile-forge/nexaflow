@@ -190,7 +190,7 @@ public sealed class ResolveGraph(GitConfig config) : IAstStage
 
     /// <summary>The branch a line names, or null where it names none yet.</summary>
     private static string? Named(ContentNode line) =>
-        line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)?.Inner(MermaidKinds.Words)?.Text;
+        line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)?.Inner(Kinds.Words)?.Text;
 
     /// <summary>What a line's option says, without the quotes it may be written in — or null where the line does not set it.</summary>
     private static string? Option(ContentNode line, string key) =>

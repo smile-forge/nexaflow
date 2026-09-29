@@ -95,7 +95,7 @@ public class XyGrammarTests : MermaidGrammarContract
     public void AnAxisIsItsTitleAndItsCategoriesOrItsRange()
     {
         var axes = Nodes(MermaidStaged.Read(Revenue), XyKinds.Axis);
-        var categories = axes[0].Inner(XyKinds.Categories)!.SelfAndDescendants().Where(node => node.Kind == MermaidKinds.Words).ToList();
+        var categories = axes[0].Inner(XyKinds.Categories)!.SelfAndDescendants().Where(node => node.Kind == Kinds.Words).ToList();
 
         Assert.AreEqual(12, categories.Count);
         Assert.AreEqual("jan", categories[0].Text);

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -117,7 +118,7 @@ public class RadarEditingTests
     public void ASpaceTypedIntoABareAxisNamePutsItInQuotes()
     {
         const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
-        var words = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "a");
+        var words = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == "a");
         var writing = RadarEdits.Escaping(words, words.End, " ")!.Value;
 
         Assert.AreEqual("radar-beta\n  axis \"a \", b\n  curve x{ a: 1, b: 2 }", MermaidStaged.Written(source, writing));

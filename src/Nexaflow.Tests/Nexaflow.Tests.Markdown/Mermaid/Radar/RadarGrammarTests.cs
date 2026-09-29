@@ -144,7 +144,7 @@ public class RadarGrammarTests : MermaidGrammarContract
 
         CollectionAssert.AreEqual(new[] { "m", "s", "e", "h", "g", "a" }, axes.Select(Name).ToArray());
         CollectionAssert.AreEqual(new[] { "Math", "Science", "English", "History", "Geography", "Art" },
-                                  axes.Select(axis => axis.Children.Single(child => child.Kind == MermaidKinds.Label).Inner(MermaidKinds.Words)!.Text).ToArray());
+                                  axes.Select(axis => axis.Children.Single(child => child.Kind == MermaidKinds.Label).Inner(Kinds.Words)!.Text).ToArray());
     }
 
     [TestMethod]
@@ -207,7 +207,7 @@ public class RadarGrammarTests : MermaidGrammarContract
     public void AnAxisStillToNameStandsWhereTypingItsNamePutsIt()
     {
         const string source = "radar-beta\n  axis a, ";
-        var name = MermaidParser.Parse(source).Placed().Last(place => place.Node.Kind == MermaidKinds.Words);
+        var name = MermaidParser.Parse(source).Placed().Last(place => place.Node.Kind == Kinds.Words);
 
         Assert.AreEqual(source.Length, name.Start);
         Assert.AreEqual(string.Empty, name.Node.Text);
@@ -265,7 +265,7 @@ public class RadarGrammarTests : MermaidGrammarContract
         [.. MermaidStaged.Read(source).SelfAndDescendants().Select(node => node.Trouble).OfType<string>()];
 
     private static string Name(ContentNode item) =>
-        item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)!.Text;
+        item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)!.Text;
 
     /// <summary>How far a curve reaches along each spoke, as the stages worked it out.</summary>
     private static double?[] Points(string source, string curve) =>

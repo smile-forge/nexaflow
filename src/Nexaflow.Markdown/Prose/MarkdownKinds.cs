@@ -81,9 +81,6 @@ public static class MarkdownKinds
     /// <summary>A run of characters that are only themselves.</summary>
     public const string Word = "word";
 
-    /// <summary>Several of them in a row: what a construct was put round.</summary>
-    public const string Words = "words";
-
     /// <summary><c>*one*</c> — set slanted.</summary>
     public const string Emphasis = "emphasis";
 

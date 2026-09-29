@@ -38,7 +38,7 @@ public static class MarkdownInline
     public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(MarkdownKinds.Words, []);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Words, []);
 
         var read = new Cut(text);
         var parts = new List<ContentNode>();
@@ -56,7 +56,7 @@ public static class MarkdownInline
 
         read.Gap(parts, read.Length);
 
-        return MarkdownParser.Checked(MarkdownKinds.Words, parts, text, Roles.Element);
+        return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element);
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public static class MarkdownInline
                     body.RemoveAt(0);
                 }
 
-                parts.Add(ContentNode.Branch(MarkdownKinds.Words, body, Roles.Body));
+                parts.Add(ContentNode.Branch(Kinds.Words, body, Roles.Body));
             }
         }
 

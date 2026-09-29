@@ -25,7 +25,7 @@ internal sealed class SankeyEdits : IOnEdit
     {
         if (part.Parent is { Kind: MermaidKinds.Amount })
             return MermaidWriting.Only(caret, text, character => char.IsAsciiDigit(character) || character is '.' or '-');
-        if (part.Parent is not { } holder || part.Kind is not (MermaidKinds.Words or Kinds.Hole)) return null;
+        if (part.Parent is not { } holder || part.Kind is not (Kinds.Words or Kinds.Hole)) return null;
 
         var said = part.Kind == Kinds.Hole ? string.Empty : part.Text;
         var at = Math.Clamp(caret - part.Start, 0, said.Length);
