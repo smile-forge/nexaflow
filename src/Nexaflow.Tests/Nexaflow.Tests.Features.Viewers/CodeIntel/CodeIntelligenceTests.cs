@@ -11,6 +11,7 @@ using NSubstitute;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Nexaflow.Visuals.Text.Editing;
+namespace Nexaflow.Markdown.Editing;
 
 /// <summary>
 /// A stretch of source the reader is being shown literally rather than typeset — a command being typed,

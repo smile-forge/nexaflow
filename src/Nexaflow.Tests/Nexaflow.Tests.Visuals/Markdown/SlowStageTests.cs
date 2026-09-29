@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;

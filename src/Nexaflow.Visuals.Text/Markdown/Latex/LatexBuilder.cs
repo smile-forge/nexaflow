@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex.Tex.Rendering;
 using Nexaflow.Visuals.Text.Markdown.Latex.Tex;
 using System.Collections.Generic;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Latex;
 

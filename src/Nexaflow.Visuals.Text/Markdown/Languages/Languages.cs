@@ -40,6 +40,7 @@ using Nexaflow.Markdown.WordCloud.Stages;
 using System.Linq;
 using Nexaflow.Syntax;
 using Nexaflow.Icons;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;

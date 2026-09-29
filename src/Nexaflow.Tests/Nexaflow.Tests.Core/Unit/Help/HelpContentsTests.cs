@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Markdig.Syntax;
 using Nexaflow.Core.Help;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;

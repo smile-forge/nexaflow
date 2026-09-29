@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Matrix;
 using Nexaflow.Visuals.Text.Editing;
 using System.Linq;
 using Nexaflow.Markdown.Settings;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Matrix;
 

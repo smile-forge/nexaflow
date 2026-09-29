@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;

@@ -22,6 +22,7 @@ using Nexaflow.Visuals.Text.Markdown.Prose;
 using System.Diagnostics.Tracing;
 using System.Threading;
 using System.Windows;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 

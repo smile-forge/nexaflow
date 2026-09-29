@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
