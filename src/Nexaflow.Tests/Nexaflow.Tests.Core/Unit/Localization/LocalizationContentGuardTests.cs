@@ -399,7 +399,7 @@ public partial class LocalizationContentGuardTests
     [GeneratedRegex(@"\{loc:Str\s+([\w.]+)\s*\}")]
     private static partial Regex XamlKey();
 
-    [GeneratedRegex(@"\bStr\.(?:Get|Format)\(\s*""([\w.]+)""")]
+    [GeneratedRegex(@"\b(?:Str\.(?:Get|Format)|ConfigDisplayName)\(\s*""([\w.]+)""")]
     private static partial Regex CodeKey();
 
     [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline)]

@@ -1,5 +1,6 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -12,5 +13,5 @@ namespace Nexaflow.Core;
 public sealed class AboutConfig : IFeatureConfig
 {
     public string ConfigName   => "about";
-    public string FriendlyName => "About";
+    public string FriendlyName => Str.Get("Shell.Config.About");
 }

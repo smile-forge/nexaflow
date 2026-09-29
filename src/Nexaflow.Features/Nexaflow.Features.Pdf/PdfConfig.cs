@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Pdf;
 
@@ -9,7 +10,7 @@ namespace Nexaflow.Features.Pdf;
 public sealed class PdfConfig : IFeatureConfig
 {
     public string ConfigName   => "pdf";
-    public string FriendlyName => "PDF";
+    public string FriendlyName => Str.Get("Pdf.Config.Pdf");
 
     /// <summary>
     /// Above this size a search sweep skips the file rather than parsing it. The parse itself can't be
@@ -17,6 +18,7 @@ public sealed class PdfConfig : IFeatureConfig
     /// available — so the only cheap defence against one enormous PDF stalling a sequential sweep is to
     /// decline before opening it. A skipped file is reported as unreadable, never as "no match".
     /// </summary>
+    [ConfigDisplayName("Pdf.Config.Pdf.SearchMaxFileSizeMb")]
     public int SearchMaxFileSizeMb { get; set; } = 128;
 
     /// <summary>
@@ -24,6 +26,7 @@ public sealed class PdfConfig : IFeatureConfig
     /// titles and its filled-in form field values. On by default: it is what makes a document findable by its
     /// title, and a completed form findable by what was typed into it, when the page bodies say neither.
     /// </summary>
+    [ConfigDisplayName("Pdf.Config.Pdf.IncludeMetadata")]
     public bool IncludeMetadata { get; set; } = true;
 
     /// <summary>
@@ -33,5 +36,6 @@ public sealed class PdfConfig : IFeatureConfig
     /// stalls every candidate queued behind it, whereas a document the user just double-clicked has nothing
     /// behind it and is worth waiting for.
     /// </summary>
+    [ConfigDisplayName("Pdf.Config.Pdf.ViewerMaxFileSizeMb")]
     public int ViewerMaxFileSizeMb { get; set; } = 512;
 }

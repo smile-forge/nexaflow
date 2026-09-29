@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Code;
 
@@ -9,14 +10,15 @@ namespace Nexaflow.Features.Code;
 public sealed class CodeEditorConfig : IFeatureConfig
 {
     public string ConfigName   => "code";
-    public string FriendlyName => "Code Editor";
+    public string FriendlyName => Str.Get("Code.Config.CodeEditor");
 
-    [ConfigDisplayName("Max editable file size")]
+    [ConfigDisplayName("Code.Config.CodeEditor.MaxEditableFileSize")]
     [ListSource(typeof(CodeEditorConfig), nameof(GetSizeOptions))]
     public string MaxEditableFileSize { get; set; } = "50 MB";
 
-    public static IEnumerable<string> GetSizeOptions() =>
-        ["5 MB", "10 MB", "25 MB", "50 MB", "100 MB", "250 MB"];
+    public static IEnumerable<ConfigListOption> GetSizeOptions() =>
+        new[] { 5, 10, 25, 50, 100, 250 }
+            .Select(mb => new ConfigListOption($"{mb} MB", Str.Format("Code.Config.CodeEditor.Megabytes", mb)));
 
     /// <summary>The configured ceiling in bytes; files larger than this open read-only.</summary>
     public long GetMaxEditableBytes() => MaxEditableFileSize switch

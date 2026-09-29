@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -14,12 +15,12 @@ public enum WhisperLanguage  { EnglishOnly, Multilingual }
 public sealed class VoiceConfig : IFeatureConfig
 {
     public string ConfigName   => "voice";
-    public string FriendlyName => "Voice";
+    public string FriendlyName => Str.Get("Shell.Config.Voice");
 
-    [ConfigDisplayName("Model Size")]
+    [ConfigDisplayName("Shell.Config.Voice.ModelSize")]
     public WhisperModelSize ModelSize { get; set; } = WhisperModelSize.Base;
 
-    [ConfigDisplayName("Language")]
+    [ConfigDisplayName("Shell.Config.Voice.Language")]
     public WhisperLanguage Language { get; set; } = WhisperLanguage.EnglishOnly;
 }
 

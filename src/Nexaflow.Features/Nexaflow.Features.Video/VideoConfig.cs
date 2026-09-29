@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Video;
 
@@ -10,8 +11,8 @@ namespace Nexaflow.Features.Video;
 public sealed class VideoConfig : IFeatureConfig
 {
     public string ConfigName   => "video";
-    public string FriendlyName => "Video";
+    public string FriendlyName => Str.Get("Video.Config.Video");
 
-    [ConfigDisplayName("Use hardware-accelerated decoding (faster; turn off if playback is unstable)")]
+    [ConfigDisplayName("Video.Config.Video.EnableHardwareDecoding")]
     public bool EnableHardwareDecoding { get; set; }
 }

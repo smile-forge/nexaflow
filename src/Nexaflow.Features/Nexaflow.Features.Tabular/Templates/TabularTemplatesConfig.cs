@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Tabular.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Tabular.Templates;
 
@@ -16,7 +17,7 @@ namespace Nexaflow.Features.Tabular.Templates;
 public sealed class TabularTemplatesConfig : IFeatureConfig
 {
     public string ConfigName   => "tabulartemplates";
-    public string FriendlyName => "Tabular Templates";
+    public string FriendlyName => Str.Get("Tabular.Config.TabularTemplates");
 
     public List<TabularTemplate> Templates { get; set; } = new();
 }

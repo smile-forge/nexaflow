@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Compressed;
 
@@ -8,9 +9,9 @@ namespace Nexaflow.Features.Compressed;
 public sealed class CompressedConfig : IFeatureConfig
 {
     public string ConfigName => "compressed";
-    public string FriendlyName => "Compressed";
+    public string FriendlyName => Str.Get("Compressed.Config.Compressed");
 
-    [ConfigDisplayName("Default \"Zip It\" format")]
+    [ConfigDisplayName("Compressed.Config.Compressed.DefaultFormat")]
     [ListSource(typeof(CompressedConfig), nameof(GetFormatOptions))]
     public string DefaultFormat { get; set; } = "zip";
 

@@ -4,6 +4,7 @@ using Nexaflow.Core.Controls;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -25,17 +26,19 @@ public enum PropertyEditorKind
     Toggle,
 }
 
-/// <summary>One choice in an enum combo: the persisted enum <paramref name="Name"/> and a friendly
-/// <paramref name="Display"/> label (the enum's [Description] when set, else the name).</summary>
-public sealed record EnumOption(string Name, string Display);
-
 // ── Per-property view model ───────────────────────────────────────────────────
 
 public partial class PropertyEditViewModel : ObservableObject
 {
-    /// <summary>The [Description] of an enum field if present, otherwise the field name.</summary>
+    /// <summary>The string-table key a config property or enum field names with [ConfigDisplayName] — the feature's
+    /// attribute or the provider's — or null when it names none.</summary>
+    internal static string? LabelKey(MemberInfo member)
+        => member.GetCustomAttribute<Nexaflow.Features.Common.ConfigDisplayNameAttribute>()?.DisplayName
+           ?? member.GetCustomAttribute<Nexaflow.Providers.Common.ConfigDisplayNameAttribute>()?.DisplayName;
+
+    /// <summary>What an enum value reads as: its [ConfigDisplayName] key looked up, otherwise the field name.</summary>
     private static string EnumDisplayName(Type enumType, string name)
-        => enumType.GetField(name)?.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name;
+        => enumType.GetField(name) is { } field && LabelKey(field) is { } key ? Str.Get(key) : name;
 
     private readonly PropertyInfo _pi;
     private readonly object       _editingClone;
@@ -56,12 +59,11 @@ public partial class PropertyEditViewModel : ObservableObject
     /// <summary>True when the editor is disabled while the sibling is SET (DisabledIfSet); false for the inverse.</summary>
     public bool               DisabledWhenSiblingSet { get; }
 
-    /// <summary>Enum options for EnumComboBox editors: the underlying name plus a friendly display
-    /// label (from a <see cref="System.ComponentModel.DescriptionAttribute"/> when present).</summary>
-    public IReadOnlyList<EnumOption>? EnumOptions { get; }
+    /// <summary>Enum options for EnumComboBox editors: the underlying name as the value, and what it reads as.</summary>
+    public IReadOnlyList<ConfigListOption>? EnumOptions { get; }
 
     /// <summary>Dynamic items for ListComboBox editors (populated via [ListSource]).</summary>
-    public IReadOnlyList<string>? ListOptions { get; }
+    public IReadOnlyList<ConfigListOption>? ListOptions { get; }
 
     [ObservableProperty] private object? _value;
     [ObservableProperty] private string? _validationError;
@@ -105,9 +107,9 @@ public partial class PropertyEditViewModel : ObservableObject
         {
             // Empty is allowed (no-op); a non-empty path must exist.
             PropertyEditorKind.FolderPath when !string.IsNullOrWhiteSpace(path) && !Directory.Exists(path)
-                => "Directory does not exist",
+                => Str.Get("Shell.Options.DirectoryMissing"),
             PropertyEditorKind.FilePath when !string.IsNullOrWhiteSpace(path) && !File.Exists(path)
-                => "File does not exist",
+                => Str.Get("Shell.Options.FileMissing"),
             _ => null,
         };
     }
@@ -151,9 +153,7 @@ public partial class PropertyEditViewModel : ObservableObject
         _editingClone = editingClone;
         _onChanged   = onChanged;
 
-        var displayAttr = pi.GetCustomAttribute<Nexaflow.Features.Common.ConfigDisplayNameAttribute>()?.DisplayName
-                       ?? pi.GetCustomAttribute<Nexaflow.Providers.Common.ConfigDisplayNameAttribute>()?.DisplayName;
-        Label        = displayAttr ?? pi.Name;
+        Label        = LabelKey(pi) is { } key ? Str.Get(key) : pi.Name;
         PropertyName = pi.Name;
         IsRequired   = pi.GetCustomAttribute<RequiredAttribute>() is not null;
         var disabledIfSet =
@@ -177,7 +177,7 @@ public partial class PropertyEditViewModel : ObservableObject
         {
             EditorKind  = PropertyEditorKind.EnumComboBox;
             EnumOptions = Enum.GetNames(pi.PropertyType)
-                .Select(n => new EnumOption(n, EnumDisplayName(pi.PropertyType, n)))
+                .Select(n => new ConfigListOption(n, EnumDisplayName(pi.PropertyType, n)))
                 .ToList();
         }
         else if (listAttr is not null)
@@ -342,16 +342,8 @@ public partial class ConfigEditViewModel : ObservableObject
             return;  // skip property reflection
         }
 
-        // Reflect over the concrete type; skip interface-declared identity members and
-        // read-only/computed properties (they can't be edited and only ApplyToReal-writable
-        // properties round-trip on Save).
-        var skip = new HashSet<string> { "ConfigName", "FriendlyName" };
-        foreach (var pi in EditingClone.GetType()
-                     .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                     .Where(p => p.CanRead && p.CanWrite && !skip.Contains(p.Name)))
-        {
+        foreach (var pi in EditableProperties(EditingClone.GetType()))
             Properties.Add(new PropertyEditViewModel(pi, EditingClone, RecheckValidity));
-        }
 
         WireConditionalEnables();
         RecheckValidity();
@@ -385,6 +377,24 @@ public partial class ConfigEditViewModel : ObservableObject
         string s => !string.IsNullOrWhiteSpace(s) && s.Trim() != "0",
         _        => System.Convert.ToDouble(v) != 0,
     };
+
+    /// <summary>
+    /// The properties the grid gives a row: public and read-write — only those round-trip through ApplyToReal on
+    /// Save — other than the interface's identity members, and of a type an editor can hold. A list or an object a
+    /// feature persists for itself (the Solver's recent symbols) is state, not a setting.
+    /// </summary>
+    internal static IEnumerable<PropertyInfo> EditableProperties(Type configType)
+        => configType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.CanWrite
+                        && p.Name is not (nameof(IFeatureConfig.ConfigName) or nameof(IFeatureConfig.FriendlyName))
+                        && IsEditable(p.PropertyType));
+
+    private static bool IsEditable(Type type)
+    {
+        var t = Nullable.GetUnderlyingType(type) ?? type;
+        return t == typeof(string) || t == typeof(bool) || t.IsEnum
+            || t == typeof(int) || t == typeof(long) || t == typeof(double) || t == typeof(decimal);
+    }
 }
 
 // ── Root Options view model ───────────────────────────────────────────────────
@@ -458,7 +468,7 @@ public partial class OptionsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                SaveError?.Invoke($"Could not save {section.FriendlyName} settings: {ex.Message}");
+                SaveError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
                 return;
             }
         }

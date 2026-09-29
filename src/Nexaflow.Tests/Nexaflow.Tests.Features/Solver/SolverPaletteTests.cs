@@ -272,7 +272,7 @@ public class SolverPaletteTests
     [CoversNode("solver-config")]
     public void EverySettingsOptionIsOneTheParserAccepts()
     {
-        foreach (var mode in SolverConfig.GetModeOptions())
+        foreach (var mode in SolverConfig.GetModeOptions().Select(o => o.Value))
             Assert.AreEqual(mode, new SolverConfig { StartMode = mode }.GetStartMode().ToString());
 
         foreach (var places in SolverConfig.GetDecimalOptions())

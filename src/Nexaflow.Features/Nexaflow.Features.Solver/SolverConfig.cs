@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Solver.Solving;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Solver;
 
@@ -26,10 +27,10 @@ public sealed class SolverConfig : IFeatureConfig
     public string ConfigName => "solver";
 
     /// <inheritdoc/>
-    public string FriendlyName => "Solver";
+    public string FriendlyName => Str.Get("Solver.Config.Solver");
 
     /// <summary>Which editor a freshly opened Solver tab starts on.</summary>
-    [ConfigDisplayName("Start In")]
+    [ConfigDisplayName("Solver.Config.Solver.StartMode")]
     [ListSource(typeof(SolverConfig), nameof(GetModeOptions))]
     public string StartMode { get; set; } = "Calc";
 
@@ -37,17 +38,17 @@ public sealed class SolverConfig : IFeatureConfig
     /// How to read an angle. Degrees is the default because the calculator is the thing most people
     /// open this for, and typing <c>sin(45)</c> expecting radians is the rarer intent.
     /// </summary>
-    [ConfigDisplayName("Angles")]
+    [ConfigDisplayName("Solver.Config.Solver.Angles")]
     [ListSource(typeof(SolverConfig), nameof(GetAngleOptions))]
     public string Angles { get; set; } = "Degrees";
 
     /// <summary>Places a decimal answer is rounded to.</summary>
-    [ConfigDisplayName("Decimal Places")]
+    [ConfigDisplayName("Solver.Config.Solver.DecimalPlaces")]
     [ListSource(typeof(SolverConfig), nameof(GetDecimalOptions))]
     public string DecimalPlaces { get; set; } = "6";
 
     /// <summary>Whether the button palette is open when a tab is created.</summary>
-    [ConfigDisplayName("Show Palette")]
+    [ConfigDisplayName("Solver.Config.Solver.ShowPalette")]
     public bool ShowPalette { get; set; } = true;
 
     /// <summary>
@@ -58,10 +59,19 @@ public sealed class SolverConfig : IFeatureConfig
     public List<RecentSymbol> RecentSymbols { get; set; } = [];
 
     /// <summary>Options-panel sources.</summary>
-    public static IEnumerable<string> GetModeOptions() => ["Calc", "Latex", "Text"];
+    public static IEnumerable<ConfigListOption> GetModeOptions() =>
+    [
+        new("Calc",  Str.Get("Solver.Config.Solver.StartMode.Calc")),
+        new("Latex", Str.Get("Solver.Config.Solver.StartMode.Latex")),
+        new("Text",  Str.Get("Solver.Config.Solver.StartMode.Text")),
+    ];
 
     /// <inheritdoc cref="GetModeOptions"/>
-    public static IEnumerable<string> GetAngleOptions() => ["Degrees", "Radians"];
+    public static IEnumerable<ConfigListOption> GetAngleOptions() =>
+    [
+        new("Degrees", Str.Get("Solver.Config.Solver.Angles.Degrees")),
+        new("Radians", Str.Get("Solver.Config.Solver.Angles.Radians")),
+    ];
 
     /// <inheritdoc cref="GetModeOptions"/>
     public static IEnumerable<string> GetDecimalOptions() => ["2", "4", "6", "8", "10", "15"];

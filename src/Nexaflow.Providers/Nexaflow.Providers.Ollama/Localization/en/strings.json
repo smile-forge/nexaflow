@@ -1,0 +1,6 @@
+{
+  "Ollama.Config.Ollama.Url": "Ollama URL",
+  "Ollama.Config.Ollama.KeepWhileRunning": "Keep loaded while running",
+  "Ollama.Config.Ollama.KeepAliveMinutes": "Keep-alive (minutes, 0 = default)",
+  "Ollama.Config.Ollama.ThinkingMode": "Thinking mode"
+}

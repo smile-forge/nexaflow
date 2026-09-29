@@ -1,0 +1,4 @@
+{
+  "Video.Config.Video": "Video",
+  "Video.Config.Video.EnableHardwareDecoding": "Use hardware-accelerated decoding (faster; turn off if playback is unstable)"
+}

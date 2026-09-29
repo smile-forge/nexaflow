@@ -1,0 +1,7 @@
+{
+  "Audio.Config.Audio": "Audio Player",
+  "Audio.Config.Audio.Volume": "Volume (0 to 1)",
+  "Audio.Config.Audio.AutoAdvance": "Play the next track when one ends",
+  "Audio.Config.Audio.SpectrumBarCount": "Spectrum bars",
+  "Audio.Config.Audio.BackgroundPlay": "Keep playing when you leave the tab"
+}

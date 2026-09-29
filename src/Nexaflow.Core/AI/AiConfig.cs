@@ -2,6 +2,7 @@ using Nexaflow.Core.Controls;
 using Nexaflow.Providers.Common;
 using System.Text.Json.Serialization;
 using ProviderCustomControl = Nexaflow.Providers.Common.CustomControlAttribute;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.AI;
 
@@ -9,7 +10,7 @@ namespace Nexaflow.Core.AI;
 public sealed class AiConfig : IProviderConfig
 {
     public string ConfigName   => "ai-abilities";
-    public string FriendlyName => "AI";
+    public string FriendlyName => Str.Get("Shell.Config.Ai");
 
     /// <summary>
     /// The editing workspace's provider set — supplies the ability grid with the provider instances

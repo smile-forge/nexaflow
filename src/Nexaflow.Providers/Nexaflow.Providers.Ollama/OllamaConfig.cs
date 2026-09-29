@@ -8,11 +8,11 @@ public sealed class OllamaConfig : IProviderConfig
     public string ConfigName   => "ollama";
     public string FriendlyName => "Ollama";
 
-    [ConfigDisplayName("Ollama URL")]
+    [ConfigDisplayName("Ollama.Config.Ollama.Url")]
     public string Url { get; set; } = "http://localhost:11434";
 
     /// <summary>When set, models stay resident for the lifetime of the server (keep_alive = -1).</summary>
-    [ConfigDisplayName("Keep loaded while running")]
+    [ConfigDisplayName("Ollama.Config.Ollama.KeepWhileRunning")]
     [DisabledIfSet(nameof(KeepAliveMinutes))]
     public bool KeepWhileRunning { get; set; }
 
@@ -20,12 +20,12 @@ public sealed class OllamaConfig : IProviderConfig
     /// Idle minutes before Ollama unloads a model. 0 = server default. Mutually exclusive with
     /// <see cref="KeepWhileRunning"/> — set one or the other.
     /// </summary>
-    [ConfigDisplayName("Keep-alive (minutes, 0 = default)")]
+    [ConfigDisplayName("Ollama.Config.Ollama.KeepAliveMinutes")]
     [DisabledIfSet(nameof(KeepWhileRunning))]
     public int KeepAliveMinutes { get; set; }
 
     /// <summary>Enables the model's thinking mode (think=true); the thinking output is hidden.</summary>
-    [ConfigDisplayName("Thinking mode")]
+    [ConfigDisplayName("Ollama.Config.Ollama.ThinkingMode")]
     public bool ThinkingMode { get; set; }
 
     /// <summary>
