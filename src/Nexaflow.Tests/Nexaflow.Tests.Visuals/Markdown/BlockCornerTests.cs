@@ -54,8 +54,10 @@ public class BlockCornerTests
 
         var buttons = engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null).ToList();
         Assert.AreEqual(2, buttons.Count, "copying it and keeping a picture of it, as the pie says");
-        Assert.IsTrue(buttons.All(button => button.Bounds.Top >= box.Top && button.Bounds.Right <= box.Right),
-                      "standing in the block's own top right-hand corner");
+        Assert.IsTrue(buttons.All(button => button.Bounds.Top >= box.Top && button.Bounds.Bottom <= box.Bottom),
+                      "standing at the top of the band of the page the block owns");
+        Assert.IsTrue(buttons.All(button => engine.Blocked(Middle(button.Bounds))?.Start == pie.Start),
+                      "and the block under them is the one they belong to");
 
         engine.Input(new ContentPress(Middle(buttons[1].Bounds)));
 
@@ -154,6 +156,102 @@ public class BlockCornerTests
         Assert.IsTrue(Differing(picture, OnPage(writable)) > 0.005, "and not the mark it draws only where it can be written in");
     });
 
+    [TestMethod]
+    public void APointerCanTravelFromTheWordsToAButtonAndPressIt() => UiThread.Run(() =>
+    {
+        // A reader reaches a button by moving the pointer onto it, a few units at a time. Every point on that way is over
+        // the block the corner belongs to or over the corner itself, so the corner has to survive all of them — arriving on
+        // a button without having travelled there is not something a hand can do.
+        var asked = new List<LayoutAct>();
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, new Keeper(asked), engine);
+        element.Measure(new Size(600, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        var box = engine.Where(pie);
+        var from = Middle(box);
+
+        engine.Input(new ContentHover(from));
+        Assert.IsNotNull(engine.Corner, "precondition: the pie offers a corner where the pointer rests on it");
+
+        var buttons = engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null).ToList();
+        var to = Middle(buttons[1].Bounds);
+
+        foreach (var (at, step) in Walked(from, to))
+        {
+            engine.Input(new ContentHover(at));
+            Assert.IsNotNull(engine.Corner,
+                             $"the corner went {step} of the way from the words at {from} to the button at {to}, on reaching {at}");
+        }
+
+        engine.Input(new ContentPress(to));
+        Assert.AreEqual(LayoutVerbs.Save, asked.Single().Intent.Verb, "and the button the pointer walked to answered the press");
+    });
+
+    [TestMethod]
+    public void EveryPointInsideABlockBelongsToIt_SoItsCornerStaysWhileThePointerIsOnIt() => UiThread.Run(() =>
+    {
+        // The empty corners of a diagram's card — the ones a pie's disc never reaches — have nothing of the diagram drawn
+        // in them, so the piece nearest them is the paragraph above or below. A reader crossing one of those corners on the
+        // way to the buttons has not left the diagram, and must not lose them.
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        element.Measure(new Size(900, double.PositiveInfinity));
+        element.Arrange(new Rect(new Size(1168, element.DesiredSize.Height)));
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        var box = engine.Where(pie);
+
+        var map = new System.Text.StringBuilder();
+        var missed = 0;
+
+        for (var y = box.Y; y < box.Bottom; y += 8)
+        {
+            for (var x = box.X; x < box.Right; x += 8)
+            {
+                var found = engine.Blocked(new Point(x, y))?.Start == pie.Start;
+                if (!found) missed++;
+
+                map.Append(found ? '#' : '.');
+            }
+
+            map.AppendLine();
+        }
+
+        Assert.AreEqual(0, missed, $"inside the pie's own box, but answered with another block or none:\n{map}");
+    });
+
+    [TestMethod]
+    public void TheButtonsStandInFromThePanelsRightEdge_WhateverWidthTheWordsCameOutAt() => UiThread.Run(() =>
+    {
+        // The scroller a surface keeps a document in cannot scroll sideways, so the element is measured with the panel's width
+        // and arranged at that same width however narrow the content came out — which is what this does, so the room the
+        // buttons are placed from here is the room they are placed from on a page. Placed from the widest line instead they
+        // would stand wherever the longest paragraph happened to reach, and would move when one was typed into.
+        const double Panel = 1000;
+
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        element.Measure(new Size(Panel, double.PositiveInfinity));
+        element.Arrange(new Rect(new Size(Panel, element.DesiredSize.Height)));
+
+        Assert.IsTrue(engine.Laid.Size.Width < Panel - 100, "precondition: the words came out far narrower than the panel");
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        engine.Input(new ContentHover(Middle(engine.Where(pie))));
+
+        var buttons = engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null).ToList();
+        Assert.AreEqual(2, buttons.Count, "precondition: the pie offers both buttons");
+
+        var right = buttons.Max(button => button.Bounds.Right);
+        Assert.AreEqual(Panel - 12, right, 0.5, "in from the panel's right edge by the corner's own inset");
+        Assert.IsTrue(right <= element.RenderSize.Width, "which is inside the element, all of it the reader can see");
+
+        foreach (var button in buttons)
+            Assert.AreEqual(pie.Start, engine.Blocked(Middle(button.Bounds))?.Start, "and the pie is the block under it");
+    });
+
     // ── Reading the answers ─────────────────────────────────────────────────
 
     /// <summary>Where the <paramref name="index"/>th block of another language came out on the page.</summary>
@@ -167,6 +265,16 @@ public class BlockCornerTests
     }
 
     private static Point Middle(Rect box) => new(box.X + (box.Width / 2), box.Y + (box.Height / 2));
+
+    /// <summary>The points a pointer passes through on its way from one place to another, as a hand moves it: a few units at a time.</summary>
+    private static IEnumerable<(Point At, string Step)> Walked(Point from, Point to)
+    {
+        var away = to - from;
+        var steps = Math.Max(1, (int)Math.Ceiling(away.Length / 4));
+
+        for (var step = 1; step <= steps; step++)
+            yield return (new Point(from.X + (away.X * step / steps), from.Y + (away.Y * step / steps)), $"{step}/{steps}");
+    }
 
     /// <summary>A host that answers every verb it is asked, and remembers them.</summary>
     private sealed class Keeper(List<LayoutAct> asked) : ILayoutActions
