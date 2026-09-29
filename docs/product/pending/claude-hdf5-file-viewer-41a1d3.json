@@ -104,6 +104,11 @@
           "doc": "src/Nexaflow.IO.Hdf5/Hdf5Selection.cs",
           "class": "Hdf5Selection",
           "method": "Walk"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5TableViewModel.cs",
+          "class": "Hdf5TableSource"
         }
       ],
       "concerns": {
@@ -112,6 +117,12 @@
             "type": "code",
             "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/Hdf5SelectionTests.cs",
             "class": "Hdf5SelectionTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "Scrolling_ReadsTheWindowAtTheNewRow"
           }
         ]
       }
@@ -156,14 +167,392 @@
           }
         ]
       }
+    },
+    "hdf5": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Nexaflow.Features.Hdf5.csproj"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Hdf5TabRegistration.cs",
+          "class": "Hdf5TabRegistration",
+          "method": "CreatePageDefinition"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.cs",
+          "class": "Hdf5ViewModel"
+        }
+      ],
+      "concerns": {
+        "i18n": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Localization/en/strings.json"
+          }
+        ],
+        "docs": [
+          {
+            "type": "markdown",
+            "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Localization/en/help/Hdf5.md",
+            "title_path": [
+              "HDF5 viewer"
+            ]
+          }
+        ]
+      }
+    },
+    "hdf5-ui": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Views/Hdf5View.xaml"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.UIJourneys/Features/Hdf5/Hdf5JourneyTests.cs",
+            "class": "Hdf5JourneyTests"
+          }
+        ]
+      }
+    },
+    "hdf5-object-tree": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5NodeViewModel.cs",
+          "class": "Hdf5NodeViewModel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ExpandingAGroup_ListsItsMembers_WithTypeAndShape"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ALargeGroup_ListsAPageAtATime"
+          }
+        ]
+      }
+    },
+    "hdf5-tree-filter": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "TreeFilter_HidesWhatDoesNotMatch_KeepingTheWayThere"
+          }
+        ]
+      }
+    },
+    "hdf5-data-table": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5TableViewModel.cs",
+          "class": "Hdf5TableViewModel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ADataset_ShowsItsFirstWindow_OneColumnForOneDimension"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ACompound_HasAColumnPerMember"
+          }
+        ]
+      }
+    },
+    "hdf5-slice-bar": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5SliceViewModel.cs",
+          "class": "Hdf5SliceViewModel"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ThreeDimensions_ShowTheLastTwo_HoldingTheFirstAtAnIndex"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "WideData_ShowsAWindowOfColumns_ThatMoves"
+          }
+        ]
+      }
+    },
+    "hdf5-group-summary": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "AGroup_CountsItsMembersByKind"
+          }
+        ]
+      }
+    },
+    "hdf5-details-toggle": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "TheDrawer_StartsOpen_AndCloses"
+          }
+        ]
+      }
+    },
+    "hdf5-object-details": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Details.cs",
+          "class": "Hdf5ViewModel",
+          "method": "ShowDetails"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "ObjectDetails_GiveTypeShapeAndStorage"
+          }
+        ]
+      }
+    },
+    "hdf5-attribute-list": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "Attributes_ListWithTypeAndValue"
+          }
+        ]
+      }
+    },
+    "hdf5-attribute-filter": {
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelTests.cs",
+            "class": "Hdf5ViewModelTests",
+            "method": "AttributeFilter_NarrowsByNameOrValue"
+          }
+        ]
+      }
+    },
+    "hdf5-vfs": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Vfs/Hdf5ArchiveHandler.cs",
+          "class": "Hdf5ArchiveHandler"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ArchiveHandlerTests.cs",
+            "class": "Hdf5ArchiveHandlerTests"
+          }
+        ]
+      }
+    },
+    "hdf5-open-actions": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/FileActions/ShowHdf5Action.cs",
+          "class": "ShowHdf5Action"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/Hdf5Location.cs",
+          "class": "Hdf5Location"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5LocationTests.cs",
+            "class": "Hdf5LocationTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/FileActions/ViewerActionConformanceTests.cs",
+            "class": "ShowHdf5ActionConformance"
+          }
+        ]
+      }
+    },
+    "hdf5-ai-context": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Ai.cs",
+          "class": "Hdf5ViewModel",
+          "method": "GetContext"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "Context_CarriesTheTreeTheDrawerAndTheRowsOnScreen"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "Context_FollowsTheSliceTheUserChose"
+          }
+        ]
+      }
+    },
+    "hdf5-ai-act-list": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Ai.cs",
+          "class": "Hdf5ViewModel",
+          "method": "ListToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "List_NamesEachMemberWithKindTypeAndShape"
+          }
+        ]
+      }
+    },
+    "hdf5-ai-act-describe": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Ai.cs",
+          "class": "Hdf5ViewModel",
+          "method": "DescribeToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "Describe_GivesTheDrawerForAnyObject_EvenOneNotSelected"
+          }
+        ]
+      }
+    },
+    "hdf5-ai-act-read": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Ai.cs",
+          "class": "Hdf5ViewModel",
+          "method": "ReadToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "Read_ReturnsTheSelectionAsked_LineByLastDimension"
+          }
+        ]
+      }
+    },
+    "hdf5-ai-act-select": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Hdf5/ViewModels/Hdf5ViewModel.Ai.cs",
+          "class": "Hdf5ViewModel",
+          "method": "SelectToolAsync"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Features.Viewers/Hdf5/Hdf5ViewModelAiTests.cs",
+            "class": "Hdf5ViewModelAiTests",
+            "method": "Select_ShowsTheUserTheObject_AtTheRowAndSliceAsked"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 13,
+  "changed_sets": 45,
   "touched_nodes": [
+    "hdf5",
+    "hdf5-ai-act-describe",
+    "hdf5-ai-act-list",
+    "hdf5-ai-act-read",
+    "hdf5-ai-act-select",
+    "hdf5-ai-context",
+    "hdf5-attribute-filter",
+    "hdf5-attribute-list",
+    "hdf5-data-table",
+    "hdf5-details-toggle",
+    "hdf5-group-summary",
+    "hdf5-object-details",
+    "hdf5-object-tree",
+    "hdf5-open-actions",
     "hdf5-projection",
     "hdf5-reader",
+    "hdf5-slice-bar",
     "hdf5-source-cache",
+    "hdf5-tree-filter",
+    "hdf5-ui",
+    "hdf5-vfs",
     "hdf5-windowing",
     "tabular-column-resize",
     "tabular-column-select",

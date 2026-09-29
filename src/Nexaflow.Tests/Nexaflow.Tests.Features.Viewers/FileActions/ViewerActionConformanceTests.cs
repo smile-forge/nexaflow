@@ -53,6 +53,16 @@ public class ShowDicomActionConformance : ViewerActionConformanceTests
 }
 
 [TestClass]
+[CoversNode("hdf5-open-actions")]
+public class ShowHdf5ActionConformance : ViewerActionConformanceTests
+{
+    protected override IFileAction CreateAction(IShellServices shell) =>
+        new Nexaflow.Features.Hdf5.FileActions.ShowHdf5Action(shell);
+    protected override string ExpectedPageKind => Nexaflow.Features.Hdf5.Hdf5TabRegistration.StaticPageKind;
+    protected override string AcceptableFile   => @"C:\data\experiment.h5";
+}
+
+[TestClass]
 [CoversNode("email-open")]
 public class OpenAsEmailActionConformance : ViewerActionConformanceTests
 {

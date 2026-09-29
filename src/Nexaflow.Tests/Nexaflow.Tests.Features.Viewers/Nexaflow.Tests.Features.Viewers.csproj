@@ -59,6 +59,7 @@
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Email\Nexaflow.Features.Email.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Executable\Nexaflow.Features.Executable.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hdf5\Nexaflow.Features.Hdf5.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Images\Nexaflow.Features.Images.csproj" />
     <ProjectReference Include="..\..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />

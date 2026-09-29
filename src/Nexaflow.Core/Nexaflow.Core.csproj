@@ -79,6 +79,7 @@
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Executable\Nexaflow.Features.Executable.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Font\Nexaflow.Features.Font.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Git\Nexaflow.Features.Git.csproj" />
+    <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Hdf5\Nexaflow.Features.Hdf5.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Hex\Nexaflow.Features.Hex.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Json\Nexaflow.Features.Json.csproj" />
     <ProjectReference Include="..\Nexaflow.Features\Nexaflow.Features.Logs\Nexaflow.Features.Logs.csproj" />

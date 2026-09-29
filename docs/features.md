@@ -283,6 +283,7 @@ reflect the tab's current state (set it after in-tab navigation so `FindTab` and
 | Notebook / Model3D / Svg / Compressed | `path` |
 | Email | `path` (a `.eml` or `.msg` file) |
 | Dicom | `path` (a `DICOMDIR`, a folder of instances, or one `.dcm`) or `paths` (pipe-separated selection) |
+| Hdf5 | `path` (an `.h5`, `.hdf5` or `.he5` file, on disk or inside an archive; a path continuing into the file, as the explorer gives for a dataset inside one, also selects that object), `node` (optional — the object to select, e.g. `/group/dataset`; location, not identity: an open re-points the tab) |
 | Images | `paths` (pipe-separated), `view` (`carousel` \| `album` \| `explore` \| `collage`), `scope` (`folder` = whole-folder view) |
 | Audio | `paths` (pipe-separated queue), `index`, `autoplay`, `scope` (`folder` = whole-folder queue) |
 | Font | `paths` (pipe-separated font files; omit for the standalone "System Fonts" compare mode) |

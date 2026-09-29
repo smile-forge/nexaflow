@@ -54,6 +54,12 @@ public partial class VirtualizedRowsControl : UserControl
             typeof(VirtualizedRowsControl), new PropertyMetadata(string.Empty, (d, _) =>
                 ((VirtualizedRowsControl)d).RebuildHeader()));
 
+    /// <summary>The number shown beside the row at index 0: 1 for a spreadsheet's row numbers, 0 for array indices.</summary>
+    public static readonly DependencyProperty FirstRowNumberProperty =
+        DependencyProperty.Register(nameof(FirstRowNumber), typeof(int),
+            typeof(VirtualizedRowsControl), new PropertyMetadata(1, (d, _) =>
+                ((VirtualizedRowsControl)d).UpdateRowVisuals()));
+
     public IReadOnlyList<VirtualizedColumn>? Columns
     {
         get => (IReadOnlyList<VirtualizedColumn>?)GetValue(ColumnsProperty);
@@ -78,6 +84,12 @@ public partial class VirtualizedRowsControl : UserControl
     {
         get => (string)GetValue(CommentTooltipProperty);
         set => SetValue(CommentTooltipProperty, value);
+    }
+
+    public int FirstRowNumber
+    {
+        get => (int)GetValue(FirstRowNumberProperty);
+        set => SetValue(FirstRowNumberProperty, value);
     }
 
     public event Action<int>? FocalRowChanged;
@@ -393,6 +405,8 @@ public partial class VirtualizedRowsControl : UserControl
             var fresh = new ContextMenu();
             HeaderContextMenuOpening?.Invoke(col, fresh);
             target.ContextMenu = fresh;
+            // A host that offers no header actions gets no menu, rather than an empty popup.
+            if (fresh.Items.Count == 0) e.Handled = true;
         };
         // Seed an initial menu so the very first right-click has something to show.
         var initial = new ContextMenu();
@@ -539,7 +553,7 @@ public partial class VirtualizedRowsControl : UserControl
             rv.Container.Visibility = Visibility.Visible;
             BindRow(rv, row);
 
-            rv.IndexCell.Text = (row.AbsoluteIndex + 1).ToString();
+            rv.IndexCell.Text = (row.AbsoluteIndex + FirstRowNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
             for (int c = 0; c < rv.DataCells.Length; c++)
                 rv.DataCells[c].Text = c < row.Cells.Count ? row.Cells[c] : string.Empty;
             ApplyRowAppearance(rv);
