@@ -114,7 +114,7 @@ internal static class Shipped
             Builder: builder)
             {
                 Writable = true,
-                Editing = DiagramEdits.For(diagram) is IContentLanguage own ? own : new EditedBy(DiagramEdits.For(diagram)),
+                Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
                 SafeFormatText = MermaidParser.SafeFormatText,
                 DisplayName = name,
