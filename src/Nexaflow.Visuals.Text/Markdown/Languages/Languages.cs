@@ -74,7 +74,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = MarkdownEdits.Instance,
-            Transpile = ITranspile.AsGiven,
+            Transpile = Transpiles.AsGiven,
         };
 
     /// <summary>
@@ -90,7 +90,7 @@ internal static class Shipped
         {
             // Whoever writes in the block writes in the diagram, which is laid out as this is — and whose own handler is told the edit.
             Writable = true,
-            Transpile = ITranspile.AsGiven,
+            Transpile = Transpiles.AsGiven,
         };
 
     /// <summary>
@@ -119,7 +119,7 @@ internal static class Shipped
                 Writable = true,
                 Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
-                Transpile = new MermaidTranspile(),
+                Transpile = Transpiles.By<MermaidParser>(),
                 DisplayName = name,
                 Icon = icon,
                 DefaultBlock = block,
@@ -426,7 +426,7 @@ internal static class Shipped
         Builder: typeof(BarcodeBuilder))
         {
             Writable = true,
-            Transpile = ITranspile.AsGiven,
+            Transpile = Transpiles.AsGiven,
             DisplayName = "Barcode",
             Icon = IconRef.Fluent("barcode_scanner"),
             DefaultBlock = """
@@ -462,7 +462,7 @@ internal static class Shipped
         {
             Writable = true,
             Editing = new EditedBy(LatexEdits.Instance),
-            Transpile = ITranspile.AsGiven,
+            Transpile = Transpiles.AsGiven,
             DisplayName = "Formula",
             Icon = IconRef.Fluent("math_formula"),
             DefaultBlock = """

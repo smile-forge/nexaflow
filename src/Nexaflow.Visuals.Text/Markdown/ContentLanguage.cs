@@ -71,7 +71,8 @@ public sealed record ContentLanguage(
     }
 
     /// <summary>
-    /// How this language writes back to its own source (<see cref="ITranspile"/>), or null where it cannot be written in.
+    /// How this language's parser writes back to its own source (<see cref="ITranspile"/>), or null where it cannot be
+    /// written in.
     ///
     /// <para>
     /// Every change the engine is about to make goes through it — a gesture handler's answer and the engine's own default
@@ -79,7 +80,7 @@ public sealed record ContentLanguage(
     /// "this cannot be written in", and the engine writes nothing.
     /// </para>
     /// </summary>
-    public ITranspile? Transpile { get; init; }
+    public Func<ContentChange, ContentChange?>? Transpile { get; init; }
 
     /// <summary>What a reader calls it — on a button offering to start a block of it, and read out for one — or null for one never offered.</summary>
     public string? DisplayName { get; init; }

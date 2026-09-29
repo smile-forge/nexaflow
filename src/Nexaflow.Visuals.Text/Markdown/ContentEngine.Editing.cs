@@ -61,7 +61,7 @@ public sealed partial class ContentEngine
     /// </para>
     /// </summary>
     private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
-        language.Transpile?.Rewrite(change) ?? ContentChange.Stay(state);
+        language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
 
     /// <summary>
     /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 
@@ -26,8 +27,9 @@ namespace Nexaflow.Markdown.Mermaid;
 /// closes is not closed for you, because the half-typed block is exactly what an editor holds.
 /// </para>
 /// </summary>
-public static class MermaidParser
+public sealed class MermaidParser : ITranspile
 {
+    private MermaidParser() { }
     /// <summary>What opens and closes front matter.</summary>
     public const string Fence = "---";
 
@@ -598,4 +600,61 @@ public static class MermaidParser
             return to - from == Fence.Length && string.CompareOrdinal(source, from, Fence, 0, Fence.Length) == 0;
         }
     }
+
+    // ── Writing back ────────────────────────────────────────────────────────
+    //
+    // What each place can hold, and how what it cannot hold is spelled so that the line still reads. Only the places with
+    // a rule of their own are named: a run of words holds words, so what was typed into one goes in as it was typed.
+
+    /// <inheritdoc cref="ITranspile.Rewrite"/>
+    public static ContentChange? Rewrite(ContentChange change)
+    {
+        if (!change.Writes.Any(write => write.Meant)) return change;
+
+        var writes = new List<ContentWrite>(change.Writes.Count);
+        var caret = change.Caret;
+        var moved = 0;
+        var grown = 0;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            // Where the write stands once the ones before it have been made, and how far it moves what follows.
+            var at = write.Start + moved;
+            moved += write.Text.Length - write.Length;
+
+            if (!write.Meant) { writes.Add(write); continue; }
+            if (Spelled(write.Part!, write.Text) is not { } said) return null;
+
+            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
+
+            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
+                caret = at + grown + (Spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
+            else if (change.Caret > at + write.Text.Length)
+                caret += said.Length - write.Text.Length;
+
+            grown += said.Length - write.Text.Length;
+        }
+
+        return change with { Writes = writes, Caret = caret };
+    }
+
+    /// <summary>
+    /// What <paramref name="text"/> is written as where it is going — itself, wherever the place can hold it — or null where
+    /// it cannot go there at all and nothing should be written.
+    /// </summary>
+    private static string? Spelled(ContentPart part, string text) => part.Kind switch
+    {
+        // In quotes a quote is its entity code, and a line break is the mark this language writes one with.
+        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
+
+        // A title is one line, however many the reader pasted.
+        MermaidKinds.Title => text.ReplaceLineEndings(" "),
+
+        // A number holds a number, read as this language writes one rather than as a reader's own language would.
+        MermaidKinds.Amount or Kinds.Number =>
+            text.Length > 0 && double.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _)
+                ? text : null,
+
+        _ => text,
+    };
 }
