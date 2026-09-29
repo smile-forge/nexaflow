@@ -108,20 +108,46 @@ public sealed partial class ContentEngine
     /// paragraph, a table, a fence — and nothing where the point is on none of them.
     ///
     /// <para>
+    /// <strong>A block owns a band of the page.</strong> Markdown is one column, so the blocks partition the page from top to
+    /// bottom and nothing is beside anything: a point is on the block whose band holds it, and how far across the page it is
+    /// never comes into the question. A short line is as much a block as a wide one, and the empty room beside it is still
+    /// that block's — which is what carries a reader from the words to the buttons standing away to the right of them.
+    /// </para>
+    /// <para>
     /// Found by the offset rather than by walking up from the piece. A piece knows the characters it was drawn from, but not
     /// always as a part of this content's tree: a code fence's runs carry plain spans, because the thing that drew them was
     /// reading code and not markdown. An offset is an offset whatever drew it, and every language is laid at the offset its
     /// body starts at — so this is the one question that works the same everywhere.
     /// </para>
+    /// <para>
+    /// The nearest piece answers first and usually answers rightly, but it belongs to whoever drew nearest — and in the empty
+    /// parts of a diagram's card, the corners a pie's disc never reaches, that is the paragraph above or below it, because the
+    /// diagram drew nothing there to be near. So where the nearest piece names a block whose band does not hold the point, the
+    /// blocks as they were laid are asked instead, by the same scan <see cref="Where"/> makes. Without that, crossing the empty
+    /// corner of a diagram on the way to its buttons answers with no block at all, and the buttons go while the pointer is
+    /// still on the diagram.
+    /// </para>
     /// </summary>
     internal ContentPart? Blocked(Point at)
     {
-        var piece = _laid.Root.PieceAt(at);
-        if (!piece.Exists) return null;
+        bool Holds(Rect band) => !band.IsEmpty && at.Y >= band.Y && at.Y < band.Bottom;
 
-        // The nearest piece answers a point that is on nothing, which is a question about what is near and not about what the
-        // point is on.
-        return Blocked(piece.Sits().Start) is { } block && Where(block) is { IsEmpty: false } box && box.Contains(at) ? block : null;
+        var piece = _laid.Root.PieceAt(at);
+
+        if (piece.Exists && Blocked(piece.Sits().Start) is { } nearest && Holds(Where(nearest))) return nearest;
+
+        // Content in one language is one block of it, and the whole of what was laid is that block.
+        if (_named is not null) return Holds(new Rect(_laid.Size)) ? ReadRoot : null;
+
+        foreach (var whole in _laid.Root.Children)
+        {
+            if (whole.Kind != MarkdownPieces.Whole || !Holds(whole.Bounds)) continue;
+
+            if (whole.SelfAndDescendants().Select(inside => inside.Part).FirstOrDefault(part => part is { Length: > 0 }) is { } named)
+                return Blocked(named.Start);
+        }
+
+        return null;
     }
 
     /// <summary>The block of the content an offset is in — the whole of it, where it is written in one language.</summary>
@@ -149,8 +175,6 @@ public sealed partial class ContentEngine
     /// </summary>
     internal Rect Where(ContentPart block)
     {
-        Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _laid.Size.Width), box.Height);
-
         // Content in one language is one block, and all of what was laid is it.
         if (block.Parent is null) return new Rect(_laid.Size);
 
@@ -171,6 +195,12 @@ public sealed partial class ContentEngine
 
         return Across(box);
     }
+
+    /// <summary>
+    /// A block's own bounds widened to what the content came out at, which is both what a picture of the block is and where
+    /// its buttons stand.
+    /// </summary>
+    private Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _laid.Size.Width), box.Height);
 
     /// <summary>
     /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — the whole block,
@@ -274,7 +304,11 @@ public sealed partial class ContentEngine
             var width = faces.Sum(face => Width(face.Face, face.Offer));
 
             var top = Math.Max(box.Y, _showing?.Y ?? box.Y) + CornerDrop;
-            var x = Math.Max(box.Right, _laid.Size.Width) - CornerInset - width;
+            // In from the right-hand edge of the panel, which is where a reader looks — not in from the widest line, which is
+            // wherever the longest paragraph happens to reach and moves when one is typed into. The panel is the room the content
+            // was last laid for; a block owns a band of the page rather than a box (see Blocked), so buttons standing out past the
+            // words are still on the block they belong to.
+            var x = Math.Max(box.Right, Room) - CornerInset - width;
 
             var build = new LayoutBuilder();
             build.Open(CornerPieces.Corner, stops: Stops.None);
