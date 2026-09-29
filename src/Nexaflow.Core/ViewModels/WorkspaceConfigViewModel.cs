@@ -6,6 +6,7 @@ using Nexaflow.Core.Models;
 using Nexaflow.Core.Services;
 using Nexaflow.Features.Common;
 using Nexaflow.Providers.Common;
+using Nexaflow.Visuals.Common.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
@@ -98,12 +99,12 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         // First page: the workspace identity (name/symbol/colour). The control edits the live workspace
         // directly on Apply, so it carries no per-folder config (special-cased in Apply below).
         var identityControl = new WorkspaceIdentityControl { DataContext = _workspace };
-        _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", "Workspace");
+        _identitySection = ConfigEditViewModel.ForCustomControl(identityControl, "workspace-identity", Str.Get("Shell.Config.WorkspaceIdentity"));
         Sections.Add(_identitySection);
 
         // Startup tabset editor (delete-only; captured via the workspace icon's "Use Tabset as Default").
         var defaultTabsControl = new WorkspaceDefaultTabsControl { DataContext = _workspace };
-        _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", "Default tabs");
+        _defaultTabsSection = ConfigEditViewModel.ForCustomControl(defaultTabsControl, "workspace-default-tabs", Str.Get("Shell.Config.WorkspaceDefaultTabs"));
         Sections.Add(_defaultTabsSection);
 
         Sections.Add(new ConfigEditViewModel(_aiConfig, _aiConfig.ConfigName, _aiConfig.FriendlyName));
@@ -226,7 +227,7 @@ public partial class WorkspaceConfigViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ApplyError?.Invoke($"Could not save {section.FriendlyName} settings: {ex.Message}");
+            ApplyError?.Invoke(Str.Format("Shell.Options.SaveFailed", section.FriendlyName, ex.Message));
         }
     }
 

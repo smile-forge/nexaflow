@@ -1,0 +1,12 @@
+{
+  "Solver.Config.Solver": "Solver",
+  "Solver.Config.Solver.StartMode": "Start In",
+  "Solver.Config.Solver.StartMode.Calc": "Calc",
+  "Solver.Config.Solver.StartMode.Latex": "Latex",
+  "Solver.Config.Solver.StartMode.Text": "Text",
+  "Solver.Config.Solver.Angles": "Angles",
+  "Solver.Config.Solver.Angles.Degrees": "Degrees",
+  "Solver.Config.Solver.Angles.Radians": "Radians",
+  "Solver.Config.Solver.DecimalPlaces": "Decimal Places",
+  "Solver.Config.Solver.ShowPalette": "Show Palette"
+}

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Nexaflow.Features.Video;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Video;
 
@@ -14,7 +15,7 @@ public class VideoConfigTests
     {
         var c = new VideoConfig();
         Assert.AreEqual("video", c.ConfigName);
-        Assert.AreEqual("Video", c.FriendlyName);
+        Assert.AreEqual(Str.Get("Video.Config.Video"), c.FriendlyName);
         Assert.IsFalse(c.EnableHardwareDecoding);
     }
 

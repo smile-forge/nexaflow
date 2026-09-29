@@ -1,4 +1,8 @@
 {
+  "Pdf.Config.Pdf": "PDF",
+  "Pdf.Config.Pdf.SearchMaxFileSizeMb": "Largest file search reads (MB)",
+  "Pdf.Config.Pdf.IncludeMetadata": "Search titles, bookmarks and form fields too",
+  "Pdf.Config.Pdf.ViewerMaxFileSizeMb": "Largest file the reader analyses (MB)",
   "Pdf.Action.ExtractImages": "Extract images",
   "Pdf.Action.ExtractImagesDescription": "PDF document",
   "Pdf.Action.ExtractImagesTip": "Save the images embedded in this PDF to a folder",

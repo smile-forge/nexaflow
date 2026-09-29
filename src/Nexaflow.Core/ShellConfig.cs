@@ -1,5 +1,6 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Common.Theming;
 
 namespace Nexaflow.Core;
@@ -15,9 +16,9 @@ public enum ThemeOption { Dark, Light, Flowers, Sunny, Ocean, Nature, Sandstone,
 public sealed class ShellConfig : IFeatureConfig
 {
     public string ConfigName   => "shell";
-    public string FriendlyName => "Shell";
+    public string FriendlyName => Str.Get("Shell.Config.Shell");
 
-    [ConfigDisplayName("Theme")]
+    [ConfigDisplayName("Shell.Config.Shell.Theme")]
     public ThemeOption Theme { get; set; } = ThemeOption.Dark;
 
     /// <summary>
@@ -25,7 +26,7 @@ public sealed class ShellConfig : IFeatureConfig
     /// "en", "fr", "pt-BR". A code with no pack runs in English — as does the "English" an earlier build stored here,
     /// back when this was an enum. Applied like the theme: saving a change restarts the window.
     /// </summary>
-    [ConfigDisplayName("Language")]
+    [ConfigDisplayName("Shell.Config.Shell.Language")]
     public string Language { get; set; } = "en";
 
     /// <summary>
@@ -34,14 +35,14 @@ public sealed class ShellConfig : IFeatureConfig
     /// changing it moves them all together and each keeps its own proportions (markdown's heading ladder,
     /// the hex grid's column metrics). Applies live, no restart.
     /// </summary>
-    [ConfigDisplayName("Text size")]
+    [ConfigDisplayName("Shell.Config.Shell.TextFontSize")]
     public double TextFontSize { get; set; } = TextTypography.DefaultBaseFontSize;
 
     /// <summary>
     /// When true, Nexaflow registers itself to launch at login with <c>--prestart</c> as a windowless
     /// daemon so windows open instantly. Synced to the HKCU Run key on save; takes effect next login.
     /// </summary>
-    [ConfigDisplayName("Start with Windows")]
+    [ConfigDisplayName("Shell.Config.Shell.PrestartAtLogin")]
     public bool PrestartAtLogin { get; set; }
 
 
@@ -51,7 +52,7 @@ public sealed class ShellConfig : IFeatureConfig
     /// live - unplugging drops the scene, plugging back in restores it - and is a no-op on a machine
     /// with no battery. Themes that ship no scene (Dark/Light) are unaffected either way.
     /// </summary>
-    [ConfigDisplayName("Disable background animations on battery")]
+    [ConfigDisplayName("Shell.Config.Shell.DisableAnimationsOnBattery")]
     public bool DisableAnimationsOnBattery { get; set; } = true;
 
     /// <summary>

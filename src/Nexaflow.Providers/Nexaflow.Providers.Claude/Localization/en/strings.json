@@ -1,0 +1,5 @@
+{
+  "Claude.Config.Claude.ApiKey": "API Key",
+  "Claude.Config.Claude.BaseUrl": "Base URL",
+  "Claude.Config.Claude.MaxOutputTokens": "Max Output Tokens (0 = auto)"
+}

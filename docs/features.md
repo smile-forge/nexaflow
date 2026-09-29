@@ -201,13 +201,14 @@ directly. The full, documented surface is in `Services/IShellServices.cs`.
 
 A plain POCO; `FeatureManager` discovers it, loads it from `%AppData%\Smile\nexaflow\{ConfigName}\`, and injects
 it into your registration's constructor. The Options panel renders a property grid for free from these
-attributes (all in `ConfigAttributes.cs`):
+attributes (all in `ConfigAttributes.cs`). Its words are string-table keys, so they translate
+([localization.md](localization.md#options)): `FriendlyName => Str.Get("<Area>.Config.<Section>")` is the section title.
 
 | Attribute | Effect |
 |-----------|--------|
-| `[ConfigDisplayName("Label")]` | Row label in the Options grid |
+| `[ConfigDisplayName("<Area>.Config.<Section>.<Property>")]` | Row label in the Options grid — a key, and required on every row; on an enum's fields, what each value reads as |
 | `[FolderPath]` / `[FilePath(".ext"…)]` | TextBox + browse button + existence validation |
-| `[ListSource(type, method)]` | ComboBox from a static `IEnumerable<string>` method |
+| `[ListSource(type, method)]` | ComboBox from a static method: `IEnumerable<string>` for data, `IEnumerable<ConfigListOption>` for words (stored value + translated display) |
 | `[DisabledIfSet]` / `[DisabledIfNotSet]` | Grey out an editor based on a sibling property's value |
 | `[CustomControl(type)]` | Replace the section with a custom `UserControl` (+ `ICustomConfigApply` to save) |
 

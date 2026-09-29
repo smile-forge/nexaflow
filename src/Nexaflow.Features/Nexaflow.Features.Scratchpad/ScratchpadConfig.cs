@@ -1,25 +1,41 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Scratchpad;
 
 public sealed class ScratchpadConfig : IFeatureConfig
 {
     public string ConfigName   => "scratchpad";
-    public string FriendlyName => "Scratchpad";
+    public string FriendlyName => Str.Get("Scratchpad.Config.Scratchpad");
 
-    [ConfigDisplayName("New Note Lifetime")]
+    [ConfigDisplayName("Scratchpad.Config.Scratchpad.NoteLifetime")]
     [ListSource(typeof(ScratchpadConfig), nameof(GetLifetimeOptions))]
     public string NoteLifetime { get; set; } = "2 hours";
 
-    [ConfigDisplayName("Recycle Bin Retention")]
+    [ConfigDisplayName("Scratchpad.Config.Scratchpad.RecycleBinRetention")]
     [ListSource(typeof(ScratchpadConfig), nameof(GetRetentionOptions))]
     public string RecycleBinRetention { get; set; } = "30 days";
 
-    public static IEnumerable<string> GetLifetimeOptions() =>
-        ["30 minutes", "1 hour", "2 hours", "4 hours", "8 hours", "24 hours"];
+    public static IEnumerable<ConfigListOption> GetLifetimeOptions() =>
+    [
+        new("30 minutes", Str.Format("Scratchpad.Config.Scratchpad.Minutes", 30)),
+        new("1 hour",     Str.Get("Scratchpad.Config.Scratchpad.Hour")),
+        new("2 hours",    Str.Format("Scratchpad.Config.Scratchpad.Hours", 2)),
+        new("4 hours",    Str.Format("Scratchpad.Config.Scratchpad.Hours", 4)),
+        new("8 hours",    Str.Format("Scratchpad.Config.Scratchpad.Hours", 8)),
+        new("24 hours",   Str.Format("Scratchpad.Config.Scratchpad.Hours", 24)),
+    ];
 
-    public static IEnumerable<string> GetRetentionOptions() =>
-        ["None", "1 day", "15 days", "30 days", "60 days", "90 days", "Infinite"];
+    public static IEnumerable<ConfigListOption> GetRetentionOptions() =>
+    [
+        new("None",     Str.Get("Scratchpad.Config.Scratchpad.None")),
+        new("1 day",    Str.Get("Scratchpad.Config.Scratchpad.Day")),
+        new("15 days",  Str.Format("Scratchpad.Config.Scratchpad.Days", 15)),
+        new("30 days",  Str.Format("Scratchpad.Config.Scratchpad.Days", 30)),
+        new("60 days",  Str.Format("Scratchpad.Config.Scratchpad.Days", 60)),
+        new("90 days",  Str.Format("Scratchpad.Config.Scratchpad.Days", 90)),
+        new("Infinite", Str.Get("Scratchpad.Config.Scratchpad.Infinite")),
+    ];
 
     public TimeSpan GetNoteLifetime() => NoteLifetime switch
     {

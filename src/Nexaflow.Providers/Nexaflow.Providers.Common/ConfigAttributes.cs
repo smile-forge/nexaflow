@@ -1,5 +1,11 @@
 namespace Nexaflow.Providers.Common;
 
+/// <summary>
+/// The string-table key of what the Options grid shows for a provider config property —
+/// <c>[ConfigDisplayName("Ollama.Config.Ollama.Url")]</c>. The key lives in the provider project's
+/// <c>Localization/en/strings.json</c>; the shell looks it up, so a provider needs no reference to the string table.
+/// A provider's section title is its <see cref="IProviderConfig.FriendlyName"/>, the provider's own name.
+/// </summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class ConfigDisplayNameAttribute(string displayName) : Attribute
 {

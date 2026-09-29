@@ -1,6 +1,7 @@
 using System.Linq;
 using Nexaflow.Features.Code;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.CodeIntel;
 
@@ -24,7 +25,7 @@ public class CodeEditorConfigTests
     public void EveryOfferedOption_MapsToItsOwnByteCount()
     {
         var sizes = CodeEditorConfig.GetSizeOptions()
-            .Select(option => new CodeEditorConfig { MaxEditableFileSize = option }.GetMaxEditableBytes())
+            .Select(option => new CodeEditorConfig { MaxEditableFileSize = option.Value }.GetMaxEditableBytes())
             .ToList();
 
         CollectionAssert.AreEqual(new[] { 5 * Mb, 10 * Mb, 25 * Mb, 50 * Mb, 100 * Mb, 250 * Mb }, sizes);
@@ -41,6 +42,6 @@ public class CodeEditorConfigTests
         var config = new CodeEditorConfig();
 
         Assert.AreEqual("code", config.ConfigName);
-        Assert.AreEqual("Code Editor", config.FriendlyName);
+        Assert.AreEqual(Str.Get("Code.Config.CodeEditor"), config.FriendlyName);
     }
 }

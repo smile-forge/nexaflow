@@ -1,0 +1,4 @@
+{
+  "OpenAI.Config.OpenAI.ApiKey": "API Key",
+  "OpenAI.Config.OpenAI.BaseUrl": "Base URL (optional)"
+}
