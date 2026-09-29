@@ -378,7 +378,8 @@ public sealed partial class HexViewModel : ObservableObject, IPageViewModel, IDi
         var path = await _shell.PickSaveFileAsync(
             Path.GetFileName(FilePath),
             string.IsNullOrEmpty(ext) ? null : [ext],
-            Path.GetDirectoryName(FilePath));
+            Path.GetDirectoryName(FilePath),
+            Buffer.FileLength);
         if (path is null) return;
 
         try

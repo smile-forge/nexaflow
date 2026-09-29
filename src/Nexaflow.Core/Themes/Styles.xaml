@@ -791,6 +791,108 @@
         </Setter>
     </Style>
 
+    <!-- ══ Picker tree ══
+         The file and folder pickers are modal dialogs a reader browses in, so their rows are templated whole.
+         The default TreeViewItem brings Windows' own chevron and its own selection highlight, neither of which
+         any theme reaches — which is what leaves an otherwise themed picker looking half-dressed. Windows using
+         this add their own EventSetters (expand-on-open, double-click) over it. -->
+    <Style x:Key="PickerTreeItem" TargetType="TreeViewItem">
+        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="Padding"    Value="7,6"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TreeViewItem">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Transparent rather than null so the row is hit-testable across its whole width,
+                             which is what lets the hover below come from the row instead of the item. -->
+                        <Border x:Name="RowBorder" Grid.Row="0"
+                                Background="Transparent"
+                                CornerRadius="5" Margin="2,1"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+
+                                <ToggleButton x:Name="Expander" Grid.Column="0" Width="18" Height="18"
+                                              IsChecked="{Binding IsExpanded, Mode=TwoWay,
+                                                  RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
+                                              Focusable="False" Style="{x:Null}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Grid Width="18" Height="18" Background="Transparent">
+                                                <Path x:Name="Shut" Data="M 7 5 L 11 9 L 7 13"
+                                                      Stroke="{StaticResource TextMutedBrush}"
+                                                      StrokeThickness="1.6" StrokeLineJoin="Round"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Path x:Name="Open" Data="M 5 7 L 9 11 L 13 7"
+                                                      Stroke="{StaticResource TextBrush}"
+                                                      StrokeThickness="1.6" StrokeLineJoin="Round"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="Collapsed"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Shut" Property="Visibility" Value="Collapsed"/>
+                                                    <Setter TargetName="Open" Property="Visibility" Value="Visible"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Shut" Property="Stroke" Value="{StaticResource TextBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <ContentPresenter Grid.Column="1"
+                                                  Content="{TemplateBinding Header}"
+                                                  ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <ItemsPresenter Grid.Row="1" x:Name="ItemsHost"
+                                        Margin="18,0,0,0" Visibility="Collapsed"/>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="RowBorder" Property="Background"      Value="{StaticResource Surface2Brush}"/>
+                            <Setter TargetName="RowBorder" Property="BorderBrush"     Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="RowBorder" Property="BorderThickness" Value="1"/>
+                        </Trigger>
+                        <!-- The row's own hover, not the item's: an item is mouse-over while the pointer is on any
+                             of its children, so hovering a folder's contents would light the folder as well. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="False"/>
+                                <Condition SourceName="RowBorder" Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        </MultiTrigger>
+                        <!-- A folder keeps a placeholder child until it is opened, so only files count zero. -->
+                        <DataTrigger Binding="{Binding Children.Count}" Value="0">
+                            <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ══ Toolbar button / toggle / separator (shared by feature toolbars) ══ -->
     <Style x:Key="TbBtn" TargetType="Button">
         <Setter Property="Background"        Value="Transparent"/>

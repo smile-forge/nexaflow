@@ -66,16 +66,19 @@ public class MarkdownViewModelTests
         var shell = Substitute.For<IShellServices>();
         var chosen = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         _tempFiles.Add(chosen + ".png");
-        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns(chosen);
+        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>())
+             .Returns(chosen);
 
         var vm = new MarkdownViewModel(path, shell);
         byte[] png = [0x89, 0x50, 0x4E, 0x47];
 
         Assert.IsTrue(await vm.SavePictureAsync(png, "mermaid"));
 
+        // The size goes with the ask, so the dialog can say what the write costs and whether the volume has room.
         await shell.Received(1).PickSaveFileAsync($"{Path.GetFileNameWithoutExtension(path)}-mermaid.png",
                                                   Arg.Is<IReadOnlyList<string>?>(extensions => extensions!.SequenceEqual(new[] { ".png" })),
-                                                  Path.GetDirectoryName(path));
+                                                  Path.GetDirectoryName(path),
+                                                  png.Length);
         CollectionAssert.AreEqual(png, File.ReadAllBytes(chosen + ".png"), "written as a .png, whatever the name picked ended with");
     }
 
@@ -84,7 +87,8 @@ public class MarkdownViewModelTests
     public async Task SavePicture_WritesNothingWhenThePickIsCancelled()
     {
         var shell = Substitute.For<IShellServices>();
-        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>()).Returns((string?)null);
+        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>?>(), Arg.Any<string?>(), Arg.Any<long>())
+             .Returns((string?)null);
 
         var path = Path.GetTempFileName();
         _tempFiles.Add(path);

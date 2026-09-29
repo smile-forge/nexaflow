@@ -162,7 +162,7 @@ public sealed partial class MarkdownViewModel : ObservableObject, IPageViewModel
     public async Task<bool> SavePictureAsync(byte[] png, string? language)
     {
         var name = $"{Path.GetFileNameWithoutExtension(FilePath)}-{language ?? "block"}.png";
-        var path = await _shell.PickSaveFileAsync(name, [".png"], Path.GetDirectoryName(FilePath));
+        var path = await _shell.PickSaveFileAsync(name, [".png"], Path.GetDirectoryName(FilePath), png.Length);
         if (string.IsNullOrEmpty(path)) return false;
 
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";

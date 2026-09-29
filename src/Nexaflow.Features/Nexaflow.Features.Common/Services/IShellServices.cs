@@ -180,7 +180,7 @@ public interface IShellServices
     /// extension). Marshals to the UI thread.
     /// </summary>
     Task<string?> PickSaveFileAsync(string defaultFileName, IReadOnlyList<string>? extensions = null,
-                                    string? initialPath = null);
+                                    string? initialPath = null, long bytes = 0);
 
     /// <summary>
     /// Refreshes the focused window's active page (re-initialises it with its current params).
