@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pure managed HDF5 reader: no native hdf5.dll, reads from any seekable Stream (so a file inside a
+         zip works through the VFS), hyperslab selections for windowed reads. It cannot modify an existing
+         file in place — only IHdf5Source is public here, so an editing backend can sit beside it. -->
+    <PackageReference Include="PureHDF" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nexaflow.Tests.Features.Viewers" />
+    <InternalsVisibleTo Include="Nexaflow.Tests.IO" />
+  </ItemGroup>
+
+</Project>

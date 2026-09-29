@@ -45,6 +45,7 @@
     <!-- The subjects. Nothing else: no Core, no Features, no Visuals — which is the point of the split,
          and what keeps these tests runnable without a desktop session or a shell. -->
     <ProjectReference Include="..\..\Nexaflow.IO.Common\Nexaflow.IO.Common.csproj" />
+    <ProjectReference Include="..\..\Nexaflow.IO.Hdf5\Nexaflow.IO.Hdf5.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Network\Nexaflow.IO.Network.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Pe\Nexaflow.IO.Pe.csproj" />
     <ProjectReference Include="..\..\Nexaflow.IO.Protocol\Nexaflow.IO.Protocol.csproj" />

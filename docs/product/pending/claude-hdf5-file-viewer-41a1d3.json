@@ -68,11 +68,103 @@
           "method": "ToggleSelected"
         }
       ]
+    },
+    "hdf5-reader": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/IHdf5Source.cs",
+          "class": "IHdf5Source"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/PureHdf/PureHdfSource.cs",
+          "class": "PureHdfSource"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/PureHdfSourceTests.cs",
+            "class": "PureHdfSourceTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/Hdf5ModelTests.cs",
+            "class": "Hdf5ModelTests"
+          }
+        ]
+      }
+    },
+    "hdf5-windowing": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/Hdf5Selection.cs",
+          "class": "Hdf5Selection",
+          "method": "Walk"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/Hdf5SelectionTests.cs",
+            "class": "Hdf5SelectionTests"
+          }
+        ]
+      }
+    },
+    "hdf5-projection": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/Projection/Hdf5Projection.cs",
+          "class": "Hdf5Projection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/Projection/NpyHeader.cs",
+          "class": "NpyHeader"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/Hdf5ProjectionTests.cs",
+            "class": "Hdf5ProjectionTests"
+          }
+        ]
+      }
+    },
+    "hdf5-source-cache": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.IO.Hdf5/Hdf5SourceCache.cs",
+          "class": "Hdf5SourceCache"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.IO/Hdf5/Hdf5SourceCacheTests.cs",
+            "class": "Hdf5SourceCacheTests"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 5,
+  "changed_sets": 13,
   "touched_nodes": [
+    "hdf5-projection",
+    "hdf5-reader",
+    "hdf5-source-cache",
+    "hdf5-windowing",
     "tabular-column-resize",
     "tabular-column-select",
     "tabular-comment-strip",

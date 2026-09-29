@@ -255,6 +255,11 @@
   <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">
     <Platform Project="x64" />
   </Project>
+  <!-- WPF-free HDF5 reader over PureHDF: hierarchy, attributes, windowed dataset reads, and the
+       .npy / .txt projection of datasets as files. Reaches the app through Nexaflow.Features.Hdf5. -->
+  <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
+    <Platform Project="x64" />
+  </Project>
   <!-- WPF-free network leaf: device graph, discovery contracts, send guard, transports. -->
   <!-- The DynamicProtocol engine. Zero refs by design: no socket API is in scope, so a protocol
        document cannot reach the network from here even by accident. -->
