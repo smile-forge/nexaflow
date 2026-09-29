@@ -110,9 +110,23 @@ public sealed partial class ContentEngine
             case Key.Insert when !shift:
                 return Inserted();
 
+            // A step up or down of whatever the content makes one of. Unclaimed it is not the engine's either, and the
+            // surface showing the content pages it, which is the one thing about these keys only that surface knows.
+            case Key.PageUp or Key.PageDown:
+                return Stepped(key == Key.PageUp);
+
             default:
                 return false;
         }
+    }
+
+    /// <summary>A step up or down where the language it landed in makes one, and false where it does not.</summary>
+    private bool Stepped(bool up)
+    {
+        if (Edited(up ? EditKind.Raising : EditKind.Lowering, string.Empty, Landing) is not { } stepped) return false;
+
+        Apply(stepped, notify: true);
+        return true;
     }
 
     /// <summary>What a key held with Ctrl means — the ones about the content; the clipboard's are whatever shows it.</summary>

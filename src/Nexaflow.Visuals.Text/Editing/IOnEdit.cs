@@ -44,6 +44,12 @@ public enum EditKind
 
     /// <summary>What is picked out, carried and let go over the piece the edit applied to.</summary>
     Dropping,
+
+    /// <summary>Page Up: a step up of whatever the content makes one of — an octave, in a tune.</summary>
+    Raising,
+
+    /// <summary>Page Down: a step down of the same.</summary>
+    Lowering,
 }
 
 /// <summary>

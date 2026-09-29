@@ -60,6 +60,10 @@ public sealed partial class MarkdownSurface
         if (ctrl && key == Key.X) return !IsReadOnly && Cut();
         if (ctrl && key == Key.V) return !IsReadOnly && Paste();
 
+        // Every other key is the content's first. A page is as tall as what shows it, which makes this the thing that
+        // pages — but not the thing that decides what the key meant, so it asks before it scrolls.
+        if (_engine.Input(new ContentKey(key, modifiers))) return true;
+
         if (!ctrl && key is Key.PageUp or Key.PageDown)
         {
             if (key == Key.PageUp) _scroller.PageUp();
@@ -68,7 +72,7 @@ public sealed partial class MarkdownSurface
             return true;
         }
 
-        return _engine.Input(new ContentKey(key, modifiers));
+        return false;
     }
 
     /// <summary>

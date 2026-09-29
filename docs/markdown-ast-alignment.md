@@ -189,7 +189,9 @@ What is missing is the wiring, not the mechanism:
 
 - ABC declares no `Editing`, so no key reaches `AbcEdit` — there is no `IOnEdit` mapping a keystroke to a gesture.
 - ABC is not `Writable`, so a tune is laid read-only and the caret never lands in it.
-- Nothing writes a rest, so Space has nothing to call.
+- `AbcBuilder` draws no piece from a title or from the words under a staff, so a caret put there stands against nothing
+  and no language is asked — the one remaining thing between the rule and the code, and a builder's rather than a
+  handler's.
 - `AbcEdit.Before` — the note in front of the caret, which `_`, `#`, `+`, `-` and the octave keys all need — is private
   to `AbcEdit`.
 
