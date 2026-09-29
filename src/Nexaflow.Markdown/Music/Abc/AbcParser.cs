@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Markdown.Music.Abc;
 
@@ -25,8 +26,9 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// is what half-finished input always is.
 /// </para>
 /// </summary>
-public static class AbcParser
+public sealed class AbcParser : ITranspile
 {
+    private AbcParser() { }
     /// <summary>The field letters ABC 2.1 defines. A line starting with any of them and a colon is a field.</summary>
     private const string FieldLetters = "ABCDFGHIKLMmNOPQRrSsTUVWwXZ+";
 
@@ -845,4 +847,62 @@ public static class AbcParser
     /// </summary>
     private static ContentNode Held(string s, ref int i, string trouble) =>
         ContentNode.Shown(One(s, ref i), trouble);
+
+    // ── Writing back ────────────────────────────────────────────────────────
+
+    /// <inheritdoc cref="ITranspile.Rewrite"/>
+    public static ContentChange? Rewrite(ContentChange change)
+    {
+        if (!change.Writes.Any(write => write.Meant)) return change;
+
+        var writes = new List<ContentWrite>(change.Writes.Count);
+        var caret = change.Caret;
+        var moved = 0;
+        var grown = 0;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            // Where the write stands once the ones before it have been made, and how far it moves what follows.
+            var at = write.Start + moved;
+            moved += write.Text.Length - write.Length;
+
+            if (!write.Meant) { writes.Add(write); continue; }
+            if (Spelled(write.Part!, write.Text) is not { } said) return null;
+
+            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
+
+            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
+                caret = at + grown + (Spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
+            else if (change.Caret > at + write.Text.Length)
+                caret += said.Length - write.Text.Length;
+
+            grown += said.Length - write.Text.Length;
+        }
+
+        return change with { Writes = writes, Caret = caret };
+    }
+
+    /// <summary>
+    /// What <paramref name="text"/> is written as where it is going, or null where it cannot go there at all.
+    /// </summary>
+    /// <remarks>
+    /// Every rule here is one this parser reads back. A line is the unit of everything in ABC, so nothing written anywhere
+    /// may hold a break. Between two delimiters nothing is escaped — an annotation ends at the next quote and a decoration
+    /// at the next bang, each found by looking for it — so a character that would close one early cannot go in. On a field's
+    /// line a percent begins a comment unless a backslash holds it, which is how a reader writes one.
+    /// </remarks>
+    private static string? Spelled(ContentPart part, string text)
+    {
+        var said = text.ReplaceLineEndings(" ");
+
+        if (Closes(part) is { } mark && said.Contains(mark)) return null;
+
+        return part.Ancestors().Any(up => up.Kind is AbcKinds.Field or AbcKinds.LyricLine)
+            ? said.Replace("%", "\\%", StringComparison.Ordinal)
+            : said;
+    }
+
+    /// <summary>The character that closes what <paramref name="part"/> is written inside, where it is written inside one.</summary>
+    private static string? Closes(ContentPart part) =>
+        part.Parent?.Children.FirstOrDefault(child => child.Role == Roles.Open) is { Text.Length: 1 } open ? open.Text : null;
 }

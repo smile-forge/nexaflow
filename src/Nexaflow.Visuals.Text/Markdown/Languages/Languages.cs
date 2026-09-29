@@ -479,6 +479,7 @@ internal static class Shipped
         Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: typeof(AbcBuilder))
             {
+                Transpile = Transpiles.By<AbcParser>(),
                 DisplayName = "Tune (ABC)",
                 Icon = IconRef.Fluent("music_note_1"),
                 DefaultBlock = """
