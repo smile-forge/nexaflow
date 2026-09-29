@@ -69,8 +69,20 @@ public sealed partial class ContentEngine
     /// <summary>The pointer moved over the content, or left it.</summary>
     private void Hover(Point? at)
     {
-        // Over the corner's own buttons, the block they belong to is still the one pointed at.
-        if (at is { } over && _corner is { } shown && shown.Root.Bounds.Contains(over)) return;
+        // Over the corner's own buttons, the block they belong to is still the one pointed at — but which of them the pointer
+        // is on may have changed, and only that one is drawn as the one a press would answer.
+        if (at is { } over && _corner is { } shown && shown.Root.Bounds.Contains(over))
+        {
+            var moved = ButtonUnder(shown, _pointer) != ButtonUnder(shown, over);
+            _pointer = at;
+
+            if (!moved || _over is not { } on) return;
+
+            _corner = Cornered(on);
+            Changed?.Invoke(this, false);
+
+            return;
+        }
 
         _pointer = at;
 
@@ -82,6 +94,15 @@ public sealed partial class ContentEngine
 
         Changed?.Invoke(this, false);
     }
+
+    /// <summary>Where the button a point is on stands, or nothing where it is on none of them.</summary>
+    private static Rect? ButtonUnder(Laid? corner, Point? at) =>
+        corner is { } shown && at is { } point
+            ? shown.Root.SelfAndDescendants()
+                   .Where(piece => piece.Acts is not null && piece.Bounds.Contains(point))
+                   .Select(piece => (Rect?)piece.Bounds)
+                   .FirstOrDefault()
+            : null;
 
     /// <summary>The corner laid again for where the pointer is, since the blocks, or the part of them on screen, have moved.</summary>
     private void Recornered()
@@ -163,14 +184,18 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// Where a block came out: the whole of what it drew, from its top to its bottom and across the page — a short line is still
-    /// a block the width of the page, and its corner stands at the page's edge, so the way from the words to the corner never
-    /// leaves the block.
+    /// Where a block came out: the whole of what it drew, from its top to its bottom and across as much of the page as it
+    /// reaches — which is what a picture of the block is, and so is the block's own width and not the page's.
     ///
     /// <para>
     /// Every block of a document is a piece of its own, holding all it drew — a barcode's bars and a chart's wedges too, which
     /// stand for no characters and so lie in no stretch of them. So the block's own piece is what answers, found by the first
     /// thing in it that was written; the stretch of its characters answers only where there is no such piece.
+    /// </para>
+    /// <para>
+    /// Reaching the buttons in its corner asks nothing of this. They stand in from the panel (<see cref="Cornered"/>), and a
+    /// point is on a block by the band of the page it owns (<see cref="Blocked"/>) — so neither needs a block widened to the
+    /// page, and widening one here would only make every picture of it as wide as the longest line in the document.
     /// </para>
     /// </summary>
     internal Rect Where(ContentPart block)
@@ -183,7 +208,7 @@ public sealed partial class ContentEngine
             if (whole.Kind != MarkdownPieces.Whole) continue;
             if (whole.SelfAndDescendants().Select(piece => piece.Part).FirstOrDefault(part => part is { Length: > 0 }) is not { } named) continue;
 
-            if (named.Start >= block.Start && named.Start < block.End) return Across(whole.Bounds);
+            if (named.Start >= block.Start && named.Start < block.End) return whole.Bounds;
         }
 
         var rects = _laid.Root.RangeRects(block.Start, Math.Max(block.Length, 1));
@@ -193,14 +218,8 @@ public sealed partial class ContentEngine
 
         foreach (var rect in rects) box = Rect.Union(box, rect);
 
-        return Across(box);
+        return box;
     }
-
-    /// <summary>
-    /// A block's own bounds widened to what the content came out at, which is both what a picture of the block is and where
-    /// its buttons stand.
-    /// </summary>
-    private Rect Across(Rect box) => new(0, box.Y, Math.Max(box.Right, _laid.Size.Width), box.Height);
 
     /// <summary>
     /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — the whole block,
@@ -276,6 +295,12 @@ public sealed partial class ContentEngine
         return BlockCorner.None;
     }
 
+    /// <summary>
+    /// Whether a picture of a block is worth keeping, as the language drawing it says — which is the same answer that decides
+    /// whether its corner offers to save one. A diagram is; a code fence is not, a picture of code being a worse copy of it.
+    /// </summary>
+    internal bool KeepsAPicture(ContentPart block) => CornerOf(block).Saves;
+
     // ── The buttons ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -321,9 +346,13 @@ public sealed partial class ContentEngine
                 var shape = new RectangleGeometry(where, ButtonRound, ButtonRound);
                 shape.Freeze();
 
+                // The one the pointer is on is outlined, so a reader pressing sees which of them would answer. Faintness is the
+                // whole corner's and the element's to draw; which button is meant is this one's to say.
+                var under = _pointer is { } point && where.Contains(point);
+
                 build.Open(CornerPieces.Button, stops: Stops.None);
                 build.Acts(new LayoutActions { Click = offer });
-                build.Draw(new GeometryMark(shape, _style.QuoteBg, null, 0));
+                build.Draw(new GeometryMark(shape, _style.QuoteBg, under ? _style.Accent : null, under ? 1 : 0));
                 build.Occupies(shape);
                 build.Draw(new TextMark(face, new Point(x + ((wide - face.Width) / 2), top + ((ButtonSize - face.Height) / 2)), _style.Text));
                 build.Close();
