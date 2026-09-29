@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace Nexaflow.Core.Controls;
 
@@ -173,6 +174,9 @@ public partial class FolderBrowserWindow : Window
     {
         DialogResult = false;
     }
+
+    /// <summary>The header is the caption: with the native chrome off, dragging it moves the dialog.</summary>
+    private void Caption_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
 }
 
 // ── Picker roots ─────────────────────────────────────────────────────────────

@@ -1,12 +1,18 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common.ThisPc;
+using Nexaflow.IO.Common;
+using Nexaflow.Visuals.Common.Formatting;
+using Nexaflow.Visuals.Common.Localization;
+using System.Globalization;
+using System.Windows.Media;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace Nexaflow.Core.Controls;
 
@@ -98,14 +104,23 @@ public partial class FileBrowserWindow : Window
 {
     public string? SelectedPath { get; private set; }
 
+    private readonly IReadOnlyList<string>? _extensions;
+
+    private bool    _saving;
+    private long    _bytes;
+    private string? _folder;
+
     public FileBrowserWindow() : this(null) { }
 
     public FileBrowserWindow(IReadOnlyList<string>? extensions, WorkspaceRuntime? workspace = null)
     {
         InitializeComponent();
+        _extensions = extensions;
         DataContext = new FileBrowserViewModel(extensions, workspace);
-        if (extensions is { Count: > 0 })
-            HeaderText.Text = $"Select File ({string.Join(", ", extensions.Select(e => "*" + e))})";
+        HeaderText.Text = extensions is { Count: > 0 }
+                              ? Str.Format("Shell.Picker.SelectFileOfFormat",
+                                           string.Join(", ", extensions.Select(ext => "*" + ext)))
+                              : Str.Get("Shell.Picker.SelectFile");
     }
 
     /// <summary>Shows the file browser and returns the selected file path, or null if cancelled.</summary>
@@ -121,6 +136,155 @@ public partial class FileBrowserWindow : Window
         };
         win.NavigateTo(initialPath);
         return win.ShowDialog() == true ? win.SelectedPath : null;
+    }
+
+    /// <summary>Shows the browser as a Save As dialog and returns the file to write, or null if cancelled.</summary>
+    /// <param name="bytes">How many bytes are about to be written, or 0 where the caller cannot say before it runs.
+    /// It buys the reader a size, a free-space check and a warning over a file already there.</param>
+    public static string? ShowSave(string suggestedName,
+                                   IReadOnlyList<string>? extensions = null,
+                                   string? initialPath = null,
+                                   long bytes = 0,
+                                   Window? owner = null,
+                                   WorkspaceRuntime? workspace = null)
+    {
+        var win = new FileBrowserWindow(extensions, workspace)
+        {
+            Owner = owner ?? Application.Current.MainWindow
+        };
+
+        var start = SavePicking.Start(initialPath, extensions);
+        win.NavigateTo(start);
+        win.Saving(suggestedName, start, bytes);
+
+        return win.ShowDialog() == true ? win.SelectedPath : null;
+    }
+
+    /// <summary>Turns the browser into a Save As: a name to edit, the file it would write, and what writing it
+    /// would mean.</summary>
+    private void Saving(string suggested, string folder, long bytes)
+    {
+        _saving = true;
+        _bytes  = bytes;
+        _folder = folder;
+
+        HeaderText.Text = Str.Get("Shell.Picker.SaveAs");
+        SubText.Text    = _extensions is { Count: > 0 } && _extensions[0].TrimStart('.') is { Length: > 0 } kind
+                              ? Str.Format("Shell.Picker.SaveWhereFormat", kind.ToUpperInvariant())
+                              : Str.Get("Shell.Picker.SaveWhere");
+
+        SubText.Visibility  = Visibility.Visible;
+        SaveFoot.Visibility = Visibility.Visible;
+        OpenFoot.Visibility = Visibility.Collapsed;
+        ExtText.Text        = _extensions is { Count: > 0 } ? _extensions[0] : string.Empty;
+
+        // The stem is what a reader retypes; the extension is the caller's and goes back on whatever they leave.
+        NameBox.Text = Stem(suggested);
+        Weigh();
+
+        NameBox.Focus();
+        NameBox.SelectAll();
+    }
+
+    private string Stem(string name) =>
+        _extensions is { Count: > 0 } && name.EndsWith(_extensions[0], StringComparison.OrdinalIgnoreCase)
+            ? name[..^_extensions[0].Length]
+            : name;
+
+    /// <summary>Works the folder showing and the name typed into the file that would be written, and says what
+    /// writing it would cost. Runs on every keystroke and every move through the tree.</summary>
+    private void Weigh()
+    {
+        if (SavePicking.Named(_folder, NameBox.Text, _extensions) is not { } target)
+        {
+            SelectedPath        = null;
+            WhereText.Text      = Str.Get("Shell.Picker.PickAFolder");
+            RoomText.Text       = string.Empty;
+            FlagText.Visibility = Visibility.Collapsed;
+            OkBtn.IsEnabled     = false;
+            OkBtn.Content       = Str.Get("Shell.Picker.Save");
+            OkBtn.Background    = Tone("AccentBrush");
+            return;
+        }
+
+        var room = SaveRoom.For(target, _bytes);
+
+        SelectedPath     = room.Target;
+        WhereText.Text   = room.Target;
+        RoomText.Text    = Costing(room);
+        OkBtn.IsEnabled  = room.Allowed;
+        OkBtn.Content    = room.Replaces ? Str.Get("Shell.Picker.Replace") : Str.Get("Shell.Picker.Save");
+        OkBtn.Background = Tone(room.Replaces && room.Allowed ? "WarningBrush" : "AccentBrush");
+
+        var (flag, tone) = Warning(room);
+
+        FlagText.Text       = flag ?? string.Empty;
+        FlagText.Visibility = flag is null ? Visibility.Collapsed : Visibility.Visible;
+        if (tone is not null) FlagText.Foreground = tone;
+    }
+
+    private static string Costing(SaveRoom room)
+    {
+        string?[] parts =
+        [
+            room.Bytes > 0 ? Str.Format("Shell.Picker.WritingFormat", SizeFormatter.FormatBytes(room.Bytes)) : null,
+            room.Free is { } spare
+                ? Str.Format("Shell.Picker.FreeFormat", SizeFormatter.FormatBytes(spare), Volume(room.Target))
+                : null,
+        ];
+
+        return string.Join("  ·  ", parts.Where(part => part is { Length: > 0 }));
+    }
+
+    /// <summary>What is wrong with this destination, or what the reader is about to lose by using it.</summary>
+    private (string? Flag, Brush? Tone) Warning(SaveRoom room)
+    {
+        if (!room.Fits)
+            return (Str.Format("Shell.Picker.NoRoomFormat", Volume(room.Target),
+                               SizeFormatter.FormatBytes(room.Shortfall)), Tone("DangerBrush"));
+
+        var stopped = room.Trouble switch
+        {
+            SaveTrouble.NoName        => Str.Get("Shell.Picker.TroubleNoName"),
+            SaveTrouble.NotAPath      => Str.Get("Shell.Picker.TroubleNotAPath"),
+            SaveTrouble.NoFolder      => Str.Get("Shell.Picker.TroubleNoFolder"),
+            SaveTrouble.FolderRefused => Str.Get("Shell.Picker.TroubleFolderRefused"),
+            SaveTrouble.FileReadOnly  => Str.Get("Shell.Picker.TroubleFileReadOnly"),
+            SaveTrouble.FileInUse     => Str.Get("Shell.Picker.TroubleFileInUse"),
+            SaveTrouble.FileRefused   => Str.Get("Shell.Picker.TroubleFileRefused"),
+            _                         => null,
+        };
+
+        if (stopped is not null) return (stopped, Tone("DangerBrush"));
+
+        return room.Replaces
+                   ? (Str.Format("Shell.Picker.ReplacingFormat",
+                                 SizeFormatter.FormatBytes(room.Replacing ?? 0), When(room.LastWritten)),
+                      Tone("WarningBrush"))
+                   : (null, null);
+    }
+
+    private static string Volume(string target) => Path.GetPathRoot(target)?.TrimEnd('\\') ?? "";
+
+    private static string When(DateTime? stamp)
+    {
+        if (stamp is not { } at) return "";
+
+        var clock = at.ToString("t", CultureInfo.CurrentCulture);
+
+        return (DateTime.Now.Date - at.Date).Days switch
+        {
+            0 => Str.Format("Shell.Picker.TodayAtFormat", clock),
+            1 => Str.Format("Shell.Picker.YesterdayAtFormat", clock),
+            _ => at.ToString("g", CultureInfo.CurrentCulture),
+        };
+    }
+
+    private Brush? Tone(string key) => TryFindResource(key) as Brush;
+
+    private void NameBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_saving) Weigh();
     }
 
     /// <summary>Expands the tree to <paramref name="initialPath"/> (a folder, or a file's folder),
@@ -176,19 +340,35 @@ public partial class FileBrowserWindow : Window
 
     private void FileTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        // OK is only valid when a file (not a folder) is selected.
-        if (e.NewValue is FileNodeViewModel { IsDirectory: false } node && !string.IsNullOrEmpty(node.FullPath))
+        if (e.NewValue is not FileNodeViewModel { FullPath.Length: > 0 } node)
         {
-            SelectedPath          = node.FullPath;
-            SelectedPathText.Text = node.FullPath;
-            OkBtn.IsEnabled       = true;
+            if (!_saving) { SelectedPath = null; SelectedPathText.Text = string.Empty; OkBtn.IsEnabled = false; }
+            return;
         }
-        else
+
+        if (_saving)
+        {
+            // A folder is a destination. A file is a destination and a name too, since choosing one is choosing
+            // to replace it — and the warning that then appears is the point of showing files here at all.
+            _folder = node.IsDirectory ? node.FullPath : Path.GetDirectoryName(node.FullPath);
+            if (!node.IsDirectory) NameBox.Text = Stem(node.DisplayName);
+
+            Weigh();
+            return;
+        }
+
+        // Open: only a file is an answer, never the folder holding it.
+        if (node.IsDirectory)
         {
             SelectedPath          = null;
             SelectedPathText.Text = string.Empty;
             OkBtn.IsEnabled       = false;
+            return;
         }
+
+        SelectedPath          = node.FullPath;
+        SelectedPathText.Text = node.FullPath;
+        OkBtn.IsEnabled       = true;
     }
 
     private void TreeViewItem_Expanded(object sender, RoutedEventArgs e)
@@ -204,15 +384,29 @@ public partial class FileBrowserWindow : Window
 
     private void TreeViewItem_MouseDoubleClick(object sender, RoutedEventArgs e)
     {
-        // Double-clicking a file confirms the selection.
-        if (sender is TreeViewItem { DataContext: FileNodeViewModel { IsDirectory: false } } && OkBtn.IsEnabled)
+        if (sender is not TreeViewItem { DataContext: FileNodeViewModel node } || node.IsDirectory) return;
+
+        // Saving: a double-click takes the file's name, and stops there. Confirming on the same gesture would
+        // overwrite it before the reader had read the line telling them what they were replacing.
+        if (_saving)
         {
-            DialogResult = true;
+            NameBox.Text = Stem(node.DisplayName);
+            NameBox.Focus();
+            NameBox.SelectAll();
             e.Handled = true;
+            return;
         }
+
+        if (!OkBtn.IsEnabled) return;
+
+        DialogResult = true;
+        e.Handled    = true;
     }
 
     private void Ok_Click(object sender, RoutedEventArgs e) => DialogResult = true;
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    /// <summary>The header is the caption: with the native chrome off, dragging it moves the dialog.</summary>
+    private void Caption_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
 }

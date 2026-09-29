@@ -946,34 +946,15 @@ public sealed class ShellServices : IShellServices
 
     public Task<string?> PickSaveFileAsync(string defaultFileName,
                                            IReadOnlyList<string>? extensions = null,
-                                           string? initialPath = null)
+                                           string? initialPath = null,
+                                           long bytes = 0)
     {
         var dispatcher = _ui;
         if (dispatcher is not null && !dispatcher.CheckAccess())
-            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, extensions, initialPath));
+            return dispatcher.Invoke(() => PickSaveFileAsync(defaultFileName, extensions, initialPath, bytes));
 
-        // Pick the destination folder, then prompt for the file name — composing the two existing
-        // picker surfaces gives a save-target without a Win32 SaveFileDialog.
-        var folder = FolderBrowserWindow.Show(initialPath, FocusedWindow?.Window, _workspace);
-        if (folder is null) return Task.FromResult<string?>(null);
-
-        var ext = extensions is { Count: > 0 } ? extensions[0] : null;
-
-        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = FocusedWindow;
-        if (host is null) return Task.FromResult<string?>(null);
-
-        host.ShowPrompt("Save As", "File name:", defaultFileName,
-            onConfirm: name =>
-            {
-                name = name.Trim();
-                if (string.IsNullOrEmpty(name)) { tcs.TrySetResult(null); return; }
-                if (ext is not null && !name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                    name += ext;
-                tcs.TrySetResult(System.IO.Path.Combine(folder, name));
-            },
-            onCancel: () => tcs.TrySetResult(null));
-        return tcs.Task;
+        return Task.FromResult(FileBrowserWindow.ShowSave(defaultFileName, extensions, initialPath, bytes,
+                                                          FocusedWindow?.Window, _workspace));
     }
 
     // Refreshes the focused window's active page by re-initialising it with its current params.

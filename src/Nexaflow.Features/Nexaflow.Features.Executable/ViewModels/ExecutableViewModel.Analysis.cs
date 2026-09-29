@@ -410,7 +410,7 @@ public sealed partial class ExecutableViewModel
         string extension = isIconGroup ? ".ico" : ExtensionFor(node);
         string suggested = $"{Path.GetFileNameWithoutExtension(FileName)}_{Sanitise(node.Label)}{extension}";
 
-        var target = await _shell.PickSaveFileAsync(suggested, [extension], Path.GetDirectoryName(FilePath));
+        var target = await _shell.PickSaveFileAsync(suggested, [extension], Path.GetDirectoryName(FilePath), bytes.Length);
         if (string.IsNullOrEmpty(target)) return;
 
         try

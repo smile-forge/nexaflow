@@ -229,13 +229,14 @@ public class RegistrySurfaceTests
     public async Task Export_OffersTheKeyNameAsTheFileName_AndAbortsWhenTheDialogIsCancelled()
     {
         var vm = AtSubKey(out var shell, @"HKCU\Software\Microsoft");
-        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>())
+        shell.PickSaveFileAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<string>(), Arg.Any<long>())
              .Returns(Task.FromResult<string?>(null));      // the user cancels
 
         await vm.ExportCommand.ExecuteAsync(null);
 
+        // reg.exe writes the file, so nothing here can state a size ahead of it — and the dialog must still open.
         await shell.Received().PickSaveFileAsync("Microsoft.reg",
-            Arg.Is<IReadOnlyList<string>>(e => e.Contains(".reg")), Arg.Any<string>());
+            Arg.Is<IReadOnlyList<string>>(e => e.Contains(".reg")), Arg.Any<string>(), 0);
         shell.DidNotReceiveWithAnyArgs().ShowError(default!);
         shell.DidNotReceiveWithAnyArgs().ShowNotification(default!);
     }
