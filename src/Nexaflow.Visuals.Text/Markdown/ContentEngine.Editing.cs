@@ -239,7 +239,7 @@ public sealed partial class ContentEngine
         // thing does when a reader backs into it is that diagram's business, not this one's.
         var holds = words.Length > 0;
 
-        if ((breaking && caret > words.Start && caret < words.End)
+        if (breaking
             || (holds && edit.Kind is EditKind.Erasing && caret <= words.Start)
             || (holds && edit.Kind is EditKind.Deleting && caret >= words.End)) return ContentChange.Stay(state);
 

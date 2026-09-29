@@ -16,8 +16,13 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
 /// <summary>
 /// Writing in a radar chart through the editor that hosts it: the label at the end of a spoke and the name in a legend row are
-/// the characters written, so a press puts the caret among them and a keystroke changes the chart — an axis renamed is renamed
-/// wherever a value names it, and Enter starts another curve with a hole for its name.
+/// the characters written, so a press puts the caret among them and a keystroke changes the chart, and an axis renamed is
+/// renamed wherever a value names it.
+///
+/// <para>
+/// Only what is written. A curve is a value for every axis the chart has, so adding one is not something a keystroke can
+/// say; Enter is not answered here and writes nothing.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]

@@ -50,7 +50,7 @@ public class DiagramKeyTests
     [
         ("type a", 416),
         ("space", 191),
-        ("enter", 2470),
+        ("enter", 918),
         ("backspace", 271),
     ];
 
