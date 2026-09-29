@@ -173,6 +173,29 @@ public class MarkdownSurfaceTests
     });
 
     [TestMethod]
+    public void AndCtrlCOverTheSameDiagramCarriesTheSameThing() => UiThread.Run(() =>
+    {
+        // One question asked twice. The corner's copy and Ctrl+C over the same block both ask the engine what a copy of that
+        // block holds, rather than each working it out — so a reader who selects a chart and presses Ctrl+C gets the picture
+        // too, and neither way can drift from the other.
+        var surface = Shown(Doc);
+        var asked = new List<MarkdownClipboard.ContentCopy>();
+        surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
+
+        var at = Middle(surface, "firefox");
+        surface.Raise(surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy), at);
+
+        var fence = Doc.IndexOf("```mermaid", System.StringComparison.Ordinal);
+        surface.Shown.SelectRange(fence, Doc.IndexOf("```\n", fence + 3, System.StringComparison.Ordinal) + 4 - fence);
+        Assert.IsTrue(surface.Pressed(System.Windows.Input.Key.C, System.Windows.Input.ModifierKeys.Control), "Ctrl+C was taken");
+
+        Assert.AreEqual(2, asked.Count, "the corner's copy, then Ctrl+C's");
+        Assert.AreEqual(asked[0].Markdown, asked[1].Markdown, "the same lines");
+        Assert.AreEqual(asked[0].Text, asked[1].Text, "the same words");
+        Assert.IsNotNull(asked[1].Picture, "and the picture the diagram draws");
+    });
+
+    [TestMethod]
     public void AndCopyingCodeCarriesNoPicture() => UiThread.Run(() =>
     {
         // The same answer that leaves a code fence's Save button off leaves its picture off here.

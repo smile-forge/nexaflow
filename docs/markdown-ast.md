@@ -296,8 +296,9 @@ was left — and says so when it lands (`Reread`). Whatever shows the content mo
 
 Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key, text typed, a
 press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other does. The
-element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag;
-the surface keeps the keys that are its own — the clipboard's and the page's.
+element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag.
+No key is the surface's: the clipboard's and the page's go to the engine like every other, and where a page key means
+nothing to the content the engine asks back for a page, which is as tall as whatever shows it.
 
 **Who answers a key: two walks, and nothing is tracked.** From the piece the caret stands against, up the layout tree
 to the first piece drawn from a part of an AST (through anything standing for one — `IStandsFor`); from that part, up
@@ -338,8 +339,10 @@ Markdown's own offer is Insert: every language that names a block to start from 
 — a Fluent UI System Icons name — and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) sits behind the
 ribbon's one Insert button, which opens a sub-ribbon of their icons; choosing one writes its block after the block the
 ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surface adds nothing to the ribbon of its
-own. Paste, where a language offers it, is the host's to do, since the clipboard is its — it hands what is there to the
-engine as a pasting edit. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
+own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the
+application's, and hands the words to the language the caret is in as a pasting edit. What a copy holds is the engine's
+too — only it knows what is picked out and what language that was written in, so a whole block copied carries the picture
+it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
 a null answer moves the text as anywhere. While whole pieces are chosen — a slice, a node — there is no caret
 (`ContentEngine.ChoseWhole`).
 
@@ -353,7 +356,8 @@ picture of itself, prose no corner at all. A language that implements any of the
 ## 10. The element and the surface
 
 `MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
-the clipboard and what a search turned up. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard, what is
+on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
 
 The engine keeps the content as it is being written — the source, the caret, the selection, what was written so it can

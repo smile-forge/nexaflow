@@ -71,6 +71,12 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _engine.SelectionChanged += Picked;
         _engine.PreRender += Laid;
 
+        // And what it asks for that only a control can do: a clipboard is the application's, and a page is as tall as this.
+        _engine.Copying = Copy;
+        _engine.Pasting = Paste;
+        _engine.Paging = Paged;
+        _engine.Picturing = block => Picture(block, Background);
+
         // Over the document rather than in it, where the first thing written will go, and never in the way of a press.
         _prompt = new TextBlock
         {
@@ -457,17 +463,10 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             case LayoutVerbs.Copy when act.Intent.Target is { } what:
             return Copy(MarkdownClipboard.Copied(what, null));
 
-            // A corner's copy, pressed on a block: the block as the document writes it, and — where the language says a
-            // picture of it is worth keeping — the picture it draws as well. The same answer that leaves a code fence's Save
-            // button off leaves its picture off here.
+            // A corner's copy, pressed on a block: whatever a copy of that block holds, which is the engine's to say — so this
+            // and Ctrl+C over the same block put the same thing on the clipboard because they ask the same question.
             case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
-            {
-                var copied = MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length));
-
-                return Copy(_engine.KeepsAPicture(block) && Picture(block, Background) is { } drawn
-                                ? copied with { Picture = drawn }
-                                : copied);
-            }
+                return Copy(_engine.CopyOf(block));
 
             case LayoutVerbs.Paste:
                 return Paste();

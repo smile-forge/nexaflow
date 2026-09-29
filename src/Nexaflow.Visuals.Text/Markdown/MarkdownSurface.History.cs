@@ -15,10 +15,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// where it can be asked for (<see cref="EditHistory"/>).
 /// </para>
 /// <para>
-/// <strong>The clipboard is not.</strong> Copying says what would go on a clipboard and asks for it to be put there
-/// (<see cref="CopyingEvent"/>); pasting asks for what is on one (<see cref="PastingEvent"/>). Both bubble, so the
-/// application answers them once for every document in the window — and a host that has something to say about what
-/// may leave it, or arrive, answers first.
+/// <strong>The clipboard is the application's, and what goes on it is the engine's.</strong> The engine says what a copy
+/// holds, because what is picked out and the language it was written in are both its; this control only asks for that copy
+/// to be put somewhere (<see cref="CopyingEvent"/>), and asks for what is on a clipboard to paste (<see cref="PastingEvent"/>).
+/// Both bubble, so the application answers them once for every document in the window — and a host that has something to say
+/// about what may leave it, or arrive, answers first.
 /// </para>
 /// </summary>
 public sealed partial class MarkdownSurface
@@ -102,23 +103,13 @@ public sealed partial class MarkdownSurface
     }
 
     /// <summary>
-    /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was.
+    /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was. What
+    /// a copy holds is the engine's to say, because what is chosen and the language it is written in are both its.
     /// </summary>
-    public bool CopySelection() =>
-        Copy(_engine.PickedText is { } drawn
-            ? new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty)
-            : MarkdownClipboard.Copied(_shown.Markdown, Chosen()));
+    public bool CopySelection() => _engine.Copied();
 
     /// <summary>Copies what is chosen, then takes it away — but only once it has been put somewhere, so nothing is lost.</summary>
-    public bool Cut()
-    {
-        if (IsReadOnly || Chosen() is not { } chosen) return false;
-        if (!Copy(MarkdownClipboard.Copied(_shown.Markdown, chosen))) return false;
-
-        Write(_shown.Current.Write(string.Empty));
-
-        return true;
-    }
+    public bool Cut() => _engine.Cut();
 
     /// <summary>
     /// Asks for what is on the clipboard and writes it at the caret: the host first, for a picture or a file it would
@@ -149,13 +140,6 @@ public sealed partial class MarkdownSurface
         Write(_shown.Current.Insert(markdown.ReplaceLineEndings("\n")));
 
         return true;
-    }
-
-    /// <summary>The stretch chosen, from the first thing picked out to the last — null where nothing is.</summary>
-    private (int Start, int Length)? Chosen()
-    {
-        var state = _shown.Current;
-        return state.HasSelection ? (state.SelectionStart, state.SelectionLength) : null;
     }
 }
 

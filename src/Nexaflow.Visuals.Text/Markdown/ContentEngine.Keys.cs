@@ -48,6 +48,12 @@ public sealed partial class ContentEngine
     /// <summary>Raised when the source changed — written, taken back, written again, or put there by whatever shows it.</summary>
     public event EventHandler<ContentSourceChange>? SourceChanged;
 
+    /// <summary>
+    /// Asked to show a page further up or down, where a page key meant nothing to the content. The one thing about a key that
+    /// only whatever shows the content knows: a page is as tall as what it is shown in.
+    /// </summary>
+    internal Func<bool, bool>? Paging { get; set; }
+
     /// <summary>What a key means here, done.</summary>
     private bool Pressed(Key key, ModifierKeys modifiers)
     {
@@ -77,6 +83,11 @@ public sealed partial class ContentEngine
                 if (!_state.HasSelection) return LetGo();
                 ClearSelection();
                 return true;
+
+            // A step up or down of whatever the content makes one of — an octave, in a tune — and failing that a page of
+            // whatever shows it. Above the question of writing, because paging a document nobody may write in still pages it.
+            case Key.PageUp or Key.PageDown:
+                return Stepped(key == Key.PageUp) || this.Paging?.Invoke(key == Key.PageUp) == true;
         }
 
         if (_readOnly) return false;
@@ -110,11 +121,6 @@ public sealed partial class ContentEngine
             case Key.Insert when !shift:
                 return Inserted();
 
-            // A step up or down of whatever the content makes one of. Unclaimed it is not the engine's either, and the
-            // surface showing the content pages it, which is the one thing about these keys only that surface knows.
-            case Key.PageUp or Key.PageDown:
-                return Stepped(key == Key.PageUp);
-
             default:
                 return false;
         }
@@ -123,13 +129,14 @@ public sealed partial class ContentEngine
     /// <summary>A step up or down where the language it landed in makes one, and false where it does not.</summary>
     private bool Stepped(bool up)
     {
+        if (_readOnly) return false;
         if (Edited(up ? EditKind.Raising : EditKind.Lowering, string.Empty, Landing) is not { } stepped) return false;
 
         Apply(stepped, notify: true);
         return true;
     }
 
-    /// <summary>What a key held with Ctrl means — the ones about the content; the clipboard's are whatever shows it.</summary>
+    /// <summary>What a key held with Ctrl means.</summary>
     private bool Commanded(Key key, bool shift)
     {
         switch (key)
@@ -141,6 +148,10 @@ public sealed partial class ContentEngine
             case Key.Home or Key.End:
                 MoveCaretTo(key == Key.End ? _state.Source.Length : 0, extend: shift);
                 return true;
+
+            // Above the question of writing: what is only being looked at can still be picked out and copied.
+            case Key.C or Key.Insert:
+                return Copied();
         }
 
         if (_readOnly) return false;
@@ -163,6 +174,12 @@ public sealed partial class ContentEngine
             case Key.I:
                 Wrap("*", "*");
                 return true;
+
+            case Key.X:
+                return Cut();
+
+            case Key.V:
+                return Paste();
 
             default:
                 return false;
