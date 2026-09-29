@@ -1,0 +1,7 @@
+{
+  "Audio.Config.Audio": "Lecteur audio",
+  "Audio.Config.Audio.Volume": "Volume (0 à 1)",
+  "Audio.Config.Audio.AutoAdvance": "Lire la piste suivante à la fin de la piste en cours",
+  "Audio.Config.Audio.SpectrumBarCount": "Barres du spectre",
+  "Audio.Config.Audio.BackgroundPlay": "Continuer la lecture lorsque vous quittez l'onglet"
+}

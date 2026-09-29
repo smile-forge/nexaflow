@@ -1,0 +1,5 @@
+{
+  "Claude.Config.Claude.ApiKey": "Clé API",
+  "Claude.Config.Claude.BaseUrl": "URL de base",
+  "Claude.Config.Claude.MaxOutputTokens": "Nombre maximal de jetons de sortie (0 = auto)"
+}

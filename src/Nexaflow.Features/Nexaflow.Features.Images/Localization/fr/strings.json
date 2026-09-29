@@ -1,0 +1,49 @@
+{
+  "Images.Page.TitleFormat": "Images ({0})",
+  "Images.Page.Fallback": "Images",
+  "Images.Page.AllImageFiles": "tous les fichiers image",
+  "Images.Page.SelectionFormat": "{0} images",
+
+  "Images.Action.AsImage": "En tant qu'image",
+  "Images.Action.ViewerDescription": "Visionneuse d'images",
+  "Images.Action.Album": "Album",
+  "Images.Action.Slideshow": "Diaporama",
+
+  "Images.Toolbar.Carousel": "Carrousel",
+  "Images.Toolbar.CarouselTip": "Carrousel — une image à la fois",
+  "Images.Toolbar.Album": "Album",
+  "Images.Toolbar.AlbumTip": "Album — grille de miniatures",
+  "Images.Toolbar.Explore": "Explorer",
+  "Images.Toolbar.ExploreTip": "Explorer — miniatures à gauche, image sélectionnée à droite",
+  "Images.Toolbar.Collage": "Collage",
+  "Images.Toolbar.CollageTip": "Collage — zone de travail éparse (faites glisser pour déplacer, molette pour zoomer)",
+  "Images.Toolbar.Auto": "Auto",
+  "Images.Toolbar.AutoTip": "Faire défiler le diaporama automatiquement",
+  "Images.Toolbar.SpeedTip": "Vitesse du diaporama : Lente 10 s · Moyenne 4 s · Rapide 1 s",
+  "Images.Toolbar.FullScreenTip": "Afficher en plein écran (Échap pour quitter)",
+
+  "Images.Speed.Slow": "Lente",
+  "Images.Speed.Medium": "Moyenne",
+  "Images.Speed.Fast": "Rapide",
+
+  "Images.Header.ImageCountOne": "1 image",
+  "Images.Header.ImageCountManyFormat": "{0} images",
+
+  "Images.Tools.RotateLeft": "Pivoter de 90° vers la gauche",
+  "Images.Tools.RotateRight": "Pivoter de 90° vers la droite",
+  "Images.Tools.ToggleFit": "Basculer entre ajusté à la fenêtre et taille réelle",
+
+  "Images.Nav.Previous": "Image précédente",
+  "Images.Nav.Next": "Image suivante",
+  "Images.Nav.PreviousPage": "20 précédentes",
+  "Images.Nav.NextPage": "20 suivantes",
+
+  "Images.Menu.Delete": "Supprimer",
+  "Images.Delete.ConfirmTitle": "Supprimer l'image",
+  "Images.Delete.ConfirmMessageFormat": "Envoyer « {0} » dans la Corbeille ?",
+  "Images.Delete.FailedFormat": "Impossible de supprimer « {0} ».",
+
+  "Images.FullScreen.Hint": "Échap quitter · Espace / → suivante · ← précédente · clic pour naviguer",
+
+  "Images.Status.LoadingThumbnailsFormat": "Chargement de {0} miniatures"
+}

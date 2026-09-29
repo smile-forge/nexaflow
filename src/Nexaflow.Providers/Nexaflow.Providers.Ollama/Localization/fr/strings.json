@@ -1,0 +1,6 @@
+{
+  "Ollama.Config.Ollama.Url": "URL Ollama",
+  "Ollama.Config.Ollama.KeepWhileRunning": "Garder chargé pendant l'exécution",
+  "Ollama.Config.Ollama.KeepAliveMinutes": "Maintien en mémoire (minutes, 0 = par défaut)",
+  "Ollama.Config.Ollama.ThinkingMode": "Mode de réflexion"
+}

@@ -1,0 +1,5 @@
+{
+  "Code.Config.CodeEditor": "Éditeur de code",
+  "Code.Config.CodeEditor.MaxEditableFileSize": "Taille maximale des fichiers modifiables",
+  "Code.Config.CodeEditor.Megabytes": "{0} Mo"
+}
