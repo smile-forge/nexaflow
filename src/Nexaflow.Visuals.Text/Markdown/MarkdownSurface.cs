@@ -457,9 +457,17 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
             case LayoutVerbs.Copy when act.Intent.Target is { } what:
             return Copy(MarkdownClipboard.Copied(what, null));
 
-            // A corner's copy, pressed on a block: the block, as the document writes it.
+            // A corner's copy, pressed on a block: the block as the document writes it, and — where the language says a
+            // picture of it is worth keeping — the picture it draws as well. The same answer that leaves a code fence's Save
+            // button off leaves its picture off here.
             case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
-            return Copy(MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length)));
+            {
+                var copied = MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length));
+
+                return Copy(_engine.KeepsAPicture(block) && Picture(block, Background) is { } drawn
+                                ? copied with { Picture = drawn }
+                                : copied);
+            }
 
             case LayoutVerbs.Paste:
                 return Paste();

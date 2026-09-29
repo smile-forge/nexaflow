@@ -131,6 +131,30 @@ public class BlockCornerTests
         }));
 
     [TestMethod]
+    public void APictureOfABlockIsItsOwnWidth_NotTheWidestLineInTheDocument() => UiThread.Run(() =>
+    {
+        // Nothing needs a block widened to the page any more: the buttons stand in from the panel, and a point is on a block
+        // by the band of the page it owns. A block widened to the page here would make every picture of a chart carry a field
+        // of empty background beside it, as wide as whatever the longest paragraph happened to be.
+        var document = "A paragraph long enough to run well past the width of the chart below it, and some more words to be sure.\n\n"
+                     + "```mermaid\npie\n  \"Dogs\" : 30\n  \"Cats\" : 10\n```\n";
+
+        MarkdownEditorHarness.Run(document, editor =>
+        {
+            var pie = MarkdownEditorHarness.Blocks(editor)[0];
+            var box = editor.Shown.Laid.Root.RangeRects(pie.Start, pie.Length).Aggregate(Rect.Union);
+
+            Assert.IsTrue(box.Width < editor.Shown.Laid.Size.Width - 40,
+                          "precondition: the paragraph made the document much wider than the chart");
+
+            var picture = editor.Picture(pie, Brushes.White)!;
+            var scale = VisualTreeHelper.GetDpi(editor).PixelsPerDip;
+
+            Assert.AreEqual(Math.Ceiling(box.Width * scale), picture.PixelWidth, 2, "the chart's width, not the paragraph's");
+        });
+    });
+
+    [TestMethod]
     public void APictureLeavesOutWhatIsChosen() => UiThread.Run(() =>
         MarkdownEditorHarness.Run(Document, editor =>
         {
@@ -187,6 +211,34 @@ public class BlockCornerTests
 
         engine.Input(new ContentPress(to));
         Assert.AreEqual(LayoutVerbs.Save, asked.Single().Intent.Verb, "and the button the pointer walked to answered the press");
+    });
+
+    [TestMethod]
+    public void OnlyTheButtonThePointerIsOnIsMarkedAsTheOneAPressWouldAnswer() => UiThread.Run(() =>
+    {
+        // Whether the corner is faint is the whole corner's business and the element draws it. Which of its buttons a press
+        // would answer is a different question, and marking them all would answer it wrongly for every button but one.
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(Document, StyleFormat.Dark, engine: engine);
+        element.Measure(new Size(900, double.PositiveInfinity));
+        element.Arrange(new Rect(new Size(900, element.DesiredSize.Height)));
+
+        var pie = engine.Blocked(Document.IndexOf("pie", StringComparison.Ordinal))!;
+        engine.Input(new ContentHover(Middle(engine.Where(pie))));
+
+        var places = Buttons(engine).Select(button => Middle(button.Bounds)).ToList();
+        Assert.AreEqual(2, places.Count, "precondition: the pie offers both buttons");
+
+        for (var on = 0; on < places.Count; on++)
+        {
+            engine.Input(new ContentHover(places[on]));
+
+            var buttons = Buttons(engine);
+
+            for (var at = 0; at < buttons.Count; at++)
+                Assert.AreEqual(at == on, Outlined(buttons[at]),
+                                $"button {at} marked while the pointer is on button {on}");
+        }
     });
 
     [TestMethod]
@@ -275,6 +327,14 @@ public class BlockCornerTests
         for (var step = 1; step <= steps; step++)
             yield return (new Point(from.X + (away.X * step / steps), from.Y + (away.Y * step / steps)), $"{step}/{steps}");
     }
+
+    /// <summary>The corner's buttons, in the order they stand.</summary>
+    private static List<Piece> Buttons(ContentEngine engine) =>
+        [.. engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
+
+    /// <summary>Whether a button is drawn as the one a press would answer.</summary>
+    private static bool Outlined(Piece button) =>
+        button.Marks.ToArray().OfType<GeometryMark>().Any(mark => mark.Stroke is not null);
 
     /// <summary>A host that answers every verb it is asked, and remembers them.</summary>
     private sealed class Keeper(List<LayoutAct> asked) : ILayoutActions

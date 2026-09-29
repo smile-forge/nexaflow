@@ -156,6 +156,39 @@ public class MarkdownSurfaceTests
     });
 
     [TestMethod]
+    public void CopyingADiagramCarriesThePictureAsWellAsTheLinesItIsWrittenAs() => UiThread.Run(() =>
+    {
+        // Pasted into a document the picture is what was wanted; pasted into an editor the lines are. Both go, and whatever
+        // takes the copy chooses — nobody means to paste a chart as the word "pie" and a pair of numbers.
+        var surface = Shown(Doc);
+        var asked = new List<MarkdownClipboard.ContentCopy>();
+        surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
+
+        var at = Middle(surface, "firefox");
+        surface.Raise(surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy), at);
+
+        Assert.IsNotNull(asked[0].Picture, "the picture the diagram draws");
+        StringAssert.Contains(asked[0].Markdown, "firefox", "and the lines it is written as");
+        Assert.IsTrue(MarkdownClipboard.Data(asked[0]).GetDataPresent(DataFormats.Bitmap), "both of them on the clipboard");
+    });
+
+    [TestMethod]
+    public void AndCopyingCodeCarriesNoPicture() => UiThread.Run(() =>
+    {
+        // The same answer that leaves a code fence's Save button off leaves its picture off here.
+        var surface = Shown("```csharp\nvar x = 1;\n```\n\nWords.\n");
+        var asked = new List<MarkdownClipboard.ContentCopy>();
+        surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
+
+        var at = Middle(surface, "var");
+        surface.Raise(surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy), at);
+
+        Assert.IsNull(asked[0].Picture);
+        StringAssert.Contains(asked[0].Markdown, "var x = 1;", "the code, which is the best copy of code there is");
+        Assert.IsFalse(MarkdownClipboard.Data(asked[0]).GetDataPresent(DataFormats.Bitmap));
+    });
+
+    [TestMethod]
     public void AndABlockOffersOnlyTheButtonsThatMeanAnythingForIt() => UiThread.Run(() =>
     {
         var surface = Shown("```csharp\nvar x = 1;\n```\n\nWords.\n");

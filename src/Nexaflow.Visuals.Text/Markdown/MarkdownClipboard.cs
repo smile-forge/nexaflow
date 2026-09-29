@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using Markdig.Syntax;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Markdown.Latex;
@@ -41,7 +42,7 @@ public static class MarkdownClipboard
     /// <param name="Markdown">The source, as written.</param>
     /// <param name="Text">The words a reader sees, with the marks taken off.</param>
     /// <param name="Html">The same, marked up — empty where it could not be.</param>
-    public sealed record ContentCopy(string Markdown, string Text, string Html);
+    public sealed record ContentCopy(string Markdown, string Text, string Html, BitmapSource? Picture = null);
 
     /// <summary>
     /// What copying <paramref name="chosen"/> out of <paramref name="source"/> would put on a clipboard —
@@ -240,6 +241,10 @@ public static class MarkdownClipboard
         data.SetData(DataFormats.Text, copy.Text);
         data.SetData(MarkdownFormat, copy.Markdown);
         if (copy.Html.Length > 0) data.SetData(DataFormats.Html, copy.Html);
+
+        // A block that draws a picture carries it too, so whatever the copy is pasted into takes the one it can use: a
+        // document takes the picture, an editor takes the markdown, and neither has to be asked which was meant.
+        if (copy.Picture is not null) data.SetImage(copy.Picture);
 
         return data;
     }
