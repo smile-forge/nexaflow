@@ -208,13 +208,13 @@ public sealed partial class ContentEngine
     /// what it does to the characters.
     ///
     /// <para>
-    /// Three of them are refused, because a run of words cannot hold what they would do. A key taking back the character before
-    /// the start of the run, or after its end, would take the syntax that makes the run a run: the quote that opens it, the
-    /// bracket that closes it, the comma before the next thing. A line break cannot go in one at all — where a diagram wants
-    /// Enter to mean something, that is its own handler's to say, and this runs only where it said nothing.
+    /// Three of them are refused, because what the caret is written in cannot hold what they would do. A key taking back the
+    /// character before its start, or after its end, would take the syntax that makes it what it is: the quote that opens it,
+    /// the bracket that closes it, the comma before the next thing. A line break cannot go in one at all — where a diagram
+    /// wants Enter to mean something, that is its own handler's to say, and this runs only where it said nothing.
     /// </para>
     /// <para>
-    /// What is left is text going into a run, and it goes in as the reader meant it
+    /// What is left is text going in, and it goes in as the reader meant it
     /// (<see cref="ContentWrite.Words(ContentPart, int, int, string)"/>): the language's parser is given it and makes it safe for
     /// that run before it is written, and writes nothing where it cannot be. That is the whole of the default — the language
     /// spells it, and the engine only says where.
@@ -228,9 +228,9 @@ public sealed partial class ContentEngine
         if (state.HasSelection || edit.Kind is not (EditKind.Typing or EditKind.Settling or EditKind.Breaking
                                                     or EditKind.Erasing or EditKind.Deleting)) return null;
 
-        // Not in a run of words: a number, a date, an identifier — written in too, each by its own rule, and none of them
-        // this. Left to the key, which is what it was before anything here had an answer.
-        if (Words(edit) is not { } words) return null;
+        // Written in nothing this knows about: an identifier, a date, a setting. Each has a rule of its own and none of them
+        // is here, so the key does what it did before anything here had an answer.
+        if (Written(edit) is not { } words) return null;
 
         var caret = state.Caret;
         var breaking = edit.Kind is EditKind.Breaking || (edit.Kind is EditKind.Settling && edit.Text == "\n");
@@ -251,7 +251,7 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// The run of words the caret stands in, or null.
+    /// What the caret is written in — a run of words or a number — or null.
     ///
     /// <para>
     /// Asked of the tree and not of the layout, which is the only place the question has an answer. A layout is a picture of
@@ -260,18 +260,18 @@ public sealed partial class ContentEngine
     /// standing is a fact about the source, and the tree is what holds the source.
     /// </para>
     /// <para>
-    /// Innermost, because runs nest: a name inside a label inside a line. The shortest one holding the caret is the one a
+    /// Innermost, because these nest: a name inside a label inside a line. The shortest one holding the caret is the one a
     /// reader is writing in.
     /// </para>
     /// </summary>
-    private static ContentPart? Words(ContentEdit edit)
+    private static ContentPart? Written(ContentEdit edit)
     {
         ContentPart? found = null;
         var caret = edit.State.Caret;
 
         foreach (var part in edit.Root.SelfAndDescendants())
         {
-            if (part.Kind != Kinds.Words || part.Derived || part.Supplied) continue;
+            if (part.Kind is not (Kinds.Words or Kinds.Number) || part.Derived || part.Supplied) continue;
             if (caret < part.Start || caret > part.End) continue;
             if (found is null || part.Length < found.Length) found = part;
         }

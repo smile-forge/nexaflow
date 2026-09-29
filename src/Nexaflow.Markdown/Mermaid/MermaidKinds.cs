@@ -95,9 +95,6 @@ public static class MermaidKinds
     /// </summary>
     public const string Amount = "mermaid-amount";
 
-    /// <summary>A number, as it was written.</summary>
-    public const string Number = "mermaid-number";
-
     /// <summary>A style's properties, with a comma between each.</summary>
     public const string Properties = "mermaid-properties";
 

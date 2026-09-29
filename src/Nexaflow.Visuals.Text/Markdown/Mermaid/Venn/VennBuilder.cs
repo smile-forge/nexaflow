@@ -268,7 +268,7 @@ internal sealed class VennBuilder : MermaidBuilder
                 region.LabelHole = label.Hole();
             }
 
-            if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Amount).Inner(MermaidKinds.Number)?.Number() is { } size)
+            if (line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Amount).Inner(Kinds.Number)?.Number() is { } size)
                 region.Weight = size;
         }
 

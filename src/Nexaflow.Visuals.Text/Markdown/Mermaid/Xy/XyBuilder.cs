@@ -222,7 +222,7 @@ internal sealed class XyBuilder : MermaidBuilder
                          .Select(point =>
                          {
                              var label = point.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Quoted);
-                             return new Valued(point, point.Inner(MermaidKinds.Number)!, point.Number(), label.Words(), label.Hole());
+                             return new Valued(point, point.Inner(Kinds.Number)!, point.Number(), label.Words(), label.Hole());
                          })
                          .ToList() ?? [];
 

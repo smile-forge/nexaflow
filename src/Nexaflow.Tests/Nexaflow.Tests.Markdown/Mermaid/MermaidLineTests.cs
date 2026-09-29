@@ -56,7 +56,7 @@ public class MermaidLineTests
         var line = MermaidLine.Of("12 , 3}");
         line.Amount("value", MermaidNumber.Positive("more than nought"), until: ",}");
 
-        Assert.AreEqual("12", line.Read("line").Inner(MermaidKinds.Number)!.Text);
+        Assert.AreEqual("12", line.Read("line").Inner(Kinds.Number)!.Text);
         Assert.AreEqual(" , 3}", line.Rest);
     }
 

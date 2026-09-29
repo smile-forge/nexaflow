@@ -121,6 +121,17 @@ public static class Kinds
     /// </summary>
     public const string Words = "words";
 
+    /// <summary>
+    /// A number as it was written: an amount, a share, a count, a figure of a meter.
+    ///
+    /// <para>
+    /// Written in as a run of words is, and by a rule of the language's rather than one of its own: what may go in a number
+    /// is digits and whatever that language writes between them, and the point a reader of one language types is the comma
+    /// a reader of another does. So what was typed is offered, and the language's parser is the judge of whether it goes in.
+    /// </para>
+    /// </summary>
+    public const string Number = "number";
+
     /// <summary>A character that is machinery rather than content.</summary>
     public const string Token = "token";
 

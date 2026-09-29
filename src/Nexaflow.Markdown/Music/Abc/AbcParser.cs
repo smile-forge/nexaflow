@@ -270,7 +270,7 @@ public static class AbcParser
             if (char.IsAsciiDigit(word[at]))
             {
                 while (at < word.Length && char.IsAsciiDigit(word[at])) at++;
-                pieces.Add(ContentNode.Leaf(AbcKinds.Number, word[from..at]));
+                pieces.Add(ContentNode.Leaf(Kinds.Number, word[from..at]));
                 continue;
             }
 
@@ -670,7 +670,7 @@ public static class AbcParser
         var pieces = new List<ContentNode>(6)
         {
             ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Open),
-            ContentNode.Leaf(AbcKinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
+            ContentNode.Leaf(Kinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
         };
 
         foreach (var role in AfterTheColons)
@@ -679,7 +679,7 @@ public static class AbcParser
             pieces.Add(ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Separator));
 
             var digits = Run(s, ref i, char.IsAsciiDigit);
-            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Number, digits, role));
+            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Number, digits, role));
         }
 
         return ContentNode.Branch(AbcKinds.Tuplet, pieces);

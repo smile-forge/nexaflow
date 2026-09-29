@@ -69,13 +69,13 @@ public static class MermaidParts
               .Select(child => child.Kind == MermaidKinds.Name ? child : child.Children.FirstOrDefault(inner => inner.Kind == MermaidKinds.Name))
               .OfType<ContentPart>()];
 
-    /// <summary>The number written in a part — its <see cref="MermaidKinds.Number"/> — or null where none is written or it is wrong.</summary>
+    /// <summary>The number written in a part — its <see cref="Kinds.Number"/> — or null where none is written or it is wrong.</summary>
     public static double? Number(this ContentPart? part) =>
-        part.Inner(MermaidKinds.Number) is { Trouble: null, Length: > 0 } number ? MermaidNumber.Read(number.Text) : null;
+        part.Inner(Kinds.Number) is { Trouble: null, Length: > 0 } number ? MermaidNumber.Read(number.Text) : null;
 
     /// <summary>The number a node holds, where it holds one that is not wrong.</summary>
     public static double? Number(this ContentNode? node) =>
-        node.Inner(MermaidKinds.Number) is { Trouble: null, Width: > 0 } number ? MermaidNumber.Read(number.Text) : null;
+        node.Inner(Kinds.Number) is { Trouble: null, Width: > 0 } number ? MermaidNumber.Read(number.Text) : null;
 
     /// <summary>How far the line <paramref name="stated"/> is stated on is indented: the space before it, a tab counting as one.</summary>
     public static int Indent(this ContentPart stated) =>

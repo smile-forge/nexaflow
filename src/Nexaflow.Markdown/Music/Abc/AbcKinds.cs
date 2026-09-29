@@ -138,9 +138,6 @@ public static class AbcKinds
     /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c>: its numbers and the marks between them.</summary>
     public const string Figures = "figures";
 
-    /// <summary>One number of a meter's or a unit length's figures.</summary>
-    public const string Number = "number";
-
     // ── Kinds a pipeline stage makes ────────────────────────────────────────
     //
     // None of these is written down. Each re-nests pieces that were, which is why they can exist at all

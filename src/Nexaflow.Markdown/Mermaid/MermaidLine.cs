@@ -394,7 +394,7 @@ public sealed class MermaidLine
 
     /// <summary>
     /// A number, in the place it is written, as a <see cref="MermaidKinds.Amount"/> holding the
-    /// <see cref="MermaidKinds.Number"/>: everything up to the first of <paramref name="until"/> or <paramref name="stop"/> — or left
+    /// <see cref="Kinds.Number"/>: everything up to the first of <paramref name="until"/> or <paramref name="stop"/> — or left
     /// on the line, where neither is given or written — with what <paramref name="trouble"/> finds wrong with it; or nothing, where
     /// nothing is written yet, which is no complaint: it is still to come, and a hole stands there.
     /// </summary>
@@ -405,7 +405,7 @@ public sealed class MermaidLine
         var number = Upto(until, stop);
 
         Open();
-        Add(ContentNode.Leaf(MermaidKinds.Number, number, role, number.Length == 0 ? null : trouble(number)));
+        Add(ContentNode.Leaf(Kinds.Number, number, role, number.Length == 0 ? null : trouble(number)));
         Close(MermaidKinds.Amount);
     }
 

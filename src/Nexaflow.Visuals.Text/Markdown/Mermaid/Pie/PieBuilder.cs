@@ -282,7 +282,7 @@ internal sealed class PieBuilder : MermaidBuilder
         var size = config.LegendTextSize ?? LegendSize;
         var ink = Ink.Written(config.LegendTextColour) ?? Palette.Text;
         var label = slice.Part.Words()!;
-        var value = slice.Part.Inner(MermaidKinds.Number);
+        var value = slice.Part.Inner(Kinds.Number);
 
         return new DiagramKey(slice.Part, slice.Said.Drawn ? Fill(config, slice) : null,
         [

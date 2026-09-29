@@ -89,7 +89,7 @@ public class VennGrammarTests : MermaidGrammarContract
 
         Assert.AreEqual("A", Name(set.Children.Single(child => child.Kind == MermaidKinds.Name)));
         Assert.AreEqual("Alpha", Name(set.Children.Single(child => child.Kind == MermaidKinds.Label)));
-        Assert.AreEqual("20", set.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Number).Text);
+        Assert.AreEqual("20", set.SelfAndDescendants().Single(node => node.Kind == Kinds.Number).Text);
     }
 
     [TestMethod]
@@ -168,8 +168,8 @@ public class VennGrammarTests : MermaidGrammarContract
     {
         foreach (var (source, kind, reason) in new[]
                  {
-                     ("venn-beta\n  set A:lots", MermaidKinds.Number, "not a number"),
-                     ("venn-beta\n  set A:0", MermaidKinds.Number, "greater than nought"),
+                     ("venn-beta\n  set A:lots", Kinds.Number, "not a number"),
+                     ("venn-beta\n  set A:0", Kinds.Number, "greater than nought"),
                      ("venn-beta\n  set 1A", Kinds.Words, "starts with a letter"),
                      ("venn-beta\n  set A[]", Kinds.Words, "has something in it"),
                      ("venn-beta\n  set A\n  style A glow:yes", MermaidKinds.Key, "not 'glow'"),
