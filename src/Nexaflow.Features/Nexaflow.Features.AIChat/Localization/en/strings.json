@@ -1,0 +1,10 @@
+{
+  "AIChat.Config.AiChat": "AI Chat",
+  "AIChat.Config.AiChat.IsAnalysisEnabled": "Automatic Conversation Analysis",
+  "AIChat.Config.AiChat.Retention": "Keep Conversations For",
+  "AIChat.Config.AiChat.Retention.OneWeek": "1 Week",
+  "AIChat.Config.AiChat.Retention.OneMonth": "1 Month",
+  "AIChat.Config.AiChat.Retention.OneYear": "1 Year",
+  "AIChat.Config.AiChat.Retention.FiveYears": "5 Years",
+  "AIChat.Config.AiChat.Retention.Forever": "Forever"
+}

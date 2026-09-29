@@ -551,9 +551,13 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
+                                <!-- The selector and string format are how DisplayMemberPath and ItemStringFormat reach the closed box:
+                                     WPF turns either into the combo's ItemTemplateSelector, which an ItemTemplate overrides. -->
                                 <ContentPresenter Grid.Column="0"
                                                   Content="{TemplateBinding SelectionBoxItem}"
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                                   Margin="{TemplateBinding Padding}"
                                                   VerticalAlignment="Center"
                                                   IsHitTestVisible="False"/>

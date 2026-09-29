@@ -1,16 +1,16 @@
-using System.ComponentModel;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.AIChat;
 
 /// <summary>How long conversations are kept before the on-open purge removes them.</summary>
 public enum ConversationRetention
 {
-    [Description("1 Week")]   OneWeek,
-    [Description("1 Month")]  OneMonth,
-    [Description("1 Year")]   OneYear,
-    [Description("5 Years")]  FiveYears,
-    [Description("Forever")]  Forever,
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention.OneWeek")]   OneWeek,
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention.OneMonth")]  OneMonth,
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention.OneYear")]   OneYear,
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention.FiveYears")] FiveYears,
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention.Forever")]   Forever,
 }
 
 /// <summary>
@@ -21,14 +21,14 @@ public enum ConversationRetention
 public sealed class AiChatConfig : IFeatureConfig
 {
     public string ConfigName   => "aichat";
-    public string FriendlyName => "AI Chat";
+    public string FriendlyName => Str.Get("AIChat.Config.AiChat");
 
     /// <summary>True when background conversation analysis should run.</summary>
-    [ConfigDisplayName("Automatic Conversation Analysis")]
+    [ConfigDisplayName("AIChat.Config.AiChat.IsAnalysisEnabled")]
     public bool IsAnalysisEnabled { get; set; } = true;
 
     /// <summary>How long to keep conversations; older ones are purged when the AI Chat tab opens.</summary>
-    [ConfigDisplayName("Keep Conversations For")]
+    [ConfigDisplayName("AIChat.Config.AiChat.Retention")]
     public ConversationRetention Retention { get; set; } = ConversationRetention.OneYear;
 
     /// <summary>The cutoff date for retention, or null when keeping forever.</summary>

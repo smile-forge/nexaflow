@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Projects.Controls;
 using Nexaflow.Features.Projects.Model;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Projects;
 
@@ -16,7 +17,7 @@ namespace Nexaflow.Features.Projects;
 public sealed class ProjectsConfig : IFeatureConfig
 {
     public string ConfigName   => "projects";
-    public string FriendlyName => "Projects";
+    public string FriendlyName => Str.Get("Projects.Config.Projects");
 
     /// <summary>Whether the Projects feature is enabled for this workspace.</summary>
     public bool EnableProjects { get; set; }

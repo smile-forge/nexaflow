@@ -1,6 +1,7 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Network.Views;
 using Nexaflow.IO.Network.Guard;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Network;
 
@@ -42,7 +43,7 @@ public sealed class NetworkConfig : IFeatureConfig
     public const int LongestRunSeconds = 600;
 
     public string ConfigName   => "network";
-    public string FriendlyName => "Network";
+    public string FriendlyName => Str.Get("Network.Config.Network");
 
     /// <summary>The kill switch. Off, the page still shows what the OS already knows and sends nothing.</summary>
     public bool Enabled { get; set; } = true;

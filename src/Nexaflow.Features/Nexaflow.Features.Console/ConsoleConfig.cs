@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.Console.Controls;
+using Nexaflow.Visuals.Common.Localization;
 using Nexaflow.Visuals.Terminal.Models;
 
 namespace Nexaflow.Features.Console;
@@ -9,7 +10,7 @@ namespace Nexaflow.Features.Console;
 public sealed class ConsoleConfig : IFeatureConfig
 {
     public string ConfigName   => "console";
-    public string FriendlyName => "Console";
+    public string FriendlyName => Str.Get("Console.Config.Console");
 
     public List<TerminalEnvironment> Environments   { get; set; } = [];
 

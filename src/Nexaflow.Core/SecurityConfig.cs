@@ -1,4 +1,5 @@
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -6,10 +7,13 @@ namespace Nexaflow.Core;
 public enum WindowAccessOption
 {
     /// <summary>Always allow.</summary>
+    [ConfigDisplayName("Shell.Config.Security.AllowWindowAccess.Yes")]
     Yes,
     /// <summary>Never allow — the gated tools aren't offered to the AI at all.</summary>
+    [ConfigDisplayName("Shell.Config.Security.AllowWindowAccess.No")]
     No,
     /// <summary>Ask the user (confirmation overlay) each time before the tool runs.</summary>
+    [ConfigDisplayName("Shell.Config.Security.AllowWindowAccess.Prompt")]
     Prompt,
 }
 
@@ -20,12 +24,12 @@ public enum WindowAccessOption
 public sealed class SecurityConfig : IFeatureConfig
 {
     public string ConfigName   => "security";
-    public string FriendlyName => "Security";
+    public string FriendlyName => Str.Get("Shell.Config.Security");
 
     /// <summary>
     /// Whether the AI may enumerate / view windows outside Nexaflow (the <c>GetOpenWindows</c> tool,
     /// and later whole-screen capture). Defaults to <see cref="WindowAccessOption.Prompt"/>.
     /// </summary>
-    [ConfigDisplayName("Allow AI to view other windows")]
+    [ConfigDisplayName("Shell.Config.Security.AllowWindowAccess")]
     public WindowAccessOption AllowWindowAccess { get; set; } = WindowAccessOption.Prompt;
 }

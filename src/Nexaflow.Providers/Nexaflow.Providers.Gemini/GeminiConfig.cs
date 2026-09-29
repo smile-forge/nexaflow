@@ -10,6 +10,6 @@ public sealed class GeminiConfig : IProviderConfig
 
     [Required]
     [Secret]
-    [ConfigDisplayName("API Key")]
+    [ConfigDisplayName("Gemini.Config.Gemini.ApiKey")]
     public string ApiKey { get; set; } = string.Empty;
 }

@@ -1,7 +1,12 @@
 namespace Nexaflow.Features.Common;
 
-/// <summary>Friendly label shown for a property row in the Options panel.</summary>
-[AttributeUsage(AttributeTargets.Property)]
+/// <summary>
+/// The string-table key of what the Options grid shows for a config property, or for one value of an enum a
+/// property holds — <c>[ConfigDisplayName("Scratchpad.Config.Scratchpad.NoteLifetime")]</c>. The key lives in the
+/// declaring project's <c>Localization/en/strings.json</c> and is looked up as the grid is built, so the label reads
+/// in the active language. A section's own title is its config's <see cref="IFeatureConfig.FriendlyName"/>.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
 public sealed class ConfigDisplayNameAttribute(string displayName) : Attribute
 {
     public string DisplayName { get; } = displayName;
@@ -50,9 +55,11 @@ public sealed class DisabledIfNotSetAttribute(string propertyName) : Attribute
 
 /// <summary>
 /// Marks a string property as list-sourced.
-/// The Options panel invokes <see cref="SourceType"/>.<see cref="MethodName"/>() —
-/// a public static parameterless method — and uses the returned <see cref="IEnumerable{T}"/>
-/// of strings as ComboBox items.
+/// The Options panel invokes <see cref="SourceType"/>.<see cref="MethodName"/>() — a public static parameterless
+/// method — and offers what it returns as ComboBox items. A method returning strings offers each as both the stored
+/// value and what is shown, which suits data (formats, model names, fonts); one returning
+/// <see cref="ConfigListOption"/>s stores each <see cref="ConfigListOption.Value"/> and shows its
+/// <see cref="ConfigListOption.Display"/>, which is how a choice made of words is translated.
 /// </summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class ListSourceAttribute(Type sourceType, string methodName) : Attribute
@@ -60,13 +67,22 @@ public sealed class ListSourceAttribute(Type sourceType, string methodName) : At
     public Type   SourceType { get; } = sourceType;
     public string MethodName { get; } = methodName;
 
-    public IEnumerable<string> Invoke()
+    public IEnumerable<ConfigListOption> Invoke()
     {
         var m = SourceType.GetMethod(MethodName,
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-        return m?.Invoke(null, null) as IEnumerable<string> ?? [];
+        return m?.Invoke(null, null) switch
+        {
+            IEnumerable<ConfigListOption> options => options,
+            IEnumerable<string> values            => values.Select(v => new ConfigListOption(v, v)),
+            _                                     => [],
+        };
     }
 }
+
+/// <summary>One choice in an Options combo: the invariant <paramref name="Value"/> the config stores, and the
+/// <paramref name="Display"/> text the user reads.</summary>
+public sealed record ConfigListOption(string Value, string Display);
 
 /// <summary>
 /// Applied to an <see cref="IFeatureConfig"/> class to replace the default property-grid

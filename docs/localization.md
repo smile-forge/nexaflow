@@ -59,7 +59,7 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   at startup, the same shape as `TextTypography`, so nothing needs Core.
 - **A key is a literal inside the call** — `on ? Str.Get("A.On") : Str.Get("A.Off")`, never
   `Str.Get(on ? "A.On" : "A.Off")` or a computed key. The guard finds keys by reading `Str.Get("…")`,
-  `Str.Format("…"` and `{loc:Str …}`; a key it cannot read is a key it cannot check.
+  `Str.Format("…"`, `[ConfigDisplayName("…")]` and `{loc:Str …}`; a key it cannot read is a key it cannot check.
 - **An AutomationId is never display text.** Journeys and `locate:` links find controls by id, in whatever
   language is loaded. A bound id binds to an invariant property — a file action's `AutomationId` (its type name,
   or the verb / app / template it was built for), never its `DisplayName`.
@@ -71,6 +71,28 @@ page.Title = Str.Format("Help.Tab.TitleFormat", title);
   against `Str.Get(key)`, never the English literal. The feature suites load English from the source tree
   (`EnglishStrings.Use()` in each suite's `[AssemblyInitialize]`), so `Str.Format(key, 3)` there reads as the real
   sentence with its number; `Tests.Core` has no table loaded and gets the key back.
+
+## Options
+
+The Options grid is built by reflection over config classes, so its words are keys the config names, looked up as
+the grid is built — the same fallback, the same guard:
+
+- **Section title** — the config's `FriendlyName => Str.Get("<Area>.Config.<Section>")`, `<Section>` being the
+  config type's name without `Config`: `Scratchpad.Config.Scratchpad`, `Shell.Config.Security`. A provider's section
+  is the provider's own name ("Claude", "Ollama") and stays as it is: the setup wizard matches providers by it.
+- **Row label** — `[ConfigDisplayName("<Area>.Config.<Section>.<Property>")]` on every property the grid shows. The
+  attribute holds a key, never text; `ConfigDisplayName("…")` is read by the guard like `Str.Get("…")`. A provider
+  ships its keys in its own `strings.json` and needs no reference to `Str` — the shell does the lookup.
+- **Enum values** — the same attribute on each field: `[ConfigDisplayName("AIChat.Config.AiChat.Retention.OneWeek")]`.
+  The enum name is what is saved.
+- **List choices** — a `[ListSource]` method returning `ConfigListOption(Value, Display)` stores the invariant
+  `Value` and shows `Display`, built with `Str.Get` / `Str.Format` where the method is: `new("2 hours",
+  Str.Format("Scratchpad.Config.Scratchpad.Hours", 2))`. A method returning plain strings offers data — formats,
+  model names — shown as it is.
+
+A row the grid shows is a public read-write property of a type an editor can hold (`ConfigEditViewModel.EditableProperties`);
+a list a feature persists for itself isn't a setting and gets no row. A section with a `[CustomControl]` shows that
+control, and its words are its XAML's, localized like any other view.
 
 ## Help pages
 
@@ -116,6 +138,7 @@ off into a satellite assembly instead of the pack.
 |---|---|
 | `LanguagePackContentTests` | a shipped pack that doesn't hold exactly the source files; a mangled name; a satellite |
 | `LocalizationContentGuardTests` | a help page for a page kind its project doesn't register; an index outside Core; a missing picture; a key used in code but missing from English, or outside its project's area; a translation with keys or pages English lacks; a `locate:` link naming an AutomationId no view declares |
+| `ConfigLabelGuardTests` | an Options row or enum value with no `[ConfigDisplayName]`, or with text where its key belongs; a section title (outside a provider) not read through `Str` |
 | `LanguageManagerTests`, `LocalizedStringsTests` | discovery that loads packs; the fallback chain; a pack loaded twice |
 | `nexaflowSetup.wixproj` | an installer payload missing a pack |
 

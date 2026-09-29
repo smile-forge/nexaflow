@@ -1,5 +1,6 @@
 using Nexaflow.Features.Common;
 using Nexaflow.Features.OneDrive.Controls;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.OneDrive;
 
@@ -21,7 +22,7 @@ public sealed record SyncFolderEntry(string Id, string Label, string FolderPath)
 public sealed class OneDriveConfig : IFeatureConfig
 {
     public string ConfigName   => "onedrive";
-    public string FriendlyName => "OneDrive";
+    public string FriendlyName => Str.Get("OneDrive.Config.OneDrive");
 
     /// <summary>Renames and hides for detected accounts, by id.</summary>
     public List<SyncFolderOverride> Overrides { get; set; } = [];

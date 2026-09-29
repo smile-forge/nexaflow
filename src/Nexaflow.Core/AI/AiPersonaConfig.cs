@@ -1,6 +1,7 @@
 using Nexaflow.Core.Controls;
 using Nexaflow.Providers.Common;
 using ProviderCustomControl = Nexaflow.Providers.Common.CustomControlAttribute;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core.AI;
 
@@ -15,7 +16,7 @@ namespace Nexaflow.Core.AI;
 public sealed class AiPersonaConfig : IProviderConfig
 {
     public string ConfigName   => "ai-persona";
-    public string FriendlyName => "AI Customisation";
+    public string FriendlyName => Str.Get("Shell.Config.AiPersona");
 
     public string Name         { get; set; } = "Aria";
     public string SystemPrompt { get; set; } = string.Empty;

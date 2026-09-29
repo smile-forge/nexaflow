@@ -10,9 +10,9 @@ public sealed class OpenAIConfig : IProviderConfig
 
     [Required]
     [Secret]
-    [ConfigDisplayName("API Key")]
+    [ConfigDisplayName("OpenAI.Config.OpenAI.ApiKey")]
     public string ApiKey { get; set; } = string.Empty;
 
-    [ConfigDisplayName("Base URL (optional)")]
+    [ConfigDisplayName("OpenAI.Config.OpenAI.BaseUrl")]
     public string BaseUrl { get; set; } = string.Empty;
 }

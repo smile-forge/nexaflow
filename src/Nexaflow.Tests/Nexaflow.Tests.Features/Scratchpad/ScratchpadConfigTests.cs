@@ -1,6 +1,7 @@
 using Nexaflow.Features.Scratchpad;
 
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Tests.Features.Scratchpad;
 
@@ -13,7 +14,7 @@ public class ScratchpadConfigTests
     {
         var cfg = new ScratchpadConfig();
         Assert.AreEqual("scratchpad", cfg.ConfigName);
-        Assert.AreEqual("Scratchpad", cfg.FriendlyName);
+        Assert.AreEqual(Str.Get("Scratchpad.Config.Scratchpad"), cfg.FriendlyName);
         Assert.AreEqual("2 hours", cfg.NoteLifetime);
         Assert.AreEqual("30 days", cfg.RecycleBinRetention);
     }
@@ -68,7 +69,7 @@ public class ScratchpadConfigTests
     [TestMethod]
     public void GetLifetimeOptions_ContainsExpectedLabels()
     {
-        var opts = ScratchpadConfig.GetLifetimeOptions().ToList();
+        var opts = ScratchpadConfig.GetLifetimeOptions().Select(o => o.Value).ToList();
         CollectionAssert.Contains(opts, "30 minutes");
         CollectionAssert.Contains(opts, "24 hours");
     }
@@ -76,7 +77,7 @@ public class ScratchpadConfigTests
     [TestMethod]
     public void GetRetentionOptions_ContainsExpectedLabels()
     {
-        var opts = ScratchpadConfig.GetRetentionOptions().ToList();
+        var opts = ScratchpadConfig.GetRetentionOptions().Select(o => o.Value).ToList();
         CollectionAssert.Contains(opts, "None");
         CollectionAssert.Contains(opts, "Infinite");
     }

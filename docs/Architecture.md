@@ -473,17 +473,19 @@ Implement a plain POCO. `FeatureManager` discovers it via the cached `FeatureCat
 public sealed class MyConfig : IFeatureConfig
 {
     public string ConfigName   => "myfeature";
-    public string FriendlyName => "My Feature";
+    public string FriendlyName => Str.Get("MyFeature.Config.My");
 
-    [ConfigDisplayName("Root Folder")]
+    [ConfigDisplayName("MyFeature.Config.My.RootFolder")]
     [FolderPath]
     public string RootFolder { get; set; } = string.Empty;
 
-    [ConfigDisplayName("Provider")]
+    [ConfigDisplayName("MyFeature.Config.My.Provider")]
     [ListSource(typeof(LlmProviderRegistry), nameof(LlmProviderRegistry.GetProviderNames))]
     public string Provider { get; set; } = string.Empty;
 }
 ```
+
+The title and each label are string-table keys, so the section reads in the active language — [localization.md → Options](localization.md#options).
 
 For a fully custom options UI, apply `[CustomControl(typeof(MyOptionsControl))]` to the config class and implement `ICustomConfigApply` on the control.
 

@@ -2,6 +2,7 @@ using System.IO;
 using Nexaflow.Core.Controls;
 using Nexaflow.Core.Models;
 using Nexaflow.Features.Common;
+using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Core;
 
@@ -10,7 +11,7 @@ public sealed class WorkspacesConfig : IFeatureConfig
 {
     // Kept as "workcontexts" / "Contexts" so existing on-disk config (workcontexts.json) still loads.
     public string ConfigName   => "workcontexts";
-    public string FriendlyName => "Workspaces";
+    public string FriendlyName => Str.Get("Shell.Config.Workspaces");
 
     /// <summary>
     /// The saved workspaces, in the order the selector lists them. Every value that reaches this list —
