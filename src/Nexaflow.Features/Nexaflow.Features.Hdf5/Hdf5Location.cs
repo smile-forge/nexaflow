@@ -4,8 +4,8 @@ using Nexaflow.IO.Common;
 namespace Nexaflow.Features.Hdf5;
 
 /// <summary>
-/// A path that may continue past an HDF5 file into it — <c>D:\data\run.h5\measurements\temperature.npy</c>, as the
-/// file explorer hands over a dataset double-clicked inside a browsed file — split into the file and the object.
+/// A path that may continue past an HDF5 file into it — <c>D:\data\run.h5\measurements\temperature</c> — split into
+/// the file and the object, so a tab can be opened on a file at one of its objects.
 /// </summary>
 internal static class Hdf5Location
 {

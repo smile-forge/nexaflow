@@ -1,12 +1,12 @@
 using Nexaflow.Features.Common;
-using Nexaflow.IO.Common;
+
 using Nexaflow.Visuals.Common.Localization;
 
 namespace Nexaflow.Features.Hdf5.FileActions;
 
 /// <summary>
-/// Opens an HDF5 file in the viewer. The file map claims <c>.h5</c> / <c>.hdf5</c> / <c>.he5</c> for it, and every
-/// path inside one, so a dataset double-clicked in a browsed file opens the viewer at that dataset.
+/// Opens an HDF5 file in the viewer. The file map claims <c>.h5</c> / <c>.hdf5</c> / <c>.he5</c> for it; a dataset
+/// inside a browsed file opens by its own extension, as an entry of any other container does.
 /// </summary>
 public sealed class ShowHdf5Action(IShellServices shell) : IFileAction, ICacheable
 {
@@ -25,17 +25,13 @@ public sealed class ShowHdf5Action(IShellServices shell) : IFileAction, ICacheab
     public bool CanPerformAction      => true;
     public bool OpensViewer           => true;
 
-    /// <summary>The viewer reads through the VFS, so a file inside an archive — or a dataset inside a file — opens too.</summary>
+    /// <summary>The viewer reads through the VFS, so a file inside an archive opens too.</summary>
     public bool RequiresFullyBackedPath => false;
 
     public bool PerformAction(string filePath)
     {
-        var (file, node) = Hdf5Location.Split(filePath, VirtualFileSystem.Instance);
-        if (!Hdf5Location.HasHdf5Extension(file)) return false;
-
-        var parameters = new Dictionary<string, string> { ["path"] = file };
-        if (node is not null) parameters["node"] = node;
-        shell.OpenTab(Hdf5TabRegistration.StaticPageKind, parameters);
+        if (!Hdf5Location.HasHdf5Extension(filePath)) return false;
+        shell.OpenTab(Hdf5TabRegistration.StaticPageKind, new Dictionary<string, string> { ["path"] = filePath });
         return true;
     }
 

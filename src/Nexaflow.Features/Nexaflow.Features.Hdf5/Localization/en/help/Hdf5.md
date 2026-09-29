@@ -8,7 +8,6 @@ Opens an HDF5 file (`.h5`, `.hdf5` or `.he5`) and shows what is in it: groups, d
 
 - Double-click an HDF5 file on the [File System](help:FileSystem) page, or choose *Open in HDF5 viewer*. A file inside a zip or another archive opens the same way.
 - An HDF5 file is also a folder you can browse into. Its groups are folders and its datasets are files: a dataset of numbers, strings of a fixed length or records is a NumPy `.npy` file, and one of variable-length strings is a `.txt` file with one value per line. Copy one out and it loads in NumPy as it is.
-- Double-click a dataset while browsing a file and the viewer opens at that dataset. If the file is already open, its tab moves to it.
 
 ## Finding your way
 

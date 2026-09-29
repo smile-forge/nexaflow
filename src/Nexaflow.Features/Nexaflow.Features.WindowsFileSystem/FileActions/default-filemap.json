@@ -158,10 +158,7 @@
     "Criteria": [
       { "Type": "Extension", "Value": "*.h5" },
       { "Type": "Extension", "Value": "*.hdf5" },
-      { "Type": "Extension", "Value": "*.he5" },
-      { "Type": "PathPattern", "Value": "**\\*.h5\\**" },
-      { "Type": "PathPattern", "Value": "**\\*.hdf5\\**" },
-      { "Type": "PathPattern", "Value": "**\\*.he5\\**" }
+      { "Type": "Extension", "Value": "*.he5" }
     ]
   },
   {

@@ -144,7 +144,7 @@ public sealed partial class Hdf5ViewModel : ObservableObject, IPageViewModel, ID
 
     /// <summary>
     /// Selects the object at a path, expanding its ancestors and paging through large groups to reach it. A path
-    /// may name a dataset's projected file (<c>/g/data.npy</c>) as the file explorer does. Stops at the deepest
+    /// may name a dataset's projected file (<c>/g/data.npy</c>), the name it has when the file is browsed as a folder. Stops at the deepest
     /// object that exists.
     /// </summary>
     public async Task<Hdf5NodeViewModel?> NavigateToAsync(string path)

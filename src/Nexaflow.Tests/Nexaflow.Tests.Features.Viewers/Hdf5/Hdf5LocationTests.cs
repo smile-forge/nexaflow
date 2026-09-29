@@ -6,8 +6,8 @@ using Nexaflow.Tests.Fixtures;
 namespace Nexaflow.Tests.Features.Hdf5;
 
 /// <summary>
-/// Splitting a path that continues into an HDF5 file — as the explorer hands over a dataset double-clicked inside
-/// one — into the file and the object, so the viewer opens the right file at the right place.
+/// Splitting a path that continues into an HDF5 file into the file and the object, so a tab opened on such a path
+/// shows the right file at the right place.
 /// </summary>
 [TestClass]
 [CoversNode("hdf5-open-actions")]
