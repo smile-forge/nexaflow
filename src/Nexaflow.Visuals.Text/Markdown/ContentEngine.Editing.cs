@@ -52,16 +52,22 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// <paramref name="change"/> as the language writes it back to its own source (<see cref="ITranspile"/>).
+    /// <paramref name="change"/> with the words in it spelled as the language's own source spells them
+    /// (<see cref="ITranspile"/>) — escaped, or denied where they cannot be written there at all.
     ///
     /// <para>
-    /// Both halves go through this: what a gesture handler answered, and what the engine worked out itself for an ordinary
-    /// key. A language that offers no way of writing back has nothing written — better a key that does nothing than
-    /// characters spliced into source that nothing has vouched for.
+    /// Only what is words as the reader means them (<see cref="ContentWrite.Meant"/>) is asked about, whether a handler named it
+    /// or the engine did: that is the one kind of write nobody has yet put into the language's own syntax. Everything else a
+    /// handler answers is already source — it wrote it in its own language — and goes as it stands.
+    /// </para>
+    /// <para>
+    /// A language whose parser says nothing about writing has nothing written for it: better a key that does nothing than
+    /// characters spliced into a syntax that nothing has vouched for.
     /// </para>
     /// </summary>
     private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
-        language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
+        !change.Writes.Any(write => write.Meant) ? change
+        : language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
 
     /// <summary>
     /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still

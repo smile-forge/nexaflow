@@ -59,7 +59,6 @@ internal static class HandLaid
             Builder: typeof(Builder))
             {
                 Writable = true,
-                Transpile = Transpiles.AsGiven,
             });
 
         ContentLanguages.Register(new ContentLanguage(

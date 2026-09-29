@@ -36,7 +36,4 @@ public static class Transpiles
 {
     /// <summary>The rewrite <typeparamref name="T"/> declares — its own, or the one every parser gets.</summary>
     public static Func<ContentChange, ContentChange?> By<T>() where T : ITranspile => T.Rewrite;
-
-    /// <summary>The change as it was given: what a language writes where it has nothing of its own to say.</summary>
-    public static Func<ContentChange, ContentChange?> AsGiven { get; } = change => change;
 }
