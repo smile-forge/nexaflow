@@ -118,9 +118,6 @@ public static class AbcKinds
     /// <summary>A line continuation: the <c>\</c> that says the next source line is the same music line.</summary>
     public const string Continuation = "continuation";
 
-    /// <summary>Plain text: a field's value, a syllable, whatever is inside quotes.</summary>
-    public const string Text = "text";
-
     // ── The words of a K:, M:, L: or V: value ───────────────────────────────
 
     /// <summary>A word of a field's value standing for itself: <c>bass</c>, <c>Lydian</c>, <c>C|</c>, <c>none</c>, a voice's name.</summary>

@@ -140,9 +140,9 @@ public static class AbcParser
     /// field is prose, held as the one run of words it is.
     /// </summary>
     private static ContentNode Value(string value, string kind, char letter) =>
-        kind == AbcKinds.LyricLine ? ContentNode.Branch(AbcKinds.Text, Sung(value), AbcRoles.Value)
-        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(AbcKinds.Text, Words(value, letter), AbcRoles.Value)
-        : ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value);
+        kind == AbcKinds.LyricLine ? ContentNode.Branch(Kinds.Words, Sung(value), AbcRoles.Value)
+        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(Kinds.Words, Words(value, letter), AbcRoles.Value)
+        : ContentNode.Leaf(Kinds.Words, value, AbcRoles.Value);
 
     /// <summary>
     /// The words of a <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> value and the space between them. A word runs to the next
@@ -219,11 +219,11 @@ public static class AbcParser
             var inner = close < 0 ? set[1..] : set[1..close];
 
             List<ContentNode> quoted = [ContentNode.Leaf(Kinds.Token, "\"", Roles.Open)];
-            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(AbcKinds.Text, inner, Roles.Body));
+            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(Kinds.Words, inner, Roles.Body));
             if (close >= 0) quoted.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
             if (close >= 0 && close + 1 < set.Length) quoted.Add(ContentNode.Leaf(Kinds.Token, set[(close + 1)..]));
 
-            pieces.Add(ContentNode.Branch(AbcKinds.Text, quoted, AbcRoles.Value));
+            pieces.Add(ContentNode.Branch(Kinds.Words, quoted, AbcRoles.Value));
         }
         else if (set.Length > 0)
         {
@@ -303,7 +303,7 @@ public static class AbcParser
         // The words written since `run`, as a piece of the syllable being read.
         void Take(int to)
         {
-            if (to > run) syllable.Add(ContentNode.Leaf(AbcKinds.Text, value[run..to]));
+            if (to > run) syllable.Add(ContentNode.Leaf(Kinds.Words, value[run..to]));
             run = to;
         }
 
@@ -312,7 +312,7 @@ public static class AbcParser
             Take(at);
             if (syllable.Count == 0) return;
 
-            pieces.Add(syllable is [{ Kind: AbcKinds.Text } words]
+            pieces.Add(syllable is [{ Kind: Kinds.Words } words]
                 ? ContentNode.Leaf(AbcKinds.Syllable, words.Text)
                 : ContentNode.Branch(AbcKinds.Syllable, [.. syllable]));
             syllable.Clear();
@@ -718,7 +718,7 @@ public static class AbcParser
             inner++;
         }
 
-        if (close > inner) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[inner..close], Roles.Body));
+        if (close > inner) pieces.Add(ContentNode.Leaf(Kinds.Words, s[inner..close], Roles.Body));
         pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
 
         i = close + 1;
@@ -742,7 +742,7 @@ public static class AbcParser
         while (to > from && char.IsWhiteSpace(s[to - 1])) to--;
 
         if (from > i + 1) pieces.Add(ContentNode.Leaf(Kinds.Space, s[(i + 1)..from], Roles.Trivia));
-        if (to > from) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[from..to], Roles.Name));
+        if (to > from) pieces.Add(ContentNode.Leaf(Kinds.Words, s[from..to], Roles.Name));
         if (close > to) pieces.Add(ContentNode.Leaf(Kinds.Space, s[to..close], Roles.Trivia));
         pieces.Add(ContentNode.Leaf(Kinds.Token, "!", Roles.Close));
 
