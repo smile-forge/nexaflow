@@ -18,7 +18,7 @@ namespace Nexaflow.Markdown.Mermaid;
 public sealed class MermaidTranspile : ITranspile
 {
     /// <inheritdoc/>
-    public ContentChange? Write(ContentChange change)
+    public ContentChange? Rewrite(ContentChange change)
     {
         if (!change.Writes.Any(write => write.Meant)) return change;
 

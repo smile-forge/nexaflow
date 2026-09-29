@@ -22,7 +22,7 @@ public interface ITranspile
     static ITranspile AsGiven { get; } = new Plainly();
 
     /// <summary><paramref name="change"/> as this language writes it, or null to write nothing at all.</summary>
-    ContentChange? Write(ContentChange change) => change;
+    ContentChange? Rewrite(ContentChange change) => change;
 
     private sealed class Plainly : ITranspile;
 }
