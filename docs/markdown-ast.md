@@ -249,8 +249,10 @@ So there are three answers, all a `Laid`:
 
 **Which answer a language gives turns on one question: is this content typed into where it is drawn?** A diagram that
 draws nothing asks to be shown as written, blaming what it could make nothing of. A formula keeps its typesetting
-while it is written, and something it read but cannot draw is a warning in place. A tune, a structure, a 2D code, a
-plot and a word cloud are never typed into where they are drawn, so anything wrong shows them as written. A barcode's
+while it is written, and something it read but cannot draw is a warning in place. A tune is typed into where it is drawn — its title and
+the words under its staff as text, its notes as notes — so something it read but cannot draw is marked in place. A
+structure, a 2D code, a plot and a word cloud are never typed into where they are drawn, so anything wrong shows them
+as written. A barcode's
 value is typed into where it is printed, so a value that will not encode keeps a faint symbol with a wave under it
 while it is written.
 

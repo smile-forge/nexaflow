@@ -172,6 +172,33 @@ review's, but R2's half — that a layout piece may point nowhere — can be hel
 **Depends on.** Each analyzer depends on its rule already holding, so this section is spread through the others rather
 than done at a point.
 
+## 7. A tune is typed into where it is drawn
+
+**Goal.** What [markdown-ast.md](markdown-ast.md#7-nothing-ever-fails-to-draw) says of a tune: its title and the words
+under its staff written into as text, its notes written into as notes. Typing `a` to `g` in the staff adds that note,
+`_` and `#` flatten and sharpen the note before it, Page Up and Page Down move it an octave, `+` and `-` make it longer
+and shorter, and Space puts a pause in.
+
+**Where it stands.** The gestures exist and nothing calls them. `AbcEdit` answers `NoteAt` (what a letter typed at the
+caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and `Length`, each already
+returning an `AstWrite` over the shared tree. `AbcParser` says how words are written back into a tune
+(`ITranspile.Rewrite`): a break becomes a space, a percent on a field's line is held by a backslash, and a character
+that would close an annotation or a decoration is refused.
+
+What is missing is the wiring, not the mechanism:
+
+- ABC declares no `Editing`, so no key reaches `AbcEdit` — there is no `IOnEdit` mapping a keystroke to a gesture.
+- ABC is not `Writable`, so a tune is laid read-only and the caret never lands in it.
+- Nothing writes a rest, so Space has nothing to call.
+- `AbcEdit.Before` — the note in front of the caret, which `_`, `#`, `+`, `-` and the octave keys all need — is private
+  to `AbcEdit`.
+
+**Benefit.** The keys a musician expects, on the one language whose gestures are already written and tested. It is also
+the cheapest test of whether the engine's default and a language's own handler compose: the title and the words under
+the staff are the default's, the staff is the handler's, and neither needs to know about the other.
+
+**Depends on.** Nothing. The parser's half is done and the gestures predate it.
+
 ## Order
 
 1. **§1, the engine's stopgap** — held. Nothing waited on it, and everything else is safer for it.
