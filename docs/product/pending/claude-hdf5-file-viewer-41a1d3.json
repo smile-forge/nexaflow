@@ -1,0 +1,82 @@
+{
+  "branch": "claude/hdf5-file-viewer-41a1d3",
+  "nodes": {
+    "tabular-grid": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "UpdateRowVisuals"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Views/TabularView.xaml",
+          "class": "TabularView"
+        }
+      ]
+    },
+    "tabular-comment-strip": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Features/Nexaflow.Features.Tabular/Detection/LineSamplingReader.cs",
+          "class": "LineSamplingReader",
+          "method": "Read"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "BuildIndexHeader"
+        }
+      ]
+    },
+    "tabular-column-resize": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "UpdateColumnWidths"
+        }
+      ]
+    },
+    "tabular-hscroll": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "OnHScrollValueChanged"
+        }
+      ]
+    },
+    "tabular-column-select": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Common/Controls/VirtualizedRowsControl.xaml.cs",
+          "class": "VirtualizedRowsControl",
+          "method": "ToggleSelected"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 5,
+  "touched_nodes": [
+    "tabular-column-resize",
+    "tabular-column-select",
+    "tabular-comment-strip",
+    "tabular-grid",
+    "tabular-hscroll"
+  ]
+}

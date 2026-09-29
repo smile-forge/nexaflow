@@ -41,7 +41,7 @@ public partial class TabularView : UserControl, IPageView
         ViewModel   = vm;
         DataContext = vm;
 
-        GridControl.HeaderContextMenuOpening += PopulateHeaderContextMenu;
+        GridControl.HeaderContextMenuOpening += (col, menu) => PopulateHeaderContextMenu((TabularColumnViewModel)col, menu);
         GridControl.FocalRowChanged    += focal =>
         {
             if (focal == vm.FocalRow) return;
