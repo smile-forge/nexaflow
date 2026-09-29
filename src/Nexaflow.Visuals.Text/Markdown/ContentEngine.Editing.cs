@@ -42,13 +42,26 @@ public sealed partial class ContentEngine
         var edit = Walked(kind, text, landing, from);
         // Nothing on the way up named a part of any tree, so there is no language to ask.
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
-        var said = language?.Editing.OnEdit?.Edit(edit) is { } answer ? Safe(answer, landing.State, language) : null;
-        var change = said
-                     ?? (kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit) : null)
-                     ?? Ordinary(edit, language);
+        var said = language?.Editing.OnEdit?.Edit(edit) ?? Ordinary(edit, language);
+
+        var change = said is not null ? Spelling(said, landing.State, language!)
+                   : kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit)
+                   : null;
 
         return change is null ? null : Made(landing.State, change);
     }
+
+    /// <summary>
+    /// <paramref name="change"/> as the language writes it back to its own source (<see cref="ITranspile"/>).
+    ///
+    /// <para>
+    /// Both halves go through this: what a gesture handler answered, and what the engine worked out itself for an ordinary
+    /// key. A language that offers no way of writing back has nothing written — better a key that does nothing than
+    /// characters spliced into source that nothing has vouched for.
+    /// </para>
+    /// </summary>
+    private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
+        language.Transpile?.Write(change) ?? ContentChange.Stay(state);
 
     /// <summary>
     /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still
@@ -68,47 +81,6 @@ public sealed partial class ContentEngine
             source = string.Concat(source.AsSpan(0, write.Start), write.Text, source.AsSpan(write.End));
 
         return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), [], change.Raw);
-    }
-
-    /// <summary>
-    /// <paramref name="change"/> with every stretch it names as words (<see cref="ContentWrite.Words"/>) made safe for the part they go
-    /// in by the language's parser, and the caret kept where it stood among them — or nothing changed at all, where any of them is
-    /// something its part cannot hold.
-    /// </summary>
-    private static ContentChange Safe(ContentChange change, EditState state, ContentLanguage language)
-    {
-        if (language.SafeFormatText is not { } safe || !change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>();
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands in the document as the handler said it would read afterwards, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant)
-            {
-                writes.Add(write);
-                continue;
-            }
-
-            if (safe(write.Part!, write.Text) is not { } written) return ContentChange.Stay(state);
-
-            writes.Add(new ContentWrite(write.Start, write.Length, written));
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (safe(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? written.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += written.Length - write.Text.Length;
-
-            grown += written.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
     }
 
     /// <summary>

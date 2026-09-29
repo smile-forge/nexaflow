@@ -139,24 +139,6 @@ public static class MermaidParser
         return lines is null ? block : block.With(lines);
     }
 
-    /// <summary>
-    /// <paramref name="text"/> as <paramref name="part"/> can hold it — written so it reads back as what was meant, with nothing in it
-    /// that would end the part or the line it is on — or null where the part can hold none of it. What a place in a diagram may hold
-    /// is the reading's to say, so whatever writes words into one asks here rather than knowing.
-    /// <list type="bullet">
-    /// <item>Between quotes, anything: a quote as the entity code standing for it, a line ending as the break a label is drawn with.</item>
-    /// <item>A title, anything on its one line: a line ending as a space.</item>
-    /// <item>A value, a number and nothing else.</item>
-    /// </list>
-    /// </summary>
-    public static string? SafeFormatText(ContentPart part, string text) => part.Kind switch
-    {
-        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
-        MermaidKinds.Title => text.ReplaceLineEndings(" "),
-        MermaidKinds.Amount => text.Length > 0 && double.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _) ? text : null,
-        _ => null,
-    };
-
     /// <summary>How a line breaks inside what a diagram draws as words.</summary>
     public const string LineBreak = "<br>";
 
