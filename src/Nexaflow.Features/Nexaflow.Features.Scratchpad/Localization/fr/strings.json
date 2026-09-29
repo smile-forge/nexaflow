@@ -1,0 +1,59 @@
+{
+  "Scratchpad.Config.Scratchpad": "Scratchpad",
+  "Scratchpad.Config.Scratchpad.NoteLifetime": "Durée de vie des nouvelles notes",
+  "Scratchpad.Config.Scratchpad.RecycleBinRetention": "Conservation dans la Corbeille",
+  "Scratchpad.Config.Scratchpad.Minutes": "{0} minutes",
+  "Scratchpad.Config.Scratchpad.Hour": "1 heure",
+  "Scratchpad.Config.Scratchpad.Hours": "{0} heures",
+  "Scratchpad.Config.Scratchpad.None": "Aucune",
+  "Scratchpad.Config.Scratchpad.Day": "1 jour",
+  "Scratchpad.Config.Scratchpad.Days": "{0} jours",
+  "Scratchpad.Config.Scratchpad.Infinite": "Illimitée",
+  "Scratchpad.Page.Title": "Scratchpad",
+  "Scratchpad.Task.FetchingPreviewFormat": "Récupération de l'aperçu : {0}",
+  "Scratchpad.Drop.CreatePostIt": "Créer un post-it",
+
+  "Scratchpad.Color.Yellow": "Jaune",
+  "Scratchpad.Color.Blue": "Bleu",
+  "Scratchpad.Color.Green": "Vert",
+  "Scratchpad.Color.Pink": "Rose",
+  "Scratchpad.Color.Orange": "Orange",
+  "Scratchpad.Color.Purple": "Violet",
+  "Scratchpad.Color.White": "Blanc",
+
+  "Scratchpad.Shape.Square": "Carré",
+  "Scratchpad.Shape.Rounded": "Arrondi",
+  "Scratchpad.Shape.Diagonals": "Diagonales",
+  "Scratchpad.Shape.SpeechBubble": "Bulle",
+
+  "Scratchpad.Note.Front": "Devant",
+  "Scratchpad.Note.FrontTip": "Mettre au premier plan",
+  "Scratchpad.Note.Back": "Derrière",
+  "Scratchpad.Note.BackTip": "Envoyer à l'arrière-plan",
+  "Scratchpad.Note.RotateTip": "Faire glisser pour pivoter",
+  "Scratchpad.Note.PinTip": "Cliquer pour épingler/désépingler",
+  "Scratchpad.Note.RemoveTip": "Supprimer la note",
+
+  "Scratchpad.Toolbar.New": "＋ Nouveau",
+  "Scratchpad.Toolbar.NewTip": "Ajouter un nouveau post-it (ou double-cliquer sur la zone de travail)",
+  "Scratchpad.Toolbar.Fit": "⤡ Ajuster",
+  "Scratchpad.Toolbar.FitTip": "Zoomer pour afficher toutes les notes",
+  "Scratchpad.Toolbar.BinTip": "Afficher/masquer la Corbeille",
+  "Scratchpad.Toolbar.BinOptionsTip": "Options de la Corbeille",
+
+  "Scratchpad.Canvas.NewHere": "Nouveau post-it ici",
+  "Scratchpad.Canvas.PasteHere": "Coller en tant que post-it",
+
+  "Scratchpad.Bin.Title": "🗑 Corbeille",
+  "Scratchpad.Bin.Empty": "Vider la Corbeille",
+  "Scratchpad.Bin.EmptyConfirm": "Supprimer définitivement toutes les notes de la Corbeille ?",
+  "Scratchpad.Bin.Restore": "↩ Restaurer",
+  "Scratchpad.Bin.Delete": "✕ Supprimer",
+  "Scratchpad.Bin.NoItems": "Aucun élément dans la Corbeille",
+
+  "Scratchpad.Status.NoteCountOneFormat": "Notes : {0}",
+  "Scratchpad.Status.NoteCountManyFormat": "Notes : {0}",
+  "Scratchpad.Status.ZoomTip": "Cliquer pour définir le zoom",
+
+  "Scratchpad.Search.NoNotes": "Ce tableau ne contient aucune note à rechercher."
+}

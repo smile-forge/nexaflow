@@ -1,0 +1,4 @@
+{
+  "Video.Config.Video": "Vidéo",
+  "Video.Config.Video.EnableHardwareDecoding": "Utiliser le décodage matériel (plus rapide ; à désactiver si la lecture est instable)"
+}

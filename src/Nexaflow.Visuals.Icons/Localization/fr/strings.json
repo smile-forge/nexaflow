@@ -1,0 +1,9 @@
+{
+  "Icons.Picker.SearchPlaceholder": "Rechercher des icônes",
+  "Icons.Picker.All": "Toutes",
+  "Icons.Picker.Emoji": "Emoji",
+  "Icons.Picker.Fluent": "Fluent",
+  "Icons.Picker.FluentFilled": "Fluent plein",
+  "Icons.Picker.Count": "{0:N0} icônes",
+  "Icons.Picker.NoMatches": "Aucune icône ne correspond"
+}

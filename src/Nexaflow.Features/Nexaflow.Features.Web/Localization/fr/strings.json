@@ -1,0 +1,19 @@
+{
+  "Web.Action.Browse": "Naviguer",
+  "Web.Action.BrowseDescription": "Ouvrir un onglet de navigateur pour afficher du contenu HTML",
+
+  "Web.Toolbar.Back": "Précédent",
+  "Web.Toolbar.Forward": "Suivant",
+  "Web.Toolbar.Reload": "Actualiser",
+  "Web.Toolbar.OpenExternal": "Ouvrir dans votre navigateur par défaut",
+  "Web.Loading": "Chargement…",
+
+  "Web.Fallback.Title": "Impossible d'afficher le navigateur intégré",
+  "Web.Fallback.OpenExternal": "Ouvrir dans votre navigateur par défaut",
+  "Web.Fallback.InstallRuntime": "Installer le runtime Microsoft Edge WebView2",
+  "Web.Fallback.UnavailableTitle": "Navigateur indisponible",
+  "Web.Fallback.UnavailableFormat": "{0} Ouvrir plutôt cette page dans votre navigateur web par défaut ?",
+
+  "Web.Error.OpenDownloadPageFormat": "Impossible d'ouvrir la page de téléchargement : {0}",
+  "Web.Error.OpenBrowserFormat": "Impossible d'ouvrir votre navigateur par défaut : {0}"
+}

@@ -184,6 +184,9 @@
     <Project Path="src/Nexaflow.Languages/Nexaflow.Language.en/Nexaflow.Language.en.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Languages/Nexaflow.Language.fr/Nexaflow.Language.fr.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/Nexaflow.Tests/">
     <Project Path="src/Nexaflow.Tests/Nexaflow.Tests.Components/Nexaflow.Tests.Components.csproj">

@@ -1,0 +1,14 @@
+{
+  "Common.Search.Placeholder": "Rechercher",
+  "Common.ColorPicker.ThemeDefault": "Défaut du thème",
+  "Common.ColorPicker.ThemeDefaultTip": "Utiliser la couleur propre au thème, qui change avec lui",
+  "Common.ColorPicker.Eyedropper": "Choisir à l'écran",
+  "Common.ColorPicker.EyedropperTip": "Prélever n'importe quel pixel à l'écran. Cliquez pour le prendre, Échap pour annuler",
+  "Common.ColorPicker.Preview": "Avant · après",
+  "Common.ColorPicker.Before": "Avant",
+  "Common.ColorPicker.After": "Après",
+  "Common.ColorPicker.HexTip": "#RRGGBB, ou #AARRGGBB avec transparence",
+  "Common.ColorPicker.IsThemeDefault": "Défaut du thème",
+  "Common.ColorPicker.IsSwatch": "Nuance du thème · {0}",
+  "Common.ColorPicker.IsCustom": "Couleur personnalisée"
+}

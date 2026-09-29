@@ -154,3 +154,6 @@ model, not the user.
 Moving a feature over is mechanical — add its keys to `Localization/en/strings.json` at the project's root, replace
 each literal with `{loc:Str …}` or `Str.Get(…)`, then flip the feature's `i18n` concern to `done` and snaplink it
 to that file. The guard checks each key as it lands.
+
+English is the source of every string. French (`fr`) carries a translation of every `strings.json`; its help pages
+are English until a pack ships them, and a key added to English shows there in English until French follows.
