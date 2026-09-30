@@ -463,9 +463,7 @@ public sealed partial class ContentEngine
     /// </summary>
     private bool Followed(LayoutAct act)
     {
-    // What the tree says, and failing that what the builder pinned to the piece: a language that keeps an address on a
-        // statement of its own — a Mermaid click line — has not hung it on the thing it applies to yet.
-        if ((Leads(act.Piece) ?? act.Intent.Target) is not { Length: > 0 } where) return false;
+    if (Leads(act.Piece) is not { Length: > 0 } where) return false;
         if (Choose(LayoutVerbs.Navigate, act.At)) return true;
 
         return Uri.TryCreate(where, UriKind.Absolute, out _) && this.Events?.OnNavigate(where) == true;

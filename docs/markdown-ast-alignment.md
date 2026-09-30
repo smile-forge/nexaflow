@@ -4,20 +4,21 @@
 against them and what aligning each part buys. It is the high-level shape only: each section below is picked up on its
 own, planned in detail then, and finished before the next one starts.
 
-## An address on a statement of its own is not on the thing it applies to
+## A class and a state diagram keep an address off the thing it applies to
 
 Every language that lets a reader write an address marks it `Roles.Destination`, and the engine reads where a press leads off
-the tree from the part it was drawn from (`ContentEngine.Leads`). Markdown answers: a link node holds its destination, and a
-reference-style link holds what the definition said as a derived `Held` string.
+the tree from the part it was drawn from (`ContentEngine.Leads`) — nothing pinned to a piece, so a link is a link in every
+language the same way. Markdown answers because a link node holds its destination, and a reference-style link holds what the
+definition said as a derived `Held` string. A flowchart answers because `ResolveDestinations` hangs a `click` line's address on
+the node it names, and `FlowchartBuilder` reads it back off that node rather than keeping a copy.
 
-A Mermaid `click` line does not. The address is written on a statement of its own — `click Foo href "…"` — and the node it
-names is somewhere else entirely, so nothing above the pressed node says where it leads. `FlowchartBuilder` reads the click
-statement while it plans and pins the address to the piece, which is why the engine still falls back to what the piece
-carries. The same holds for class and state diagrams.
+Class and state diagrams have the same `click` line and no such stage, so the address stays on a statement of its own and
+nothing above the pressed node says where it leads. **A press on a class or a state link does nothing.** Their tests only assert
+what the builder pinned to the piece, so they pass while the behaviour is gone.
 
-What closes it is a stage per language that hangs the address on the node the click line names, exactly as markdown's
-reference links are hung — `AstRewrite.Holding(node, kind, Roles.Destination, href)`, which `MarkdownLinks.Goes` already
-reads. With that, the fallback in `Followed` goes and a link is a link in every language by the tree alone.
+Each needs the same stage `ResolveDestinations` is: match the node by the name it holds (`MermaidKinds.Name`), not by the role
+it was written under — a link's ends name their nodes under roles of their own — and read the address from inside its quotes,
+where the words carry the role. Then each builder reads it off the node, as the flowchart's now does.
 
 ## Nothing answers a fold
 

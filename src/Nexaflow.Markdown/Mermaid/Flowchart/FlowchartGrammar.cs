@@ -110,6 +110,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     /// </remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveSubgraphs(), new ResolveJoins(), new ResolveLinks(), new ResolveMetadata(), new ResolveStyles(), new ResolveShapes(),
+         new ResolveDestinations(),
          block.Diagram == MermaidDiagram.Swimlane
              ? new WithConfig<SwimlaneConfig>(SwimlaneConfig.Read(block.Config))
              : new WithConfig<FlowchartConfig>(FlowchartConfig.Read(block.Config))];

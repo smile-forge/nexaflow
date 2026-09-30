@@ -5,6 +5,7 @@ using System.Linq;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Prose;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 
@@ -45,8 +46,8 @@ internal partial class FlowchartBuilder
         /// <summary>The metadata <see cref="Worked"/> was read from, which is what a press on those words means.</summary>
         public ContentPart? WorkedPart { get; set; }
 
-        /// <summary>Where a <c>click</c> line says pressing it leads, which nothing here follows.</summary>
-        public string? Href { get; set; }
+        /// <summary>Where it leads, said by the node itself — a <c>click</c> line's address, hung on it by a stage.</summary>
+        public string? Href => MarkdownLinks.Goes(this.Part.Node);
 
         /// <summary>What a <c>click</c> line says it says while pointed at.</summary>
         public string? Tip { get; set; }
@@ -327,7 +328,8 @@ internal partial class FlowchartBuilder
         {
             if (Words(stated, FlowchartRoles.Id) is not { Length: > 0 } id || !known.TryGetValue(id, out var node)) return;
 
-            node.Href = Words(stated, Roles.Destination) ?? node.Href;
+            // Not the address: a stage has already hung that on the node this line names, so the node itself says where it
+            // leads and nothing has to carry a second copy of it (ResolveDestinations).
             node.Tip = Words(stated, FlowchartRoles.Tip) ?? node.Tip;
         }
 
