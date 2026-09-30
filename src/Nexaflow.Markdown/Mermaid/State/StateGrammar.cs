@@ -338,7 +338,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         if (line.Word(HrefWord, letter: Bare)) line.Room();
 
-        if (!line.Quoted(StateRoles.Href)) return line.Shown(ClickShape);
+        if (!line.Quoted(Roles.Destination)) return line.Shown(ClickShape);
 
         var mark = line.Save();
         line.Room();

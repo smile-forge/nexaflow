@@ -163,7 +163,7 @@ public class MarkdownInlineTests
         var link = One("[the page](https://example.org)", MarkdownKinds.Link);
 
         Assert.AreEqual("the page", Body(link));
-        Assert.AreEqual("https://example.org", link.Part(MarkdownRoles.Destination)?.Text);
+        Assert.AreEqual("https://example.org", link.Part(Roles.Destination)?.Text);
     }
 
     [TestMethod]
@@ -177,7 +177,7 @@ public class MarkdownInlineTests
     {
         var picture = One("![a cat](cat.png)", MarkdownKinds.Image);
 
-        Assert.AreEqual("cat.png", picture.Part(MarkdownRoles.Destination)?.Text);
+        Assert.AreEqual("cat.png", picture.Part(Roles.Destination)?.Text);
     }
 
     // ── What a reader can tick ──────────────────────────────────────────────

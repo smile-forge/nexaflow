@@ -89,6 +89,18 @@ public static class Roles
     /// <see cref="Derived"/> part, so it is found by asking the tree when the pointer arrives and is never laid out.
     /// </summary>
     public const string Tip = "tip";
+
+    /// <summary>
+    /// Where the thing holding this leads: a link's address, wherever a language lets a reader write one — a markdown link's
+    /// target, a Mermaid <c>click</c> line's <c>href</c>.
+    ///
+    /// <para>
+    /// Shared, because following a link is the engine's and not a language's: it has to know that a press on something means
+    /// going somewhere without knowing which language wrote it, and the layout cannot answer — a piece says what it was drawn
+    /// for, not what it stands over. Every language that lets a reader write an address marks it with this.
+    /// </para>
+    /// </summary>
+    public const string Destination = "destination";
 }
 
 /// <summary>

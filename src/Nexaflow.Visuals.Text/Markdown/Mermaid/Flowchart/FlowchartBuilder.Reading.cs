@@ -327,7 +327,7 @@ internal partial class FlowchartBuilder
         {
             if (Words(stated, FlowchartRoles.Id) is not { Length: > 0 } id || !known.TryGetValue(id, out var node)) return;
 
-            node.Href = Words(stated, FlowchartRoles.Href) ?? node.Href;
+            node.Href = Words(stated, Roles.Destination) ?? node.Href;
             node.Tip = Words(stated, FlowchartRoles.Tip) ?? node.Tip;
         }
 

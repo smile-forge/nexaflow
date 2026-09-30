@@ -259,7 +259,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         if (line.Word(HrefWord, letter: Bare))
         {
             line.Room();
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (line.Word(CallWord, letter: Bare))
         {
@@ -268,7 +268,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         }
         else if (line.Next == '"')
         {
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (!line.Name(FlowchartRoles.Call, Called))
         {

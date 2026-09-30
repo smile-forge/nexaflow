@@ -82,9 +82,6 @@ public static class StateRoles
     /// <summary>Which side of the state a note is written beside: <c>left</c> or <c>right</c>.</summary>
     public const string Side = "state-side";
 
-    /// <summary>Where pressing a state leads.</summary>
-    public const string Href = "state-href";
-
     /// <summary>What a state says while it is pointed at.</summary>
     public const string Tip = "state-tip";
 

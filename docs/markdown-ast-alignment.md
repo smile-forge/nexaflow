@@ -4,6 +4,21 @@
 against them and what aligning each part buys. It is the high-level shape only: each section below is picked up on its
 own, planned in detail then, and finished before the next one starts.
 
+## An address on a statement of its own is not on the thing it applies to
+
+Every language that lets a reader write an address marks it `Roles.Destination`, and the engine reads where a press leads off
+the tree from the part it was drawn from (`ContentEngine.Leads`). Markdown answers: a link node holds its destination, and a
+reference-style link holds what the definition said as a derived `Held` string.
+
+A Mermaid `click` line does not. The address is written on a statement of its own — `click Foo href "…"` — and the node it
+names is somewhere else entirely, so nothing above the pressed node says where it leads. `FlowchartBuilder` reads the click
+statement while it plans and pins the address to the piece, which is why the engine still falls back to what the piece
+carries. The same holds for class and state diagrams.
+
+What closes it is a stage per language that hangs the address on the node the click line names, exactly as markdown's
+reference links are hung — `AstRewrite.Holding(node, kind, Roles.Destination, href)`, which `MarkdownLinks.Goes` already
+reads. With that, the fallback in `Followed` goes and a link is a link in every language by the tree alone.
+
 ## Nothing answers a fold
 
 A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) still pins `LayoutVerbs.Expand` or
