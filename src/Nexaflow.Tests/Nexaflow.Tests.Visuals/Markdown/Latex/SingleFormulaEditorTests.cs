@@ -300,40 +300,6 @@ public class SingleFormulaEditorTests
     // ── Pasting ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void PastingSettlesAndTypesetsJustAsSpaceWould()
-    {
-        RunInFormula(string.Empty, editor =>
-        {
-            var formula = Focused(editor);
-
-            // Mid-command, so this also proves the paste is not read as more of the command being
-            // written: \al + pha would otherwise quietly become \alpha.
-            MarkdownEditorHarness.Type(editor, @"\al");
-            Assert.IsTrue(editor.PasteIntoFormula(@"\beta + 1"), "a formula holds the caret, so it takes it");
-
-            Assert.AreEqual(@"\al\beta + 1", formula.Latex);
-            Assert.AreEqual(@"\al\beta + 1", formula.Latex,
-                "settled and set on arrival — pasting reassesses exactly as space does");
-        });
-    }
-
-    [TestMethod]
-    public void PastingDoesNotBringTheNewlineWithIt()
-    {
-        // A copy almost always carries a trailing newline, and inside one expression a newline means a
-        // space. Left on, that is a character the reader cannot see sitting at the end of their
-        // formula — so the first backspace deletes it and appears to do nothing at all.
-        RunInFormula(string.Empty, editor =>
-        {
-            var formula = Focused(editor);
-            Assert.IsTrue(editor.PasteIntoFormula("\\frac{a}{b} + \\frac{c}{d}\r\n"));
-
-            Assert.AreEqual(@"\frac{a}{b} + \frac{c}{d}", formula.Latex);
-            Assert.AreEqual(formula.Latex.Length, formula.Caret - formula.Origin, "with the caret at the end of it");
-        });
-    }
-
-    [TestMethod]
     public void PasteIsCleanedWhicheverRouteItTakes()
     {
         // Cleaning used to happen only where a formula already held the caret. A paste arriving a
@@ -410,37 +376,6 @@ public class SingleFormulaEditorTests
         Assert.AreEqual("a ` b", MarkdownClipboard.AsFormula("a ` b"));
         Assert.AreEqual("``` x+1 ```", MarkdownClipboard.AsFormula("``` x+1 ```"),
             "all on one line is not a fenced block");
-    }
-
-    [TestMethod]
-    public void PastingStripsWhateverSaidThisIsMaths()
-    {
-        // LaTeX copied from a paper, a chat or another editor comes wrapped in that place's way of
-        // saying "maths follows". Pasting into a formula, the surface has already said it — keeping the
-        // wrapper hands the parser commands it never heard of and the reader a red wave under their own
-        // formula.
-        (string Pasted, string Expected)[] cases =
-        [
-            (@"\[\sqrt{x^2+1}\]",                                  @"\sqrt{x^2+1}"),
-            ("$$x+1$$",                                            "x+1"),
-            ("$x+1$",                                              "x+1"),
-            (@"\(x+1\)",                                           "x+1"),
-            (@"\begin{equation}x+1\end{equation}",                 "x+1"),
-            (@"\begin{equation*}x+1\end{equation*}",               "x+1"),
-            (@"\begin{displaymath}x+1\end{displaymath}",           "x+1"),
-            (@"\begin{math}x+1\end{math}",                         "x+1"),
-            (@"\[\begin{align}x+1\end{align}\]",                   "x+1"),   // they nest
-            // …but an environment that IS the formula stays. Stripping this would take the matrix apart.
-            (@"\begin{matrix}a&b\\c&d\end{matrix}",                @"\begin{matrix}a&b\\c&d\end{matrix}"),
-        ];
-
-        foreach (var (pasted, expected) in cases)
-            RunInFormula(string.Empty, editor =>
-            {
-                var formula = Focused(editor);
-                Assert.IsTrue(editor.PasteIntoFormula(pasted), pasted);
-                Assert.AreEqual(expected, formula.Latex, pasted);
-            });
     }
 
     // ── Source is asked for, never fallen into ──────────────────────────────

@@ -54,7 +54,7 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the
         // note (header, grips). Both insert a block rather than letting the drop create a new post-it.
         Editor.ContentDropped = InsertDropped;
-        Editor.ContentPasted   = OnContentPasted;   // same rich-content handling for Ctrl+V / right-click Paste
+        Editor.Pasting += OnContentPasted;   // same rich-content handling for Ctrl+V / right-click Paste
         AllowDrop = true;
         DragOver += PostIt_DragOver;
         Drop     += PostIt_Drop;
@@ -83,14 +83,26 @@ public partial class PostItControl : System.Windows.Controls.UserControl
     private bool InsertDropped(IDataObject data, Point editorPoint)
         => InsertContent(data, md => Editor.InsertMarkdownAt(md, editorPoint));
 
-    /// <summary>Paste hook: claim image / file / URL (insert as a block, like a drop); plain text falls
-    /// back to the editor's inline paste (return false).</summary>
-    private bool OnContentPasted(IDataObject data)
+    /// <summary>
+    /// A picture, a file or a link on the clipboard is this note's to take: it becomes a block in the note rather than words in
+    /// the line being written. Answered here because a clipboard holds whatever put something on it, and what that comes to in a
+    /// note is the note's to say — anything else is left to the application, which says it in words and in markdown.
+    /// </summary>
+    private void OnContentPasted(object? sender, ContentPastingEventArgs e)
     {
+        if (e.Handled) return;
+
+        IDataObject? data;
+        try { data = Clipboard.GetDataObject(); }
+        catch (System.Runtime.InteropServices.ExternalException) { return; }
+
+        if (data is null) return;
+
         bool rich = DroppedMedia.TryGetSingleUrl(data, out _)
                  || data.GetDataPresent(DataFormats.FileDrop)
                  || data.GetDataPresent(DataFormats.Bitmap);
-        return rich && InsertContent(data, md => Editor.InsertMarkdownAtCaret(md));
+
+        if (rich && InsertContent(data, md => Editor.InsertMarkdownAtCaret(md))) e.Handled = true;
     }
 
     /// <summary>Turns dropped/pasted content into a note block via <paramref name="insert"/>: a URL is

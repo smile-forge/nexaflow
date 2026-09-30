@@ -73,7 +73,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         // And what it asks for that only a control can do: a clipboard is the application's, and a page is as tall as this.
         _engine.Copying = Copy;
-        _engine.Pasting = Paste;
+        _engine.Pasting = () =>
+        {
+            var asked = new ContentPastingEventArgs(PastingEvent);
+            RaiseEvent(asked);
+
+            return asked.Handled ? (asked.Words ?? string.Empty, asked.Markdown ?? string.Empty) : null;
+        };
         _engine.Paging = Paged;
         _engine.Picturing = block => Picture(block, Background);
 
@@ -288,9 +294,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// </summary>
     public Func<IDataObject, Point, bool>? ContentDropped { get; set; }
 
-    /// <summary>The same for something pasted: true where the host took it, false leaves it to be written in as text.</summary>
-    public Func<IDataObject, bool>? ContentPasted { get; set; }
-
     /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;
 
@@ -469,7 +472,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
                 return Copy(_engine.CopyOf(block));
 
             case LayoutVerbs.Paste:
-                return Paste();
+                return _engine.Paste();
 
             default:
                 return Diagrammed(act) ?? Host?.Invoke(act) ?? false;

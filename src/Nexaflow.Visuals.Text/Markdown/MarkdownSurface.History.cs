@@ -110,37 +110,6 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Copies what is chosen, then takes it away — but only once it has been put somewhere, so nothing is lost.</summary>
     public bool Cut() => _engine.Cut();
-
-    /// <summary>
-    /// Asks for what is on the clipboard and writes it at the caret: the host first, for a picture or a file it would
-    /// rather handle, then as markdown — or, into a formula, as the formula it is meant to be.
-    /// </summary>
-    public bool Paste()
-    {
-        if (IsReadOnly) return false;
-
-        var asked = new ContentPastingEventArgs(PastingEvent);
-        RaiseEvent(asked);
-
-        return asked.Data is { } data && Pasted(data);
-    }
-
-    private bool Pasted(IDataObject data)
-    {
-        if (ContentPasted?.Invoke(data) == true) return true;
-
-        if (InFormula())
-            return PasteIntoFormula(MarkdownClipboard.ReadPlainText(data));
-
-        // The words, to the language the caret is in, which says what they come to there — a diagram takes them only where it holds words.
-        if (MarkdownClipboard.ReadPlainText(data) is { Length: > 0 } words && _shown.Paste(words.ReplaceLineEndings("\n"))) return true;
-
-        if (MarkdownClipboard.ReadBestMarkdown(data) is not { Length: > 0 } markdown) return false;
-
-        Write(_shown.Current.Insert(markdown.ReplaceLineEndings("\n")));
-
-        return true;
-    }
 }
 
 /// <summary>Something asked to be put on the clipboard, in every way a reader might want it pasted.</summary>
@@ -153,9 +122,17 @@ public sealed class ContentCopyingEventArgs(RoutedEvent routed, MarkdownClipboar
     public IDataObject Data => MarkdownClipboard.Data(Copy);
 }
 
-/// <summary>Asked for what is on the clipboard, to paste it.</summary>
+/// <summary>
+/// Asked for what is on the clipboard, to paste it. Whoever answers takes it off the clipboard and says what it comes to in
+/// words and in markdown — a clipboard holds whatever a machine put there, and turning that into something a document can be
+/// written from is the host's, not the content's. Answering with neither, having dealt with it another way, still marks it
+/// handled.
+/// </summary>
 public sealed class ContentPastingEventArgs(RoutedEvent routed) : RoutedEventArgs(routed)
 {
-    /// <summary>What was handed over to paste, set by whoever answered.</summary>
-    public IDataObject? Data { get; set; }
+    /// <summary>What was on it as plain words.</summary>
+    public string? Words { get; set; }
+
+    /// <summary>The same as markdown, where what was on it was marked up.</summary>
+    public string? Markdown { get; set; }
 }

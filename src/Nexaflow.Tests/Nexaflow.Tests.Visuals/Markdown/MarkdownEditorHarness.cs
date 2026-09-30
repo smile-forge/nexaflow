@@ -70,8 +70,11 @@ internal static class MarkdownEditorHarness
         }));
         window.AddHandler(MarkdownSurface.PastingEvent, new EventHandler<ContentPastingEventArgs>((_, e) =>
         {
-            e.Data = Clipboard;
-            e.Handled = Clipboard is not null;
+            if (Clipboard is not { } data) return;
+
+            e.Words = MarkdownClipboard.ReadPlainText(data);
+            e.Markdown = MarkdownClipboard.ReadBestMarkdown(data);
+            e.Handled = true;
         }));
 
         try

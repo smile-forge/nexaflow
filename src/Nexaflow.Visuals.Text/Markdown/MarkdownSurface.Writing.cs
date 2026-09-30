@@ -201,19 +201,6 @@ public sealed partial class MarkdownSurface
     }
 
     /// <summary>
-    /// Pastes into the formula the caret is in, as the formula the text is meant to be — whatever said "this is maths"
-    /// taken off — and settles whatever was half-written first. False where the caret is in no formula.
-    /// </summary>
-    public bool PasteIntoFormula(string? text)
-    {
-        if (string.IsNullOrEmpty(text) || IsReadOnly || !InFormula()) return false;
-
-        _shown.Insert(MarkdownClipboard.AsFormula(text));
-
-        return true;
-    }
-
-    /// <summary>
     /// Takes the keyboard and puts the caret in a formula, where it is in none — for focus arriving without a press, a
     /// host opening straight onto one. False where the document holds no formula.
     /// </summary>

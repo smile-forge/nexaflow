@@ -24,8 +24,11 @@ public sealed partial class ContentEngine
     /// <summary>Asked to put a copy on the clipboard. True where somebody did.</summary>
     internal Func<MarkdownClipboard.ContentCopy, bool>? Copying { get; set; }
 
-    /// <summary>Asked for what is on the clipboard to be written at the caret. True where something was.</summary>
-    internal Func<bool>? Pasting { get; set; }
+    /// <summary>
+    /// Asked for what is on the clipboard, which whoever holds it takes off and hands back as words and as markdown. Null
+    /// where nobody answered; both empty where somebody did and there was nothing here to write.
+    /// </summary>
+    internal Func<(string Words, string Markdown)?>? Pasting { get; set; }
 
     /// <summary>
     /// Asked for a picture of a block. Deciding whether one belongs is the engine's — the language says — but drawing it is
@@ -72,8 +75,20 @@ public sealed partial class ContentEngine
         return true;
     }
 
-    /// <summary>Writes what is on the clipboard at the caret.</summary>
-    internal bool Paste() => !_readOnly && this.Pasting?.Invoke() == true;
+    /// <summary>
+    /// Writes what is on the clipboard at the caret: the words go to the language the caret is in, which says what they come to
+    /// there and whose parser spells them; where it says nothing, the markdown they were copied as is written as it stands.
+    /// </summary>
+    internal bool Paste()
+    {
+        if (_readOnly || this.Pasting?.Invoke() is not { } said) return false;
+
+        if (said.Words.Length > 0 && Pasted(said.Words.ReplaceLineEndings("\n"))) return true;
+        if (said.Markdown.Length > 0) Replace(_state.Insert(said.Markdown.ReplaceLineEndings("\n")));
+
+        // Somebody answered, so the key was theirs whether or not anything came of it here.
+        return true;
+    }
 
     /// <summary>The stretch picked out, from where it starts and how long it is — null where nothing is.</summary>
     private (int Start, int Length)? Stretch() =>

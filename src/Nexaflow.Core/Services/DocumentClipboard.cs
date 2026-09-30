@@ -38,11 +38,22 @@ internal static class DocumentClipboard
         catch (ExternalException) { }
     }
 
+    /// <summary>
+    /// What is on the clipboard, taken off it and said in words and in markdown: a clipboard holds whatever put something there,
+    /// and a document is written from text, so the translating is the application's.
+    /// </summary>
     private static void Pasted(object sender, ContentPastingEventArgs e)
     {
         if (e.Handled) return;
 
-        try { e.Data = Clipboard.GetDataObject(); e.Handled = e.Data is not null; }
+        try
+        {
+            if (Clipboard.GetDataObject() is not { } data) return;
+
+            e.Words = MarkdownClipboard.ReadPlainText(data);
+            e.Markdown = MarkdownClipboard.ReadBestMarkdown(data);
+            e.Handled = !string.IsNullOrEmpty(e.Words) || !string.IsNullOrEmpty(e.Markdown);
+        }
         catch (ExternalException) { }
     }
 }
