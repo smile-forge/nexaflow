@@ -288,9 +288,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;
 
-    /// <summary>Lays everything out again — what a host calls once what <see cref="DiagramData"/> holds has changed.</summary>
-    public void RefreshDiagrams() => _shown.Refresh();
-
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()
     {

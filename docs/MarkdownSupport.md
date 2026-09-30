@@ -1067,8 +1067,8 @@ spans, Ctrl adding or taking one away — raised in `Selected` with its id where
 selection and copied as the words drawn. Tested by `MermaidBindingTests`, `BoundGraphTests`, `BoundContentTests` and
 `FoldingDiagramTests`.
 
-Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`, which
-lays out from the source again.
+Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.Refresh()`, which lays out from
+the source again.
 
 ### Nested content — one content inside another
 

@@ -62,12 +62,6 @@ public sealed partial class MarkdownSurface
         Prompted();
     }
 
-    /// <summary>
-    /// Writes <paramref name="next"/> as though it had been typed — one step to take back, the host told — for an edit made
-    /// here on somebody's behalf: something dropped or pasted, a block put in by the host.
-    /// </summary>
-    private void Write(EditState next) => _engine.Replace(next);
-
     // ── The clipboard ───────────────────────────────────────────────────────
 
     /// <summary>
