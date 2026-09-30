@@ -405,7 +405,7 @@ public sealed partial class ContentEngine
     /// What a press on a piece answering to it comes to, and whether it was taken on: what the content answers itself — a box
     /// ticked, a link into it followed — and then whatever the host says.
     /// </summary>
-    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Actions?.Invoke(act) == true;
+    private bool Meant(LayoutAct act) => Ticked(act) || Anchored(act) || Acted(act) || Actions?.Invoke(act) == true;
 
     /// <summary>
     /// A press on a task's box: the mark between its brackets written over as the press means — an edit like any other,

@@ -36,6 +36,12 @@ public interface IContentEvents
     /// <summary>A picture of <paramref name="block"/>, which only whatever painted it can draw. Null where it cannot be drawn.</summary>
     BitmapSource? OnPicture(ContentPart block);
 
+    /// <summary>
+    /// A picture of <paramref name="block"/> asked to be kept — its corner's Save. True where somebody kept it. A file goes
+    /// somewhere, and where is nobody's but a host's.
+    /// </summary>
+    bool OnBlockSave(ContentPart block);
+
     /// <summary>A page further up or down, which is as tall as whatever shows the content. True where it moved.</summary>
     bool OnPage(bool up);
 

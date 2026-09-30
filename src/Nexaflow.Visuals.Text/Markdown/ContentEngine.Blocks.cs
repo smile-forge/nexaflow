@@ -263,7 +263,7 @@ public sealed partial class ContentEngine
 
         var piece = _laid.Root.PieceAt(at);
 
-        Actions?.Invoke(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
+        Meant(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
     }
 
     /// <summary>What a block's corner offers: whichever of the usual ones it allows, and whatever it adds.</summary>
@@ -428,4 +428,26 @@ public sealed partial class ContentEngine
         Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
         return true;
     }
+
+    /// <summary>
+    /// What a press on something the content drew means where the content means it itself.
+    ///
+    /// <para>
+    /// A corner's Copy is the very question Ctrl+C over that block asks, so the button and the key cannot drift apart. A corner's
+    /// Save is a file, and where a file goes is a host's alone — so that one is asked rather than answered. False where a press
+    /// means nothing here, which leaves it to whoever hosts the content.
+    /// </para>
+    /// </summary>
+    private bool Acted(LayoutAct act) => act.Intent.Verb switch
+    {
+        LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
+            this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
+
+        LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
+            this.Events?.OnCopy(CopyOf(block)) == true,
+
+        LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+
+        _ => false,
+    };
 }

@@ -442,14 +442,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
             case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
                 return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
 
-            case LayoutVerbs.Copy when act.Intent.Target is { } what:
-            return Copy(MarkdownClipboard.Copied(what, null));
-
-            // A corner's copy, pressed on a block: whatever a copy of that block holds, which is the engine's to say — so this
-            // and Ctrl+C over the same block put the same thing on the clipboard because they ask the same question.
-            case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
-                return Copy(_engine.CopyOf(block));
-
             case LayoutVerbs.Paste:
                 return _engine.Paste();
 

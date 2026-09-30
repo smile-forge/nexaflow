@@ -103,6 +103,16 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(ChangingEvent, value);
     }
 
+    /// <summary>Raised to keep a picture of one block — what its corner's Save asks for. Whoever keeps it marks it handled.</summary>
+    public static readonly RoutedEvent BlockSavingEvent = EventManager.RegisterRoutedEvent(
+        "BlockSaving", RoutingStrategy.Bubble, typeof(EventHandler<ContentBlockSavingEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentBlockSavingEventArgs> BlockSaving
+    {
+        add => AddHandler(BlockSavingEvent, value);
+        remove => RemoveHandler(BlockSavingEvent, value);
+    }
+
     public event EventHandler<ContentDroppingEventArgs> Dropping
     {
         add => AddHandler(DroppingEvent, value);
@@ -143,6 +153,15 @@ public sealed partial class MarkdownSurface
 
     /// <inheritdoc/>
     BitmapSource? IContentEvents.OnPicture(ContentPart block) => Picture(block, Background);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnBlockSave(ContentPart block)
+    {
+        var asked = new ContentBlockSavingEventArgs(BlockSavingEvent, block);
+        RaiseEvent(asked);
+
+        return asked.Handled;
+    }
 
     /// <inheritdoc/>
     bool IContentEvents.OnPage(bool up) => Paged(up);
@@ -193,6 +212,13 @@ public sealed class ContentChangingEventArgs(RoutedEvent routed, EditState from,
 
     /// <summary>Set to refuse the change.</summary>
     public bool Refused { get; set; }
+}
+
+/// <summary>One block asked to be kept as a picture. Whoever keeps it marks it handled.</summary>
+public sealed class ContentBlockSavingEventArgs(RoutedEvent routed, ContentPart block) : RoutedEventArgs(routed)
+{
+    /// <summary>The block a picture is wanted of.</summary>
+    public ContentPart Block { get; } = block;
 }
 
 /// <summary>
