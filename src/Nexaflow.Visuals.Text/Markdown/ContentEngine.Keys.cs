@@ -48,11 +48,7 @@ public sealed partial class ContentEngine
     /// <summary>Raised when the source changed — written, taken back, written again, or put there by whatever shows it.</summary>
     public event EventHandler<ContentSourceChange>? SourceChanged;
 
-    /// <summary>
-    /// Asked to show a page further up or down, where a page key meant nothing to the content. The one thing about a key that
-    /// only whatever shows the content knows: a page is as tall as what it is shown in.
-    /// </summary>
-    internal Func<bool, bool>? Paging { get; set; }
+
 
     /// <summary>What a key means here, done.</summary>
     private bool Pressed(Key key, ModifierKeys modifiers)
@@ -87,7 +83,7 @@ public sealed partial class ContentEngine
             // A step up or down of whatever the content makes one of — an octave, in a tune — and failing that a page of
             // whatever shows it. Above the question of writing, because paging a document nobody may write in still pages it.
             case Key.PageUp or Key.PageDown:
-                return Stepped(key == Key.PageUp) || this.Paging?.Invoke(key == Key.PageUp) == true;
+                return Stepped(key == Key.PageUp) || this.Events?.OnPage(key == Key.PageUp) == true;
         }
 
         if (_readOnly) return false;

@@ -1,6 +1,8 @@
 using System;
 using System.Windows;
 
+using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -91,6 +93,16 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(PastingEvent, value);
     }
 
+    /// <summary>Raised before anything written here changes, for a host that may refuse it.</summary>
+    public static readonly RoutedEvent ChangingEvent = EventManager.RegisterRoutedEvent(
+        "Changing", RoutingStrategy.Bubble, typeof(EventHandler<ContentChangingEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentChangingEventArgs> Changing
+    {
+        add => AddHandler(ChangingEvent, value);
+        remove => RemoveHandler(ChangingEvent, value);
+    }
+
     public event EventHandler<ContentDroppingEventArgs> Dropping
     {
         add => AddHandler(DroppingEvent, value);
@@ -114,6 +126,35 @@ public sealed partial class MarkdownSurface
 
     /// <summary>Copies what is chosen, then takes it away — but only once it has been put somewhere, so nothing is lost.</summary>
     public bool Cut() => _engine.Cut();
+
+    // ── What the engine asks of this ────────────────────────────────────────
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy) => Copy(copy);
+
+    /// <inheritdoc/>
+    (string Words, string Markdown)? IContentEvents.OnPaste()
+    {
+        var asked = new ContentPastingEventArgs(PastingEvent);
+        RaiseEvent(asked);
+
+        return asked.Handled ? (asked.Words ?? string.Empty, asked.Markdown ?? string.Empty) : null;
+    }
+
+    /// <inheritdoc/>
+    BitmapSource? IContentEvents.OnPicture(ContentPart block) => Picture(block, Background);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnPage(bool up) => Paged(up);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnBeforeChange(EditState from, EditState to)
+    {
+        var asked = new ContentChangingEventArgs(ChangingEvent, from, to);
+        RaiseEvent(asked);
+
+        return !asked.Refused;
+    }
 }
 
 /// <summary>Something asked to be put on the clipboard, in every way a reader might want it pasted.</summary>
@@ -136,6 +177,22 @@ public sealed class ContentPastingEventArgs(RoutedEvent routed) : RoutedEventArg
 
     /// <summary>The same as markdown, where what was on it was marked up.</summary>
     public string? Markdown { get; set; }
+}
+
+/// <summary>
+/// What is written here about to change. A host that owns the words and will not have them written over sets
+/// <see cref="Refused"/>, and nothing is written.
+/// </summary>
+public sealed class ContentChangingEventArgs(RoutedEvent routed, EditState from, EditState to) : RoutedEventArgs(routed)
+{
+    /// <summary>What is written now.</summary>
+    public EditState From { get; } = from;
+
+    /// <summary>What it would become.</summary>
+    public EditState To { get; } = to;
+
+    /// <summary>Set to refuse the change.</summary>
+    public bool Refused { get; set; }
 }
 
 /// <summary>

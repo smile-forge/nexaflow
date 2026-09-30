@@ -196,6 +196,28 @@ public class MarkdownSurfaceTests
     });
 
     [TestMethod]
+    public void AHostThatRefusesAChangeKeepsEveryWordItHad() => UiThread.Run(() =>
+    {
+        // A host may own what is written — a document somebody else is saving, a field being checked as it is typed in. It is
+        // asked before anything is written rather than told afterwards, so a refusal costs nothing to undo.
+        var surface = Shown("Words.\n");
+        surface.IsReadOnly = false;
+        surface.Shown.MoveCaretTo("Words.".Length);
+
+        surface.Shown.Type('!');
+        StringAssert.Contains(surface.Markdown, "!", "with nobody refusing, it is written");
+
+        var asked = 0;
+        surface.Changing += (_, e) => { asked++; e.Refused = true; };
+
+        var before = surface.Markdown;
+        surface.Shown.Type('?');
+
+        Assert.AreEqual(1, asked, "asked once, before writing");
+        Assert.AreEqual(before, surface.Markdown, "and the refusal left every word as it was");
+    });
+
+    [TestMethod]
     public void AndCopyingCodeCarriesNoPicture() => UiThread.Run(() =>
     {
         // The same answer that leaves a code fence's Save button off leaves its picture off here.

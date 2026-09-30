@@ -152,6 +152,10 @@ public sealed partial class ContentEngine
     {
         next = Held(Left(next));
 
+        // A host that owns what is written may refuse it. Asked only where the words themselves would change: the caret moving, or
+        // a stretch being shown as the characters it was written with, is not a change to what is written.
+        if (next.Source != _state.Source && this.Events?.OnBeforeChange(_state, next) == false) return;
+
         var before = _state;
         var resized = next.Source != before.Source || next.Raw != before.Raw;
         var was = (before.Caret, _at);

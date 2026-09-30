@@ -21,23 +21,14 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </summary>
 public sealed partial class ContentEngine
 {
-    /// <summary>Asked to put a copy on the clipboard. True where somebody did.</summary>
-    internal Func<MarkdownClipboard.ContentCopy, bool>? Copying { get; set; }
-
     /// <summary>
-    /// Asked for what is on the clipboard, which whoever holds it takes off and hands back as words and as markdown. Null
-    /// where nobody answered; both empty where somebody did and there was nothing here to write.
+    /// Whoever is showing the content, which is the only thing the engine asks anything of
+    /// (<see cref="IContentEvents"/>). Null where nothing is showing it — a reading taken for its own sake.
     /// </summary>
-    internal Func<(string Words, string Markdown)?>? Pasting { get; set; }
-
-    /// <summary>
-    /// Asked for a picture of a block. Deciding whether one belongs is the engine's — the language says — but drawing it is
-    /// whatever painted it, since a picture is of what was painted and not of what was read.
-    /// </summary>
-    internal Func<ContentPart, BitmapSource?>? Picturing { get; set; }
+    internal IContentEvents? Events { get; set; }
 
     /// <summary>Asks for what is picked out to go on the clipboard — the whole content where nothing is — and says whether it did.</summary>
-    internal bool Copied() => this.Copying?.Invoke(Copy()) == true;
+    internal bool Copied() => this.Events?.OnCopy(Copy()) == true;
 
     /// <summary>
     /// What goes on the clipboard. Pieces chosen whole are the words they draw: a slice's label is its label, and there is no
@@ -62,14 +53,14 @@ public sealed partial class ContentEngine
     {
         var copy = MarkdownClipboard.Copied(_state.Source, (block.Start, block.Length));
 
-        return KeepsAPicture(block) && this.Picturing?.Invoke(block) is { } drawn ? copy with { Picture = drawn } : copy;
+        return KeepsAPicture(block) && this.Events?.OnPicture(block) is { } drawn ? copy with { Picture = drawn } : copy;
     }
 
     /// <summary>Copies what is picked out and then takes it away — but only once it has been put somewhere.</summary>
     internal bool Cut()
     {
         if (_readOnly || Stretch() is not { } chosen) return false;
-        if (this.Copying?.Invoke(MarkdownClipboard.Copied(_state.Source, chosen)) != true) return false;
+        if (this.Events?.OnCopy(MarkdownClipboard.Copied(_state.Source, chosen)) != true) return false;
 
         Replace(_state.Write(string.Empty));
         return true;
@@ -81,7 +72,7 @@ public sealed partial class ContentEngine
     /// </summary>
     internal bool Paste()
     {
-        if (_readOnly || this.Pasting?.Invoke() is not { } said) return false;
+        if (_readOnly || this.Events?.OnPaste() is not { } said) return false;
 
         if (said.Words.Length > 0 && Pasted(said.Words.ReplaceLineEndings("\n"))) return true;
         if (said.Markdown.Length > 0) Replace(_state.Insert(said.Markdown.ReplaceLineEndings("\n")));

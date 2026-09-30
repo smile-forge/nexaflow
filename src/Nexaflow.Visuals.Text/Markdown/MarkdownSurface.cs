@@ -39,7 +39,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// written, so that it can be taken back.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : UserControl, ILayoutActions
+public sealed partial class MarkdownSurface : UserControl, ILayoutActions, IContentEvents
 {
     private readonly ScrollViewer _scroller;
     private readonly TextBlock _prompt;
@@ -71,17 +71,8 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _engine.SelectionChanged += Picked;
         _engine.PreRender += Laid;
 
-        // And what it asks for that only a control can do: a clipboard is the application's, and a page is as tall as this.
-        _engine.Copying = Copy;
-        _engine.Pasting = () =>
-        {
-            var asked = new ContentPastingEventArgs(PastingEvent);
-            RaiseEvent(asked);
-
-            return asked.Handled ? (asked.Words ?? string.Empty, asked.Markdown ?? string.Empty) : null;
-        };
-        _engine.Paging = Paged;
-        _engine.Picturing = block => Picture(block, Background);
+        // And everything it asks of whatever shows the content, which is this: see IContentEvents.
+        _engine.Events = this;
 
         // Over the document rather than in it, where the first thing written will go, and never in the way of a press.
         _prompt = new TextBlock
