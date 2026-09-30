@@ -37,18 +37,24 @@ public sealed partial class ContentEngine
     /// </para>
     /// </summary>
     /// <param name="from">The piece the edit applied to, where it is not the one the caret stands against — a right-click's.</param>
-    internal static EditState? Edited(EditKind kind, string text, Landing landing, Piece from = default)
+    internal static EditState? Edited(EditKind kind, string text, Landing landing, Piece from = default) =>
+        Said(kind, text, landing, from) is { } change ? Made(landing.State, change) : null;
+
+    /// <summary>
+    /// The same, as the change itself rather than the content it comes to — for the one caller that has to see what the language
+    /// said rather than only what it wrote: a language may ask for an edit of the engine's instead (<see cref="ContentChange.Asked"/>).
+    /// </summary>
+    private static ContentChange? Said(EditKind kind, string text, Landing landing, Piece from)
     {
         var edit = Walked(kind, text, landing, from);
         // Nothing on the way up named a part of any tree, so there is no language to ask.
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
         var said = language?.Editing.OnEdit?.Edit(edit) ?? Ordinary(edit, language);
 
-        var change = said is not null ? Spelling(said, landing.State, language!)
-                   : kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit)
-                   : null;
-
-        return change is null ? null : Made(landing.State, change);
+        return said is { Asked: not null } ? said
+             : said is not null ? Spelling(said, landing.State, language!)
+             : kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit)
+             : null;
     }
 
     /// <summary>

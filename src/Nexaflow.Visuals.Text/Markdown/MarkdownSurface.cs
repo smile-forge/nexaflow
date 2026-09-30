@@ -442,8 +442,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
             case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
                 return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
 
-            case LayoutVerbs.Paste:
-                return _engine.Paste();
+
 
             default:
                 return Diagrammed(act) ?? Host?.Invoke(act) ?? false;

@@ -454,12 +454,20 @@ public sealed partial class ContentEngine
     /// <summary>
     /// Does what was chosen from what the language offered at <paramref name="at"/> (<see cref="Asked"/>): told to its edit handler
     /// as <see cref="EditKind.Choosing"/>, from the same piece — false where it said nothing to it.
+    ///
+    /// <para>
+    /// A language may answer by asking for an edit of the engine's own instead of spelling one out: a diagram offers Paste over a
+    /// label, and what a paste comes to at the caret is the engine's to work out.
+    /// </para>
     /// </summary>
     internal bool Choose(string verb, Point at)
     {
-        if (Unwritable || Edited(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } chosen) return false;
+        if (Unwritable || Said(EditKind.Choosing, verb, Landing, _laid.Root.PieceAt(at)) is not { } said) return false;
 
-        Apply(chosen, notify: true);
+        if (said.Asked is EditKind.Pasting) return Paste();
+        if (said.Asked is not null) return false;
+
+        Apply(Made(_state, said), notify: true);
         return true;
     }
 

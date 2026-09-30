@@ -95,8 +95,9 @@ public class LinkedElement(string source, StyleFormat palette, ContentEngine eng
     /// </summary>
     private void Invoke(LayoutIntent meant, IReadOnlyList<Piece> over, Point where, IReadOnlyList<LayoutIntent> asked)
     {
-        // Pasting needs what is on the clipboard, which is the host's: it asks for it, and hands it to the engine as a paste.
-        if (meant.Verb != LayoutVerbs.Paste && asked.Any(offer => offer.Verb == meant.Verb))
+        // Whatever the content itself offered is the content's to do, a paste as much as anything else: what is on the
+        // clipboard is the host's, but asking for it is the engine's (ContentChange.Asks).
+        if (asked.Any(offer => offer.Verb == meant.Verb))
         {
             Choose(meant.Verb, where);
             return;

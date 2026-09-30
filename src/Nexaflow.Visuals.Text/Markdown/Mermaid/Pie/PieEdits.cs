@@ -337,6 +337,10 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit
     /// <summary>What the right-click offered and was chosen, written into the front matter.</summary>
     private static ContentChange? Chosen(ContentEdit edit)
     {
+        // A label and a value take words, so the ribbon offers Paste over them — and what a paste comes to at the caret is the
+        // engine's own answer, which is worth asking for and not worth spelling out again here.
+        if (edit.Text == LayoutVerbs.Paste) return ContentChange.Asks(EditKind.Pasting);
+
         string[]? path = edit.Text.Split('.') switch
         {
             ["pie", "legend", _] => ["config", "pie", "legendPosition"],

@@ -446,7 +446,10 @@ public sealed partial class ContentEngine
         LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
             this.Events?.OnCopy(CopyOf(block)) == true,
 
-        LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+    LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+
+        // Whatever the language offering it makes of it, which for a paste is to ask for the engine's own.
+        LayoutVerbs.Paste => Choose(LayoutVerbs.Paste, act.At),
 
         _ => false,
     };

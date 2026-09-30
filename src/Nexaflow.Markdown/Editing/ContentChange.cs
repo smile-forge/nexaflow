@@ -49,6 +49,16 @@ public sealed record ContentChange(IReadOnlyList<ContentWrite> Writes, int Caret
     /// <summary>The key taken and nothing changed: what a key means where there is nothing here for it to do.</summary>
     public static ContentChange Stay(EditState state) => new([], state.Caret, state.Raw);
 
+    /// <summary>
+    /// Nothing of the language's own: what the engine does for <paramref name="kind"/> anyway, wherever the reader asked for
+    /// it. A diagram offers Paste over a label because a label takes words, and what a paste comes to is the engine's — so it
+    /// says which edit it means rather than spelling out an edit it would only get wrong.
+    /// </summary>
+    public static ContentChange Asks(EditKind kind) => new([], 0) { Asked = kind };
+
+    /// <summary>The edit the language asked the engine to make of its own, where it asked for one instead of saying what to write.</summary>
+    public EditKind? Asked { get; init; }
+
     /// <summary>Nothing written, and <paramref name="shown"/> put in front of the reader as the characters it was written with.</summary>
     public static ContentChange Showing(EditState state, RawZone? shown) => new([], state.Caret, shown);
 
