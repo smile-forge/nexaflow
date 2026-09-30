@@ -50,4 +50,14 @@ public interface IContentEvents
     /// stays as it was — for a host that owns what is written and will not have it written over.
     /// </summary>
     bool OnBeforeChange(EditState from, EditState to);
+
+    /// <summary>
+    /// What is picked out, every time it changes — a stretch dragged over, a thing pressed, nothing left.
+    ///
+    /// <para>
+    /// Told rather than asked, because a host acts on a selection somewhere else: a method chosen in a class view is brought
+    /// into view in the editor beside it, which is a different control and none of this one's business.
+    /// </para>
+    /// </summary>
+    void OnSelect(ContentSelectionChange change);
 }

@@ -68,7 +68,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
 
         // What the engine says happened, said again to the page.
         _engine.SourceChanged += (_, change) => Written(change);
-        _engine.SelectionChanged += Picked;
+
         _engine.PreRender += Laid;
 
         // And everything it asks of whatever shows the content, which is this: see IContentEvents.

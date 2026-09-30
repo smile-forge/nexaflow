@@ -66,7 +66,8 @@ public sealed partial class MarkdownSurface
     private void Laid(object? sender, EventArgs args) => RaiseEvent(new RoutedEventArgs(PreRenderEvent, this));
 
     /// <summary>Says to the page what is picked out now.</summary>
-    private void Picked(object? sender, ContentSelectionChange change) =>
+    /// <inheritdoc/>
+    void IContentEvents.OnSelect(ContentSelectionChange change) =>
         RaiseEvent(new ContentSelectedEventArgs(SelectedEvent, change) { Source = this });
 
     /// <summary>A link out of the content, offered to the page. True where it took it.</summary>
