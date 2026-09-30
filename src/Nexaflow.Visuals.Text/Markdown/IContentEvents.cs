@@ -27,6 +27,13 @@ public interface IContentEvents
     bool OnCopy(MarkdownClipboard.ContentCopy copy);
 
     /// <summary>
+    /// A link to be followed, where it leads out of the content. True where somebody followed it. A link within the same
+    /// content is scrolled to without anybody being asked, and a language that answers a press on its own links is asked
+    /// before this is.
+    /// </summary>
+    bool OnNavigate(string url);
+
+    /// <summary>
     /// What is on the clipboard, taken off it and said as plain words and as markdown — the translating is the host's, because
     /// a clipboard holds whatever put something there. Null where nobody answered; both empty where somebody did and there was
     /// nothing here to write.

@@ -440,6 +440,12 @@ public sealed partial class ContentEngine
     /// </summary>
     private bool Acted(LayoutAct act) => act.Intent.Verb switch
     {
+    // What the language it was written in makes of a press on its own link, and failing that a host, which is the only thing
+        // that can leave the content at all. A link within the same content never reaches here — it is scrolled to first.
+        LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where =>
+            Choose(LayoutVerbs.Navigate, act.At)
+            || (Uri.TryCreate(where, UriKind.Absolute, out _) && this.Events?.OnNavigate(where) == true),
+
         LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
             this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
 

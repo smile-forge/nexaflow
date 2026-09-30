@@ -39,7 +39,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// written, so that it can be taken back.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : UserControl, ILayoutActions, IContentEvents
+public sealed partial class MarkdownSurface : UserControl, IContentEvents
 {
     private readonly ScrollViewer _scroller;
     private readonly TextBlock _prompt;
@@ -256,7 +256,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
     // ── What the host says ──────────────────────────────────────────────────
 
     /// <summary>What answers the verbs this document raises and does not answer itself — saving a picture, and anything a language offers.</summary>
-    public ILayoutActions? Host { get; set; }
+    public ILayoutActions? Host
+    {
+        get => _host;
+        set { _host = value; _engine.Actions = value; }
+    }
+
+    private ILayoutActions? _host;
 
     /// <summary>The host's say in where a picture comes from, asked before <see cref="BaseDirectory"/>.</summary>
     public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Hosted(); } }
@@ -363,7 +369,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
         _drawnIn = style;
         _engine.Inputs = Asked;
 
-        var element = new MarkdownElement(source, style, this, _engine, Named)
+        var element = new MarkdownElement(source, style, Host, _engine, Named)
         {
             IsReadOnly = IsReadOnly,
             Margin = ContentPadding,
@@ -428,71 +434,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions, ICont
 
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
     public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
-
-    private static bool Leads(string url) => Uri.TryCreate(url, UriKind.Absolute, out _);
-
-    /// <inheritdoc/>
-    bool ILayoutActions.Invoke(LayoutAct act)
-    {
-        // A choice made from the menu closes it, whatever it turned out to be.
-        if (act.Gesture == LayoutGesture.ContextMenu && _ribbon is { IsOpen: true }) _ribbon.IsOpen = false;
-
-        switch (act.Intent.Verb)
-        {
-            case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
-                return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
-
-
-
-            default:
-                return Diagrammed(act) ?? Host?.Invoke(act) ?? false;
-        }
-    }
-
-    /// <summary>
-    /// A verb a diagram answers for itself — opening a node, folding it, choosing it — answered for the diagram it was raised
-    /// in: found up the layout from the piece pressed, and told that diagram's own state and what the host said about it.
-    /// Null where the verb is not one of those, or was raised in no diagram.
-    /// </summary>
-    private bool? Diagrammed(LayoutAct act)
-    {
-        if (act.Intent.Verb is not (LayoutVerbs.Expand or LayoutVerbs.Collapse)) return null;
-
-        for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
-        {
-            if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
-
-            return Folded(part, act);
-        }
-
-        // Content in one language is one diagram, where it is one.
-        return Named is null ? null : Folded(Read, act);
-    }
-
-    /// <summary>
-    /// What a press on a chip in the diagram <paramref name="holder"/> holds does: opens or closes the node there, as that diagram's
-    /// view state, and tells whatever the diagram it was drawn in is bound to — that diagram's own tree, up to the first nesting and
-    /// no further, since what holds it is read, bound and worked over where it is laid out.
-    /// </summary>
-    private bool Folded(ContentPart holder, LayoutAct act) =>
-        new DiagramActions((key, open) => _engine.Expand(DrawnFrom(act.Piece) ?? holder, key, open), _engine.Opened(holder)) { Shown = _shown }.Invoke(act);
-
-    /// <summary>The whole of the tree <paramref name="piece"/> was drawn from — the root of the part it stands for — or null where it stands for none.</summary>
-    private static ContentPart? DrawnFrom(Piece piece)
-    {
-        for (var at = piece; at.Exists; at = at.Parent)
-        {
-            if (at.Part is not ContentPart part) continue;
-
-            while (part.Parent is { } up) part = up;
-            return part;
-        }
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => Host?.Menu(act) ?? [];
 
     // ── What a block offers ─────────────────────────────────────────────────
 

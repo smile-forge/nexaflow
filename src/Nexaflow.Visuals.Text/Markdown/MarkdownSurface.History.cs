@@ -164,6 +164,9 @@ public sealed partial class MarkdownSurface
     }
 
     /// <inheritdoc/>
+    bool IContentEvents.OnNavigate(string url) => OpenLink(url);
+
+    /// <inheritdoc/>
     bool IContentEvents.OnPage(bool up) => Paged(up);
 
     /// <inheritdoc/>

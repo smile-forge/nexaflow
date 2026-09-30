@@ -4,6 +4,18 @@
 against them and what aligning each part buys. It is the high-level shape only: each section below is picked up on its
 own, planned in detail then, and finished before the next one starts.
 
+## Nothing answers a fold
+
+A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) still pins `LayoutVerbs.Expand` or
+`LayoutVerbs.Collapse` to itself, and `FlowchartBuilder` still pins `LayoutVerbs.Select` to a node where folds are
+configured. Nothing answers any of the three, so pressing a chip does nothing.
+
+Every part of the answer is already the engine's: the view state it would write the opening into (`Opened`), the bound
+object it would then tell (`Expand`), and the reading again that draws what is now shown. What is missing is the way a
+language says what a press on one of its own pieces comes to — a fold changes how content is shown rather than what it
+says, and `IOnEdit` answers with source writes. `ContentChange.Asks` is the shape that fits: a chip's press would ask the
+engine for the fold it already knows how to make.
+
 ## What already holds
 
 Named first, because the list below is otherwise easy to read as "everything is broken".
