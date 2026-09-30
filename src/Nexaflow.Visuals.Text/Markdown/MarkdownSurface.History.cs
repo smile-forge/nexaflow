@@ -81,6 +81,10 @@ public sealed partial class MarkdownSurface
     public static readonly RoutedEvent PastingEvent = EventManager.RegisterRoutedEvent(
         "Pasting", RoutingStrategy.Bubble, typeof(EventHandler<ContentPastingEventArgs>), typeof(MarkdownSurface));
 
+    /// <summary>Raised when something dragged in from elsewhere is let go here, to be told what it comes to. Whoever answers says, or takes it.</summary>
+    public static readonly RoutedEvent DroppingEvent = EventManager.RegisterRoutedEvent(
+        "Dropping", RoutingStrategy.Bubble, typeof(EventHandler<ContentDroppingEventArgs>), typeof(MarkdownSurface));
+
     public event EventHandler<ContentCopyingEventArgs> Copying
     {
         add => AddHandler(CopyingEvent, value);
@@ -91,6 +95,12 @@ public sealed partial class MarkdownSurface
     {
         add => AddHandler(PastingEvent, value);
         remove => RemoveHandler(PastingEvent, value);
+    }
+
+    public event EventHandler<ContentDroppingEventArgs> Dropping
+    {
+        add => AddHandler(DroppingEvent, value);
+        remove => RemoveHandler(DroppingEvent, value);
     }
 
     /// <summary>Asks for <paramref name="copy"/> to be put on the clipboard. True where somebody did.</summary>
@@ -117,9 +127,6 @@ public sealed class ContentCopyingEventArgs(RoutedEvent routed, MarkdownClipboar
 {
     /// <summary>What would go on the clipboard.</summary>
     public MarkdownClipboard.ContentCopy Copy { get; } = copy;
-
-    /// <summary>The same, as a clipboard holds it — markdown, plain words and marked-up text in one.</summary>
-    public IDataObject Data => MarkdownClipboard.Data(Copy);
 }
 
 /// <summary>
@@ -134,5 +141,24 @@ public sealed class ContentPastingEventArgs(RoutedEvent routed) : RoutedEventArg
     public string? Words { get; set; }
 
     /// <summary>The same as markdown, where what was on it was marked up.</summary>
+    public string? Markdown { get; set; }
+}
+
+/// <summary>
+/// Something dragged in from elsewhere and let go, asked what it comes to. Whoever answers says it in words and in markdown,
+/// or deals with it another way and marks it handled having said neither.
+/// </summary>
+public sealed class ContentDroppingEventArgs(RoutedEvent routed, IDataObject data, Point at) : RoutedEventArgs(routed)
+{
+    /// <summary>What was dragged, as it was carried.</summary>
+    public IDataObject Data { get; } = data;
+
+    /// <summary>Where it was let go, in the control's own coordinates.</summary>
+    public Point At { get; } = at;
+
+    /// <summary>What it comes to as plain words.</summary>
+    public string? Words { get; set; }
+
+    /// <summary>The same as markdown, where what was dragged was marked up.</summary>
     public string? Markdown { get; set; }
 }

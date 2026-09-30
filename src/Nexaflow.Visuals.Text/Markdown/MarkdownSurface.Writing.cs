@@ -31,79 +31,22 @@ public sealed partial class MarkdownSurface
         _shown.TakeCaret(_shown.Markdown.Length);
     }
 
+    /// <summary>
+    /// Takes the keyboard and puts the caret in the first thing written — for focus arriving without a press, a host opening
+    /// straight onto the content. False where nothing is written. Where the caret goes is the engine's; this only asks.
+    /// </summary>
+    public bool FocusFirstBlock()
+    {
+        Focus();
+        Keyboard.Focus(this);
+
+        return _engine.TakeFirstBlock();
+    }
+
+    /// <summary>Reads and draws the content again, for a host that has changed the source underneath it.</summary>
+    public void Refresh() => _shown.Refresh();
+
     // ── Blocks from the host ────────────────────────────────────────────────
-
-    /// <summary>
-    /// Puts <paramref name="markdown"/> in as a block of its own after the one the caret is in — a picture or a link the
-    /// host made of something pasted. In one block of a language it is more of that language instead.
-    /// </summary>
-    public void InsertMarkdownAtCaret(string markdown)
-    {
-        if (string.IsNullOrWhiteSpace(markdown) || IsReadOnly) return;
-
-        if (Named is not null)
-        {
-        if (InsertLatexAtCaret(markdown)) return;
-
-        Write(_shown.Current.MoveCaretTo(_shown.Markdown.Length).Insert(markdown));
-
-            return;
-        }
-
-        Write(After(Blocked(_shown.Caret)?.End ?? _shown.Markdown.Length, markdown));
-    }
-
-    /// <summary>
-    /// Puts <paramref name="markdown"/> in as a block of its own after the block at <paramref name="pointInEditor"/>, or at
-    /// the end where the point is past everything written — what dropping something on a note does.
-    /// </summary>
-    public void InsertMarkdownAt(string markdown, Point pointInEditor)
-    {
-        if (string.IsNullOrWhiteSpace(markdown) || IsReadOnly) return;
-
-        var block = Offset(pointInEditor) is { } offset ? Blocked(offset) : null;
-
-        Write(After(block?.End ?? _shown.Markdown.Length, markdown));
-    }
-
-    /// <summary>
-    /// Swaps the first block written exactly as <paramref name="from"/> for <paramref name="to"/> — a link pasted in, for
-    /// the preview fetched for it. Nothing, where that block has gone.
-    /// </summary>
-    public void ReplaceBlock(string from, string to)
-    {
-        var wanted = from.Trim();
-
-        foreach (var block in Read.Children)
-        {
-            if (block.Derived || block.Role == Roles.Trivia) continue;
-
-            var written = block.Print();
-            if (!string.Equals(written.Trim(), wanted, StringComparison.Ordinal)) continue;
-
-            var source = _shown.Markdown;
-            var start = block.Start + (written.Length - written.TrimStart().Length);
-            var length = written.Trim().Length;
-
-            Write(new EditState(source[..start] + to + source[(start + length)..], start + to.Length));
-
-            return;
-        }
-    }
-
-    /// <summary>The document with <paramref name="markdown"/> set in as blocks of its own at <paramref name="at"/>, a blank line either side.</summary>
-    private EditState After(int at, string markdown)
-    {
-        var source = _shown.Markdown;
-        var before = source[..at].TrimEnd('\n', '\r');
-        var after = source[at..].TrimStart('\n', '\r');
-        var block = markdown.ReplaceLineEndings("\n").Trim('\n');
-
-        var head = before.Length > 0 ? before + "\n\n" : string.Empty;
-        var tail = after.Length > 0 ? "\n\n" + after : source.EndsWith('\n') ? "\n" : string.Empty;
-
-        return new EditState(head + block + tail, head.Length + block.Length);
-    }
 
     // ── Something dropped ───────────────────────────────────────────────────
 
@@ -128,122 +71,34 @@ public sealed partial class MarkdownSurface
     }
 
     /// <summary>
-    /// Writes in what was dropped at <paramref name="pointInEditor"/>: the host first, for a picture or a file, then as
-    /// markdown — or, onto a formula, as the formula it is meant to be.
+    /// What was dragged in from somewhere else, written where it was let go. Whoever answers says what it comes to in words and
+    /// in markdown — a drop carries whatever the thing dragged put in it, and turning that into something a document can be
+    /// written from is the host's, not the content's — or deals with it itself and marks it handled having said neither.
     /// </summary>
     public void DropContent(IDataObject data, Point pointInEditor)
     {
-        if (IsReadOnly || ContentDropped?.Invoke(data, pointInEditor) == true) return;
+        if (IsReadOnly || Spot(pointInEditor) is not { } at) return;
 
-        var maths = Maths;
-        var text = maths ? MarkdownClipboard.AsFormula(MarkdownClipboard.ReadPlainText(data)) : MarkdownClipboard.ReadBestMarkdown(data);
-        if (string.IsNullOrEmpty(text)) return;
+        var asked = new ContentDroppingEventArgs(DroppingEvent, data, pointInEditor);
+        RaiseEvent(asked);
 
-        // A formula field has one place for anything to go, and a drop on it goes there as a paste would.
-        if (maths)
-        {
-            if (Adopted()) _shown.Insert(text);
+        if (!asked.Handled) return;
 
-            return;
-        }
-
-        var at = Offset(pointInEditor) ?? _shown.Markdown.Length;
-
-        Write(_shown.Current.MoveCaretTo(at).Insert(text.ReplaceLineEndings("\n")));
+        _engine.Brought(asked.Words ?? string.Empty, asked.Markdown ?? string.Empty, at);
     }
 
-    /// <summary>The offset of the source drawn at a point on this control, or null where nothing is drawn there.</summary>
-    private int? Offset(Point pointInEditor)
+    /// <summary>
+    /// <paramref name="pointInEditor"/> in the content's own units, or null where it is past the end of what was laid. All this
+    /// control does with a point: which piece of the content is under it is the engine's, which laid it.
+    /// </summary>
+    private Point? Spot(Point pointInEditor)
     {
         var at = TranslatePoint(pointInEditor, _shown);
         var zoom = _shown.Zoom;
         var point = new Point(at.X / zoom, at.Y / zoom);
 
-        if (point.Y > _shown.Laid.Size.Height) return null;
-
-        return _shown.Laid.Root.OffsetAt(point);
+        return point.Y > _shown.Laid.Size.Height ? null : point;
     }
 
     // ── The formula the caret is in ─────────────────────────────────────────
-
-    /// <summary>Whether the caret — or where what is picked out starts — is in a formula, which a palette key types into and a paste is cleaned up for.</summary>
-    public bool InFormula()
-    {
-        if (Maths) return true;
-
-        var state = _shown.Current;
-        return Formula(state.HasSelection ? state.SelectionStart : state.Caret) is not null;
-    }
-
-    /// <summary>
-    /// Types LaTeX into the formula the caret is in — how a symbol palette inserts. Where the caret is in none, the one
-    /// it is nearest is taken, so a key works without clicking into the formula first. False where there is no formula to
-    /// type into, leaving the caller to put the text in however it otherwise would.
-    /// </summary>
-    /// <param name="caretBack">How far to walk the caret back afterwards, so a template such as <c>\frac{}{}</c> leaves it in the numerator.</param>
-    public bool InsertLatexAtCaret(string latex, int caretBack = 0)
-    {
-        if (string.IsNullOrEmpty(latex) || IsReadOnly || !Adopted()) return false;
-
-        _shown.Insert(latex, caretBack);
-
-        return true;
-    }
-
-    /// <summary>Wraps what is chosen in the formula in a pair — a function taking what was picked as its argument — or puts the pair at its caret.</summary>
-    public bool WrapLatexAtCaret(string before, string after)
-    {
-        if (IsReadOnly || !Adopted()) return false;
-
-        _shown.Wrap(before, after);
-
-        return true;
-    }
-
-    /// <summary>
-    /// Takes the keyboard and puts the caret in a formula, where it is in none — for focus arriving without a press, a
-    /// host opening straight onto one. False where the document holds no formula.
-    /// </summary>
-    public bool FocusFormulaAtCaret()
-    {
-        Focus();
-        Keyboard.Focus(this);
-
-        return Adopted();
-    }
-
-    /// <summary>Makes sure the caret is in a formula, taking the first one's end where it is in none. False where there is none.</summary>
-    private bool Adopted()
-    {
-        if (InFormula()) return true;
-
-        if (Formulas().FirstOrDefault() is not { } first || first.Part(Roles.Body) is not { } body) return false;
-
-        _shown.Restore(_shown.Current.MoveCaretTo(Ending(body)));
-        if (!IsReadOnly) _shown.ShowCaret();
-
-        return true;
-    }
-
-    /// <summary>The end of what is written in a block: its last character, not the line break that closes its last line.</summary>
-    private static int Ending(ContentPart body)
-    {
-        var (start, length) = ContentNested.Own(body);
-        return start + length;
-    }
-
-    /// <summary>The formula whose own text holds <paramref name="offset"/>, or null.</summary>
-    private ContentPart? Formula(int offset) =>
-        Formulas().FirstOrDefault(part => part.Part(Roles.Body) is { } body
-                                          && ContentNested.Own(body) is var (start, length)
-                                          && start <= offset && offset <= start + length);
-
-    /// <summary>Every formula drawn, in the order written — asked of the layout, which names every part it drew.</summary>
-    private System.Collections.Generic.IEnumerable<ContentPart> Formulas() =>
-        _shown.Laid.Root.SelfAndDescendants()
-            .Select(piece => piece.Part as ContentPart)
-            .OfType<ContentPart>()
-            .Where(part => ContentLanguages.Held(part) is { } language && language == ContentLanguages.For(MarkdownParser.Maths))
-            .Distinct()
-            .OrderBy(part => part.Start);
 }

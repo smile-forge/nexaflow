@@ -169,9 +169,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>The language the content is written in, or null for a document.</summary>
     private string? Named => string.IsNullOrWhiteSpace(WrittenIn) ? null : WrittenIn.Trim();
 
-    /// <summary>Whether the content is a formula, which a palette key types into wherever the caret is.</summary>
-    private bool Maths => Named?.ToLowerInvariant() is "latex" or "math" or "tex";
-
     /// <summary>
     /// Shows the characters written rather than what they draw — for when the drawing itself is the trouble, a formula that
     /// will not set. Everything else about writing in it carries on as it was.
@@ -287,12 +284,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
 
     private Nexaflow.Markdown.Binding.IDataContext? _data;
-
-    /// <summary>
-    /// The host's say in something dropped here — a picture, a file, a link. True where it took it (usually through
-    /// <see cref="InsertMarkdownAt"/>); false leaves it to be written in as text, so a host can say "not mine".
-    /// </summary>
-    public Func<IDataObject, Point, bool>? ContentDropped { get; set; }
 
     /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;

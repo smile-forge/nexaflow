@@ -390,4 +390,42 @@ public sealed partial class ContentEngine
         public const string Corner = "corner";
         public const string Button = "corner-button";
     }
+
+    // ── Blocks put in on somebody's behalf ──────────────────────────────────
+
+    /// <summary>
+    /// Puts the caret in the first thing written, whatever language that is written in — for focus arriving without a press, or
+    /// a host opening straight onto the content. False where nothing is written.
+    /// </summary>
+    internal bool TakeFirstBlock()
+    {
+        // Content written in one language is one block of it, so this is that; a document of blocks gives the first.
+        if (Blocked(0) is not { } first) return false;
+
+        TakeCaret(first.End);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes what was dragged in from somewhere else where it was let go: the words to the language it landed in, which says
+    /// what a drop on that piece comes to; failing that, the markdown it came as, written at the nearest place to it.
+    /// </summary>
+    /// <param name="at">Where it was let go, in the content's own units — which piece that is, is this to work out.</param>
+    internal bool Brought(string words, string markdown, Point at)
+    {
+        if (_readOnly) return false;
+
+        TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
+
+        if (words.Length > 0 && Edited(EditKind.Dropping, words, Landing, _laid.Root.PieceAt(at)) is { } dropped)
+        {
+            Apply(dropped, notify: true);
+            return true;
+        }
+
+        if (markdown.Length == 0) return false;
+
+        Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
+        return true;
+    }
 }

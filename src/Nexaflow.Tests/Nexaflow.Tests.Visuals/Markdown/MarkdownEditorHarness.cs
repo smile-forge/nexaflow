@@ -65,7 +65,7 @@ internal static class MarkdownEditorHarness
         // copies does not reach into the machine's.
         window.AddHandler(MarkdownSurface.CopyingEvent, new EventHandler<ContentCopyingEventArgs>((_, e) =>
         {
-            Clipboard = e.Data;
+            Clipboard = MarkdownClipboard.Data(e.Copy);
             e.Handled = true;
         }));
         window.AddHandler(MarkdownSurface.PastingEvent, new EventHandler<ContentPastingEventArgs>((_, e) =>

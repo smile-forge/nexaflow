@@ -149,19 +149,14 @@ public partial class SolverView : UserControl, IPageView
         if (_vm.IsCalcMode) { ApplyToTextBox(CalcInput, key); return; }
         if (Editor is not { } editor) return;
 
-        // A rendered formula has a caret of its own, so a symbol goes where you are looking — inside
-        // the exponent you were editing — rather than becoming a new line under the expression.
-        if (key.InsertKind == KeyInsert.Wrapping)
-        {
-            if (!editor.WrapLatexAtCaret(key.Insert, key.Close))
-                // The braces are all it takes: an argument left empty becomes a hole when it is parsed,
-                // and the hole draws itself. Nothing is written that the reader did not ask for.
-                editor.InsertMarkdownAtCaret(key.Insert + key.Close);
-        }
-        else if (!editor.InsertLatexAtCaret(key.Insert, key.CaretBack))
-        {
-            editor.InsertMarkdownAtCaret(key.Insert);
-        }
+        // Where the caret is, is the engine's to know: a symbol goes where the reader is looking — inside the exponent they were
+        // editing — and only where they have not looked anywhere yet does it go into the first thing written.
+        if (!editor.IsKeyboardFocusWithin) editor.FocusFirstBlock();
+
+        // A wrapping key over a selection takes it as its argument; over nothing it writes the pair, and an argument left empty
+        // becomes a hole when it is parsed. Nothing is written that the reader did not ask for.
+        if (key.InsertKind == KeyInsert.Wrapping) editor.Shown.Wrap(key.Insert, key.Close);
+        else editor.Shown.Insert(key.Insert, key.CaretBack);
 
         editor.Focus();
     }

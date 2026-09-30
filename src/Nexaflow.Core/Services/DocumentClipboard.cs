@@ -29,12 +29,16 @@ internal static class DocumentClipboard
         }
     }
 
+    /// <summary>
+    /// What was copied, put on the clipboard in every form it might be pasted as. Turning a copy into what a clipboard holds is
+    /// the application's: the clipboard is the application's, and only it knows what the rest of the machine can take.
+    /// </summary>
     private static void Copied(object sender, ContentCopyingEventArgs e)
     {
         if (e.Handled) return;
 
         // Held by something else for the moment; the copy is not made, and saying so leaves a cut with its words.
-        try { Clipboard.SetDataObject(e.Data, copy: true); e.Handled = true; }
+        try { Clipboard.SetDataObject(MarkdownClipboard.Data(e.Copy), copy: true); e.Handled = true; }
         catch (ExternalException) { }
     }
 
