@@ -216,6 +216,7 @@ building; `test --failed` reruns exactly what failed. UI journey suites are name
 - **Update the product tree as you build, not after merge** — concerns, snaplinks, descriptions. Snaplink edits on a
   branch land in `docs/product/pending/<branch>.json`; **commit it with the change**.
   [product-graph.md](docs/product-graph.md#snaplinks)
+- **deisgn for performance and long term maintenance** - shortcuts and hacks are not appreciated, clean extensible design is.
 
 **Architecture** — the reference and dispatcher rules are enforced by `ArchitectureRulesTests` (in
 `Tests.Features.Architecture` and `Tests.Providers`); `FeatureTouchPointTests` names any missed add-a-feature step.
@@ -277,13 +278,12 @@ to write: [Architecture.md → Ownership & Lifetime](docs/Architecture.md#owners
   singletons in feature ViewModels.
 
 ## Naming
-- NEVER rename existing types, members, files, or namespaces unless I explicitly ask. This includes "for consistency".
+- avoid using ambigious simple names like "which" or "do" for method names.
 - Before introducing any new name, check it for collisions with the graph tool.
 - If a new name clashes with an existing one, change the NEW name. Never resolve a clash by renaming existing code.
 
 ## Working with the user
 
-- Direct, short questions; terse commit-style explanations.
+- Direct, short questions;
 - One concrete recommendation over a list of options.
-- Feature-branch work goes in a worktree and merges via PR.
-- Session transcripts are not searchable — the docs above are the memory.
+- Feature-branch work goes in a worktree and merges via PR - group commits into a single PR when working on the same area.
