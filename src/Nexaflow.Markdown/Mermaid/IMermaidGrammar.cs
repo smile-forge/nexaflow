@@ -114,7 +114,7 @@ public readonly record struct MermaidWriting(int Start, int End, string Text, in
     /// <param name="bare">Whether a name can go without quotes, given the name it is in and what it would say — or null where any can.</param>
     public static MermaidWriting? Escape(ContentPart part, int caret, string text, Func<ContentPart, string, bool>? bare = null)
     {
-        if (part.Parent is not { } holder || part.Kind is not (MermaidKinds.Words or Kinds.Hole)) return null;
+        if (part.Parent is not { } holder || part.Kind is not (Kinds.Words or Kinds.Hole)) return null;
 
         if (holder.Children.Any(child => child.Role == Roles.Open && child.Text == "\"")) return InQuotes(caret, text);
 

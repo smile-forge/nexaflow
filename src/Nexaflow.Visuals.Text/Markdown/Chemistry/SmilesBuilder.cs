@@ -10,6 +10,7 @@ using Nexaflow.Markdown.Chemistry;
 using Nexaflow.Markdown.Chemistry.Depiction;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Chemistry.Stages;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Chemistry;
 

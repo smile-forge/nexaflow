@@ -34,7 +34,7 @@ public partial class MarkdownView : UserControl, IPageView
         Editor.BaseDirectory = Path.GetDirectoryName(viewModel.FilePath);
 
         // What a block's corner offers to save: its picture, as it is shown on the page, kept where the reader says.
-        Editor.Host = new PictureKeeper(this);
+        Editor.BlockSaving += OnBlockSaving;
 
         // Lay the surfaces out for the mode chosen, and move focus to whichever one that reveals.
         viewModel.PropertyChanged += OnViewModelChanged;
@@ -81,25 +81,16 @@ public partial class MarkdownView : UserControl, IPageView
     private Brush Ground => (Brush)FindResource("BgBrush");
 
     /// <summary>
-    /// What the Markdown page answers when a block's corner asks for its picture to be kept: the block as it is on the page,
-    /// drawn on the page's own ground so it reads the same wherever it is opened, and saved as a PNG named for its language.
+    /// A picture of one block, kept where the reader says. Asked for by the block's own corner, which the engine draws and offers
+    /// wherever the language it is written in says a picture of it is worth keeping.
     /// </summary>
-    private sealed class PictureKeeper(MarkdownView view) : ILayoutActions
+    private void OnBlockSaving(object? sender, ContentBlockSavingEventArgs e)
     {
-        public bool Invoke(LayoutAct act)
-        {
-            if (act.Intent.Verb != LayoutVerbs.Save || act.Node is not { } block) return false;
-            if (view.Editor.Picture(block, view.Ground) is not { } picture) return false;
+        if (e.Handled || Editor.Picture(e.Block, Ground) is not { } picture) return;
 
-            _ = view.ViewModel.SavePictureAsync(Png(picture), Language(block));
+        _ = ViewModel.SavePictureAsync(Png(picture), ContentNested.Language(e.Block));
 
-            return true;
-        }
-
-        public IReadOnlyList<LayoutIntent> Menu(LayoutAct act) => [];
-
-        /// <summary>What the block is written in, for the file's name: a fence's word, or maths for a formula.</summary>
-        private static string? Language(ContentPart block) => ContentNested.Language(block);
+        e.Handled = true;
     }
 
     private static byte[] Png(BitmapSource picture)

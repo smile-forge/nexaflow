@@ -212,7 +212,7 @@ public sealed partial class MarkdownBuilder
         for (var at = part; at.Parent is { } holder; at = holder)
         {
             if (holder.Children.LastOrDefault(child => !child.Derived && child.Length > 0) != at) return false;
-            if (holder.Kind is not (MarkdownKinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
+            if (holder.Kind is not (Kinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
                                     or MarkdownKinds.Mark or MarkdownKinds.Insert or MarkdownKinds.Link))
                 return true;
         }

@@ -32,7 +32,7 @@ public sealed class ResolveStyles : IAstStage
         if (node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Words()?.Text is not { Length: > 0 } id) return [];
 
         return node.SelfAndDescendants()
-                   .Where(inner => inner.Kind == MermaidKinds.Words && inner.Role == FlowchartRoles.Class && inner.Text.Length > 0)
+                   .Where(inner => inner.Kind == Kinds.Words && inner.Role == FlowchartRoles.Class && inner.Text.Length > 0)
                    .Select(inner => (id, inner.Text));
     }
 }

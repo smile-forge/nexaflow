@@ -89,17 +89,11 @@ public static class MermaidKinds
     /// <summary>Text in quotes, quotes included.</summary>
     public const string Quoted = "mermaid-quoted";
 
-    /// <summary>What a name, a label or a title says, without its quotes or brackets.</summary>
-    public const string Words = "mermaid-words";
-
     /// <summary>
     /// Where a number is written: the <see cref="Number"/> — or, while none has been, the place after its separator where it
     /// goes, which is where a hole stands for it.
     /// </summary>
     public const string Amount = "mermaid-amount";
-
-    /// <summary>A number, as it was written.</summary>
-    public const string Number = "mermaid-number";
 
     /// <summary>A style's properties, with a comma between each.</summary>
     public const string Properties = "mermaid-properties";

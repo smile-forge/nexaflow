@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -57,7 +58,7 @@ public class DiagramEscapingTests
         var places = laid.Root.SelfAndDescendants()
             .Select(piece => piece.Part)
             .OfType<ContentPart>()
-            .Where(part => part.Kind is MermaidKinds.Words or Kinds.Hole)
+            .Where(part => part.Kind is Kinds.Words or Kinds.Hole)
             .Distinct();
 
         foreach (var place in places)

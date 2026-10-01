@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid.Class;
 using Nexaflow.Markdown.Nomnoml;
 using Nexaflow.Visuals.Text.Editing;

@@ -8,6 +8,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Sankey;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Sankey;
 
@@ -147,7 +148,7 @@ internal sealed class SankeyBuilder : MermaidBuilder
 
             var names = part.Children.Where(child => child.Kind == MermaidKinds.Name);
             var (source, target) = (names.ElementAtOrDefault(0).Words(), names.ElementAtOrDefault(1).Words());
-            var flow = new Flow(part, Says(source), Says(target), part.Inner(MermaidKinds.Number).Number() ?? 0);
+            var flow = new Flow(part, Says(source), Says(target), part.Inner(Kinds.Number).Number() ?? 0);
 
             flows.Add(flow);
             Name(flow.From, source);

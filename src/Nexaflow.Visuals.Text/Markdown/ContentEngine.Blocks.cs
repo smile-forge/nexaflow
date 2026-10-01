@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
@@ -262,7 +263,7 @@ public sealed partial class ContentEngine
 
         var piece = _laid.Root.PieceAt(at);
 
-        Actions?.Invoke(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
+        Meant(new LayoutAct(LayoutGesture.Click, offer, piece, block, block, [piece], at));
     }
 
     /// <summary>What a block's corner offers: whichever of the usual ones it allows, and whatever it adds.</summary>
@@ -388,5 +389,110 @@ public sealed partial class ContentEngine
     {
         public const string Corner = "corner";
         public const string Button = "corner-button";
+    }
+
+    // ── Blocks put in on somebody's behalf ──────────────────────────────────
+
+    /// <summary>
+    /// Puts the caret in the first thing written, whatever language that is written in — for focus arriving without a press, or
+    /// a host opening straight onto the content. False where nothing is written.
+    /// </summary>
+    internal bool TakeFirstBlock()
+    {
+        // Content written in one language is one block of it, so this is that; a document of blocks gives the first.
+        if (Blocked(0) is not { } first) return false;
+
+        TakeCaret(first.End);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes what was dragged in from somewhere else where it was let go: the words to the language it landed in, which says
+    /// what a drop on that piece comes to; failing that, the markdown it came as, written at the nearest place to it.
+    /// </summary>
+    /// <param name="at">Where it was let go, in the content's own units — which piece that is, is this to work out.</param>
+    internal bool Brought(string words, string markdown, Point at)
+    {
+        if (_readOnly) return false;
+
+        TakeCaret(_laid.Root.OffsetAt(at), _laid.StopNear(at));
+
+        if (words.Length > 0 && Edited(EditKind.Dropping, words, Landing, _laid.Root.PieceAt(at)) is { } dropped)
+        {
+            Apply(dropped, notify: true);
+            return true;
+        }
+
+        if (markdown.Length == 0) return false;
+
+        Replace(_state.Insert(markdown.ReplaceLineEndings("\n")));
+        return true;
+    }
+
+    /// <summary>
+    /// What a press on something the content drew means where the content means it itself.
+    ///
+    /// <para>
+    /// A corner's Copy is the very question Ctrl+C over that block asks, so the button and the key cannot drift apart. A corner's
+    /// Save is a file, and where a file goes is a host's alone — so that one is asked rather than answered. False where a press
+    /// means nothing here, which leaves it to whoever hosts the content.
+    /// </para>
+    /// </summary>
+    private bool Acted(LayoutAct act) => act.Intent.Verb switch
+    {
+    LayoutVerbs.Navigate => Followed(act),
+
+        LayoutVerbs.Copy when act.Intent.Target is { Length: > 0 } what =>
+            this.Events?.OnCopy(MarkdownClipboard.Copied(what, null)) == true,
+
+        LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block =>
+            this.Events?.OnCopy(CopyOf(block)) == true,
+
+    LayoutVerbs.Save when act.Node is { } block => this.Events?.OnBlockSave(block) == true,
+
+        // Whatever the language offering it makes of it, which for a paste is to ask for the engine's own.
+        LayoutVerbs.Paste => Choose(LayoutVerbs.Paste, act.At),
+
+        _ => false,
+    };
+
+    /// <summary>
+    /// A press on something that leads somewhere: the language it was written in has first say, and failing that whoever hosts the
+    /// content, which is the only thing that can leave the content at all. A place within the same content never reaches here —
+    /// <see cref="Anchored"/> scrolls to it before this is asked.
+    /// </summary>
+    private bool Followed(LayoutAct act)
+    {
+    if (Leads(act.Piece) is not { Length: > 0 } where) return false;
+        if (Choose(LayoutVerbs.Navigate, act.At)) return true;
+
+        return Uri.TryCreate(where, UriKind.Absolute, out _) && this.Events?.OnNavigate(where) == true;
+    }
+
+    /// <summary>
+    /// Where what was pressed leads: from the part the piece was drawn from, up the syntax tree to the first thing that says a
+    /// destination (<see cref="Roles.Destination"/>). Null where nothing above it leads anywhere.
+    ///
+    /// <para>
+    /// Up the tree and not up the layout, because a link's words are drawn from what is inside it — its body's runs, each pressed
+    /// on its own — while the address is the link's. And asked of the tree rather than of what the piece carries, so a link is a
+    /// link in every language the same way: a builder pinning an address to a piece is saying how to draw it, and what the reader
+    /// wrote is what the tree says.
+    /// </para>
+    /// </summary>
+    private static string? Leads(Piece piece)
+    {
+        for (var at = piece; at.Exists; at = at.Parent)
+        {
+            if (at.Part is not ContentPart part) continue;
+
+            // The innermost thing that leads somewhere wins, so a link inside a link's words is its own.
+            for (var up = part; up is not null; up = up.Parent)
+                if (MarkdownLinks.Goes(up.Node) is { Length: > 0 } where) return where;
+
+            return null;
+        }
+
+        return null;
     }
 }

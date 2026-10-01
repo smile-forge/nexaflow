@@ -83,5 +83,5 @@ public class QuadrantStagesTests
     private static List<QuadrantPointNode> Points(ContentNode tree) => [.. tree.SelfAndDescendants().OfType<QuadrantPointNode>()];
 
     private static string Name(ContentNode point) =>
-        point.Children.Single(child => child.Kind == QuadrantKinds.Text && child.Role == QuadrantRoles.Name).Inner(MermaidKinds.Words)!.Text;
+        point.Children.Single(child => child.Kind == QuadrantKinds.Text && child.Role == QuadrantRoles.Name).Inner(Kinds.Words)!.Text;
 }

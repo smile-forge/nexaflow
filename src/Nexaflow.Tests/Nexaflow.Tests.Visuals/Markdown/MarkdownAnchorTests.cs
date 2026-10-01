@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
@@ -47,6 +49,23 @@ public class MarkdownAnchorTests
 
         Press(view, "the web");
         CollectionAssert.AreEqual(new[] { "https://example.com/x" }, handed, "any other link is still the host's");
+    });
+
+    [TestMethod]
+    public void AClickLinesAddressIsHungOnTheNodeItNames() => UiThread.Run(() =>
+    {
+        // Mermaid lets the address be written on a line of its own, so nothing above a press on the node says where it leads.
+        // A stage puts the two together, which is what lets the engine find a link the same way in every language: off the tree,
+        // from the part the press was drawn from.
+        var read = new ContentEngine().Read("flowchart", "graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com\"\n");
+
+    var node = read.Root.SelfAndDescendants()
+            .Where(part => MarkdownLinks.Goes(part.Node) == "https://example.com")
+            .ToList();
+
+        Assert.IsTrue(node.Count > 0, "the node a click line names says where it leads");
+        Assert.IsFalse(node.Any(part => part.Kind == FlowchartKinds.Click),
+            "and the line that said so is not itself the thing that leads there");
     });
 
     [TestMethod]

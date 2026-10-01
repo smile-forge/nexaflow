@@ -71,9 +71,6 @@ public static class FlowchartRoles
     /// <summary>Which link a <c>linkStyle</c> line styles, counted in the order they are written.</summary>
     public const string Index = "flowchart-link-index";
 
-    /// <summary>Where pressing a node leads.</summary>
-    public const string Href = "flowchart-href";
-
     /// <summary>What a node says while it is pointed at.</summary>
     public const string Tip = "flowchart-tip";
 

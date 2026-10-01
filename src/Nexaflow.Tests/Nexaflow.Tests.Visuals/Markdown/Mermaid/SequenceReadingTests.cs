@@ -1,4 +1,5 @@
 using System.Linq;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid.Sequence;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;

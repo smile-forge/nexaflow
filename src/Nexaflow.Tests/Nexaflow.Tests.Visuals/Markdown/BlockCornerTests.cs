@@ -13,6 +13,7 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 

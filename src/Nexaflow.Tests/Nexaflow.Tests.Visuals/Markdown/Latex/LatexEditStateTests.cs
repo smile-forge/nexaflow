@@ -3,6 +3,7 @@ using Nexaflow.Visuals.Text.Markdown.Latex;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Visuals.Text.Markdown;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Source;
 

@@ -1,0 +1,81 @@
+{
+  "branch": "claude/engine-edit-default",
+  "nodes": {
+    "latex-editing": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Editing/EditState.cs",
+          "class": "RawZone"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Latex/LatexEdits.cs",
+          "class": "LatexEdits"
+        }
+      ]
+    },
+    "markdown-block-model": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownBlocks.cs",
+          "class": "MarkdownBlocks",
+          "method": "Split"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/MarkdownSurface.Keys.cs",
+          "class": "MarkdownSurface",
+          "method": "Pressed"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentChange.cs",
+          "class": "ContentChange"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Prose/MarkdownEdits.cs",
+          "class": "MarkdownEdits"
+        }
+      ]
+    },
+    "latex-document-seam": {
+      "links": [
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/DocumentSelection.cs",
+          "class": "DocumentSelection"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Ast/ContentNested.cs",
+          "class": "ContentNested",
+          "method": "Own"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Editing/ContentChange.cs",
+          "class": "ContentChange"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Editing.cs",
+          "class": "ContentEngine",
+          "method": "Walked"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 3,
+  "touched_nodes": [
+    "latex-document-seam",
+    "latex-editing",
+    "markdown-block-model"
+  ]
+}

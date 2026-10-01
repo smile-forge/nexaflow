@@ -4,6 +4,34 @@
 against them and what aligning each part buys. It is the high-level shape only: each section below is picked up on its
 own, planned in detail then, and finished before the next one starts.
 
+## A class and a state diagram keep an address off the thing it applies to
+
+Every language that lets a reader write an address marks it `Roles.Destination`, and the engine reads where a press leads off
+the tree from the part it was drawn from (`ContentEngine.Leads`) — nothing pinned to a piece, so a link is a link in every
+language the same way. Markdown answers because a link node holds its destination, and a reference-style link holds what the
+definition said as a derived `Held` string. A flowchart answers because `ResolveDestinations` hangs a `click` line's address on
+the node it names, and `FlowchartBuilder` reads it back off that node rather than keeping a copy.
+
+Class and state diagrams have the same `click` line and no such stage, so the address stays on a statement of its own and
+nothing above the pressed node says where it leads. **A press on a class or a state link does nothing.** Their tests only assert
+what the builder pinned to the piece, so they pass while the behaviour is gone.
+
+Each needs the same stage `ResolveDestinations` is: match the node by the name it holds (`MermaidKinds.Name`), not by the role
+it was written under — a link's ends name their nodes under roles of their own — and read the address from inside its quotes,
+where the words carry the role. Then each builder reads it off the node, as the flowchart's now does.
+
+## Nothing answers a fold
+
+A chip drawn over what is past a diagram's frontier (`DiagramChip`, `DiagramSpill`) still pins `LayoutVerbs.Expand` or
+`LayoutVerbs.Collapse` to itself, and `FlowchartBuilder` still pins `LayoutVerbs.Select` to a node where folds are
+configured. Nothing answers any of the three, so pressing a chip does nothing.
+
+Every part of the answer is already the engine's: the view state it would write the opening into (`Opened`), the bound
+object it would then tell (`Expand`), and the reading again that draws what is now shown. What is missing is the way a
+language says what a press on one of its own pieces comes to — a fold changes how content is shown rather than what it
+says, and `IOnEdit` answers with source writes. `ContentChange.Asks` is the shape that fits: a chip's press would ask the
+engine for the fold it already knows how to make.
+
 ## What already holds
 
 Named first, because the list below is otherwise easy to read as "everything is broken".
@@ -171,6 +199,35 @@ review's, but R2's half — that a layout piece may point nowhere — can be hel
 
 **Depends on.** Each analyzer depends on its rule already holding, so this section is spread through the others rather
 than done at a point.
+
+## 7. A tune is typed into where it is drawn
+
+**Goal.** What [markdown-ast.md](markdown-ast.md#7-nothing-ever-fails-to-draw) says of a tune: its title and the words
+under its staff written into as text, its notes written into as notes. Typing `a` to `g` in the staff adds that note,
+`_` and `#` flatten and sharpen the note before it, Page Up and Page Down move it an octave, `+` and `-` make it longer
+and shorter, and Space puts a pause in.
+
+**Where it stands.** The gestures exist and nothing calls them. `AbcEdit` answers `NoteAt` (what a letter typed at the
+caret spells, carrying the octave and length of the note before it), `Octave`, `Accidental` and `Length`, each already
+returning an `AstWrite` over the shared tree. `AbcParser` says how words are written back into a tune
+(`ITranspile.Rewrite`): a break becomes a space, a percent on a field's line is held by a backslash, and a character
+that would close an annotation or a decoration is refused.
+
+What is missing is the wiring, not the mechanism:
+
+- ABC declares no `Editing`, so no key reaches `AbcEdit` — there is no `IOnEdit` mapping a keystroke to a gesture.
+- ABC is not `Writable`, so a tune is laid read-only and the caret never lands in it.
+- `AbcBuilder` draws no piece from a title or from the words under a staff, so a caret put there stands against nothing
+  and no language is asked — the one remaining thing between the rule and the code, and a builder's rather than a
+  handler's.
+- `AbcEdit.Before` — the note in front of the caret, which `_`, `#`, `+`, `-` and the octave keys all need — is private
+  to `AbcEdit`.
+
+**Benefit.** The keys a musician expects, on the one language whose gestures are already written and tested. It is also
+the cheapest test of whether the engine's default and a language's own handler compose: the title and the words under
+the staff are the default's, the staff is the handler's, and neither needs to know about the other.
+
+**Depends on.** Nothing. The parser's half is done and the gestures predate it.
 
 ## Order
 

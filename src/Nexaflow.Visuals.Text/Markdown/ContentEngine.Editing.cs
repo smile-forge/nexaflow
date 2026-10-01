@@ -4,6 +4,7 @@ using System.Linq;
 
 using System.Windows;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -15,7 +16,8 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// <strong>Asked of the language it landed in, and made here.</strong> From the piece the caret stands against, up the layout to
 /// the first piece drawn from a part of a syntax tree, and from that part up its own tree to the root, which names the language
 /// (<see cref="ContentEdit"/>). That language's <see cref="IContentLanguage.OnEdit"/> says what the edit is to be, and the engine
-/// makes it. Where it says nothing, or has nothing to say, the key does what a key does to the characters.
+/// makes it. Where it says nothing the engine has an answer of its own for the keys aimed at the caret
+/// (<see cref="Ordinary"/>), and where that has nothing to say either, the key does what a key does to the characters.
 /// </para>
 /// <para>
 /// Whatever the edit came to, the whole content is read again from its source: a bracket or a brace typed anywhere can change
@@ -35,16 +37,43 @@ public sealed partial class ContentEngine
     /// </para>
     /// </summary>
     /// <param name="from">The piece the edit applied to, where it is not the one the caret stands against — a right-click's.</param>
-    internal static EditState? Edited(EditKind kind, string text, Landing landing, Piece from = default)
+    internal static EditState? Edited(EditKind kind, string text, Landing landing, Piece from = default) =>
+        Said(kind, text, landing, from) is { } change ? Made(landing.State, change) : null;
+
+    /// <summary>
+    /// The same, as the change itself rather than the content it comes to — for the one caller that has to see what the language
+    /// said rather than only what it wrote: a language may ask for an edit of the engine's instead (<see cref="ContentChange.Asked"/>).
+    /// </summary>
+    private static ContentChange? Said(EditKind kind, string text, Landing landing, Piece from)
     {
         var edit = Walked(kind, text, landing, from);
         // Nothing on the way up named a part of any tree, so there is no language to ask.
         var language = edit.Part is null ? null : ContentLanguages.WrittenIn(edit.Root);
-        var said = language?.Editing.OnEdit?.Edit(edit) is { } answer ? Safe(answer, landing.State, language) : null;
-        var change = said ?? (kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit) : null);
+        var said = language?.Editing.OnEdit?.Edit(edit) ?? Ordinary(edit, language);
 
-        return change is null ? null : Made(landing.State, change);
+        return said is { Asked: not null } ? said
+             : said is not null ? Spelling(said, landing.State, language!)
+             : kind is EditKind.Erasing or EditKind.Deleting ? Edges(edit)
+             : null;
     }
+
+    /// <summary>
+    /// <paramref name="change"/> with the words in it spelled as the language's own source spells them
+    /// (<see cref="ITranspile"/>) — escaped, or denied where they cannot be written there at all.
+    ///
+    /// <para>
+    /// Only what is words as the reader means them (<see cref="ContentWrite.Meant"/>) is asked about, whether a handler named it
+    /// or the engine did: that is the one kind of write nobody has yet put into the language's own syntax. Everything else a
+    /// handler answers is already source — it wrote it in its own language — and goes as it stands.
+    /// </para>
+    /// <para>
+    /// A language whose parser says nothing about writing has nothing written for it: better a key that does nothing than
+    /// characters spliced into a syntax that nothing has vouched for.
+    /// </para>
+    /// </summary>
+    private static ContentChange Spelling(ContentChange change, EditState state, ContentLanguage language) =>
+        !change.Writes.Any(write => write.Meant) ? change
+        : language.Transpile?.Invoke(change) ?? ContentChange.Stay(state);
 
     /// <summary>
     /// What <paramref name="change"/> makes of <paramref name="state"/>: every stretch written — the last first, so each is still
@@ -64,47 +93,6 @@ public sealed partial class ContentEngine
             source = string.Concat(source.AsSpan(0, write.Start), write.Text, source.AsSpan(write.End));
 
         return new EditState(source, Math.Clamp(change.Caret, 0, source.Length), [], change.Raw);
-    }
-
-    /// <summary>
-    /// <paramref name="change"/> with every stretch it names as words (<see cref="ContentWrite.Words"/>) made safe for the part they go
-    /// in by the language's parser, and the caret kept where it stood among them — or nothing changed at all, where any of them is
-    /// something its part cannot hold.
-    /// </summary>
-    private static ContentChange Safe(ContentChange change, EditState state, ContentLanguage language)
-    {
-        if (language.SafeFormatText is not { } safe || !change.Writes.Any(write => write.Meant)) return change;
-
-        var writes = new List<ContentWrite>();
-        var caret = change.Caret;
-        var moved = 0;
-        var grown = 0;
-
-        foreach (var write in change.Writes.OrderBy(write => write.Start))
-        {
-            // Where the write stands in the document as the handler said it would read afterwards, and how far it moves what follows.
-            var at = write.Start + moved;
-            moved += write.Text.Length - write.Length;
-
-            if (!write.Meant)
-            {
-                writes.Add(write);
-                continue;
-            }
-
-            if (safe(write.Part!, write.Text) is not { } written) return ContentChange.Stay(state);
-
-            writes.Add(new ContentWrite(write.Start, write.Length, written));
-
-            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
-                caret = at + grown + (safe(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? written.Length);
-            else if (change.Caret > at + write.Text.Length)
-                caret += written.Length - write.Text.Length;
-
-            grown += written.Length - write.Text.Length;
-        }
-
-        return change with { Writes = writes, Caret = caret };
     }
 
     /// <summary>
@@ -197,6 +185,83 @@ public sealed partial class ContentEngine
         var last = start + length - (inside.Length - inside.TrimEnd().Length);
 
         return (edit.Kind == EditKind.Deleting ? state.Caret >= last : state.Caret <= first) ? ContentChange.Stay(state) : null;
+    }
+
+    /// <summary>
+    /// What a key aimed at the caret comes to in a language that is written in only inside its runs of words
+    /// (<see cref="IContentLanguage.TakesTextOnlyInWords"/>) — and null for every other language, which leaves the key to do
+    /// what it does to the characters.
+    ///
+    /// <para>
+    /// Three of them are refused, because what the caret is written in cannot hold what they would do. A key taking back the
+    /// character before its start, or after its end, would take the syntax that makes it what it is: the quote that opens it,
+    /// the bracket that closes it, the comma before the next thing. A line break cannot go in one at all — where a diagram
+    /// wants Enter to mean something, that is its own handler's to say, and this runs only where it said nothing.
+    /// </para>
+    /// <para>
+    /// What is left is text going in, and it goes in as the reader meant it
+    /// (<see cref="ContentWrite.Words(ContentPart, int, int, string)"/>): the language's parser is given it and makes it safe for
+    /// that run before it is written, and writes nothing where it cannot be. That is the whole of the default — the language
+    /// spells it, and the engine only says where.
+    /// </para>
+    /// </summary>
+    private static ContentChange? Ordinary(ContentEdit edit, ContentLanguage? language)
+    {
+        if (language is not { Editing.TakesTextOnlyInWords: true }) return null;
+
+        var state = edit.State;
+        if (state.HasSelection || edit.Kind is not (EditKind.Typing or EditKind.Settling or EditKind.Breaking
+                                                    or EditKind.Erasing or EditKind.Deleting)) return null;
+
+        // Written in nothing this knows about: an identifier, a date, a setting. Each has a rule of its own and none of them
+        // is here, so the key does what it did before anything here had an answer.
+        if (Written(edit) is not { } words) return null;
+
+        var caret = state.Caret;
+        var breaking = edit.Kind is EditKind.Breaking || (edit.Kind is EditKind.Settling && edit.Text == "\n");
+
+        // Nothing is written in it, so a key taking a character back cannot be taking one of its own — and what an empty
+        // thing does when a reader backs into it is that diagram's business, not this one's.
+        var holds = words.Length > 0;
+
+        if (breaking
+            || (holds && edit.Kind is EditKind.Erasing && caret <= words.Start)
+            || (holds && edit.Kind is EditKind.Deleting && caret >= words.End)) return ContentChange.Stay(state);
+
+        // Inside the run, so the character taken is one of its own.
+        if (edit.Kind is EditKind.Erasing) return ContentChange.Write(caret - 1, 1, string.Empty, caret - 1);
+        if (edit.Kind is EditKind.Deleting) return ContentChange.Write(caret, 1, string.Empty, caret);
+
+        return new ContentChange([ContentWrite.Words(words, caret, 0, edit.Text)], caret + edit.Text.Length, state.Raw);
+    }
+
+    /// <summary>
+    /// What the caret is written in — a run of words or a number — or null.
+    ///
+    /// <para>
+    /// Asked of the tree and not of the layout, which is the only place the question has an answer. A layout is a picture of
+    /// what the source meant: it draws a piece for a connector and a rule as readily as for a word, gives each of them a stop
+    /// the caret can rest at, and is allowed to draw a piece from nothing written at all. What was written where the caret is
+    /// standing is a fact about the source, and the tree is what holds the source.
+    /// </para>
+    /// <para>
+    /// Innermost, because these nest: a name inside a label inside a line. The shortest one holding the caret is the one a
+    /// reader is writing in.
+    /// </para>
+    /// </summary>
+    private static ContentPart? Written(ContentEdit edit)
+    {
+        ContentPart? found = null;
+        var caret = edit.State.Caret;
+
+        foreach (var part in edit.Root.SelfAndDescendants())
+        {
+            if (part.Kind is not (Kinds.Words or Kinds.Number) || part.Derived || part.Supplied) continue;
+            if (caret < part.Start || caret > part.End) continue;
+            if (found is null || part.Length < found.Length) found = part;
+        }
+
+        return found;
     }
 
     /// <summary>

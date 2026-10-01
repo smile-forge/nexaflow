@@ -102,9 +102,6 @@ public static class ClassRoles
     /// <summary>The way the diagram is laid out: <c>TB</c>, <c>LR</c>.</summary>
     public const string Towards = "class-towards";
 
-    /// <summary>Where pressing a class leads.</summary>
-    public const string Href = "class-href";
-
     /// <summary>What a class says while it is pointed at.</summary>
     public const string Tip = "class-tip";
 

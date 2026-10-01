@@ -91,7 +91,7 @@ internal sealed record C4Macro(string Name, IReadOnlyList<C4Argument> Arguments)
             : [];
 
     private static ContentNode? Inner(ContentNode property, string role) =>
-        property.SelfAndDescendants().FirstOrDefault(node => node.Kind == MermaidKinds.Words && node.Role == role);
+        property.SelfAndDescendants().FirstOrDefault(node => node.Kind == Kinds.Words && node.Role == role);
 }
 
 /// <summary>

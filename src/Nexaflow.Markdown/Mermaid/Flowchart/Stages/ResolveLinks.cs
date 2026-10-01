@@ -127,7 +127,7 @@ public sealed class ResolveLinks : IAstStage
     /// <summary>The links a <c>linkStyle</c> line numbers.</summary>
     private static IReadOnlyList<int> Numbered(ContentNode stated) =>
         [.. stated.SelfAndDescendants()
-              .Where(node => node.Kind == MermaidKinds.Words && node.Role == FlowchartRoles.Index)
+              .Where(node => node.Kind == Kinds.Words && node.Role == FlowchartRoles.Index)
               .Select(node => MermaidNumber.Read(node.Text))
               .OfType<double>()
               .Where(at => at >= 0 && at == Math.Floor(at))

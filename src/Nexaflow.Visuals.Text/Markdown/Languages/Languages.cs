@@ -40,6 +40,7 @@ using Nexaflow.Markdown.WordCloud.Stages;
 using System.Linq;
 using Nexaflow.Syntax;
 using Nexaflow.Icons;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -114,9 +115,9 @@ internal static class Shipped
             Builder: builder)
             {
                 Writable = true,
-                Editing = DiagramEdits.For(diagram) is IContentLanguage own ? own : new EditedBy(DiagramEdits.For(diagram)),
+                Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
-                SafeFormatText = MermaidParser.SafeFormatText,
+                Transpile = Transpiles.By<MermaidParser>(),
                 DisplayName = name,
                 Icon = icon,
                 DefaultBlock = block,
@@ -474,6 +475,9 @@ internal static class Shipped
         Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: typeof(AbcBuilder))
             {
+                Writable = true,
+                Editing = AbcEdits.Instance,
+                Transpile = Transpiles.By<AbcParser>(),
                 DisplayName = "Tune (ABC)",
                 Icon = IconRef.Fluent("music_note_1"),
                 DefaultBlock = """

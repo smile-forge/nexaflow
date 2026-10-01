@@ -110,6 +110,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     /// </remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveSubgraphs(), new ResolveJoins(), new ResolveLinks(), new ResolveMetadata(), new ResolveStyles(), new ResolveShapes(),
+         new ResolveDestinations(),
          block.Diagram == MermaidDiagram.Swimlane
              ? new WithConfig<SwimlaneConfig>(SwimlaneConfig.Read(block.Config))
              : new WithConfig<FlowchartConfig>(FlowchartConfig.Read(block.Config))];
@@ -259,7 +260,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         if (line.Word(HrefWord, letter: Bare))
         {
             line.Room();
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (line.Word(CallWord, letter: Bare))
         {
@@ -268,7 +269,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         }
         else if (line.Next == '"')
         {
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (!line.Name(FlowchartRoles.Call, Called))
         {

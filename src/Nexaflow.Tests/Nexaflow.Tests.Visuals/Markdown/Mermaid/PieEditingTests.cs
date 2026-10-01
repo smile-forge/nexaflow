@@ -605,7 +605,7 @@ public class PieEditingTests
             Holding(editor, " \"good\"\ndogs");
             PressPastTheLabel(pie, "Dogs");
 
-            Assert.IsTrue(editor.Paste());
+            Assert.IsTrue(editor.Pressed(Key.V, ModifierKeys.Control));
             Write(editor, "!");
 
             StringAssert.Contains(editor.Markdown, "  \"Dogs #quot;good#quot;<br>dogs!\" : 30\n", editor.Markdown);
@@ -619,13 +619,13 @@ public class PieEditingTests
             Holding(editor, "5");
 
             PressPastTheValue(pie, "30");
-            editor.Paste();
+            editor.Pressed(Key.V, ModifierKeys.Control);
             StringAssert.Contains(editor.Markdown, "\"Dogs\" : 305\n", editor.Markdown);
 
             Holding(editor, "five");
-            editor.Paste();
+            editor.Pressed(Key.V, ModifierKeys.Control);
             Holding(editor, ".5.");
-            editor.Paste();
+            editor.Pressed(Key.V, ModifierKeys.Control);
             StringAssert.Contains(editor.Markdown, "\"Dogs\" : 305\n", "what is not a number is not pasted into one");
         }));
 
@@ -639,7 +639,7 @@ public class PieEditingTests
             Assert.IsTrue(Ribbon(editor, pie.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MermaidPiece.Title).Bounds)
                               .Offers.Any(offer => offer.Verb == LayoutVerbs.Paste), "the title holds words");
 
-            editor.Paste();
+            editor.Pressed(Key.V, ModifierKeys.Control);
 
             StringAssert.Contains(editor.Markdown, "  title Pets and friends\n  \"Dogs\" : 30", editor.Markdown);
             Assert.AreEqual(0, MarkdownEditorHarness.Block(editor)!.Diagnostics.Count);
@@ -655,7 +655,7 @@ public class PieEditingTests
             // From inside a label into its value: past the quote that holds the slice together, so no one place takes the words.
             var from = before.IndexOf("Dogs", StringComparison.Ordinal) + 2;
             editor.Shown.Select(from, before.IndexOf("30", StringComparison.Ordinal) + 1 - from);
-            editor.Paste();
+            editor.Pressed(Key.V, ModifierKeys.Control);
 
             Assert.AreEqual(before, editor.Markdown, "a paste over a label's end and a value's start writes nothing");
         }));

@@ -70,7 +70,7 @@ public class PieGrammarTests : MermaidGrammarContract
     {
         var slice = Slices("pie\n  \"Calcium\" : 42.96").Single();
 
-        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text);
+        Assert.AreEqual("Calcium", slice.SelfAndDescendants().Single(node => node.Kind == Kinds.Words).Text);
         Assert.AreEqual("42.96", Value(slice).Text);
         Assert.IsNull(slice.SelfAndDescendants().FirstOrDefault(node => node.Trouble is not null));
     }
@@ -82,7 +82,7 @@ public class PieGrammarTests : MermaidGrammarContract
 
         CollectionAssert.AreEqual(
             new[] { "Calcium", "Potassium", "Magnesium", "Iron" },
-            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Words).Text).ToArray(),
+            slices.Select(slice => slice.SelfAndDescendants().Single(node => node.Kind == Kinds.Words).Text).ToArray(),
             "clockwise, in the order they were written");
 
         CollectionAssert.AreEqual(
@@ -163,7 +163,7 @@ public class PieGrammarTests : MermaidGrammarContract
         // Where the value is read as standing is where typing it puts it: past the space, not hard against the colon.
         foreach (var source in new[] { "pie\n  \"Dogs\" : ", "pie\n  \"Dogs\" : \n  \"Cats\" : 1" })
         {
-            var value = MermaidParser.Parse(source).Placed().First(place => place.Node.Kind == MermaidKinds.Number);
+            var value = MermaidParser.Parse(source).Placed().First(place => place.Node.Kind == Kinds.Number);
             Assert.AreEqual(source.IndexOf(": ", StringComparison.Ordinal) + 2, value.Start, source);
         }
     }
@@ -193,5 +193,5 @@ public class PieGrammarTests : MermaidGrammarContract
         [.. MermaidParser.Parse(source).SelfAndDescendants().Where(node => node.Kind == kind)];
 
     private static ContentNode Value(ContentNode slice) =>
-        slice.SelfAndDescendants().Single(node => node.Kind == MermaidKinds.Number);
+        slice.SelfAndDescendants().Single(node => node.Kind == Kinds.Number);
 }

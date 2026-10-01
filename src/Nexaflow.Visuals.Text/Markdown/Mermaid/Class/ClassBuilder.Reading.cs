@@ -421,7 +421,7 @@ internal partial class ClassBuilder
 
         /// <summary>What a line says in a role, wherever it is written inside it.</summary>
         private static ContentPart? Worded(ContentPart part, string role) =>
-            part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Words && inner.Role == role);
+            part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == Kinds.Words && inner.Role == role);
 
         private static string? Setting(ContentPart stated, string role) =>
             stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == MermaidKinds.Setting && part.Role == role)?.Text;

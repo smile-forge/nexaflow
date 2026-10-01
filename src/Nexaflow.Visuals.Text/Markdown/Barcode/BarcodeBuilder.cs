@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Barcode;
 using Nexaflow.Markdown.Matrix;
 using Nexaflow.Markdown.Settings;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Barcode;
 

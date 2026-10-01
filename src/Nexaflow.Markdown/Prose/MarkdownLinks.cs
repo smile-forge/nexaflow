@@ -18,11 +18,11 @@ public static class MarkdownLinks
     {
         foreach (var child in link.Children)
         {
-            if (child.Role == MarkdownRoles.Destination) return child.Text;
+            if (child.Role == Roles.Destination) return child.Text;
 
             if (child.IsDerived)
                 foreach (var held in child.Children)
-                    if (held.Role == MarkdownRoles.Destination && held.Held is string defined) return defined;
+                    if (held.Role == Roles.Destination && held.Held is string defined) return defined;
         }
 
         return null;

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Plot;
 using Nexaflow.Markdown.Settings;
 using Nexaflow.Visuals.Text.Editing;

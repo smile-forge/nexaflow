@@ -1,6 +1,7 @@
 using System;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Kanban;
 using Nexaflow.Visuals.Text.Editing;

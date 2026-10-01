@@ -113,7 +113,7 @@ public sealed class ResolveFields : IAstStage
         foreach (var piece in figures.Children)
         {
             if (piece.Kind == Kinds.Token && piece.Text == "/") under = true;
-            else if (piece.Kind == AbcKinds.Number && int.TryParse(piece.Text, out var number)) (under ? below : above).Add(number);
+            else if (piece.Kind == Kinds.Number && int.TryParse(piece.Text, out var number)) (under ? below : above).Add(number);
         }
 
         return (above, below);

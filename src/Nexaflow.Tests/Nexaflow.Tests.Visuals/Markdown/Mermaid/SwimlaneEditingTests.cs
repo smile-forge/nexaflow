@@ -1,3 +1,4 @@
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Tests.Fixtures;
@@ -48,7 +49,7 @@ public class SwimlaneEditingTests : MermaidEditing
     public void ALaneIsNamedInWords_SoASpaceBetweenThemGoesInAsItIs()
     {
         const string source = "swimlane-beta TB\n  subgraph Sales\n    one\n  end";
-        var name = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Sales");
+        var name = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == "Sales");
 
         Assert.IsNull(FlowchartEdits.Escaping(name, name.End, " team"),
                       "Mermaid names a subgraph in words, so a space between two of them is a space the name may hold");

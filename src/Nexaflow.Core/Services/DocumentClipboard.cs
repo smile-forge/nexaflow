@@ -29,20 +29,35 @@ internal static class DocumentClipboard
         }
     }
 
+    /// <summary>
+    /// What was copied, put on the clipboard in every form it might be pasted as. Turning a copy into what a clipboard holds is
+    /// the application's: the clipboard is the application's, and only it knows what the rest of the machine can take.
+    /// </summary>
     private static void Copied(object sender, ContentCopyingEventArgs e)
     {
         if (e.Handled) return;
 
         // Held by something else for the moment; the copy is not made, and saying so leaves a cut with its words.
-        try { Clipboard.SetDataObject(e.Data, copy: true); e.Handled = true; }
+        try { Clipboard.SetDataObject(MarkdownClipboard.Data(e.Copy), copy: true); e.Handled = true; }
         catch (ExternalException) { }
     }
 
+    /// <summary>
+    /// What is on the clipboard, taken off it and said in words and in markdown: a clipboard holds whatever put something there,
+    /// and a document is written from text, so the translating is the application's.
+    /// </summary>
     private static void Pasted(object sender, ContentPastingEventArgs e)
     {
         if (e.Handled) return;
 
-        try { e.Data = Clipboard.GetDataObject(); e.Handled = e.Data is not null; }
+        try
+        {
+            if (Clipboard.GetDataObject() is not { } data) return;
+
+            e.Words = MarkdownClipboard.ReadPlainText(data);
+            e.Markdown = MarkdownClipboard.ReadBestMarkdown(data);
+            e.Handled = !string.IsNullOrEmpty(e.Words) || !string.IsNullOrEmpty(e.Markdown);
+        }
         catch (ExternalException) { }
     }
 }

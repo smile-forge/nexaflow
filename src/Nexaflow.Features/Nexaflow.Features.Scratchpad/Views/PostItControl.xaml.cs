@@ -53,8 +53,9 @@ public partial class PostItControl : System.Windows.Controls.UserControl
         // Dropping an image / file / url / text onto a note inserts it as a block at the drop point.
         // The editor handles drops over its own (RichTextBox) area; PostItControl covers the rest of the
         // note (header, grips). Both insert a block rather than letting the drop create a new post-it.
-        Editor.ContentDropped = InsertDropped;
-        Editor.ContentPasted   = OnContentPasted;   // same rich-content handling for Ctrl+V / right-click Paste
+        // A picture, a file or a link is this note's to say what it comes to; where it goes is the editor's.
+        Editor.Dropping += OnContentDropped;
+        Editor.Pasting += OnContentPasted;
         AllowDrop = true;
         DragOver += PostIt_DragOver;
         Drop     += PostIt_Drop;
@@ -74,41 +75,70 @@ public partial class PostItControl : System.Windows.Controls.UserControl
 
     private void PostIt_Drop(object sender, DragEventArgs e)
     {
-        InsertDropped(e.Data, e.GetPosition(Editor));
+        Editor.DropContent(e.Data, e.GetPosition(Editor));
         e.Handled = true;   // consume so the canvas doesn't also create a new post-it
     }
 
-    /// <summary>Drop hook: claim image / file / URL as a block at the drop point. Returning false when
-    /// there was nothing of ours to insert lets the editor drop the text itself, as a paste would.</summary>
-    private bool InsertDropped(IDataObject data, Point editorPoint)
-        => InsertContent(data, md => Editor.InsertMarkdownAt(md, editorPoint));
-
-    /// <summary>Paste hook: claim image / file / URL (insert as a block, like a drop); plain text falls
-    /// back to the editor's inline paste (return false).</summary>
-    private bool OnContentPasted(IDataObject data)
+    /// <summary>What was dragged in, said as the markdown this note keeps it as — the editor writes it where it was let go.</summary>
+    private void OnContentDropped(object? sender, ContentDroppingEventArgs e)
     {
+        if (e.Handled || Markdowned(e.Data) is not { Length: > 0 } markdown) return;
+
+        e.Markdown = markdown;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// A picture, a file or a link on the clipboard, said as the markdown this note keeps it as. Anything else is left to the
+    /// application, which says what is on the clipboard in words and in markdown.
+    /// </summary>
+    private void OnContentPasted(object? sender, ContentPastingEventArgs e)
+    {
+        if (e.Handled) return;
+
+        IDataObject? data;
+        try { data = Clipboard.GetDataObject(); }
+        catch (System.Runtime.InteropServices.ExternalException) { return; }
+
+        if (data is null) return;
+
         bool rich = DroppedMedia.TryGetSingleUrl(data, out _)
                  || data.GetDataPresent(DataFormats.FileDrop)
                  || data.GetDataPresent(DataFormats.Bitmap);
-        return rich && InsertContent(data, md => Editor.InsertMarkdownAtCaret(md));
+
+        if (!rich || Markdowned(data) is not { Length: > 0 } markdown) return;
+
+        e.Markdown = markdown;
+        e.Handled = true;
     }
 
-    /// <summary>Turns dropped/pasted content into a note block via <paramref name="insert"/>: a URL is
-    /// inserted now and then swapped for its fetched preview card; images are copied + embedded; files
-    /// become links; text is inserted as-is. Returns false when there was nothing to insert.</summary>
-    private bool InsertContent(IDataObject data, Action<string> insert)
+    /// <summary>
+    /// What <paramref name="data"/> comes to in this note's markdown — a link as itself, anything else saved beside the note and
+    /// written as a reference to it. Null where it is nothing this note keeps.
+    ///
+    /// <para>
+    /// A link is fetched for its title and description after the fact, and what comes back is written over the bare link in this
+    /// note's own text (<see cref="Previewed"/>) — by then the reader may have typed anywhere, and where the caret is is the
+    /// editor's business, not this one's.
+    /// </para>
+    /// </summary>
+    private string? Markdowned(IDataObject data)
     {
-        if (DroppedMedia.TryGetSingleUrl(data, out var url))
-        {
-            insert(url);
-            Vm.RequestUrlPreview?.Invoke(url, md => Editor.ReplaceBlock(url, md));
-            return true;
-        }
+        if (!DroppedMedia.TryGetSingleUrl(data, out var url)) return DropToMarkdown(data);
 
-        var markdown = DropToMarkdown(data);
-        if (string.IsNullOrEmpty(markdown)) return false;
-        insert(markdown);
-        return true;
+        Vm.RequestUrlPreview?.Invoke(url, md => Previewed(url, md));
+        return url;
+    }
+
+    /// <summary>Writes <paramref name="markdown"/> over the one bare <paramref name="url"/> in the note, and shows it again.</summary>
+    private void Previewed(string url, string markdown)
+    {
+        var text = Vm.Content ?? string.Empty;
+        var at = text.IndexOf(url, System.StringComparison.Ordinal);
+        if (at < 0) return;
+
+        Vm.Content = string.Concat(text.AsSpan(0, at), markdown, text.AsSpan(at + url.Length));
+        Editor.Refresh();
     }
 
     /// <summary>Builds the markdown block(s) for dropped/pasted content: images are copied into this

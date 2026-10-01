@@ -30,7 +30,7 @@ public sealed class ResolveStyles : IAstStage
     private static string? Key(ContentNode node) => node.Kind switch
     {
         VennKinds.Region => node.Said(VennRoles.Key),
-        VennKinds.Text => node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)?.Text,
+        VennKinds.Text => node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)?.Text,
         _ => null,
     };
 }

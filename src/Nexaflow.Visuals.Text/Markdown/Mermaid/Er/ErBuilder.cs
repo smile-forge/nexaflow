@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Er;
 using Nexaflow.Visuals.Text.Editing;
@@ -261,16 +262,16 @@ internal sealed class ErBuilder : MermaidBuilder
             {
                 if (part.Kind != ErKinds.Attribute) continue;
 
-                var type = Piece(part, MermaidKinds.Words, ErRoles.Type);
+                var type = Piece(part, Kinds.Words, ErRoles.Type);
                 if (type is not { Length: > 0 } && part.Hole() is null) continue;
 
                 entity.Attributes.Add(new Attribute(part)
                 {
                     Type = type is { Length: > 0 } ? type : null,
-                    Field = Piece(part, MermaidKinds.Words, ErRoles.Field) is { Length: > 0 } field ? field : null,
+                    Field = Piece(part, Kinds.Words, ErRoles.Field) is { Length: > 0 } field ? field : null,
                     Keys = [.. part.SelfAndDescendants()
-                                .Where(inner => inner.Kind == MermaidKinds.Words && inner.Role == ErRoles.Key && inner.Length > 0)],
-                    Comment = Piece(part, MermaidKinds.Words, ErRoles.Comment) is { Length: > 0 } says ? says : null,
+                                .Where(inner => inner.Kind == Kinds.Words && inner.Role == ErRoles.Key && inner.Length > 0)],
+                    Comment = Piece(part, Kinds.Words, ErRoles.Comment) is { Length: > 0 } says ? says : null,
                 });
             }
         }

@@ -397,8 +397,8 @@ level), and the `themeVariables` `git0…git7` lane colours, `gitBranchLabel0…
 colours — a ninth lane taking the first's again — and the `commitLabel`/`tagLabel` colours and sizes. Mermaid's named
 themes are read and kept; the graph is drawn in the app's palette with any `themeVariables` over it. Writing in
 place: a branch's name is typed into in its label, and **renaming it where it is made renames it wherever it is checked
-out or merged**; Enter starts another `commit`; a name that cannot go bare is put in quotes, and a quote typed into a
-value in quotes goes in as `#quot;`. **Limitations:** an id and a tag are read as one value with its quotes, so they are
+out or merged**; a name that cannot go bare is put in quotes, and a quote typed into a value in quotes goes in as
+`#quot;`. Enter writes nothing: another `commit` is a line of its own. **Limitations:** an id and a tag are read as one value with its quotes, so they are
 pressed rather than typed into.
 
 **Mindmap sub-features** ([`MindmapGrammar`](../src/Nexaflow.Markdown/Mermaid/Mindmap/MindmapGrammar.cs) →
@@ -608,7 +608,7 @@ flows reaching it, and each flow as a ribbon as thick as it is worth, leaving an
 are written. Every column is drawn to one scale, so the tallest of them fills the height. **Everything drawn stands for
 what was written**: a ribbon for the row it was written on, a bar for the row that first named it, and a name is the
 characters written, typed into where it is drawn — a name given a comma or a quote being put in quotes as it is typed.
-Enter starts another flow with all three of its columns to write. **The front matter is applied**
+Enter writes nothing: a flow is a source, a target and an amount, so another one is a line of its own. **The front matter is applied**
 ([`SankeyConfig`](../src/Nexaflow.Markdown/Mermaid/Sankey/SankeyConfig.cs)): `config: sankey:` `width`/`height` (the least
 it is drawn at), `linkColor` (`source`, `target`, `gradient` or a colour of its own), `nodeAlignment`
 (`justify`/`center`/`left`/`right`), `showValues` with `prefix`/`suffix`, and this renderer's own `nodeWidth`,
@@ -693,8 +693,8 @@ and the accessibility lines. An icon is drawn as the Fluent UI icon drawing the 
 as what it is called, which says as much as a picture nobody has. **Everything drawn
 stands for what was written** — a group holds its services in the layout, so pressing a service means that service and
 pressing the room round it means the group; what is written under a service is the characters written, or of its id where
-nothing else is, typed into where it is drawn. Enter starts another service with its id to write, and what a bare id
-cannot hold is dropped. **The front matter is applied**
+nothing else is, typed into where it is drawn. What a bare id cannot hold is dropped, and Enter writes nothing: another
+service is a line of its own. **The front matter is applied**
 ([`ArchitectureConfig`](../src/Nexaflow.Markdown/Mermaid/Architecture/ArchitectureConfig.cs)): `config: architecture:`
 `iconSize`, `fontSize`, `padding`, `nodeSeparation` and `idealEdgeLengthMultiplier`, the last being how far apart two
 services sharing a cell are spread. **Divergences from Mermaid:** Mermaid keeps one neighbour per side of a service, so
@@ -822,8 +822,8 @@ commas. Links join the blocks written either side of them: `-->`, `---`, `--x`, 
 from and a `style` line winning over the classes it is given; `fill`, `color`, `stroke`, `stroke-width`, `fill-opacity` and
 `stroke-dasharray` are applied. **Everything drawn stands for what was written** — a composite holds its own blocks in the
 layout, so pressing one means that block and pressing the room round it means the composite; what is drawn on a block is the
-characters of its label, or of its id where nothing else says anything, and is typed into where it is drawn. Enter starts
-another block with its label to write, and what a bare id cannot hold is dropped rather than written.
+characters of its label, or of its id where nothing else says anything, and is typed into where it is drawn. What a bare id cannot hold is dropped rather
+than written, and Enter writes nothing: another block is a line of its own.
 **The front matter is applied** ([`BlockConfig`](../src/Nexaflow.Markdown/Mermaid/Block/BlockConfig.cs)): `config: block`
 `padding`. **Divergences from Mermaid:** Mermaid reads a block diagram without caring where its lines end, so it would take a
 link written across two of them, where here what a link joins is written on one line; Mermaid has no `title` line in a block
@@ -1067,8 +1067,8 @@ spans, Ctrl adding or taking one away — raised in `Selected` with its id where
 selection and copied as the words drawn. Tested by `MermaidBindingTests`, `BoundGraphTests`, `BoundContentTests` and
 `FoldingDiagramTests`.
 
-Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.RefreshDiagrams()`, which
-lays out from the source again.
+Nothing watches the object: a host that has changed what it holds calls `MarkdownSurface.Refresh()`, which lays out from
+the source again.
 
 ### Nested content — one content inside another
 

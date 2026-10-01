@@ -1,6 +1,9 @@
 using System;
 using System.Windows;
 
+using System.Windows.Media.Imaging;
+using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -14,10 +17,11 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// where it can be asked for (<see cref="EditHistory"/>).
 /// </para>
 /// <para>
-/// <strong>The clipboard is not.</strong> Copying says what would go on a clipboard and asks for it to be put there
-/// (<see cref="CopyingEvent"/>); pasting asks for what is on one (<see cref="PastingEvent"/>). Both bubble, so the
-/// application answers them once for every document in the window — and a host that has something to say about what
-/// may leave it, or arrive, answers first.
+/// <strong>The clipboard is the application's, and what goes on it is the engine's.</strong> The engine says what a copy
+/// holds, because what is picked out and the language it was written in are both its; this control only asks for that copy
+/// to be put somewhere (<see cref="CopyingEvent"/>), and asks for what is on a clipboard to paste (<see cref="PastingEvent"/>).
+/// Both bubble, so the application answers them once for every document in the window — and a host that has something to say
+/// about what may leave it, or arrive, answers first.
 /// </para>
 /// </summary>
 public sealed partial class MarkdownSurface
@@ -60,12 +64,6 @@ public sealed partial class MarkdownSurface
         Prompted();
     }
 
-    /// <summary>
-    /// Writes <paramref name="next"/> as though it had been typed — one step to take back, the host told — for an edit made
-    /// here on somebody's behalf: something dropped or pasted, a block put in by the host.
-    /// </summary>
-    private void Write(EditState next) => _engine.Replace(next);
-
     // ── The clipboard ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -79,6 +77,10 @@ public sealed partial class MarkdownSurface
     public static readonly RoutedEvent PastingEvent = EventManager.RegisterRoutedEvent(
         "Pasting", RoutingStrategy.Bubble, typeof(EventHandler<ContentPastingEventArgs>), typeof(MarkdownSurface));
 
+    /// <summary>Raised when something dragged in from elsewhere is let go here, to be told what it comes to. Whoever answers says, or takes it.</summary>
+    public static readonly RoutedEvent DroppingEvent = EventManager.RegisterRoutedEvent(
+        "Dropping", RoutingStrategy.Bubble, typeof(EventHandler<ContentDroppingEventArgs>), typeof(MarkdownSurface));
+
     public event EventHandler<ContentCopyingEventArgs> Copying
     {
         add => AddHandler(CopyingEvent, value);
@@ -91,6 +93,32 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(PastingEvent, value);
     }
 
+    /// <summary>Raised before anything written here changes, for a host that may refuse it.</summary>
+    public static readonly RoutedEvent ChangingEvent = EventManager.RegisterRoutedEvent(
+        "Changing", RoutingStrategy.Bubble, typeof(EventHandler<ContentChangingEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentChangingEventArgs> Changing
+    {
+        add => AddHandler(ChangingEvent, value);
+        remove => RemoveHandler(ChangingEvent, value);
+    }
+
+    /// <summary>Raised to keep a picture of one block — what its corner's Save asks for. Whoever keeps it marks it handled.</summary>
+    public static readonly RoutedEvent BlockSavingEvent = EventManager.RegisterRoutedEvent(
+        "BlockSaving", RoutingStrategy.Bubble, typeof(EventHandler<ContentBlockSavingEventArgs>), typeof(MarkdownSurface));
+
+    public event EventHandler<ContentBlockSavingEventArgs> BlockSaving
+    {
+        add => AddHandler(BlockSavingEvent, value);
+        remove => RemoveHandler(BlockSavingEvent, value);
+    }
+
+    public event EventHandler<ContentDroppingEventArgs> Dropping
+    {
+        add => AddHandler(DroppingEvent, value);
+        remove => RemoveHandler(DroppingEvent, value);
+    }
+
     /// <summary>Asks for <paramref name="copy"/> to be put on the clipboard. True where somebody did.</summary>
     public bool Copy(MarkdownClipboard.ContentCopy copy)
     {
@@ -101,60 +129,53 @@ public sealed partial class MarkdownSurface
     }
 
     /// <summary>
-    /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was.
+    /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was. What
+    /// a copy holds is the engine's to say, because what is chosen and the language it is written in are both its.
     /// </summary>
-    public bool CopySelection() =>
-        Copy(_engine.PickedText is { } drawn
-            ? new MarkdownClipboard.ContentCopy(drawn, drawn, string.Empty)
-            : MarkdownClipboard.Copied(_shown.Markdown, Chosen()));
+    public bool CopySelection() => _engine.Copied();
 
     /// <summary>Copies what is chosen, then takes it away — but only once it has been put somewhere, so nothing is lost.</summary>
-    public bool Cut()
+    public bool Cut() => _engine.Cut();
+
+    // ── What the engine asks of this ────────────────────────────────────────
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy) => Copy(copy);
+
+    /// <inheritdoc/>
+    (string Words, string Markdown)? IContentEvents.OnPaste()
     {
-        if (IsReadOnly || Chosen() is not { } chosen) return false;
-        if (!Copy(MarkdownClipboard.Copied(_shown.Markdown, chosen))) return false;
-
-        Write(_shown.Current.Write(string.Empty));
-
-        return true;
-    }
-
-    /// <summary>
-    /// Asks for what is on the clipboard and writes it at the caret: the host first, for a picture or a file it would
-    /// rather handle, then as markdown — or, into a formula, as the formula it is meant to be.
-    /// </summary>
-    public bool Paste()
-    {
-        if (IsReadOnly) return false;
-
         var asked = new ContentPastingEventArgs(PastingEvent);
         RaiseEvent(asked);
 
-        return asked.Data is { } data && Pasted(data);
+        return asked.Handled ? (asked.Words ?? string.Empty, asked.Markdown ?? string.Empty) : null;
     }
 
-    private bool Pasted(IDataObject data)
+    /// <inheritdoc/>
+    BitmapSource? IContentEvents.OnPicture(ContentPart block) => Picture(block, Background);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnBlockSave(ContentPart block)
     {
-        if (ContentPasted?.Invoke(data) == true) return true;
+        var asked = new ContentBlockSavingEventArgs(BlockSavingEvent, block);
+        RaiseEvent(asked);
 
-        if (InFormula())
-            return PasteIntoFormula(MarkdownClipboard.ReadPlainText(data));
-
-        // The words, to the language the caret is in, which says what they come to there — a diagram takes them only where it holds words.
-        if (MarkdownClipboard.ReadPlainText(data) is { Length: > 0 } words && _shown.Paste(words.ReplaceLineEndings("\n"))) return true;
-
-        if (MarkdownClipboard.ReadBestMarkdown(data) is not { Length: > 0 } markdown) return false;
-
-        Write(_shown.Current.Insert(markdown.ReplaceLineEndings("\n")));
-
-        return true;
+        return asked.Handled;
     }
 
-    /// <summary>The stretch chosen, from the first thing picked out to the last — null where nothing is.</summary>
-    private (int Start, int Length)? Chosen()
+    /// <inheritdoc/>
+    bool IContentEvents.OnNavigate(string url) => OpenLink(url);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnPage(bool up) => Paged(up);
+
+    /// <inheritdoc/>
+    bool IContentEvents.OnBeforeChange(EditState from, EditState to)
     {
-        var state = _shown.Current;
-        return state.HasSelection ? (state.SelectionStart, state.SelectionLength) : null;
+        var asked = new ContentChangingEventArgs(ChangingEvent, from, to);
+        RaiseEvent(asked);
+
+        return !asked.Refused;
     }
 }
 
@@ -163,14 +184,61 @@ public sealed class ContentCopyingEventArgs(RoutedEvent routed, MarkdownClipboar
 {
     /// <summary>What would go on the clipboard.</summary>
     public MarkdownClipboard.ContentCopy Copy { get; } = copy;
-
-    /// <summary>The same, as a clipboard holds it — markdown, plain words and marked-up text in one.</summary>
-    public IDataObject Data => MarkdownClipboard.Data(Copy);
 }
 
-/// <summary>Asked for what is on the clipboard, to paste it.</summary>
+/// <summary>
+/// Asked for what is on the clipboard, to paste it. Whoever answers takes it off the clipboard and says what it comes to in
+/// words and in markdown — a clipboard holds whatever a machine put there, and turning that into something a document can be
+/// written from is the host's, not the content's. Answering with neither, having dealt with it another way, still marks it
+/// handled.
+/// </summary>
 public sealed class ContentPastingEventArgs(RoutedEvent routed) : RoutedEventArgs(routed)
 {
-    /// <summary>What was handed over to paste, set by whoever answered.</summary>
-    public IDataObject? Data { get; set; }
+    /// <summary>What was on it as plain words.</summary>
+    public string? Words { get; set; }
+
+    /// <summary>The same as markdown, where what was on it was marked up.</summary>
+    public string? Markdown { get; set; }
+}
+
+/// <summary>
+/// What is written here about to change. A host that owns the words and will not have them written over sets
+/// <see cref="Refused"/>, and nothing is written.
+/// </summary>
+public sealed class ContentChangingEventArgs(RoutedEvent routed, EditState from, EditState to) : RoutedEventArgs(routed)
+{
+    /// <summary>What is written now.</summary>
+    public EditState From { get; } = from;
+
+    /// <summary>What it would become.</summary>
+    public EditState To { get; } = to;
+
+    /// <summary>Set to refuse the change.</summary>
+    public bool Refused { get; set; }
+}
+
+/// <summary>One block asked to be kept as a picture. Whoever keeps it marks it handled.</summary>
+public sealed class ContentBlockSavingEventArgs(RoutedEvent routed, ContentPart block) : RoutedEventArgs(routed)
+{
+    /// <summary>The block a picture is wanted of.</summary>
+    public ContentPart Block { get; } = block;
+}
+
+/// <summary>
+/// Something dragged in from elsewhere and let go, asked what it comes to. Whoever answers says it in words and in markdown,
+/// or deals with it another way and marks it handled having said neither.
+/// </summary>
+public sealed class ContentDroppingEventArgs(RoutedEvent routed, IDataObject data, Point at) : RoutedEventArgs(routed)
+{
+    /// <summary>What was dragged, as it was carried.</summary>
+    public IDataObject Data { get; } = data;
+
+    /// <summary>Where it was let go, in the control's own coordinates.</summary>
+    public Point At { get; } = at;
+
+    /// <summary>What it comes to as plain words.</summary>
+    public string? Words { get; set; }
+
+    /// <summary>The same as markdown, where what was dragged was marked up.</summary>
+    public string? Markdown { get; set; }
 }

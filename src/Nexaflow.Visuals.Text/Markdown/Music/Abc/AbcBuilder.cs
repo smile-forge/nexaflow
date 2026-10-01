@@ -8,6 +8,7 @@ using Nexaflow.Visuals.Text.Markdown.Music.Model;
 using Nexaflow.Visuals.Text.Markdown.Music.Rendering;
 
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Music.Abc;
 

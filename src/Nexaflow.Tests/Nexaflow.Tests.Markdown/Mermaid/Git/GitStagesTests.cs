@@ -23,7 +23,7 @@ public class GitStagesTests
         var lanes = new Dictionary<string, int> { [tree.Config.MainBranchName] = tree.Main };
 
         foreach (var made in tree.SelfAndDescendants().OfType<GitBranchNode>())
-            lanes[made.Inner(MermaidKinds.Words)!.Text] = made.Lane;
+            lanes[made.Inner(Kinds.Words)!.Text] = made.Lane;
 
         return lanes;
     }

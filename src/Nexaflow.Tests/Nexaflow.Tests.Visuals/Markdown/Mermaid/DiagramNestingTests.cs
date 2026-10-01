@@ -113,7 +113,7 @@ public class DiagramNestingTests
             .ToList();
 
         Assert.IsTrue(inside.Count > 0);
-        Assert.IsTrue(inside.All(part => part is not Nexaflow.Markdown.Ast.ContentPart { Kind: Nexaflow.Markdown.Mermaid.MermaidKinds.Words }),
+        Assert.IsTrue(inside.All(part => part is not Nexaflow.Markdown.Ast.ContentPart { Kind: Nexaflow.Markdown.Ast.Kinds.Words }),
                       "none of it is a word of the flowchart — it is the formula's own tree");
     });
 

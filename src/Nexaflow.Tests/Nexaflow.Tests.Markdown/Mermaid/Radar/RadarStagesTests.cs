@@ -190,10 +190,10 @@ public class RadarStagesTests
     private static List<RadarCurveNode> Curves(ContentNode tree) => [.. tree.SelfAndDescendants().OfType<RadarCurveNode>()];
 
     private static string Name(ContentNode item) =>
-        item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)!.Text;
+        item.Children.Single(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)!.Text;
 
     /// <summary>What is written for an axis or a curve: its label, or its name where it has none.</summary>
     private static string Says(ContentNode item) =>
         (item.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label) ?? item.Children.Single(child => child.Kind == MermaidKinds.Name))
-            .Inner(MermaidKinds.Words)!.Text;
+            .Inner(Kinds.Words)!.Text;
 }

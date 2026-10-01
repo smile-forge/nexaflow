@@ -16,7 +16,7 @@ public class WithWordPiecesTests
     private static (ContentPart Words, MermaidWords Held) Read(string source, string written)
     {
         var tree = new WithWordPieces().Run(MermaidStaged.Read(source));
-        var words = ContentPart.Of(tree).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == written);
+        var words = ContentPart.Of(tree).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == written);
 
         return (words, MermaidWords.Held(tree));
     }

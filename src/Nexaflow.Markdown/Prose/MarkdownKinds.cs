@@ -81,9 +81,6 @@ public static class MarkdownKinds
     /// <summary>A run of characters that are only themselves.</summary>
     public const string Word = "word";
 
-    /// <summary>Several of them in a row: what a construct was put round.</summary>
-    public const string Words = "words";
-
     /// <summary><c>*one*</c> — set slanted.</summary>
     public const string Emphasis = "emphasis";
 
@@ -183,9 +180,6 @@ public static class MarkdownKinds
 /// <summary>What the parts of a markdown construct are to it, beside the shared <see cref="Ast.Roles"/>.</summary>
 public static class MarkdownRoles
 {
-    /// <summary>Where a link or an image points.</summary>
-    public const string Destination = "destination";
-
     /// <summary>A line ending the writer asked to keep — two spaces or a backslash before it — where any other is a space.</summary>
     public const string Hard = "hard";
 

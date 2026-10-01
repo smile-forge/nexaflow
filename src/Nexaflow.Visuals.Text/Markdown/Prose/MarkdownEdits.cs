@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Icons;
 using Nexaflow.Visuals.Text.Editing;
