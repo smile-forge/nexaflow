@@ -48,4 +48,16 @@ public class BlockEditingTests : MermaidEditing
             Assert.IsFalse(diagram.Source.Contains("lone[", StringComparison.Ordinal), "a bracket would open a label rather than name the block");
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingABlockCarriesToTheLinkThatJoinsIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // store is written as a block of the row and named again as the end of the link into it.
+            PressPast(diagram, "store");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "space stores", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "--> stores", "the link names the block it named: " + editor.Markdown);
+        }));
 }

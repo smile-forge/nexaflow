@@ -46,4 +46,16 @@ public class ErEditingTests : MermaidEditing
                            "a bar would read as how many of it the other has");
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingAnEntityCarriesToEveryRelationshipThatNamesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // CUSTOMER is written as a relationship's end and again as the block that holds its attributes.
+            PressPast(diagram, "CUSTOMER");
+            Write(editor, "S");
+
+            StringAssert.Contains(editor.Markdown, "CUSTOMERS ||--o{ ORDER", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "CUSTOMERS {", "the block of its attributes names the entity it named: " + editor.Markdown);
+        }));
 }

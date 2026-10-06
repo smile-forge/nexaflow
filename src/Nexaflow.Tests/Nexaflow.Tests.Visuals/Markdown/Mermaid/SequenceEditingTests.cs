@@ -53,4 +53,17 @@ public class SequenceEditingTests : MermaidEditing
             StringAssert.Contains(diagram.Source, "Alice->>John-Doe:", diagram.Source);
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingAParticipantCarriesToEveryLineThatNamesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // Alice is declared once and named again by the message and by the note over it.
+            PressPast(diagram, "Alice");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "participant Alices", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Alices->>John", "the message names the participant it named: " + editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Note over Alices,John", "and so does the note: " + editor.Markdown);
+        }));
 }

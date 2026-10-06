@@ -53,4 +53,17 @@ public class StateEditingTests : MermaidEditing
                            "a dash would read as the arrow of a transition");
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingAStateCarriesToEveryTransitionThatNamesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // Still is written three times: as a transition's end, as what is written on it, and as a transition's start.
+            PressPast(diagram, "Still");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "[*] --> Stills", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Stills : Standing there", "what is written on it names the state: " + editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Stills --> Moving", "and so does the transition out of it: " + editor.Markdown);
+        }));
 }

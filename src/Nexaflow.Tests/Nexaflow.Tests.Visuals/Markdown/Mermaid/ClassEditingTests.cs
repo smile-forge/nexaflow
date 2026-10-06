@@ -53,4 +53,17 @@ public class ClassEditingTests : MermaidEditing
                            "a dash would read as the line of a relation");
             Assert.AreEqual(0, diagram.Diagnostics.Count);
         }));
+
+    [TestMethod]
+    public void AndRenamingAClassCarriesToEveryLineThatNamesIt() => UiThread.Run(() =>
+        InADocument((editor, diagram) =>
+        {
+            // Duck is named by the relation, by the class that holds its members, and by the note put against it.
+            PressPast(diagram, "Duck");
+            Write(editor, "s");
+
+            StringAssert.Contains(editor.Markdown, "Animal <|-- Ducks", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "class Ducks {", "the class holding its members names it: " + editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "note for Ducks", "and so does the note against it: " + editor.Markdown);
+        }));
 }
