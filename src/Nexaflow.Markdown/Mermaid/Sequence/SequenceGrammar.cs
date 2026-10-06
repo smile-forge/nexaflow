@@ -72,6 +72,9 @@ public sealed class SequenceGrammar : IMermaidGrammar
     /// <summary>What ends a name wherever one is written, besides the characters of an arrow.</summary>
     private const string Stops = ":,;<>+@";
 
+    /// <summary>Whether a character carries a name on, which is every one that does not end one.</summary>
+    public static bool Bare(char character) => !Stops.Contains(character, StringComparison.Ordinal);
+
     private const string ParticipantShape = "A participant is written participant A, participant A as Alice, or actor A.";
     private const string LifetimeShape = "A participant is made by create participant B, and ended by destroy B.";
     private const string TurnShape = "A bar is started by activate A and ended by deactivate A.";

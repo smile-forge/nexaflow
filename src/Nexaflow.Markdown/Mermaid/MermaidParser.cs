@@ -650,8 +650,10 @@ public sealed class MermaidParser : ITranspile
     /// </summary>
     internal static string? Spelled(ContentPart part, string text) => part.Kind switch
     {
-        // In quotes a quote is its entity code, and a line break is the mark this language writes one with.
-        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
+        // In quotes a quote is its entity code, and a line break is the mark this language writes one with. Asked of what
+        // holds it as well as of itself: the words between a pair of quotes are a run of their own inside them, and it is
+        // that run a key is written into.
+        _ when WrittenInQuotes(part) => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
 
         // A title is one line, however many the reader pasted.
         MermaidKinds.Title => text.ReplaceLineEndings(" "),
@@ -663,4 +665,13 @@ public sealed class MermaidParser : ITranspile
 
         _ => text,
     };
+
+    /// <summary>Whether what is written here stands between quotes, which is what makes a quote in it the end of it.</summary>
+    private static bool WrittenInQuotes(ContentPart part)
+    {
+        for (var at = part; at is not null; at = at.Parent)
+            if (at.Kind == MermaidKinds.Quoted) return true;
+
+        return false;
+    }
 }

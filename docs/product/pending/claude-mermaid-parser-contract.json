@@ -88,12 +88,64 @@
           "method": "TranspilerFor"
         }
       ]
+    },
+    "sequence-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceGrammar.cs",
+          "class": "SequenceGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/Stages/ResolveFrames.cs",
+          "class": "ResolveFrames"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceConfig.cs",
+          "class": "SequenceConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sequence/SequenceBuilder.cs",
+          "class": "SequenceBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Sequence/SequenceParser.cs",
+          "class": "SequenceParser"
+        }
+      ]
+    },
+    "c4": {
+      "links": [
+        {
+          "type": "markdown",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/c4.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/C4/C4Parser.cs",
+          "class": "C4Parser"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 2,
+  "changed_sets": 4,
   "touched_nodes": [
+    "c4",
     "flowchart-ast",
+    "sequence-diagram",
     "state-diagram"
   ]
 }
