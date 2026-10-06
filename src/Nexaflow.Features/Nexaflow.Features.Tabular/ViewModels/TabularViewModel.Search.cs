@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nexaflow.Features.Common.Search;
 using Nexaflow.Features.Tabular.Streaming;
 using Nexaflow.Search;
+using Nexaflow.Visuals.Common.Collections;
 using System.Globalization;
 
 namespace Nexaflow.Features.Tabular.ViewModels;

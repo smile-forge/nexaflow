@@ -153,6 +153,15 @@
     ]
   },
   {
+    "ExperienceId": "/hdf5",
+    "Source": "User",
+    "Criteria": [
+      { "Type": "Extension", "Value": "*.h5" },
+      { "Type": "Extension", "Value": "*.hdf5" },
+      { "Type": "Extension", "Value": "*.he5" }
+    ]
+  },
+  {
     "ExperienceId": "/tabular",
     "Source": "User",
     "Criteria": [

@@ -1,0 +1,353 @@
+<UserControl x:Class="Nexaflow.Features.Hdf5.Views.Hdf5View"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Nexaflow.Features.Hdf5.ViewModels"
+             xmlns:vc="clr-namespace:Nexaflow.Visuals.Common.Controls;assembly=Nexaflow.Visuals.Common"
+             xmlns:loc="clr-namespace:Nexaflow.Visuals.Common.Localization;assembly=Nexaflow.Visuals.Common"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:Hdf5ViewModel}"
+             AutomationProperties.AutomationId="Hdf5View"
+             Background="{StaticResource BgBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <Style x:Key="PaneTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Margin" Value="12,12,12,4"/>
+        </Style>
+
+        <Style x:Key="Muted" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Hidden when its text is empty, so an absent problem or detail takes no room. -->
+        <Style x:Key="WhenText" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+                <Trigger Property="Text" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FilterBox" TargetType="TextBox">
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Background" Value="{StaticResource BgBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}"/>
+        </Style>
+
+        <Style x:Key="BarToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="DetailRow" DataType="{x:Type vm:Hdf5DetailRow}">
+            <Grid Margin="12,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextMutedBrush}" FontSize="11.5"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{StaticResource TextBrush}" FontSize="11.5"
+                           FontFamily="Cascadia Code, Consolas, monospace" TextWrapping="Wrap"/>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" MinWidth="180"/>
+            <ColumnDefinition Width="4"/>
+            <ColumnDefinition Width="*" MinWidth="300"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition x:Name="DrawerCol" Width="320" MinWidth="0"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ── Structure: the object tree ─────────────────────────────────── -->
+        <Grid Grid.Column="0" Background="{StaticResource SurfaceBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="12,10,12,6">
+                <TextBlock Text="{loc:Str Hdf5.Structure.Title}" Style="{StaticResource PaneTitle}"/>
+                <TextBlock Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <TextBox Grid.Row="1" Margin="12,0,12,8" Style="{StaticResource FilterBox}"
+                     AutomationProperties.AutomationId="Hdf5_TreeFilter"
+                     ToolTip="{loc:Str Hdf5.Structure.FilterTooltip}"
+                     Text="{Binding TreeFilter, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <TreeView Grid.Row="2" x:Name="Tree" AutomationProperties.AutomationId="Hdf5_Tree"
+                      ItemsSource="{Binding Roots}"
+                      SelectedItemChanged="OnTreeSelectionChanged"
+                      TreeViewItem.Selected="OnTreeItemSelected"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      Background="Transparent" BorderThickness="0"
+                      Foreground="{StaticResource TextBrush}"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <TreeView.Resources>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{DynamicResource AccentColor}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{DynamicResource AccentColor}"/>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="{DynamicResource TextColor}"/>
+                </TreeView.Resources>
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                        <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}"/>
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Display}"/>
+                    </Style>
+                </TreeView.ItemContainerStyle>
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate DataType="{x:Type vm:Hdf5NodeViewModel}" ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <TextBlock Text="{Binding Glyph}" Margin="0,0,6,0" Foreground="{StaticResource TextMutedBrush}"/>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Display}" Foreground="{StaticResource TextBrush}"/>
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource WhenText}" FontSize="10.5"
+                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </Grid>
+
+        <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
+
+        <!-- ── Content: what the selected object holds ────────────────────── -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="12,8">
+                <DockPanel>
+                    <ToggleButton DockPanel.Dock="Right" Style="{StaticResource BarToggle}" VerticalAlignment="Center"
+                                  AutomationProperties.AutomationId="Hdf5_DetailsToggle"
+                                  Content="{loc:Str Hdf5.Details.Toggle}"
+                                  ToolTip="{loc:Str Hdf5.Details.ToggleTooltip}"
+                                  IsChecked="{Binding DetailsOpen, Mode=TwoWay}"/>
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="{Binding CurrentHeader}" Style="{StaticResource PaneTitle}"
+                                   FontFamily="Cascadia Code, Consolas, monospace" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding CurrentSummary}" Style="{StaticResource WhenText}" Margin="0,2,0,0"
+                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Slice bar: rows, columns, and an index for every other dimension of N-D data. -->
+            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,6"
+                    Visibility="{Binding Table.Slice.HasSlice, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                <WrapPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,16,2"
+                                Visibility="{Binding Table.Slice.CanChooseAxes, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                        <TextBlock Text="{loc:Str Hdf5.Slice.Rows}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox AutomationProperties.AutomationId="Hdf5_SliceRowAxis" MinWidth="130"
+                                  ItemsSource="{Binding Table.Slice.Axes}" DisplayMemberPath="Label"
+                                  SelectedItem="{Binding Table.Slice.RowAxis, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,16,2"
+                                Visibility="{Binding Table.Slice.CanChooseColumns, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                        <TextBlock Text="{loc:Str Hdf5.Slice.Columns}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox AutomationProperties.AutomationId="Hdf5_SliceColAxis" MinWidth="130"
+                                  ItemsSource="{Binding Table.Slice.Axes}" DisplayMemberPath="Label"
+                                  SelectedItem="{Binding Table.Slice.ColumnAxis, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Table.Slice.FixedIndices}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:Hdf5FixedIndex}">
+                                <StackPanel Orientation="Horizontal" Margin="0,2,16,2">
+                                    <TextBlock Text="{Binding Label}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <Slider Width="140" Minimum="0" Maximum="{Binding Maximum}" VerticalAlignment="Center"
+                                            AutomationProperties.AutomationId="{Binding AutomationId}"
+                                            IsSnapToTickEnabled="True" TickFrequency="1" SmallChange="1" LargeChange="10"
+                                            Value="{Binding Index, Mode=TwoWay}"/>
+                                    <TextBlock Text="{Binding Index}" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"
+                                               FontFamily="Cascadia Code, Consolas, monospace" Margin="6,0,0,0" MinWidth="32"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,16,2"
+                                Visibility="{Binding Table.Slice.HasColumnWindow, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                        <TextBlock Text="{Binding Table.Slice.ColumnWindowText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Slider Width="180" Minimum="0" Maximum="{Binding Table.Slice.ColumnOffsetMaximum}" VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="Hdf5_ColumnOffset"
+                                ToolTip="{loc:Str Hdf5.Slice.ColumnOffsetTooltip}"
+                                IsSnapToTickEnabled="True" TickFrequency="1" SmallChange="1" LargeChange="256"
+                                Value="{Binding Table.Slice.ColumnOffset, Mode=TwoWay}"/>
+                    </StackPanel>
+                </WrapPanel>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <vc:VirtualizedRowsControl x:Name="TableGrid" AutomationProperties.AutomationId="Hdf5_Table"
+                                           Columns="{Binding Table.Columns}"
+                                           Rows="{Binding Table.Window}"
+                                           TotalRowCount="{Binding Table.TotalRowCount, FallbackValue=0}"
+                                           FirstRowNumber="0"
+                                           Visibility="{Binding IsTableContent, Converter={StaticResource BoolToVis}}"/>
+
+                <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="16"
+                        VerticalAlignment="Top" HorizontalAlignment="Stretch">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Table.Problem, FallbackValue={x:Null}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <TextBlock Text="{loc:Str Hdf5.Content.ReadProblem}" Foreground="{StaticResource WarningBrush}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Table.Problem}" Style="{StaticResource Muted}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Margin="16" Visibility="{Binding IsGroupContent, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{loc:Str Hdf5.Group.MembersTitle}" Style="{StaticResource PaneTitle}" Margin="0,0,0,8"/>
+                    <ItemsControl AutomationProperties.AutomationId="Hdf5_GroupSummary" ItemsSource="{Binding GroupMembers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:Hdf5MemberCount}">
+                                <Grid Margin="0,2" MaxWidth="360" HorizontalAlignment="Left">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Kind}" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Count, StringFormat=N0}" Foreground="{StaticResource TextBrush}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding GroupProblem}" Style="{StaticResource WhenText}" Foreground="{StaticResource WarningBrush}" Margin="0,8,0,0"/>
+                </StackPanel>
+
+                <TextBlock Margin="24" MaxWidth="560" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Text="{Binding ContentMessage}" Style="{StaticResource Muted}" FontSize="12.5"
+                           Visibility="{Binding IsMessageContent, Converter={StaticResource BoolToVis}}"/>
+
+                <TextBlock Margin="24" MaxWidth="560" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Text="{Binding LoadProblem}" Style="{StaticResource WhenText}" Foreground="{StaticResource DangerBrush}" FontSize="12.5"/>
+            </Grid>
+        </Grid>
+
+        <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                      ResizeBehavior="PreviousAndNext" ResizeDirection="Columns"
+                      Background="{StaticResource BorderBrush}"
+                      Visibility="{Binding DetailsOpen, Converter={StaticResource BoolToVis}}"/>
+
+        <!-- ── Details drawer: the object, its storage, its attributes ──────── -->
+        <Border Grid.Column="4" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0" Visibility="{Binding DetailsOpen, Converter={StaticResource BoolToVis}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock Text="{loc:Str Hdf5.Details.ObjectTitle}" Style="{StaticResource SectionTitle}"/>
+                    <ItemsControl AutomationProperties.AutomationId="Hdf5_ObjectDetails"
+                                  ItemsSource="{Binding ObjectDetails}" ItemTemplate="{StaticResource DetailRow}"/>
+
+                    <StackPanel Visibility="{Binding HasStorage, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{loc:Str Hdf5.Details.StorageTitle}" Style="{StaticResource SectionTitle}"/>
+                        <ItemsControl AutomationProperties.AutomationId="Hdf5_StorageDetails"
+                                      ItemsSource="{Binding StorageDetails}" ItemTemplate="{StaticResource DetailRow}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding AttributesHeader}" Style="{StaticResource SectionTitle}"/>
+                    <TextBox Margin="12,0,12,6" Style="{StaticResource FilterBox}"
+                             AutomationProperties.AutomationId="Hdf5_AttributeFilter"
+                             ToolTip="{loc:Str Hdf5.Details.AttributeFilterTooltip}"
+                             Text="{Binding AttributeFilter, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock Margin="12,2" Text="{loc:Str Hdf5.Details.NoAttributes}" Style="{StaticResource Muted}"
+                               Visibility="{Binding HasNoAttributes, Converter={StaticResource BoolToVis}}"/>
+                    <TextBlock Margin="12,2" Text="{Binding AttributesProblem}" Style="{StaticResource WhenText}"
+                               Foreground="{StaticResource WarningBrush}"/>
+                    <ItemsControl AutomationProperties.AutomationId="Hdf5_Attributes" ItemsSource="{Binding Attributes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:Hdf5AttributeRow}">
+                                <StackPanel Margin="12,4" Background="Transparent">
+                                    <StackPanel.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="{loc:Str Hdf5.Attributes.CopyValue}" Click="OnCopyAttributeValue"/>
+                                            <MenuItem Header="{loc:Str Hdf5.Attributes.CopyName}" Click="OnCopyAttributeName"/>
+                                            <MenuItem Header="{loc:Str Hdf5.Attributes.CopyRow}" Click="OnCopyAttributeRow"/>
+                                        </ContextMenu>
+                                    </StackPanel.ContextMenu>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TypeText}" Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="10.5" Margin="8,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextBrush}" FontWeight="SemiBold"
+                                                   FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Value}" Foreground="{StaticResource TextBrush}" FontSize="11.5"
+                                               FontFamily="Cascadia Code, Consolas, monospace" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Note}" Style="{StaticResource WhenText}" FontStyle="Italic"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

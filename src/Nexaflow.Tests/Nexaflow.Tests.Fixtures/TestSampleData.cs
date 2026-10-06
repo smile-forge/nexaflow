@@ -68,6 +68,7 @@ public static class TestSampleData
         new SvgSamples(),
         new EmailSamples(),
         new DicomSamples(),
+        new Hdf5Samples(),
         new PdfSamples(),
         new OfficeSamples(),
     ];

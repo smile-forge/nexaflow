@@ -123,7 +123,7 @@
                 <ColumnDefinition Width="Auto"/>  <!-- templates panel -->
             </Grid.ColumnDefinitions>
 
-            <local:VirtualizedRowsControl Grid.Column="0"
+            <vc:VirtualizedRowsControl Grid.Column="0"
                                           x:Name="GridControl"
                                           Columns="{Binding Columns}"
                                           Rows="{Binding Window}"

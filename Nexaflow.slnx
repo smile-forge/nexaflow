@@ -48,6 +48,9 @@
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Git/Nexaflow.Features.Git.csproj" Id="d5be6955-0a6f-4d3a-927a-1932b7a407c0">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Nexaflow.Features/Nexaflow.Features.Hdf5/Nexaflow.Features.Hdf5.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/Nexaflow.Features/Nexaflow.Features.Hex/Nexaflow.Features.Hex.csproj" Id="28d33c5c-cfbd-4003-8503-34f8aa00b432">
       <Platform Project="x64" />
     </Project>
@@ -253,6 +256,11 @@
   <!-- WPF-free Portable Executable reader: headers, imports/exports, resources, entropy,
        Authenticode. Reaches the app transitively through Nexaflow.Features.Executable. -->
   <Project Path="src/Nexaflow.IO.Pe/Nexaflow.IO.Pe.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <!-- WPF-free HDF5 reader over PureHDF: hierarchy, attributes, windowed dataset reads, and the
+       .npy / .txt projection of datasets as files. Reaches the app through Nexaflow.Features.Hdf5. -->
+  <Project Path="src/Nexaflow.IO.Hdf5/Nexaflow.IO.Hdf5.csproj">
     <Platform Project="x64" />
   </Project>
   <!-- WPF-free network leaf: device graph, discovery contracts, send guard, transports. -->

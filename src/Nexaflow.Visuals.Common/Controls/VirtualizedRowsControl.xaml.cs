@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
@@ -9,15 +8,13 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Nexaflow.Features.Tabular.Detection;
-using Nexaflow.Features.Tabular.ViewModels;
 
-namespace Nexaflow.Features.Tabular.Views;
+namespace Nexaflow.Visuals.Common.Controls;
 
 /// <summary>
 /// Header strip + flat list of row visuals in a vertical StackPanel. Horizontal scroll is
 /// synced between the header and body via a single ScrollBar. Vertical scrolling is also a
-/// custom ScrollBar — its <see cref="ScrollBar.Maximum"/> is the file row count, so the
+/// custom ScrollBar — its <see cref="ScrollBar.Maximum"/> is the source's row count, so the
 /// thumb represents focal position even though only 150 row visuals exist.
 ///
 /// Header zones:
@@ -36,11 +33,11 @@ public partial class VirtualizedRowsControl : UserControl
     // ── Dependency properties ─────────────────────────────────────────────
 
     public static readonly DependencyProperty ColumnsProperty =
-        DependencyProperty.Register(nameof(Columns), typeof(ObservableCollection<TabularColumnViewModel>),
+        DependencyProperty.Register(nameof(Columns), typeof(IReadOnlyList<VirtualizedColumn>),
             typeof(VirtualizedRowsControl), new PropertyMetadata(null, OnColumnsChanged));
 
     public static readonly DependencyProperty RowsProperty =
-        DependencyProperty.Register(nameof(Rows), typeof(ObservableCollection<TabularRowViewModel>),
+        DependencyProperty.Register(nameof(Rows), typeof(IReadOnlyList<VirtualizedRow>),
             typeof(VirtualizedRowsControl), new PropertyMetadata(null, OnRowsChanged));
 
     public static readonly DependencyProperty TotalRowCountProperty =
@@ -57,14 +54,20 @@ public partial class VirtualizedRowsControl : UserControl
             typeof(VirtualizedRowsControl), new PropertyMetadata(string.Empty, (d, _) =>
                 ((VirtualizedRowsControl)d).RebuildHeader()));
 
-    public ObservableCollection<TabularColumnViewModel>? Columns
+    /// <summary>The number shown beside the row at index 0: 1 for a spreadsheet's row numbers, 0 for array indices.</summary>
+    public static readonly DependencyProperty FirstRowNumberProperty =
+        DependencyProperty.Register(nameof(FirstRowNumber), typeof(int),
+            typeof(VirtualizedRowsControl), new PropertyMetadata(1, (d, _) =>
+                ((VirtualizedRowsControl)d).UpdateRowVisuals()));
+
+    public IReadOnlyList<VirtualizedColumn>? Columns
     {
-        get => (ObservableCollection<TabularColumnViewModel>?)GetValue(ColumnsProperty);
+        get => (IReadOnlyList<VirtualizedColumn>?)GetValue(ColumnsProperty);
         set => SetValue(ColumnsProperty, value);
     }
-    public ObservableCollection<TabularRowViewModel>? Rows
+    public IReadOnlyList<VirtualizedRow>? Rows
     {
-        get => (ObservableCollection<TabularRowViewModel>?)GetValue(RowsProperty);
+        get => (IReadOnlyList<VirtualizedRow>?)GetValue(RowsProperty);
         set => SetValue(RowsProperty, value);
     }
     public int TotalRowCount
@@ -83,6 +86,12 @@ public partial class VirtualizedRowsControl : UserControl
         set => SetValue(CommentTooltipProperty, value);
     }
 
+    public int FirstRowNumber
+    {
+        get => (int)GetValue(FirstRowNumberProperty);
+        set => SetValue(FirstRowNumberProperty, value);
+    }
+
     public event Action<int>? FocalRowChanged;
     /// <summary>
     /// Raised when the header's WPF ContextMenu is about to open (right-click). The
@@ -91,8 +100,8 @@ public partial class VirtualizedRowsControl : UserControl
     /// standard MenuItem rendering produce proper submenus, which the previous
     /// new-and-set-IsOpen-true approach didn't reliably do.
     /// </summary>
-    public event Action<TabularColumnViewModel, ContextMenu>? HeaderContextMenuOpening;
-    public event Action<TabularRowViewModel, ModifierKeys>? RowClicked;
+    public event Action<VirtualizedColumn, ContextMenu>? HeaderContextMenuOpening;
+    public event Action<VirtualizedRow, ModifierKeys>? RowClicked;
 
     // ── Row visual pool ──────────────────────────────────────────────────
 
@@ -102,12 +111,12 @@ public partial class VirtualizedRowsControl : UserControl
         public required StackPanel   Stack     { get; init; }
         public required TextBlock    IndexCell { get; init; }
         public required TextBlock[]  DataCells { get; init; }
-        public          TabularRowViewModel? Bound;
+        public          VirtualizedRow? Bound;
         public          PropertyChangedEventHandler? BoundHandler;
     }
 
     private readonly List<RowVisual>  _rowPool = new();
-    private readonly Dictionary<TabularColumnViewModel, HeaderCell> _headerCells = new();
+    private readonly Dictionary<VirtualizedColumn, HeaderCell> _headerCells = new();
     private readonly DispatcherTimer  _focalDebounce = new() { Interval = TimeSpan.FromMilliseconds(40) };
 
     private double _totalWidth = IndexColumnWidth;
@@ -145,9 +154,9 @@ public partial class VirtualizedRowsControl : UserControl
         var ctl = (VirtualizedRowsControl)d;
         if (e.OldValue is INotifyCollectionChanged oldNcc) oldNcc.CollectionChanged -= ctl.OnColumnsCollectionChanged;
         if (e.NewValue is INotifyCollectionChanged newNcc) newNcc.CollectionChanged += ctl.OnColumnsCollectionChanged;
-        if (e.OldValue is ObservableCollection<TabularColumnViewModel> oldCols)
+        if (e.OldValue is IReadOnlyList<VirtualizedColumn> oldCols)
             foreach (var c in oldCols) c.PropertyChanged -= ctl.OnColumnPropertyChanged;
-        if (e.NewValue is ObservableCollection<TabularColumnViewModel> newCols)
+        if (e.NewValue is IReadOnlyList<VirtualizedColumn> newCols)
             foreach (var c in newCols) c.PropertyChanged += ctl.OnColumnPropertyChanged;
         ctl.RebuildAll();
     }
@@ -166,21 +175,21 @@ public partial class VirtualizedRowsControl : UserControl
 
     private void OnColumnsCollectionChanged(object? s, NotifyCollectionChangedEventArgs e)
     {
-        if (e.NewItems is { } added)   foreach (TabularColumnViewModel c in added)   c.PropertyChanged += OnColumnPropertyChanged;
-        if (e.OldItems is { } removed) foreach (TabularColumnViewModel c in removed) c.PropertyChanged -= OnColumnPropertyChanged;
+        if (e.NewItems is { } added)   foreach (VirtualizedColumn c in added)   c.PropertyChanged += OnColumnPropertyChanged;
+        if (e.OldItems is { } removed) foreach (VirtualizedColumn c in removed) c.PropertyChanged -= OnColumnPropertyChanged;
         RebuildAll();
     }
 
     private void OnColumnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        var col = (TabularColumnViewModel)sender!;
+        var col = (VirtualizedColumn)sender!;
         switch (e.PropertyName)
         {
-            case nameof(TabularColumnViewModel.IsSelected):    UpdateHeaderSelectedVisual(col); break;
-            case nameof(TabularColumnViewModel.SortDirection): UpdateHeaderSortGlyph(col);      break;
-            case nameof(TabularColumnViewModel.Header):
-            case nameof(TabularColumnViewModel.DisplayType):   UpdateHeaderLabelVisual(col);    break;
-            case nameof(TabularColumnViewModel.Width):         UpdateColumnWidths();            break;
+            case nameof(VirtualizedColumn.IsSelected):    UpdateHeaderSelectedVisual(col); break;
+            case nameof(VirtualizedColumn.SortDirection): UpdateHeaderSortGlyph(col);      break;
+            case nameof(VirtualizedColumn.Header):
+            case nameof(VirtualizedColumn.Glyph):   UpdateHeaderLabelVisual(col);    break;
+            case nameof(VirtualizedColumn.Width):         UpdateColumnWidths();            break;
         }
     }
 
@@ -274,7 +283,7 @@ public partial class VirtualizedRowsControl : UserControl
         };
     }
 
-    private HeaderCell BuildColumnHeader(TabularColumnViewModel col)
+    private HeaderCell BuildColumnHeader(VirtualizedColumn col)
     {
         // Layout per header cell:
         //   [icon + label (clickable, selectable)] [sort glyph (clickable if sortable)] [resize thumb]
@@ -285,7 +294,7 @@ public partial class VirtualizedRowsControl : UserControl
 
         var iconText = new TextBlock
         {
-            Text              = CsvDataTypeIcons.Glyph(col.DisplayType),
+            Text              = col.Glyph,
             Foreground        = (Brush)FindResource("TextMutedBrush"),
             FontSize          = 11,
             Margin            = new Thickness(0, 0, 6, 0),
@@ -383,7 +392,7 @@ public partial class VirtualizedRowsControl : UserControl
         };
     }
 
-    private void AttachHeaderContextMenu(FrameworkElement target, TabularColumnViewModel col)
+    private void AttachHeaderContextMenu(FrameworkElement target, VirtualizedColumn col)
     {
         // Build the menu freshly on every right-click. WPF only evaluates
         // MenuItem.HasItems (and therefore decides whether to render a submenu arrow +
@@ -396,6 +405,8 @@ public partial class VirtualizedRowsControl : UserControl
             var fresh = new ContextMenu();
             HeaderContextMenuOpening?.Invoke(col, fresh);
             target.ContextMenu = fresh;
+            // A host that offers no header actions gets no menu, rather than an empty popup.
+            if (fresh.Items.Count == 0) e.Handled = true;
         };
         // Seed an initial menu so the very first right-click has something to show.
         var initial = new ContextMenu();
@@ -436,14 +447,14 @@ public partial class VirtualizedRowsControl : UserControl
         _                  => sortable ? "↕" : " ",
     };
 
-    private void UpdateHeaderLabelVisual(TabularColumnViewModel col)
+    private void UpdateHeaderLabelVisual(VirtualizedColumn col)
     {
         if (!_headerCells.TryGetValue(col, out var hc)) return;
-        hc.IconText.Text  = CsvDataTypeIcons.Glyph(col.DisplayType);
+        hc.IconText.Text  = col.Glyph;
         hc.LabelText.Text = col.Header;
     }
 
-    private void UpdateHeaderSortGlyph(TabularColumnViewModel col)
+    private void UpdateHeaderSortGlyph(VirtualizedColumn col)
     {
         if (!_headerCells.TryGetValue(col, out var hc)) return;
         hc.SortGlyph.Text       = SortGlyphFor(col.SortDirection, IsSortable);
@@ -452,7 +463,7 @@ public partial class VirtualizedRowsControl : UserControl
             : (Brush)FindResource("AccentBrush");
     }
 
-    private void UpdateHeaderSelectedVisual(TabularColumnViewModel col)
+    private void UpdateHeaderSelectedVisual(VirtualizedColumn col)
     {
         if (!_headerCells.TryGetValue(col, out var hc)) return;
         hc.LabelBox.Background = col.IsSelected
@@ -461,15 +472,23 @@ public partial class VirtualizedRowsControl : UserControl
         TintColumnSelection(col);
     }
 
-    private void TintColumnSelection(TabularColumnViewModel col)
+    private void TintColumnSelection(VirtualizedColumn col)
     {
         if (Columns is null) return;
-        int colIdx = Columns.IndexOf(col);
+        int colIdx = IndexOfColumn(col);
         if (colIdx < 0) return;
         Brush? tint = col.IsSelected ? SelectionWash(0x33) : null;
         foreach (var rv in _rowPool)
             if (colIdx < rv.DataCells.Length)
                 rv.DataCells[colIdx].Background = tint;
+    }
+
+    private int IndexOfColumn(VirtualizedColumn col)
+    {
+        if (Columns is null) return -1;
+        for (int i = 0; i < Columns.Count; i++)
+            if (ReferenceEquals(Columns[i], col)) return i;
+        return -1;
     }
 
     private void UpdateColumnWidths()
@@ -490,7 +509,7 @@ public partial class VirtualizedRowsControl : UserControl
         UpdateScrollExtents();
     }
 
-    private void ToggleSelected(TabularColumnViewModel col, bool additive)
+    private void ToggleSelected(VirtualizedColumn col, bool additive)
     {
         if (Columns is null) return;
         if (!additive)
@@ -498,7 +517,7 @@ public partial class VirtualizedRowsControl : UserControl
         col.IsSelected = !col.IsSelected;
     }
 
-    private void CycleSort(TabularColumnViewModel col)
+    private void CycleSort(VirtualizedColumn col)
     {
         col.SortDirection = col.SortDirection switch
         {
@@ -534,7 +553,7 @@ public partial class VirtualizedRowsControl : UserControl
             rv.Container.Visibility = Visibility.Visible;
             BindRow(rv, row);
 
-            rv.IndexCell.Text = (row.AbsoluteIndex + 1).ToString();
+            rv.IndexCell.Text = (row.AbsoluteIndex + FirstRowNumber).ToString(System.Globalization.CultureInfo.InvariantCulture);
             for (int c = 0; c < rv.DataCells.Length; c++)
                 rv.DataCells[c].Text = c < row.Cells.Count ? row.Cells[c] : string.Empty;
             ApplyRowAppearance(rv);
@@ -609,15 +628,15 @@ public partial class VirtualizedRowsControl : UserControl
         return visual;
     }
 
-    private void BindRow(RowVisual rv, TabularRowViewModel row)
+    private void BindRow(RowVisual rv, VirtualizedRow row)
     {
         if (rv.Bound == row) return;
         UnbindRow(rv);
         rv.Bound        = row;
         rv.BoundHandler = (_, e) =>
         {
-            if (e.PropertyName is nameof(TabularRowViewModel.IsSelected)
-                               or nameof(TabularRowViewModel.IsSearchHit)) ApplyRowAppearance(rv);
+            if (e.PropertyName is nameof(VirtualizedRow.IsSelected)
+                               or nameof(VirtualizedRow.IsSearchHit)) ApplyRowAppearance(rv);
         };
         row.PropertyChanged += rv.BoundHandler;
     }

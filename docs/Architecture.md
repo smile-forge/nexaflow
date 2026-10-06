@@ -692,6 +692,7 @@ re-rolling them.
 | Head-first window + placeholder padding for scrollbar | `Text/ViewModels/TextViewModel.cs` | top-of-file-first text; line index built up front |
 | Full-rescan per window (no byte anchors) | `Tabular/RowWindowReader.cs` | row data; `StreamReader` buffering makes `BaseStream.Position` unreliable for cross-call seeks |
 | Seek-by-item via byte-offset index | `Json/JsonFileLoader.cs` | random access to structured items |
+| One rectangular selection per window | `IO.Hdf5/PureHdf/PureHdfSource.cs` (`ReadBlock`) | N-D arrays: a table window is one hyperslab read, and `Hdf5Selection.Walk` streams a whole dataset in C order through bounded memory |
 
 ---
 
