@@ -1,17 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using System.Windows;
 using System.Windows.Media;
 
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
-using Nexaflow.Visuals.Common.Theming;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
@@ -41,9 +38,6 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     private const string ShapeChoice = "Shape";
     private const string FillChoice = "Fill";
 
-    /// <summary>What no colour at all is offered as, which is a colour to choose like any other.</summary>
-    private const string Clear = "None";
-
     /// <summary>Every shape Mermaid draws, which is every one but the one that is no shape.</summary>
     private static readonly MermaidShape[] Drawable =
         [.. Enum.GetValues<MermaidShape>().Where(shape => shape != MermaidShape.None)];
@@ -69,6 +63,7 @@ internal sealed partial class FlowchartEdits : IContentLanguage
             Group = ShapeChoice,
             Current = shape == drawn,
             Shape = ShapeIcon(shape),
+            Letters = Lettered(shape),
         });
 
     /// <summary>
@@ -76,26 +71,15 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// </summary>
     private static IEnumerable<LayoutIntent> Colours(string? filled)
     {
-        var said = DiagramColour.ParseCss(filled);
+        var said = DiagramSwatches.Shade(filled);
 
-        yield return OneColour(Clear, Colors.Transparent, filled is null);
+        yield return OneColour(DiagramSwatches.Clear, DiagramSwatches.Nothing, filled is null);
 
-        foreach (var (name, shade) in Bank()) yield return OneColour(name, shade, said == shade);
+        foreach (var (name, shade) in DiagramSwatches.Bank()) yield return OneColour(name, shade, said == shade);
     }
 
     private static LayoutIntent OneColour(string name, Color shade, bool current) =>
         new(Chose + "fill." + name.ToLowerInvariant(), null, name) { Group = FillChoice, Current = current, Shade = shade };
-
-    /// <summary>The shared swatch bank as the theme tunes it, each colour by the name it is offered under.</summary>
-    private static IEnumerable<(string Name, Color Shade)> Bank() =>
-        SwatchPalette.Keys.Select(key => (key[(key.IndexOf('.') + 1)..],
-                                          SwatchPalette.Resolve(key) is SolidColorBrush brush ? brush.Color : Colors.Gray));
-
-    /// <summary>The colour the bank holds by a name, as a chart writes one — or null for a name it holds none by.</summary>
-    private static string? Banked(string name) =>
-        Bank().Where(one => string.Equals(one.Name, name, StringComparison.OrdinalIgnoreCase))
-              .Select(one => $"#{one.Shade.R:x2}{one.Shade.G:x2}{one.Shade.B:x2}")
-              .FirstOrDefault();
 
     /// <summary>What a shape is called where a reader has to read it: its own name, broken into the words it is made of.</summary>
     private static string ReadAs(MermaidShape shape)
@@ -113,97 +97,28 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     }
 
     /// <summary>
-    /// A shape drawn as itself in the box a ribbon button gives it. Kept once drawn: a right-click asks for every shape there is,
-    /// and not one of them turns on which node the pointer is over.
+    /// A shape drawn as itself in the box a ribbon button gives it, or null for the one shape there is no picture of. Kept once
+    /// drawn: a right-click asks for every shape there is, and not one of them turns on which node the pointer is over.
     /// </summary>
-    private static Geometry ShapeIcon(MermaidShape shape)
+    private static Geometry? ShapeIcon(MermaidShape shape)
     {
+        if (shape == MermaidShape.Text) return null;
+
         var kept = ShapeIcons.Value!;
-        if (kept.TryGetValue(shape, out var already)) return already;
 
-        return kept[shape] = shape == MermaidShape.Text ? Lettered() : Outlined(DiagramShapes.For(shape));
+        return kept.TryGetValue(shape, out var already)
+            ? already
+            : kept[shape] = DiagramShapes.AsPicture(DiagramShapes.For(shape), Side);
     }
 
     /// <summary>
-    /// A shape drawn in the proportions it takes round a short word, as the lines it is drawn with — or filled in, where it is one
-    /// of the marks that are drawn solid, those being told from a hollow mark the same size by nothing else.
-    ///
-    /// <para>
-    /// Drawn at the size a node is and shrunk to the button, rather than drawn small: what a shape is made of is measured in
-    /// characters — a corner is six across, a stack of sheets five apart — so drawn into a box of sixteen those measurements are
-    /// the whole shape, and a rounded rectangle comes out a circle. Its proportions come from what it takes round a word for the
-    /// same reason: a stadium is a circle in a square box, and a fork is a plain rectangle.
-    /// </para>
-    /// <para>
-    /// A shape Mermaid gives a size of its own keeps that size against an ordinary node, so a junction is a dot beside a circle
-    /// rather than a second circle — down to half the button, past which there is nothing left to tell one from another.
-    /// </para>
+    /// The letters a shape is drawn as where there is no shape to draw it by: words with nothing round them, whose whole shape is
+    /// having none, so a picture of what holds them would be the rectangle standing next to it.
     /// </summary>
-    private static Geometry Outlined(DiagramShape drawn)
-    {
-        var ordinary = DiagramShapes.Around(DiagramShape.Rectangle, ShapeWords, ShapePad);
-        var natural = DiagramShapes.Around(drawn, ShapeWords, ShapePad);
-
-        var share = Math.Max(Least, Math.Min(1, Math.Max(natural.Width, natural.Height) / Math.Max(ordinary.Width, ordinary.Height)));
-        var scale = share * Side / Math.Max(natural.Width, natural.Height);
-
-        // The line is drawn in the shape's own measurements and shrunk with it, so it comes out the same weight on every button.
-        var solid = DiagramShapes.DrawnSolid(drawn);
-        var line = Weight / scale;
-        var room = solid ? 0 : line / 2;
-        var box = new Rect(room, room, natural.Width - (2 * room), natural.Height - (2 * room));
-        var pen = new Pen(Brushes.Black, line);
-
-        var icon = new GeometryGroup
-        {
-            FillRule = FillRule.Nonzero,
-            Transform = new MatrixTransform(scale, 0, 0, scale,
-                                            (Side - (natural.Width * scale)) / 2, (Side - (natural.Height * scale)) / 2),
-        };
-
-        var outline = DiagramShapes.Outline(drawn, box);
-        icon.Children.Add(solid ? outline : outline.GetWidenedPathGeometry(pen));
-
-        if (DiagramShapes.Details(drawn, box) is { } details) icon.Children.Add(details.GetWidenedPathGeometry(pen));
-
-        icon.Freeze();
-        return icon;
-    }
-
-    /// <summary>
-    /// Words with nothing drawn round them, drawn as letters. There is no shape to draw — having none is what the shape is — and a
-    /// picture of what holds the words would be a picture of the rectangle standing next to it.
-    /// </summary>
-    private static Geometry Lettered()
-    {
-        var typed = new FormattedText("Txt", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                                      new Typeface("Segoe UI"), Side, Brushes.Black, 1);
-
-        var letters = typed.BuildGeometry(new Point(0, 0));
-        var ink = letters.Bounds;
-        var fit = Math.Min(Side / ink.Width, Side / ink.Height);
-
-        letters.Transform = new MatrixTransform(fit, 0, 0, fit,
-                                                ((Side - (ink.Width * fit)) / 2) - (ink.X * fit),
-                                                ((Side - (ink.Height * fit)) / 2) - (ink.Y * fit));
-        letters.Freeze();
-        return letters;
-    }
+    private static string? Lettered(MermaidShape shape) => shape == MermaidShape.Text ? "Txt" : null;
 
     /// <summary>How wide and high a shape is on a button, which is what a ribbon gives a picture.</summary>
     private const double Side = 16;
-
-    /// <summary>How thick the line a shape is drawn with is, once it is on the button.</summary>
-    private const double Weight = 1.25;
-
-    /// <summary>The least of the button a shape is drawn across, however small Mermaid draws it beside an ordinary node.</summary>
-    private const double Least = 0.5;
-
-    /// <summary>What a short name takes on a node, which is what each shape is measured round to learn its proportions.</summary>
-    private static readonly Size ShapeWords = new(28, 16);
-
-    /// <summary>The room a node leaves round what is written on it.</summary>
-    private const double ShapePad = 8;
 
     // ── What was chosen ─────────────────────────────────────────────────────
 
@@ -251,8 +166,8 @@ internal sealed partial class FlowchartEdits : IContentLanguage
     /// </summary>
     private static ContentChange? Coloured(ContentEdit edit, string id, string name)
     {
-        var clear = string.Equals(name, Clear, StringComparison.OrdinalIgnoreCase);
-        var shade = clear ? null : Banked(name);
+        var clear = string.Equals(name, DiagramSwatches.Clear, StringComparison.OrdinalIgnoreCase);
+        var shade = clear ? null : DiagramSwatches.Hex(name);
 
         if (!clear && shade is null) return null;
 

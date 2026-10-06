@@ -41,8 +41,13 @@ public class FlowchartChoiceTests
 
             Assert.AreEqual(53, shapes.Count, "every shape Mermaid draws, which is every one but the one that is no shape");
             Assert.AreEqual(shapes.Count, shapes.Select(offer => offer.Verb).Distinct().Count(), "each offered under a name of its own");
-            Assert.IsTrue(shapes.All(offer => offer.Shape is { IsFrozen: true } drawn && !drawn.IsEmpty()), "each drawn as itself");
-            Assert.IsTrue(shapes.All(offer => offer.Tip is { Length: > 0 }), "and named, for whoever hovers or hears the screen read");
+            Assert.IsTrue(shapes.All(offer => offer.Tip is { Length: > 0 }), "each named, for whoever hovers or hears the screen read");
+
+            // Every shape is drawn as itself, bar the one whose whole shape is having none, which is drawn as letters instead.
+            Assert.IsTrue(shapes.All(offer => offer.Shape is { IsFrozen: true } drawn && !drawn.IsEmpty() || offer.Letters is { Length: > 0 }),
+                          "each drawn as itself");
+            CollectionAssert.AreEqual(new[] { "flowchart.shape.text" },
+                                      shapes.Where(offer => offer.Shape is null).Select(offer => offer.Verb).ToArray());
 
             Assert.AreEqual("flowchart.shape.rect", shapes.Single(offer => offer.Current).Verb,
                             "the brackets it is written in say a rectangle");
@@ -241,7 +246,7 @@ public class FlowchartChoiceTests
 
             foreach (var offer in Ribbon(editor, Node(chart, "Start")).Offers.Where(offer => offer.Group == "Shape"))
             {
-                var picture = Pictured(offer.Shape!);
+                var picture = Pictured(offer);
 
                 Assert.IsFalse(drawn.TryGetValue(picture, out var already), $"{offer.Tip} is drawn exactly as {already} is");
                 drawn[picture] = offer.Tip!;
@@ -250,16 +255,32 @@ public class FlowchartChoiceTests
             Assert.AreEqual(53, drawn.Count, "every shape, each its own picture");
         }));
 
-    /// <summary>What a shape's picture comes out as, drawn into the box a button gives it.</summary>
-    private static string Pictured(System.Windows.Media.Geometry shape)
+    /// <summary>What an option's face comes out as, drawn into the box a button gives it — its shape, or its letters.</summary>
+    private static string Pictured(LayoutIntent offer)
     {
         const int pixels = 48;
+        const double side = 16;
 
         var visual = new System.Windows.Media.DrawingVisual();
-        using (var ink = visual.RenderOpen()) ink.DrawGeometry(System.Windows.Media.Brushes.White, null, shape);
+
+        using (var ink = visual.RenderOpen())
+        {
+            if (offer.Shape is { } shape)
+            {
+                ink.DrawGeometry(System.Windows.Media.Brushes.White, null, shape);
+            }
+            else
+            {
+                var typed = new System.Windows.Media.FormattedText(
+                    offer.Letters!, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                    new System.Windows.Media.Typeface("Segoe UI"), side * 0.7, System.Windows.Media.Brushes.White, 1);
+
+                ink.DrawText(typed, new Point(0, 0));
+            }
+        }
 
         var shot = new System.Windows.Media.Imaging.RenderTargetBitmap(
-            pixels, pixels, 96.0 * pixels / 16, 96.0 * pixels / 16, System.Windows.Media.PixelFormats.Pbgra32);
+            pixels, pixels, 96.0 * pixels / side, 96.0 * pixels / side, System.Windows.Media.PixelFormats.Pbgra32);
 
         shot.Render(visual);
 

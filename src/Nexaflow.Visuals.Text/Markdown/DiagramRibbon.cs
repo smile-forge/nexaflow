@@ -321,7 +321,8 @@ internal sealed class DiagramRibbon : UserControl
     }
 
     /// <summary>Whether an intent is drawn as a picture — a shape of its own, or a mark — rather than named.</summary>
-    private static bool Pictured(LayoutIntent intent) => intent.Shape is not null || Icon(intent) is not null;
+    private static bool Pictured(LayoutIntent intent) =>
+        intent.Shape is not null || intent.Letters is not null || Icon(intent) is not null;
 
     /// <summary>What an intent is drawn as on <paramref name="button"/>: its shape, in the button's ink; its mark; or its name.</summary>
     private static UIElement Face(LayoutIntent intent, Button button)
@@ -332,6 +333,16 @@ internal sealed class DiagramRibbon : UserControl
             path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
             return path;
         }
+
+    if (intent.Letters is { Length: > 0 } letters)
+            return new TextBlock
+            {
+                Text = letters,
+                FontSize = 11,
+                Width = Side,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
 
         return Icon(intent) is { } mark
             ? new TextBlock { Text = mark, FontFamily = IconFont, FontSize = 14, Width = Side, TextAlignment = TextAlignment.Center }
