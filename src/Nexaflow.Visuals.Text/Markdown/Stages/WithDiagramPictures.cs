@@ -36,7 +36,9 @@ public sealed class WithDiagramPictures(Func<string, ImageSource?>? find) : IAst
         if (node.Kind != MermaidKinds.Property || node.HeldAs(Picture) is not null) return node;
         if (!string.Equals(node.Children.FirstOrDefault(child => child.Role == Roles.Name)?.Text, "img", StringComparison.OrdinalIgnoreCase)) return node;
 
-        var named = MermaidText.Bare(node.Children.FirstOrDefault(child => child.Role == MermaidRoles.Value)?.Text).Trim();
+        // A value written between quotes holds them as tokens of its own, so what it is set to is the run of words between them.
+        var value = node.Children.FirstOrDefault(child => child.Role == MermaidRoles.Value);
+        var named = MermaidText.Bare(value?.Kind == MermaidKinds.Quoted ? value.Words()?.Text : value?.Text).Trim();
 
         return named.Length > 0 && find!(named) is { } picture ? node.Holding(MermaidKinds.Property, Picture, picture) : node;
     }

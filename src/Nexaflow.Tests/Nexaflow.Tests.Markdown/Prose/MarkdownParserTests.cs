@@ -196,7 +196,7 @@ public class MarkdownParserTests
     {
         var read = MarkdownParser.Parsing()("see [one][ref]\n\n[ref]: https://example.org\n").Tree;
 
-        var link = read.SelfAndDescendants().First(node => node.Kind == MarkdownKinds.Link);
+        var link = read.SelfAndDescendants().First(node => node.Kind == Kinds.Link);
 
         Assert.AreEqual("https://example.org", MarkdownLinks.Goes(link));
     }

@@ -160,7 +160,7 @@ public class MarkdownInlineTests
     [TestMethod]
     public void ALinkIsItsWordsAndWhereItPoints()
     {
-        var link = One("[the page](https://example.org)", MarkdownKinds.Link);
+        var link = One("[the page](https://example.org)", Kinds.Link);
 
         Assert.AreEqual("the page", Body(link));
         Assert.AreEqual("https://example.org", link.Part(Roles.Destination)?.Text);
@@ -216,8 +216,8 @@ public class MarkdownInlineTests
     [TestMethod]
     public void ABracketPointingNowhereIsABracket()
     {
-        Assert.AreEqual(0, Every("[words] and more", MarkdownKinds.Link).Count);
-        Assert.AreEqual(0, Every("[words", MarkdownKinds.Link).Count);
+        Assert.AreEqual(0, Every("[words] and more", Kinds.Link).Count);
+        Assert.AreEqual(0, Every("[words", Kinds.Link).Count);
     }
 
     [TestMethod]

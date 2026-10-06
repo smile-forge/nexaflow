@@ -144,6 +144,17 @@ public static class Kinds
     /// </summary>
     public const string Number = "number";
 
+    /// <summary>
+    /// Something that leads somewhere: what it says, and where it goes (<see cref="Roles.Destination"/>).
+    ///
+    /// <para>
+    /// Shared for the reason the role is. A press on a link means leaving for somewhere, which the engine answers without
+    /// knowing the language that wrote it — so it asks the tree what was pressed and finds a link the same way in prose, on a
+    /// chart's node, in a diagram's box. Every language that lets a reader write one marks it with this.
+    /// </para>
+    /// </summary>
+    public const string Link = "link";
+
     /// <summary>A character that is machinery rather than content.</summary>
     public const string Token = "token";
 

@@ -2,6 +2,7 @@ using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Markdown.Mermaid.Swimlane;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Tests.Markdown.Mermaid;
 
@@ -26,6 +27,30 @@ public class FlowchartStagesTests
     /// <summary>What the name first writing an id is styled with, as the stages said on it.</summary>
     private static MermaidStyle Style(ContentNode tree, string id) =>
         tree.SelfAndDescendants().OfType<StyledNode>().Single(name => name.Words()?.Text == id).Style;
+
+    /// <summary>The graph the chart amounts to, which is one derived part of the block.</summary>
+    private static ContentNode Graph(string source) =>
+        MermaidStaged.Read(source).SelfAndDescendants().Single(node => node.Kind == FlowchartKinds.Graph);
+
+    private static IEnumerable<ContentNode> Nodes(ContentNode graph) =>
+        graph.SelfAndDescendants().Where(node => node.Kind == FlowchartKinds.GraphNode);
+
+    private static string[] Ids(ContentNode graph) => [.. Nodes(graph).Select(node => node.Part(Roles.Name)!.Text)];
+
+    private static ContentNode Node(ContentNode graph, string id) =>
+        Nodes(graph).Single(node => node.Part(Roles.Name)!.Text == id);
+
+    /// <summary>Every connection, by the names of its two ends.</summary>
+    private static string[] Between(ContentNode graph) =>
+        [.. graph.SelfAndDescendants()
+              .Where(node => node.Kind == FlowchartKinds.GraphLink)
+              .Select(link => $"{link.Part(FlowchartRoles.From)!.Text}-{link.Part(FlowchartRoles.To)!.Text}")];
+
+    /// <summary>What a node says, wherever it says it — inside the link it leads by, where it leads anywhere.</summary>
+    private static string? Says(ContentNode graph, string id) =>
+        Node(graph, id) is var node && node.Children.FirstOrDefault(child => child.Kind == Kinds.Link) is { } link
+            ? link.Part(Roles.Body)?.Text
+            : node.Part(Roles.Body)?.Text;
 
     [TestMethod]
     public void ALinkJoinsTheNodesEitherSideOfIt()
@@ -205,6 +230,61 @@ public class FlowchartStagesTests
 
         Assert.AreEqual(1, tree.SelfAndDescendants().OfType<StyledNode>().Count(name => name.Words()?.Text == "a"), "once, where a is first written");
         Assert.AreEqual("#abc", Style(tree, "s").Fill);
+    }
+
+    [TestMethod]
+    public void AChartIsReadAsItsNodesAndTheConnectionsBetweenThem()
+    {
+        // A graph is not a tree, so the reading of one is a list of each and the connections name their ends.
+        var graph = Graph("flowchart LR\n  a[\"A\"] --> b\n  b --> c\n");
+
+        CollectionAssert.AreEqual(new[] { "a", "b", "c" }, Ids(graph), "each node once, in the order first written");
+        CollectionAssert.AreEqual(new[] { "a-b", "b-c" }, Between(graph));
+    }
+
+    [TestMethod]
+    public void ANodeWrittenTwiceIsOneNode_SaidByTheLastWordsALineGivesIt()
+    {
+        var graph = Graph("flowchart LR\n  a --> b\n  a[\"Start\"] --> c\n");
+
+        CollectionAssert.AreEqual(new[] { "a", "b", "c" }, Ids(graph), "a said twice is a written once and named again");
+        CollectionAssert.AreEqual(new[] { "a-b", "a-c" }, Between(graph), "and both connections leave the one node");
+        Assert.AreEqual("Start", Says(graph, "a"));
+        Assert.AreEqual("b", Says(graph, "b"), "a node given no words is said by what it is called");
+    }
+
+    [TestMethod]
+    public void MetadataPutsTheNodeItIsAboutInTheChart_AndSaysWhatItIsCalledBy()
+    {
+        var graph = Graph("flowchart TD\n  a --> b\n  n@{ shape: hex, label: \"Nowhere\" }\n  a@{ label: \"Ay\" }\n");
+
+        CollectionAssert.AreEqual(new[] { "a", "b", "n" }, Ids(graph), "a node nothing else writes is still a node");
+        Assert.AreEqual("Nowhere", Says(graph, "n"));
+        Assert.AreEqual("Ay", Says(graph, "a"), "and what metadata calls a node is what it is called");
+    }
+
+    [TestMethod]
+    public void WhereANodeLeadsIsOnTheNode_WrittenAsProseWritesALink()
+    {
+        var graph = Graph("flowchart LR\n  a[\"A\"] --> b\n  click a href \"https://example.com\" \"Go there\"\n");
+        var link = Node(graph, "a").Children.Single(child => child.Kind == Kinds.Link);
+
+        Assert.AreEqual("https://example.com", MarkdownLinks.Goes(link), "found by whoever follows a link, knowing nothing of charts");
+        Assert.AreEqual("A", link.Part(Roles.Body)?.Text, "the words shown are inside it, as a link's are");
+        Assert.AreEqual("Go there", link.Part(Roles.Tip)?.Text);
+        Assert.IsFalse(Node(graph, "b").Children.Any(child => child.Kind == Kinds.Link), "and a node leading nowhere holds none");
+    }
+
+    [TestMethod]
+    public void TheGraphStandsForNoCharacters_SoTheChartStillPrintsAsWritten()
+    {
+        const string source = "flowchart LR\n  a[\"A\"] --> b\n  click a href \"https://example.com\"\n";
+        var tree = MermaidStaged.Read(source);
+
+        Assert.AreEqual(source, tree.Print());
+        Assert.IsTrue(tree.Children.Single(child => child.Kind == FlowchartKinds.Graph).IsDerived);
+        Assert.IsFalse(ContentPart.Of(tree).SelfAndDescendants().Any(part => part.Kind == FlowchartKinds.GraphNode && part.Length > 0),
+                       "so no offset finds anything in it, and nothing in it can be selected or typed into");
     }
 
     [TestMethod]

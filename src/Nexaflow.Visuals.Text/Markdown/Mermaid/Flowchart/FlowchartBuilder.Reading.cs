@@ -37,17 +37,8 @@ internal partial class FlowchartBuilder
 
         public MermaidStyle Style { get; set; } = MermaidStyle.None;
 
-        /// <summary>
-        /// What an <c>id@{ label: … }</c> line says it is drawn with, which its stage read from the metadata rather than typed into
-        /// where it is drawn — the quotes round it belong to the metadata rather than to the label.
-        /// </summary>
-        public string? Worked { get; set; }
-
-        /// <summary>The metadata <see cref="Worked"/> was read from, which is what a press on those words means.</summary>
-        public ContentPart? WorkedPart { get; set; }
-
-        /// <summary>Where it leads, said by the node itself — a <c>click</c> line's address, hung on it by a stage.</summary>
-        public string? Href => MarkdownLinks.Goes(this.Part.Node);
+        /// <summary>Where it leads, as the chart's own reading of itself says — a <c>click</c> line's address, on the node it named.</summary>
+        public string? Href { get; init; }
 
         /// <summary>What a <c>click</c> line says it says while pointed at.</summary>
         public string? Tip { get; set; }
@@ -138,8 +129,14 @@ internal partial class FlowchartBuilder
     /// </summary>
     protected sealed class Diagram
     {
-        private readonly Dictionary<string, Node> known = new(StringComparer.Ordinal);
-        private readonly List<(ContentPart Stated, string? Group)> said = [];
+        /// <summary>Every mention of each node, by what it is called, in the order they are written.</summary>
+        private readonly Dictionary<string, List<ContentPart>> mentions = new(StringComparer.Ordinal);
+
+        /// <summary>The <c>id@{ … }</c> line about each node, by the node it is about.</summary>
+        private readonly Dictionary<string, ContentPart> meant = new(StringComparer.Ordinal);
+
+        /// <summary>Every link written, in the order they are written, which is what a connection says drew it.</summary>
+        private readonly List<ContentPart> drawn = [];
 
         private Diagram(FlowchartConfig config, DiagramWay way) => (Config, Way) = (config, way);
 
@@ -164,7 +161,7 @@ internal partial class FlowchartBuilder
             var diagram = new Diagram(config, Wayward(towards?.Text) ?? DiagramWay.Down);
 
             diagram.Read(root, null);
-            diagram.Metadata();
+            diagram.Took(root);
             diagram.Styled(root);
 
             return diagram;
@@ -203,7 +200,10 @@ internal partial class FlowchartBuilder
         public Group? Keyed(string? key) =>
             key is null ? null : Groups.FirstOrDefault(group => string.Equals(group.Key, key, StringComparison.Ordinal));
 
-        /// <summary>Everything written in one part of the block — the whole of it, or one subgraph — inside the subgraph given.</summary>
+        /// <summary>
+        /// Where everything is written: the subgraphs, every mention of each node, every link drawn, and the metadata about each — read
+        /// down one part of the block, the whole of it or one subgraph, inside the subgraph given.
+        /// </summary>
         private void Read(ContentPart holder, string? inside)
         {
             foreach (var part in holder.Children)
@@ -216,26 +216,130 @@ internal partial class FlowchartBuilder
 
                 if (part.Stated() is not { } stated) continue;
 
-                switch (stated.Kind)
+                if (stated.Node is FlowchartMetadataNode { About: FlowchartSaid.Node or FlowchartSaid.New }
+                    && Words(stated, FlowchartRoles.Id) is { Length: > 0 } about)
+                    this.meant.TryAdd(about, stated);
+
+        // A direction line lays out the subgraph it is written in; one written outside them all lays out nothing.
+                if (stated.Kind == FlowchartKinds.Direction && Keyed(inside) is { } laid)
+                    laid.Way = Wayward(stated.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Setting && inner.Role == FlowchartRoles.Towards)?.Text) ?? laid.Way;
+
+                if (stated.Kind != FlowchartKinds.Nodes) continue;
+
+                foreach (var piece in stated.Children)
                 {
-                    case FlowchartKinds.Nodes:
-                        Laid(stated, inside);
-                        break;
+                    if (piece.Kind == FlowchartKinds.Link) this.drawn.Add(piece);
 
-                    // A direction line lays out the subgraph it is written in; one written outside them all lays out nothing.
-                    case FlowchartKinds.Direction when Keyed(inside) is { } group:
-                        group.Way = Wayward(stated.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Setting && inner.Role == FlowchartRoles.Towards)?.Text) ?? group.Way;
-                        break;
+                    // A node naming a subgraph is that subgraph, which a link joins as the box it is rather than as a node.
+                    if (piece.Kind != FlowchartKinds.Node || piece.Node is GroupReferenceNode) continue;
+                    if (piece.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Words()?.Text is not { Length: > 0 } id) continue;
 
-                    case FlowchartKinds.Click:
-                        Clicked(stated);
-                        break;
+                    if (!this.mentions.TryGetValue(id, out var written)) this.mentions[id] = written = [];
 
-                    case FlowchartKinds.Said:
-                        said.Add((stated, inside));
-                        break;
+                    written.Add(piece);
                 }
             }
+        }
+
+        /// <summary>
+        /// The chart as its stage read it: every node once and every connection between them, each found where it was written.
+        ///
+        /// <para>
+        /// What the chart amounts to is settled before ever reaching here — which lines write one node, what its words are, the shape it
+        /// is drawn as, the subgraph it is in, and where it leads. This finds the characters each of those stands for, because a stage has
+        /// no positions and a press, a selection and a caret are all positions.
+        /// </para>
+        /// </summary>
+        private void Took(ContentPart root)
+        {
+            if (root.SelfAndDescendants().FirstOrDefault(part => part.Kind == FlowchartKinds.Graph) is not { } graph) return;
+
+            foreach (var entry in graph.SelfAndDescendants())
+            {
+                if (entry.Node is FlowchartGraphNode node) Nodes.Add(Made(entry, node));
+                if (entry.Node is FlowchartGraphLink link && link.Drawn < this.drawn.Count) Links.Add(Joined(entry, link, this.drawn[link.Drawn]));
+            }
+        }
+
+        /// <summary>
+        /// One node: the whole of its first mention, which is what a press on it means, and the words drawn read from the mention its
+        /// stage named — the last one to give it any.
+        /// </summary>
+        private Node Made(ContentPart entry, FlowchartGraphNode said)
+        {
+            var written = this.mentions.GetValueOrDefault(said.Id) ?? [];
+            var drawn = said.Mention is { } at && at < written.Count ? written[at] : null;
+            var meant = this.meant.GetValueOrDefault(said.Id);
+            var link = entry.Children.FirstOrDefault(child => child.Kind == Kinds.Link);
+
+            var node = new Node(written.FirstOrDefault() ?? meant ?? entry, said.Id)
+            {
+                Shape = said.Shape,
+                Group = said.Group,
+                Href = link is null ? null : MarkdownLinks.Goes(link.Node),
+                Tip = link?.Part(Roles.Tip)?.Text,
+            };
+
+            // The words drawn are the characters a reader wrote them as, wherever those stand — between a node's brackets, or
+            // between the quotes of the label an id@{ … } line gives it. Either way they are drawn as themselves and typed into
+            // where they stand, which is all a run of words in a document ever is.
+            if (said.Meant && Labelled(meant)?.Words() is { } worked)
+            {
+                node.Said = worked;
+                node.SaidHole = worked.Hole();
+            }
+            else if (drawn is not null)
+            {
+                var label = drawn.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label);
+                var name = drawn.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
+
+                node.Said = label.Words() ?? name.Words();
+                node.SaidHole = (label ?? name)?.Hole();
+            }
+            else if (meant is not null)
+            {
+                // A node no line wrote, which its metadata made: the id it names there is the whole of what is written of it.
+                node.Said = meant.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == FlowchartRoles.Id);
+                node.SaidHole = node.Said.Hole();
+            }
+
+
+
+            if (meant?.Node is FlowchartMetadataNode { Picture: { } picture } && Pictured(meant) is { } shown)
+                node.Picture = new Picture(shown, picture);
+
+            return node;
+        }
+
+        /// <summary>What the <c>label:</c> — or the <c>title:</c> — of an <c>id@{ … }</c> line is set to, where it sets one.</summary>
+        private ContentPart? Labelled(ContentPart? meant) =>
+            meant?.Inner(MermaidKinds.Properties) is { } properties ? Set(properties, "label") ?? Set(properties, "title") : null;
+
+        /// <summary>One connection: drawn as the link that wrote it, and styled as the <c>linkStyle</c> lines numbering it asked.</summary>
+        private Link Joined(ContentPart entry, FlowchartGraphLink said, ContentPart written)
+        {
+            var says = written.Children.FirstOrDefault(child => child.Kind is MermaidKinds.Label or MermaidKinds.Quoted or FlowchartKinds.Saying);
+            var drawn = MermaidLinks.Of(written.Children.FirstOrDefault(child => child.Role == FlowchartRoles.Arrow)?.Text);
+
+            return new Link(written,
+                            entry.Part(FlowchartRoles.From)?.Text ?? string.Empty,
+                            entry.Part(FlowchartRoles.To)?.Text ?? string.Empty,
+                            says.Words(), drawn.Start, drawn.End, drawn.Style, drawn.Span, Links.Count)
+            {
+                SaidHole = says?.Hole(),
+                Written = said.Style,
+                Curve = said.Curve,
+            };
+        }
+
+        /// <summary>The <c>img:</c> or <c>icon:</c> line a node is named a picture on, which a found picture is hung on.</summary>
+        private static ContentPart? Pictured(ContentPart meant)
+        {
+            var properties = meant.Inner(MermaidKinds.Properties);
+
+            if ((Set(properties, "img") ?? Set(properties, "icon")) is not { } named) return null;
+
+            return named.Parent is { Kind: MermaidKinds.Icon } icon ? icon.Parent : named.Parent;
         }
 
         /// <summary>A subgraph, and the box it makes: what it is called, and what is written at the top of it.</summary>
@@ -260,111 +364,6 @@ internal partial class FlowchartBuilder
 
             Groups.Add(group);
             return group;
-        }
-
-        /// <summary>The nodes a line writes, and every join its links make as their stage said.</summary>
-        private void Laid(ContentPart stated, string? group)
-        {
-            foreach (var piece in stated.Children)
-            {
-                // A node naming a subgraph is that subgraph, which a link joins as the box it is.
-                if (piece is { Kind: FlowchartKinds.Node } && piece.Node is not GroupReferenceNode) Gathered(piece, group);
-
-                if (piece.Node is not FlowchartLinkNode linked) continue;
-
-                var said = piece.Children.FirstOrDefault(child => child.Kind is MermaidKinds.Label or MermaidKinds.Quoted or FlowchartKinds.Saying);
-                var drawn = MermaidLinks.Of(piece.Children.FirstOrDefault(child => child.Role == FlowchartRoles.Arrow)?.Text);
-
-                foreach (var join in linked.Joins)
-                    Links.Add(new Link(piece, join.From, join.To, said.Words(), drawn.Start, drawn.End, drawn.Style, drawn.Span, Links.Count)
-                    {
-                        SaidHole = said?.Hole(),
-                        Written = join.Style,
-                        Curve = linked.Curve,
-                    });
-            }
-        }
-
-        /// <summary>
-        /// Takes a node into the chart — unless its id is already written, in which case this is that same node said again: what it
-        /// says now is kept, and no second node is made for it.
-        /// </summary>
-        private void Gathered(ContentPart piece, string? group)
-        {
-            var name = piece.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name);
-            var label = piece.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Label);
-            var id = name.Words()?.Text ?? string.Empty;
-
-            if (id.Length > 0 && known.TryGetValue(id, out var already))
-            {
-                if (label.Words() is not null)
-                {
-                    already.Said = label.Words();
-                    already.SaidHole = label.Hole();
-                }
-
-                if (MermaidShapes.Of(piece) != MermaidShape.None) already.Shape = MermaidShapes.Of(piece);
-
-                // A node written outside every subgraph and again inside one goes into that one — which is how Mermaid reads it, and
-                // how a node linked to before its subgraph is opened is put in one at all. One already in a subgraph stays in the first.
-                already.Group ??= group;
-                return;
-            }
-
-            var made = new Node(piece, id)
-            {
-                Group = group,
-                Shape = MermaidShapes.Of(piece),
-                Said = label.Words() ?? name.Words(),
-                SaidHole = (label ?? name)?.Hole(),
-            };
-
-            if (id.Length > 0) known[id] = made;
-            Nodes.Add(made);
-        }
-
-        /// <summary>What a <c>click</c> line says about the node it names, where that is written above it.</summary>
-        private void Clicked(ContentPart stated)
-        {
-            if (Words(stated, FlowchartRoles.Id) is not { Length: > 0 } id || !known.TryGetValue(id, out var node)) return;
-
-            // Not the address: a stage has already hung that on the node this line names, so the node itself says where it
-            // leads and nothing has to carry a second copy of it (ResolveDestinations).
-            node.Tip = Words(stated, FlowchartRoles.Tip) ?? node.Tip;
-        }
-
-        /// <summary>
-        /// What the <c>id@{ … }</c> lines say of the nodes they are about, as their stage said, once every node is read — one may
-        /// name a node written below it. One about nothing written makes the node it names.
-        /// </summary>
-        private void Metadata()
-        {
-            foreach (var (stated, group) in said)
-            {
-                if (stated.Node is not FlowchartMetadataNode { About: FlowchartSaid.Node or FlowchartSaid.New } meant) continue;
-                if (stated.SelfAndDescendants().FirstOrDefault(part => part.Kind == Kinds.Words && part.Role == FlowchartRoles.Id) is not { Length: > 0 } name) continue;
-
-                if (!known.TryGetValue(name.Text, out var node))
-                {
-                    node = new Node(stated, name.Text) { Group = group, Said = name, SaidHole = name.Hole() };
-                    known[name.Text] = node;
-                    Nodes.Add(node);
-                }
-
-                var properties = stated.Inner(MermaidKinds.Properties);
-
-                if (meant.Shape is { } shape) node.Shape = shape;
-
-                if (meant.Picture is { } picture && (Set(properties, "img") ?? Set(properties, "icon")) is { } named
-                    && (named.Parent is { Kind: MermaidKinds.Icon } icon ? icon.Parent : named.Parent) is { } written)
-                    node.Picture = new Picture(written, picture);
-
-                if (meant.Label is { } worked)
-                {
-                    node.Worked = worked;
-                    node.WorkedPart = Set(properties, "label") ?? Set(properties, "title");
-                }
-            }
         }
 
         /// <summary>What each node and each subgraph is styled with, as the stages said on the name first writing it.</summary>

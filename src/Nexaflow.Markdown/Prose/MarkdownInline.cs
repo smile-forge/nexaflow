@@ -96,7 +96,7 @@ public static class MarkdownInline
             // An address written bare is a link to itself just as one in angle brackets is.
             case AutolinkInline:
             case LinkInline { IsAutoLink: true }:
-                return Wrapped(read, end, MarkdownKinds.Link, MarkdownKinds.Word, Roles.Destination);
+                return Wrapped(read, end, Kinds.Link, MarkdownKinds.Word, Roles.Destination);
 
             case TaskList task:
                 return Task(read, end, task.Checked);
@@ -287,7 +287,7 @@ public static class MarkdownInline
         EmphasisInline emphasis => Emphasised(emphasis),
         CodeInline => MarkdownKinds.Code,
         LinkInline { IsImage: true } => MarkdownKinds.Image,
-        LinkInline or AutolinkInline => MarkdownKinds.Link,
+        LinkInline or AutolinkInline => Kinds.Link,
         LineBreakInline => MarkdownKinds.Break,
         HtmlEntityInline => MarkdownKinds.Entity,
         HtmlInline => MarkdownKinds.Html,

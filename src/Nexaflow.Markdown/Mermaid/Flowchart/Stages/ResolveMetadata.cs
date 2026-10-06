@@ -69,8 +69,8 @@ public sealed class ResolveMetadata : IAstStage
 
             meant[line] = new FlowchartMetadataNode(
                 line, about,
-                Set(properties, "shape") is { } shape ? MermaidShapes.Named(shape.Text) ?? MermaidShape.Rectangle : null,
-                label is null ? null : MermaidText.Decode(MermaidText.Bare(label.Text)),
+                Set(properties, "shape") is { } shape ? MermaidShapes.Named(Characters(shape)) ?? MermaidShape.Rectangle : null,
+                label is null ? null : MermaidText.Decode(Characters(label)),
                 Pictured(properties));
         }
 
@@ -92,6 +92,15 @@ public sealed class ResolveMetadata : IAstStage
             .Select(property => Role(property, MermaidRoles.Value) is { Kind: MermaidKinds.Icon } icon ? Role(icon, MermaidRoles.Value) : Role(property, MermaidRoles.Value))
             .FirstOrDefault(value => value is { Width: > 0 });
 
+    /// <summary>
+    /// What a property is set to, as the characters a reader wrote: the words between its quotes, or the whole of a value written
+    /// without any. The quotes round a value are its own, so what it is set to is what stands between them.
+    /// </summary>
+    internal static string Characters(ContentNode? value) =>
+        value is null ? string.Empty
+        : value.Kind == MermaidKinds.Quoted ? value.Words()?.Text ?? string.Empty
+        : MermaidText.Bare(value.Text);
+
     /// <summary>The picture or icon some metadata names, and how it is asked to be drawn — or null where it names neither.</summary>
     private static FlowchartPicture? Pictured(ContentNode? properties)
     {
@@ -104,7 +113,7 @@ public sealed class ResolveMetadata : IAstStage
                                     Measured(Set(properties, "w")), Measured(Set(properties, "h")),
                                     string.Equals(Bared(Set(properties, "constraint")), "on", StringComparison.OrdinalIgnoreCase));
 
-        static string? Bared(ContentNode? value) => value is null ? null : MermaidText.Bare(value.Text).Trim();
+        static string? Bared(ContentNode? value) => value is null ? null : Characters(value).Trim();
 
         static double? Measured(ContentNode? value) => MermaidNumber.Read(Bared(value)) is { } size && size > 0 ? size : null;
     }

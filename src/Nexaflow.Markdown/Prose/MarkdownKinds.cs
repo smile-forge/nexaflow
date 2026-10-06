@@ -111,9 +111,6 @@ public static class MarkdownKinds
     /// <summary><c>$x^2$</c> — a formula written in the middle of a sentence, set on the line it was written on.</summary>
     public const string Formula = "formula";
 
-    /// <summary><c>[words](where)</c>, and the bracketed and bare URL forms.</summary>
-    public const string Link = "link";
-
     /// <summary><c>![words](where)</c>.</summary>
     public const string Image = "image";
 

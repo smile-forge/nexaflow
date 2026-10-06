@@ -372,8 +372,6 @@ internal partial class FlowchartBuilder : MermaidBuilder
     {
         var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
 
-        if (node.Worked is { Length: > 0 } worked) return [Worked(worked, node.WorkedPart, TextSize, ink)];
-
         return node.Said is null && node.SaidHole is null ? [] : Wrapped(node.Said, node.SaidHole, TextSize, ink, widest);
     }
 

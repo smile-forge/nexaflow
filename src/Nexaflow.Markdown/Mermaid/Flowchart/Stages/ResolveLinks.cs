@@ -44,7 +44,7 @@ public sealed class ResolveLinks : IAstStage
 
                 case FlowchartKinds.Said:
                     if (ResolveMetadata.Id(node) is { Length: > 0 } id && ResolveMetadata.Set(node.Inner(MermaidKinds.Properties), "curve") is { } curve)
-                        curves[id] = curve.Text;
+                        curves[id] = ResolveMetadata.Characters(curve);
                     break;
             }
         }

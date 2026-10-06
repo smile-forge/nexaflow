@@ -135,7 +135,7 @@ public sealed partial class MarkdownBuilder
                 Pictured(part, face, runs);
                 return;
 
-            case MarkdownKinds.Link:
+            case Kinds.Link:
                 Linked(part, face, runs);
                 return;
 
@@ -213,7 +213,7 @@ public sealed partial class MarkdownBuilder
         {
             if (holder.Children.LastOrDefault(child => !child.Derived && child.Length > 0) != at) return false;
             if (holder.Kind is not (Kinds.Words or MarkdownKinds.Emphasis or MarkdownKinds.Strong or MarkdownKinds.Strike
-                                    or MarkdownKinds.Mark or MarkdownKinds.Insert or MarkdownKinds.Link))
+                                    or MarkdownKinds.Mark or MarkdownKinds.Insert or Kinds.Link))
                 return true;
         }
 

@@ -460,39 +460,18 @@ public sealed partial class ContentEngine
     /// A press on something that leads somewhere: the language it was written in has first say, and failing that whoever hosts the
     /// content, which is the only thing that can leave the content at all. A place within the same content never reaches here —
     /// <see cref="Anchored"/> scrolls to it before this is asked.
+    ///
+    /// <para>
+    /// Where it leads is what was drawn for it, which is what whoever drew it read off the tree — a link's address in prose, a
+    /// chart's own reading of where one of its nodes leads. One link inside another's words answers for itself, because the run
+    /// drawn for it carries its own.
+    /// </para>
     /// </summary>
     private bool Followed(LayoutAct act)
     {
-    if (Leads(act.Piece) is not { Length: > 0 } where) return false;
+        if (act.Intent.Target is not { Length: > 0 } where) return false;
         if (Choose(LayoutVerbs.Navigate, act.At)) return true;
 
         return Uri.TryCreate(where, UriKind.Absolute, out _) && this.Events?.OnNavigate(where) == true;
-    }
-
-    /// <summary>
-    /// Where what was pressed leads: from the part the piece was drawn from, up the syntax tree to the first thing that says a
-    /// destination (<see cref="Roles.Destination"/>). Null where nothing above it leads anywhere.
-    ///
-    /// <para>
-    /// Up the tree and not up the layout, because a link's words are drawn from what is inside it — its body's runs, each pressed
-    /// on its own — while the address is the link's. And asked of the tree rather than of what the piece carries, so a link is a
-    /// link in every language the same way: a builder pinning an address to a piece is saying how to draw it, and what the reader
-    /// wrote is what the tree says.
-    /// </para>
-    /// </summary>
-    private static string? Leads(Piece piece)
-    {
-        for (var at = piece; at.Exists; at = at.Parent)
-        {
-            if (at.Part is not ContentPart part) continue;
-
-            // The innermost thing that leads somewhere wins, so a link inside a link's words is its own.
-            for (var up = part; up is not null; up = up.Parent)
-                if (MarkdownLinks.Goes(up.Node) is { Length: > 0 } where) return where;
-
-            return null;
-        }
-
-        return null;
     }
 }
