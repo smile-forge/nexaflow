@@ -104,7 +104,7 @@ public class FoldingDiagramTests
     [TestMethod]
     public void PickingOutASuppliedNodeSaysWhichNode() => UiThread.Run(() =>
     {
-        var surface = Shown(Src + "\n  {{More}}", host => host.DiagramData = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
+        var surface = Shown(Src + "\n  {{More}}", host => host.DataSource = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
 
         ContentSelectionChange? told = null;
         surface.Selected += (_, e) => told = e.Change;

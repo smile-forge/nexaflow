@@ -119,15 +119,6 @@ public sealed partial class MarkdownSurface
         remove => RemoveHandler(DroppingEvent, value);
     }
 
-    /// <summary>Asks for <paramref name="copy"/> to be put on the clipboard. True where somebody did.</summary>
-    public bool Copy(MarkdownClipboard.ContentCopy copy)
-    {
-        var asked = new ContentCopyingEventArgs(CopyingEvent, copy);
-        RaiseEvent(asked);
-
-        return asked.Handled;
-    }
-
     /// <summary>
     /// Asks for what is chosen to be put on the clipboard — the whole of it, where nothing is — and says whether it was. What
     /// a copy holds is the engine's to say, because what is chosen and the language it is written in are both its.
@@ -140,7 +131,13 @@ public sealed partial class MarkdownSurface
     // ── What the engine asks of this ────────────────────────────────────────
 
     /// <inheritdoc/>
-    bool IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy) => Copy(copy);
+    bool IContentEvents.OnCopy(MarkdownClipboard.ContentCopy copy)
+    {
+        var asked = new ContentCopyingEventArgs(CopyingEvent, copy);
+        RaiseEvent(asked);
+
+        return asked.Handled;
+    }
 
     /// <inheritdoc/>
     (string Words, string Markdown)? IContentEvents.OnPaste()
@@ -152,7 +149,7 @@ public sealed partial class MarkdownSurface
     }
 
     /// <inheritdoc/>
-    BitmapSource? IContentEvents.OnPicture(ContentPart block) => Picture(block, Background);
+    BitmapSource? IContentEvents.OnPicture(ContentPart block) => CapturePicture(block, Background);
 
     /// <inheritdoc/>
     bool IContentEvents.OnBlockSave(ContentPart block)

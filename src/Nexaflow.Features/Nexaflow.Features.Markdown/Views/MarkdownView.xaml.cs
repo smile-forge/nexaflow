@@ -86,7 +86,7 @@ public partial class MarkdownView : UserControl, IPageView
     /// </summary>
     private void OnBlockSaving(object? sender, ContentBlockSavingEventArgs e)
     {
-        if (e.Handled || Editor.Picture(e.Block, Ground) is not { } picture) return;
+        if (e.Handled || Editor.CapturePicture(e.Block, Ground) is not { } picture) return;
 
         _ = ViewModel.SavePictureAsync(Png(picture), ContentNested.Language(e.Block));
 

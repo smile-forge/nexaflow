@@ -338,5 +338,5 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public Cursor? PointerCursor(Point at) => Element.PointerCursor(at);
 
     /// <summary>A picture of the block as it is on the page.</summary>
-    public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.Picture(Holder, ground);
+    public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.CapturePicture(Holder, ground);
 }

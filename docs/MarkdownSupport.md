@@ -1000,7 +1000,7 @@ mechanism.
 ### Bound words (every diagram on the shared tree)
 
 Anywhere a diagram draws words somebody wrote, a `{{…}}` in them is read against whatever the host handed the
-renderer (`MarkdownSurface.DiagramData` → `ContentInputs.Data` →
+renderer (`MarkdownSurface.DataSource` → `ContentInputs.Data` →
 [`IDataContext`](../src/Nexaflow.Markdown/Binding/IDataContext.cs)):
 
 ```

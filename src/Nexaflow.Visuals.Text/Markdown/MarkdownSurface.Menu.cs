@@ -26,7 +26,7 @@ public sealed partial class MarkdownSurface
         base.OnMouseRightButtonUp(e);
         if (e.Handled) return;
 
-        e.Handled = ShowRibbon(e.GetPosition(_shown));
+        e.Handled = ShowContextRibbon(e.GetPosition(_shown));
     }
 
     /// <summary>
@@ -34,7 +34,7 @@ public sealed partial class MarkdownSurface
     /// anything. A press outside what is picked out puts the caret where it landed first, which is what every editor does:
     /// a reader right-clicking a word means that word.
     /// </summary>
-    public bool ShowRibbon(Point at)
+    private bool ShowContextRibbon(Point at)
     {
         Focus();
 

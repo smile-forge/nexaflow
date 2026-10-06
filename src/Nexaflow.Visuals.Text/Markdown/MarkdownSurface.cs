@@ -278,7 +278,7 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
     private Func<string, string, LinkLook?>? _links;
 
     /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
-    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
+    public Nexaflow.Markdown.Binding.IDataContext? DataSource { get => _data; set { _data = value; Hosted(); } }
 
     private Nexaflow.Markdown.Binding.IDataContext? _data;
 
@@ -437,30 +437,11 @@ public sealed partial class MarkdownSurface : UserControl, IContentEvents
 
     // ── What a block offers ─────────────────────────────────────────────────
 
-    /// <summary>The block of the document an offset is in — the whole of it, where it is content in one language.</summary>
-    private ContentPart? Blocked(int offset) => _engine.Blocked(offset);
-
-    /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds.</summary>
-    public IReadOnlyList<LayoutIntent> Corner(Point at) => _engine.Offers(at);
-
-    /// <summary>
-    /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — what two presses on a
-    /// block do. It is drawn again once the caret leaves it.
-    /// </summary>
-    /// <returns>Whether it did: not where the document is only read, and not in a block already shown as written.</returns>
-    public bool OpenAsWritten(Point at) => _engine.OpenAsWritten(at);
-
-    /// <summary>
-    /// What a corner button means for the block at <paramref name="at"/>: copying it is asked of whoever holds the clipboard, and
-    /// anything else goes to the host with the block it was pressed on.
-    /// </summary>
-    public void Raise(LayoutIntent offer, Point at) => _engine.Raise(offer, at);
-
     /// <summary>
     /// A picture of one block as it is on the page, for a host keeping one of what a corner button was pressed on —
     /// painted from the page's own tree, cut to where the block came out, so nothing is read again to make it.
     /// </summary>
-    public System.Windows.Media.Imaging.BitmapSource? Picture(ContentPart block, Brush? ground = null)
+    public System.Windows.Media.Imaging.BitmapSource? CapturePicture(ContentPart block, Brush? ground = null)
     {
         var box = _engine.Where(block);
         if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) return null;
