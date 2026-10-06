@@ -188,81 +188,11 @@ public sealed partial class ContentEngine
     }
 
     /// <summary>
-    /// What a key aimed at the caret comes to in a language that is written in only inside its runs of words
-    /// (<see cref="IContentLanguage.TakesTextOnlyInWords"/>) — and null for every other language, which leaves the key to do
-    /// what it does to the characters.
-    ///
-    /// <para>
-    /// Three of them are refused, because what the caret is written in cannot hold what they would do. A key taking back the
-    /// character before its start, or after its end, would take the syntax that makes it what it is: the quote that opens it,
-    /// the bracket that closes it, the comma before the next thing. A line break cannot go in one at all — where a diagram
-    /// wants Enter to mean something, that is its own handler's to say, and this runs only where it said nothing.
-    /// </para>
-    /// <para>
-    /// What is left is text going in, and it goes in as the reader meant it
-    /// (<see cref="ContentWrite.Words(ContentPart, int, int, string)"/>): the language's parser is given it and makes it safe for
-    /// that run before it is written, and writes nothing where it cannot be. That is the whole of the default — the language
-    /// spells it, and the engine only says where.
-    /// </para>
+    /// What a key comes to where the language it landed in said nothing — the ordinary answer, where that language takes text only
+    /// in a run of words. A language that answers for its own keys is asked first and may ask for this itself.
     /// </summary>
-    private static ContentChange? Ordinary(ContentEdit edit, ContentLanguage? language)
-    {
-        if (language is not { Editing.TakesTextOnlyInWords: true }) return null;
-
-        var state = edit.State;
-        if (state.HasSelection || edit.Kind is not (EditKind.Typing or EditKind.Settling or EditKind.Breaking
-                                                    or EditKind.Erasing or EditKind.Deleting)) return null;
-
-        // Written in nothing this knows about: an identifier, a date, a setting. Each has a rule of its own and none of them
-        // is here, so the key does what it did before anything here had an answer.
-        if (Written(edit) is not { } words) return null;
-
-        var caret = state.Caret;
-        var breaking = edit.Kind is EditKind.Breaking || (edit.Kind is EditKind.Settling && edit.Text == "\n");
-
-        // Nothing is written in it, so a key taking a character back cannot be taking one of its own — and what an empty
-        // thing does when a reader backs into it is that diagram's business, not this one's.
-        var holds = words.Length > 0;
-
-        if (breaking
-            || (holds && edit.Kind is EditKind.Erasing && caret <= words.Start)
-            || (holds && edit.Kind is EditKind.Deleting && caret >= words.End)) return ContentChange.Stay(state);
-
-        // Inside the run, so the character taken is one of its own.
-        if (edit.Kind is EditKind.Erasing) return ContentChange.Write(caret - 1, 1, string.Empty, caret - 1);
-        if (edit.Kind is EditKind.Deleting) return ContentChange.Write(caret, 1, string.Empty, caret);
-
-        return new ContentChange([ContentWrite.Words(words, caret, 0, edit.Text)], caret + edit.Text.Length, state.Raw);
-    }
-
-    /// <summary>
-    /// What the caret is written in — a run of words or a number — or null.
-    ///
-    /// <para>
-    /// Asked of the tree and not of the layout, which is the only place the question has an answer. A layout is a picture of
-    /// what the source meant: it draws a piece for a connector and a rule as readily as for a word, gives each of them a stop
-    /// the caret can rest at, and is allowed to draw a piece from nothing written at all. What was written where the caret is
-    /// standing is a fact about the source, and the tree is what holds the source.
-    /// </para>
-    /// <para>
-    /// Innermost, because these nest: a name inside a label inside a line. The shortest one holding the caret is the one a
-    /// reader is writing in.
-    /// </para>
-    /// </summary>
-    private static ContentPart? Written(ContentEdit edit)
-    {
-        ContentPart? found = null;
-        var caret = edit.State.Caret;
-
-        foreach (var part in edit.Root.SelfAndDescendants())
-        {
-            if (part.Kind is not (Kinds.Words or Kinds.Number) || part.Derived || part.Supplied) continue;
-            if (caret < part.Start || caret > part.End) continue;
-            if (found is null || part.Length < found.Length) found = part;
-        }
-
-        return found;
-    }
+    private static ContentChange? Ordinary(ContentEdit edit, ContentLanguage? language) =>
+        language is { Editing.TakesTextOnlyInWords: true } ? OrdinaryEdits.Keyed(edit) : null;
 
     /// <summary>
     /// The first part on the way up from the caret — up the layout, and up each part's own tree — holding content in another

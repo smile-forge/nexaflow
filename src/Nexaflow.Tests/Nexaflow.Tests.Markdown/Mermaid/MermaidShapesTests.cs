@@ -84,4 +84,22 @@ public class MermaidShapesTests
         Assert.AreEqual(names.Length, shapes.Distinct().Count(), "no two names are drawn the same");
         CollectionAssert.AreEquivalent(Enum.GetValues<MermaidShape>().Except([MermaidShape.None]).ToArray(), shapes.ToArray());
     }
+
+    /// <summary>
+    /// What a shape is written by reads back as that shape, for every shape there is. The two tables are written out separately —
+    /// one name to read a shape from, one shape to write a name by — so nothing but this says they agree.
+    /// </summary>
+    [TestMethod]
+    public void EveryShapeIsWrittenByANameThatReadsBackAsThatShape()
+    {
+        foreach (var shape in Enum.GetValues<MermaidShape>().Where(shape => shape != MermaidShape.None))
+        {
+            var written = MermaidShapes.Wording(shape);
+
+            Assert.IsNotNull(written, $"{shape} is a shape, so it has a name to be written by");
+            Assert.AreEqual(shape, MermaidShapes.Named(written), $"{shape} is written '{written}'");
+        }
+
+        Assert.IsNull(MermaidShapes.Wording(MermaidShape.None), "and no shape is no name to write");
+    }
 }

@@ -61,10 +61,17 @@ internal static partial class DiagramShapes
     /// </summary>
     private static Brush? Filled(DiagramShape shape, Brush? fill, DiagramStroke? stroke) => shape switch
     {
-        DiagramShape.FilledCircle or DiagramShape.Fork => stroke?.Ink ?? fill,
+        _ when DrawnSolid(shape) => stroke?.Ink ?? fill,
         DiagramShape.Brace or DiagramShape.BraceRight or DiagramShape.Braces => null,
         _ => fill,
     };
+
+    /// <summary>
+    /// Whether a shape is drawn solid — filled in the ink its outline is drawn in rather than in whatever fills a node. A junction
+    /// and a fork are marks rather than boxes: Mermaid draws them as a dot and a bar, and neither has anything written on it, so
+    /// the only thing telling one from a hollow mark the same size is that it is filled in.
+    /// </summary>
+    public static bool DrawnSolid(DiagramShape shape) => shape is DiagramShape.FilledCircle or DiagramShape.Fork;
 
     /// <summary>Whether what a shape draws inside its outline is filled in its ink — a framed circle's dot.</summary>
     private static bool Dotted(DiagramShape shape) => shape == DiagramShape.FramedCircle;
