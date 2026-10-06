@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Requirement;
 using Nexaflow.Visuals.Text.Editing;
@@ -345,7 +346,7 @@ internal sealed class RequirementBuilder : MermaidBuilder
         /// <summary>What a field is set to: its words, or the one of a few words a risk and a verification method may be.</summary>
         private static ContentPart? Valued(ContentPart? value) =>
             value?.SelfAndDescendants().FirstOrDefault(inner => inner.Role == RequirementRoles.Value
-                                                                && inner.Kind is MermaidKinds.Words or MermaidKinds.Setting);
+                                                                && inner.Kind is Kinds.Words or MermaidKinds.Setting);
 
         private static ContentPart? Piece(ContentPart part, string kind, string role) =>
             part.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == kind && inner.Role == role);

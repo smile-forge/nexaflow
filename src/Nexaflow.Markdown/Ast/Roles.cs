@@ -89,6 +89,18 @@ public static class Roles
     /// <see cref="Derived"/> part, so it is found by asking the tree when the pointer arrives and is never laid out.
     /// </summary>
     public const string Tip = "tip";
+
+    /// <summary>
+    /// Where the thing holding this leads: a link's address, wherever a language lets a reader write one — a markdown link's
+    /// target, a Mermaid <c>click</c> line's <c>href</c>.
+    ///
+    /// <para>
+    /// Shared, because following a link is the engine's and not a language's: it has to know that a press on something means
+    /// going somewhere without knowing which language wrote it, and the layout cannot answer — a piece says what it was drawn
+    /// for, not what it stands over. Every language that lets a reader write an address marks it with this.
+    /// </para>
+    /// </summary>
+    public const string Destination = "destination";
 }
 
 /// <summary>
@@ -104,6 +116,44 @@ public static class Kinds
 
     /// <summary>One ordinary character of content.</summary>
     public const string Char = "char";
+
+    /// <summary>
+    /// A run of text a reader writes in: what a label, a title, a name or a lyric says, without the quotes or brackets
+    /// around it.
+    ///
+    /// <para>
+    /// Shared because the engine has to ask it. What a key means where nothing is written is the same question in every
+    /// language, and the layout cannot answer it — a layout is a picture of what the source meant, and every piece of one
+    /// offers the caret a stop. So a language says which of its pieces are runs of text, and the engine does the rest.
+    /// </para>
+    /// <para>
+    /// Not a value. A number, a date, a setting and an identifier are written in too, and each has its own rule about what
+    /// may go in it; this is the kind whose only rule is that it holds words.
+    /// </para>
+    /// </summary>
+    public const string Words = "words";
+
+    /// <summary>
+    /// A number as it was written: an amount, a share, a count, a figure of a meter.
+    ///
+    /// <para>
+    /// Written in as a run of words is, and by a rule of the language's rather than one of its own: what may go in a number
+    /// is digits and whatever that language writes between them, and the point a reader of one language types is the comma
+    /// a reader of another does. So what was typed is offered, and the language's parser is the judge of whether it goes in.
+    /// </para>
+    /// </summary>
+    public const string Number = "number";
+
+    /// <summary>
+    /// Something that leads somewhere: what it says, and where it goes (<see cref="Roles.Destination"/>).
+    ///
+    /// <para>
+    /// Shared for the reason the role is. A press on a link means leaving for somewhere, which the engine answers without
+    /// knowing the language that wrote it — so it asks the tree what was pressed and finds a link the same way in prose, on a
+    /// chart's node, in a diagram's box. Every language that lets a reader write one marks it with this.
+    /// </para>
+    /// </summary>
+    public const string Link = "link";
 
     /// <summary>A character that is machinery rather than content.</summary>
     public const string Token = "token";

@@ -40,6 +40,7 @@ using Nexaflow.Markdown.WordCloud.Stages;
 using System.Linq;
 using Nexaflow.Syntax;
 using Nexaflow.Icons;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Languages;
 
@@ -107,16 +108,22 @@ internal static class Shipped
     {
         var (name, icon, block) = Starting(diagram);
 
+        // A chart reads its own source: a label written between quotes runs to its closing quote wherever that stands, which
+        // nothing handed its lines one at a time can see. Every other diagram is read by the shared reader.
+        var chart = diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane;
+
         return new(
             Reads: word => !string.IsNullOrWhiteSpace(word) && MermaidDiagrams.Named(word.Trim()) == diagram,
-            Parser: static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
+            Parser: chart
+                ? static () => static source => ContentParse.Of(Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser.Parse(source))
+                : static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
             Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
             Builder: builder)
             {
                 Writable = true,
-                Editing = DiagramEdits.For(diagram) is IContentLanguage own ? own : new EditedBy(DiagramEdits.For(diagram)),
+                Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
-                SafeFormatText = MermaidParser.SafeFormatText,
+                Transpile = chart ? Transpiles.By<Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser>() : Transpiles.By<MermaidParser>(),
                 DisplayName = name,
                 Icon = icon,
                 DefaultBlock = block,
@@ -474,6 +481,9 @@ internal static class Shipped
         Stages: static (tree, show) => AbcPipeline.Of(Editing(show.Own(tree.Width))).Stages,
         Builder: typeof(AbcBuilder))
             {
+                Writable = true,
+                Editing = AbcEdits.Instance,
+                Transpile = Transpiles.By<AbcParser>(),
                 DisplayName = "Tune (ABC)",
                 Icon = IconRef.Fluent("music_note_1"),
                 DefaultBlock = """

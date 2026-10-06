@@ -38,7 +38,7 @@ public static class MarkdownInline
     public static ContentNode Read(string? source, MarkdownPipeline? pipeline = null, string? besides = null)
     {
         var text = source ?? string.Empty;
-        if (text.Length == 0) return ContentNode.Branch(MarkdownKinds.Words, []);
+        if (text.Length == 0) return ContentNode.Branch(Kinds.Words, []);
 
         var read = new Cut(text);
         var parts = new List<ContentNode>();
@@ -56,7 +56,7 @@ public static class MarkdownInline
 
         read.Gap(parts, read.Length);
 
-        return MarkdownParser.Checked(MarkdownKinds.Words, parts, text, Roles.Element);
+        return MarkdownParser.Checked(Kinds.Words, parts, text, Roles.Element);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public static class MarkdownInline
             // An address written bare is a link to itself just as one in angle brackets is.
             case AutolinkInline:
             case LinkInline { IsAutoLink: true }:
-                return Wrapped(read, end, MarkdownKinds.Link, MarkdownKinds.Word, MarkdownRoles.Destination);
+                return Wrapped(read, end, Kinds.Link, MarkdownKinds.Word, Roles.Destination);
 
             case TaskList task:
                 return Task(read, end, task.Checked);
@@ -143,7 +143,7 @@ public static class MarkdownInline
                     body.RemoveAt(0);
                 }
 
-                parts.Add(ContentNode.Branch(MarkdownKinds.Words, body, Roles.Body));
+                parts.Add(ContentNode.Branch(Kinds.Words, body, Roles.Body));
             }
         }
 
@@ -155,7 +155,7 @@ public static class MarkdownInline
 
         // A link naming a definition written elsewhere has no address in its own characters; the definition's is hung on it.
         return inline is LinkInline { Url.Length: > 0 } link && MarkdownLinks.Goes(node) is null
-            ? node.Holding(Kind(inline), MarkdownRoles.Destination, link.Url)
+            ? node.Holding(Kind(inline), Roles.Destination, link.Url)
             : node;
     }
 
@@ -248,7 +248,7 @@ public static class MarkdownInline
             if (link.Url is { Length: > 0 } url && read.Finds(url, end) is { } where)
             {
                 if (where.Before is { } gap) yield return gap;
-                yield return where.Found.As(MarkdownRoles.Destination);
+                yield return where.Found.As(Roles.Destination);
             }
 
             if (link.Title is { Length: > 0 } title && read.Finds(title, end) is { } says)
@@ -287,7 +287,7 @@ public static class MarkdownInline
         EmphasisInline emphasis => Emphasised(emphasis),
         CodeInline => MarkdownKinds.Code,
         LinkInline { IsImage: true } => MarkdownKinds.Image,
-        LinkInline or AutolinkInline => MarkdownKinds.Link,
+        LinkInline or AutolinkInline => Kinds.Link,
         LineBreakInline => MarkdownKinds.Break,
         HtmlEntityInline => MarkdownKinds.Entity,
         HtmlInline => MarkdownKinds.Html,

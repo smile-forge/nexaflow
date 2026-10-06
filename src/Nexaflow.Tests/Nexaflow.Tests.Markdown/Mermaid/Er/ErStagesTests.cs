@@ -17,7 +17,7 @@ public class ErStagesTests
     /// <summary>Each end of a relationship naming a subgraph, by the name written, and which subgraph it names.</summary>
     private static Dictionary<string, int> Joined(string source) =>
         MermaidStaged.Read(source).SelfAndDescendants().OfType<GroupReferenceNode>()
-                     .ToDictionary(named => named.SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Role == ErRoles.Id).Text, named => named.Group);
+                     .ToDictionary(named => named.SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Role == ErRoles.Id).Text, named => named.Group);
 
     /// <summary>What styles each entity, by its name.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>

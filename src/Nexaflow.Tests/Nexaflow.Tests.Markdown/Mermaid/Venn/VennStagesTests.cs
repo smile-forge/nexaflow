@@ -19,7 +19,7 @@ public class VennStagesTests
     /// <summary>What styles each region and item, by what it is known by.</summary>
     private static Dictionary<string, MermaidStyle> Styles(string source) =>
         MermaidStaged.Read(source).SelfAndDescendants().OfType<StyledNode>()
-                     .ToDictionary(node => node.Kind == VennKinds.Region ? node.Said(VennRoles.Key)! : node.Children.First(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)!.Text,
+                     .ToDictionary(node => node.Kind == VennKinds.Region ? node.Said(VennRoles.Key)! : node.Children.First(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)!.Text,
                                    node => node.Style);
 
     [TestMethod]

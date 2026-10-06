@@ -30,6 +30,67 @@ internal sealed class FlowchartLinkNode : ContentNode
     protected override ContentNode Reshaped(ContentNode shape) => new FlowchartLinkNode(shape, this.Joins, this.Curve);
 }
 
+/// <summary>
+/// One node of the chart as its stage leaves it (<see cref="Stages.ResolveChart"/>): what it is called, the shape it is drawn as,
+/// the subgraph it belongs to, and which of the times it is written holds the words drawn on it. It prints as nothing — it stands
+/// for the whole of what a chart's lines say of one node rather than for any of the characters.
+/// </summary>
+internal sealed class FlowchartGraphNode : ContentNode
+{
+    internal FlowchartGraphNode(ContentNode written, string id, MermaidShape shape, string? group, int? mention, bool meant) : base(written)
+    {
+        this.Id = id;
+        this.Shape = shape;
+        this.Group = group;
+        this.Mention = mention;
+        this.Meant = meant;
+    }
+
+    /// <summary>What it is called, which is what a link, a <c>class</c>, a <c>style</c> and a <c>click</c> name it by.</summary>
+    public string Id { get; }
+
+    public MermaidShape Shape { get; }
+
+    /// <summary>The key of the subgraph it was first written in — where it stands among those opened — or null for one outside them all.</summary>
+    public string? Group { get; }
+
+    /// <summary>
+    /// Which mention of it holds the words drawn, counted among the times its id is written, or null where no line wrote it and
+    /// only an <c>id@{ … }</c> line made it. What is drawn stands for those characters, so a press on the words means them.
+    /// </summary>
+    public int? Mention { get; }
+
+    /// <summary>Whether its words came from an <c>id@{ label: … }</c> line rather than from any mention of it.</summary>
+    public bool Meant { get; }
+
+    protected override ContentNode Reshaped(ContentNode shape) =>
+        new FlowchartGraphNode(shape, this.Id, this.Shape, this.Group, this.Mention, this.Meant);
+}
+
+/// <summary>
+/// One connection of the chart as its stage leaves it (<see cref="Stages.ResolveChart"/>): what the <c>linkStyle</c> lines
+/// numbering it ask for it, the curve its metadata asks for, and which written link drew it — one link written between two sets
+/// of nodes draws a connection for every pair, and they are all drawn as those same characters.
+/// </summary>
+internal sealed class FlowchartGraphLink : ContentNode
+{
+    internal FlowchartGraphLink(ContentNode written, MermaidStyle style, string? curve, int drawn) : base(written)
+    {
+        this.Style = style;
+        this.Curve = curve;
+        this.Drawn = drawn;
+    }
+
+    public MermaidStyle Style { get; }
+
+    public string? Curve { get; }
+
+    /// <summary>Where the link that drew it stands among the links written.</summary>
+    public int Drawn { get; }
+
+    protected override ContentNode Reshaped(ContentNode shape) => new FlowchartGraphLink(shape, this.Style, this.Curve, this.Drawn);
+}
+
 /// <summary>What an <c>id@{ … }</c> line is about: a node, a link, a subgraph — or nothing yet written, which it makes a node of.</summary>
 internal enum FlowchartSaid { Node, Link, Group, New }
 

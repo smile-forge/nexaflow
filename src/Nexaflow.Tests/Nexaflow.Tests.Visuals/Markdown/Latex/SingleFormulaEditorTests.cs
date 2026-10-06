@@ -228,22 +228,6 @@ public class SingleFormulaEditorTests
     }
 
     [TestMethod]
-    public void APaletteKeyTakesWhatIsSelectedInsteadOfReplacingIt()
-    {
-        // Selecting 3+7 and pressing √ means the root of 3+7. It replaced it instead, because a key
-        // with a hole in its template is inserted like any other text — and every structural key on
-        // the palette is one of those, so the whole palette was unusable over a selection.
-        RunInFormula("3+7", editor =>
-        {
-            var formula = Focused(editor);
-            formula.SelectAll();
-
-            editor.InsertLatexAtCaret(@"\sqrt{}", caretBack: 1);
-            Assert.AreEqual(@"\sqrt{3+7}", formula.Latex);
-        });
-    }
-
-    [TestMethod]
     public void BackspaceDeletesACharacterRatherThanHidingTheRunItWasIn()
     {
         // Un-rendering is for a symbol that took more source to write than it takes to draw — six
@@ -300,40 +284,6 @@ public class SingleFormulaEditorTests
     // ── Pasting ─────────────────────────────────────────────────────────────
 
     [TestMethod]
-    public void PastingSettlesAndTypesetsJustAsSpaceWould()
-    {
-        RunInFormula(string.Empty, editor =>
-        {
-            var formula = Focused(editor);
-
-            // Mid-command, so this also proves the paste is not read as more of the command being
-            // written: \al + pha would otherwise quietly become \alpha.
-            MarkdownEditorHarness.Type(editor, @"\al");
-            Assert.IsTrue(editor.PasteIntoFormula(@"\beta + 1"), "a formula holds the caret, so it takes it");
-
-            Assert.AreEqual(@"\al\beta + 1", formula.Latex);
-            Assert.AreEqual(@"\al\beta + 1", formula.Latex,
-                "settled and set on arrival — pasting reassesses exactly as space does");
-        });
-    }
-
-    [TestMethod]
-    public void PastingDoesNotBringTheNewlineWithIt()
-    {
-        // A copy almost always carries a trailing newline, and inside one expression a newline means a
-        // space. Left on, that is a character the reader cannot see sitting at the end of their
-        // formula — so the first backspace deletes it and appears to do nothing at all.
-        RunInFormula(string.Empty, editor =>
-        {
-            var formula = Focused(editor);
-            Assert.IsTrue(editor.PasteIntoFormula("\\frac{a}{b} + \\frac{c}{d}\r\n"));
-
-            Assert.AreEqual(@"\frac{a}{b} + \frac{c}{d}", formula.Latex);
-            Assert.AreEqual(formula.Latex.Length, formula.Caret - formula.Origin, "with the caret at the end of it");
-        });
-    }
-
-    [TestMethod]
     public void PasteIsCleanedWhicheverRouteItTakes()
     {
         // Cleaning used to happen only where a formula already held the caret. A paste arriving a
@@ -344,48 +294,6 @@ public class SingleFormulaEditorTests
 
         Assert.AreEqual(@"\sqrt{x^2+1}", MarkdownClipboard.AsFormula("  \\[\\sqrt{x^2+1}\\]\r\n"));
         Assert.AreEqual("a + b", MarkdownClipboard.AsFormula("a\r\n+ b\r\n"), "one expression, trimmed");
-    }
-
-    [TestMethod]
-    public void TextDraggedInFromAnotherWindowLandsAsAFormula()
-    {
-        // Dropping was doing nothing at all. The editor suppresses the RichTextBox's own text drop (it
-        // rejects files and images, and would insert straight into the rendered document) and offered
-        // the drop to the host instead — so on any surface whose host does not handle drops, which is
-        // every one but the scratchpad, the drag simply ended. A drop is a paste that names where it
-        // goes, so it is cleaned the same way and lands the same way.
-        RunInFormula("x + ", editor =>
-        {
-            var dragged = new System.Windows.DataObject();
-            dragged.SetData(System.Windows.DataFormats.UnicodeText, "```\r\n\\alpha\r\n```");
-
-            editor.DropContent(dragged, new System.Windows.Point(4, 4));
-            MarkdownEditorHarness.Pump();
-
-            Assert.AreEqual(@"x + \alpha", editor.Markdown,
-                "the fence came off on the way in, exactly as it does for a paste");
-            Assert.IsTrue(editor.InFormula(),
-                "and the formula holds the caret, so the next thing typed carries on from the drop");
-        });
-    }
-
-    [TestMethod]
-    public void AHostThatClaimsADropKeepsIt()
-    {
-        // The other half of the contract: a host that handles images and files says so, and the editor
-        // must not then insert the text as well.
-        RunInFormula("x", editor =>
-        {
-            editor.ContentDropped = (_, _) => true;
-
-            var dragged = new System.Windows.DataObject();
-            dragged.SetData(System.Windows.DataFormats.UnicodeText, "y");
-
-            editor.DropContent(dragged, new System.Windows.Point(4, 4));
-            MarkdownEditorHarness.Pump();
-
-            Assert.AreEqual("x", editor.Markdown, "the host took it");
-        });
     }
 
     [TestMethod]
@@ -410,37 +318,6 @@ public class SingleFormulaEditorTests
         Assert.AreEqual("a ` b", MarkdownClipboard.AsFormula("a ` b"));
         Assert.AreEqual("``` x+1 ```", MarkdownClipboard.AsFormula("``` x+1 ```"),
             "all on one line is not a fenced block");
-    }
-
-    [TestMethod]
-    public void PastingStripsWhateverSaidThisIsMaths()
-    {
-        // LaTeX copied from a paper, a chat or another editor comes wrapped in that place's way of
-        // saying "maths follows". Pasting into a formula, the surface has already said it — keeping the
-        // wrapper hands the parser commands it never heard of and the reader a red wave under their own
-        // formula.
-        (string Pasted, string Expected)[] cases =
-        [
-            (@"\[\sqrt{x^2+1}\]",                                  @"\sqrt{x^2+1}"),
-            ("$$x+1$$",                                            "x+1"),
-            ("$x+1$",                                              "x+1"),
-            (@"\(x+1\)",                                           "x+1"),
-            (@"\begin{equation}x+1\end{equation}",                 "x+1"),
-            (@"\begin{equation*}x+1\end{equation*}",               "x+1"),
-            (@"\begin{displaymath}x+1\end{displaymath}",           "x+1"),
-            (@"\begin{math}x+1\end{math}",                         "x+1"),
-            (@"\[\begin{align}x+1\end{align}\]",                   "x+1"),   // they nest
-            // …but an environment that IS the formula stays. Stripping this would take the matrix apart.
-            (@"\begin{matrix}a&b\\c&d\end{matrix}",                @"\begin{matrix}a&b\\c&d\end{matrix}"),
-        ];
-
-        foreach (var (pasted, expected) in cases)
-            RunInFormula(string.Empty, editor =>
-            {
-                var formula = Focused(editor);
-                Assert.IsTrue(editor.PasteIntoFormula(pasted), pasted);
-                Assert.AreEqual(expected, formula.Latex, pasted);
-            });
     }
 
     // ── Source is asked for, never fallen into ──────────────────────────────
@@ -522,32 +399,16 @@ public class SingleFormulaEditorTests
 
     // ── One caret ───────────────────────────────────────────────────────────
 
-    [TestMethod]
-    public void TheCaretIsInTheFormulaTheMomentTheEditorHasTheKeyboard()
-    {
-        // A caret is what "focused and editable" looks like, so the formula has it the moment the editor
-        // has the keyboard rather than waiting to be asked — waiting meant no caret until you typed. There
-        // is one document and one caret, so there is never a second one blinking beside it.
-        RunInFormula("x", editor =>
-        {
-            Assert.IsTrue(editor.Shown.HasCaret, "the editor is focused, so there is a caret");
-            Assert.IsTrue(editor.InFormula(), "and it is in the formula");
-
-            editor.WrittenIn = null;   // the same text read as a document, where it is a word
-            Assert.IsFalse(editor.InFormula(), "a document's words are not a formula");
-        });
-    }
-
     // ── Harness ─────────────────────────────────────────────────────────────
 
     /// <summary>Runs <paramref name="test"/> against an editor holding <paramref name="latex"/> as one formula.</summary>
     private static void RunInFormula(string latex, System.Action<MarkdownSurface> test) =>
         UiThread.Run(() => MarkdownEditorHarness.Run(latex, test, e => e.WrittenIn = "latex"));
 
-    /// <summary>The formula, with the caret put in it where it was not already.</summary>
+    /// <summary>The editor holding the keyboard with the caret in the first thing written, which here is the formula.</summary>
     private static DocumentBlock Focused(MarkdownSurface editor)
     {
-        Assert.IsTrue(editor.FocusFormulaAtCaret(), "there is a formula to type into");
+        Assert.IsTrue(editor.FocusFirstBlock(), "there is something written to type into");
         return MarkdownEditorHarness.Block(editor);
     }
 

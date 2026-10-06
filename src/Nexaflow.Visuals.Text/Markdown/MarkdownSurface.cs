@@ -39,7 +39,7 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// written, so that it can be taken back.
 /// </para>
 /// </summary>
-public sealed partial class MarkdownSurface : UserControl, ILayoutActions
+public sealed partial class MarkdownSurface : UserControl, IContentEvents
 {
     private readonly ScrollViewer _scroller;
     private readonly TextBlock _prompt;
@@ -68,8 +68,11 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
         // What the engine says happened, said again to the page.
         _engine.SourceChanged += (_, change) => Written(change);
-        _engine.SelectionChanged += Picked;
+
         _engine.PreRender += Laid;
+
+        // And everything it asks of whatever shows the content, which is this: see IContentEvents.
+        _engine.Events = this;
 
         // Over the document rather than in it, where the first thing written will go, and never in the way of a press.
         _prompt = new TextBlock
@@ -156,9 +159,6 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
 
     /// <summary>The language the content is written in, or null for a document.</summary>
     private string? Named => string.IsNullOrWhiteSpace(WrittenIn) ? null : WrittenIn.Trim();
-
-    /// <summary>Whether the content is a formula, which a palette key types into wherever the caret is.</summary>
-    private bool Maths => Named?.ToLowerInvariant() is "latex" or "math" or "tex";
 
     /// <summary>
     /// Shows the characters written rather than what they draw — for when the drawing itself is the trouble, a formula that
@@ -256,7 +256,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     // ── What the host says ──────────────────────────────────────────────────
 
     /// <summary>What answers the verbs this document raises and does not answer itself — saving a picture, and anything a language offers.</summary>
-    public ILayoutActions? Host { get; set; }
+    public ILayoutActions? Host
+    {
+        get => _host;
+        set { _host = value; _engine.Actions = value; }
+    }
+
+    private ILayoutActions? _host;
 
     /// <summary>The host's say in where a picture comes from, asked before <see cref="BaseDirectory"/>.</summary>
     public Func<string, ImageSource?>? ImageResolver { get => _pictures; set { _pictures = value; Hosted(); } }
@@ -272,24 +278,12 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     private Func<string, string, LinkLook?>? _links;
 
     /// <summary>What a <c>{{…}}</c> written in a diagram is read against. Null leaves one drawn as it was written.</summary>
-    public Nexaflow.Markdown.Binding.IDataContext? DiagramData { get => _data; set { _data = value; Hosted(); } }
+    public Nexaflow.Markdown.Binding.IDataContext? DataSource { get => _data; set { _data = value; Hosted(); } }
 
     private Nexaflow.Markdown.Binding.IDataContext? _data;
 
-    /// <summary>
-    /// The host's say in something dropped here — a picture, a file, a link. True where it took it (usually through
-    /// <see cref="InsertMarkdownAt"/>); false leaves it to be written in as text, so a host can say "not mine".
-    /// </summary>
-    public Func<IDataObject, Point, bool>? ContentDropped { get; set; }
-
-    /// <summary>The same for something pasted: true where the host took it, false leaves it to be written in as text.</summary>
-    public Func<IDataObject, bool>? ContentPasted { get; set; }
-
     /// <summary>The element the document is drawn on — where the caret, what is picked out and the laid tree live.</summary>
     public MarkdownElement Shown => _shown;
-
-    /// <summary>Lays everything out again — what a host calls once what <see cref="DiagramData"/> holds has changed.</summary>
-    public void RefreshDiagrams() => _shown.Refresh();
 
     /// <summary>Forgets what the reader had opened and chosen in every diagram here, and draws them as their sources say.</summary>
     public void ResetDiagramViews()
@@ -375,7 +369,7 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
         _drawnIn = style;
         _engine.Inputs = Asked;
 
-        var element = new MarkdownElement(source, style, this, _engine, Named)
+        var element = new MarkdownElement(source, style, Host, _engine, Named)
         {
             IsReadOnly = IsReadOnly,
             Margin = ContentPadding,
@@ -441,113 +435,13 @@ public sealed partial class MarkdownSurface : UserControl, ILayoutActions
     /// <summary>Scrolls the heading a <c>#anchor</c> link names into view; false where the document has no such heading.</summary>
     public bool ScrollToAnchor(string anchor) => GoTo(ContentPath.Read($"{MarkdownKinds.Heading}:{anchor}"));
 
-    private static bool Leads(string url) => Uri.TryCreate(url, UriKind.Absolute, out _);
-
-    /// <inheritdoc/>
-    bool ILayoutActions.Invoke(LayoutAct act)
-    {
-        // A choice made from the menu closes it, whatever it turned out to be.
-        if (act.Gesture == LayoutGesture.ContextMenu && _ribbon is { IsOpen: true }) _ribbon.IsOpen = false;
-
-        switch (act.Intent.Verb)
-        {
-            case LayoutVerbs.Navigate when act.Intent.Target is { Length: > 0 } where:
-                return Leads(where) && (OpenLink(where) || (Host?.Invoke(act) ?? false));
-
-            case LayoutVerbs.Copy when act.Intent.Target is { } what:
-            return Copy(MarkdownClipboard.Copied(what, null));
-
-            // A corner's copy, pressed on a block: the block as the document writes it, and — where the language says a
-            // picture of it is worth keeping — the picture it draws as well. The same answer that leaves a code fence's Save
-            // button off leaves its picture off here.
-            case LayoutVerbs.Copy when act.Gesture == LayoutGesture.Click && act.Node is { } block:
-            {
-                var copied = MarkdownClipboard.Copied(_shown.Markdown, (block.Start, block.Length));
-
-                return Copy(_engine.KeepsAPicture(block) && Picture(block, Background) is { } drawn
-                                ? copied with { Picture = drawn }
-                                : copied);
-            }
-
-            case LayoutVerbs.Paste:
-                return Paste();
-
-            default:
-                return Diagrammed(act) ?? Host?.Invoke(act) ?? false;
-        }
-    }
-
-    /// <summary>
-    /// A verb a diagram answers for itself — opening a node, folding it, choosing it — answered for the diagram it was raised
-    /// in: found up the layout from the piece pressed, and told that diagram's own state and what the host said about it.
-    /// Null where the verb is not one of those, or was raised in no diagram.
-    /// </summary>
-    private bool? Diagrammed(LayoutAct act)
-    {
-        if (act.Intent.Verb is not (LayoutVerbs.Expand or LayoutVerbs.Collapse)) return null;
-
-        for (var piece = act.Piece; piece.Exists; piece = piece.Parent)
-        {
-            if (piece.Part is not ContentPart part || ContentLanguages.Held(part) is null) continue;
-
-            return Folded(part, act);
-        }
-
-        // Content in one language is one diagram, where it is one.
-        return Named is null ? null : Folded(Read, act);
-    }
-
-    /// <summary>
-    /// What a press on a chip in the diagram <paramref name="holder"/> holds does: opens or closes the node there, as that diagram's
-    /// view state, and tells whatever the diagram it was drawn in is bound to — that diagram's own tree, up to the first nesting and
-    /// no further, since what holds it is read, bound and worked over where it is laid out.
-    /// </summary>
-    private bool Folded(ContentPart holder, LayoutAct act) =>
-        new DiagramActions((key, open) => _engine.Expand(DrawnFrom(act.Piece) ?? holder, key, open), _engine.Opened(holder)) { Shown = _shown }.Invoke(act);
-
-    /// <summary>The whole of the tree <paramref name="piece"/> was drawn from — the root of the part it stands for — or null where it stands for none.</summary>
-    private static ContentPart? DrawnFrom(Piece piece)
-    {
-        for (var at = piece; at.Exists; at = at.Parent)
-        {
-            if (at.Part is not ContentPart part) continue;
-
-            while (part.Parent is { } up) part = up;
-            return part;
-        }
-
-        return null;
-    }
-
-    /// <inheritdoc/>
-    IReadOnlyList<LayoutIntent> ILayoutActions.Menu(LayoutAct act) => Host?.Menu(act) ?? [];
-
     // ── What a block offers ─────────────────────────────────────────────────
-
-    /// <summary>The block of the document an offset is in — the whole of it, where it is content in one language.</summary>
-    private ContentPart? Blocked(int offset) => _engine.Blocked(offset);
-
-    /// <summary>What the block at a point offers in its corner — whichever of the usual buttons it allows, and whatever it adds.</summary>
-    public IReadOnlyList<LayoutIntent> Corner(Point at) => _engine.Offers(at);
-
-    /// <summary>
-    /// Shows the block at <paramref name="at"/> as it was written, with the caret where it was pressed — what two presses on a
-    /// block do. It is drawn again once the caret leaves it.
-    /// </summary>
-    /// <returns>Whether it did: not where the document is only read, and not in a block already shown as written.</returns>
-    public bool OpenAsWritten(Point at) => _engine.OpenAsWritten(at);
-
-    /// <summary>
-    /// What a corner button means for the block at <paramref name="at"/>: copying it is asked of whoever holds the clipboard, and
-    /// anything else goes to the host with the block it was pressed on.
-    /// </summary>
-    public void Raise(LayoutIntent offer, Point at) => _engine.Raise(offer, at);
 
     /// <summary>
     /// A picture of one block as it is on the page, for a host keeping one of what a corner button was pressed on —
     /// painted from the page's own tree, cut to where the block came out, so nothing is read again to make it.
     /// </summary>
-    public System.Windows.Media.Imaging.BitmapSource? Picture(ContentPart block, Brush? ground = null)
+    public System.Windows.Media.Imaging.BitmapSource? CapturePicture(ContentPart block, Brush? ground = null)
     {
         var box = _engine.Where(block);
         if (box.IsEmpty || box.Width <= 0 || box.Height <= 0) return null;

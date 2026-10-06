@@ -9,6 +9,7 @@ using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Visuals.Text.Markdown.Mermaid.Cynefin;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Markdown.Ast;
 
 namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
@@ -52,7 +53,7 @@ public class CynefinEditingTests : MermaidEditing
     public void AnArrowTypedIntoABareItemPutsItInQuotes()
     {
         const string source = "cynefin-beta\n  complex\n    Investigate";
-        var says = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "Investigate");
+        var says = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == "Investigate");
         var writing = CynefinEdits.Escaping(says, says.End, " --> clear")!.Value;
 
         Assert.AreEqual("cynefin-beta\n  complex\n    \"Investigate --> clear\"", MermaidStaged.Written(source, writing));

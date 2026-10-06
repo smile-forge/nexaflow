@@ -11,6 +11,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Editing;
 

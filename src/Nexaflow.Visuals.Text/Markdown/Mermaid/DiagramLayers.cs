@@ -113,6 +113,8 @@ internal static class DiagramLayers
         if (square) Skirted(cells, joins, way);
         else Swung(cells, joins, way);
 
+        foreach (var box in Boxes(cells).OrderByDescending(Deep)) box.Bounds = Covering(box, cells, joins);
+
         return whole;
     }
 
@@ -245,6 +247,40 @@ internal static class DiagramLayers
 
         foreach (var join in joins.Where(join => ReferenceEquals(join.Level, box)))
             join.Bends = [.. join.Bends.Select(bend => bend + origin)];
+    }
+
+    /// <summary>
+    /// A box grown to hold every line drawn between what is inside it, as well as the things themselves.
+    ///
+    /// <para>
+    /// Where a line runs is settled after the boxes are sized, because it is settled by where everything ended up: a line leaves a
+    /// diamond by its point and swings wide of what it passes, so it reaches well outside the cells it joins. A box drawn to those
+    /// cells alone crops its own lines, and what it crops them with is its own edge and its heading. Grown once the lines are
+    /// known, and only ever outwards, so nothing inside it moves.
+    /// </para>
+    /// </summary>
+    private static Rect Covering(DiagramCell box, IReadOnlyList<DiagramCell> cells, IReadOnlyList<DiagramJoin> joins)
+    {
+        var held = Rect.Empty;
+
+        foreach (var cell in cells)
+            if (ReferenceEquals(cell.Inside, box))
+                held.Union(Rect.Inflate(cell.Bounds, box.Pad, box.Pad));
+
+        foreach (var join in joins)
+        {
+            if (!ReferenceEquals(join.Level, box)) continue;
+
+            foreach (var point in join.Route) held.Union(Rect.Inflate(new Rect(point, point), box.Pad, box.Pad));
+        }
+
+        if (held.IsEmpty) return box.Bounds;
+
+        // Its heading stands above everything it holds, lines included, rather than over the top of them.
+        held = new Rect(held.X, held.Y - box.Heading, held.Width, held.Height + box.Heading);
+        held.Union(box.Bounds);
+
+        return held;
     }
 
     /// <summary>
@@ -894,7 +930,7 @@ internal static class DiagramLayers
                 place.Far = Placed(from[place.Rank] + deep[place.Rank], place.At, way, whole);
 
                 if (place.Cell >= 0)
-                    cells[place.Cell].Bounds = Placed(start, place.At - (Across(size, way) / 2), size, way, whole);
+                    cells[place.Cell].Bounds = Placed(start, place.At - ((Across(size, way) + Leading(cells[place.Cell], way)) / 2), size, way, whole);
             }
     }
 
@@ -930,6 +966,19 @@ internal static class DiagramLayers
     private static double Along(Size size, DiagramWay way) => way is DiagramWay.Down or DiagramWay.Up ? size.Height : size.Width;
 
     private static double Across(Size size, DiagramWay way) => way is DiagramWay.Down or DiagramWay.Up ? size.Width : size.Height;
+
+    /// <summary>
+    /// How much of a cell's extent across the way the chart runs stands before what it holds, rather than beside it: a box's
+    /// heading, which is drawn above what is inside it.
+    ///
+    /// <para>
+    /// What a rank is lined up on is what a reader sees in it, so a box is placed by the middle of what it holds rather than by
+    /// the middle of the box — otherwise its heading pushes everything inside it half a heading off the line its neighbours keep
+    /// to. Nothing where the chart runs down or up, since a heading is then along the way rather than across it.
+    /// </para>
+    /// </summary>
+    private static double Leading(DiagramCell cell, DiagramWay way) =>
+        way is DiagramWay.Down or DiagramWay.Up ? 0 : cell.Heading;
 
     // ── Where a line runs ───────────────────────────────────────────────────
 

@@ -1,6 +1,9 @@
 using System;
 
+using System.Collections.Generic;
+using System.Linq;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Visuals.Text.Editing;
@@ -11,10 +14,77 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Flowchart;
 /// What an edit means in a flowchart, and in a swimlane, which is a flowchart laid out in lanes: a label is put in quotes to hold
 /// what would end it, and what an id cannot hold is dropped. Every other key does what it does anywhere.
 /// </summary>
-internal sealed class FlowchartEdits : IOnEdit
+internal sealed partial class FlowchartEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        // A choice is the ribbon's, and nothing the chart did not offer is anything to write.
+        if (edit.Kind == EditKind.Choosing) return Chosen(edit) ?? ContentChange.Stay(edit.State);
+
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : Renamed(edit, change);
+    }
+
+    /// <summary>
+    /// A name changed wherever it is written, rather than only where a reader typed.
+    ///
+    /// <para>
+    /// What a node or a subgraph is called is how every other line says which one it means: a link joins it by name, and a
+    /// <c>class</c>, a <c>style</c>, a <c>click</c> line and an <c>id@{ … }</c> line are each about a name. Changed in one place
+    /// alone, every one of those would be about something that is not there — the links would join nothing and the chart would
+    /// come apart. So the change a reader made in one of them is made in all of them, as one edit, which is also one undo.
+    /// </para>
+    /// <para>
+    /// A name emptied is left alone. Writing nothing into every mention of it would take the chart apart just as surely, and what
+    /// a reader means by backing over the last letter of a name is not something to guess at.
+    /// </para>
+    /// </summary>
+    private static ContentChange Renamed(ContentEdit edit, ContentChange change)
+    {
+        // The run being written into, which is not always the one the piece under the caret was drawn from: a node with a label
+        // draws its label and never its name, so a reader typing in the name is typing where nothing is drawn.
+        if (OrdinaryEdits.Written(edit) is not { Role: FlowchartRoles.Id, Kind: Kinds.Words } named) return change;
+        if (named.Text is not { Length: > 0 } was || Called(named, change) is not { Length: > 0 } now || now == was) return change;
+
+        var writes = new List<ContentWrite>(change.Writes);
+        var caret = change.Caret;
+
+        foreach (var mention in edit.Root.SelfAndDescendants())
+        {
+            if (mention.Kind != Kinds.Words || mention.Role != FlowchartRoles.Id) continue;
+            if (mention.Start == named.Start || mention.Derived || mention.Text != was) continue;
+
+            writes.Add(new ContentWrite(mention.Start, mention.Length, now));
+
+            // What is written before the caret moves it, and the caret is in the name the reader is typing.
+            if (mention.Start < named.Start) caret += now.Length - was.Length;
+        }
+
+        return writes.Count == change.Writes.Count ? change : change with { Writes = writes, Caret = caret };
+    }
+
+    /// <summary>What a name says once a change is made, or null where the change writes nothing into it.</summary>
+    private static string? Called(ContentPart named, ContentChange change)
+    {
+        var said = named.Text;
+        var moved = 0;
+        var written = false;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            if (write.Start < named.Start || write.Start + write.Length > named.End) continue;
+
+            var at = write.Start - named.Start + moved;
+
+            said = said[..at] + write.Text + said[(at + write.Length)..];
+            moved += write.Text.Length - write.Length;
+            written = true;
+        }
+
+        return written ? said : null;
+    }
 
     /// <summary>
     /// A label is put in quotes to hold a quote, a bracket closing it or a comment; what is written on a link is quoted to hold
@@ -27,7 +97,7 @@ internal sealed class FlowchartEdits : IOnEdit
         if (MermaidWriting.Escape(part, caret, text) is { } escaped) return escaped;
 
         if (part.Role is FlowchartRoles.Id or FlowchartRoles.Class or FlowchartRoles.Link)
-            return Bared(part, caret, text, Subgraphs(part));
+            return Bared(part, caret, text, FlowchartGrammar.Subgraphed(part));
         if (part.Role is FlowchartRoles.Target or FlowchartRoles.Curve or FlowchartRoles.Call)
             return MermaidWriting.Only(caret, text, FlowchartGrammar.Bare);
 
@@ -69,15 +139,6 @@ internal sealed class FlowchartEdits : IOnEdit
         }
 
         return written == text ? null : new MermaidWriting(caret, caret, written, caret + written.Length);
-    }
-
-    /// <summary>Whether a name is a subgraph's own, which may be written in words where an id may not.</summary>
-    private static bool Subgraphs(ContentPart part)
-    {
-        for (var over = part.Parent; over is not null; over = over.Parent)
-            if (over.Kind == FlowchartKinds.Opens) return true;
-
-        return false;
     }
 
     /// <summary>What is written after a part, which is what a character typed at the end of it would run into.</summary>

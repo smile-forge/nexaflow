@@ -214,10 +214,10 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     private static IEnumerable<ContentNode> Said(ContentNode line, string role) =>
         line.SelfAndDescendants()
             .Where(node => node.Kind == MermaidKinds.Name
-                           && node.Children.Any(child => child.Kind == MermaidKinds.Words && child.Role == role));
+                           && node.Children.Any(child => child.Kind == Kinds.Words && child.Role == role));
 
     private static string? Text(ContentNode name) =>
-        name.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Words)?.Text;
+        name.Children.FirstOrDefault(child => child.Kind == Kinds.Words)?.Text;
 
     private string AppliedShape => $"A class line names the {Plural(named)} taking a class, then the class: class A,B blue.";
 
@@ -230,7 +230,7 @@ public sealed class MermaidStyling(Func<char, bool> bare, string idRole, string 
     /// <summary>Everything a line names in a role, in the order it is written.</summary>
     private static IReadOnlyList<string> Said(ContentPart stated, string role) =>
         [.. stated.SelfAndDescendants()
-              .Where(part => part.Kind == MermaidKinds.Words && part.Role == role)
+              .Where(part => part.Kind == Kinds.Words && part.Role == role)
               .Select(part => part.Text)
               .Where(said => said.Length > 0)];
 

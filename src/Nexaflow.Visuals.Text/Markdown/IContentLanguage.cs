@@ -54,6 +54,22 @@ public interface IContentLanguage
     BlockCorner Corner(ContentAsk ask) => BlockCorner.Usual;
 
     /// <summary>
+    /// Whether a key aimed at the caret may write only inside one of this language's runs of words
+    /// (<see cref="Nexaflow.Markdown.Ast.Kinds.Words"/>).
+    ///
+    /// <para>
+    /// No for anything that has not said otherwise, which is every language whose characters are what a reader sees: a document
+    /// and a code fence are written in wherever the caret can go, and nothing about them turns on this.
+    /// </para>
+    /// <para>
+    /// Yes for anything that draws a picture of what its source meant. Every piece a builder draws offers the caret a stop, and
+    /// a builder draws pieces from nothing at all — rules, axes, connectors — so a caret rests in far more places than a reader
+    /// can write in. A language that says yes has the engine take the key and leave the source alone everywhere else.
+    /// </para>
+    /// </summary>
+    bool TakesTextOnlyInWords => false;
+
+    /// <summary>
     /// What an edit means in this language's own source, where that is something other than its characters — or
     /// null, which is nearly every language: what is typed is inserted and what is taken back is a character.
     ///

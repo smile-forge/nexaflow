@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
 

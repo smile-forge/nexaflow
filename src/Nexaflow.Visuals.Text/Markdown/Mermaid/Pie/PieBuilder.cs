@@ -9,6 +9,7 @@ using Nexaflow.Markdown.Mermaid.Pie;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 
@@ -282,7 +283,7 @@ internal sealed class PieBuilder : MermaidBuilder
         var size = config.LegendTextSize ?? LegendSize;
         var ink = Ink.Written(config.LegendTextColour) ?? Palette.Text;
         var label = slice.Part.Words()!;
-        var value = slice.Part.Inner(MermaidKinds.Number);
+        var value = slice.Part.Inner(Kinds.Number);
 
         return new DiagramKey(slice.Part, slice.Said.Drawn ? Fill(config, slice) : null,
         [

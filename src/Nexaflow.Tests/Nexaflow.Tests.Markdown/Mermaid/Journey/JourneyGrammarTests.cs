@@ -66,7 +66,7 @@ public class JourneyGrammarTests : MermaidGrammarContract
 
         Assert.AreEqual(2, Nodes(tree, JourneyKinds.Section).Count);
         Assert.AreEqual(5, Nodes(tree, JourneyKinds.Task).Count);
-        Assert.AreEqual(6, Nodes(tree, MermaidKinds.Words).Count(words => words.Role == JourneyRoles.Actor), "Me five times and Cat once");
+        Assert.AreEqual(6, Nodes(tree, Kinds.Words).Count(words => words.Role == JourneyRoles.Actor), "Me five times and Cat once");
     }
 
     [TestMethod]

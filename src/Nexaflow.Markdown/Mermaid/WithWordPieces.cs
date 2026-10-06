@@ -31,7 +31,7 @@ public sealed class WithWordPieces : IAstStage
         Dictionary<ContentNode, IReadOnlyList<WordPiece>>? found = null;
 
         foreach (var node in tree.SelfAndDescendants())
-            if (node.Kind is MermaidKinds.Words or Kinds.Block && !node.IsDerived && Pieces(node) is { } pieces)
+            if (node.Kind is Kinds.Words or Kinds.Block && !node.IsDerived && Pieces(node) is { } pieces)
                 (found ??= new(ReferenceEqualityComparer.Instance))[node] = pieces;
 
         return found is null ? tree : tree.Holding(MermaidKinds.WordPieces, Roles.Derived, new MermaidWords(found));

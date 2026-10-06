@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Venn;
 using Nexaflow.Visuals.Text.Editing;

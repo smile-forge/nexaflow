@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Music;
 using Nexaflow.Markdown.Music.LilyPond;
 using Nexaflow.Visuals.Text.Editing;

@@ -194,5 +194,5 @@ public class PieStagesTests
 
     private static PieConfig Config(ContentNode tree) => ((ConfiguredNode<PieConfig>)tree).Config;
 
-    private static string Name(ContentNode slice) => slice.Inner(MermaidKinds.Words)!.Print();
+    private static string Name(ContentNode slice) => slice.Inner(Kinds.Words)!.Print();
 }

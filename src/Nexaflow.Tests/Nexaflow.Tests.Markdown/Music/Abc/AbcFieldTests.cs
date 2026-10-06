@@ -61,7 +61,7 @@ public class AbcFieldTests
         Assert.AreEqual(AbcKinds.Figures, figures.Kind);
         CollectionAssert.AreEqual(new[] { "(", "2", "+", "3", ")", "/", "8" }, figures.Children.Select(piece => piece.Text).ToArray());
         CollectionAssert.AreEqual(new[] { "2", "3", "8" },
-                                  figures.Children.Where(piece => piece.Kind == AbcKinds.Number).Select(piece => piece.Text).ToArray());
+                                  figures.Children.Where(piece => piece.Kind == Kinds.Number).Select(piece => piece.Text).ToArray());
     }
 
     [TestMethod]

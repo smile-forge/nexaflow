@@ -30,7 +30,7 @@ public class C4StagesTests
     /// <summary>What the argument of a line meaning something says, as written — or null where none means it.</summary>
     private static string? Argument(ContentNode line, C4Means means) =>
         line.SelfAndDescendants().OfType<C4ArgumentNode>().FirstOrDefault(argument => argument.Means == means)?
-            .SelfAndDescendants().FirstOrDefault(node => node.Kind == MermaidKinds.Words && node.Role is C4Roles.Value or SequenceRoles.Id)?.Text;
+            .SelfAndDescendants().FirstOrDefault(node => node.Kind == Kinds.Words && node.Role is C4Roles.Value or SequenceRoles.Id)?.Text;
 
     /// <summary>The alias of the boundary a line calling an element is written directly inside, or null for none.</summary>
     private static string? HeldBy(ContentNode tree, string id)

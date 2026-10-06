@@ -46,5 +46,5 @@ public sealed class ResolveJoins : IAstStage
 
     /// <summary>What a line says in a role, wherever it is written inside it.</summary>
     private static string? Said(ContentNode node, string role) =>
-        node.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == MermaidKinds.Words && inner.Role == role)?.Text;
+        node.SelfAndDescendants().FirstOrDefault(inner => inner.Kind == Kinds.Words && inner.Role == role)?.Text;
 }

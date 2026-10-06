@@ -3,6 +3,7 @@ using System.Windows.Input;
 
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Prose;
 using Nexaflow.Visuals.Text.Editing;
 

@@ -44,7 +44,7 @@ public sealed class ResolveLinks : IAstStage
 
                 case FlowchartKinds.Said:
                     if (ResolveMetadata.Id(node) is { Length: > 0 } id && ResolveMetadata.Set(node.Inner(MermaidKinds.Properties), "curve") is { } curve)
-                        curves[id] = curve.Text;
+                        curves[id] = ResolveMetadata.Characters(curve);
                     break;
             }
         }
@@ -127,7 +127,7 @@ public sealed class ResolveLinks : IAstStage
     /// <summary>The links a <c>linkStyle</c> line numbers.</summary>
     private static IReadOnlyList<int> Numbered(ContentNode stated) =>
         [.. stated.SelfAndDescendants()
-              .Where(node => node.Kind == MermaidKinds.Words && node.Role == FlowchartRoles.Index)
+              .Where(node => node.Kind == Kinds.Words && node.Role == FlowchartRoles.Index)
               .Select(node => MermaidNumber.Read(node.Text))
               .OfType<double>()
               .Where(at => at >= 0 && at == Math.Floor(at))

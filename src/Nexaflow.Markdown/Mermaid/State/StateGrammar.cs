@@ -145,7 +145,7 @@ public sealed class StateGrammar : IMermaidGrammar
 
     /// <summary>A line inside a note: what the note says, whatever it would read as on its own.</summary>
     private static ContentNode Within(string text) =>
-        ContentNode.Branch(StateKinds.NoteText, [ContentNode.Leaf(MermaidKinds.Words, text, StateRoles.Label)], StateRoles.Label);
+        ContentNode.Branch(StateKinds.NoteText, [ContentNode.Leaf(Kinds.Words, text, StateRoles.Label)], StateRoles.Label);
 
     /// <inheritdoc cref="Ended(MermaidLine)"/>
     private static ContentNode Ended(string text) => Ended(MermaidLine.Of(text));
@@ -338,7 +338,7 @@ public sealed class StateGrammar : IMermaidGrammar
         line.Room();
         if (line.Word(HrefWord, letter: Bare)) line.Room();
 
-        if (!line.Quoted(StateRoles.Href)) return line.Shown(ClickShape);
+        if (!line.Quoted(Roles.Destination)) return line.Shown(ClickShape);
 
         var mark = line.Save();
         line.Room();

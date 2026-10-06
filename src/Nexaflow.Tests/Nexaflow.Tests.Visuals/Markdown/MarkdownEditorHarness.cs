@@ -65,13 +65,16 @@ internal static class MarkdownEditorHarness
         // copies does not reach into the machine's.
         window.AddHandler(MarkdownSurface.CopyingEvent, new EventHandler<ContentCopyingEventArgs>((_, e) =>
         {
-            Clipboard = e.Data;
+            Clipboard = MarkdownClipboard.Data(e.Copy);
             e.Handled = true;
         }));
         window.AddHandler(MarkdownSurface.PastingEvent, new EventHandler<ContentPastingEventArgs>((_, e) =>
         {
-            e.Data = Clipboard;
-            e.Handled = Clipboard is not null;
+            if (Clipboard is not { } data) return;
+
+            e.Words = MarkdownClipboard.ReadPlainText(data);
+            e.Markdown = MarkdownClipboard.ReadBestMarkdown(data);
+            e.Handled = true;
         }));
 
         try
@@ -335,5 +338,5 @@ internal sealed class DocumentBlock(MarkdownSurface editor, int index)
     public Cursor? PointerCursor(Point at) => Element.PointerCursor(at);
 
     /// <summary>A picture of the block as it is on the page.</summary>
-    public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.Picture(Holder, ground);
+    public System.Windows.Media.Imaging.BitmapSource? Picture(Brush? ground = null) => editor.CapturePicture(Holder, ground);
 }

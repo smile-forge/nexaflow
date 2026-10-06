@@ -45,6 +45,24 @@ public static class FlowchartKinds
     /// <summary>An <c>id@{ … }</c> line, which says more about the node or the link it names than its brackets can.</summary>
     public const string Said = "flowchart-said";
 
+    /// <summary>
+    /// What the chart amounts to: every node once, whatever number of lines name it, and every connection between them. Derived,
+    /// so it takes up no source and the chart still prints as exactly what was written — see <see cref="Stages.ResolveChart"/>.
+    /// </summary>
+    public const string Graph = "flowchart-graph";
+
+    /// <summary>The nodes of the chart, in the order they are first written.</summary>
+    public const string GraphNodes = "flowchart-graph-nodes";
+
+    /// <summary>One node of the chart: what it is called, what it says, and where it leads.</summary>
+    public const string GraphNode = "flowchart-graph-node";
+
+    /// <summary>The connections of the chart, in the order they are written.</summary>
+    public const string GraphLinks = "flowchart-graph-links";
+
+    /// <summary>One connection: the two nodes it runs between, each by what it is called.</summary>
+    public const string GraphLink = "flowchart-graph-link";
+
 }
 
 /// <summary>What a piece of a flowchart's line is to the piece holding it.</summary>
@@ -71,9 +89,6 @@ public static class FlowchartRoles
     /// <summary>Which link a <c>linkStyle</c> line styles, counted in the order they are written.</summary>
     public const string Index = "flowchart-link-index";
 
-    /// <summary>Where pressing a node leads.</summary>
-    public const string Href = "flowchart-href";
-
     /// <summary>What a node says while it is pointed at.</summary>
     public const string Tip = "flowchart-tip";
 
@@ -85,5 +100,11 @@ public static class FlowchartRoles
 
     /// <summary>The curve a <c>linkStyle</c> line interpolates its links along.</summary>
     public const string Curve = "flowchart-curve";
+
+    /// <summary>The node a connection leaves, by what it is called.</summary>
+    public const string From = "flowchart-from";
+
+    /// <summary>The node a connection reaches, by what it is called.</summary>
+    public const string To = "flowchart-to";
 
 }

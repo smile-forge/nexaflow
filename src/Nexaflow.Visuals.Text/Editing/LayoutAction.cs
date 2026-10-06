@@ -91,6 +91,18 @@ public readonly record struct LayoutIntent(string Verb, string? Target = null, s
     /// shows it — or null, to be named. Its name is still what a reader hovering over it, or hearing the screen read, is told.
     /// </summary>
     public System.Windows.Media.Geometry? Shape { get; init; }
+
+    /// <summary>
+    /// The colour this option is, where the option is itself a colour — drawn as a swatch of that colour rather than as a shape in
+    /// the ink of whatever shows it, and drawn as nothing at all where it is clear. Null for every offer that is not a colour.
+    /// </summary>
+    public System.Windows.Media.Color? Shade { get; init; }
+
+    /// <summary>
+    /// The few letters it is drawn as, where neither a shape nor a colour says it — a flowchart's <c>text</c> shape, whose whole
+    /// shape is having none, so a picture of it would be a picture of the shape standing next to it. Null for everything else.
+    /// </summary>
+    public string? Letters { get; init; }
 }
 
 /// <summary>Which of the two kinds of thing an offer is.</summary>

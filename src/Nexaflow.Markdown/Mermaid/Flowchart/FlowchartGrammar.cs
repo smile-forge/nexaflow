@@ -35,6 +35,8 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     public const string HrefWord = "href";
     public const string CallWord = "call";
 
+    public const string IconWord = "icon";
+
     /// <summary>The ways a chart, or a subgraph in it, is laid out.</summary>
     public static readonly string[] Ways = ["TB", "TD", "BT", "RL", "LR"];
 
@@ -106,10 +108,12 @@ public sealed class FlowchartGrammar : IMermaidGrammar
     /// Which subgraph each line is in (<see cref="ResolveSubgraphs"/>), which nodes name a subgraph (<see cref="ResolveJoins"/>),
     /// what each link joins and is styled with (<see cref="ResolveLinks"/>), what each <c>id@{ … }</c> line means
     /// (<see cref="ResolveMetadata"/>), what styles each node and subgraph (<see cref="ResolveStyles"/>), whether a shape named is
-    /// one (<see cref="ResolveShapes"/>), and what the front matter asks for — a swimlane's lanes as well as the chart.
+    /// one (<see cref="ResolveShapes"/>), what the chart amounts to as a graph (<see cref="ResolveChart"/>), and what the front
+    /// matter asks for — a swimlane's lanes as well as the chart.
     /// </remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) =>
         [new ResolveSubgraphs(), new ResolveJoins(), new ResolveLinks(), new ResolveMetadata(), new ResolveStyles(), new ResolveShapes(),
+         new ResolveChart(),
          block.Diagram == MermaidDiagram.Swimlane
              ? new WithConfig<SwimlaneConfig>(SwimlaneConfig.Read(block.Config))
              : new WithConfig<FlowchartConfig>(FlowchartConfig.Read(block.Config))];
@@ -162,6 +166,19 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         }
 
         return end;
+    }
+
+    /// <summary>
+    /// Whether a name is a subgraph's own, which is the one name in a chart written in words — <c>subgraph Sales team</c> — where a
+    /// node's id, a class and a link's own name are written bare and hold no space. Asked by whatever writes a name, so the rule is
+    /// stated once: the parser spelling a name it is handed, and the handler letting one be typed a character at a time.
+    /// </summary>
+    public static bool Subgraphed(ContentPart part)
+    {
+        for (var over = part; over is not null; over = over.Parent)
+            if (over.Kind == FlowchartKinds.Opens) return true;
+
+        return false;
     }
 
     // ── The lines ───────────────────────────────────────────────────────────
@@ -259,7 +276,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         if (line.Word(HrefWord, letter: Bare))
         {
             line.Room();
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (line.Word(CallWord, letter: Bare))
         {
@@ -268,7 +285,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         }
         else if (line.Next == '"')
         {
-            if (!line.Quoted(FlowchartRoles.Href, what: "link")) return line.Shown(ClickShape);
+            if (!line.Quoted(Roles.Destination, what: "link")) return line.Shown(ClickShape);
         }
         else if (!line.Name(FlowchartRoles.Call, Called))
         {
@@ -299,8 +316,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         line.Token("{", Roles.Open);
         line.Space();
 
-        if (!line.Done && line.Next != '}' && !line.Properties(Metadata, ends: '}', what: "Metadata"))
-            return line.Shown(SaidShape);
+        if (!line.Done && line.Next != '}' && !Settings(line)) return line.Shown(SaidShape);
 
         line.Space();
         line.Token("}", Roles.Close);
@@ -309,6 +325,105 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         line.Space();
 
         return line.Done ? line.Read(FlowchartKinds.Said) : line.Shown(SaidShape);
+    }
+
+    /// <summary>
+    /// What an <c>id@{ … }</c> line sets, read so that a value written between quotes is the quotes and the run of words they hold,
+    /// rather than one leaf holding both.
+    ///
+    /// <para>
+    /// A label is drawn from that run and a reader types into it where it stands, which is what a label written in a node's
+    /// brackets already does. A value read as one leaf leaves the characters on the screen standing for nothing there is a caret
+    /// position in, so it can only be drawn from a copy worked out elsewhere and can never be written in.
+    /// </para>
+    /// </summary>
+    private static bool Settings(MermaidLine line)
+    {
+        var mark = line.Save();
+        line.Open();
+
+        while (true)
+        {
+            var colon = line.At;
+            while (colon < line.Written.Length && line.Written[colon] is not (':' or ',' or '}')) colon++;
+
+            if (colon >= line.Written.Length || line.Written[colon] != ':') return Unread(line, mark);
+
+            var name = line.Written[line.At..colon].TrimEnd();
+            if (name.Length == 0) return Unread(line, mark);
+
+            line.Open();
+            line.Add(ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name,
+                                      Metadata.Contains(name, StringComparer.OrdinalIgnoreCase)
+                                          ? null
+                                          : $"Metadata sets {string.Join(", ", Metadata.SkipLast(1))} or {Metadata.Last()}, not '{name}'."));
+            line.Space();
+            line.Token(":");
+            line.Space();
+
+            if (!Valued(line, name)) return Unread(line, mark);
+
+            line.Space();
+            line.Close(MermaidKinds.Property);
+
+            if (line.Done || line.Next == '}') break;
+
+            line.Token(",");
+            line.Space();
+
+            if (line.Done || line.Next == '}') return Unread(line, mark);
+        }
+
+        line.Close(MermaidKinds.Properties);
+        return true;
+    }
+
+    /// <summary>What one of them is set to: the words between its quotes, or the characters up to whatever ends it.</summary>
+    private static bool Valued(MermaidLine line, string name)
+    {
+        var icon = name.Equals(IconWord, StringComparison.OrdinalIgnoreCase);
+        if (icon) line.Open();
+
+        if (line.Next == '"')
+        {
+            if (Shut(line.Written, line.At) is not { } close) return false;
+
+            line.Open();
+            line.Token("\"", Roles.Open);
+            line.Add(ContentNode.Leaf(Kinds.Words, line.Written[line.At..close], FlowchartRoles.Label));
+            line.Token("\"", Roles.Close);
+            line.Close(MermaidKinds.Quoted, MermaidRoles.Value);
+        }
+        else
+        {
+            var end = line.At;
+            while (end < line.Written.Length && line.Written[end] is not (',' or '}')) end++;
+
+            var value = line.Written[line.At..end].TrimEnd();
+            if (value.Length == 0) return false;
+
+            line.Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
+        }
+
+        if (icon) line.Close(MermaidKinds.Icon, MermaidRoles.Value);
+
+        return true;
+    }
+
+    /// <summary>Where the quote opening at <paramref name="at"/> is closed, or null where nothing closes it.</summary>
+    private static int? Shut(string written, int at)
+    {
+        for (var next = at + 1; next < written.Length; next++)
+            if (written[next] == '"') return next;
+
+        return null;
+    }
+
+    /// <summary>Puts the line back as it was and says the metadata could not be read.</summary>
+    private static bool Unread(MermaidLine line, MermaidLine.Mark mark)
+    {
+        line.Restore(mark);
+        return false;
     }
 
     // ── What a line of nodes is made of ─────────────────────────────────────

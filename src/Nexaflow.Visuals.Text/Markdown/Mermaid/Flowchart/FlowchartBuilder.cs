@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Flowchart;
 using Nexaflow.Visuals.Text.Editing;
@@ -370,8 +371,6 @@ internal partial class FlowchartBuilder : MermaidBuilder
     private IReadOnlyList<DiagramWords> Said(Node node, double widest)
     {
         var ink = Ink.Written(node.Style.Colour) ?? Palette.Text;
-
-        if (node.Worked is { Length: > 0 } worked) return [Worked(worked, node.WorkedPart, TextSize, ink)];
 
         return node.Said is null && node.SaidHole is null ? [] : Wrapped(node.Said, node.SaidHole, TextSize, ink, widest);
     }

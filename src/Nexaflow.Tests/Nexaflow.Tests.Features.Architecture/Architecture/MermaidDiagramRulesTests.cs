@@ -79,9 +79,15 @@ public class MermaidDiagramRulesTests
         new(new(@"\bContentLanguages\b"), "Nested() — the engine parsed what is written inside a piece before the builder was made, and lays it out when the builder asks (ContentEngine)"),
     ];
 
+    /// <summary>
+    /// A grammar reads through the line reader — but a language's own parser is the one thing that may read characters, because
+    /// turning characters into lines is what a parser is and there is nothing underneath it to ask. What holds a parser instead is
+    /// <c>MermaidGrammarContract</c>: whatever it reads, it prints back exactly as it was written.
+    /// </summary>
     [TestMethod]
     [TestCategory("Unit")]
-    public void A_diagrams_own_reading_goes_through_the_kit() => Holds(Files(Grammars, typeFoldersOnly: true), Reading);
+    public void A_diagrams_own_reading_goes_through_the_kit() =>
+        Holds(Files(Grammars, typeFoldersOnly: true).Where(file => !Path.GetFileName(file).EndsWith("Parser.cs", StringComparison.Ordinal)), Reading);
 
     [TestMethod]
     [TestCategory("Unit")]

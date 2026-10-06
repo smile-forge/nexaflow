@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using Nexaflow.Icons;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Visuals.Text.Editing;
 
@@ -70,12 +71,16 @@ public sealed record ContentLanguage(
     }
 
     /// <summary>
-    /// Words as a part of this language's tree can hold them — what its parser says makes them read back as what was meant — or null
-    /// where the part can hold none of them. The engine asks it of every stretch an edit names as words (<see cref="ContentWrite.Words"/>),
-    /// because only what reads the language knows what is safe to write in it. Null for a language that has said nothing, whose words
-    /// are written as they came.
+    /// How this language's parser writes back to its own source (<see cref="ITranspile"/>), or null where it cannot be
+    /// written in.
+    ///
+    /// <para>
+    /// Every change the engine is about to make goes through it — a gesture handler's answer and the engine's own default
+    /// alike — so what reaches the source is always what the language said it writes. Null is not "write it as given": it is
+    /// "this cannot be written in", and the engine writes nothing.
+    /// </para>
     /// </summary>
-    public Func<ContentPart, string, string?>? SafeFormatText { get; init; }
+    public Func<ContentChange, ContentChange?>? Transpile { get; init; }
 
     /// <summary>What a reader calls it — on a button offering to start a block of it, and read out for one — or null for one never offered.</summary>
     public string? DisplayName { get; init; }

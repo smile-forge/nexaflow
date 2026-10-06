@@ -1,4 +1,5 @@
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Markdown.Music.Abc;
 
@@ -25,8 +26,9 @@ namespace Nexaflow.Markdown.Music.Abc;
 /// is what half-finished input always is.
 /// </para>
 /// </summary>
-public static class AbcParser
+public sealed class AbcParser : ITranspile
 {
+    private AbcParser() { }
     /// <summary>The field letters ABC 2.1 defines. A line starting with any of them and a colon is a field.</summary>
     private const string FieldLetters = "ABCDFGHIKLMmNOPQRrSsTUVWwXZ+";
 
@@ -140,9 +142,9 @@ public static class AbcParser
     /// field is prose, held as the one run of words it is.
     /// </summary>
     private static ContentNode Value(string value, string kind, char letter) =>
-        kind == AbcKinds.LyricLine ? ContentNode.Branch(AbcKinds.Text, Sung(value), AbcRoles.Value)
-        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(AbcKinds.Text, Words(value, letter), AbcRoles.Value)
-        : ContentNode.Leaf(AbcKinds.Text, value, AbcRoles.Value);
+        kind == AbcKinds.LyricLine ? ContentNode.Branch(Kinds.Words, Sung(value), AbcRoles.Value)
+        : letter is 'K' or 'M' or 'L' or 'V' ? ContentNode.Branch(Kinds.Words, Words(value, letter), AbcRoles.Value)
+        : ContentNode.Leaf(Kinds.Words, value, AbcRoles.Value);
 
     /// <summary>
     /// The words of a <c>K:</c>, <c>M:</c>, <c>L:</c> or <c>V:</c> value and the space between them. A word runs to the next
@@ -219,11 +221,11 @@ public static class AbcParser
             var inner = close < 0 ? set[1..] : set[1..close];
 
             List<ContentNode> quoted = [ContentNode.Leaf(Kinds.Token, "\"", Roles.Open)];
-            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(AbcKinds.Text, inner, Roles.Body));
+            if (inner.Length > 0) quoted.Add(ContentNode.Leaf(Kinds.Words, inner, Roles.Body));
             if (close >= 0) quoted.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
             if (close >= 0 && close + 1 < set.Length) quoted.Add(ContentNode.Leaf(Kinds.Token, set[(close + 1)..]));
 
-            pieces.Add(ContentNode.Branch(AbcKinds.Text, quoted, AbcRoles.Value));
+            pieces.Add(ContentNode.Branch(Kinds.Words, quoted, AbcRoles.Value));
         }
         else if (set.Length > 0)
         {
@@ -270,7 +272,7 @@ public static class AbcParser
             if (char.IsAsciiDigit(word[at]))
             {
                 while (at < word.Length && char.IsAsciiDigit(word[at])) at++;
-                pieces.Add(ContentNode.Leaf(AbcKinds.Number, word[from..at]));
+                pieces.Add(ContentNode.Leaf(Kinds.Number, word[from..at]));
                 continue;
             }
 
@@ -303,7 +305,7 @@ public static class AbcParser
         // The words written since `run`, as a piece of the syllable being read.
         void Take(int to)
         {
-            if (to > run) syllable.Add(ContentNode.Leaf(AbcKinds.Text, value[run..to]));
+            if (to > run) syllable.Add(ContentNode.Leaf(Kinds.Words, value[run..to]));
             run = to;
         }
 
@@ -312,7 +314,7 @@ public static class AbcParser
             Take(at);
             if (syllable.Count == 0) return;
 
-            pieces.Add(syllable is [{ Kind: AbcKinds.Text } words]
+            pieces.Add(syllable is [{ Kind: Kinds.Words } words]
                 ? ContentNode.Leaf(AbcKinds.Syllable, words.Text)
                 : ContentNode.Branch(AbcKinds.Syllable, [.. syllable]));
             syllable.Clear();
@@ -670,7 +672,7 @@ public static class AbcParser
         var pieces = new List<ContentNode>(6)
         {
             ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Open),
-            ContentNode.Leaf(AbcKinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
+            ContentNode.Leaf(Kinds.Number, Run(s, ref i, char.IsAsciiDigit), AbcRoles.Tupled),
         };
 
         foreach (var role in AfterTheColons)
@@ -679,7 +681,7 @@ public static class AbcParser
             pieces.Add(ContentNode.Leaf(Kinds.Token, One(s, ref i), Roles.Separator));
 
             var digits = Run(s, ref i, char.IsAsciiDigit);
-            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(AbcKinds.Number, digits, role));
+            if (digits.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Number, digits, role));
         }
 
         return ContentNode.Branch(AbcKinds.Tuplet, pieces);
@@ -718,7 +720,7 @@ public static class AbcParser
             inner++;
         }
 
-        if (close > inner) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[inner..close], Roles.Body));
+        if (close > inner) pieces.Add(ContentNode.Leaf(Kinds.Words, s[inner..close], Roles.Body));
         pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
 
         i = close + 1;
@@ -742,7 +744,7 @@ public static class AbcParser
         while (to > from && char.IsWhiteSpace(s[to - 1])) to--;
 
         if (from > i + 1) pieces.Add(ContentNode.Leaf(Kinds.Space, s[(i + 1)..from], Roles.Trivia));
-        if (to > from) pieces.Add(ContentNode.Leaf(AbcKinds.Text, s[from..to], Roles.Name));
+        if (to > from) pieces.Add(ContentNode.Leaf(Kinds.Words, s[from..to], Roles.Name));
         if (close > to) pieces.Add(ContentNode.Leaf(Kinds.Space, s[to..close], Roles.Trivia));
         pieces.Add(ContentNode.Leaf(Kinds.Token, "!", Roles.Close));
 
@@ -845,4 +847,62 @@ public static class AbcParser
     /// </summary>
     private static ContentNode Held(string s, ref int i, string trouble) =>
         ContentNode.Shown(One(s, ref i), trouble);
+
+    // ── Writing back ────────────────────────────────────────────────────────
+
+    /// <inheritdoc cref="ITranspile.Rewrite"/>
+    public static ContentChange? Rewrite(ContentChange change)
+    {
+        if (!change.Writes.Any(write => write.Meant)) return change;
+
+        var writes = new List<ContentWrite>(change.Writes.Count);
+        var caret = change.Caret;
+        var moved = 0;
+        var grown = 0;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            // Where the write stands once the ones before it have been made, and how far it moves what follows.
+            var at = write.Start + moved;
+            moved += write.Text.Length - write.Length;
+
+            if (!write.Meant) { writes.Add(write); continue; }
+            if (Spelled(write.Part!, write.Text) is not { } said) return null;
+
+            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
+
+            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
+                caret = at + grown + (Spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
+            else if (change.Caret > at + write.Text.Length)
+                caret += said.Length - write.Text.Length;
+
+            grown += said.Length - write.Text.Length;
+        }
+
+        return change with { Writes = writes, Caret = caret };
+    }
+
+    /// <summary>
+    /// What <paramref name="text"/> is written as where it is going, or null where it cannot go there at all.
+    /// </summary>
+    /// <remarks>
+    /// Every rule here is one this parser reads back. A line is the unit of everything in ABC, so nothing written anywhere
+    /// may hold a break. Between two delimiters nothing is escaped — an annotation ends at the next quote and a decoration
+    /// at the next bang, each found by looking for it — so a character that would close one early cannot go in. On a field's
+    /// line a percent begins a comment unless a backslash holds it, which is how a reader writes one.
+    /// </remarks>
+    private static string? Spelled(ContentPart part, string text)
+    {
+        var said = text.ReplaceLineEndings(" ");
+
+        if (Closes(part) is { } mark && said.Contains(mark)) return null;
+
+        return part.Ancestors().Any(up => up.Kind is AbcKinds.Field or AbcKinds.LyricLine)
+            ? said.Replace("%", "\\%", StringComparison.Ordinal)
+            : said;
+    }
+
+    /// <summary>The character that closes what <paramref name="part"/> is written inside, where it is written inside one.</summary>
+    private static string? Closes(ContentPart part) =>
+        part.Parent?.Children.FirstOrDefault(child => child.Role == Roles.Open) is { Text.Length: 1 } open ? open.Text : null;
 }

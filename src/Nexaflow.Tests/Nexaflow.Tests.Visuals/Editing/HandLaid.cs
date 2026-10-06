@@ -10,6 +10,7 @@ using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Markdown.Pipeline;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Editing;
 

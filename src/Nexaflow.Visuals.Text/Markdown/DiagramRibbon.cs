@@ -21,11 +21,13 @@ namespace Nexaflow.Visuals.Text.Markdown;
 /// </para>
 /// <para>
 /// <strong>Pictures first, then words.</strong> Offers that are options of one choice (<see cref="LayoutIntent.Group"/>) are drawn
-/// side by side, each as what it would make (<see cref="LayoutIntent.Shape"/>), the one the content says now picked out — choosing
-/// another picks it out instead, and the ribbon stays open for the next. Anything else with a picture stands beside the rest of its
-/// kind; what can be added is gathered behind one Insert button, which opens a sub-ribbon of their pictures; what has no picture is
-/// named. Every button still says in words
-/// what it does, to a reader hovering over it and to one hearing the screen read.
+/// however they are read best, the one the content says now picked out — choosing another picks it out instead, and the ribbon stays
+/// open for the next. A few are side by side, each as what it would make (<see cref="LayoutIntent.Shape"/>); options that are
+/// themselves colours (<see cref="LayoutIntent.Shade"/>) are a bank of those colours, because a colour is matched by eye; and a
+/// choice of more options than a row holds sits behind one button saying which the content is, that opens them all under it.
+/// Anything else with a picture stands beside the rest of its kind; what can be added is gathered behind one Insert button, which
+/// opens a sub-ribbon of their pictures; what has no picture is named. Every button still says in words what it does, to a reader
+/// hovering over it and to one hearing the screen read.
 /// </para>
 /// <para>
 /// Every button carries an automation id, because a button is the thing a journey clicks and an id is the only handle that
@@ -70,8 +72,17 @@ internal sealed class DiagramRibbon : UserControl
         };
     }
 
-    /// <summary>One choice: its options side by side, each drawn as what it would make, the one the content says now picked out.</summary>
-    private static FrameworkElement Choosing(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
+    /// <summary>
+    /// One choice, drawn however its options are read best: a few shapes are read side by side, a bank of colours as the colours
+    /// themselves, and a choice of more options than a row holds from a list the button showing the current one opens.
+    /// </summary>
+    private static FrameworkElement Choosing(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke) =>
+        options.All(option => option.Shade is not null) ? ChoosingAColour(name, options, invoke)
+        : options.Count > Abreast ? ChoosingFromAList(name, options, invoke)
+        : ChoosingInARow(name, options, invoke);
+
+    /// <summary>A choice's options side by side, each drawn as what it would make, the one the content says now picked out.</summary>
+    private static FrameworkElement ChoosingInARow(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
     {
         var segments = new StackPanel { Orientation = Orientation.Horizontal };
         var buttons = new List<Button>();
@@ -104,6 +115,140 @@ internal sealed class DiagramRibbon : UserControl
             HorizontalAlignment = HorizontalAlignment.Left,
         };
     }
+
+    /// <summary>
+    /// A choice of more options than a row holds, behind the one button that says which the content is: pressed, it opens them all
+    /// under it as their pictures, and closes again on the one chosen, which it then says instead.
+    /// </summary>
+    private static FrameworkElement ChoosingFromAList(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
+    {
+        var shown = Flat(new Thickness(8, 5, 8, 5));
+        var face = new ContentControl { VerticalAlignment = VerticalAlignment.Center };
+        var says = new TextBlock { FontSize = 12, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+
+        shown.Foreground = Brush("TextBrush", Colors.Black);
+        shown.HorizontalAlignment = HorizontalAlignment.Stretch;
+        shown.HorizontalContentAlignment = HorizontalAlignment.Left;
+        shown.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                face,
+                says,
+                new TextBlock { Text = "\uE70D", FontFamily = IconFont, FontSize = 10, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
+
+        var list = new WrapPanel { MaxWidth = Abreast * (Side + 10), Margin = new Thickness(0, 2, 0, 2), Visibility = Visibility.Collapsed };
+        var buttons = new List<Button>();
+
+        foreach (var option in options)
+        {
+            var button = Flat(new Thickness(5, 4, 5, 4));
+            button.Content = Face(option, button);
+            Pick(button, option.Current);
+            Said(button, name + ": " + Names(option), "Diagram_Ribbon_" + option.Verb);
+
+            var meant = option;
+            button.Click += (_, _) =>
+            {
+                invoke(meant);
+                foreach (var other in buttons) Pick(other, ReferenceEquals(other, button));
+                Saying(meant);
+                list.Visibility = Visibility.Collapsed;
+            };
+
+            buttons.Add(button);
+            list.Children.Add(button);
+        }
+
+        Saying(options.FirstOrDefault(option => option.Current) is { Verb.Length: > 0 } current ? current : null);
+        Said(shown, name, "Diagram_Ribbon_" + name);
+        shown.Click += (_, _) => list.Visibility = list.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+
+        return new StackPanel { Margin = new Thickness(0, 0, 0, 2), Children = { shown, list } };
+
+        // What the button says it is: the option the content says now, or the choice's name alone where it says none.
+        void Saying(LayoutIntent? current)
+        {
+            face.Content = current is { } one ? Face(one, shown) : null;
+            says.Text = current is { } said ? name + ": " + Names(said) : name;
+        }
+    }
+
+    /// <summary>
+    /// A choice of colours, drawn as the colours themselves — a bank of swatches, as many across as a row holds, the one the content
+    /// says now picked out. A reader choosing a colour is matching it by eye, so the name is only what they are told on hovering.
+    /// </summary>
+    private static FrameworkElement ChoosingAColour(string name, IReadOnlyList<LayoutIntent> options, Action<LayoutIntent> invoke)
+    {
+        var bank = new WrapPanel { MaxWidth = Abreast * (Side + 10), HorizontalAlignment = HorizontalAlignment.Left };
+        var buttons = new List<Button>();
+
+        foreach (var option in options)
+        {
+            var button = Flat(new Thickness(5, 4, 5, 4));
+            button.Content = Swatched(option.Shade!.Value);
+            Pick(button, option.Current);
+            Said(button, name + ": " + Names(option), "Diagram_Ribbon_" + option.Verb);
+
+            var meant = option;
+            button.Click += (_, _) =>
+            {
+                invoke(meant);
+                foreach (var other in buttons) Pick(other, ReferenceEquals(other, button));
+            };
+
+            buttons.Add(button);
+            bank.Children.Add(button);
+        }
+
+        return new StackPanel
+        {
+            Margin = new Thickness(0, 0, 0, 4),
+            Children =
+            {
+                new TextBlock { Text = name, FontSize = 11, Opacity = 0.7, Margin = new Thickness(2, 0, 0, 2), Foreground = Brush("TextBrush", Colors.Black) },
+                bank,
+            },
+        };
+    }
+
+    /// <summary>A colour drawn as itself — and a clear one, which is a colour too, as the square crossed through that says so.</summary>
+    private static UIElement Swatched(Color shade)
+    {
+        var square = new Border
+        {
+            Width = Side,
+            Height = Side,
+            CornerRadius = new CornerRadius(3),
+            Background = new SolidColorBrush(shade),
+            BorderBrush = Brush("BorderBrush", Colors.Gray),
+            BorderThickness = new Thickness(1),
+        };
+
+        if (shade.A > 0) return square;
+
+        var crossed = new Grid { Width = Side, Height = Side };
+        crossed.Children.Add(square);
+
+        // In the ink words are written in, because the line round it is near the colour of whatever it is drawn on.
+        crossed.Children.Add(new System.Windows.Shapes.Line
+        {
+            X1 = 2.5,
+            Y1 = Side - 2.5,
+            X2 = Side - 2.5,
+            Y2 = 2.5,
+            Stroke = Brush("TextBrush", Colors.Black),
+            StrokeThickness = 1.25,
+        });
+
+        return crossed;
+    }
+
+    /// <summary>How many options of one choice stand in a row before they are better read from a list.</summary>
+    private const int Abreast = 8;
 
     /// <summary>An option drawn as picked out, or not.</summary>
     private static void Pick(Button button, bool picked)
@@ -176,7 +321,8 @@ internal sealed class DiagramRibbon : UserControl
     }
 
     /// <summary>Whether an intent is drawn as a picture — a shape of its own, or a mark — rather than named.</summary>
-    private static bool Pictured(LayoutIntent intent) => intent.Shape is not null || Icon(intent) is not null;
+    private static bool Pictured(LayoutIntent intent) =>
+        intent.Shape is not null || intent.Letters is not null || Icon(intent) is not null;
 
     /// <summary>What an intent is drawn as on <paramref name="button"/>: its shape, in the button's ink; its mark; or its name.</summary>
     private static UIElement Face(LayoutIntent intent, Button button)
@@ -187,6 +333,16 @@ internal sealed class DiagramRibbon : UserControl
             path.SetBinding(System.Windows.Shapes.Shape.FillProperty, new System.Windows.Data.Binding(nameof(Foreground)) { Source = button });
             return path;
         }
+
+    if (intent.Letters is { Length: > 0 } letters)
+            return new TextBlock
+            {
+                Text = letters,
+                FontSize = 11,
+                Width = Side,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
 
         return Icon(intent) is { } mark
             ? new TextBlock { Text = mark, FontFamily = IconFont, FontSize = 14, Width = Side, TextAlignment = TextAlignment.Center }

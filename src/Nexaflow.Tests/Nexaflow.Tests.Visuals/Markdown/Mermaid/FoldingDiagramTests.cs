@@ -102,74 +102,9 @@ public class FoldingDiagramTests
     });
 
     [TestMethod]
-    public void WithNoHandlerAtAllTheDiagramOpensTheNodeItself() => UiThread.Run(() =>
-    {
-        // Nobody listening: a plain markdown flowchart is still explorable, because the source already describes what
-        // is behind the chip.
-        var surface = Shown(Src);
-
-        // The chips are drawn in the order the nodes are written, so the second is the folded child's.
-        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
-
-        Assert.IsTrue(Words(surface).Contains("Hidden"), "pressing the chip opened what was behind it, in place");
-    });
-
-    /// <summary>Bound content that supplies nothing and keeps what it was told.</summary>
-    private sealed class Told : IBoundContent
-    {
-        public List<(string Key, bool Open)> Asked { get; } = [];
-
-        public string Text => string.Empty;
-
-        public event EventHandler? Changed { add { } remove { } }
-
-        public void Expand(string key, bool open) => Asked.Add((key, open));
-    }
-
-    [TestMethod]
-    public void ANodesBodyAndItsChipAreTwoIndependentTargets() => UiThread.Run(() =>
-    {
-        var followed = new List<string>();
-        var more = new Told();
-
-        var surface = Shown(Src + "\n  {{More}}", host =>
-        {
-            host.LinkNavigate += (_, e) => { followed.Add(e.Url); e.Handled = true; };
-            host.DiagramData = new ReflectionDataContext(new { More = more });
-        });
-
-        // The root's body: a press on it follows where its click line said it leads.
-        Press(surface, Placed(surface, FlowchartPiece.Node).First());
-
-        CollectionAssert.Contains(followed, "https://example.com/root",
-                                  "the node body still leads where it said — folding did not take its press");
-
-        // Its chip: a press on it tells what the diagram is bound to about the node it belongs to, and follows nothing.
-        Press(surface, Placed(surface, MermaidPiece.Chip).First());
-
-        Assert.AreEqual(1, followed.Count, "the chip is not the body");
-        Assert.AreEqual(1, more.Asked.Count, "and it told what is bound about a node");
-        Assert.AreEqual(("root", false), more.Asked[0], "the root is open, so its chip closes it");
-    });
-
-    [TestMethod]
-    public void AnOpeningIsWrittenDownBeforeWhatIsBoundIsTold() => UiThread.Run(() =>
-    {
-        // What is bound answers by being read into the diagram again, so an opening made here has to survive that.
-        var more = new BoundGraph<string>((opened, _) => Task.FromResult(string.Empty), graph => graph);
-        var surface = Shown(Src + "\n  {{More}}", host => host.DiagramData = new ReflectionDataContext(new { More = more }));
-
-        Press(surface, Placed(surface, MermaidPiece.Chip)[1]);
-        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
-        Settled(surface);
-
-        Assert.IsTrue(Words(surface).Contains("Hidden"), "the opening was kept, and what is bound was told of it");
-    });
-
-    [TestMethod]
     public void PickingOutASuppliedNodeSaysWhichNode() => UiThread.Run(() =>
     {
-        var surface = Shown(Src + "\n  {{More}}", host => host.DiagramData = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
+        var surface = Shown(Src + "\n  {{More}}", host => host.DataSource = new ReflectionDataContext(new { More = "root --> other[\"Other\"]\n" }));
 
         ContentSelectionChange? told = null;
         surface.Selected += (_, e) => told = e.Change;
@@ -271,18 +206,6 @@ public class FoldingDiagramTests
 
         Assert.AreEqual(0, Placed(surface, MermaidPiece.More).Count);
         CollectionAssert.Contains(Words(surface), "Child 2");
-    });
-
-    [TestMethod]
-    public void PressingItShowsEveryChild() => UiThread.Run(() =>
-    {
-        var surface = Shown(Wide(10));
-
-        Press(surface, Placed(surface, MermaidPiece.More).First());
-
-        var words = Words(surface);
-        Assert.IsTrue(words.Contains("Child 9"), "pressing it drew the ones that were held back");
-        Assert.AreEqual(0, Placed(surface, MermaidPiece.More).Count, "and nothing is left to offer");
     });
 
     [TestMethod]

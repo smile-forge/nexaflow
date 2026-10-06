@@ -9,9 +9,6 @@ public static class NomnomlKinds
     /// <summary>One line: the space before what it says, what it says, and the characters that end it.</summary>
     public const string Line = "nomnoml-line";
 
-    /// <summary>A run of words: a name, a member, a count, what an association says, a directive's name or value.</summary>
-    public const string Words = "nomnoml-words";
-
     /// <summary>How two nodes are joined: an end, a line and another end, each written or not.</summary>
     public const string Operator = "nomnoml-operator";
     /// <summary>One node in brackets, with whatever it holds: its classifier, its name, its compartments.</summary>

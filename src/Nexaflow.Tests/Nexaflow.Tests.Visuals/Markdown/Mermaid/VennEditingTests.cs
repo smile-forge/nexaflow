@@ -16,8 +16,13 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
 /// <summary>
 /// Writing in a Venn diagram through the editor that hosts it: a label drawn in a circle is the characters of the label,
-/// so a press puts the caret between its letters and a keystroke changes the diagram — and Enter starts the next item
-/// with a hole for its name.
+/// so a press puts the caret between its letters and a keystroke changes the diagram.
+///
+/// <para>
+/// Only what is written in a label. Adding a set, a region or an overlap is not a keystroke: which circles a new region
+/// covers is the whole of what makes it one, so it has to be said by choosing them, and that is the ribbon's to offer
+/// rather than Enter's to guess. Enter is not answered here and writes nothing.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]
@@ -202,21 +207,6 @@ public class VennEditingTests
         venn.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == text);
 
     [TestMethod]
-    public void BackspaceInAnItemNothingIsWrittenInTakesItBack() => UiThread.Run(() =>
-        InADocument((editor, venn) =>
-        {
-            var before = venn.Source;
-
-            PressPast(venn, "React");
-            Press(editor, Key.Enter);
-            Press(editor, Key.Back);
-
-            Assert.AreEqual(before, venn.Source, "Enter pressed once too often, and taken back");
-            var line = before.IndexOf("React\"]", StringComparison.Ordinal);
-            Assert.IsTrue(venn.Caret >= line + "React".Length && venn.Caret <= line + "React\"]".Length, $"with the caret back on the item, but it is at {venn.Caret}");
-        }));
-
-    [TestMethod]
     public void DeletingAWholeLabelLeavesAHoleToWriteANewOneIn() => UiThread.Run(() =>
         InADocument((editor, venn) =>
         {
@@ -271,7 +261,7 @@ public class VennEditingTests
                      ("venn-beta\n  set A\n    text A1", "A1", "!", "venn-beta\n  set A\n    text \"A1!\""),
                  })
         {
-            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == Kinds.Words && node.Text == typedAfter);
             var writing = VennEdits.Escaping(part, part.End, typed);
 
             Assert.IsNotNull(writing, $"{source}: typing {typed}");
@@ -294,7 +284,7 @@ public class VennEditingTests
                      ("venn-beta\n  set A[Alpha]", "Alpha", " beta\\"),
                  })
         {
-            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == MermaidKinds.Words && node.Text == typedAfter);
+            var part = MermaidStaged.Read(source).SelfAndDescendants().First(node => node.Kind == Kinds.Words && node.Text == typedAfter);
             Assert.IsNull(VennEdits.Escaping(part, part.End, typed), $"{source}: typing {typed}");
         }
     }

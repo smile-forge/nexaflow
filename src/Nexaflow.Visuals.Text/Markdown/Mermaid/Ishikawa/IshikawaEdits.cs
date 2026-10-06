@@ -1,4 +1,5 @@
 using Nexaflow.Visuals.Text.Editing;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Ishikawa;
 

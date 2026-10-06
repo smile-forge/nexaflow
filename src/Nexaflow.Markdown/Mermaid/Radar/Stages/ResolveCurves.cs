@@ -124,7 +124,7 @@ public sealed class ResolveCurves(RadarConfig config, bool writing) : IAstStage
                 return entry;
             }
 
-            var id = key.Inner(MermaidKinds.Words)?.Text ?? string.Empty;
+            var id = key.Inner(Kinds.Words)?.Text ?? string.Empty;
             if (!axes.Contains(id)) return Within(entry, MermaidKinds.Name, name => name.Saying($"No axis called {id} is written."));
             if (!given.TryAdd(id, entry.Number())) return Within(entry, MermaidKinds.Name, name => name.Saying($"This curve already gives {id} a value."));
 

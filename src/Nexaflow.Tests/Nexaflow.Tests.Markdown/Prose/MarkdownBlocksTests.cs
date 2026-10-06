@@ -118,7 +118,7 @@ public class MarkdownBlocksTests
     {
         var paragraph = Blocks("Words with **bold** in them.\n")[0];
 
-        Assert.AreEqual(MarkdownKinds.Words, Body(paragraph).Kind);
+        Assert.AreEqual(Kinds.Words, Body(paragraph).Kind);
         Assert.AreEqual(1, Every(paragraph, MarkdownKinds.Strong).Count);
     }
 

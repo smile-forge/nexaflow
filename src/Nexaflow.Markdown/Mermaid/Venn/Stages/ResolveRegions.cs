@@ -102,7 +102,7 @@ public sealed class ResolveRegions : IAstStage
                 var unknown = names.Where(name => name.Length > 0 && !known.Contains(name)).ToHashSet(StringComparer.Ordinal);
                 if (unknown.Count > 0)
                     resolved = AstRewrite.Each(resolved, node =>
-                        node is { Kind: MermaidKinds.Words, Role: VennRoles.Id } && unknown.Contains(node.Text)
+                        node is { Kind: Kinds.Words, Role: VennRoles.Id } && unknown.Contains(node.Text)
                             ? node.Saying($"'{node.Text}' is not a set written above this union.")
                             : node);
 
@@ -165,7 +165,7 @@ public sealed class ResolveRegions : IAstStage
 
     /// <summary>The name a set or an item is written with, without its quotes.</summary>
     private static string Named(ContentNode said) =>
-        said.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Inner(MermaidKinds.Words)?.Text ?? string.Empty;
+        said.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name).Inner(Kinds.Words)?.Text ?? string.Empty;
 
     /// <summary>Every name a line or a list of names lists, in the order written — an empty one where a name is still to be written.</summary>
     private static IReadOnlyList<string> Names(ContentNode node) =>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Binding;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Pipeline;
 using Nexaflow.Markdown.Pipeline.Stages;
 
@@ -26,8 +27,9 @@ namespace Nexaflow.Markdown.Mermaid;
 /// closes is not closed for you, because the half-typed block is exactly what an editor holds.
 /// </para>
 /// </summary>
-public static class MermaidParser
+public sealed class MermaidParser : ITranspile
 {
+    private MermaidParser() { }
     /// <summary>What opens and closes front matter.</summary>
     public const string Fence = "---";
 
@@ -64,7 +66,7 @@ public static class MermaidParser
     /// The word the diagram <paramref name="lines"/> are is named by: its header's, as written — a flowchart, for a block with no
     /// header yet, and a <c>mermaid</c> block for one whose header names no diagram.
     /// </summary>
-    private static string Named(IEnumerable<ContentNode> lines) =>
+    internal static string Named(IEnumerable<ContentNode> lines) =>
         lines.SelectMany(line => line.Children).FirstOrDefault(part => part.Kind == MermaidKinds.Header) is not { } header ? "flowchart"
         : header.Part(Roles.Name) is { } keyword && MermaidDiagrams.Named(keyword.Text) != MermaidDiagram.Unknown ? keyword.Text
         : MermaidFenceParser.Language;
@@ -138,24 +140,6 @@ public static class MermaidParser
 
         return lines is null ? block : block.With(lines);
     }
-
-    /// <summary>
-    /// <paramref name="text"/> as <paramref name="part"/> can hold it — written so it reads back as what was meant, with nothing in it
-    /// that would end the part or the line it is on — or null where the part can hold none of it. What a place in a diagram may hold
-    /// is the reading's to say, so whatever writes words into one asks here rather than knowing.
-    /// <list type="bullet">
-    /// <item>Between quotes, anything: a quote as the entity code standing for it, a line ending as the break a label is drawn with.</item>
-    /// <item>A title, anything on its one line: a line ending as a space.</item>
-    /// <item>A value, a number and nothing else.</item>
-    /// </list>
-    /// </summary>
-    public static string? SafeFormatText(ContentPart part, string text) => part.Kind switch
-    {
-        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
-        MermaidKinds.Title => text.ReplaceLineEndings(" "),
-        MermaidKinds.Amount => text.Length > 0 && double.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _) ? text : null,
-        _ => null,
-    };
 
     /// <summary>How a line breaks inside what a diagram draws as words.</summary>
     public const string LineBreak = "<br>";
@@ -294,7 +278,7 @@ public static class MermaidParser
     /// <param name="content">What it says — exactly the characters from <paramref name="from"/> to <paramref name="to"/>.</param>
     /// <param name="to">Where what it says ends.</param>
     /// <param name="last">The line that ends on — the same line, unless what it says runs on.</param>
-    private static ContentNode Line(string source, int start, int from, IReadOnlyList<ContentNode> content, int to, Row last)
+    internal static ContentNode Line(string source, int start, int from, IReadOnlyList<ContentNode> content, int to, Row last)
     {
         var pieces = new List<ContentNode>();
 
@@ -310,7 +294,7 @@ public static class MermaidParser
     /// What follows a construct on the line it ends on. Space is the line's; anything else has no reading, since a
     /// directive or a description closes its line.
     /// </summary>
-    private static IEnumerable<ContentNode> After(string text)
+    internal static IEnumerable<ContentNode> After(string text)
     {
         var lead = Leading(text);
         var trail = Trailing(text, lead);
@@ -332,7 +316,7 @@ public static class MermaidParser
     /// so a block whose first line names nothing reads as a diagram of no known type rather than as one with no header.
     /// </para>
     /// </summary>
-    private static ContentNode Header(string text, Reading reading)
+    internal static ContentNode Header(string text, Reading reading)
     {
         if (!char.IsAsciiLetter(text[0]))
             return ContentNode.Branch(MermaidKinds.Header, [ContentNode.Shown(text, text == Fence
@@ -364,7 +348,7 @@ public static class MermaidParser
     /// <summary>
     /// How far the read has got: whether the diagram has been named yet, and what its type reads for itself once it has.
     /// </summary>
-    private sealed class Reading
+    internal sealed class Reading
     {
         /// <summary>Whether anything but blank lines, comments and directives has been read — the first of those names the diagram.</summary>
         public bool Headed;
@@ -379,7 +363,7 @@ public static class MermaidParser
     /// A <c>%%{ … }%%</c> directive, which may run over several lines. What is inside is held as written: this renderer
     /// obeys no directive, and the diagrams that take a config take it from front matter.
     /// </summary>
-    private static int Directive(string source, Row row, int from, int to, List<ContentNode> lines)
+    internal static int Directive(string source, Row row, int from, int to, List<ContentNode> lines)
     {
         var close = source.IndexOf("}%%", from + 3, StringComparison.Ordinal);
         if (close < 0)
@@ -405,7 +389,7 @@ public static class MermaidParser
     /// <paramref name="lines"/>, handing back where the next line starts. Null where the line is none of those: a
     /// word that only starts the same way is the diagram's own.
     /// </summary>
-    private static int? Accessibility(string source, Row row, int from, int to, List<ContentNode> lines)
+    internal static int? Accessibility(string source, Row row, int from, int to, List<ContentNode> lines)
     {
         var name = Starting(source, from, to, AccessibleTitle) ?? Starting(source, from, to, AccessibleDescription);
         if (name is null) return null;
@@ -474,7 +458,7 @@ public static class MermaidParser
     /// The two fences of the front matter, where there is any: the first line that is not blank, if it is <c>---</c>,
     /// and the next line that is. A fence that is never closed opens nothing.
     /// </summary>
-    private static (Row Open, Row Close)? Fences(string source)
+    internal static (Row Open, Row Close)? Fences(string source)
     {
         var open = Row.At(source, 0);
         while (open.Start < source.Length && open.IsBlank(source)) open = Row.At(source, open.Stop);
@@ -491,7 +475,7 @@ public static class MermaidParser
     /// ones indented further, up to the next line that is not — so <c>config:</c> holds <c>pie:</c>, and <c>pie:</c> holds
     /// <c>legendPosition:</c>. A blank line goes with the lines round it. Nothing is moved, so it still prints as it was written.
     /// </summary>
-    private static ContentNode FrontMatter(string source, Row open, Row close)
+    internal static ContentNode FrontMatter(string source, Row open, Row close)
     {
         var top = new List<Nested>();
         var under = new List<Nested>();
@@ -554,9 +538,9 @@ public static class MermaidParser
 
     // ── Characters ──────────────────────────────────────────────────────────
 
-    private static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
+    internal static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
 
-    private static int Leading(string text)
+    internal static int Leading(string text)
     {
         var n = 0;
         while (n < text.Length && char.IsWhiteSpace(text[n])) n++;
@@ -564,7 +548,7 @@ public static class MermaidParser
     }
 
     /// <summary>How much space ends <paramref name="text"/>, never reaching back past <paramref name="floor"/>.</summary>
-    private static int Trailing(string text, int floor)
+    internal static int Trailing(string text, int floor)
     {
         var n = 0;
         while (text.Length - n > floor && char.IsWhiteSpace(text[text.Length - n - 1])) n++;
@@ -575,7 +559,7 @@ public static class MermaidParser
     /// A line of the source: what is on it, from <see cref="Start"/> to <see cref="End"/>, and the characters that
     /// ended it, from <see cref="End"/> to <see cref="Stop"/>.
     /// </summary>
-    private readonly record struct Row(int Start, int End, int Stop)
+    internal readonly record struct Row(int Start, int End, int Stop)
     {
         public static Row At(string source, int start)
         {
@@ -616,4 +600,67 @@ public static class MermaidParser
             return to - from == Fence.Length && string.CompareOrdinal(source, from, Fence, 0, Fence.Length) == 0;
         }
     }
+
+    // ── Writing back ────────────────────────────────────────────────────────
+    //
+    // What each place can hold, and how what it cannot hold is spelled so that the line still reads. Only the places with
+    // a rule of their own are named: a run of words holds words, so what was typed into one goes in as it was typed.
+
+    /// <inheritdoc cref="ITranspile.Rewrite"/>
+    public static ContentChange? Rewrite(ContentChange change) => Rewrite(change, Spelled);
+
+    /// <summary>
+    /// The same, spelled by <paramref name="spelled"/> — which is how a diagram with a parser of its own writes back through
+    /// its own syntax while the walk over the writes, and what a write does to the caret, stays said once.
+    /// </summary>
+    internal static ContentChange? Rewrite(ContentChange change, Func<ContentPart, string, string?> spelled)
+    {
+        if (!change.Writes.Any(write => write.Meant)) return change;
+
+        var writes = new List<ContentWrite>(change.Writes.Count);
+        var caret = change.Caret;
+        var moved = 0;
+        var grown = 0;
+
+        foreach (var write in change.Writes.OrderBy(write => write.Start))
+        {
+            // Where the write stands once the ones before it have been made, and how far it moves what follows.
+            var at = write.Start + moved;
+            moved += write.Text.Length - write.Length;
+
+            if (!write.Meant) { writes.Add(write); continue; }
+            if (spelled(write.Part!, write.Text) is not { } said) return null;
+
+            writes.Add(new ContentWrite(write.Start, write.Length, said) { Part = write.Part });
+
+            if (change.Caret >= at && change.Caret <= at + write.Text.Length)
+                caret = at + grown + (spelled(write.Part!, write.Text[..(change.Caret - at)])?.Length ?? said.Length);
+            else if (change.Caret > at + write.Text.Length)
+                caret += said.Length - write.Text.Length;
+
+            grown += said.Length - write.Text.Length;
+        }
+
+        return change with { Writes = writes, Caret = caret };
+    }
+
+    /// <summary>
+    /// What <paramref name="text"/> is written as where it is going — itself, wherever the place can hold it — or null where
+    /// it cannot go there at all and nothing should be written.
+    /// </summary>
+    internal static string? Spelled(ContentPart part, string text) => part.Kind switch
+    {
+        // In quotes a quote is its entity code, and a line break is the mark this language writes one with.
+        MermaidKinds.Quoted => MermaidText.Quoted(text.ReplaceLineEndings(LineBreak)),
+
+        // A title is one line, however many the reader pasted.
+        MermaidKinds.Title => text.ReplaceLineEndings(" "),
+
+        // A number holds a number, read as this language writes one rather than as a reader's own language would.
+        MermaidKinds.Amount or Kinds.Number =>
+            text.Length > 0 && double.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _)
+                ? text : null,
+
+        _ => text,
+    };
 }

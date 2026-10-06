@@ -231,7 +231,7 @@ public sealed class GanttGrammar : IMermaidGrammar
                 if (line.Token("(", Roles.Open))
                 {
                     var close = Closing(line.Rest);
-                    line.Add(ContentNode.Leaf(MermaidKinds.Words, close < 0 ? line.Rest : line.Rest[..close], GanttRoles.Arguments,
+                    line.Add(ContentNode.Leaf(Kinds.Words, close < 0 ? line.Rest : line.Rest[..close], GanttRoles.Arguments,
                                               close < 0 ? "A call's arguments are closed with )." : null));
                     line.Token(")", Roles.Close);
                 }

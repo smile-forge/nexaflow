@@ -326,7 +326,7 @@ public sealed class ClassGrammar : IMermaidGrammar
         else
         {
             if (line.Word(HrefWord, letter: Bare)) line.Room();
-            if (!line.Quoted(word == CallbackWord ? ClassRoles.Call : ClassRoles.Href)) return line.Shown(ClickShape);
+            if (!line.Quoted(word == CallbackWord ? ClassRoles.Call : Roles.Destination)) return line.Shown(ClickShape);
         }
 
         if (!Quotable(line, ClassRoles.Tip)) return line.Shown(ClickShape);

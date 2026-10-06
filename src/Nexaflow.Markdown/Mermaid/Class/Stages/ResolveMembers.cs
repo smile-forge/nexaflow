@@ -14,7 +14,7 @@ public sealed class ResolveMembers : IAstStage
     public string Name => "class:members";
 
     public ContentNode Run(ContentNode tree) =>
-        AstRewrite.Each(tree, node => node is { Kind: MermaidKinds.Words, Role: ClassRoles.Member, Width: > 0 } and not MemberNode
+        AstRewrite.Each(tree, node => node is { Kind: Kinds.Words, Role: ClassRoles.Member, Width: > 0 } and not MemberNode
             ? MemberNode.Of(node)
             : node);
 }

@@ -115,8 +115,8 @@ public sealed class ResolveArchitecture : IAstStage
 
     private static ContentNode? Said(ContentNode line, string role) =>
         line.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name
-                                              && child.Children.Any(inner => inner.Kind == MermaidKinds.Words && inner.Role == role));
+                                              && child.Children.Any(inner => inner.Kind == Kinds.Words && inner.Role == role));
 
     private static string? Text(ContentNode? name) =>
-        name?.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Words)?.Text;
+        name?.Children.FirstOrDefault(child => child.Kind == Kinds.Words)?.Text;
 }

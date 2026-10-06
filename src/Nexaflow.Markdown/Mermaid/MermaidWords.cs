@@ -26,7 +26,7 @@ public sealed class MermaidWords(IReadOnlyDictionary<ContentNode, IReadOnlyList<
     /// <summary>A diagram whose every run of words is only its own characters.</summary>
     public static readonly MermaidWords None = new(new Dictionary<ContentNode, IReadOnlyList<WordPiece>>());
 
-    /// <summary>The pieces a run of <see cref="MermaidKinds.Words"/> is made of, or null where it is only its own characters.</summary>
+    /// <summary>The pieces a run of <see cref="Kinds.Words"/> is made of, or null where it is only its own characters.</summary>
     public IReadOnlyList<WordPiece>? Of(ContentNode words) => pieces.TryGetValue(words, out var found) ? found : null;
 
     /// <summary>What the diagram <paramref name="root"/> holds about its words — <see cref="None"/> where nothing was found.</summary>

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 
+using System.Windows.Input;
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -145,15 +146,21 @@ public class MarkdownSurfaceTests
         var asked = new List<MarkdownClipboard.ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
-        var at = Middle(surface, "firefox");
-        var copy = surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy);
-
-        surface.Raise(copy, at);
+        Picked(surface);
+        Assert.IsTrue(surface.Pressed(Key.C, ModifierKeys.Control), "Ctrl+C was taken");
 
         Assert.AreEqual(1, asked.Count);
         StringAssert.Contains(asked[0].Markdown, "firefox", "with what would go on the clipboard already worked out");
-        Assert.IsFalse(asked[0].Markdown.Contains("Getting Started", StringComparison.Ordinal), "the block pressed on, not the document");
+        Assert.IsFalse(asked[0].Markdown.Contains("Getting Started", StringComparison.Ordinal), "the block chosen, not the document");
     });
+
+    /// <summary>Picks out the whole of the diagram, which is what makes a copy of it a copy of that block.</summary>
+    private static void Picked(MarkdownSurface surface)
+    {
+        var fence = Doc.IndexOf("```mermaid", StringComparison.Ordinal);
+
+        surface.Shown.SelectRange(fence, Doc.IndexOf("```\n", fence + 3, StringComparison.Ordinal) + 4 - fence);
+    }
 
     [TestMethod]
     public void CopyingADiagramCarriesThePictureAsWellAsTheLinesItIsWrittenAs() => UiThread.Run(() =>
@@ -164,8 +171,8 @@ public class MarkdownSurfaceTests
         var asked = new List<MarkdownClipboard.ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
-        var at = Middle(surface, "firefox");
-        surface.Raise(surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy), at);
+        Picked(surface);
+        surface.Pressed(Key.C, ModifierKeys.Control);
 
         Assert.IsNotNull(asked[0].Picture, "the picture the diagram draws");
         StringAssert.Contains(asked[0].Markdown, "firefox", "and the lines it is written as");
@@ -173,72 +180,42 @@ public class MarkdownSurfaceTests
     });
 
     [TestMethod]
+    public void AHostThatRefusesAChangeKeepsEveryWordItHad() => UiThread.Run(() =>
+    {
+        // A host may own what is written — a document somebody else is saving, a field being checked as it is typed in. It is
+        // asked before anything is written rather than told afterwards, so a refusal costs nothing to undo.
+        var surface = Shown("Words.\n");
+        surface.IsReadOnly = false;
+        surface.Shown.MoveCaretTo("Words.".Length);
+
+        surface.Shown.Type('!');
+        StringAssert.Contains(surface.Markdown, "!", "with nobody refusing, it is written");
+
+        var asked = 0;
+        surface.Changing += (_, e) => { asked++; e.Refused = true; };
+
+        var before = surface.Markdown;
+        surface.Shown.Type('?');
+
+        Assert.AreEqual(1, asked, "asked once, before writing");
+        Assert.AreEqual(before, surface.Markdown, "and the refusal left every word as it was");
+    });
+
+    [TestMethod]
     public void AndCopyingCodeCarriesNoPicture() => UiThread.Run(() =>
     {
         // The same answer that leaves a code fence's Save button off leaves its picture off here.
-        var surface = Shown("```csharp\nvar x = 1;\n```\n\nWords.\n");
+        const string source = "```csharp\nvar x = 1;\n```\n\nWords.\n";
+        var surface = Shown(source);
         var asked = new List<MarkdownClipboard.ContentCopy>();
         surface.Copying += (_, e) => { asked.Add(e.Copy); e.Handled = true; };
 
-        var at = Middle(surface, "var");
-        surface.Raise(surface.Corner(at).Single(offer => offer.Verb == LayoutVerbs.Copy), at);
+        surface.Shown.SelectRange(0, source.IndexOf("```\n", 3, StringComparison.Ordinal) + 4);
+        surface.Pressed(Key.C, ModifierKeys.Control);
 
         Assert.IsNull(asked[0].Picture);
         StringAssert.Contains(asked[0].Markdown, "var x = 1;", "the code, which is the best copy of code there is");
         Assert.IsFalse(MarkdownClipboard.Data(asked[0]).GetDataPresent(DataFormats.Bitmap));
-    });
-
-    [TestMethod]
-    public void AndABlockOffersOnlyTheButtonsThatMeanAnythingForIt() => UiThread.Run(() =>
-    {
-        var surface = Shown("```csharp\nvar x = 1;\n```\n\nWords.\n");
-
-        var code = surface.Corner(Middle(surface, "var")).Select(offer => offer.Verb).ToList();
-
-        CollectionAssert.Contains(code, LayoutVerbs.Copy);
-        CollectionAssert.DoesNotContain(code, LayoutVerbs.Save,
-            "a picture of code is a worse copy of the code, and the language says so");
-    });
-
-    [TestMethod]
-    public void AndProseOffersNoPictureEither() => UiThread.Run(() =>
-    {
-        var surface = Shown("Just some words.\n");
-
-        var prose = surface.Corner(Middle(surface, "Just some")).Select(offer => offer.Verb).ToList();
-
-        CollectionAssert.DoesNotContain(prose, LayoutVerbs.Save, "prose is not a picture of anything");
-    });
-
-    [TestMethod]
-    public void ProseHasNoCornerAtAll() => UiThread.Run(() =>
-    {
-        var surface = Shown("Just some words.\n");
-
-        Assert.AreEqual(0, surface.Corner(Middle(surface, "Just some")).Count, "a paragraph is read, not handled");
-    });
-
-    [TestMethod]
-    public void ABlockReachesAcrossThePageSoItsCornerCanBeReached() => UiThread.Run(() =>
-    {
-        var surface = Shown("```cs\nvar x = 1;\n```\n");
-        var words = Middle(surface, "var");
-        var edge = new Point(surface.Shown.Laid.Size.Width - 2, words.Y);
-
-        CollectionAssert.Contains(surface.Corner(edge).Select(offer => offer.Verb).ToList(), LayoutVerbs.Copy,
-                                  "past the end of the code, at the edge the corner stands at, it is still the block's");
-    });
-
-    [TestMethod]
-    public void APicturesCornerCanBeReachedFromTheTopOfThePicture() => UiThread.Run(() =>
-    {
-        // A barcode's bars stand for no characters, so a block found only by where its characters were drawn would be no
-        // taller than the value printed under it — and the corner, at the block's top, would be off the block.
-        var surface = Shown("Before.\n\n```barcode\nformat: CODE128\nvalue: 12345\n```\n");
-        var symbol = surface.Shown.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Block && piece.Part is { Length: > 30 });
-        var corner = new Point(surface.Shown.Laid.Size.Width - 2, symbol.Bounds.Top + 2);
-
-        CollectionAssert.Contains(surface.Corner(corner).Select(offer => offer.Verb).ToList(), LayoutVerbs.Copy);
     });
 
     [TestMethod]
@@ -247,7 +224,8 @@ public class MarkdownSurfaceTests
         var surface = Shown("# Title\n\nSome **bold** words.\n");
         surface.IsReadOnly = false;
 
-        Assert.IsTrue(surface.OpenAsWritten(Middle(surface, "bold")));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
+
         Assert.AreEqual((9, 20), surface.Shown.ShownAsWritten, "the paragraph, without the line ending that closes it");
         Assert.IsTrue(surface.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == "Some **bold** words."),
                       "drawn as its characters");
@@ -259,7 +237,7 @@ public class MarkdownSurfaceTests
     {
         var surface = Shown("# Title\n\nSome **bold** words.\n");
         surface.IsReadOnly = false;
-        surface.OpenAsWritten(Middle(surface, "bold"));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
 
         surface.Shown.TakeCaret(2);
 
@@ -286,8 +264,9 @@ public class MarkdownSurfaceTests
             var surface = Shown(source);
             surface.IsReadOnly = false;
 
-            Assert.IsTrue(surface.OpenAsWritten(Middle(surface, word)), $"{block.Trim()}: opens");
-            Assert.AreEqual((8, block.TrimEnd('\n').Length), surface.Shown.ShownAsWritten, $"{block.Trim()}: the whole of it");
+            surface.Shown.PointerDoubleClick(Middle(surface, word));
+
+            Assert.AreEqual((8, block.TrimEnd('\n').Length), surface.Shown.ShownAsWritten, $"{block.Trim()}: the whole of it, opened");
             Assert.IsTrue(surface.Shown.Laid.Root.SelfAndDescendants().Any(piece => piece.Words?.Glyphs.Text == block.TrimEnd('\n')),
                           $"{block.Trim()}: drawn as the characters it was written as, marks and all");
 
@@ -302,10 +281,10 @@ public class MarkdownSurfaceTests
     {
         var surface = Shown("Some **bold** words.\n");
         surface.IsReadOnly = false;
-        surface.OpenAsWritten(Middle(surface, "bold"));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
         surface.Shown.Type('!');
 
-        Assert.IsTrue(surface.Pressed(System.Windows.Input.Key.Escape, System.Windows.Input.ModifierKeys.None));
+        Assert.IsTrue(surface.Pressed(Key.Escape, ModifierKeys.None));
         Assert.IsNull(surface.Shown.ShownAsWritten);
         StringAssert.Contains(surface.Markdown, "!", "what was typed stays typed");
     });
@@ -316,9 +295,12 @@ public class MarkdownSurfaceTests
         var surface = Shown("Some **bold** words.\n");
         surface.IsReadOnly = false;
 
-        Assert.IsTrue(surface.OpenAsWritten(Middle(surface, "bold")));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
+        Assert.IsNotNull(surface.Shown.ShownAsWritten, "the first two presses opened it");
 
-        Assert.IsFalse(surface.OpenAsWritten(Middle(surface, "bold")));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
+
+        Assert.IsTrue(surface.Shown.SelectionLength > 0, "and the second two picked a word out of it instead");
     });
 
     [TestMethod]
@@ -327,7 +309,8 @@ public class MarkdownSurfaceTests
         var surface = Shown("Some **bold** words.\n");
         surface.IsReadOnly = true;
 
-        Assert.IsFalse(surface.OpenAsWritten(Middle(surface, "bold")));
+        surface.Shown.PointerDoubleClick(Middle(surface, "bold"));
+
         Assert.IsNull(surface.Shown.ShownAsWritten);
     });
 

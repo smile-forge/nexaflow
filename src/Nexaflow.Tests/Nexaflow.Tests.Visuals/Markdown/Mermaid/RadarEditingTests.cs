@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Editing;
@@ -15,8 +16,13 @@ namespace Nexaflow.Tests.Visuals.Markdown.Mermaid;
 
 /// <summary>
 /// Writing in a radar chart through the editor that hosts it: the label at the end of a spoke and the name in a legend row are
-/// the characters written, so a press puts the caret among them and a keystroke changes the chart — an axis renamed is renamed
-/// wherever a value names it, and Enter starts another curve with a hole for its name.
+/// the characters written, so a press puts the caret among them and a keystroke changes the chart, and an axis renamed is
+/// renamed wherever a value names it.
+///
+/// <para>
+/// Only what is written. A curve is a value for every axis the chart has, so adding one is not something a keystroke can
+/// say; Enter is not answered here and writes nothing.
+/// </para>
 /// </summary>
 [TestClass]
 [TestCategory("Desktop")]
@@ -117,7 +123,7 @@ public class RadarEditingTests
     public void ASpaceTypedIntoABareAxisNamePutsItInQuotes()
     {
         const string source = "radar-beta\n  axis a, b\n  curve x{ a: 1, b: 2 }";
-        var words = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == MermaidKinds.Words && part.Text == "a");
+        var words = MermaidStaged.Read(source).SelfAndDescendants().First(part => part.Kind == Kinds.Words && part.Text == "a");
         var writing = RadarEdits.Escaping(words, words.End, " ")!.Value;
 
         Assert.AreEqual("radar-beta\n  axis \"a \", b\n  curve x{ a: 1, b: 2 }", MermaidStaged.Written(source, writing));

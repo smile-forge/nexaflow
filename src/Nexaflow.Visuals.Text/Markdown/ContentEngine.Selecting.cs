@@ -16,15 +16,20 @@ public sealed partial class ContentEngine
     /// <summary>Raised whenever what is picked out changes — to nothing, too, when the last of it is let go.</summary>
     public event EventHandler<ContentSelectionChange>? SelectionChanged;
 
-    /// <summary>Tells whoever follows the content what is picked out now.</summary>
+    /// <summary>
+    /// Says what is picked out now: to whatever is showing the content, which paints it, and to whoever is hosting that, which may
+    /// act on it somewhere else entirely.
+    /// </summary>
     private void Chosen()
     {
-        if (SelectionChanged is not { } told) return;
+        if (SelectionChanged is null && this.Events is null) return;
 
         var ranges = _state.Selection.Select(range => (range.Start, range.Length)).ToList();
         var selection = ContentSelection.Over(_laid.Root, ranges);
+        var change = new ContentSelectionChange(selection, Picks(selection));
 
-        told(this, new ContentSelectionChange(selection, Picks(selection)));
+        SelectionChanged?.Invoke(this, change);
+        this.Events?.OnSelect(change);
     }
 
     /// <summary>Each thing picked out, in the order written: the whole pieces chosen, and the characters of a stretch chosen inside one.</summary>

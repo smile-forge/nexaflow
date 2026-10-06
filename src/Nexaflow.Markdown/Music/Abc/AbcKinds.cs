@@ -118,9 +118,6 @@ public static class AbcKinds
     /// <summary>A line continuation: the <c>\</c> that says the next source line is the same music line.</summary>
     public const string Continuation = "continuation";
 
-    /// <summary>Plain text: a field's value, a syllable, whatever is inside quotes.</summary>
-    public const string Text = "text";
-
     // ── The words of a K:, M:, L: or V: value ───────────────────────────────
 
     /// <summary>A word of a field's value standing for itself: <c>bass</c>, <c>Lydian</c>, <c>C|</c>, <c>none</c>, a voice's name.</summary>
@@ -140,9 +137,6 @@ public static class AbcKinds
 
     /// <summary>The figures of a meter or a unit length — <c>6/8</c>, <c>(2+3)/8</c>, <c>1/16</c>: its numbers and the marks between them.</summary>
     public const string Figures = "figures";
-
-    /// <summary>One number of a meter's or a unit length's figures.</summary>
-    public const string Number = "number";
 
     // ── Kinds a pipeline stage makes ────────────────────────────────────────
     //

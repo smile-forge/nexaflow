@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Media;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Markdown;
 
 namespace Nexaflow.Visuals.Text.Editing;

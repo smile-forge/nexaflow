@@ -83,7 +83,7 @@ public static class AbcEdit
     {
         if (!AbcParser.IsNoteLetter(letter)) return letter.ToString();
 
-        var previous = Before(reading, caret);
+        var previous = Before(reading, caret)?.Node;
 
         var octave = previous is { } sounding ? Sounding(sounding) : 5;
         var step = Pitch.Letters.IndexOf(char.ToUpperInvariant(letter));
@@ -183,8 +183,8 @@ public static class AbcEdit
             ? step
             : null;
 
-    /// <summary>The note before <paramref name="caret"/>, or null when there is none.</summary>
-    private static ContentNode? Before(ContentReading reading, int caret)
+    /// <summary>The note the caret stands after, which is the one a key changing a note changes.</summary>
+    internal static ContentPart? Before(ContentReading reading, int caret)
     {
         ContentPart? best = null;
 
@@ -196,7 +196,7 @@ public static class AbcEdit
             if (best is null || part.End > best.End) best = part;
         }
 
-        return best?.Node;
+        return best;
     }
 
     // ── Rewriting the tree ──────────────────────────────────────────────────
@@ -300,4 +300,36 @@ public static class AbcEdit
 
         return note.With(rebuilt);
     }
+
+    /// <summary>
+    /// How a pause of a whole note is written in this tune: a <c>z</c>, and the multiplier that makes it a whole note
+    /// against the length everything else in the tune is written in multiples of.
+    /// </summary>
+    internal static string Pause(ContentReading reading)
+    {
+        var unit = Unit(reading);
+
+        return "z" + Suffix(Duration.Of(unit.Denominator, unit.Numerator));
+    }
+
+    /// <summary>
+    /// The length a tune's notes are written in multiples of: what its <c>L:</c> says, or what its <c>M:</c> implies where it
+    /// says nothing, or the eighth ABC falls back to where it has neither.
+    /// </summary>
+    private static Duration Unit(ContentReading reading)
+    {
+        if (Figures(reading, "L:") is [var over, var under] && under > 0) return Duration.Of(over, under);
+        if (Figures(reading, "M:") is [var beats, var unit] && unit > 0) return AbcTheory.UnitFor(beats, unit);
+
+        return Duration.Of(1, 8);
+    }
+
+    /// <summary>The numbers written on the first <paramref name="field"/> line of <paramref name="reading"/>.</summary>
+    private static int[] Figures(ContentReading reading, string field) =>
+        [.. reading.Root.SelfAndDescendants()
+                .Where(part => part.Kind == AbcKinds.Field && part.Part(Roles.Name)?.Text == field)
+                .Take(1)
+                .SelectMany(line => line.SelfAndDescendants())
+                .Where(part => part.Kind == Kinds.Number && int.TryParse(part.Text, out _))
+                .Select(part => int.Parse(part.Text))];
 }

@@ -28,10 +28,10 @@ public sealed class ResolveStyles : IAstStage
     {
         if (node.Kind != ErKinds.Named) yield break;
 
-        var id = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == MermaidKinds.Words && words.Role == ErRoles.Id)?.Text;
+        var id = node.SelfAndDescendants().FirstOrDefault(words => words.Kind == Kinds.Words && words.Role == ErRoles.Id)?.Text;
         if (id is not { Length: > 0 }) yield break;
 
-        foreach (var given in node.SelfAndDescendants().Where(words => words.Kind == MermaidKinds.Words && words.Role == ErRoles.Class))
+        foreach (var given in node.SelfAndDescendants().Where(words => words.Kind == Kinds.Words && words.Role == ErRoles.Class))
             if (given.Text is { Length: > 0 } name) yield return (id, name);
     }
 }

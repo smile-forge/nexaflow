@@ -31,7 +31,7 @@ public sealed class ResolveStyles : IAstStage
         var id = node.Children.FirstOrDefault(child => child.Kind == MermaidKinds.Name)?.Words()?.Text;
         if (id is not { Length: > 0 }) yield break;
 
-        foreach (var given in node.SelfAndDescendants().Where(words => words.Kind == MermaidKinds.Words && words.Role == ClassRoles.Class))
+        foreach (var given in node.SelfAndDescendants().Where(words => words.Kind == Kinds.Words && words.Role == ClassRoles.Class))
             if (given.Text is { Length: > 0 } name) yield return (id, name);
     }
 }

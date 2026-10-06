@@ -42,7 +42,7 @@ public static class AbcTheory
 
         foreach (var piece in length.Children)
         {
-            if (piece.Kind != AbcKinds.Number) { slashes++; continue; }
+            if (piece.Kind != Kinds.Number) { slashes++; continue; }
             if (!long.TryParse(piece.Text, out var number)) continue;
 
             if (slashes == 0) numerator = number;

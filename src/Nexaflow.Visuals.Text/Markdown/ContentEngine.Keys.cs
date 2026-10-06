@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Visuals.Text.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown;
@@ -47,6 +48,8 @@ public sealed partial class ContentEngine
     /// <summary>Raised when the source changed — written, taken back, written again, or put there by whatever shows it.</summary>
     public event EventHandler<ContentSourceChange>? SourceChanged;
 
+
+
     /// <summary>What a key means here, done.</summary>
     private bool Pressed(Key key, ModifierKeys modifiers)
     {
@@ -76,6 +79,11 @@ public sealed partial class ContentEngine
                 if (!_state.HasSelection) return LetGo();
                 ClearSelection();
                 return true;
+
+            // A step up or down of whatever the content makes one of — an octave, in a tune — and failing that a page of
+            // whatever shows it. Above the question of writing, because paging a document nobody may write in still pages it.
+            case Key.PageUp or Key.PageDown:
+                return Stepped(key == Key.PageUp) || this.Events?.OnPage(key == Key.PageUp) == true;
         }
 
         if (_readOnly) return false;
@@ -114,7 +122,17 @@ public sealed partial class ContentEngine
         }
     }
 
-    /// <summary>What a key held with Ctrl means — the ones about the content; the clipboard's are whatever shows it.</summary>
+    /// <summary>A step up or down where the language it landed in makes one, and false where it does not.</summary>
+    private bool Stepped(bool up)
+    {
+        if (_readOnly) return false;
+        if (Edited(up ? EditKind.Raising : EditKind.Lowering, string.Empty, Landing) is not { } stepped) return false;
+
+        Apply(stepped, notify: true);
+        return true;
+    }
+
+    /// <summary>What a key held with Ctrl means.</summary>
     private bool Commanded(Key key, bool shift)
     {
         switch (key)
@@ -126,6 +144,10 @@ public sealed partial class ContentEngine
             case Key.Home or Key.End:
                 MoveCaretTo(key == Key.End ? _state.Source.Length : 0, extend: shift);
                 return true;
+
+            // Above the question of writing: what is only being looked at can still be picked out and copied.
+            case Key.C or Key.Insert:
+                return Copied();
         }
 
         if (_readOnly) return false;
@@ -148,6 +170,12 @@ public sealed partial class ContentEngine
             case Key.I:
                 Wrap("*", "*");
                 return true;
+
+            case Key.X:
+                return Cut();
+
+            case Key.V:
+                return Paste();
 
             default:
                 return false;

@@ -174,5 +174,5 @@ internal static class C4Parts
         stated.SelfAndDescendants()
               .FirstOrDefault(part => part.Node is C4ArgumentNode argument && argument.Means == means)?
               .SelfAndDescendants()
-              .FirstOrDefault(part => part.Kind == MermaidKinds.Words && part.Role is C4Roles.Value or SequenceRoles.Id);
+              .FirstOrDefault(part => part.Kind == Kinds.Words && part.Role is C4Roles.Value or SequenceRoles.Id);
 }

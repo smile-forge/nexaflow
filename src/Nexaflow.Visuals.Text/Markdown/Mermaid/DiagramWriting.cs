@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Visuals.Text.Editing;
 

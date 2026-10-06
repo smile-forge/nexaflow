@@ -107,6 +107,20 @@ by the language before the stages run — lines of the block's own that nobody w
 `Derived` because it is read-only in a way worked-out content is not: it is picked out whole, and there is nowhere in
 it to put the caret (`ContentPart.Supplied`).
 
+**A derived part stands for no characters, and that is what it costs.** It prints as nothing, no offset finds it, and
+it and everything under it begin where the piece they were hung under begins and are no characters long
+(`ContentPart`). So nothing derived can be picked out, hit-tested or typed into. A reading of what content *amounts to*
+is therefore hung beside what was written rather than put in its place, and whoever draws it resolves each thing it
+names back to the written parts, which are what a caret, a selection and an edit all address.
+
+**A language whose subject is not a tree keeps a derived reading of it.** A flowchart is a graph, and a graph does not
+fit a tree: one node is named from several places and each mention is its own characters. So the written tree stays as
+written, in source order, and beside it a derived reading holds the nodes of the chart, each once, and the connections
+between them, each naming its two ends (`FlowchartKinds.Graph`, `ResolveChart`). An entry says which of its mentions
+holds the words drawn, so whoever draws it finds the characters without searching for them; and where a node leads is
+on the node as a `Kinds.Link` holding a `Roles.Destination`, which is the shape prose writes a link in, so whoever
+follows one needs to know nothing about charts.
+
 **R8 — An AST the builder has laid out is finished.** Nothing rewrites it. Editing works from where its parts stand in
 the source, writes the source, and the engine reads it again.
 
@@ -119,9 +133,17 @@ change means.
 
 Nothing outside the parser may compose syntax. An editing handler names an intent — flatten this note, set this
 slice's value, make this run bold — and the parser spells it. Escaping, delimiters, quoting and entity codes are the
-parser's and appear nowhere else. For Mermaid, `MermaidParser.SafeFormatText`: a quote as its entity code and a line
-break as `<br>` between quotes, a line break as a space in a title, only a number in a value. Where the part cannot
-hold what was asked for, nothing is written.
+parser's and appear nowhere else. The write half is `ITranspile`, which a parser implements to be asked about a change
+before it is written. `MermaidParser` spells a quote as its entity code and a line break as `<br>` between quotes, a
+line break as a space in a title, only a number in a value; `FlowchartParser` spells the same, and a line break inside
+a quoted value as the characters that hold one there, and drops from a name whatever a name cannot hold — a space,
+unless the name is a subgraph's own, which is written in words. Where the part cannot hold what was asked for, nothing
+is written — and a language whose parser implements nothing has nothing written into it, because a key that does
+nothing is better than characters spliced into a syntax nothing vouched for.
+
+A language within a kit may own its parser: a flowchart is read by `FlowchartParser` rather than by the shared
+`MermaidParser`, reusing its internals for the frame every Mermaid block shares and reading its own statements, because
+a flowchart's statement does not end where a line does — a quoted value spans lines and is one run of words.
 
 **A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
 change.
@@ -249,8 +271,10 @@ So there are three answers, all a `Laid`:
 
 **Which answer a language gives turns on one question: is this content typed into where it is drawn?** A diagram that
 draws nothing asks to be shown as written, blaming what it could make nothing of. A formula keeps its typesetting
-while it is written, and something it read but cannot draw is a warning in place. A tune, a structure, a 2D code, a
-plot and a word cloud are never typed into where they are drawn, so anything wrong shows them as written. A barcode's
+while it is written, and something it read but cannot draw is a warning in place. A tune is typed into where it is drawn — its title and
+the words under its staff as text, its notes as notes — so something it read but cannot draw is marked in place. A
+structure, a 2D code, a plot and a word cloud are never typed into where they are drawn, so anything wrong shows them
+as written. A barcode's
 value is typed into where it is printed, so a value that will not encode keeps a faint symbol with a wave under it
 while it is written.
 
@@ -294,8 +318,9 @@ was left — and says so when it lands (`Reread`). Whatever shows the content mo
 
 Everything the reader does reaches the engine as one `ContentInput` (`ContentEngine.Input`): a key, text typed, a
 press, a drag, a release. A window's keys and a test's are the same input by then, so what one does the other does. The
-element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag;
-the surface keeps the keys that are its own — the clipboard's and the page's.
+element only turns the pointer's pixels into the content's units and says when a move has gone far enough to be a drag.
+No key is the surface's: the clipboard's and the page's go to the engine like every other, and where a page key means
+nothing to the content the engine asks back for a page, which is as tall as whatever shows it.
 
 **Who answers a key: two walks, and nothing is tracked.** From the piece the caret stands against, up the layout tree
 to the first piece drawn from a part of an AST (through anything standing for one — `IStandsFor`); from that part, up
@@ -336,8 +361,10 @@ Markdown's own offer is Insert: every language that names a block to start from 
 — a Fluent UI System Icons name — and `DefaultBlock`, gathered by `ContentLanguages.Insertable`) sits behind the
 ribbon's one Insert button, which opens a sub-ribbon of their icons; choosing one writes its block after the block the
 ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surface adds nothing to the ribbon of its
-own. Paste, where a language offers it, is the host's to do, since the clipboard is its — it hands what is there to the
-engine as a pasting edit. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
+own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the
+application's, and hands the words to the language the caret is in as a pasting edit. What a copy holds is the engine's
+too — only it knows what is picked out and what language that was written in, so a whole block copied carries the picture
+it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
 a null answer moves the text as anywhere. While whole pieces are chosen — a slice, a node — there is no caret
 (`ContentEngine.ChoseWhole`).
 
@@ -351,7 +378,8 @@ picture of itself, prose no corner at all. A language that implements any of the
 ## 10. The element and the surface
 
 `MarkdownSurface` is the one control a page hosts, as many times as it shows content: it owns the scroller, the focus,
-the clipboard and what a search turned up. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
+and what a search turned up, and answers what the engine asks of a control — a copy to be put on the clipboard, what is
+on one, a picture of a block, a page. Inside it one element (`MarkdownElement`, a `ContentElement`) shows what its
 engine holds.
 
 The engine keeps the content as it is being written — the source, the caret, the selection, what was written so it can

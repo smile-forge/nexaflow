@@ -13,6 +13,7 @@ using ContentElement = Nexaflow.Visuals.Text.Editing.ContentElement;
 using Nexaflow.Tests.Visuals.Editing;
 using Nexaflow.Visuals.Text.Markdown.Prose;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Tests.Visuals.Markdown;
 
@@ -31,12 +32,11 @@ public class BlockCornerTests
 
     [TestMethod]
     public void OverADiagramItsCornerOffersToCopyItAndToKeepAPictureOfIt() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run(Document, editor =>
-        {
-            var offered = editor.Corner(Middle(Box(editor, 0))).Select(offer => offer.Verb).ToList();
+    {
+        var engine = LaidOut(Document);
 
-            CollectionAssert.AreEqual(new[] { LayoutVerbs.Copy, LayoutVerbs.Save }, offered);
-        }));
+        CollectionAssert.AreEqual(new[] { LayoutVerbs.Copy, LayoutVerbs.Save }, Verbs(engine, Middle(Where(engine, Document, "pie"))));
+    });
 
     [TestMethod]
     public void OverABlockItsButtonsStandInItsCorner_AndPressingOneTellsTheHostWhichBlock() => UiThread.Run(() =>
@@ -71,12 +71,12 @@ public class BlockCornerTests
 
     [TestMethod]
     public void OffEveryBlockNothingIsOffered() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run(Document, editor =>
-        {
-            var below = new Point(4, editor.Shown.Laid.Size.Height + 40);
+    {
+        var engine = LaidOut(Document);
+        var below = new Point(4, engine.Laid.Size.Height + 40);
 
-            Assert.AreEqual(0, editor.Corner(below).Count, "past everything written there is no block");
-        }));
+        Assert.AreEqual(0, Verbs(engine, below).Count, "past everything written there is no block");
+    });
 
     [TestMethod]
     public void ABlockWhoseLanguageFallsOverOnItsCornerLeavesTheDocumentDrawn() => UiThread.Run(() =>
@@ -98,34 +98,77 @@ public class BlockCornerTests
 
     [TestMethod]
     public void AFormulaOnALineOfItsOwnIsAPictureWorthKeeping_AndOneInASentenceIsTheSentences() => UiThread.Run(() =>
-        MarkdownEditorHarness.Run("Area $\\pi r^2$ of a circle.\n\n$$\n\\frac{a}{b}\n$$\n", editor =>
-        {
-            var blocks = MarkdownEditorHarness.Blocks(editor);
-            Assert.AreEqual(2, blocks.Count, "precondition: both formulas are drawn");
+    {
+        const string document = "Area $\\pi r^2$ of a circle.\n\n$$\n\\frac{a}{b}\n$$\n";
+        var engine = LaidOut(document);
 
-            var inline = editor.Corner(Middle(Box(editor, 0))).Select(offer => offer.Verb).ToList();
-            var display = editor.Corner(Middle(Box(editor, 1))).Select(offer => offer.Verb).ToList();
+        var inline = Verbs(engine, Middle(Where(engine, document, "\\pi")));
+        var display = Verbs(engine, Middle(Where(engine, document, "\\frac")));
 
-            CollectionAssert.DoesNotContain(inline, LayoutVerbs.Save, "in a sentence, the corner is the sentence's, and prose is no picture");
-            CollectionAssert.Contains(display, LayoutVerbs.Save, "on its own line, the formula is the block");
-        }));
+        CollectionAssert.DoesNotContain(inline, LayoutVerbs.Save, "in a sentence, the corner is the sentence's, and prose is no picture");
+        CollectionAssert.Contains(display, LayoutVerbs.Save, "on its own line, the formula is the block");
+    });
 
     [TestMethod]
-    public void KeepingAPictureTellsTheHostWhichBlock_AndThePictureIsTheBlocksSize() => UiThread.Run(() =>
+    public void AndABlockOffersOnlyTheButtonsThatMeanAnythingForIt() => UiThread.Run(() =>
+    {
+        const string source = "```csharp\nvar x = 1;\n```\n\nWords.\n";
+        var code = Verbs(LaidOut(source), Middle(Where(LaidOut(source), source, "var")));
+
+        CollectionAssert.Contains(code, LayoutVerbs.Copy);
+        CollectionAssert.DoesNotContain(code, LayoutVerbs.Save,
+            "a picture of code is a worse copy of the code, and the language says so");
+    });
+
+    [TestMethod]
+    public void AndProseOffersNoPictureEither() => UiThread.Run(() =>
+    {
+        const string source = "Just some words.\n";
+        var engine = LaidOut(source);
+
+        CollectionAssert.DoesNotContain(Verbs(engine, Middle(Where(engine, source, "Just some"))), LayoutVerbs.Save,
+                                        "prose is not a picture of anything");
+    });
+
+    [TestMethod]
+    public void ProseHasNoCornerAtAll() => UiThread.Run(() =>
+    {
+        const string source = "Just some words.\n";
+        var engine = LaidOut(source);
+
+        Assert.AreEqual(0, Verbs(engine, Middle(Where(engine, source, "Just some"))).Count, "a paragraph is read, not handled");
+    });
+
+    [TestMethod]
+    public void ABlockReachesAcrossThePageSoItsCornerCanBeReached() => UiThread.Run(() =>
+    {
+        const string source = "```cs\nvar x = 1;\n```\n";
+        var engine = LaidOut(source);
+        var edge = new Point(engine.Laid.Size.Width - 2, Middle(Where(engine, source, "var")).Y);
+
+        CollectionAssert.Contains(Verbs(engine, edge), LayoutVerbs.Copy,
+                                  "past the end of the code, at the edge the corner stands at, it is still the block's");
+    });
+
+    [TestMethod]
+    public void APicturesCornerCanBeReachedFromTheTopOfThePicture() => UiThread.Run(() =>
+    {
+        // A barcode's bars stand for no characters, so a block found only by where its characters were drawn would be no
+        // taller than the value printed under it — and the corner, at the block's top, would be off the block.
+        var engine = LaidOut("Before.\n\n```barcode\nformat: CODE128\nvalue: 12345\n```\n");
+        var symbol = engine.Laid.Root.SelfAndDescendants().First(piece => piece.Kind == MarkdownPieces.Block && piece.Part is { Length: > 30 });
+
+        CollectionAssert.Contains(Verbs(engine, new Point(engine.Laid.Size.Width - 2, symbol.Bounds.Top + 2)), LayoutVerbs.Copy);
+    });
+
+    [TestMethod]
+    public void APictureOfABlockIsTheSizeThatBlockIsDrawn() => UiThread.Run(() =>
         MarkdownEditorHarness.Run(Document, editor =>
         {
-            var asked = new List<LayoutAct>();
-            editor.Host = new Keeper(asked);
-
             var box = Box(editor, 0);
-            editor.Raise(new LayoutIntent(LayoutVerbs.Save), Middle(box));
-
-            var act = asked.Single();
-            Assert.AreEqual(Kinds.Block, act.Node?.Kind, "the block it was pressed on");
-            StringAssert.StartsWith(act.Node!.Print(), "```mermaid");
-
-            var picture = editor.Picture(act.Node, Brushes.White)!;
+            var picture = editor.CapturePicture(MarkdownEditorHarness.Blocks(editor)[0], Brushes.White)!;
             var scale = VisualTreeHelper.GetDpi(editor).PixelsPerDip;
+
             Assert.AreEqual(Math.Ceiling(box.Width * scale), picture.PixelWidth, 2, "as big as the block is drawn");
             Assert.AreEqual(Math.Ceiling(box.Height * scale), picture.PixelHeight, 2);
         }));
@@ -147,7 +190,7 @@ public class BlockCornerTests
             Assert.IsTrue(box.Width < editor.Shown.Laid.Size.Width - 40,
                           "precondition: the paragraph made the document much wider than the chart");
 
-            var picture = editor.Picture(pie, Brushes.White)!;
+            var picture = editor.CapturePicture(pie, Brushes.White)!;
             var scale = VisualTreeHelper.GetDpi(editor).PixelsPerDip;
 
             Assert.AreEqual(Math.Ceiling(box.Width * scale), picture.PixelWidth, 2, "the chart's width, not the paragraph's");
@@ -159,12 +202,12 @@ public class BlockCornerTests
         MarkdownEditorHarness.Run(Document, editor =>
         {
             var pie = MarkdownEditorHarness.Blocks(editor)[0];
-            var plain = Pixels(editor.Picture(pie, Brushes.White)!);
+            var plain = Pixels(editor.CapturePicture(pie, Brushes.White)!);
 
             editor.Shown.Select(editor.Shown.Markdown.IndexOf("Dogs", StringComparison.Ordinal), 4);
             Assert.IsTrue(editor.Shown.SelectionLength > 0, "precondition: something is chosen");
 
-            CollectionAssert.AreEqual(plain, Pixels(editor.Picture(MarkdownEditorHarness.Blocks(editor)[0], Brushes.White)!),
+            CollectionAssert.AreEqual(plain, Pixels(editor.CapturePicture(MarkdownEditorHarness.Blocks(editor)[0], Brushes.White)!),
                 "a selection is not in the picture");
         }));
 
@@ -331,6 +374,33 @@ public class BlockCornerTests
     /// <summary>The corner's buttons, in the order they stand.</summary>
     private static List<Piece> Buttons(ContentEngine engine) =>
         [.. engine.Corner!.Root.SelfAndDescendants().Where(piece => piece.Acts is not null)];
+
+    /// <summary>A document laid out as a reader is shown it, with the engine that laid it ready to be pointed at.</summary>
+    private static ContentEngine LaidOut(string document, ILayoutActions? host = null)
+    {
+        var engine = new ContentEngine();
+        var element = new MarkdownElement(document, StyleFormat.Dark, host, engine);
+
+        element.Measure(new Size(600, double.PositiveInfinity));
+        element.Arrange(new Rect(element.DesiredSize));
+
+        return engine;
+    }
+
+    /// <summary>
+    /// What the buttons in a corner answer, with the pointer resting where a reader would rest it. Read off what was drawn rather
+    /// than asked of anything, because what a reader can press is what is on the page.
+    /// </summary>
+    private static List<string> Verbs(ContentEngine engine, Point at)
+    {
+        engine.Input(new ContentHover(at));
+
+        return engine.Corner is null ? [] : [.. Buttons(engine).Select(button => button.Acts!.Click!.Value.Verb)];
+    }
+
+    /// <summary>Where the block holding <paramref name="written"/> came out on the page.</summary>
+    private static Rect Where(ContentEngine engine, string document, string written) =>
+        engine.Where(engine.Blocked(document.IndexOf(written, StringComparison.Ordinal))!);
 
     /// <summary>Whether a button is drawn as the one a press would answer.</summary>
     private static bool Outlined(Piece button) =>

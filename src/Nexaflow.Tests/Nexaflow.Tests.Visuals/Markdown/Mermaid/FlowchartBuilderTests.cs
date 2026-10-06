@@ -287,6 +287,33 @@ public class FlowchartBuilderTests : MermaidBuilderContract
                       "and one nothing was found for is the box it would have filled, dashed");
     });
 
+    [TestMethod]
+    public void ALabelAnIdLineGivesANodeIsTypedIntoWhereItIsWritten() => UiThread.Run(() =>
+    {
+        // The words between the quotes are in the document, so they are drawn as themselves and stand for themselves — the same
+        // as a label written in a node's brackets. A label drawn from anything else cannot be typed into, because a caret in it
+        // would be a caret in a string nobody wrote.
+        const string source = "flowchart RL\n  A@{ shape: manual-file, label: \"File Handling\"}\n";
+        var words = Build(source).Root.SelfAndDescendants().First(piece => piece.Words?.Glyphs.Text == "File Handling");
+
+        Assert.IsNotNull(words.Part, "so a press, a selection and a caret all land in the document");
+        Assert.AreEqual("File Handling", source.Substring(words.Part!.Start, words.Part.Length),
+                        "the run between the quotes, which is what a reader typed");
+    });
+
+    [TestMethod]
+    public void AndALabelWrittenAcrossTwoLinesIsOneRunOfWords() => UiThread.Run(() =>
+    {
+        // A quoted label runs to its closing quote wherever that stands. Read a line at a time it is two halves with a statement
+        // boundary through it, and what follows is read as a node of its own — so the chart reads its own source instead.
+        const string source = "flowchart RL\n  A@{ label: \"File\n Handling\"}\n  A --> B\n";
+        var laid = Build(source);
+
+        Assert.IsNotNull(laid.Root.SelfAndDescendants().FirstOrDefault(piece => piece.Words?.Glyphs.Text == "File\n Handling"),
+                         "one run of words, the line ending inside it");
+        Assert.AreEqual(2, Nodes(laid).Count, "and the chart is the two nodes written, not three");
+    });
+
     private static Laid Build(string source, double room = 900) =>
         Laying.Lay("mermaid", source, room);
 

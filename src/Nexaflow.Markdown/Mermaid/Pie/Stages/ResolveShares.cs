@@ -42,7 +42,7 @@ public sealed class ResolveShares(bool writing) : IAstStage
         PieSliceNode Said(ContentNode slice, double worth)
         {
             var wedge = worth > 0;
-            var value = slice.Inner(MermaidKinds.Number);
+            var value = slice.Inner(Kinds.Number);
             var unwritten = writing && slice.Inner(MermaidKinds.Amount) is { Width: 0 };
 
             return new PieSliceNode(slice)
@@ -57,5 +57,5 @@ public sealed class ResolveShares(bool writing) : IAstStage
 
     /// <summary>What a slice's value comes to — nought where none is written, or it is not a number.</summary>
     private static double Worth(ContentNode slice) =>
-        slice.Inner(MermaidKinds.Number) is { Trouble: null, Width: > 0 } number ? MermaidNumber.Read(number.Text) ?? 0 : 0;
+        slice.Inner(Kinds.Number) is { Trouble: null, Width: > 0 } number ? MermaidNumber.Read(number.Text) ?? 0 : 0;
 }

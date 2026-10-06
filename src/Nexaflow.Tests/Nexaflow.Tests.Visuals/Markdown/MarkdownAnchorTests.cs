@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using Nexaflow.Markdown.Mermaid.Flowchart;
+using Nexaflow.Markdown.Prose;
 using Nexaflow.Tests.Fixtures;
 using Nexaflow.Visuals.Text.Markdown;
 using Nexaflow.Visuals.Text.Markdown.Prose;
@@ -47,6 +49,39 @@ public class MarkdownAnchorTests
 
         Press(view, "the web");
         CollectionAssert.AreEqual(new[] { "https://example.com/x" }, handed, "any other link is still the host's");
+    });
+
+    [TestMethod]
+    public void AClickLinesAddressIsHungOnTheNodeItNames() => UiThread.Run(() =>
+    {
+        // Mermaid lets the address be written on a line of its own, so nothing where the node is written says where it leads. The
+        // chart's own reading of itself puts the two together, and puts it there as a link — which is what lets whoever draws a
+        // link, and whoever follows one, do it the same way in every language.
+        var read = new ContentEngine().Read("flowchart", "graph TD\n  a[\"A\"] --> b[\"B\"]\n  click a \"https://example.com\"\n");
+
+        var node = read.Root.SelfAndDescendants()
+            .Where(part => MarkdownLinks.Goes(part.Node) == "https://example.com")
+            .ToList();
+
+        Assert.IsTrue(node.Count > 0, "the node a click line names says where it leads");
+        Assert.IsFalse(node.Any(part => part.Kind == FlowchartKinds.Click),
+            "and the line that said so is not itself the thing that leads there");
+    });
+
+    [TestMethod]
+    public void PressingAChartsNodeGoesWhereItsClickLineSaid() => UiThread.Run(() =>
+    {
+        var handed = new List<string>();
+        var view = new MarkdownSurface();
+        view.LinkNavigate += (_, e) => { handed.Add(e.Url); e.Handled = true; };
+
+        view.Markdown = "```mermaid\nflowchart LR\n  a[\"Apples\"] --> b[\"Bananas\"]\n  click a href \"https://example.com/a\"\n```\n";
+
+        Press(view, "Bananas");
+        Assert.AreEqual(0, handed.Count, "a node no click line names leads nowhere");
+
+        Press(view, "Apples");
+        CollectionAssert.AreEqual(new[] { "https://example.com/a" }, handed, "and one it names is followed like any other link");
     });
 
     [TestMethod]

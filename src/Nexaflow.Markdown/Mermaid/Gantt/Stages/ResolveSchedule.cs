@@ -18,7 +18,7 @@ public sealed class ResolveSchedule : IAstStage
         var format = Last(tree, "dateFormat") ?? MermaidDate.Default;
         var ids = tree.SelfAndDescendants()
             .Where(node => node is { Kind: MermaidKinds.Name, Role: GanttRoles.Id })
-            .Select(node => node.Inner(MermaidKinds.Words)?.Text.Trim() ?? string.Empty)
+            .Select(node => node.Inner(Kinds.Words)?.Text.Trim() ?? string.Empty)
             .Where(id => id.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
         var scheduled = false;

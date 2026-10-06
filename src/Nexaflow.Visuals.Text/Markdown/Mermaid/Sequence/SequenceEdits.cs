@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Sequence;
 using Nexaflow.Visuals.Text.Editing;

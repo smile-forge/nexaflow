@@ -49,7 +49,7 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
 
     private ContentNode Asked(ContentNode node)
     {
-        if (node.Kind != MarkdownKinds.Link) return node;
+        if (node.Kind != Kinds.Link) return node;
 
         foreach (var child in node.Children)
             foreach (var held in child.Children)
@@ -70,7 +70,7 @@ public sealed class WithLinks(Func<string, string, LinkLook?>? asked) : IAstStag
             return node;
         }
 
-        return look is null ? node : AstRewrite.Holding(node, MarkdownKinds.Link, Look, look);
+        return look is null ? node : AstRewrite.Holding(node, Kinds.Link, Look, look);
     }
 
     /// <summary>

@@ -46,7 +46,7 @@ public class MermaidLineTests
             var items = line.Read("line").Children.Single().Children.Where(child => child.Kind == "item").ToList();
 
             Assert.AreEqual(count, items.Count, text);
-            Assert.AreEqual(string.Empty, items[^1].Inner(MermaidKinds.Words)!.Text, $"'{text}': the last is a name still to write");
+            Assert.AreEqual(string.Empty, items[^1].Inner(Kinds.Words)!.Text, $"'{text}': the last is a name still to write");
         }
     }
 
@@ -56,7 +56,7 @@ public class MermaidLineTests
         var line = MermaidLine.Of("12 , 3}");
         line.Amount("value", MermaidNumber.Positive("more than nought"), until: ",}");
 
-        Assert.AreEqual("12", line.Read("line").Inner(MermaidKinds.Number)!.Text);
+        Assert.AreEqual("12", line.Read("line").Inner(Kinds.Number)!.Text);
         Assert.AreEqual(" , 3}", line.Rest);
     }
 

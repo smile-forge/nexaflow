@@ -7,6 +7,7 @@ using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Markdown.Mermaid.Block;
 using Nexaflow.Visuals.Text.Editing;
 using Nexaflow.Markdown.Ast;
+using Nexaflow.Markdown.Editing;
 
 namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Block;
 

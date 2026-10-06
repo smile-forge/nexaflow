@@ -31,7 +31,7 @@ public partial class ExecutableView : UserControl, IPageView
         // Two independent regions on a dependency node: the body carries the module's path and opens
         // it as its own tab; the chip opens the module up in place, told straight to the graph the
         // diagram is bound to.
-        DependencyDiagram.DiagramData    = new ReflectionDataContext(vm);
+        DependencyDiagram.DataSource    = new ReflectionDataContext(vm);
         DependencyDiagram.LinkNavigate  += (_, e) => e.Handled = OnDiagramLink(e.Url);
         DependencyDiagram.Selected      += (_, e) => _vm.SelectDependency(e.Change.Picked.FirstOrDefault(pick => pick.Id is not null)?.Id);
 

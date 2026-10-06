@@ -53,7 +53,7 @@ public sealed class ResolveNumbers(bool numbered) : IAstStage
     }
 
     private static double? Counted(ContentNode stated, string role) =>
-        MermaidNumber.Read(Told(stated, MermaidKinds.Number, role));
+        MermaidNumber.Read(Told(stated, Kinds.Number, role));
 
     /// <summary>What a line says in a kind and a role, wherever it is written inside it — or null where nothing is.</summary>
     private static string? Told(ContentNode stated, string kind, string role) =>
