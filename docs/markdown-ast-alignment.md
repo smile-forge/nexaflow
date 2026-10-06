@@ -6,19 +6,20 @@ own, planned in detail then, and finished before the next one starts.
 
 ## A class and a state diagram keep an address off the thing it applies to
 
-Every language that lets a reader write an address marks it `Roles.Destination`, and the engine reads where a press leads off
-the tree from the part it was drawn from (`ContentEngine.Leads`) — nothing pinned to a piece, so a link is a link in every
-language the same way. Markdown answers because a link node holds its destination, and a reference-style link holds what the
-definition said as a derived `Held` string. A flowchart answers because `ResolveDestinations` hangs a `click` line's address on
-the node it names, and `FlowchartBuilder` reads it back off that node rather than keeping a copy.
+Every language that lets a reader write an address marks it `Roles.Destination`, and what leads somewhere is a `Kinds.Link`
+holding it — the shape prose writes a link in. Whoever draws one reads it off the tree and puts a `LayoutIntent` on what it drew
+(`MarkdownBuilder.Linked`, `FlowchartBuilder.Answers`), so a press is answered by what it landed on rather than by walking the
+tree again. Markdown answers because a link node holds its destination, and a reference-style link holds what the definition
+said as a derived `Held` string. A flowchart answers because `ResolveChart` puts a `click` line's address on the node of the
+graph it names.
 
-Class and state diagrams have the same `click` line and no such stage, so the address stays on a statement of its own and
-nothing above the pressed node says where it leads. **A press on a class or a state link does nothing.** Their tests only assert
-what the builder pinned to the piece, so they pass while the behaviour is gone.
+Class and state diagrams have the same `click` line and no such reading, so the address stays on a statement of its own and
+nothing that is drawn says where it leads. **A press on a class or a state link does nothing.** Their tests only assert what the
+builder pinned to the piece, so they pass while the behaviour is gone.
 
-Each needs the same stage `ResolveDestinations` is: match the node by the name it holds (`MermaidKinds.Name`), not by the role
-it was written under — a link's ends name their nodes under roles of their own — and read the address from inside its quotes,
-where the words carry the role. Then each builder reads it off the node, as the flowchart's now does.
+Each needs what the flowchart has: match the node by the name it holds (`MermaidKinds.Name`), not by the role it was written
+under — a link's ends name their nodes under roles of their own — and read the address from inside its quotes, where the words
+carry the role.
 
 ## Nothing answers a fold
 
@@ -45,6 +46,8 @@ Named first, because the list below is otherwise easy to read as "everything is 
 - **R8 — no builder writes to the AST.** The builders that mutate something during a build mutate a model of their
   own, not the reading they were handed.
 - **R7's accessibility half.** Every language node type is `internal`.
+- **One spelling for a link.** `Kinds.Link` and `Roles.Destination` are shared, so prose, a chart's node and a diagram's
+  box all say where they lead the same way, and `MarkdownLinks.Goes` reads any of them.
 - **The builder seam is enforced.** `Nexaflow.Analyzers.Content` holds builders to one shape and one way of being
   made, with `ContentBuilderAnalyzerTests` behind it.
 
@@ -80,10 +83,10 @@ is safe to carry out: sections 2 and 3 move code that reads half-typed input, an
 stage. A builder walks a finished reading and decides only where things go. R12 and R13 become true, and become
 enforceable.
 
-**Where it stands.** This is the deepest divergence, and it is a pattern rather than a set of slips. At least ten
-diagram builders carry a private reader model of their own — `ArchitectureBuilder`, `BlockBuilder`, `C4Builder`,
-`ClassBuilder`, `ErBuilder`, `FlowchartBuilder`, `RequirementBuilder`, `SequenceBuilder`, `StateBuilder`,
-`VennBuilder` — four of them in a `*Builder.Reading.cs` partial whose name says what it is doing. Those models are
+**Where it stands.** This is the deepest divergence, and it is a pattern rather than a set of slips. Nine diagram
+builders still carry a private reader model of their own — `ArchitectureBuilder`, `BlockBuilder`, `C4Builder`,
+`ClassBuilder`, `ErBuilder`, `RequirementBuilder`, `SequenceBuilder`, `StateBuilder`, `VennBuilder` — five of them in a
+`*Builder.Reading.cs` partial whose name says what it is doing. Those models are
 built by walking the AST and working out what it means, which is stage work sitting in the wrong component. It shows
 up in three concrete ways:
 
@@ -98,6 +101,20 @@ up in three concrete ways:
   falls inside a cell (`LatexBuilder`), whether a part is inside the stretch shown as typed (`MermaidBuilder`) — all
   answered with `<` and `>` on offsets.
 
+**The flowchart is done, and says what the shape of the rest is.** `ResolveChart` reads the chart as the graph it is —
+every node once, what it says, the shape it is drawn as, the subgraph it belongs to, where it leads, and every
+connection by the names of its two ends. `FlowchartBuilder` walks that reading: it keeps no index of its own, works
+nothing out from a `click` line or an `id@{ … }` line, and decides nothing about what the chart holds.
+
+What that taught, and what the shape of this section has to account for: **a stage has no positions**, because a
+derived part stands for no characters at all. So "delete the `.Reading` partial" is not reachable as written. What a
+stage can say is what exists, what it is called, what it says, what it amounts to and what joins what; what is left is
+finding the characters each of those was written as — the mentions of a node by its id, the links in the order they are
+written, the metadata about each. That is position work and not semantics, and it is all that
+`FlowchartBuilder.Reading.cs` still does. The target for each of the remaining nine is the same: a `.Reading` partial
+that resolves positions and decides nothing. Giving a reading a way to name written parts directly would close even
+that, and wants its own section.
+
 **Benefit.** The most of any section, and most of it compounds:
 
 - Those facts become testable without WPF. A stage test asserts what a diagram *means*; today the same assertion needs
@@ -111,9 +128,9 @@ up in three concrete ways:
   builder holding half of its language's semantics cannot.
 
 **Shape.** One diagram at a time, each a self-contained change: name the facts its reader model works out, move them
-into stages saying them in that diagram's own nodes, reduce the builder to placement, delete the `.Reading` partial.
-Roughly ten of these, plus `LatexBuilder`'s cell containment and `MermaidBuilder`'s raw-zone test, which is shared by
-every diagram and so should be done first of the ten.
+into stages saying them in that diagram's own nodes, reduce the builder to resolving positions. Nine of these left,
+plus `LatexBuilder`'s cell containment and `MermaidBuilder`'s raw-zone test, which is shared by every diagram and so
+should come before the rest.
 
 **Depends on.** Section 1, so that a part-migrated language still draws something.
 
@@ -123,21 +140,36 @@ every diagram and so should be done first of the ten.
 Editing handlers name an intent — flatten this note, set this value, insert a row — and the parser spells it. R9
 becomes true, and syntax knowledge exists in exactly one place per language.
 
-**Where it stands.** The read half exists everywhere. The write half is `ContentLanguage.SafeFormatText`, which is
-narrower in three ways: it is implemented by one language (`MermaidParser`), called from one place
-(`ContentEngine.Editing`), and only for the case of words pasted into a part. Everything else is composed by the
-handlers, of which there are twenty-seven. `PieEdits.Configured` is the clearest example: it assembles front-matter
-syntax by concatenating delimiters and newlines, and calls `Print()` on the AST to re-emit the rest of the block.
+**Where it stands.** The read half exists everywhere, and the splice interface now exists too: `ITranspile`, in
+`Nexaflow.Markdown/Editing/`, which a parser implements to be asked about a change before it is written. Three languages
+implement it — `MermaidParser` and `AbcParser`, the pair this section asks the interface to be designed against, and
+`FlowchartParser` — and the engine puts every write marked `ContentWrite.Meant`, words as the reader means them rather
+than as the language spells them, to the parser, instead of only words pasted into a part. `ContentChange.Asks` lets a
+handler decline to spell an edit and ask the engine for the one it would make anyway, which is the first step of a
+handler shrinking to an intent.
 
-What that costs is already measured, and red.
+**A language owns its own parser, and borrows what it needs.** The flowchart reads its own block — `FlowchartParser`,
+named by `Shipped.Diagram` for a flowchart and a swimlane — rather than being read by the kit's shared one, and reuses
+`MermaidParser`'s internals for the frame every Mermaid block shares: the fences, the front matter, the header, the
+accessibility lines, the bindings, a line and its trivia. What it does not share is how a statement ends, because a
+flowchart's does not end at a line: a quoted string spans lines, so `a@{ label: "File\n Handling" }` is one statement
+and the words in it one run. Read line by line it was silently a node called `Handling`. The shape to copy for the next
+language is this one — its own `Parse` and its own `Rewrite`, over shared helpers — not one parser every diagram has to
+fit.
+
+What has not started is the migration this section is actually about. The twenty-four `IOnEdit` handlers still compose
+syntax themselves, and `PieEdits.Configured` is still the clearest example: it assembles front-matter syntax by
+concatenating delimiters and newlines, and calls `Print()` on the AST to re-emit the rest of the block.
+
+What that costs is already measured, and red, and has not moved.
 `DiagramEscapingTests.WhateverIsTypedWhereSomethingIsWrittenTheDiagramStillReads` types every key into every written
 part of every sample diagram and names sixty-two that leave a line the diagram can no longer read — a quote in a C4
 value or a class stereotype, a bracket in a C4 name, a quote in a Sankey label. It is the acceptance test for this
-section.
+section: sixty-two when this plan was written, sixty-two now.
 
 **Benefit.** Escaping and delimiter bugs stop being a thing each handler can get wrong and become a property of the
-language. `SafeFormatText`'s best behaviour — where the part cannot hold what was asked for, nothing is written —
-applies to every edit instead of to pasted words in Mermaid. The twenty-seven handlers shrink to gesture-to-intent
+language. `ITranspile`'s rule — where the part cannot hold what was asked for, nothing is written — applies to every
+edit rather than to pasted words in one language. The twenty-four handlers shrink to gesture-to-intent
 maps, which is both less code and code that can be tested without a parser. And a new gesture, or a new ribbon
 option, stops being a new opportunity to corrupt a document.
 
@@ -232,8 +264,9 @@ the staff are the default's, the staff is the handler's, and neither needs to kn
 ## Order
 
 1. **§1, the engine's stopgap** — held. Nothing waited on it, and everything else is safer for it.
-2. **§2, reading out of the builders** — the deepest, and everything except §3 waits on it. `MermaidBuilder`'s shared
-   raw-zone test first, then one diagram at a time; §4 rides along with Pie.
-3. **§3, the parser's write half** — can run beside §2 once the splice interface is designed.
+2. **§2, reading out of the builders** — the deepest, and everything except §3 waits on it. The flowchart is done;
+   `MermaidBuilder`'s shared raw-zone test next, then one diagram at a time; §4 rides along with Pie.
+3. **§3, the parser's write half** — the splice interface is designed and proved against two languages, so this can
+   run beside §2 now. What is left is the handlers, one language at a time.
 4. **§6's R13 analyzer** — as soon as §2 makes it true for a language, so the next language cannot regress.
 5. **§5, a language in one place** — after §2, and after the WPF-free layout tree is measured and designed.

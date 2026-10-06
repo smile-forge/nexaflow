@@ -107,6 +107,20 @@ by the language before the stages run — lines of the block's own that nobody w
 `Derived` because it is read-only in a way worked-out content is not: it is picked out whole, and there is nowhere in
 it to put the caret (`ContentPart.Supplied`).
 
+**A derived part stands for no characters, and that is what it costs.** It prints as nothing, no offset finds it, and
+it and everything under it begin where the piece they were hung under begins and are no characters long
+(`ContentPart`). So nothing derived can be picked out, hit-tested or typed into. A reading of what content *amounts to*
+is therefore hung beside what was written rather than put in its place, and whoever draws it resolves each thing it
+names back to the written parts, which are what a caret, a selection and an edit all address.
+
+**A language whose subject is not a tree keeps a derived reading of it.** A flowchart is a graph, and a graph does not
+fit a tree: one node is named from several places and each mention is its own characters. So the written tree stays as
+written, in source order, and beside it a derived reading holds the nodes of the chart, each once, and the connections
+between them, each naming its two ends (`FlowchartKinds.Graph`, `ResolveChart`). An entry says which of its mentions
+holds the words drawn, so whoever draws it finds the characters without searching for them; and where a node leads is
+on the node as a `Kinds.Link` holding a `Roles.Destination`, which is the shape prose writes a link in, so whoever
+follows one needs to know nothing about charts.
+
 **R8 — An AST the builder has laid out is finished.** Nothing rewrites it. Editing works from where its parts stand in
 the source, writes the source, and the engine reads it again.
 
@@ -119,9 +133,17 @@ change means.
 
 Nothing outside the parser may compose syntax. An editing handler names an intent — flatten this note, set this
 slice's value, make this run bold — and the parser spells it. Escaping, delimiters, quoting and entity codes are the
-parser's and appear nowhere else. For Mermaid, `MermaidParser.SafeFormatText`: a quote as its entity code and a line
-break as `<br>` between quotes, a line break as a space in a title, only a number in a value. Where the part cannot
-hold what was asked for, nothing is written.
+parser's and appear nowhere else. The write half is `ITranspile`, which a parser implements to be asked about a change
+before it is written. `MermaidParser` spells a quote as its entity code and a line break as `<br>` between quotes, a
+line break as a space in a title, only a number in a value; `FlowchartParser` spells the same, and a line break inside
+a quoted value as the characters that hold one there, and drops from a name whatever a name cannot hold — a space,
+unless the name is a subgraph's own, which is written in words. Where the part cannot hold what was asked for, nothing
+is written — and a language whose parser implements nothing has nothing written into it, because a key that does
+nothing is better than characters spliced into a syntax nothing vouched for.
+
+A language within a kit may own its parser: a flowchart is read by `FlowchartParser` rather than by the shared
+`MermaidParser`, reusing its internals for the frame every Mermaid block shares and reading its own statements, because
+a flowchart's statement does not end where a line does — a quoted value spans lines and is one run of words.
 
 **A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
 change.
