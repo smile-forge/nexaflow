@@ -1,0 +1,59 @@
+{
+  "branch": "claude/mermaid-parser-contract",
+  "nodes": {
+    "flowchart-ast": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartGrammar.cs",
+          "class": "FlowchartGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveLinks.cs",
+          "class": "ResolveLinks"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartConfig.cs",
+          "class": "FlowchartConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveShapes.cs",
+          "class": "ResolveShapes"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/FlowchartParser.cs",
+          "class": "FlowchartParser"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Flowchart/Stages/ResolveChart.cs",
+          "class": "ResolveChart"
+        },
+        {
+          "type": "code",
+          "status": "done",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidShapes.cs",
+          "class": "MermaidShapes",
+          "method": "Wording"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidDiagram.cs",
+          "class": "MermaidDiagrams",
+          "method": "ParserFor"
+        }
+      ]
+    }
+  },
+  "is_empty": false,
+  "changed_sets": 1,
+  "touched_nodes": [
+    "flowchart-ast"
+  ]
+}

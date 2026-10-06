@@ -164,7 +164,9 @@ the curves after it). A piece standing for a stretch nothing is written in yet s
 1. **Read Mermaid's syntax page for it** (`https://mermaid.ai/open-source/syntax/<type>.html`) and support all of it.
 2. **The grammar and its kinds**, reading every line through `MermaidLine`, named in `MermaidDiagrams.Grammar`. Its
    tests derive from `MermaidGrammarContract` and list every construct, and what nobody means to write, in `Blocks`, and
-   the documentation's examples in `DocumentedBlocks`.
+   the documentation's examples in `DocumentedBlocks`. A diagram reading its own statements instead of one line at a
+   time names its parser in `MermaidDiagrams.ParserFor`, and the contract then holds that parser rather than the shared
+   one.
 3. **Stages** for what lines mean together, and `Holds` for where a hole stands while the diagram is written.
 4. **The config**, hung on the block by a stage, and **stages writing the rest** of what the builder needs — a share, a
    place in the order, whether something is listed — so the builder only lays out.

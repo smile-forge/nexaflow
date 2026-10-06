@@ -108,15 +108,13 @@ internal static class Shipped
     {
         var (name, icon, block) = Starting(diagram);
 
-        // A chart reads its own source: a label written between quotes runs to its closing quote wherever that stands, which
-        // nothing handed its lines one at a time can see. Every other diagram is read by the shared reader.
+        // Which parser reads this diagram is MermaidDiagrams.ParserFor's to say, and it says it in one place.
         var chart = diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane;
+        var reads = MermaidDiagrams.ParserFor(diagram);
 
         return new(
             Reads: word => !string.IsNullOrWhiteSpace(word) && MermaidDiagrams.Named(word.Trim()) == diagram,
-            Parser: chart
-                ? static () => static source => ContentParse.Of(Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser.Parse(source))
-                : static () => static source => ContentParse.Of(MermaidParser.Parse(source)),
+            Parser: () => source => ContentParse.Of(reads(source)),
             Stages: static (tree, show) => [.. MermaidPipeline.Of(tree, show.Writing), .. Hosted(show), WordPieces],
             Builder: builder)
             {

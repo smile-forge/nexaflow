@@ -112,6 +112,22 @@ public static class MermaidDiagrams
         _ => null,
     };
 
+    /// <summary>
+    /// What reads a block of this type: the diagram's own parser where it has one, and the shared <see cref="MermaidParser"/>
+    /// otherwise. A flowchart and a swimlane have their own, because a quoted label runs past the end of the line it starts
+    /// on, and a reader handed one line at a time cannot see that.
+    ///
+    /// <para>
+    /// This is the only place that choice is made. The shipped language reads a diagram with what this gives, and so do the
+    /// tests that hold a parser to printing back what was written, so a diagram taking up a parser of its own is read by it
+    /// everywhere at once rather than in the places somebody remembered.
+    /// </para>
+    /// </summary>
+    public static Func<string?, Ast.ContentNode> ParserFor(MermaidDiagram diagram) =>
+        diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane
+            ? Flowchart.FlowchartParser.Parse
+            : MermaidParser.Parse;
+
     private static readonly Pie.PieGrammar Pies = new();
 
     private static readonly Flowchart.FlowchartGrammar Flowcharts = new();

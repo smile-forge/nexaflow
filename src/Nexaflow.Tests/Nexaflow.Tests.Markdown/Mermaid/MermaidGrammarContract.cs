@@ -32,8 +32,8 @@ public abstract class MermaidGrammarContract
     protected IMermaidGrammar Grammar => MermaidDiagrams.Grammar(Diagram)
                                          ?? throw new AssertFailedException($"{Diagram} has no grammar: MermaidDiagrams.Grammar names none.");
 
-    /// <summary>A block parsed as this grammar reads it.</summary>
-    private ContentNode Parsed(string source) => MermaidParser.Parse(source);
+    /// <summary>A block read by the parser its diagram is read by, which for most diagrams is the shared one.</summary>
+    private ContentNode Parsed(string source) => MermaidDiagrams.ParserFor(Diagram)(source);
 
     /// <summary>A block parsed and run through its stages, as this grammar reads it.</summary>
     private ContentNode Reading(string source, bool holes = false) => MermaidStaged.Read(source, holes);

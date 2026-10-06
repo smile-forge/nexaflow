@@ -157,6 +157,18 @@ and the words in it one run. Read line by line it was silently a node called `Ha
 language is this one — its own `Parse` and its own `Rewrite`, over shared helpers — not one parser every diagram has to
 fit.
 
+**The copied frame loop is deliberate.** A diagram with its own parser copies that loop rather than sharing one, and
+that duplication is the point: it is what lets one diagram's editing change without touching any other. Editing is
+where the diagrams genuinely differ — a statement, an id, a label and a style line each mean something different per
+diagram — so a diagram owns the reading of its own statements and pays about sixty copied lines for the frame around
+them. Those lines are not debt, and consolidating them is not an improvement. Rendering is the opposite case: shared
+structure works there, and stays.
+
+**What is shared is the check, not the code.** `MermaidDiagrams.ParserFor` is the single place naming the parser a
+diagram is read by; `Shipped.Diagram` and the test helpers both ask it. `MermaidGrammarContract` reads each block
+through it, so every parser — not only the shared one — is held to printing back exactly what was written, and a
+diagram takes its own parser into its tests the moment it has one.
+
 What has not started is the migration this section is actually about. The twenty-four `IOnEdit` handlers still compose
 syntax themselves, and `PieEdits.Configured` is still the clearest example: it assembles front-matter syntax by
 concatenating delimiters and newlines, and calls `Print()` on the AST to re-emit the rest of the block.

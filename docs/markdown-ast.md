@@ -144,6 +144,8 @@ nothing is better than characters spliced into a syntax nothing vouched for.
 A language within a kit may own its parser: a flowchart is read by `FlowchartParser` rather than by the shared
 `MermaidParser`, reusing its internals for the frame every Mermaid block shares and reading its own statements, because
 a flowchart's statement does not end where a line does — a quoted value spans lines and is one run of words.
+`MermaidDiagrams.ParserFor` names the parser a diagram is read by and is the only place that choice is made, so the
+shipped language and the tests read a block the same way.
 
 **A parser is not a stage.** Where one token stops and the next begins is a fact about the text that no later stage may
 change.
