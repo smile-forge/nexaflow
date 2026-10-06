@@ -49,11 +49,51 @@
           "method": "ParserFor"
         }
       ]
+    },
+    "state-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateGrammar.cs",
+          "class": "StateGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/Stages/ResolveStates.cs",
+          "class": "ResolveStates"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateConfig.cs",
+          "class": "StateConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/State/StateBuilder.cs",
+          "class": "StateBuilder"
+        },
+        {
+          "type": "url",
+          "target": "https://mermaid.js.org/syntax/stateDiagram.html"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/State/StateParser.cs",
+          "class": "StateParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/MermaidDiagram.cs",
+          "class": "MermaidDiagrams",
+          "method": "TranspilerFor"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 1,
+  "changed_sets": 2,
   "touched_nodes": [
-    "flowchart-ast"
+    "flowchart-ast",
+    "state-diagram"
   ]
 }

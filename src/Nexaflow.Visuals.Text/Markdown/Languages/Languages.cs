@@ -108,8 +108,7 @@ internal static class Shipped
     {
         var (name, icon, block) = Starting(diagram);
 
-        // Which parser reads this diagram is MermaidDiagrams.ParserFor's to say, and it says it in one place.
-        var chart = diagram is MermaidDiagram.Flowchart or MermaidDiagram.Swimlane;
+        // Which parser reads this diagram, and which writes back into it, are MermaidDiagrams' to say and nobody else's.
         var reads = MermaidDiagrams.ParserFor(diagram);
 
         return new(
@@ -121,7 +120,7 @@ internal static class Shipped
                 Writable = true,
                 Editing = new DiagramEditing(DiagramEdits.For(diagram)),
                 Bind = MermaidParser.Bind,
-                Transpile = chart ? Transpiles.By<Nexaflow.Markdown.Mermaid.Flowchart.FlowchartParser>() : Transpiles.By<MermaidParser>(),
+                Transpile = MermaidDiagrams.TranspilerFor(diagram),
                 DisplayName = name,
                 Icon = icon,
                 DefaultBlock = block,

@@ -128,6 +128,23 @@ public static class MermaidDiagrams
             ? Flowchart.FlowchartParser.Parse
             : MermaidParser.Parse;
 
+    /// <summary>
+    /// What writes back into a block of this type: the diagram's own transpiler where it has one, and the shared
+    /// <see cref="MermaidParser"/> otherwise.
+    ///
+    /// <para>
+    /// A diagram owns this as soon as a name in it has to be spelled a particular way for the rest of the block to still
+    /// read, which is every diagram whose lines reach a thing by an id. Owning a transpiler is separate from owning a
+    /// reader: a diagram may need one, the other, or both.
+    /// </para>
+    /// </summary>
+    public static Func<Editing.ContentChange, Editing.ContentChange?> TranspilerFor(MermaidDiagram diagram) => diagram switch
+    {
+        MermaidDiagram.Flowchart or MermaidDiagram.Swimlane => Editing.Transpiles.By<Flowchart.FlowchartParser>(),
+        MermaidDiagram.State => Editing.Transpiles.By<State.StateParser>(),
+        _ => Editing.Transpiles.By<MermaidParser>(),
+    };
+
     private static readonly Pie.PieGrammar Pies = new();
 
     private static readonly Flowchart.FlowchartGrammar Flowcharts = new();
