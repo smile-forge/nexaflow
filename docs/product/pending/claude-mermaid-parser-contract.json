@@ -138,12 +138,48 @@
           "class": "C4Parser"
         }
       ]
+    },
+    "class-diagram": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassGrammar.cs",
+          "class": "ClassGrammar"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/Stages/ResolveMembers.cs",
+          "class": "ResolveMembers"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassConfig.cs",
+          "class": "ClassConfig"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassBuilder.cs",
+          "class": "ClassBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Markdown/Mermaid/Class/ClassParser.cs",
+          "class": "ClassParser"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Class/ClassEdits.cs",
+          "class": "ClassEdits",
+          "method": "Renamed"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 5,
   "touched_nodes": [
     "c4",
+    "class-diagram",
     "flowchart-ast",
     "sequence-diagram",
     "state-diagram"
