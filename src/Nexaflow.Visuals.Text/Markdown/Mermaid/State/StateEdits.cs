@@ -14,11 +14,7 @@ internal sealed class StateEdits : IOnEdit
     {
         var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
 
-        // A rename does not carry here yet. The sweep itself is right — AndRenamingAStateCarriesToEveryTransitionThatNamesIt
-        // is written against it — but switching it on raises the backspace floor in DiagramKeyTests from 271 to 274, on the
-        // three names the fork sample writes twice. That sample's tree already gives caret stops on a closing brace and on
-        // the fence, so what the rename lands on there is not yet worth trusting.
-        return change;
+    return change is null ? null : DiagramRenames.AtEveryMention(edit, change, StateRoles.Id);
     }
 
     /// <summary>
