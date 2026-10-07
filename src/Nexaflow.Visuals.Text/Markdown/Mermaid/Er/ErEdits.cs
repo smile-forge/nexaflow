@@ -10,7 +10,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Er;
 internal sealed class ErEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, ErRoles.Id);
+    }
 
     /// <summary>
     /// What is written on a relationship and what an attribute says it is for hold anything but a comment. A name, a class, a type

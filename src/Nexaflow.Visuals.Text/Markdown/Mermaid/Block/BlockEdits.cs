@@ -13,7 +13,12 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Block;
 internal sealed class BlockEdits : IOnEdit
 {
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, BlockRoles.Id);
+    }
 
     /// <summary>
     /// A label is put in quotes to hold a quote, a bracket closing it or a comment. An id, a class and a direction are written bare

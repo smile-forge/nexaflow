@@ -16,7 +16,12 @@ internal sealed class SequenceEdits : IOnEdit
     private const string Never = ":,;<>+@-|/\\%";
 
     /// <inheritdoc/>
-    public ContentChange? Edit(ContentEdit edit) => DiagramWriting.Typed(edit, Escaping);
+    public ContentChange? Edit(ContentEdit edit)
+    {
+        var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
+
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, SequenceRoles.Id);
+    }
 
     /// <summary>
     /// A name holds anything that does not end one — the characters an arrow is written with, and what goes between a message's
