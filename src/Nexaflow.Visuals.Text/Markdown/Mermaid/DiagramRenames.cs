@@ -36,7 +36,6 @@ internal static class DiagramRenames
     /// <param name="role">The role the diagram names the thing by, such as <c>FlowchartRoles.Id</c>.</param>
     public static ContentChange AtEveryMention(ContentEdit edit, ContentChange change, string role)
     {
-        
         // The run being written into, which is not always the one the piece under the caret was drawn from: a thing with
         // a label draws its label and never its name, so a reader typing in the name types where nothing is drawn.
         if (OrdinaryEdits.Written(edit) is not { Kind: Kinds.Words } named || named.Role != role) return change;

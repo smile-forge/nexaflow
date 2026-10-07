@@ -30,9 +30,9 @@ public sealed class StateParser : ITranspile
 
     /// <summary>A change as a state diagram spells it.</summary>
     private static string? Spelled(ContentPart part, string text) =>
-            part.Role is StateRoles.Id or StateRoles.Class
-                ? text.All(StateGrammar.Bare) && !Keyworded(text) ? text : null
-                : MermaidParser.Spelled(part, text);
+        part.Role is StateRoles.Id or StateRoles.Class
+            ? text.All(StateGrammar.Bare) && !Keyworded(text) ? text : null
+            : MermaidParser.Spelled(part, text);
 
         /// <summary>
         /// Whether a name would be read as the word a line is read by. The first word of a line says what kind of line it

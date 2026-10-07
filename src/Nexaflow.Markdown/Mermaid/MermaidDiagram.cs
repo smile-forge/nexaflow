@@ -144,6 +144,7 @@ public static class MermaidDiagrams
         MermaidDiagram.State => Editing.Transpiles.By<State.StateParser>(),
         MermaidDiagram.Sequence => Editing.Transpiles.By<Sequence.SequenceParser>(),
         MermaidDiagram.Class => Editing.Transpiles.By<Class.ClassParser>(),
+        MermaidDiagram.Sankey => Editing.Transpiles.By<Sankey.SankeyParser>(),
         MermaidDiagram.C4 or MermaidDiagram.C4Sequence => Editing.Transpiles.By<C4.C4Parser>(),
         _ => Editing.Transpiles.By<MermaidParser>(),
     };
