@@ -58,12 +58,12 @@ public class StateEditingTests : MermaidEditing
     public void AndRenamingAStateCarriesToEveryTransitionThatNamesIt() => UiThread.Run(() =>
         InADocument((editor, diagram) =>
         {
-            // Still is written three times: as a transition's end, as what is written on it, and as a transition's start.
-            PressPast(diagram, "Still");
+            // Slowing is written as the end of a transition and named again by the note put beside it. A state given a
+            // description draws the description and never its name, so Still is not a name a press can reach at all.
+            PressPast(diagram, "Slowing");
             Write(editor, "s");
 
-            StringAssert.Contains(editor.Markdown, "[*] --> Stills", editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "Stills : Standing there", "what is written on it names the state: " + editor.Markdown);
-            StringAssert.Contains(editor.Markdown, "Stills --> Moving", "and so does the transition out of it: " + editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "Moving --> Slowings", editor.Markdown);
+            StringAssert.Contains(editor.Markdown, "note right of Slowings", "the note names the state it named: " + editor.Markdown);
         }));
 }
