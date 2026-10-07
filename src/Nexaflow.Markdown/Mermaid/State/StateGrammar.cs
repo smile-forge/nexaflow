@@ -104,6 +104,13 @@ public sealed class StateGrammar : IMermaidGrammar
         return ContentNode.Shown(arguments, "Nothing follows stateDiagram — direction LR lays it out.", MermaidRoles.Arguments);
     }
 
+    /// <summary>
+    /// The words a line is read by, matched against the first word of one, ignoring case. A name that is one of these
+    /// cannot be a state's: the line would be read as that kind of line instead of as what was meant.
+    /// </summary>
+    public static readonly string[] Keywords =
+        [StateWord, NoteWord, EndWord, DirectionWord, ClickWord, HideWord, ScaleWord, .. MermaidStyling.Words];
+
     /// <inheritdoc/>
     public ContentNode? Statement(string text)
     {
@@ -112,9 +119,7 @@ public sealed class StateGrammar : IMermaidGrammar
         if (line.Past == '}') return Shut(line);
         if (line.Written.Trim() == Divider) return Divided(line);
 
-        return MermaidLine.Keyword(line.Written, Bare,
-                                   [StateWord, NoteWord, EndWord, DirectionWord, ClickWord, HideWord, ScaleWord,
-                                    .. MermaidStyling.Words]) switch
+        return MermaidLine.Keyword(line.Written, Bare, Keywords) switch
         {
             StateWord => Stated(line),
             NoteWord => Noted(line),

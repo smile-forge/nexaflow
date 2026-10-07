@@ -50,7 +50,10 @@ internal static class DiagramRenames
             if (mention.Kind != Kinds.Words || mention.Role != role) continue;
             if (mention.Start == named.Start || mention.Derived || mention.Text != was) continue;
 
-            writes.Add(new ContentWrite(mention.Start, mention.Length, now));
+            // Meant, so the language's parser spells it: nothing writes into the source without going through the one
+            // thing that knows how. A name the parser refuses there refuses the whole rename, which is the point —
+            // half a rename is worse than none.
+            writes.Add(ContentWrite.Words(mention, mention.Start, mention.Length, now));
 
             // What is written before the caret moves it, and the caret is in the name the reader is typing.
             if (mention.Start < named.Start) caret += now.Length - was.Length;

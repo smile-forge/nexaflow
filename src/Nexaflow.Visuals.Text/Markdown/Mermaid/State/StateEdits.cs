@@ -14,7 +14,7 @@ internal sealed class StateEdits : IOnEdit
     {
         var change = DiagramWriting.Typed(edit, Escaping) ?? OrdinaryEdits.Keyed(edit);
 
-    return change is null ? null : DiagramRenames.AtEveryMention(edit, change, StateRoles.Id);
+        return change is null ? null : DiagramRenames.AtEveryMention(edit, change, StateRoles.Id);
     }
 
     /// <summary>
