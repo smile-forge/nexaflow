@@ -173,14 +173,39 @@
           "method": "Renamed"
         }
       ]
+    },
+    "sankey": {
+      "links": [
+        {
+          "type": "markdown",
+          "status": "done",
+          "doc": "docs/MarkdownSupport.md",
+          "title_path": [
+            "Markdown Support",
+            "Diagrams \u2014 sub-support"
+          ]
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyBuilder.cs",
+          "class": "SankeyBuilder"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/Mermaid/Sankey/SankeyEdits.cs",
+          "class": "SankeyEdits",
+          "method": "Renamed"
+        }
+      ]
     }
   },
   "is_empty": false,
-  "changed_sets": 5,
+  "changed_sets": 6,
   "touched_nodes": [
     "c4",
     "class-diagram",
     "flowchart-ast",
+    "sankey",
     "sequence-diagram",
     "state-diagram"
   ]
