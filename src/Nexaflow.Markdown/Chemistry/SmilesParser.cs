@@ -43,7 +43,7 @@ public static class SmilesParser
             var end = newline < 0 ? source.Length : newline;
             if (end > at && source[end - 1] == '\r') end--;
 
-            lines.Add(Line(source[at..end], source[end..stop], ref started));
+            lines.Add(Line(source[at..end], source[end..stop], ref started, at));
             at = stop;
         }
 
@@ -54,9 +54,10 @@ public static class SmilesParser
     /// One SMILES string, on its own — what a line's molecule is read as, and what anything holding a bare string
     /// rather than a block reads it with.
     /// </summary>
-    public static ContentNode Molecule(string smiles) =>
-        ContentNode.Branch(SmilesKinds.Molecule, new Reader(smiles).Chain(anchored: false, inBranch: false),
-                           SmilesRoles.Molecule);
+    /// <param name="at">Where the first character of <paramref name="smiles"/> stands in the source it was read from.</param>
+    public static ContentNode Molecule(string smiles, int at = 0) =>
+        ContentNode.Branch(SmilesKinds.Molecule, new Reader(smiles, at).Chain(anchored: false, inBranch: false),
+                           SmilesRoles.Molecule, at);
 
     /// <summary>
     /// One line and the characters that ended it. The space either side of what it says is trivia of the line.
@@ -64,7 +65,7 @@ public static class SmilesParser
     /// <param name="started">
     /// Whether anything but a comment has been read yet — the keyword only names the format before it has.
     /// </param>
-    private static ContentNode Line(string body, string terminator, ref bool started)
+    private static ContentNode Line(string body, string terminator, ref bool started, int at)
     {
         var pieces = new List<ContentNode>();
 
@@ -72,29 +73,29 @@ public static class SmilesParser
         var trail = Trailing(body, lead);
         var text = body[lead..(body.Length - trail)];
 
-        if (lead > 0) pieces.Add(Space(body[..lead]));
+        if (lead > 0) pieces.Add(Space(body[..lead], at));
 
         if (text.Length == 0) { }
-        else if (text[0] == '#') pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia));
+        else if (text[0] == '#') pieces.Add(ContentNode.Leaf(Kinds.Comment, text, Roles.Trivia, offset: at + lead));
         else if (!started && text.Equals(Keyword, StringComparison.OrdinalIgnoreCase))
         {
-            pieces.Add(ContentNode.Leaf(SmilesKinds.Header, text, Roles.Name));
+            pieces.Add(ContentNode.Leaf(SmilesKinds.Header, text, Roles.Name, offset: at + lead));
             started = true;
         }
         else
         {
-            pieces.Add(Entry(text));
+            pieces.Add(Entry(text, at + lead));
             started = true;
         }
 
-        if (trail > 0) pieces.Add(Space(body[(body.Length - trail)..]));
-        if (terminator.Length > 0) pieces.Add(Space(terminator));
+        if (trail > 0) pieces.Add(Space(body[(body.Length - trail)..], at + body.Length - trail));
+        if (terminator.Length > 0) pieces.Add(Space(terminator, at + body.Length));
 
-        return ContentNode.Branch(SmilesKinds.Line, pieces);
+        return ContentNode.Branch(SmilesKinds.Line, pieces, offset: at);
     }
 
     /// <summary>A molecule, and the caption after it when one was written.</summary>
-    private static ContentNode Entry(string text)
+    private static ContentNode Entry(string text, int from)
     {
         // A SMILES string has no space and no quote in it, so either ends it — which is what lets a caption be
         // written hard against the molecule and still be a caption.
@@ -102,56 +103,56 @@ public static class SmilesParser
         while (end < text.Length && !char.IsWhiteSpace(text[end]) && text[end] != '"') end++;
 
         if (end == 0)
-            return ContentNode.Shown(text, "A caption needs a SMILES string before it: CCO \"Ethanol\".");
+            return ContentNode.Shown(text, "A caption needs a SMILES string before it: CCO \"Ethanol\".", offset: from);
 
-        var pieces = new List<ContentNode> { Molecule(text[..end]) };
+        var pieces = new List<ContentNode> { Molecule(text[..end], from) };
 
         var at = end;
         var gap = at;
         while (gap < text.Length && char.IsWhiteSpace(text[gap])) gap++;
-        if (gap > at) pieces.Add(Space(text[at..gap]));
+        if (gap > at) pieces.Add(Space(text[at..gap], from + at));
         at = gap;
 
         if (at < text.Length && text[at] == '"')
         {
             var close = text.IndexOf('"', at + 1);
-            pieces.Add(Label(close < 0 ? text[at..] : text[at..(close + 1)], closed: close >= 0));
+            pieces.Add(Label(close < 0 ? text[at..] : text[at..(close + 1)], closed: close >= 0, from + at));
             at = close < 0 ? text.Length : close + 1;
 
             gap = at;
             while (gap < text.Length && char.IsWhiteSpace(text[gap])) gap++;
-            if (gap > at) pieces.Add(Space(text[at..gap]));
+            if (gap > at) pieces.Add(Space(text[at..gap], from + at));
             at = gap;
 
             if (at < text.Length)
-                pieces.Add(ContentNode.Shown(text[at..], "Only a caption in double quotes may follow a molecule."));
+                pieces.Add(ContentNode.Shown(text[at..], "Only a caption in double quotes may follow a molecule.", offset: from + at));
         }
         else if (at < text.Length)
         {
-            pieces.Add(ContentNode.Shown(text[at..], "A caption is written in double quotes: CCO \"Ethanol\"."));
+            pieces.Add(ContentNode.Shown(text[at..], "A caption is written in double quotes: CCO \"Ethanol\".", offset: from + at));
         }
 
-        return ContentNode.Branch(SmilesKinds.Entry, pieces);
+        return ContentNode.Branch(SmilesKinds.Entry, pieces, offset: from);
     }
 
     /// <summary>A caption: its quotes, and what is between them.</summary>
-    private static ContentNode Label(string text, bool closed)
+    private static ContentNode Label(string text, bool closed, int at)
     {
         var inner = closed ? text[1..^1] : text[1..];
 
         var pieces = new List<ContentNode>
         {
             ContentNode.Leaf(Kinds.Token, "\"", Roles.Open,
-                             closed ? null : "This caption is never closed — end it with a double quote."),
+                             closed ? null : "This caption is never closed — end it with a double quote.", at),
         };
 
-        if (inner.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Char, inner, SmilesRoles.Label));
-        if (closed) pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close));
+        if (inner.Length > 0) pieces.Add(ContentNode.Leaf(Kinds.Char, inner, SmilesRoles.Label, offset: at + 1));
+        if (closed) pieces.Add(ContentNode.Leaf(Kinds.Token, "\"", Roles.Close, offset: at + text.Length - 1));
 
-        return ContentNode.Branch(SmilesKinds.Label, pieces, SmilesRoles.Label);
+        return ContentNode.Branch(SmilesKinds.Label, pieces, SmilesRoles.Label, at);
     }
 
-    private static ContentNode Space(string text) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia);
+    private static ContentNode Space(string text, int at) => ContentNode.Leaf(Kinds.Space, text, Roles.Trivia, offset: at);
 
     private static int Leading(string text)
     {
@@ -174,7 +175,7 @@ public static class SmilesParser
     /// A walk along one string. Recursive descent, because a branch is a chain inside round brackets and nests as
     /// deep as it was written.
     /// </summary>
-    private sealed class Reader(string s)
+    private sealed class Reader(string s, int from)
     {
         private int _at;
 
@@ -198,7 +199,7 @@ public static class SmilesParser
                 {
                     if (inBranch) return items;
 
-                    items.Add(ContentNode.Shown(")", "This closes a branch that was never opened."));
+                    items.Add(ContentNode.Shown(")", "This closes a branch that was never opened.", offset: from + _at));
                     _at++;
                     continue;
                 }
@@ -221,7 +222,8 @@ public static class SmilesParser
                     items.Add(ContentNode.Leaf(SmilesKinds.Bond, c.ToString(), SmilesRoles.Bond,
                         !atom ? "A bond has to follow an atom."
                         : !joins ? "A bond has to be followed by an atom."
-                        : null));
+                        : null,
+                        from + _at));
                     _at++;
                     continue;
                 }
@@ -234,7 +236,7 @@ public static class SmilesParser
 
                 if (c == '.')
                 {
-                    items.Add(ContentNode.Leaf(SmilesKinds.Dot, ".", Roles.Separator));
+                    items.Add(ContentNode.Leaf(SmilesKinds.Dot, ".", Roles.Separator, offset: from + _at));
                     atom = false;
                     _at++;
                     continue;
@@ -253,7 +255,7 @@ public static class SmilesParser
                     continue;
                 }
 
-                items.Add(ContentNode.Shown(c.ToString(), $"'{c}' is not part of SMILES."));
+                items.Add(ContentNode.Shown(c.ToString(), $"'{c}' is not part of SMILES.", offset: from + _at));
                 _at++;
             }
 
@@ -267,6 +269,8 @@ public static class SmilesParser
         /// <summary>A side chain: its round brackets and the chain between them.</summary>
         private ContentNode Branch(bool anchored)
         {
+            var opens = _at;
+
             _at++;
             var inner = Chain(anchored: true, inBranch: true);
             var closed = _at < s.Length && s[_at] == ')';
@@ -276,25 +280,29 @@ public static class SmilesParser
                         : inner.Count == 0 ? "This branch is empty."
                         : null;
 
-            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "(", Roles.Open, trouble) };
+            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "(", Roles.Open, trouble, from + opens) };
             pieces.AddRange(inner);
 
             if (closed)
             {
-                pieces.Add(ContentNode.Leaf(Kinds.Token, ")", Roles.Close));
+                pieces.Add(ContentNode.Leaf(Kinds.Token, ")", Roles.Close, offset: from + _at));
                 _at++;
             }
 
-            return ContentNode.Branch(SmilesKinds.Branch, pieces, SmilesRoles.Branch);
+            return ContentNode.Branch(SmilesKinds.Branch, pieces, SmilesRoles.Branch, from + opens);
         }
 
         /// <summary>A ring closure: the bond written before its number, when there is one, and the number.</summary>
         private ContentNode RingBond(bool anchored)
         {
+            var begins = _at;
             var pieces = new List<ContentNode>();
 
             if (IsBond(s[_at]))
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Bond, s[_at++].ToString(), SmilesRoles.Bond));
+            {
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Bond, s[_at].ToString(), SmilesRoles.Bond, offset: from + _at));
+                _at++;
+            }
 
             string? trouble = anchored ? null : "A ring closure has to follow an atom.";
 
@@ -304,17 +312,19 @@ public static class SmilesParser
                 while (digits < 2 && _at + 1 + digits < s.Length && char.IsAsciiDigit(s[_at + 1 + digits])) digits++;
 
                 var number = s.Substring(_at, 1 + digits);
+                var stood = _at;
                 _at += number.Length;
 
                 if (digits < 2) trouble = "A ring number past 9 is written % and two digits: %10.";
-                pieces.Add(ContentNode.Leaf(SmilesKinds.RingNumber, number, SmilesRoles.RingNumber));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.RingNumber, number, SmilesRoles.RingNumber, offset: from + stood));
             }
             else
             {
-                pieces.Add(ContentNode.Leaf(SmilesKinds.RingNumber, s[_at++].ToString(), SmilesRoles.RingNumber));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.RingNumber, s[_at].ToString(), SmilesRoles.RingNumber, offset: from + _at));
+                _at++;
             }
 
-            var ring = ContentNode.Branch(SmilesKinds.RingBond, pieces, SmilesRoles.Ring);
+            var ring = ContentNode.Branch(SmilesKinds.RingBond, pieces, SmilesRoles.Ring, from + begins);
             return trouble is null ? ring : ring.Saying(trouble);
         }
 
@@ -323,6 +333,7 @@ public static class SmilesParser
         /// </summary>
         private ContentNode OrganicAtom(ref bool atom)
         {
+            var begins = _at;
             var c = s[_at];
 
             var two = _at + 1 < s.Length ? s.Substring(_at, 2) : null;
@@ -330,7 +341,7 @@ public static class SmilesParser
             {
                 _at += 2;
                 atom = true;
-                return Atom(two);
+                return Atom(two, from + begins);
             }
 
             var one = c.ToString();
@@ -338,7 +349,7 @@ public static class SmilesParser
             {
                 _at++;
                 atom = true;
-                return Atom(one);
+                return Atom(one, from + begins);
             }
 
             // An element that needs brackets, written without them. Held as the element rather than as its first
@@ -346,18 +357,19 @@ public static class SmilesParser
             if (two is not null && char.IsAsciiLetterUpper(c) && char.IsAsciiLetterLower(two[1]) && Elements.IsElement(two))
             {
                 _at += 2;
-                return ContentNode.Shown(two, $"{two} is written in brackets: [{two}].");
+                return ContentNode.Shown(two, $"{two} is written in brackets: [{two}].", offset: from + begins);
             }
 
             _at++;
             return Elements.IsElement(one)
-                ? ContentNode.Shown(one, $"{one} is written in brackets: [{one}].")
-                : ContentNode.Shown(one, $"'{one}' is not an atom SMILES can write without brackets.");
+                ? ContentNode.Shown(one, $"{one} is written in brackets: [{one}].", offset: from + begins)
+                : ContentNode.Shown(one, $"'{one}' is not an atom SMILES can write without brackets.", offset: from + begins);
         }
 
-        private static ContentNode Atom(string symbol) =>
-            ContentNode.Branch(SmilesKinds.Atom, [ContentNode.Leaf(SmilesKinds.Symbol, symbol, SmilesRoles.Symbol)],
-                               SmilesRoles.Atom);
+        private static ContentNode Atom(string symbol, int at) =>
+            ContentNode.Branch(SmilesKinds.Atom,
+                               [ContentNode.Leaf(SmilesKinds.Symbol, symbol, SmilesRoles.Symbol, offset: at)],
+                               SmilesRoles.Atom, at);
 
         /// <summary>
         /// An atom in square brackets: <c>[</c> isotope? symbol chirality? hydrogens? charge? class? <c>]</c>. One
@@ -365,34 +377,36 @@ public static class SmilesParser
         /// </summary>
         private ContentNode BracketAtom()
         {
+            var begins = _at;
             var close = s.IndexOf(']', _at + 1);
             if (close < 0)
             {
                 var rest = s[_at..];
                 _at = s.Length;
-                return ContentNode.Shown(rest, "This atom is never closed — end it with ].");
+                return ContentNode.Shown(rest, "This atom is never closed — end it with ].", offset: from + begins);
             }
 
             var text = s[_at..(close + 1)];
             _at = close + 1;
 
-            return Bracket(text, out var trouble) is { } atom
+            return Bracket(text, from + begins, out var trouble) is { } atom
                 ? atom
-                : ContentNode.Shown(text, trouble);
+                : ContentNode.Shown(text, trouble, offset: from + begins);
         }
 
-        private static ContentNode? Bracket(string text, out string? trouble)
+        private static ContentNode? Bracket(string text, int at, out string? trouble)
         {
             trouble = null;
             var inside = text[1..^1];
             var i = 0;
+            var inner = at + 1;
 
-            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "[", Roles.Open) };
+            var pieces = new List<ContentNode> { ContentNode.Leaf(Kinds.Token, "[", Roles.Open, offset: at) };
 
             var digits = Run(inside, i, char.IsAsciiDigit);
             if (digits > 0)
             {
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Isotope, inside.Substring(i, digits), SmilesRoles.Isotope));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Isotope, inside.Substring(i, digits), SmilesRoles.Isotope, offset: inner + i));
                 i += digits;
             }
 
@@ -405,7 +419,7 @@ public static class SmilesParser
                 return null;
             }
 
-            pieces.Add(ContentNode.Leaf(SmilesKinds.Symbol, symbol, SmilesRoles.Symbol));
+            pieces.Add(ContentNode.Leaf(SmilesKinds.Symbol, symbol, SmilesRoles.Symbol, offset: inner + i));
             i += symbol.Length;
 
             if (i < inside.Length && inside[i] == '@')
@@ -418,14 +432,14 @@ public static class SmilesParser
                     i += Run(inside, i, char.IsAsciiDigit);
                 }
 
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Chirality, inside[start..i], SmilesRoles.Chirality));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Chirality, inside[start..i], SmilesRoles.Chirality, offset: inner + start));
             }
 
             if (i < inside.Length && inside[i] == 'H')
             {
                 var start = i++;
                 i += Run(inside, i, char.IsAsciiDigit);
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Hydrogens, inside[start..i], SmilesRoles.Hydrogens));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Hydrogens, inside[start..i], SmilesRoles.Hydrogens, offset: inner + start));
             }
 
             if (i < inside.Length && inside[i] is '+' or '-')
@@ -434,7 +448,7 @@ public static class SmilesParser
                 var sign = inside[i++];
                 var more = Run(inside, i, char.IsAsciiDigit);
                 i += more > 0 ? more : Run(inside, i, ch => ch == sign);
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Charge, inside[start..i], SmilesRoles.Charge));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Charge, inside[start..i], SmilesRoles.Charge, offset: inner + start));
             }
 
             if (i < inside.Length && inside[i] == ':')
@@ -448,7 +462,7 @@ public static class SmilesParser
                 }
 
                 i += number;
-                pieces.Add(ContentNode.Leaf(SmilesKinds.Class, inside[start..i], SmilesRoles.Class));
+                pieces.Add(ContentNode.Leaf(SmilesKinds.Class, inside[start..i], SmilesRoles.Class, offset: inner + start));
             }
 
             if (i < inside.Length)
@@ -457,8 +471,8 @@ public static class SmilesParser
                 return null;
             }
 
-            pieces.Add(ContentNode.Leaf(Kinds.Token, "]", Roles.Close));
-            return ContentNode.Branch(SmilesKinds.Atom, pieces, SmilesRoles.Atom);
+            pieces.Add(ContentNode.Leaf(Kinds.Token, "]", Roles.Close, offset: at + text.Length - 1));
+            return ContentNode.Branch(SmilesKinds.Atom, pieces, SmilesRoles.Atom, at);
         }
 
         /// <summary>
