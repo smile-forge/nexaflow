@@ -34,7 +34,7 @@ namespace Nexaflow.Visuals.Text.Markdown.Mermaid.Pie;
 /// caret is.
 /// </para>
 /// </summary>
-internal sealed class PieEdits : IContentLanguage, IOnEdit
+internal sealed class PieEdits : IContentLanguage, IOnEdit, IOnMove
 {
     /// <summary>A slice with nothing written in it yet.</summary>
     private const string Blank = "\"\" : ";
@@ -89,7 +89,6 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit
         EditKind.TabbingBack => Tabbed(edit, forward: false),
         EditKind.Inserting => Inserted(edit),
         EditKind.Choosing => Chosen(edit),
-        EditKind.Dropping => Dropped(edit),
         _ => null,
     };
 
@@ -262,16 +261,21 @@ internal sealed class PieEdits : IContentLanguage, IOnEdit
         Chosen(edit.Root, edit.State) is [var first, ..] ? Before(edit, Line(first)) : null;
 
     /// <summary>
-    /// Chosen slices carried to another row of the legend: put before it where they came from below it, after it where they came from
-    /// above — every slice between given the one that now goes in its place, so no line ending or indent moves. Over a chosen slice,
-    /// or anywhere not a slice, they stay where they are.
+    /// Slices carried and let go on another: that one and the ones carried swap places, and the rest shift over.
+    ///
+    /// <para>
+    /// The stretches a move names are the slices' own lines, each given the line of whichever slice now stands in its
+    /// place — so the order changes and not one character of any slice does. Nothing is written where a slice is let go on
+    /// itself, or on one of the slices being carried.
+    /// </para>
     /// </summary>
-    private static ContentChange? Dropped(ContentEdit edit)
+    public ContentChange? Move(ContentMove move)
     {
-        if (Chosen(edit.Root, edit.State) is not { Count: > 0 } chosen) return null;
-        if (Slice(edit.Part) is not { } over || chosen.Contains(over)) return ContentChange.Stay(edit.State);
+        if (!move.Holds) return null;
+        if (move.Carrying().Where(part => part.Kind == PieKinds.Slice).ToList() is not { Count: > 0 } chosen) return null;
+        if (Slice(move.Part) is not { } over || chosen.Contains(over)) return ContentChange.Stay(move.State);
 
-        var slices = Slices(edit.Root);
+        var slices = Slices(move.Root);
         var order = slices.Where(slice => !chosen.Contains(slice)).ToList();
         var at = order.IndexOf(over) + (slices.IndexOf(over) > slices.IndexOf(chosen[0]) ? 1 : 0);
         order.InsertRange(at, chosen);

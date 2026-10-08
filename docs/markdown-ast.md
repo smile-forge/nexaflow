@@ -378,9 +378,19 @@ ribbon was opened over, the caret on its last line (`MarkdownEdits`). The surfac
 own. Paste is the engine's: it asks whatever shows the content for what is on the clipboard, since a clipboard is the
 application's, and hands the words to the language the caret is in as a pasting edit. What a copy holds is the engine's
 too — only it knows what is picked out and what language that was written in, so a whole block copied carries the picture
-it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked. A drag of what is picked out asks too, over the piece it is let go on (`EditKind.Dropping`);
-a null answer moves the text as anywhere. While whole pieces are chosen — a slice, a node — there is no caret
-(`ContentEngine.ChoseWhole`).
+it draws where its language says one is worth keeping, whether it was Ctrl+C or the block's own corner that asked.
+While whole pieces are chosen — a slice, a node — there is no caret (`ContentEngine.ChoseWhole`).
+
+**A move is its own seam.** Carrying what is picked out and letting it go somewhere else is the engine's gesture — the
+press, the drag, the content laid out as it would read after the drop, and letting go settling exactly what was on
+screen (`ContentEngine.Moving`, `BuildPreview`, `Release`). What it comes to by default is the characters carried,
+emptied from where they were and written in at the drop, which is right for everything whose source is what a reader
+sees. A language says otherwise through **`IOnMove`** (`IContentLanguage.OnMove`), told what is carried and where it is
+being let go (`ContentMove`) rather than left to work either out from the selection — because the case that needs it is
+the one where the stretches carried are not next to one another and what they stand for is a place in a structure: a
+slice of a pie, a column of a matrix, a note of a tune. It answers with a `ContentChange` like every other edit, so
+there is still one path from a gesture to the source. Text arriving from outside is an edit rather than a move, and
+stays one (`EditKind.Dropping`, `ContentEngine.Brought`).
 
 **The rest is shared and comes with the element.** Shift chooses from where the choosing started and Ctrl adds or takes
 back what is pressed (`ContentElement.BeginPointerSelect`); up and down go to the nearest line with somewhere to stand,

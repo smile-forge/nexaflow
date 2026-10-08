@@ -622,6 +622,9 @@ internal static class Shipped
 internal sealed class EditedBy(IOnEdit? onEdit) : IContentLanguage
 {
     public IOnEdit? OnEdit => onEdit;
+
+    /// <summary>And its moves too, where the same handler says anything about one.</summary>
+    public IOnMove? OnMove => onEdit as IOnMove;
 }
 
 /// <summary>What code shows and offers: every character a writer typed, and no picture of it.</summary>

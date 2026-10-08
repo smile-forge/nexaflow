@@ -100,12 +100,48 @@
           }
         ]
       }
+    },
+    "content-moving": {
+      "links": [
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnMove.cs",
+          "class": "IOnMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Editing/IOnMove.cs",
+          "class": "ContentMove"
+        },
+        {
+          "type": "code",
+          "doc": "src/Nexaflow.Visuals.Text/Markdown/ContentEngine.Writing.cs",
+          "class": "ContentEngine",
+          "method": "Moving"
+        }
+      ],
+      "concerns": {
+        "tests": [
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Editing/ContentMoveTests.cs",
+            "class": "ContentMoveTests"
+          },
+          {
+            "type": "code",
+            "doc": "src/Nexaflow.Tests/Nexaflow.Tests.Visuals/Markdown/Mermaid/PieEditingTests.cs",
+            "class": "PieEditingTests",
+            "method": "DraggingAChosenSliceOntoAnotherRowPutsItThere"
+          }
+        ]
+      }
     }
   },
   "is_empty": false,
-  "changed_sets": 4,
+  "changed_sets": 6,
   "touched_nodes": [
     "abc-editing",
+    "content-moving",
     "latex-shown-as-written",
     "markdown-laid-again"
   ]

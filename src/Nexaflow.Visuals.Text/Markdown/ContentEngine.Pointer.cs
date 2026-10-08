@@ -302,33 +302,13 @@ public sealed partial class ContentEngine
         _previewOf = null;
         _previewMoved = default;
 
-        // What the language it is let go in says a drop there is, where it says; otherwise the characters carried, cut and put
-        // back at the offset they are over.
-        var moved = Dropped() is { } dropped
-            ? new Moved(dropped.Source, dropped.Caret, new EditRange(dropped.Caret, 0))
-            : Moving(_dropAt);
-
-        if (moved is not { } carried) return;
+        // What the language it is let go in says a move there is, where it says, and otherwise the characters carried,
+        // emptied and put back at the offset they are over — both of them Moving's to work out (IOnMove).
+        if (Moving(_dropAt) is not { } carried) return;
 
         _previewOf = carried;
         _previewMoved = (carried.Wrote.Start, carried.Wrote.End);
         _preview = LaidOut(new EditState(carried.Source, carried.Caret));
-    }
-
-    /// <summary>
-    /// What the language a drop lands in makes of it, or null where it makes nothing of it — and null too where asking it
-    /// threw, since a drop nothing can be asked about is still a drop of characters, which is what the caller falls back to.
-    /// </summary>
-    private EditState? Dropped()
-    {
-        try
-        {
-            return Edited(EditKind.Dropping, string.Empty, Landing, _dropOver);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private void ClearPreview()

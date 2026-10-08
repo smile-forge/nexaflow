@@ -569,11 +569,28 @@ public sealed partial class ContentEngine
         _state.Selection.Any(range => offset >= range.Start && offset <= range.End);
 
     /// <summary>
-    /// What moving the selected stretches to <paramref name="to"/> would produce: cut out, reinserted at the drop, and the whole
-    /// thing read and built again — whatever the content is, since it works on source text only. Null when nothing is selected,
-    /// or when the drop is inside what is being moved (cutting first would leave nowhere to put it).
+    /// What moving what is picked out to <paramref name="to"/> would produce: the source as it would read, where the caret
+    /// would be, and the stretch the move wrote — which is what the preview is laid out from and what letting go settles.
+    ///
+    /// <para>
+    /// Null when nothing is picked out, when the drop is inside what is being carried (emptying it first would leave
+    /// nowhere to put it), or when the language said a move means nothing there.
+    /// </para>
     /// </summary>
     internal Moved? Moving(int to)
+    {
+        if (Carried(to) is not { Writes.Count: > 0 } change) return null;
+
+        var made = Made(_state, change);
+
+        return new Moved(made.Source, made.Caret, Wrote(change));
+    }
+
+    /// <summary>
+    /// What the language a carry is let go in says the move is (<see cref="IOnMove"/>) — or, where it says nothing, the
+    /// characters carried, emptied from where they were and written in at the drop.
+    /// </summary>
+    private ContentChange? Carried(int to)
     {
         var ranges = _state.Selection
             .Where(range => range.Length > 0 && range.Start >= 0 && range.End <= _state.Source.Length)
@@ -583,34 +600,89 @@ public sealed partial class ContentEngine
         if (ranges.Count == 0) return null;
         if (ranges.Any(range => to > range.Start && to < range.End)) return null;
 
-        var carried = string.Concat(ranges.Select(range => _state.Source.Substring(range.Start, range.Length)));
+        var (piece, part, root) = Reached(Landing, _dropOver);
+        var move = new ContentMove(ranges, to, Landing, piece, part, root);
 
-        // Cut last first, so removing one stretch never moves the offsets of those still to go — the same reason a selection of
-        // several stretches can be deleted at all.
-        var left = _state.Source;
-        foreach (var range in Enumerable.Reverse(ranges)) left = left.Remove(range.Start, range.Length);
-
-        var drop = Math.Clamp(Shift(to, ranges), 0, left.Length);
-
-        return new Moved(
-            string.Concat(left.AsSpan(0, drop), carried, left.AsSpan(drop)),
-            drop + carried.Length,
-            new EditRange(drop, carried.Length));
-
-        // An offset in the source as it stands, read as an offset into what the cut left behind. A stretch wholly in front of it
-        // takes its whole length off; one the offset falls inside takes only the part in front, because the rest of it is still to
-        // come. Left out, that second case runs an offset backwards past a stretch that straddles it.
-        static int Shift(int offset, List<EditRange> cut)
+        // A language that falls over being asked is a language that said nothing: a drop nothing can be asked about is
+        // still a drop of characters, which is what the default is.
+        ContentChange? said;
+        try
         {
-            var shifted = offset;
+            said = (part is null ? null : ContentLanguages.WrittenIn(root)?.Editing.OnMove?.Move(move)) ?? Carrying(move);
+        }
+        catch
+        {
+            said = Carrying(move);
+        }
 
-            foreach (var range in cut)
+        return said;
+    }
+
+    /// <summary>
+    /// A move of characters and nothing else: every carried stretch emptied, and all of them written in at the drop.
+    ///
+    /// <para>
+    /// The writes are offsets into the document as it stands, which the engine makes back to front, so nothing has to be
+    /// shifted here. Where the drop is exactly at the start or the end of a carried stretch the characters go back where
+    /// they came from, and the write that empties that stretch is the write that puts them back — two writes at one offset
+    /// would turn on which of them the engine made first.
+    /// </para>
+    /// <para>
+    /// Written as the characters they are rather than as words to be spelled: they are already this source's own, and a
+    /// language that wants its spelling applied to what arrives says so by answering the move itself.
+    /// </para>
+    /// </summary>
+    private static ContentChange Carrying(ContentMove move)
+    {
+        var carried = move.Text;
+        var writes = new List<ContentWrite>(move.Carried.Count + 1);
+        var dropped = false;
+
+        foreach (var range in move.Carried)
+        {
+            if (!dropped && (move.To == range.Start || move.To == range.End))
             {
-                if (range.End <= offset) shifted -= range.Length;
-                else if (range.Start < offset) shifted -= offset - range.Start;
+                writes.Add(new ContentWrite(range.Start, range.Length, carried));
+                dropped = true;
+                continue;
             }
 
-            return shifted;
+            writes.Add(new ContentWrite(range.Start, range.Length, string.Empty));
         }
+
+        if (!dropped) writes.Add(new ContentWrite(move.To, 0, carried));
+
+        return new ContentChange(writes, Afterwards(writes, move.To) + carried.Length);
+    }
+
+    /// <summary>An offset in the source as it stands, read in the source a set of writes makes of it.</summary>
+    private static int Afterwards(IEnumerable<ContentWrite> writes, int offset) =>
+        offset + writes.Where(write => write.End <= offset).Sum(write => write.Text.Length - write.Length);
+
+    /// <summary>
+    /// The stretch a change wrote, in the source it made: from the first write to the last of them.
+    ///
+    /// <para>
+    /// One stretch rather than several, because what it is for is the accent the carried thing is drawn in while it is
+    /// being carried — and a reader carrying three cells of a matrix is carrying one thing.
+    /// </para>
+    /// </summary>
+    private static EditRange Wrote(ContentChange change)
+    {
+        var ordered = change.Writes.OrderBy(write => write.Start).ToList();
+        var grown = 0;
+        var from = -1;
+        var to = 0;
+
+        foreach (var write in ordered)
+        {
+            var at = write.Start + grown;
+
+            if (from < 0) from = at;
+            to = at + write.Text.Length;
+            grown += write.Text.Length - write.Length;
+        }
+
+        return from < 0 ? default : new EditRange(from, Math.Max(0, to - from));
     }
 }

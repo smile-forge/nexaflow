@@ -80,6 +80,18 @@ public interface IContentLanguage
     /// </para>
     /// </summary>
     Editing.IOnEdit? OnEdit => null;
+
+    /// <summary>
+    /// What a move means in this language's own source, where that is something other than the characters moving — or
+    /// null, which is most languages: what is carried is emptied from where it was and written in at the drop.
+    ///
+    /// <para>
+    /// Asked only of the language a carry is let go in, and for the same reason an edit asks the language it landed in:
+    /// the gesture, the layout under it and the part it was let go on are the same whatever drew them, and which language
+    /// wrote that part is on the syntax tree.
+    /// </para>
+    /// </summary>
+    Editing.IOnMove? OnMove => null;
 }
 
 /// <summary>
