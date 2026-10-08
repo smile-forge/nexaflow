@@ -40,9 +40,9 @@ public sealed class ArchitectureGrammar : IMermaidGrammar
     private const string AlignShape = "An align line shares a row or a column between two services or more: align row db1 db2 db3.";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.Letter, MermaidLine.TitleWord, GroupWord, ServiceWord, JunctionWord, AlignWord) switch
         {

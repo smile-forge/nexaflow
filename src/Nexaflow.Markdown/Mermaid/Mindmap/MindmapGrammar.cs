@@ -22,9 +22,9 @@ public sealed class MindmapGrammar : IMermaidGrammar
     private const string Shape = "A node is its id, its title in brackets, or both: root((mindmap)), id[I am a square], Origins.";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Sees(MermaidOutline.ClassMark)) return MermaidOutline.Decoration(line, MermaidOutline.ClassMark, null, MindmapRoles.Class, MindmapKinds.Class);
         if (line.Sees(MermaidOutline.IconMark)) return MermaidOutline.Decoration(line, MermaidOutline.IconMark, ")", MindmapRoles.Icon, MindmapKinds.Icon);

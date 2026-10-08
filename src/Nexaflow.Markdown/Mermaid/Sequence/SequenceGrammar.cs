@@ -90,19 +90,19 @@ public sealed class SequenceGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: everything a sequence diagram says, it says on a line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
         return ContentNode.Shown(arguments, "Nothing follows sequenceDiagram — it is written on a line of its own.",
-                                 MermaidRoles.Arguments);
+                                 MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.Letter,
                 [MermaidLine.TitleWord, ParticipantWord, ActorWord, CreateWord, DestroyWord, ActivateWord, DeactivateWord,

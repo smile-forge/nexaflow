@@ -25,7 +25,7 @@ public class MermaidLineTests
     [TestMethod]
     public void AListsItemsThatAreMoreThanTheirNamesAreEachAPieceOfTheirOwn()
     {
-        var line = MermaidLine.Of("a[\"Alpha\"], b");
+        var line = MermaidLine.Of("a[\"Alpha\"], b", 0);
         Assert.IsTrue(line.Names(Item, Roles.Element, "id", item: "item"));
 
         var list = line.Read("line").Children.Single();
@@ -40,7 +40,7 @@ public class MermaidLineTests
     {
         foreach (var (text, count) in new[] { ("", 1), ("a, ", 2) })
         {
-            var line = MermaidLine.Of(text);
+            var line = MermaidLine.Of(text, 0);
             Assert.IsTrue(line.Names(Item, Roles.Element, "id", item: "item"), text);
 
             var items = line.Read("line").Children.Single().Children.Where(child => child.Kind == "item").ToList();
@@ -53,7 +53,7 @@ public class MermaidLineTests
     [TestMethod]
     public void ANumberAmongOthersEndsWhereItDoes_TheSpaceBeforeTheNextNotItsOwn()
     {
-        var line = MermaidLine.Of("12 , 3}");
+        var line = MermaidLine.Of("12 , 3}", 0);
         line.Amount("value", MermaidNumber.Positive("more than nought"), until: ",}");
 
         Assert.AreEqual("12", line.Read("line").Inner(Kinds.Number)!.Text);
@@ -63,14 +63,14 @@ public class MermaidLineTests
     [TestMethod]
     public void ASettingIsWhatIsWrittenUpToTheNext_WithWhatIsWrongWithIt()
     {
-        var line = MermaidLine.Of("polygn, x");
+        var line = MermaidLine.Of("polygn, x", 0);
         line.Setting("value", value => value == "polygon" ? null : "no such shape", until: ",");
 
         var setting = line.Read("line").Inner(MermaidKinds.Setting)!;
         Assert.AreEqual("polygn", setting.Text);
         Assert.AreEqual("no such shape", setting.Trouble);
 
-        var empty = MermaidLine.Of(string.Empty);
+        var empty = MermaidLine.Of(string.Empty, 0);
         empty.Setting("value", _ => "never asked");
         Assert.IsNull(empty.Read("line").Inner(MermaidKinds.Setting)!.Trouble, "nothing written yet is still to come");
     }
@@ -78,7 +78,7 @@ public class MermaidLineTests
     [TestMethod]
     public void APieceClosedWithWhatIsWrongWithItCarriesIt()
     {
-        var line = MermaidLine.Of("{1");
+        var line = MermaidLine.Of("{1", 0);
         line.Open();
         line.Token("{", Roles.Open);
 
@@ -135,7 +135,7 @@ public class MermaidLineTests
     [TestMethod]
     public void PropertiesInBracesEndAtTheBrace_AndAQuotedCommaIsPartOfTheValue()
     {
-        var line = MermaidLine.Of("@{ assigned: 'Smith, J', priority: High }");
+        var line = MermaidLine.Of("@{ assigned: 'Smith, J', priority: High }", 0);
         line.Token("@{");
         line.Space();
 
@@ -150,7 +150,7 @@ public class MermaidLineTests
     [TestMethod]
     public void APropertyNobodySetsIsSaidAsWhatThePropertiesAre()
     {
-        var line = MermaidLine.Of("colour: red");
+        var line = MermaidLine.Of("colour: red", 0);
         line.Properties(["assigned"], what: "Metadata");
 
         StringAssert.StartsWith(line.Read("line").SelfAndDescendants().Single(node => node.Trouble is not null).Trouble, "Metadata sets");
@@ -192,7 +192,7 @@ public class MermaidLineTests
         Assert.IsNull(MermaidLine.Keyword("complex-->clear", "complex"), "a hyphen carries a keyword on, for x-axis");
         Assert.IsNull(MermaidLine.Keyword("complexity", Letter, "complex"));
 
-        var line = MermaidLine.Of("complex-->clear");
+        var line = MermaidLine.Of("complex-->clear", 0);
 
         Assert.IsTrue(line.Word("complex", letter: Letter));
         Assert.AreEqual("-->clear", line.Rest);
@@ -215,7 +215,7 @@ public class MermaidLineTests
     [TestMethod]
     public void OptionsWrittenOneAfterAnotherAreEachAPropertyOfTheirOwn()
     {
-        var line = MermaidLine.Of("id: \"Alpha one\" type: HIGHLIGHT tag: \"v1.0\"");
+        var line = MermaidLine.Of("id: \"Alpha one\" type: HIGHLIGHT tag: \"v1.0\"", 0);
 
         Assert.IsTrue(line.Properties(["id", "type", "tag"], what: "A commit", spaced: true));
         Assert.IsTrue(line.Done);

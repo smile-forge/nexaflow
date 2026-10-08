@@ -1,5 +1,6 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Mermaid;
 
@@ -79,6 +80,24 @@ public abstract class MermaidGrammarContract
                 if (!place.Node.IsLeaf) continue;
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text, $"{what}: {place.Node.Kind} at {place.Start}");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in All)
+        {
+            var faults = AstOracle.Faults(source, Parsed(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in All)
+            Assert.AreEqual(source, AstOracle.Reversed(Parsed(source)).Print(), what);
     }
 
     [TestMethod]

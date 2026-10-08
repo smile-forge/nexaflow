@@ -46,9 +46,9 @@ public sealed class GitGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Which way the graph runs, and the colon Mermaid closes its header with: <c>gitGraph LR:</c>.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
         if (MermaidLine.Keyword(line.Written, [.. Ways]) is { } way)
@@ -62,9 +62,9 @@ public sealed class GitGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord, CommitWord, BranchWord, CheckoutWord, SwitchWord, MergeWord, PickWord) switch
         {

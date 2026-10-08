@@ -27,9 +27,9 @@ public sealed class KanbanGrammar : IMermaidGrammar
     private const string Shape = "A column or a card is its id, its title in brackets, or both, and any metadata after: id3[Update the database]@{ assigned: knsv }.";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (line.Sees(MermaidOutline.ClassMark)) return MermaidOutline.Decoration(line, MermaidOutline.ClassMark, null, KanbanRoles.Class, KanbanKinds.Class);
         if (line.Sees(MermaidOutline.IconMark)) return MermaidOutline.Decoration(line, MermaidOutline.IconMark, ")", KanbanRoles.Icon, KanbanKinds.Icon);

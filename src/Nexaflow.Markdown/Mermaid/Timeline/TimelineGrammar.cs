@@ -33,9 +33,9 @@ public sealed class TimelineGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>The way it runs, written after the keyword: <c>timeline TD</c>.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done || MermaidLine.Keyword(line.Written, [.. Ways]) is null) return null;
 
         line.Setting(TimelineRoles.Way, Known);
@@ -43,9 +43,9 @@ public sealed class TimelineGrammar : IMermaidGrammar
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         switch (MermaidLine.Keyword(line.Written, [MermaidLine.TitleWord, SectionWord, DirectionWord]))
         {

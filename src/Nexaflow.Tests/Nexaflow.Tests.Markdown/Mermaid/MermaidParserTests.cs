@@ -1,6 +1,7 @@
 using Nexaflow.Markdown.Ast;
 using Nexaflow.Markdown.Mermaid;
 using Nexaflow.Tests.Fixtures;
+using Nexaflow.Tests.Markdown.Ast;
 
 namespace Nexaflow.Tests.Markdown.Mermaid;
 
@@ -50,6 +51,24 @@ public class MermaidParserTests
                 Assert.AreEqual(source.Substring(place.Start, place.Node.Width), place.Node.Text,
                     $"{what}: {place.Node.Kind} at {place.Start} is not what the source says");
             }
+    }
+
+    [TestMethod]
+    public void EveryPieceSaysWhereItWasRead()
+    {
+        foreach (var (what, source) in MermaidConstructs.Blocks)
+        {
+            var faults = AstOracle.Faults(source, MermaidParser.Parse(source)).ToList();
+
+            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        }
+    }
+
+    [TestMethod]
+    public void AReversedTreeStillPrintsWhatWasWritten()
+    {
+        foreach (var (what, source) in MermaidConstructs.Blocks)
+            Assert.AreEqual(source, AstOracle.Reversed(MermaidParser.Parse(source)).Print(), what);
     }
 
     [TestMethod]

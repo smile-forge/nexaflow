@@ -67,9 +67,9 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>The way the chart is laid out, which every node in it is placed by.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
         line.Setting(FlowchartRoles.Towards, Wayward, until: Stops);
@@ -80,13 +80,13 @@ public sealed class FlowchartGrammar : IMermaidGrammar
         return line.Done
             ? line.Read(FlowchartKinds.Way, MermaidRoles.Arguments)
             : ContentNode.Shown(arguments, "A chart is laid out TB, TD, BT, RL or LR, and nothing else follows the keyword: flowchart LR.",
-                                MermaidRoles.Arguments);
+                                MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, Bare,
                                    [SubgraphWord, EndWord, DirectionWord, LinkStyleWord, ClickWord, .. MermaidStyling.Words]) switch
@@ -356,7 +356,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
             line.Add(ContentNode.Leaf(MermaidKinds.Key, name, Roles.Name,
                                       Metadata.Contains(name, StringComparer.OrdinalIgnoreCase)
                                           ? null
-                                          : $"Metadata sets {string.Join(", ", Metadata.SkipLast(1))} or {Metadata.Last()}, not '{name}'."));
+                                          : $"Metadata sets {string.Join(", ", Metadata.SkipLast(1))} or {Metadata.Last()}, not '{name}'.", line.Begins));
             line.Space();
             line.Token(":");
             line.Space();
@@ -390,7 +390,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
 
             line.Open();
             line.Token("\"", Roles.Open);
-            line.Add(ContentNode.Leaf(Kinds.Words, line.Written[line.At..close], FlowchartRoles.Label));
+            line.Add(ContentNode.Leaf(Kinds.Words, line.Written[line.At..close], FlowchartRoles.Label, offset: line.Begins));
             line.Token("\"", Roles.Close);
             line.Close(MermaidKinds.Quoted, MermaidRoles.Value);
         }
@@ -402,7 +402,7 @@ public sealed class FlowchartGrammar : IMermaidGrammar
             var value = line.Written[line.At..end].TrimEnd();
             if (value.Length == 0) return false;
 
-            line.Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value)));
+            line.Add(ContentNode.Leaf(MermaidKinds.Setting, value, MermaidRoles.Value, MermaidStyle.Trouble(name, value), line.Begins));
         }
 
         if (icon) line.Close(MermaidKinds.Icon, MermaidRoles.Value);

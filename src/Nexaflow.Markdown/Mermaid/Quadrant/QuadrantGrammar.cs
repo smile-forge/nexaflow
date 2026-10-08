@@ -35,9 +35,9 @@ public sealed class QuadrantGrammar : IMermaidGrammar
     public static readonly IReadOnlyList<string> Styles = ["radius", "color", "stroke-color", "stroke-width"];
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, [MermaidLine.TitleWord, XAxis, YAxis, ClassDef, .. Regions]) switch
         {

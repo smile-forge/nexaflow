@@ -39,20 +39,20 @@ public sealed class RadarGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Mermaid allows a colon after <c>radar-beta</c>, and nothing else.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments, comments: false);
+        var line = MermaidLine.Of(arguments, at, comments: false);
 
         return line.Token(":") && line.Done
             ? line.Read(RadarKinds.Colon, MermaidRoles.Arguments)
             : ContentNode.Shown(arguments, "Nothing but a colon follows radar-beta on its line: axes, curves and options go on lines of their own.",
-                                MermaidRoles.Arguments);
+                                MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord, Axis, Curve, Max, Min, Ticks, Graticule, ShowLegend) switch
         {

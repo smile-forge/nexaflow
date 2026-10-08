@@ -57,19 +57,19 @@ public class C4Grammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows the keyword: everything a C4 diagram says, it says on a line of its own.</remarks>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments);
+        var line = MermaidLine.Of(arguments, at);
         if (line.Done) return null;
 
         return ContentNode.Shown(arguments, "Nothing follows a C4 header — it is written on a line of its own.",
-                                 MermaidRoles.Arguments);
+                                 MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text, comments: false);
+        var line = MermaidLine.Of(text, at, comments: false);
 
         // PlantUML's own comment, which an apostrophe opens; a %% comment is every diagram's, and MermaidLine takes it.
         if (line.Written.TrimStart().StartsWith('\'')) return Aside(line, Kinds.Comment, Roles.Trivia);
@@ -77,13 +77,13 @@ public class C4Grammar : IMermaidGrammar
         // The wrapper lines a diagram pasted from PlantUML brings with it.
         if (line.Written.TrimStart() is ['@', ..] or ['!', ..]) return Aside(line, C4Kinds.Aside, C4Roles.Aside);
 
-        var read = MermaidLine.Of(text);
+        var read = MermaidLine.Of(text, at);
 
         if (MermaidLine.Keyword(read.Written, MermaidLine.TitleWord) is not null) return read.Title();
         if (read.Written.Trim() is "}" or "})") return Shutting(read);
         if (Heads(read.Written) is { } name) return Called(read, name);
 
-        if (this.Within is { } within) return within.Statement(text);
+        if (this.Within is { } within) return within.Statement(text, at);
 
         return read.Done ? null : read.Shown(MacroShape);
     }

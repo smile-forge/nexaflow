@@ -33,14 +33,14 @@ public sealed class VennGrammar : IMermaidGrammar
 
     /// <inheritdoc/>
     /// <remarks>Nothing follows <c>venn-beta</c> on its line.</remarks>
-    public ContentNode? Header(string arguments) =>
+    public ContentNode? Header(string arguments, int at) =>
         ContentNode.Shown(arguments, "Nothing follows venn-beta on its line: a title is written on a line of its own.",
-                          MermaidRoles.Arguments);
+                          MermaidRoles.Arguments, at);
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord, Set, Union, Text, Style) switch
         {

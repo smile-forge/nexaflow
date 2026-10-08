@@ -32,19 +32,19 @@ public sealed class XyGrammar : IMermaidGrammar
     public const string Arrow = "-->";
 
     /// <inheritdoc/>
-    public ContentNode? Header(string arguments)
+    public ContentNode? Header(string arguments, int at)
     {
-        var line = MermaidLine.Of(arguments, comments: false);
+        var line = MermaidLine.Of(arguments, at, comments: false);
 
         return (line.Word(Horizontal, XyKinds.Orientation) || line.Word(Vertical, XyKinds.Orientation)) && line.Done
             ? line.Read(XyKinds.Options, MermaidRoles.Arguments)
-            : ContentNode.Shown(arguments, "An xychart runs horizontal or vertical, and nothing else follows it: xychart horizontal.", MermaidRoles.Arguments);
+            : ContentNode.Shown(arguments, "An xychart runs horizontal or vertical, and nothing else follows it: xychart horizontal.", MermaidRoles.Arguments, at);
     }
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, MermaidLine.TitleWord, XAxis, YAxis, Bar, Line) switch
         {

@@ -51,9 +51,9 @@ public sealed class BlockGrammar : IMermaidGrammar
     private const string ArrowShape = "A block arrow says what it says and where it points: id<[\"Label\"]>(right).";
     private const string LinkShape = "A link joins the blocks either side of it: A --> B, or A -- \"X\" --> B.";
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, Bare, [ColumnsWord, EndWord, BlockWord, .. MermaidStyling.Words]) switch
         {

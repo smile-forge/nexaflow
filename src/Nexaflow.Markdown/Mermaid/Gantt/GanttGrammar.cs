@@ -44,9 +44,9 @@ public sealed class GanttGrammar : IMermaidGrammar
     public static readonly IReadOnlyList<string> Weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         return MermaidLine.Keyword(line.Written, [MermaidLine.TitleWord, Section, Click, .. Settings, .. Flags]) switch
         {
@@ -232,7 +232,7 @@ public sealed class GanttGrammar : IMermaidGrammar
                 {
                     var close = Closing(line.Rest);
                     line.Add(ContentNode.Leaf(Kinds.Words, close < 0 ? line.Rest : line.Rest[..close], GanttRoles.Arguments,
-                                              close < 0 ? "A call's arguments are closed with )." : null));
+                                              close < 0 ? "A call's arguments are closed with )." : null, line.Begins));
                     line.Token(")", Roles.Close);
                 }
 

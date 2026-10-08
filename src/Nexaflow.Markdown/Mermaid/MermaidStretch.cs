@@ -21,8 +21,8 @@ namespace Nexaflow.Markdown.Mermaid;
 /// <param name="Unclosed">What is wrong where nothing ends it, which leaves the line that opened it a statement on its own.</param>
 public sealed record MermaidStretch(
     string Kind,
-    Func<string, ContentNode?> Opens,
+    Func<string, int, ContentNode?> Opens,
     Func<string, bool> Ends,
-    Func<string, ContentNode> Inside,
-    Func<string, ContentNode> Ended,
+    Func<string, int, ContentNode> Inside,
+    Func<string, int, ContentNode> Ended,
     string Unclosed);

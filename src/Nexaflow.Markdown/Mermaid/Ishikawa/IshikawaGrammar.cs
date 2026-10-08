@@ -19,19 +19,19 @@ public sealed class IshikawaGrammar : IMermaidGrammar
 {
     /// <inheritdoc/>
     /// <remarks>The event, written on the header line: <c>ishikawa-beta Blurry Photo</c>.</remarks>
-    public ContentNode? Header(string arguments) => Cause(arguments);
+    public ContentNode? Header(string arguments, int at) => Cause(arguments, at);
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text) => Cause(text);
+    public ContentNode? Statement(string text, int at) => Cause(text, at);
 
     /// <inheritdoc/>
     /// <remarks>Only what the front matter asks for.</remarks>
     public IEnumerable<IAstStage> Stages(MermaidBlock block, bool writing) => [new WithConfig<IshikawaConfig>(IshikawaConfig.Read(block.Config))];
 
     /// <summary>A line, as what it says.</summary>
-    private static ContentNode Cause(string text)
+    private static ContentNode Cause(string text, int at)
     {
-        var line = MermaidLine.Of(text, comments: false);
+        var line = MermaidLine.Of(text, at, comments: false);
         line.Words(IshikawaRoles.Says);
         return line.Read(IshikawaKinds.Cause);
     }

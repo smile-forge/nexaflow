@@ -21,9 +21,9 @@ public sealed class SankeyGrammar : IMermaidGrammar
     private const string Shape = "A flow is where it comes from, where it goes and what it is worth: Bio-conversion,Losses,26.862.";
 
     /// <inheritdoc/>
-    public ContentNode? Statement(string text)
+    public ContentNode? Statement(string text, int at)
     {
-        var line = MermaidLine.Of(text);
+        var line = MermaidLine.Of(text, at);
 
         if (!Field(line, SankeyRoles.Source) || !line.Token(",")) return line.Shown(Shape);
         if (!Field(line, SankeyRoles.Target) || !line.Token(",")) return line.Shown(Shape);
