@@ -31,31 +31,31 @@ internal static class AstOracle
     /// only thing that stands for any. A piece made of parts may say, and is held to it where it does; one that does not is a
     /// stage grouping what it was handed, which reads no source and so has nothing to say about it.
     /// </para>
+    /// <para>
+    /// Nothing under a derived piece is asked, for the same reason nothing under one is printed: a stage may hang whatever
+    /// explains something there, and none of it stands for characters anybody wrote.
+    /// </para>
     /// </summary>
     public static IEnumerable<string> Faults(string source, ContentNode tree)
     {
-        foreach (var node in tree.SelfAndDescendants())
+        if (tree.IsDerived) yield break;
+
+        if (tree.Offset is not { } offset)
         {
-            if (node.IsDerived) continue;
-
-            if (node.Offset is not { } offset)
-            {
-                if (node.IsLeaf && node.Width > 0) yield return $"{Named(node)} does not say where it was read from";
-                continue;
-            }
-
-            if (offset < 0 || offset + node.Width > source.Length)
-            {
-                yield return $"{Named(node)} claims {offset}+{node.Width} of {source.Length}";
-                continue;
-            }
-
-            var said = source.Substring(offset, node.Width);
-            var printed = node.Print();
-
-            if (!string.Equals(said, printed, StringComparison.Ordinal))
-                yield return $"{Named(node)} at {offset} prints {Shortened(printed)} where the source says {Shortened(said)}";
+            if (tree.IsLeaf && tree.Width > 0) yield return $"{Named(tree)} does not say where it was read from";
         }
+        else if (offset < 0 || offset + tree.Width > source.Length)
+        {
+            yield return $"{Named(tree)} claims {offset}+{tree.Width} of {source.Length}";
+        }
+        else if (source.Substring(offset, tree.Width) is var said && !string.Equals(said, tree.Print(), StringComparison.Ordinal))
+        {
+            yield return $"{Named(tree)} at {offset} prints {Shortened(tree.Print())} where the source says {Shortened(said)}";
+        }
+
+        foreach (var child in tree.Children)
+            foreach (var fault in Faults(source, child))
+                yield return fault;
     }
 
     /// <summary>What to call a piece in a complaint about it.</summary>

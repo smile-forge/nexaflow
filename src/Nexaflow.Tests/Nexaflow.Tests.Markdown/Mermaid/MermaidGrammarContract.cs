@@ -87,9 +87,12 @@ public abstract class MermaidGrammarContract
     {
         foreach (var (what, source) in All)
         {
-            var faults = AstOracle.Faults(source, Parsed(source)).ToList();
+    foreach (var (stage, tree) in new[] { ("read", Parsed(source)), ("after the stages", Reading(source)) })
+    {
+        var faults = AstOracle.Faults(source, tree).ToList();
 
-            Assert.AreEqual(0, faults.Count, $"{what}\n{string.Join("\n", faults)}");
+        Assert.AreEqual(0, faults.Count, $"{what}, {stage}\n{string.Join("\n", faults)}");
+    }
         }
     }
 
