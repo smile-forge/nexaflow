@@ -235,41 +235,50 @@ public class ContentNode
     }
 
     /// <summary>
-    /// The source this tree stands for, written into <paramref name="text"/> from where it now ends.
+    /// The source this tree stands for, appended to <paramref name="text"/>.
     ///
     /// <para>
-    /// Each piece goes where it says it begins, and one that says nothing follows the piece printed before it. So a stage may
-    /// hand back the pieces it was given in another order, or the same piece in two places, and the source still comes out as
-    /// it was written — which is what makes the order of the tree the language's to choose.
+    /// The pieces go in the order they were read — by what each says of itself, and a piece that says nothing straight after
+    /// the piece it follows in the tree. So a stage may hand back what it was given in any order it likes and the source still
+    /// comes out as it was written, and a piece written into a tree still goes in where it was put rather than being stood on
+    /// by whatever used to be there.
     /// </para>
     /// </summary>
     public void PrintTo(StringBuilder text)
     {
-        var start = text.Length;
-        var shift = start - (this.Offset ?? 0);
-        var at = start;
+        foreach (var leaf in this.Printed()) text.Append(leaf.Text);
+    }
 
-        Written(this);
+    /// <summary>
+    /// The pieces this tree prints as, in the order they print. A piece saying where it was read from is ordered by that; one
+    /// saying nothing keeps its place behind whatever came before it, which is what makes an insertion land where it was put.
+    /// </summary>
+    private List<ContentNode> Printed()
+    {
+        var pieces = new List<(int At, int Order, ContentNode Leaf)>();
+        var order = 0;
+        var last = int.MinValue;
 
-        void Written(ContentNode node)
+        Walked(this);
+
+        pieces.Sort((left, right) => left.At != right.At ? left.At.CompareTo(right.At) : left.Order.CompareTo(right.Order));
+
+        return [.. pieces.Select(piece => piece.Leaf)];
+
+        void Walked(ContentNode node)
         {
             if (node.IsDerived) return;
 
-            if (node.Offset is { } offset) at = offset + shift;
+            if (node.Offset is { } offset) last = offset;
 
             if (!node.IsLeaf)
             {
-                for (var child = 0; child < node.Children.Count; child++) Written(node.Children[child]);
+                for (var child = 0; child < node.Children.Count; child++) Walked(node.Children[child]);
                 return;
             }
 
-            while (text.Length < at) text.Append(' ');
-
-            for (var index = 0; index < node.Text.Length; index++)
-                if (at + index < text.Length) text[at + index] = node.Text[index];
-                else text.Append(node.Text[index]);
-
-            at += node.Text.Length;
+            if (node.Text.Length > 0) pieces.Add((last, order, node));
+            order++;
         }
     }
 
